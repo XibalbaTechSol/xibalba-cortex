@@ -1,0 +1,254 @@
+"""Path C: ingest Claude Code's own session transcript JSONL -- the richest, most complete
+source for "entire session including context window and tool calls." Schema verified against
+real transcript files on this machine before building this (not guessed):
+~/.claude/projects/<project>/<session-uuid>.jsonl.
+
+Unlike Path A (raw API bodies) and Path B (OTLP telemetry), this needs no special env vars --
+Claude Code always writes these as part of normal operation, and there's no redaction to work
+around: this is Claude Code's own persisted state, not a telemetry export.
+
+What it captures, verified against real transcript structure:
+  - `type: "user"` records where `message.content` is a plain string -> a memory, role=user.
+  - `type: "assistant"` records: `message.content` is a list of typed blocks --
+      - `text`/`thinking` blocks -> a memory, role=assistant (block type recorded in metadata;
+        thinking is genuine reasoning trace, not just output, and is worth keeping distinct).
+      - `tool_use` blocks -> an otel_event, kind=span, name=f"tool_call.{tool name}",
+        span_id=the tool_use block's own id.
+  - `type: "user"` records where `message.content` is a list containing `tool_result` blocks
+    (Claude Code represents tool results as user-role messages, the standard Anthropic API
+    convention) -> an otel_event, kind=span, name="tool_result", span_id AND parent_span_id
+    both set to the matching tool_use_id -- a real, unambiguous parent-child span pair, unlike
+    Path A/B's request-file-uuid-vs-response-file-request_id mismatch.
+  - assistant `message.usage` -> an otel_event, kind=metric, name="context_window.tokens" --
+    the direct answer to "context window data": per-turn token composition, not an aggregate.
+
+No truncation cap on tool input/result content, deliberately -- unlike Path A's inherited 60KB
+OTel content limit. This is local disk, not a network export; full fidelity is the actual point
+of this path. Revisit only if disk usage from it becomes a measured problem, not preemptively.
+
+Incremental, not full-rescan: transcripts are append-only and can grow large, so a per-file
+line-offset is tracked in a small state file (`<home>/transcript_ingest_state.json`) --
+re-running only processes lines appended since the last run.
+
+Deduplicates against Path A/Path B via the same `GraphStore.find_memory_id_by_content()` --
+text this transcript captures that either already stored is reused, not tripled.
+"""
+from __future__ import annotations
+
+import argparse
+import json
+from pathlib import Path
+from typing import Any
+
+from .raw_body_ingest import _extract_text
+from .store import GraphStore
+
+_STATE_FILENAME = "transcript_ingest_state.json"
+
+
+def _load_state(home: Path) -> dict[str, int]:
+    state_path = home / _STATE_FILENAME
+    if not state_path.is_file():
+        return {}
+    try:
+        return json.loads(state_path.read_text())
+    except (OSError, json.JSONDecodeError):
+        return {}
+
+
+def _save_state(home: Path, state: dict[str, int]) -> None:
+    (home / _STATE_FILENAME).write_text(json.dumps(state, sort_keys=True, indent=2))
+
+
+def _ingest_user_record(store: GraphStore, rec: dict[str, Any], session_id: str) -> list[dict[str, object]]:
+    message = rec.get("message") or {}
+    content = message.get("content")
+    results: list[dict[str, object]] = []
+
+    if isinstance(content, str):
+        if not content.strip():
+            return results
+        existing = store.find_memory_id_by_content(content)
+        if existing:
+            results.append({"kind": "memory_reused", "id": existing, "role": "user"})
+        else:
+            memory = store.store_memory(
+                content,
+                source={
+                    "kind": "direct_user",
+                    "session_id": session_id,
+                    "role": "user",
+                    "message_id": rec.get("uuid"),
+                    "prompt_id": rec.get("promptId"),
+                    "observed_at": rec.get("timestamp"),
+                },
+                status="candidate",
+                evidence_class="observed_event",
+            )
+            results.append({"kind": "memory", "id": memory["id"], "role": "user"})
+        return results
+
+    if isinstance(content, list):
+        for block in content:
+            if not isinstance(block, dict) or block.get("type") != "tool_result":
+                continue
+            tool_use_id = block.get("tool_use_id")
+            text, _skipped = _extract_text(block.get("content"))
+            store.record_otel_batch(session_id, [{
+                "kind": "span",
+                "name": "tool_result",
+                "span_id": tool_use_id,
+                "parent_span_id": tool_use_id,
+                "attributes": {
+                    "is_error": block.get("is_error", False),
+                    "content": text if text else block.get("content"),
+                },
+            }])
+            results.append({"kind": "otel_event", "name": "tool_result"})
+    return results
+
+
+def _ingest_assistant_record(store: GraphStore, rec: dict[str, Any], session_id: str) -> list[dict[str, object]]:
+    message = rec.get("message") or {}
+    content = message.get("content")
+    usage = message.get("usage")
+    results: list[dict[str, object]] = []
+
+    if isinstance(content, list):
+        for block in content:
+            if not isinstance(block, dict):
+                continue
+            block_type = block.get("type")
+            if block_type in ("text", "thinking"):
+                text = block.get("text") or block.get("thinking") or ""
+                if not text.strip():
+                    continue
+                existing = store.find_memory_id_by_content(text)
+                if existing:
+                    results.append({"kind": "memory_reused", "id": existing, "role": "assistant"})
+                else:
+                    memory = store.store_memory(
+                        text,
+                        source={
+                            "kind": "direct_user",
+                            "session_id": session_id,
+                            "role": "assistant",
+                            "message_id": rec.get("uuid"),
+                            "observed_at": rec.get("timestamp"),
+                            # store_memory auto-collects any unrecognized top-level source key
+                            # into source.metadata itself -- passing block_type directly here
+                            # (not nested under a "metadata" key) is what lands it correctly.
+                            "block_type": block_type,
+                        },
+                        status="candidate",
+                        evidence_class="observed_event",
+                    )
+                    results.append({"kind": "memory", "id": memory["id"], "role": "assistant"})
+            elif block_type == "tool_use":
+                store.record_otel_batch(session_id, [{
+                    "kind": "span",
+                    "name": f"tool_call.{block.get('name')}",
+                    "span_id": block.get("id"),
+                    "attributes": {"tool_name": block.get("name"), "input": block.get("input") or {}},
+                }])
+                results.append({"kind": "otel_event", "name": "tool_use"})
+
+    if isinstance(usage, dict):
+        total = sum(v for v in usage.values() if isinstance(v, int))
+        if total > 0:
+            store.record_otel_batch(session_id, [{
+                "kind": "metric",
+                "name": "context_window.tokens",
+                "value": total,
+                "attributes": usage,
+            }])
+            results.append({"kind": "otel_event", "name": "context_window.tokens"})
+    return results
+
+
+def ingest_transcript(store: GraphStore, transcript_path: Path, *, resume_from_line: int = 0) -> dict[str, object]:
+    """Process one transcript file starting at `resume_from_line`. Pure function over an
+    explicit offset -- state persistence is the caller's job (see `run` below), so this stays
+    directly testable without touching disk for state.
+    """
+    lines = transcript_path.read_text(encoding="utf-8", errors="replace").splitlines()
+    new_lines = lines[resume_from_line:]
+
+    memories = 0
+    reused = 0
+    otel_events = 0
+    skipped_records = 0
+    malformed = 0
+
+    for line in new_lines:
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            rec = json.loads(line)
+        except json.JSONDecodeError:
+            malformed += 1
+            continue
+
+        session_id = rec.get("sessionId")
+        rec_type = rec.get("type")
+        if not session_id or rec_type not in ("user", "assistant"):
+            skipped_records += 1
+            continue
+
+        store.start_session(session_id, retention_tier="verbatim")
+        if rec_type == "user":
+            results = _ingest_user_record(store, rec, session_id)
+        else:
+            results = _ingest_assistant_record(store, rec, session_id)
+
+        for result in results:
+            if result["kind"] == "memory":
+                memories += 1
+            elif result["kind"] == "memory_reused":
+                reused += 1
+            elif result["kind"] == "otel_event":
+                otel_events += 1
+
+    return {
+        "lines_processed": len(new_lines),
+        "resume_from_line": resume_from_line,
+        "new_resume_line": len(lines),
+        "memories_created": memories,
+        "memories_reused": reused,
+        "otel_events_created": otel_events,
+        "skipped_records": skipped_records,
+        "malformed_lines": malformed,
+    }
+
+
+def run(store: GraphStore, home: Path, transcript_path: Path) -> dict[str, object]:
+    """Stateful wrapper: reads/writes the resume offset for `transcript_path` in
+    `<home>/transcript_ingest_state.json` so repeated calls (e.g. polling an in-progress
+    session) only process newly appended lines.
+    """
+    state = _load_state(home)
+    key = str(transcript_path.resolve())
+    resume_from = state.get(key, 0)
+    result = ingest_transcript(store, transcript_path, resume_from_line=resume_from)
+    state[key] = result["new_resume_line"]
+    _save_state(home, state)
+    return result
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--transcript", required=True, type=Path, help="Path to a Claude Code session transcript JSONL")
+    parser.add_argument("--home", required=True, type=Path, help="xibalba-graph-memory profile home")
+    args = parser.parse_args()
+
+    store = GraphStore(args.home)
+    try:
+        result = run(store, args.home, args.transcript)
+        print(json.dumps(result, indent=2))
+    finally:
+        store.close()
+
+
+if __name__ == "__main__":
+    main()

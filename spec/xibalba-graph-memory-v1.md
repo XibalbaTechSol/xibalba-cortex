@@ -340,6 +340,46 @@ mutating history. Two-pass processing inside `otlp_receiver.ingest_log_records` 
 resolved before telemetry events) makes this correct regardless of record order within one
 OTLP export batch, which is not a documented ordering guarantee.
 
+### 4.13 Transcript ingestion (`transcript_ingest`) — Path C, the richest single source
+
+`src/xibalba_graph/transcript_ingest.py` (console script
+`xibalba-graph-memory-transcript-ingest`) ingests Claude Code's own session transcript JSONL
+(`~/.claude/projects/<project>/<session-uuid>.jsonl`) — schema verified by direct structural
+inspection of real transcript files on this machine before building against it, not assumed
+from documentation. This is the most complete of the three paths for "an entire session
+including context window and tool calls," for three structural reasons Paths A/B don't share:
+
+- **No env vars, no redaction.** Claude Code always writes these locally as part of normal
+  operation; nothing needs to be opted into upstream, unlike `OTEL_LOG_USER_PROMPTS`/
+  `OTEL_LOG_ASSISTANT_RESPONSES`/`OTEL_LOG_RAW_API_BODIES`.
+- **Tool calls have an unambiguous correlation key.** A `tool_use` block's `id` matches its
+  `tool_result` block's `tool_use_id` directly — no request-file-uuid-vs-response-file-
+  request_id mismatch like Path A's. Both become `otel_events` (`kind=span`), sharing that id
+  as `span_id`/`parent_span_id`, a real parent-child span pair.
+- **Context window data is native, not inferred.** Every assistant record's `message.usage`
+  (`input_tokens`, `output_tokens`, `cache_creation_input_tokens`, `cache_read_tokens`) becomes
+  an `otel_events` row (`kind=metric`, `name="context_window.tokens"`) — the actual composition
+  of the context window at that specific turn, not a session-level aggregate.
+
+Routing: `user`-type records with plain-string content and `assistant`-type `text`/`thinking`
+content blocks become memories (`thinking` tagged via `source.metadata.block_type` — genuine
+reasoning trace, kept distinct from output text, not discarded). `tool_use`/`tool_result`
+blocks and per-turn token usage become `otel_events`, never memories — consistent with every
+other ingestion path's rule that structured/non-LLM-text data doesn't belong in `memories`.
+
+**No content truncation cap, deliberately — unlike Path A's inherited 60KB OTel limit.** This
+is local disk, not a network export; full fidelity is the actual point of this path. Revisit
+only if disk usage becomes a measured problem, not preemptively.
+
+**Incremental, not full-rescan.** Transcripts are append-only and can grow large;
+`<home>/transcript_ingest_state.json` tracks a per-file line offset so repeated runs (e.g.
+polling an in-progress session) only process newly appended lines.
+
+**Deduplicates against Path A/Path B the same way they dedupe against each other** — via
+`GraphStore.find_memory_id_by_content()`. Whichever path captures a given piece of text first
+wins the memory row; later paths reuse it and attach their own evidence via `otel_events`
+rather than creating a third copy.
+
 ## 5. Lifecycle operations
 
 ### 5.1 Supersession
