@@ -31,6 +31,8 @@ async def test_all_tools_are_advertised(store):
         "memory_remember",
         "memory_recall",
         "memory_embed",
+        "memory_attach",
+        "memory_list_attachments",
         "memory_get",
         "memory_supersede",
         "memory_contradict",
@@ -174,3 +176,32 @@ async def test_vault_inspect_tool_reports_not_found_for_absent_vault(store, tmp_
     payload = _dict_result(result)
     assert payload["found"] is False
     assert payload["anchored"] is False
+
+
+@pytest.mark.asyncio
+async def test_attach_and_list_through_mcp(store, tmp_path):
+    remembered = await server.server.call_tool(
+        "memory_remember",
+        {
+            "content": "Screenshot of the dashboard error state.",
+            "source": {"kind": "direct_user", "locator": "hermes://session/mcp-attach"},
+            "status": "confirmed",
+        },
+    )
+    memory = _dict_result(remembered)
+
+    fake_png = tmp_path / "dashboard.png"
+    fake_png.write_bytes(b"\x89PNG\r\n\x1a\nfake png bytes" * 50)
+
+    attached = await server.server.call_tool(
+        "memory_attach",
+        {"memory_id": memory["id"], "file_path": str(fake_png), "media_type": "image/png"},
+    )
+    attachment = _dict_result(attached)
+    assert attachment["media_type"] == "image/png"
+    assert attachment["memory_id"] == memory["id"]
+
+    listed = await server.server.call_tool(
+        "memory_list_attachments", {"memory_id": memory["id"]}
+    )
+    assert [item["id"] for item in _list_result(listed)] == [attachment["id"]]

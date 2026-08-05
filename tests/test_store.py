@@ -1,6 +1,7 @@
 import os
 import sqlite3
 import re
+from pathlib import Path
 
 import pytest
 
@@ -316,4 +317,62 @@ def test_restore_refuses_corrupt_backup(tmp_path):
 
     # Store must still be fully functional -- restore failed before touching the live connection.
     assert len(store.search("Untouched if restore is refused")) == 1
+    store.close()
+
+
+def test_attach_media_stores_content_addressed_blob_and_dedupes(tmp_path):
+    store = GraphStore(tmp_path / "graph")
+    memory = store.store_memory(
+        "Screenshot of the login page showing a broken layout.",
+        source={"kind": "direct_user", "locator": "hermes://session/screenshot"},
+        status="confirmed",
+    )
+    fake_png = tmp_path / "screenshot.png"
+    fake_png.write_bytes(b"\x89PNG\r\n\x1a\nfake png bytes for testing" * 100)
+
+    attachment = store.attach_media(memory["id"], fake_png, media_type="image/png")
+    assert attachment["memory_id"] == memory["id"]
+    assert attachment["media_type"] == "image/png"
+    assert attachment["byte_size"] == fake_png.stat().st_size
+    blob_path = Path(attachment["storage_locator"])
+    assert blob_path.is_file()
+    assert os.stat(blob_path).st_mode & 0o777 == 0o600
+    assert blob_path.read_bytes() == fake_png.read_bytes()
+
+    other_memory = store.store_memory(
+        "A second memory citing the exact same screenshot.",
+        source={"kind": "direct_user", "locator": "hermes://session/screenshot-2"},
+        status="confirmed",
+    )
+    second_attachment = store.attach_media(other_memory["id"], fake_png, media_type="image/png")
+    assert second_attachment["storage_locator"] == attachment["storage_locator"]  # deduped
+    assert second_attachment["content_hash"] == attachment["content_hash"]
+
+    listed = store.list_attachments(memory["id"])
+    assert [item["id"] for item in listed] == [attachment["id"]]
+    assert store.get_attachment(attachment["id"]) == attachment
+    assert store.memory_events(memory["id"])[-1]["event_type"] == "attach_media"
+    store.close()
+
+
+def test_attach_media_guesses_type_and_enforces_size_cap(tmp_path):
+    store = GraphStore(tmp_path / "graph")
+    memory = store.store_memory(
+        "A recording of the incident.",
+        source={"kind": "direct_user", "locator": "hermes://session/recording"},
+        status="confirmed",
+    )
+
+    untyped = tmp_path / "clip.mp3"
+    untyped.write_bytes(b"fake mp3 bytes")
+    attachment = store.attach_media(memory["id"], untyped)
+    assert attachment["media_type"] == "audio/mpeg"
+
+    oversized = tmp_path / "huge.bin"
+    oversized.write_bytes(b"x" * 2048)
+    with pytest.raises(ValueError, match="max_bytes"):
+        store.attach_media(memory["id"], oversized, max_bytes=1024)
+
+    with pytest.raises(FileNotFoundError):
+        store.attach_media(memory["id"], tmp_path / "does-not-exist.png")
     store.close()

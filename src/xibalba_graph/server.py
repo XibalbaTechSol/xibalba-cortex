@@ -101,6 +101,26 @@ def memory_embed(
 
 
 @server.tool()
+def memory_attach(
+    memory_id: str, file_path: str, media_type: str | None = None
+) -> dict[str, object]:
+    """Attach a screenshot, recording, or other binary artifact to a memory.
+
+    Stored content-addressed on disk, never as a SQLite BLOB. `file_path` must already exist
+    locally (e.g. a screenshot already saved by a browser tool) -- this does not accept raw
+    bytes over the protocol. The memory's own text content should already describe/caption the
+    artifact; raw pixels/audio are not searchable in v1.
+    """
+    return get_store().attach_media(memory_id, file_path, media_type=media_type)
+
+
+@server.tool()
+def memory_list_attachments(memory_id: str) -> list[dict[str, object]]:
+    """List all attachments on a memory."""
+    return get_store().list_attachments(memory_id)
+
+
+@server.tool()
 def memory_get(memory_id: str) -> dict[str, object]:
     """Fetch one memory by id, including current status and provenance."""
     return get_store().get_memory(memory_id)

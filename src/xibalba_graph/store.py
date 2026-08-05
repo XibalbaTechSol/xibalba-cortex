@@ -3,7 +3,9 @@ from __future__ import annotations
 import os
 import hashlib
 import json
+import mimetypes
 import re
+import shutil
 import sqlite3
 import threading
 import uuid
@@ -12,6 +14,10 @@ from pathlib import Path
 import sqlite_vec
 
 _SCHEMA_VERSION = 1
+
+# Generous default cap on a single attachment -- not a policy decision, just a guard against
+# accidentally ingesting something absurd (e.g. a whole video library) into the blob store.
+_DEFAULT_MAX_ATTACHMENT_BYTES = 200 * 1024 * 1024
 
 # Pinned per the Phase 0 embedding-model spike (docs/architecture/advanced-memory.md addendum):
 # BAAI/bge-small-en-v1.5, 384-dim. The dimension is baked into the vec0 virtual table at create
@@ -138,7 +144,7 @@ CREATE TABLE IF NOT EXISTS memory_events (
     memory_id TEXT NOT NULL REFERENCES memories(id),
     event_type TEXT NOT NULL CHECK (event_type IN (
         'create', 'confirm', 'contradict', 'supersede',
-        'quarantine', 'forget', 'restore'
+        'quarantine', 'forget', 'restore', 'attach_media'
     )),
     detail_json TEXT NOT NULL DEFAULT '{}',
     node_id TEXT NOT NULL,
@@ -155,6 +161,18 @@ CREATE TABLE IF NOT EXISTS contradictions (
     reason TEXT,
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+
+CREATE TABLE IF NOT EXISTS attachments (
+    id TEXT PRIMARY KEY,
+    memory_id TEXT NOT NULL REFERENCES memories(id) ON DELETE CASCADE,
+    media_type TEXT NOT NULL,
+    content_hash TEXT NOT NULL,
+    byte_size INTEGER NOT NULL,
+    storage_locator TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_attachments_memory_id ON attachments(memory_id);
 
 CREATE TABLE IF NOT EXISTS embeddings_meta (
     memory_id TEXT PRIMARY KEY REFERENCES memories(id) ON DELETE CASCADE,
@@ -674,6 +692,104 @@ class GraphStore:
                 self._connection.execute("ROLLBACK")
                 raise
         return {"memory_id": memory_id, "model_id": model_id, "dim": EMBEDDING_DIM}
+
+    def attach_media(
+        self,
+        memory_id: str,
+        file_path: str | Path,
+        *,
+        media_type: str | None = None,
+        max_bytes: int = _DEFAULT_MAX_ATTACHMENT_BYTES,
+    ) -> dict[str, object]:
+        """Attach a screenshot, recording, or other binary artifact to a memory.
+
+        Stored content-addressed on disk (`<home>/blobs/sha256/<hash>`), never as a SQLite BLOB
+        -- keeps the canonical DB file small and fast, and reuses the same content-addressing
+        convention as content_hash/node_id/leaf_hash elsewhere in this system. Identical bytes
+        dedupe for free. The memory's own `content` stays text (a caption/description/transcript
+        the calling agent supplies) -- raw pixels/audio are not searchable in v1, same
+        agent-side-extraction principle already applied to embeddings.
+        """
+        self.get_memory(memory_id)  # raises KeyError if missing
+        source_path = Path(file_path).expanduser().resolve()
+        if not source_path.is_file():
+            raise FileNotFoundError(source_path)
+
+        byte_size = source_path.stat().st_size
+        if byte_size > max_bytes:
+            raise ValueError(
+                f"attachment is {byte_size} bytes, exceeds max_bytes={max_bytes}"
+            )
+
+        digest = hashlib.sha256()
+        with source_path.open("rb") as f:
+            for chunk in iter(lambda: f.read(1024 * 1024), b""):
+                digest.update(chunk)
+        content_hash = "sha256:" + digest.hexdigest()
+
+        if media_type is None:
+            guessed, _ = mimetypes.guess_type(str(source_path))
+            media_type = guessed or "application/octet-stream"
+
+        blob_dir = self.home / "blobs" / "sha256" / digest.hexdigest()[:2]
+        blob_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
+        blob_path = blob_dir / digest.hexdigest()
+        if not blob_path.exists():
+            shutil.copyfile(source_path, blob_path)
+            os.chmod(blob_path, 0o600)
+
+        attachment_id = str(uuid.uuid4())
+        with self._lock:
+            self._connection.execute("BEGIN IMMEDIATE")
+            try:
+                self._connection.execute(
+                    """
+                    INSERT INTO attachments(
+                        id, memory_id, media_type, content_hash, byte_size, storage_locator
+                    ) VALUES (?, ?, ?, ?, ?, ?)
+                    """,
+                    (attachment_id, memory_id, media_type, content_hash, byte_size, str(blob_path)),
+                )
+                self._append_event(
+                    memory_id,
+                    "attach_media",
+                    {
+                        "attachment_id": attachment_id,
+                        "media_type": media_type,
+                        "content_hash": content_hash,
+                        "byte_size": byte_size,
+                    },
+                )
+                self._connection.execute("COMMIT")
+            except Exception:
+                self._connection.execute("ROLLBACK")
+                raise
+        return self.get_attachment(attachment_id)
+
+    def get_attachment(self, attachment_id: str) -> dict[str, object]:
+        with self._lock:
+            row = self._connection.execute(
+                "SELECT * FROM attachments WHERE id = ?", (attachment_id,)
+            ).fetchone()
+        if row is None:
+            raise KeyError(attachment_id)
+        return {
+            "id": row["id"],
+            "memory_id": row["memory_id"],
+            "media_type": row["media_type"],
+            "content_hash": row["content_hash"],
+            "byte_size": row["byte_size"],
+            "storage_locator": row["storage_locator"],
+            "created_at": row["created_at"],
+        }
+
+    def list_attachments(self, memory_id: str) -> list[dict[str, object]]:
+        with self._lock:
+            rows = self._connection.execute(
+                "SELECT id FROM attachments WHERE memory_id = ? ORDER BY created_at, id",
+                (memory_id,),
+            ).fetchall()
+        return [self.get_attachment(row["id"]) for row in rows]
 
     def supersede_memory(
         self,
