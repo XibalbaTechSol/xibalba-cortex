@@ -37,6 +37,8 @@ async def test_all_tools_are_advertised(store):
         "memory_session_end",
         "memory_session_get",
         "memory_session_memories",
+        "memory_record_otel_batch",
+        "memory_session_otel_summary",
         "memory_get",
         "memory_supersede",
         "memory_contradict",
@@ -261,3 +263,32 @@ def test_identity_mode_env_var_is_read_by_default_config(monkeypatch):
     assert server._identity_mode() == "full"
     monkeypatch.delenv("XIBALBA_GRAPH_MEMORY_IDENTITY_MODE")
     assert server._identity_mode() == "pseudonymous"
+
+
+@pytest.mark.asyncio
+async def test_otel_batch_and_summary_through_mcp(store):
+    await server.server.call_tool(
+        "memory_session_start", {"external_session_id": "sess-otel-mcp"}
+    )
+
+    recorded = await server.server.call_tool(
+        "memory_record_otel_batch",
+        {
+            "external_session_id": "sess-otel-mcp",
+            "events": [
+                {"kind": "metric", "name": "claude_code.token.usage", "value": 500,
+                 "attributes": {"type": "input"}},
+                {"kind": "metric", "name": "claude_code.token.usage", "value": 120,
+                 "attributes": {"type": "output"}},
+                {"kind": "span", "name": "tool_call", "trace_id": "t1"},
+            ],
+        },
+    )
+    assert _dict_result(recorded) == {"session_id": "sess-otel-mcp", "recorded": 3}
+
+    summary = await server.server.call_tool(
+        "memory_session_otel_summary", {"external_session_id": "sess-otel-mcp"}
+    )
+    payload = _dict_result(summary)
+    assert payload["counts_by_kind"] == {"span": 1, "metric": 2, "log": 0}
+    assert payload["metric_totals"]["claude_code.token.usage"]["total"] == 620.0

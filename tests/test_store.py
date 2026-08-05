@@ -495,3 +495,48 @@ def test_identity_mode_omit_never_stores_agent_id_regardless_of_input(tmp_path):
 def test_invalid_identity_mode_is_rejected_at_construction(tmp_path):
     with pytest.raises(ValueError, match="identity_mode"):
         GraphStore(tmp_path / "graph", identity_mode="anonymous-ish")
+
+
+def test_otel_batch_ingestion_and_summary(tmp_path):
+    store = GraphStore(tmp_path / "graph")
+    store.start_session("sess-otel", retention_tier="verbatim")
+
+    result = store.record_otel_batch("sess-otel", [
+        {
+            "kind": "span", "name": "tool_call", "trace_id": "t1", "span_id": "s1",
+            "start_time": "2026-08-05T09:00:00Z", "end_time": "2026-08-05T09:00:01Z",
+            "attributes": {"mcp_tool.name": "memory_remember"},
+        },
+        {"kind": "metric", "name": "claude_code.token.usage", "value": 1200, "unit": "tokens",
+         "attributes": {"type": "input"}},
+        {"kind": "metric", "name": "claude_code.token.usage", "value": 340, "unit": "tokens",
+         "attributes": {"type": "output"}},
+        {"kind": "metric", "name": "claude_code.cost.usage", "value": 0.0231, "unit": "USD"},
+        {"kind": "log", "name": "claude_code.api_request", "attributes": {"duration_ms": 842}},
+    ])
+    assert result == {"session_id": "sess-otel", "recorded": 5}
+
+    summary = store.session_otel_summary("sess-otel")
+    assert summary["counts_by_kind"] == {"span": 1, "metric": 3, "log": 1}
+    assert summary["metric_totals"]["claude_code.token.usage"]["total"] == 1540.0
+    assert summary["metric_totals"]["claude_code.token.usage"]["count"] == 2
+    assert summary["metric_totals"]["claude_code.cost.usage"]["total"] == 0.0231
+    store.close()
+
+
+def test_otel_batch_rejects_unknown_session_and_bad_events(tmp_path):
+    store = GraphStore(tmp_path / "graph")
+    with pytest.raises(KeyError):
+        store.record_otel_batch("never-started", [{"kind": "span", "name": "x"}])
+
+    store.start_session("sess-otel")
+    with pytest.raises(ValueError, match="invalid otel event kind"):
+        store.record_otel_batch("sess-otel", [{"kind": "bogus", "name": "x"}])
+    with pytest.raises(ValueError, match="name is required"):
+        store.record_otel_batch("sess-otel", [{"kind": "span", "name": ""}])
+
+    # A rejected batch must not partially commit -- verify nothing landed from the bad batch.
+    assert store.session_otel_summary("sess-otel")["counts_by_kind"] == {
+        "span": 0, "metric": 0, "log": 0
+    }
+    store.close()

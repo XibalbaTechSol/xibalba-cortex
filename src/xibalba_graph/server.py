@@ -184,6 +184,32 @@ def memory_session_memories(external_session_id: str) -> list[dict[str, object]]
 
 
 @server.tool()
+def memory_record_otel_batch(
+    external_session_id: str, events: list[dict[str, object]]
+) -> dict[str, object]:
+    """Plug-and-play OTel ingestion: pipe the same span/metric/log export an SDK already sends
+    to the Integrity Oracle's OTLP receiver straight in here too, no translation needed --
+    same shape as its otel_spans/otel_metrics/otel_logs tables.
+
+    Each event: {"kind": "span"|"metric"|"log", "name": str, plus whichever of trace_id,
+    span_id, parent_span_id, value, unit, start_time, end_time, attributes apply}.
+
+    Never signed, never anchored, never feeds any scoring -- this is purely a local, private
+    diagnostic mirror for the operator's own querying, distinct from the Integrity Oracle's
+    authenticated telemetry_events (which this server has no involvement in and never will).
+    The session must already exist (memory_session_start).
+    """
+    return get_store().record_otel_batch(external_session_id, events)
+
+
+@server.tool()
+def memory_session_otel_summary(external_session_id: str) -> dict[str, object]:
+    """Diagnostic rollup for a session: event counts by kind, and metric totals by name (e.g.
+    summed claude_code.token.usage / claude_code.cost.usage, if those names were used)."""
+    return get_store().session_otel_summary(external_session_id)
+
+
+@server.tool()
 def memory_get(memory_id: str) -> dict[str, object]:
     """Fetch one memory by id, including current status and provenance."""
     return get_store().get_memory(memory_id)

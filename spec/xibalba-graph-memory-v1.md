@@ -192,6 +192,27 @@ Default tier is set per-profile via `XIBALBA_GRAPH_MEMORY_RETENTION_TIER`
 `memory_session_start`. `start_session` is idempotent — a reconnecting session keeps the tier
 its first call declared, rather than silently changing mid-session.
 
+### 4.9 OTel diagnostic mirror: `otel_events`
+
+A local, private mirror of the Integrity Oracle's "unsigned_vendor" OTel evidence tier
+(`otel_spans`/`otel_metrics`/`otel_logs`, `INTEGRITY-LATEST/integrity-oracle/backend/migrations/`
+0004 and 0008) — same shape deliberately, so a caller already exporting OTel to the oracle can
+pipe the identical batch here too with no translation. `record_otel_batch(external_session_id,
+events)` ingests `{kind: "span"|"metric"|"log", name, ...}` rows against an existing session;
+`session_otel_summary` returns counts by kind and metric totals summed by name (e.g. Claude
+Code's own `claude_code.token.usage`/`claude_code.cost.usage` convention, if used — this store
+has no OTel semantic-convention knowledge, it only sums by whatever name was given).
+
+**This is not, and must never become, a path into the oracle's scored `telemetry_events`.**
+That table is Ed25519/secp256k1-signed, nonce-replay-protected, and feeds AIS scoring directly
+— its evidentiary weight comes specifically from third parties being able to trust it came from
+the claimed agent, which requires the oracle's live, centrally-reachable, publicly-queryable
+service. `otel_events` here is the opposite by design: private, local, unauthenticated,
+never anchored, never scored, existing purely for the operator's own diagnostic querying,
+independent of and additional to whatever the oracle centrally collects for protocol-wide
+observability. See the session log referenced at the top of this document for the fuller
+reasoning on why these must stay separate.
+
 ## 5. Lifecycle operations
 
 ### 5.1 Supersession
@@ -345,6 +366,8 @@ tool bypasses profile authorization or the append-only write model:
 | `memory_session_end` | `end_session` | Optional closing summary memory. |
 | `memory_session_get` | `get_session` | |
 | `memory_session_memories` | `session_memories` | |
+| `memory_record_otel_batch` | `record_otel_batch` | Local diagnostic mirror only — never the oracle's scored path (§4.9). |
+| `memory_session_otel_summary` | `session_otel_summary` | |
 | `memory_get` | `get_memory` | |
 | `memory_supersede` | `supersede_memory` | |
 | `memory_contradict` | `mark_contradiction` | |

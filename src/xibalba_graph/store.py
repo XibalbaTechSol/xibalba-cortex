@@ -189,6 +189,31 @@ CREATE TABLE IF NOT EXISTS sessions (
     summary_memory_id TEXT REFERENCES memories(id)
 );
 
+-- Local mirror of the "unsigned_vendor" OTel evidence tier the Integrity Oracle's own
+-- otel_spans/otel_metrics/otel_logs tables define (integrity-oracle/backend/migrations/0004,
+-- 0008) -- same shape deliberately, so a caller can pipe the same OTel export it already sends
+-- the oracle straight in here too, no translation. This is NEVER signed, NEVER anchored, and
+-- NEVER feeds any scoring -- purely a local, private diagnostic record for the operator's own
+-- querying. See spec section 4.9.
+CREATE TABLE IF NOT EXISTS otel_events (
+    id TEXT PRIMARY KEY,
+    session_id TEXT NOT NULL REFERENCES sessions(external_session_id) ON DELETE CASCADE,
+    kind TEXT NOT NULL CHECK (kind IN ('span', 'metric', 'log')),
+    name TEXT NOT NULL,
+    trace_id TEXT,
+    span_id TEXT,
+    parent_span_id TEXT,
+    value REAL,
+    unit TEXT,
+    start_time TEXT,
+    end_time TEXT,
+    attributes_json TEXT NOT NULL DEFAULT '{}',
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_otel_events_session ON otel_events(session_id);
+CREATE INDEX IF NOT EXISTS idx_otel_events_session_name ON otel_events(session_id, name);
+
 CREATE TABLE IF NOT EXISTS attachments (
     id TEXT PRIMARY KEY,
     memory_id TEXT NOT NULL REFERENCES memories(id) ON DELETE CASCADE,
@@ -974,6 +999,89 @@ class GraphStore:
                 (external_session_id, max(1, min(int(limit), 10000))),
             ).fetchall()
         return [self.get_memory(row["id"]) for row in rows]
+
+    @staticmethod
+    def _validate_otel_event(event: dict[str, object]) -> tuple:
+        kind = event.get("kind")
+        name = event.get("name")
+        if kind not in {"span", "metric", "log"}:
+            raise ValueError(f"invalid otel event kind: {kind!r}")
+        if not name:
+            raise ValueError("otel event name is required")
+        return (
+            str(uuid.uuid4()),
+            kind,
+            name,
+            event.get("trace_id"),
+            event.get("span_id"),
+            event.get("parent_span_id"),
+            event.get("value"),
+            event.get("unit"),
+            event.get("start_time"),
+            event.get("end_time"),
+            json.dumps(event.get("attributes") or {}, sort_keys=True, separators=(",", ":")),
+        )
+
+    def record_otel_batch(
+        self, external_session_id: str, events: list[dict[str, object]]
+    ) -> dict[str, object]:
+        """Ingest a batch of OTel spans/metrics/logs against a session -- the plug-and-play
+        path: an SDK buffers its own export and flushes here periodically, same shape as the
+        Integrity Oracle's own OTLP receiver (otel_spans/otel_metrics/otel_logs), so no
+        translation is needed to point an existing OTel export at both.
+
+        Never signed, never anchored, never scored -- purely local diagnostic data. See spec
+        section 4.9.
+        """
+        self.get_session(external_session_id)  # raises KeyError if never started
+        rows = [self._validate_otel_event(event) for event in events]
+        with self._lock:
+            self._connection.execute("BEGIN IMMEDIATE")
+            try:
+                self._connection.executemany(
+                    """
+                    INSERT INTO otel_events(
+                        id, session_id, kind, name, trace_id, span_id, parent_span_id,
+                        value, unit, start_time, end_time, attributes_json
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    [(row[0], external_session_id, *row[1:]) for row in rows],
+                )
+                self._connection.execute("COMMIT")
+            except Exception:
+                self._connection.execute("ROLLBACK")
+                raise
+        return {"session_id": external_session_id, "recorded": len(rows)}
+
+    def session_otel_summary(self, external_session_id: str) -> dict[str, object]:
+        """Diagnostic rollup for a session: counts by kind, and metric totals by name (e.g.
+        summed claude_code.token.usage / claude_code.cost.usage, if the caller used those
+        names -- this store doesn't know OTel semantic conventions, it just sums by name).
+        """
+        self.get_session(external_session_id)
+        with self._lock:
+            counts = self._connection.execute(
+                "SELECT kind, COUNT(*) AS n FROM otel_events WHERE session_id = ? GROUP BY kind",
+                (external_session_id,),
+            ).fetchall()
+            metric_totals = self._connection.execute(
+                """
+                SELECT name, SUM(value) AS total, COUNT(*) AS n
+                FROM otel_events WHERE session_id = ? AND kind = 'metric'
+                GROUP BY name ORDER BY name
+                """,
+                (external_session_id,),
+            ).fetchall()
+        counts_by_kind = {"span": 0, "metric": 0, "log": 0}
+        for row in counts:
+            counts_by_kind[row["kind"]] = row["n"]
+        return {
+            "session_id": external_session_id,
+            "counts_by_kind": counts_by_kind,
+            "metric_totals": {
+                row["name"]: {"total": row["total"], "count": row["n"]} for row in metric_totals
+            },
+        }
 
     def supersede_memory(
         self,

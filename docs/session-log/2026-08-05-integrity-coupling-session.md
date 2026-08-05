@@ -173,6 +173,36 @@ vendoring the shared canonicalization convention — nothing structural yet.
   action in this entire session with genuine on-chain irreversibility.
 - **The "unify the data model" idea in §5 was not implemented.** Recommendation only.
 
+## 7. OTel telemetry: a local mirror, deliberately not a path into the oracle's scored data
+
+Asked whether telemetry/OTel data currently stored in the Integrity Oracle would make more
+sense in the agent's graph memory instead. Read the oracle's actual schema before answering
+rather than reasoning from the "telemetry" label alone
+(`integrity-oracle/backend/migrations/0001`, `0004`, `0008`).
+
+**Finding: the oracle already keeps two telemetry tiers deliberately separate, for a load-bearing
+reason.** `telemetry_events` is Ed25519/secp256k1-signed, nonce-replay-protected, Merkle-anchored,
+and feeds AIS scoring directly (`db::aggregate_for_ais`). `otel_spans`/`otel_metrics`/`otel_logs`
+arrive over an unauthenticated OTLP port and are explicitly tagged `evidence_tier =
+'unsigned_vendor'` — the migration comments state plainly they "must never feed AIS." Mixing an
+unauthenticated input into a scored, cross-agent-comparable reputation number would let anyone
+inflate their own score.
+
+**Decision:** don't move `telemetry_events` — same shape of argument as the TrustVault-migration
+question in §2. It's queried live by a public API for any registered agent on demand, which
+needs an always-on, centrally-reachable service; a profile-local store can be offline and
+isn't queryable by third parties, so it can't serve that role.
+
+The unauthenticated OTel tier is a genuinely different case: not because it's less important, but
+because nothing stops it being **dual-homed**. The oracle keeps its copy for protocol-wide
+dashboards (the trace-tree view reconstructs traces across agents from a global `trace_id`,
+which also needs central visibility). Separately, `xibalba-graph-memory` gained `otel_events`
+(§4.9 of the spec) — same shape as the oracle's unsigned tables, so an existing OTel export can
+be piped to both with no translation — as the operator's own private, offline-capable diagnostic
+mirror. This isn't a replacement for the oracle; it's the same gap between "protocol-wide
+observability" and "my own agent's audit trail" that motivated this whole project, applied to
+telemetry specifically.
+
 ## Related documents
 
 - `spec/xibalba-graph-memory-v1.md` — the normative spec, §6.3 corrected per §3 above.
