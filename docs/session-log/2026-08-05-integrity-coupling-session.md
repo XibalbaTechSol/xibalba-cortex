@@ -295,6 +295,36 @@ attributes (`user.account_uuid`, `session.id`, `organization.id`) are real ident
 yet wired into `agent_id` capture automatically — still requires the calling agent to pass them
 through explicitly, same as before.
 
+## 10. Universal ingestion, part two: a native adapter for the Hermes Agent
+
+Following Path A/B/C (raw body files, OTLP `/v1/logs`+`/v1/traces`, real transcripts) and a
+"universal ingestion across vendors" request that landed on the OpenTelemetry GenAI semantic
+convention for OpenAI/Gemini/Codex, asked specifically to build a tool for the Hermes Agent —
+"consider building on top of otel but if not then research."
+
+**Researched before building, not assumed.** Grepped `~/.hermes/hermes-agent`'s actual runtime
+code for OTel and found none — Hermes is not OTel-instrumented. It has its own contract instead:
+"Observer Hooks" (`telemetry_schema_version = "hermes.observer.v1"`,
+`docs/observability/README.md`), a typed in-process Python callback API with 15+ hooks and real
+correlation IDs (`session_id`, `turn_id`, `api_request_id`, `tool_call_id`, parent/child
+session/subagent ids). Confirmed the concrete registration pattern by reading the bundled NeMo
+Relay plugin's actual `plugin.yaml` and `register(ctx)` call, not guessing the shape.
+
+**Built `HermesObserverAdapter`** (`src/xibalba_graph/hermes_observer.py`) mapping that contract
+onto the same `GraphStore` API every other path uses, reusing `turn_id` as `prompt_id` (same
+reuse-not-invent pattern as Path B's `trace_id`) so `exchange_builder` works over Hermes-sourced
+sessions unmodified. Full mapping and the pre_*/post_* collapse rationale in spec §4.15. Smoke
+tested with a realistic hook sequence (`on_session_start` → `post_api_request` →
+`post_tool_call` → `post_approval_response` → `post_llm_call` → `subagent_start`/`stop` →
+`on_session_end`) before writing 12 formal tests covering the mapping, cross-session dedup, and
+graceful no-ops for missing `session_id`/unknown future kwargs. Full suite green (95 tests).
+
+**Deliberately not done this session:** actually installing the adapter as a running Hermes
+plugin (`register(ctx)` shim + `plugin.yaml` under
+`~/.hermes/hermes-agent/plugins/observability/`) — that writes into a different project's
+codebase and is left as an explicit, separate step rather than bundled silently into "build a
+tool for hermes."
+
 ## Related documents
 
 - `spec/xibalba-graph-memory-v1.md` — the normative spec, §6.3 corrected per §3 above.

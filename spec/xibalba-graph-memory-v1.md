@@ -442,6 +442,53 @@ after a session's data is fully ingested, not on a poll loop — re-running dupl
 exchange, since exchanges are derived from current data at call time, not tracked
 incrementally like `transcript_ingest`'s line offset.
 
+### 4.15 Hermes Observer adapter (`hermes_observer`) — Path D, native ingestion for the Hermes Agent
+
+Paths A/B/C all capture Claude Code, which is instrumented with OTel. The Hermes Agent
+(`~/.hermes/hermes-agent`) is not — confirmed by grepping its runtime code, not assumed — but
+ships its own typed, in-process callback contract instead: "Observer Hooks"
+(`telemetry_schema_version = "hermes.observer.v1"`, documented in
+`~/.hermes/hermes-agent/docs/observability/README.md`, and already used by Hermes's bundled
+NeMo Relay/Langfuse plugins via a `register(ctx)` / `ctx.register_hook(name, fn)` pattern).
+`HermesObserverAdapter` (`src/xibalba_graph/hermes_observer.py`) maps that contract onto the
+same `GraphStore` API every other path uses — no new grouping logic, no new schema.
+
+**Why this is a better fit than adding a fourth OTLP endpoint, not a fallback:** Hermes hooks
+fire in-process with real typed correlation IDs already attached (`session_id`, `turn_id`,
+`api_request_id`, `tool_call_id`) — no HTTP server, no OTLP JSON decoding, no redaction flags
+to enable upstream. `turn_id` is reused as `prompt_id` the same way Claude Code's real
+`prompt.id` (Path B `/v1/logs`) and a gen_ai span's own `trace_id` (Path B `/v1/traces`) are
+reused rather than invented — `exchange_builder.build_session_exchanges` (§4.14) works
+unmodified over Hermes-sourced sessions for the same reason it already works across A/B/C.
+
+**Hook coverage — only the *_end/post_* member of each pre_*/post_* pair is mapped.** The
+pre_* hook fires before the same data exists (a tool hasn't run yet, a response hasn't
+arrived yet); instrumenting both would capture nothing additional twice, not more:
+
+| Hermes hook | GraphStore call |
+|---|---|
+| `on_session_start` / `on_session_end` | `start_session` / `end_session` |
+| `post_llm_call` | `store_memory` for `user_message` + `assistant_response`, each with `source.prompt_id = turn_id` |
+| `post_api_request` | `otel_events`, `kind=log`, `name="hermes.api_request"` |
+| `api_request_error` | `otel_events`, `kind=log`, `name="hermes.api_request_error"` |
+| `post_tool_call` | `otel_events`, `kind=span`, `name=f"tool_call.{tool_name}"`, parented to `turn_id` |
+| `post_approval_response` | `otel_events`, `kind=log`, `name="hermes.approval"` — a security-relevant decision, part of a session's complete memory, not just LLM output |
+| `subagent_start` / `subagent_stop` | `otel_events` on the **parent** session, `kind=log` |
+
+**Simplification, stated plainly, not silently:** `subagent_start`/`subagent_stop` do not build
+a parent/child session schema (`sessions` has no parent-session foreign key today) — delegation
+is recorded as an event on the parent session instead, with the child's ids carried in
+`attributes`. Same content-hash dedup as A/B/C (`find_memory_id_by_content`): if Hermes and
+Claude Code ever produce the same text (e.g. a shared subagent transcript), the second path to
+see it reuses the existing memory rather than duplicating it, per §4.12's rule.
+
+**Wiring is deliberately two separate steps.** This module is pure, dependency-free,
+Hermes-independent, and lives in this repo like every other ingestion path. Actually registering
+it as a running Hermes plugin means writing a `register(ctx)` shim and `plugin.yaml` into
+`~/.hermes/hermes-agent/plugins/observability/xibalba_graph_memory/` — a different project's
+codebase — which is not done by this module and is a distinct, explicitly-flagged action, not
+implied by building the adapter.
+
 ## 5. Lifecycle operations
 
 ### 5.1 Supersession
