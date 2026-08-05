@@ -168,3 +168,44 @@ def test_entity_relations_support_bounded_neighbors_and_paths(tmp_path):
     with pytest.raises(ValueError, match="max_depth"):
         store.neighbors("Xibalba Shield", max_depth=5)
     store.close()
+
+
+def test_event_chain_is_hash_linked_and_tamper_evident(tmp_path):
+    store = GraphStore(tmp_path / "graph")
+    old = store.store_memory(
+        "Xibalba Shield is a healthcare vertical.",
+        source={"kind": "imported_document", "locator": "drive://legacy"},
+        status="active",
+    )
+    store.supersede_memory(
+        old["id"],
+        "Xibalba Shield is an AI-agent security platform.",
+        source={"kind": "direct_user", "locator": "hermes://session/current"},
+        status="confirmed",
+    )
+
+    events = store.memory_events(old["id"])
+    assert [event["event_type"] for event in events] == ["create", "supersede"]
+    assert events[0]["parent_event_id"] is None
+    assert events[1]["parent_event_id"] == events[0]["node_id"]
+    assert events[0]["node_id"] != events[1]["node_id"]
+
+    result = store.verify_chain(old["id"])
+    assert result == {
+        "valid": True,
+        "length": 2,
+        "broken_at_event_id": None,
+        "head_node_id": events[1]["node_id"],
+    }
+
+    with sqlite3.connect(store.db_path) as connection:
+        connection.execute(
+            "UPDATE memory_events SET detail_json = '{\"tampered\": true}' WHERE id = ?",
+            (events[0]["id"],),
+        )
+        connection.commit()
+
+    tampered = store.verify_chain(old["id"])
+    assert tampered["valid"] is False
+    assert tampered["broken_at_event_id"] == events[0]["id"]
+    store.close()

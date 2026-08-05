@@ -20,6 +20,7 @@ _VALID_STATUSES = {
     "superseded",
     "forgotten",
 }
+_EVENT_SCHEMA = "xibalba.memory.event.v1"
 _TRUSTED_SOURCE_KINDS = {"direct_user", "explicit_memory"}
 _EVIDENCE_CLASSES = {
     "declared_intent",
@@ -131,8 +132,12 @@ CREATE TABLE IF NOT EXISTS memory_events (
         'quarantine', 'forget', 'restore'
     )),
     detail_json TEXT NOT NULL DEFAULT '{}',
+    node_id TEXT NOT NULL,
+    parent_event_id TEXT,
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+
+CREATE INDEX IF NOT EXISTS idx_memory_events_node_id ON memory_events(node_id);
 
 CREATE TABLE IF NOT EXISTS contradictions (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -227,6 +232,74 @@ class GraphStore:
             return ["instruction_injection"]
         return []
 
+    def _head_node_id(self, memory_id: str) -> str | None:
+        row = self._connection.execute(
+            "SELECT node_id FROM memory_events WHERE memory_id = ? ORDER BY id DESC LIMIT 1",
+            (memory_id,),
+        ).fetchone()
+        return row["node_id"] if row else None
+
+    def _append_event(
+        self, memory_id: str, event_type: str, detail: dict[str, object]
+    ) -> str:
+        """Append an immutable, hash-linked event node. Must run inside an open transaction.
+
+        Each node's id commits to its own content and its parent's id, so the chain is
+        tamper-evident: recomputing node_id at every step and checking parent_event_id
+        resolves is enough to verify history without trusting the database file itself.
+        """
+        parent_event_id = self._head_node_id(memory_id)
+        node = {
+            "schema": _EVENT_SCHEMA,
+            "memory_id": memory_id,
+            "event_type": event_type,
+            "detail": detail,
+            "parent_event_id": parent_event_id,
+        }
+        node_id = self._sha256(self._canonical_json(node))
+        self._connection.execute(
+            "INSERT INTO memory_events(memory_id, event_type, detail_json, node_id, parent_event_id) "
+            "VALUES (?, ?, ?, ?, ?)",
+            (memory_id, event_type, self._canonical_json(detail), node_id, parent_event_id),
+        )
+        return node_id
+
+    def verify_chain(self, memory_id: str) -> dict[str, object]:
+        """Recompute every event's node_id and check parent linkage — pure local computation,
+        no external dependency. This is chain integrity, not Integrity DAG anchoring: it proves
+        this memory's own history is internally consistent, not that it's anchored on-chain.
+        """
+        with self._lock:
+            rows = self._connection.execute(
+                "SELECT id, event_type, detail_json, node_id, parent_event_id FROM memory_events "
+                "WHERE memory_id = ? ORDER BY id",
+                (memory_id,),
+            ).fetchall()
+        expected_parent = None
+        for row in rows:
+            node = {
+                "schema": _EVENT_SCHEMA,
+                "memory_id": memory_id,
+                "event_type": row["event_type"],
+                "detail": json.loads(row["detail_json"]),
+                "parent_event_id": expected_parent,
+            }
+            recomputed = self._sha256(self._canonical_json(node))
+            if row["parent_event_id"] != expected_parent or recomputed != row["node_id"]:
+                return {
+                    "valid": False,
+                    "length": len(rows),
+                    "broken_at_event_id": row["id"],
+                    "head_node_id": rows[-1]["node_id"] if rows else None,
+                }
+            expected_parent = row["node_id"]
+        return {
+            "valid": True,
+            "length": len(rows),
+            "broken_at_event_id": None,
+            "head_node_id": rows[-1]["node_id"] if rows else None,
+        }
+
     def store_memory(
         self,
         content: str,
@@ -314,10 +387,7 @@ class GraphStore:
                     "INSERT INTO memory_fts(memory_id, content) VALUES (?, ?)",
                     (memory_id, content),
                 )
-                self._connection.execute(
-                    "INSERT INTO memory_events(memory_id, event_type, detail_json) VALUES (?, ?, ?)",
-                    (memory_id, event_type, self._canonical_json({"quarantine_reasons": reasons})),
-                )
+                self._append_event(memory_id, event_type, {"quarantine_reasons": reasons})
                 self._connection.execute("COMMIT")
             except Exception:
                 self._connection.execute("ROLLBACK")
@@ -367,8 +437,8 @@ class GraphStore:
     def memory_events(self, memory_id: str) -> list[dict[str, object]]:
         with self._lock:
             rows = self._connection.execute(
-                "SELECT id, event_type, detail_json, created_at FROM memory_events "
-                "WHERE memory_id = ? ORDER BY id",
+                "SELECT id, event_type, detail_json, node_id, parent_event_id, created_at "
+                "FROM memory_events WHERE memory_id = ? ORDER BY id",
                 (memory_id,),
             ).fetchall()
         return [
@@ -376,6 +446,8 @@ class GraphStore:
                 "id": row["id"],
                 "event_type": row["event_type"],
                 "detail": json.loads(row["detail_json"]),
+                "node_id": row["node_id"],
+                "parent_event_id": row["parent_event_id"],
                 "created_at": row["created_at"],
             }
             for row in rows
@@ -428,10 +500,7 @@ class GraphStore:
                 self._connection.execute(
                     "UPDATE memories SET supersedes_id = ? WHERE id = ?", (old_id, new["id"])
                 )
-                self._connection.execute(
-                    "INSERT INTO memory_events(memory_id, event_type, detail_json) VALUES (?, ?, ?)",
-                    (old_id, "supersede", self._canonical_json({"superseded_by": new["id"]})),
-                )
+                self._append_event(old_id, "supersede", {"superseded_by": new["id"]})
                 self._connection.execute("COMMIT")
             except Exception:
                 self._connection.execute("ROLLBACK")
@@ -451,13 +520,8 @@ class GraphStore:
                     (memory_id_a, memory_id_b, reason),
                 )
                 for memory_id, other_id in ((memory_id_a, memory_id_b), (memory_id_b, memory_id_a)):
-                    self._connection.execute(
-                        "INSERT INTO memory_events(memory_id, event_type, detail_json) VALUES (?, ?, ?)",
-                        (
-                            memory_id,
-                            "contradict",
-                            self._canonical_json({"contradicts": other_id, "reason": reason}),
-                        ),
+                    self._append_event(
+                        memory_id, "contradict", {"contradicts": other_id, "reason": reason}
                     )
                 self._connection.execute("COMMIT")
             except Exception:
@@ -487,10 +551,7 @@ class GraphStore:
                 )
                 if cursor.rowcount == 0:
                     raise KeyError(memory_id)
-                self._connection.execute(
-                    "INSERT INTO memory_events(memory_id, event_type, detail_json) VALUES (?, ?, ?)",
-                    (memory_id, "forget", self._canonical_json({})),
-                )
+                self._append_event(memory_id, "forget", {})
                 self._connection.execute("COMMIT")
             except Exception:
                 self._connection.execute("ROLLBACK")
