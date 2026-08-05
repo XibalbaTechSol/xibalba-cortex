@@ -203,6 +203,54 @@ mirror. This isn't a replacement for the oracle; it's the same gap between "prot
 observability" and "my own agent's audit trail" that motivated this whole project, applied to
 telemetry specifically.
 
+## 8. "What does the SDK do that the MCP memory server can't?" led to finding a real, live security gap
+
+Asked to compare capabilities, then asked to picture "an MCP server that does what the SDK
+currently does" — i.e., wrapping `integrity-sdk`'s signing/chain-writing capabilities as
+agent-callable tools, the way `xibalba-graph-memory` wraps recall. Flagged this as a
+fundamentally different risk class before designing anything: an MCP tool call is an LLM's own
+tool-selection judgment, not a deliberate human action, and that is not an acceptable gate for a
+real signature or an irreversible on-chain write. Asked for a Devil's Advocate review before any
+design work, per the standing mandate — and asked for it explicitly *before* building, "if i
+change my mind it needs to be now instead of after everything has been built and tested."
+
+**The review found the proposal wasn't hypothetical — a version of it already existed and had
+already shipped the exact gap under review.** `integrity_sdk/mcp_server.py`
+(`INTEGRITY-LATEST`) defined `integrity_register_agent` as a live, callable MCP tool loading a
+real Ed25519 identity key and capable of running a full on-chain registration, with zero
+coverage from `~/.claude/xibalba/pretool_gate.py` — the one gate anyone was relying on matches
+only `{"Bash","Write","Edit","MultiEdit","NotebookEdit"}`, no MCP tool name pattern at all. Every
+specific claim in the review (the tool's existence and behavior, the gate's blind spot and
+fail-open posture, `bcc_middleware`'s fail-closed posture, MCP elicitation's actual semantics)
+was verified independently before being trusted or acted on — same discipline as the Memory DAG
+finding in §3, applied a second time. Confirmed separately: not wired into any running MCP
+client config on this machine, so a real, reachable gap, not an active incident.
+
+**Consensus reached, then acted on:** read-only SDK capability (status, DID resolution) is fine
+as MCP tools; anything that signs or writes on-chain should never route through a tool call an
+agent's own judgment triggers, full stop — not "needs better confirmation UI." Elicitation was
+considered and rejected as a fix: its own docstring says a client "might" ask a human "or
+automatically generate a response," which is not a safety property.
+
+**Remediated, not just documented:**
+- `integrity_sdk/mcp_server.py`: the four signing/writing tools
+  (`integrity_flush_telemetry`, `integrity_invoke_intent`, `integrity_register_agent`,
+  `integrity_commit_memory`) disabled by default at both discovery and dispatch, opt-in only via
+  `INTEGRITY_MCP_ALLOW_SIGNING_TOOLS=1` for supervised local experimentation.
+- `pretool_gate.py`: added MCP-tool-name coverage (`MCP_SIGNING_TOOL_NAMES`, matched by suffix)
+  with a new `fail_closed` mode for this class specifically — the existing, deliberately
+  fail-open Bash/Write/Edit posture (a ratified tradeoff for a dev shell, documented at length in
+  that module's own docstring) was left completely untouched, not overridden.
+- New tests in both repos (7 + 4), full existing suites re-run clean (252 SDK tests, 8 hooks
+  tests) to confirm no regressions.
+- Full design writeup: `INTEGRITY-LATEST/docs/design/mcp-signing-boundary.md`. Findings-log
+  entry: `INTEGRITY-LATEST/PRODUCTION_GAPS.md` §25.
+
+**What this means for `xibalba-graph-memory` going forward:** confirms, from a second and
+sharper angle, why "no key custody" was made a hard invariant from this project's very first
+architecture doc rather than a preference. This project will not grow a signing tool later by
+the same incremental path that produced the gap being fixed here.
+
 ## Related documents
 
 - `spec/xibalba-graph-memory-v1.md` — the normative spec, §6.3 corrected per §3 above.
@@ -213,3 +261,5 @@ telemetry specifically.
 - `INTEGRITY-LATEST/docs/design/memory-dag.md` — the DAG's own design doc, status line corrected.
 - `INTEGRITY-LATEST/docs/INTERFACE_CONTRACT.md` §4.4b — corrected to `[VERIFIED 2026-08-05]`.
 - `/home/xibalba/.claude/projects/-home-xibalba-Projects-INTEGRITY-LATEST/memory/two-memory-systems.md` — the 2026-07-31 decision this whole thread re-examined.
+- `INTEGRITY-LATEST/docs/design/mcp-signing-boundary.md` — the signing-boundary rule and the fix, §8.
+- `INTEGRITY-LATEST/PRODUCTION_GAPS.md` §25 — the findings-log entry for the gap §8 found and closed.
