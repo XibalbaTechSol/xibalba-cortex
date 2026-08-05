@@ -284,11 +284,13 @@ genuinely isn't available without Path B's OTLP event stream (which carries both
 via `client_request_id`/`request_id`). Path B, when built, is expected to retroactively
 correlate these memories rather than requiring re-ingestion.
 
-### 4.11 OTLP log receiver (`otlp_receiver`) — Path B, closes Path A's attribution gap
+### 4.11 OTLP receiver (`otlp_receiver`) — Path B, two endpoints, two conventions
 
 `src/xibalba_graph/otlp_receiver.py` (console script `xibalba-graph-memory-otlp-receiver`) is
 a minimal stdlib-only (`http.server`, no `opentelemetry-proto`/grpc dependency) HTTP receiver
-for Claude Code's OTLP/HTTP-JSON log export. Enable on the Claude Code side with:
+serving two fixed OTLP paths on one port, each a genuinely different signal and convention:
+
+**`/v1/logs` — Claude-Code-specific.** Enable with:
 
 ```
 CLAUDE_CODE_ENABLE_TELEMETRY=1
@@ -305,20 +307,48 @@ exporters): `claude_code.user_prompt`/`claude_code.assistant_response` (text-bea
 memories; `claude_code.api_request`/`claude_code.tool_result` (structured, no text) become
 `otel_events` rows via the same `record_otel_batch` path §4.9 already defines. Redacted
 prompts/responses (the `prompt`/`response` attribute absent when Claude Code's own redaction
-defaults are active) are counted and skipped, never stored as an empty memory.
-
-**This is what closes Path A's attribution gap, not a separate mechanism.** Every event
-carries `session.id`, `prompt.id`, and `message.uuid` as real attributes — used directly for
+defaults are active) are counted and skipped, never stored as an empty memory. Every event
+carries `session.id`, `prompt.id`, and `message.uuid` — used directly for
 `source.session_id`/`source.prompt_id`/`source.message_id`, giving these memories genuine
 attribution `raw_body_ingest` structurally couldn't provide alone. `user.account_uuid`
 (falling back to `user.id`) feeds `source.agent_id` through the existing `identity_mode`
-pipeline (§4.1a) — pseudonymized by default, same as any other agent identifier.
+pipeline (§4.1a).
 
-**Scope, stated plainly:** only `/v1/logs` is implemented. `claude_code.token.usage`/
-`claude_code.cost.usage` are OTLP *metrics* (`/v1/metrics`, a different payload shape —
-`resourceMetrics`/`dataPoints`, not `logRecords`), not handled by this receiver; piping those
-through `memory_record_otel_batch` directly remains the path for token/cost totals, unchanged
-from before this module existed.
+**`/v1/traces` — the universal path, any vendor honoring the OpenTelemetry GenAI semantic
+convention.** Verified against the live spec registry before building against it (`gen_ai.*`
+attributes, CNCF-backed, exited experimental for client spans in early 2026) — confirmed that
+Gemini CLI, OpenAI's Codex CLI, and Claude Code all support OTLP export, with `gen_ai.*` the
+convention specifically designed to stay consistent regardless of vendor. `gen_ai.provider.name`
+(`openai`, `anthropic`, `gcp.gemini`, ...) identifies which one produced a given span — one
+receiver, many vendors, instead of a bespoke adapter per harness. This data rides on **spans**,
+a different OTLP signal/payload shape than `/v1/logs` (`resourceSpans`/`scopeSpans`/`spans`,
+not `resourceLogs`/`logRecords`) — a real structural difference, not a naming variation, so it
+needed its own parser (`parse_otlp_spans_json`) rather than reusing the logs one.
+
+`gen_ai.input.messages`/`gen_ai.output.messages`/`gen_ai.system_instructions` decode to
+memories (role from the message; `system_instructions` as `role=system` — naturally deduped
+against repeats via `find_memory_id_by_content`, since a static system prompt hashes
+identically call after call). `tool_call`-type message parts become `otel_events`
+(`kind=span`). `gen_ai.request.model`/`usage.input_tokens`/`usage.output_tokens`/
+`response.finish_reasons`/`provider.name` become one `otel_events` row (`kind=log`,
+`name="gen_ai.chat"`). The span's own `trace_id` doubles as `prompt_id` for exchange-building
+compatibility — gen_ai spans don't carry a separate Claude-Code-style `prompt.id`, and
+`trace_id` is the convention's own natural per-invocation correlation key, so reusing it avoids
+inventing a second identifier scheme. Same content-hash dedup as `/v1/logs` and Path A/C: a
+span describing text already captured elsewhere reuses that memory.
+
+**Scope, stated plainly:** `/v1/metrics` (a third OTLP signal, `resourceMetrics`/`dataPoints`)
+is handled by neither endpoint; `claude_code.token.usage`/`claude_code.cost.usage` still
+require `memory_record_otel_batch` directly, unchanged from before this module existed.
+
+**Hermes and OpenClaw, researched, not built against.** `~/.hermes/hermes-agent`'s own codebase
+was checked directly for OTel instrumentation before assuming any — none found under that name;
+Hermes's session/telemetry format, if adapted, would need its own schema inspection the same
+way Claude Code's transcript format was (§4.13), not a guess. OpenClaw is a real meta-harness
+(ACP-based) that runs Claude Code, Cursor, and Copilot as backends — when it runs Claude Code,
+that constituent tool's own OTel export already flows through this receiver unchanged; OpenClaw's
+own ACP-level activity is a separate protocol (Agent Client Protocol, not OTLP) and would need
+its own adapter, not attempted here.
 
 ### 4.12 Cross-path deduplication and linkage (Path A ↔ Path B)
 

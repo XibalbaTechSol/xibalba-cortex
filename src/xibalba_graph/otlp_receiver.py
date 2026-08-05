@@ -1,27 +1,36 @@
-"""Path B: a local OTLP/HTTP-JSON log receiver for Claude Code's structured telemetry.
+"""A local OTLP/HTTP-JSON receiver, two signals, two conventions:
 
-Closes the attribution gap Path A (raw_body_ingest.py) states honestly it can't close alone:
-claude_code.user_prompt / claude_code.assistant_response / claude_code.api_request /
-claude_code.tool_result all carry prompt.id, message.uuid, and session.id -- the real
-correlation and session attribution Path A's raw request/response files structurally lack.
-
-Enable on the Claude Code side with:
+**/v1/logs -- Path B, Claude-Code-specific.** claude_code.user_prompt / assistant_response /
+api_request / tool_result, all carrying prompt.id, message.uuid, session.id -- closes the
+attribution gap Path A (raw_body_ingest.py) states honestly it can't close alone.
 
     CLAUDE_CODE_ENABLE_TELEMETRY=1
     OTEL_LOGS_EXPORTER=otlp
     OTEL_EXPORTER_OTLP_LOGS_PROTOCOL=http/json
-    OTEL_EXPORTER_OTLP_LOGS_ENDPOINT=http://localhost:<port>/v1/logs
+    OTEL_EXPORTER_OTLP_LOGS_ENDPOINT=http://localhost:4318/v1/logs
     OTEL_LOG_USER_PROMPTS=1            # to get actual prompt text, not just prompt_length
     OTEL_LOG_ASSISTANT_RESPONSES=1     # to get actual response text
 
-http/json (not grpc, not http/protobuf) is deliberate: stdlib http.server + json is enough,
-no opentelemetry-proto/grpc dependency needed for this.
+**/v1/traces -- the universal path.** The OpenTelemetry GenAI semantic convention
+(gen_ai.* attributes, CNCF-backed, verified against the live spec registry before building
+this, not assumed) is vendor-neutral -- the same convention Gemini CLI, OpenAI's Codex CLI,
+and any other gen_ai-instrumented harness emit over OTLP. One receiver, many vendors, instead
+of a bespoke adapter per harness. gen_ai.provider.name identifies which one produced a given
+span (openai, anthropic, gcp.gemini, ...). This data rides on SPANS, not logs -- a different
+OTLP signal/endpoint/payload shape (resourceSpans/scopeSpans/spans, not
+resourceLogs/scopeLogs/logRecords) -- confirmed against the spec, not guessed.
 
-Scope, stated plainly: this receiver only implements the /v1/logs endpoint. Claude Code's
-claude_code.token.usage / claude_code.cost.usage are METRICS, a different OTLP signal
-(/v1/metrics, a different payload shape -- resourceMetrics/scopeMetrics/dataPoints, not
-logRecords) -- not handled here. session_otel_summary's token/cost totals still require
-piping those through memory_record_otel_batch separately, same as before this module existed.
+    OTEL_EXPORTER_OTLP_TRACES_PROTOCOL=http/json
+    OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=http://localhost:4318/v1/traces
+    # exact enablement flags are per-harness -- see that harness's own OTel docs.
+
+http/json (not grpc, not http/protobuf) throughout, deliberate: stdlib http.server + json is
+enough, no opentelemetry-proto/grpc dependency needed.
+
+Scope, stated plainly: /v1/metrics (a third OTLP signal, different payload shape again --
+resourceMetrics/dataPoints) is not handled by either endpoint. Claude Code's
+claude_code.token.usage / claude_code.cost.usage still require memory_record_otel_batch
+directly, same as before this module existed.
 """
 from __future__ import annotations
 
@@ -57,6 +66,10 @@ def _decode_attribute_value(value: dict[str, Any]) -> Any:
         return value["boolValue"]
     if "arrayValue" in value:
         return [_decode_attribute_value(v) for v in value["arrayValue"].get("values", [])]
+    if "kvlistValue" in value:
+        # Structured object values (e.g. gen_ai.input.messages recorded in structured form,
+        # per the spec, rather than as a JSON string) arrive this way.
+        return _decode_attributes(value["kvlistValue"].get("values", []))
     return None
 
 
@@ -185,27 +198,196 @@ def ingest_log_records(store: GraphStore, records: list[dict[str, Any]]) -> dict
     }
 
 
-def _make_handler(store: GraphStore, path: str):
+# Presence of any one of these on a span identifies it as GenAI-convention telemetry --
+# gen_ai.system is the older/fallback attribute name, gen_ai.provider.name the current one.
+_GEN_AI_MARKER_ATTRS = ("gen_ai.provider.name", "gen_ai.system", "gen_ai.request.model")
+
+
+def parse_otlp_spans_json(body: dict[str, Any]) -> list[dict[str, Any]]:
+    """Flatten an OTLP ExportTraceServiceRequest JSON body into one dict per span:
+    {name, trace_id, span_id, parent_span_id, attributes, start_time_unix_nano,
+    end_time_unix_nano}. traceId/spanId/parentSpanId are native OTLP span fields (hex
+    strings), not AnyValue-wrapped attributes -- read directly, not through
+    _decode_attribute_value.
+    """
+    records = []
+    for resource_span in body.get("resourceSpans", []):
+        resource_attrs = _decode_attributes(resource_span.get("resource", {}).get("attributes", []))
+        for scope_span in resource_span.get("scopeSpans", []):
+            for span in scope_span.get("spans", []):
+                span_attrs = _decode_attributes(span.get("attributes", []))
+                records.append({
+                    "name": span.get("name"),
+                    "trace_id": span.get("traceId"),
+                    "span_id": span.get("spanId"),
+                    "parent_span_id": span.get("parentSpanId"),
+                    "attributes": {**resource_attrs, **span_attrs},
+                    "start_time_unix_nano": span.get("startTimeUnixNano"),
+                    "end_time_unix_nano": span.get("endTimeUnixNano"),
+                })
+    return records
+
+
+def _parse_gen_ai_message_list(value: Any) -> list[dict[str, Any]]:
+    """gen_ai.input.messages / output.messages / system_instructions: per the spec, "MAY be
+    recorded as a JSON string if structured format is not supported and SHOULD be recorded in
+    structured form otherwise" -- handle both. Structure: [{"role": ..., "parts": [{"type":
+    "text", "content": ...} | {"type": "tool_call", ...}]}].
+    """
+    if isinstance(value, str):
+        try:
+            value = json.loads(value)
+        except json.JSONDecodeError:
+            return []
+    if not isinstance(value, list):
+        return []
+    messages = []
+    for item in value:
+        if not isinstance(item, dict):
+            continue
+        parts = item.get("parts")
+        if not isinstance(parts, list):
+            continue
+        text_parts = [
+            p.get("content", "") for p in parts
+            if isinstance(p, dict) and p.get("type") == "text" and p.get("content")
+        ]
+        tool_calls = [p for p in parts if isinstance(p, dict) and p.get("type") == "tool_call"]
+        messages.append({
+            "role": item.get("role") or "unknown",
+            "text": "\n".join(text_parts),
+            "tool_calls": tool_calls,
+        })
+    return messages
+
+
+def ingest_gen_ai_spans(store: GraphStore, records: list[dict[str, Any]]) -> dict[str, object]:
+    """Route OTel GenAI-semantic-convention spans (any vendor honoring gen_ai.* -- verified
+    conventions, not this project's own naming) to memories (message text) and otel_events
+    (model/token/finish-reason telemetry, tool calls). Same content-hash dedup as
+    ingest_log_records -- a span describing content Path A/B/C already captured reuses that
+    memory rather than duplicating it.
+
+    A span's own trace_id doubles as this exchange's prompt_id -- gen_ai spans don't carry a
+    separate Claude-Code-style prompt.id, and trace_id is the natural per-invocation
+    correlation key the convention already provides, so reusing it (rather than inventing a
+    second identifier scheme) keeps this compatible with the same exchange-building logic
+    Path A/B/C already use.
+    """
+    stored_memories: list[str] = []
+    reused_memories: list[str] = []
+    stored_otel_events = 0
+    skipped_spans = 0
+
+    for record in records:
+        attrs = record["attributes"]
+        if not any(key in attrs for key in _GEN_AI_MARKER_ATTRS):
+            skipped_spans += 1
+            continue
+
+        session_id = attrs.get("session.id") or UNATTRIBUTED_SESSION_ID
+        trace_id = record.get("trace_id")
+        span_id = record.get("span_id")
+        provider = attrs.get("gen_ai.provider.name") or attrs.get("gen_ai.system")
+        agent_id = attrs.get("user.account_uuid") or attrs.get("user.id")
+        store.start_session(session_id, retention_tier="verbatim")
+
+        def _store_text(text: str, role: str) -> None:
+            if not text.strip():
+                return
+            existing = store.find_memory_id_by_content(text)
+            if existing:
+                reused_memories.append(existing)
+                return
+            memory = store.store_memory(
+                text,
+                source={
+                    "kind": "direct_user",
+                    "session_id": session_id,
+                    "role": role,
+                    "prompt_id": trace_id,
+                    "agent_id": agent_id,
+                },
+                status="candidate",
+                evidence_class="observed_event",
+            )
+            stored_memories.append(memory["id"])
+
+        for message in _parse_gen_ai_message_list(attrs.get("gen_ai.system_instructions")):
+            _store_text(message["text"], "system")
+        for message in _parse_gen_ai_message_list(attrs.get("gen_ai.input.messages")):
+            _store_text(message["text"], message["role"] if message["role"] != "unknown" else "user")
+        for message in _parse_gen_ai_message_list(attrs.get("gen_ai.output.messages")):
+            _store_text(message["text"], message["role"] if message["role"] != "unknown" else "assistant")
+            for tool_call in message["tool_calls"]:
+                store.record_otel_batch(session_id, [{
+                    "kind": "span",
+                    "name": f"tool_call.{tool_call.get('name', 'unknown')}",
+                    "trace_id": trace_id,
+                    "span_id": tool_call.get("id"),
+                    "parent_span_id": span_id,
+                    "prompt_id": trace_id,
+                    "attributes": {"provider": provider, "tool_call": tool_call},
+                }])
+                stored_otel_events += 1
+
+        store.record_otel_batch(session_id, [{
+            "kind": "log",
+            "name": "gen_ai.chat",
+            "trace_id": trace_id,
+            "span_id": span_id,
+            "prompt_id": trace_id,
+            "attributes": {
+                "provider": provider,
+                "model": attrs.get("gen_ai.request.model"),
+                "input_tokens": attrs.get("gen_ai.usage.input_tokens"),
+                "output_tokens": attrs.get("gen_ai.usage.output_tokens"),
+                "finish_reasons": attrs.get("gen_ai.response.finish_reasons"),
+            },
+        }])
+        stored_otel_events += 1
+
+    return {
+        "stored_memories": stored_memories,
+        "reused_memories": reused_memories,
+        "stored_otel_events": stored_otel_events,
+        "skipped_spans": skipped_spans,
+    }
+
+
+# Fixed, matching OTLP's own conventional well-known paths -- not made configurable, since
+# every OTel exporter targeting this receiver already expects these exact paths by default.
+_LOGS_PATH = "/v1/logs"
+_TRACES_PATH = "/v1/traces"
+
+
+def _make_handler(store: GraphStore):
     class Handler(BaseHTTPRequestHandler):
         def do_POST(self) -> None:  # noqa: N802 -- BaseHTTPRequestHandler's naming convention
-            if self.path != path:
+            if self.path == _LOGS_PATH:
+                parse_fn, ingest_fn, label = parse_otlp_logs_json, ingest_log_records, "log"
+            elif self.path == _TRACES_PATH:
+                parse_fn, ingest_fn, label = parse_otlp_spans_json, ingest_gen_ai_spans, "span"
+            else:
                 self.send_response(404)
                 self.end_headers()
                 return
+
             length = int(self.headers.get("Content-Length", 0))
             raw = self.rfile.read(length)
             try:
                 body = json.loads(raw)
-                records = parse_otlp_logs_json(body)
-                result = ingest_log_records(store, records)
-                logger.info("ingested batch: %s", result)
+                records = parse_fn(body)
+                result = ingest_fn(store, records)
+                logger.info("ingested %s batch: %s", label, result)
             except Exception:
-                logger.exception("failed to ingest OTLP log batch")
+                logger.exception("failed to ingest OTLP %s batch", label)
                 self.send_response(500)
                 self.end_headers()
                 self.wfile.write(json.dumps({"error": "ingestion failed"}).encode())
                 return
-            # OTLP/HTTP success response for ExportLogsServiceResponse is an empty JSON object.
+            # OTLP/HTTP success response for both Export*ServiceResponse shapes is an empty
+            # JSON object -- same for logs and traces.
             self.send_response(200)
             self.send_header("Content-Type", "application/json")
             self.end_headers()
@@ -217,9 +399,12 @@ def _make_handler(store: GraphStore, path: str):
     return Handler
 
 
-def serve(store: GraphStore, *, host: str = "localhost", port: int = 4318, path: str = "/v1/logs") -> None:
-    server = ThreadingHTTPServer((host, port), _make_handler(store, path))
-    logger.info("OTLP log receiver listening on http://%s:%d%s", host, port, path)
+def serve(store: GraphStore, *, host: str = "localhost", port: int = 4318) -> None:
+    server = ThreadingHTTPServer((host, port), _make_handler(store))
+    logger.info(
+        "OTLP receiver listening on http://%s:%d (%s logs, %s traces/gen_ai)",
+        host, port, _LOGS_PATH, _TRACES_PATH,
+    )
     try:
         server.serve_forever()
     finally:
@@ -233,13 +418,12 @@ def main() -> None:
     parser.add_argument("--home", required=True, help="xibalba-graph-memory profile home")
     parser.add_argument("--host", default="localhost")
     parser.add_argument("--port", type=int, default=4318)
-    parser.add_argument("--path", default="/v1/logs")
     args = parser.parse_args()
 
     logging.basicConfig(level=logging.INFO)
     store = GraphStore(args.home)
     try:
-        serve(store, host=args.host, port=args.port, path=args.path)
+        serve(store, host=args.host, port=args.port)
     finally:
         store.close()
 
