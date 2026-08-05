@@ -3,7 +3,9 @@
 Status: 2026-08-05. Records the machine-state history behind the database decision
 (`docs/architecture/advanced-memory.md`) and the honest capability gaps this system currently
 has — per the dogfooding mandate, gaps are recorded, not routed around with a stub that fakes
-success.
+success. The Integrity-DAG section below was corrected twice in one day; the full narrative of
+why, including the still-open "one coherent system" question, is in
+`docs/session-log/2026-08-05-integrity-coupling-session.md`.
 
 ## Disk/memory history (this session)
 
@@ -69,6 +71,29 @@ records. `xibalba_graph.vault_inspect` (added this session) reads this real vaul
 its own sake — checking whether a given Keccak leaf hash is present/anchored — but does not and
 cannot advance `integrity_links` for memory verification. Only the (still unimplemented) Memory
 DAG could do that, because it was actually designed to cover arbitrary content, not just commits.
+
+**Correction #2, 2026-08-05 (same day again):** "still unimplemented" above was also wrong, and
+this is worth stating plainly rather than quietly fixing, because it is the same mistake made
+twice in one document. A Devil's Advocate review (mandatory before Integrity architecture
+decisions) checked `integrity-sdk/integrity_sdk/memory_dag.py` directly rather than trusting its
+own status header — the code is a complete, working implementation of all seven steps in
+`docs/design/memory-dag.md`'s order-of-work (node schema, canonicalization, ref store with
+supersede-on-edit, ancestry proofs, `root_of_heads`), written 2026-07-31 but never executed
+because no shell was available that session. Run and verified 2026-08-05:
+`tests/test_memory_dag.py` passes 21/21, including the cross-runtime provenance acceptance test.
+`docs/INTERFACE_CONTRACT.md` §4.4b and `memory-dag.md`'s own status line have been corrected to
+match. `NODE_KINDS` includes `"memory"` — this DAG genuinely covers arbitrary content, unlike
+`TrustVault`, and is the real target `integrity_links` should eventually cite.
+
+What remains before `integrity_links` can produce `hash_match_local`/`ancestry_verified`/
+`anchored_to_configured_root` honestly: `import_memory_dag.py` has been run in `--dry-run` mode
+against the real vault (73 leaves, 52 would-be-added commit nodes, 21 already present, nothing
+written); the real (non-dry) import and on-chain anchoring via `anchor_memory_dag.py` are
+separate, deliberately not-yet-taken steps — anchoring is an irreversible signed transaction
+against the live agent. `integrity_links` and this system's own `memory_verify`-style tooling
+have not yet been wired to read the DAG at all; that wiring is unstarted work, distinct from the
+DAG's own implementation status. The takeaway for future sessions: check whether unrun code
+actually works before writing "unimplemented" a second time.
 
 ## Honest gap: sqlite-vec is pre-1.0
 

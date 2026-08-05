@@ -6,6 +6,9 @@ document should be corrected. Supersedes scattered decisions across
 `docs/plans/2026-08-05-xibalba-graph-memory.md`, `docs/plans/2026-08-05-xibalba-advanced-memory.md`,
 `docs/architecture/advanced-memory.md`, `docs/architecture/event-hash-chain.md`, and
 `docs/integrity/xibalba-graph-crypto-profile-v1.md`, which remain as historical design records.
+For the narrative of how the Integrity Protocol coupling decisions in section 6 were reached —
+including two corrected mistakes worth reading before extending that section — see
+`docs/session-log/2026-08-05-integrity-coupling-session.md`.
 
 ## 1. Purpose and scope
 
@@ -190,25 +193,34 @@ operation) but never signs on an agent's behalf.
 
 ### 6.3 Verification states this system can actually produce (today)
 
-`integrity_links.verification_state` enumerates six states, but the Integrity DAG they'd verify
-against (`INTEGRITY-LATEST/docs/design/memory-dag.md`) is unimplemented. Until it ships, this
-system can only truthfully produce `unlinked` or `content_unavailable`. `hash_match_local`,
-`ancestry_verified`, and `anchored_to_configured_root` are schema-ready with no writer — see
-`docs/operations/resource-readiness.md`. A `memory_verify` MCP tool must report this honestly,
-never synthesize a plausible-looking but unearned verification result. Local chain integrity
-(§4.4, `verify_chain`) is a separate, fully-functional capability that does not depend on the DAG
-— it proves this system's own history is self-consistent, not that it is anchored on-chain.
+`integrity_links.verification_state` enumerates six states. Two evidence stores exist in
+`INTEGRITY-LATEST` and neither is currently wired to `integrity_links` — this section states
+precisely what each one is and isn't, after two successive corrections the same day this was
+first written (full account in `docs/operations/resource-readiness.md`).
 
-This gap is not simply "the DAG doesn't exist yet." A real, implemented, tested Integrity
-Protocol evidence store already exists — `integrity-sdk`'s `TrustVault`
-(`~/.integrity/vault/<agent_id>/leaves.jsonl`, genuine Keccak Merkle tree matching
-`StateAnchor.sol`) — but it covers commit/test-result evidence for the protocol's own
-development, domain-separated over `(kind, task_id, commit_sha, test_result_hash, timestamp)`,
-not arbitrary content. There is no hash-matching path from a memory's `content_hash` to a vault
-`leaf_hash`, because a memory was never the kind of thing that store records. `memory_vault_inspect`
-(§10) reads this real vault read-only for its own sake; it does not and cannot advance
-`integrity_links`. Only the Memory DAG — designed to cover arbitrary content — could. See
-`docs/operations/resource-readiness.md`'s 2026-08-05 correction for the full account.
+**`TrustVault`** (`integrity-sdk`'s `vault.py`, real, live, anchors on-chain for 7 registered
+agents) covers commit/test-result evidence, domain-separated over `(kind, task_id, commit_sha,
+test_result_hash, timestamp)`. A memory's `content_hash` has no matching `leaf_hash` there,
+structurally — a memory was never the kind of thing that store records. `memory_vault_inspect`
+(§10) reads it read-only for its own sake and cannot advance `integrity_links`.
+
+**The Memory DAG** (`integrity-sdk`'s `memory_dag.py`, design in
+`INTEGRITY-LATEST/docs/design/memory-dag.md`) *is* designed to cover arbitrary content
+(`NODE_KINDS` includes `"memory"`) and is the actual target `integrity_links` should eventually
+cite. It was believed unimplemented; a Devil's Advocate review found and independently verified
+otherwise — the code is complete (all seven design steps) and its test suite passes 21/21 as of
+2026-08-05 (`INTERFACE_CONTRACT.md` §4.4b corrected to `[VERIFIED 2026-08-05]`). What remains is
+integration, not implementation: `import_memory_dag.py --dry-run` has been run against the real
+vault; the real import and on-chain anchoring are separate, not-yet-taken steps (anchoring is an
+irreversible signed transaction); and this system's own `integrity_links` writer/reader against
+DAG node ids does not exist yet.
+
+Until that integration exists, this system can only truthfully produce `unlinked` or
+`content_unavailable`. `hash_match_local`, `ancestry_verified`, and `anchored_to_configured_root`
+are schema-ready with no writer. A `memory_verify` MCP tool must report this honestly, never
+synthesize a plausible-looking but unearned verification result. Local chain integrity (§4.4,
+`verify_chain`) is a separate, fully-functional capability that does not depend on any of the
+above — it proves this system's own history is self-consistent, not that it is anchored on-chain.
 
 ### 6.4 Anchoring selection policy (for when the DAG exists)
 
