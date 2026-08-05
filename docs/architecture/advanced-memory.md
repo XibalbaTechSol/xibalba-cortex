@@ -99,6 +99,17 @@ store, which the profile-isolation design explicitly does not do), that is the c
 gap referenced in §1.3 that would reopen the PostgreSQL question. Decision stands: SQLite is
 sufficient for the deployment model that actually exists.
 
+**Verified, not just argued (2026-08-05, later same day):** this response was reasoning, not a
+test, when first written. `tests/test_resilience.py` now backs it empirically: two independent
+`GraphStore` instances (two real SQLite connections, not one connection shared across threads)
+writing 15 memories each concurrently to the same database, from separate Python threads,
+produced zero errors, zero id collisions, and a clean `integrity_check` afterward. A separate
+test simulates an actual process crash mid-write (a genuine subprocess, `os._exit(1)` with an
+open uncommitted transaction — not `del`, which was tried first and found not to reliably
+release SQLite's OS-level lock in-process) and confirms WAL recovery leaves prior committed data
+intact on reopen. Profile isolation (two `GraphStore` homes, zero cross-visibility) is likewise
+now a passing test, not only a schema convention.
+
 ### 3.2 One-way coupling to the Integrity DAG
 
 **Steelman for tighter coupling:** citing DAG `node_id` values one-way (recall may cite evidence,
