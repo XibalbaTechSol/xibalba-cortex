@@ -248,3 +248,16 @@ async def test_session_lifecycle_through_mcp(store):
     assert [m["evidence_class"] for m in _list_result(memories)] == [
         "declared_intent", "summary"
     ]
+
+
+@pytest.mark.asyncio
+async def test_status_tool_surfaces_identity_mode(store):
+    result = await server.server.call_tool("memory_status", {})
+    assert _dict_result(result)["identity_mode"] == "pseudonymous"
+
+
+def test_identity_mode_env_var_is_read_by_default_config(monkeypatch):
+    monkeypatch.setenv("XIBALBA_GRAPH_MEMORY_IDENTITY_MODE", "full")
+    assert server._identity_mode() == "full"
+    monkeypatch.delenv("XIBALBA_GRAPH_MEMORY_IDENTITY_MODE")
+    assert server._identity_mode() == "pseudonymous"

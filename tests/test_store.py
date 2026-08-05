@@ -30,6 +30,7 @@ def test_bootstrap_creates_secure_healthy_sqlite_store(tmp_path):
         "foreign_keys": True,
         "fts5": True,
         "integrity_check": "ok",
+        "identity_mode": "pseudonymous",
     }
 
     with sqlite3.connect(store.db_path) as connection:
@@ -418,3 +419,79 @@ def test_session_lifecycle_is_idempotent_and_links_a_summary(tmp_path):
     with pytest.raises(ValueError, match="retention_tier"):
         store.start_session("bad-tier-session", retention_tier="everything")
     store.close()
+
+
+def test_identity_mode_defaults_to_pseudonymous(tmp_path):
+    store = GraphStore(tmp_path / "graph")
+    assert store.identity_mode == "pseudonymous"
+
+    memory = store.store_memory(
+        "Agent did a thing.",
+        source={"kind": "direct_user", "locator": "x", "agent_id": "did:integrity:abc123"},
+        status="confirmed",
+    )
+    agent_id = memory["source"]["agent_id"]
+    assert agent_id is not None
+    assert agent_id.startswith("pseudonym:")
+    assert "abc123" not in agent_id  # raw identity must not leak into the stored value
+    assert memory["source"]["identity_mode"] == "pseudonymous"
+    store.close()
+
+
+def test_identity_mode_pseudonymous_is_consistent_per_agent_and_profile_scoped(tmp_path):
+    store = GraphStore(tmp_path / "graph")
+    first = store.store_memory(
+        "First thing.", source={"kind": "direct_user", "locator": "a", "agent_id": "agent-1"},
+        status="confirmed", idempotency_key="k1",
+    )
+    second = store.store_memory(
+        "Second thing.", source={"kind": "direct_user", "locator": "b", "agent_id": "agent-1"},
+        status="confirmed", idempotency_key="k2",
+    )
+    different_agent = store.store_memory(
+        "Third thing.", source={"kind": "direct_user", "locator": "c", "agent_id": "agent-2"},
+        status="confirmed", idempotency_key="k3",
+    )
+    # Same agent_id -> same pseudonym within a profile (correlatable); different agent -> different.
+    assert first["source"]["agent_id"] == second["source"]["agent_id"]
+    assert first["source"]["agent_id"] != different_agent["source"]["agent_id"]
+    store.close()
+
+    # A separate profile (different salt) must NOT reproduce the same pseudonym for "agent-1" --
+    # otherwise pseudonyms would be correlatable across profiles, defeating the point.
+    other_profile = GraphStore(tmp_path / "other-graph")
+    cross_profile = other_profile.store_memory(
+        "Fourth thing.", source={"kind": "direct_user", "locator": "d", "agent_id": "agent-1"},
+        status="confirmed",
+    )
+    assert cross_profile["source"]["agent_id"] != first["source"]["agent_id"]
+    other_profile.close()
+
+
+def test_identity_mode_full_stores_raw_agent_id(tmp_path):
+    store = GraphStore(tmp_path / "graph", identity_mode="full")
+    memory = store.store_memory(
+        "Agent did a thing.",
+        source={"kind": "direct_user", "locator": "x", "agent_id": "did:integrity:abc123"},
+        status="confirmed",
+    )
+    assert memory["source"]["agent_id"] == "did:integrity:abc123"
+    assert memory["source"]["identity_mode"] == "full"
+    store.close()
+
+
+def test_identity_mode_omit_never_stores_agent_id_regardless_of_input(tmp_path):
+    store = GraphStore(tmp_path / "graph", identity_mode="omit")
+    memory = store.store_memory(
+        "Agent did a thing.",
+        source={"kind": "direct_user", "locator": "x", "agent_id": "did:integrity:abc123"},
+        status="confirmed",
+    )
+    assert memory["source"]["agent_id"] is None
+    assert memory["source"]["identity_mode"] == "omit"
+    store.close()
+
+
+def test_invalid_identity_mode_is_rejected_at_construction(tmp_path):
+    with pytest.raises(ValueError, match="identity_mode"):
+        GraphStore(tmp_path / "graph", identity_mode="anonymous-ish")

@@ -40,13 +40,21 @@ def _default_retention_tier() -> str | None:
     return os.environ.get("XIBALBA_GRAPH_MEMORY_RETENTION_TIER")
 
 
+def _identity_mode() -> str:
+    """Privacy/compliance posture for source["agent_id"] capture -- varies by deployment, so
+    it's a profile-level setting, not hardcoded. Set XIBALBA_GRAPH_MEMORY_IDENTITY_MODE to
+    "full", "pseudonymous" (default), or "omit" in mcp_servers.xibalba_graph_memory.env.
+    """
+    return os.environ.get("XIBALBA_GRAPH_MEMORY_IDENTITY_MODE", "pseudonymous")
+
+
 _store: GraphStore | None = None
 
 
 def get_store() -> GraphStore:
     global _store
     if _store is None:
-        _store = GraphStore(_default_home())
+        _store = GraphStore(_default_home(), identity_mode=_identity_mode())
     return _store
 
 

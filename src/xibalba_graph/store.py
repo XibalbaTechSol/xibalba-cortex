@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import hashlib
+import hmac
 import json
 import mimetypes
 import re
@@ -18,6 +19,14 @@ _SCHEMA_VERSION = 1
 # Generous default cap on a single attachment -- not a policy decision, just a guard against
 # accidentally ingesting something absurd (e.g. a whole video library) into the blob store.
 _DEFAULT_MAX_ATTACHMENT_BYTES = 200 * 1024 * 1024
+
+# Governs whether/how an agent identifier passed in source["agent_id"] gets stored. Privacy or
+# compliance posture varies by deployment, so this is configurable, not hardcoded -- see
+# spec section 4.1a. "pseudonymous" is the default: still lets you correlate "same agent wrote
+# these" without persisting who, which is the safer default for a system that doesn't yet know
+# its deployment's compliance requirements.
+_IDENTITY_MODES = {"full", "pseudonymous", "omit"}
+_DEFAULT_IDENTITY_MODE = "pseudonymous"
 
 # Pinned per the Phase 0 embedding-model spike (docs/architecture/advanced-memory.md addendum):
 # BAAI/bge-small-en-v1.5, 384-dim. The dimension is baked into the vec0 virtual table at create
@@ -72,10 +81,14 @@ CREATE TABLE IF NOT EXISTS sources (
     message_id TEXT,
     tool_name TEXT,
     observed_at TEXT,
+    agent_id TEXT,
+    identity_mode TEXT NOT NULL DEFAULT 'omit' CHECK (identity_mode IN ('full', 'pseudonymous', 'omit')),
     content_hash TEXT NOT NULL,
     metadata_json TEXT NOT NULL DEFAULT '{}',
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+
+CREATE INDEX IF NOT EXISTS idx_sources_agent_id ON sources(agent_id);
 
 CREATE TABLE IF NOT EXISTS memories (
     id TEXT PRIMARY KEY,
@@ -213,7 +226,12 @@ CREATE TABLE IF NOT EXISTS integrity_links (
 class GraphStore:
     """Profile-local SQLite authority for Xibalba graph memory."""
 
-    def __init__(self, home: str | Path):
+    def __init__(self, home: str | Path, *, identity_mode: str = _DEFAULT_IDENTITY_MODE):
+        if identity_mode not in _IDENTITY_MODES:
+            raise ValueError(
+                f"invalid identity_mode: {identity_mode!r}, must be one of {_IDENTITY_MODES}"
+            )
+        self.identity_mode = identity_mode
         self.home = Path(home).expanduser().resolve()
         self.home.mkdir(parents=True, exist_ok=True, mode=0o700)
         os.chmod(self.home, 0o700)
@@ -229,6 +247,36 @@ class GraphStore:
         self._connection.row_factory = sqlite3.Row
         self._configure()
         self._migrate()
+        self._identity_salt = self._load_or_create_identity_salt()
+
+    def _load_or_create_identity_salt(self) -> bytes:
+        """Per-profile secret for pseudonymizing agent_id. Not a signing key -- safe to store
+        locally; it only needs to make pseudonyms unguessable and non-correlatable across
+        profiles, not to authenticate anything.
+        """
+        salt_path = self.home / "identity_salt"
+        if salt_path.is_file():
+            return salt_path.read_bytes()
+        salt = os.urandom(32)
+        salt_path.write_bytes(salt)
+        os.chmod(salt_path, 0o600)
+        return salt
+
+    def _resolve_agent_id(self, agent_id: str | None) -> tuple[str | None, str]:
+        """Apply this store's identity_mode to a caller-supplied agent identifier.
+
+        Returns (value_to_store, identity_mode_in_effect) -- the mode is recorded per-source-row
+        so it's auditable later which policy was in effect when a given memory was written, the
+        same pattern already used for embedding model_id.
+        """
+        if agent_id is None or self.identity_mode == "omit":
+            return None, self.identity_mode
+        if self.identity_mode == "full":
+            return agent_id, self.identity_mode
+        # pseudonymous: HMAC, not a plain hash -- a plain hash of a small agent-id namespace is
+        # brute-forceable (rainbow-table it), HMAC with a per-profile secret is not.
+        digest = hmac.new(self._identity_salt, agent_id.encode("utf-8"), hashlib.sha256).hexdigest()
+        return "pseudonym:" + digest, self.identity_mode
 
     def _configure(self) -> None:
         self._connection.execute("PRAGMA busy_timeout = 5000")
@@ -274,6 +322,7 @@ class GraphStore:
             "foreign_keys": foreign_keys,
             "fts5": fts5,
             "integrity_check": integrity_check,
+            "identity_mode": self.identity_mode,
         }
 
     def backup(self, destination: str | Path) -> dict[str, object]:
@@ -463,10 +512,17 @@ class GraphStore:
         content_digest = self._sha256(content)
         source_payload = dict(source)
         source_payload["content_hash"] = content_digest
+        # Hashed from the raw caller-supplied payload (including raw agent_id, if any) so dedup
+        # is keyed on what the caller actually sent, independent of this store's identity_mode --
+        # only the persisted/returned agent_id column is policy-filtered, not the dedup key.
         source_id = self._sha256(self._canonical_json(source_payload))
         memory_id = str(uuid.uuid4())
+        stored_agent_id, identity_mode_in_effect = self._resolve_agent_id(
+            source.get("agent_id") if isinstance(source.get("agent_id"), str) else None
+        )
         known_source_fields = {
-            "kind", "locator", "role", "session_id", "message_id", "tool_name", "observed_at"
+            "kind", "locator", "role", "session_id", "message_id", "tool_name", "observed_at",
+            "agent_id",
         }
         source_metadata = {
             key: value for key, value in source.items() if key not in known_source_fields
@@ -488,8 +544,8 @@ class GraphStore:
                     """
                     INSERT OR IGNORE INTO sources(
                         id, kind, locator, role, session_id, message_id, tool_name,
-                        observed_at, content_hash, metadata_json
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        observed_at, agent_id, identity_mode, content_hash, metadata_json
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     (
                         source_id,
@@ -500,6 +556,8 @@ class GraphStore:
                         source.get("message_id"),
                         source.get("tool_name"),
                         source.get("observed_at"),
+                        stored_agent_id,
+                        identity_mode_in_effect,
                         content_digest,
                         self._canonical_json(source_metadata),
                     ),
@@ -537,7 +595,8 @@ class GraphStore:
             row = self._connection.execute(
                 """
                 SELECT m.*, s.kind AS source_kind, s.locator, s.role, s.session_id,
-                       s.message_id, s.tool_name, s.observed_at, s.metadata_json
+                       s.message_id, s.tool_name, s.observed_at, s.agent_id,
+                       s.identity_mode, s.metadata_json
                 FROM memories m JOIN sources s ON s.id = m.source_id
                 WHERE m.id = ?
                 """,
@@ -558,6 +617,8 @@ class GraphStore:
             "message_id": row["message_id"],
             "tool_name": row["tool_name"],
             "observed_at": row["observed_at"],
+            "agent_id": row["agent_id"],
+            "identity_mode": row["identity_mode"],
             "metadata": json.loads(row["metadata_json"]),
         }
         details = json.loads(event["detail_json"]) if event else {}

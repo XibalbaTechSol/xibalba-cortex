@@ -92,6 +92,32 @@ see §6.1). `memories` holds the actual content, its own `content_hash`, `status
 `supersedes_id` (§5.1), `derivation_family` — the epistemic-class column (§4.2) — and an optional
 `idempotency_key` for exactly-once writes under retry.
 
+### 4.1a Agent identity capture (`sources.agent_id`, `identity_mode`)
+
+A caller may pass `agent_id` in `source` (e.g. a DID, per the Integrity Protocol's `did:integrity:`
+scheme). Whether and how it's persisted is governed by `GraphStore.identity_mode`, a
+per-profile setting — privacy posture and compliance requirements vary by deployment, so this
+is configurable, never hardcoded:
+
+| Mode | Stored value | Use case |
+|---|---|---|
+| `full` | Raw `agent_id`, as given | Deployments that need to query/audit by exact agent identity |
+| `pseudonymous` (default) | `"pseudonym:" + HMAC-SHA256(profile_salt, agent_id)` | Still lets you correlate "same agent produced these" without persisting who — the default because this system doesn't yet know its deployment's compliance posture |
+| `omit` | `NULL`, regardless of what was passed | Deployments where agent identity must not be recorded at all |
+
+`profile_salt` (`<home>/identity_salt`, 32 random bytes, `0600`) is generated once per profile
+and never leaves it — pseudonyms are stable within a profile (same agent → same pseudonym,
+enabling correlation) but **not correlatable across profiles** even for the same underlying
+`agent_id`, verified by test (`test_identity_mode_pseudonymous_is_consistent_per_agent_and_profile_scoped`).
+This is not a signing key and carries none of the "no key custody" concerns elsewhere in this
+spec (§6.2) — it only needs to make pseudonyms unguessable, not authenticate anything.
+
+The mode in effect is recorded per-row (`sources.identity_mode`) at write time, the same
+audit pattern already used for `embedding_models`/`derivation_family` — so it's always
+inspectable later which policy was active when a given memory was written, even after a
+profile's configured default changes. Set via `XIBALBA_GRAPH_MEMORY_IDENTITY_MODE` in
+`mcp_servers.xibalba_graph_memory.env`; surfaced at runtime via `memory_status`.
+
 ### 4.2 Epistemic class (`derivation_family`)
 
 One of `declared_intent`, `observed_event` (default), `extracted_proposition`, `inference`,
