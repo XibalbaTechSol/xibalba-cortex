@@ -81,7 +81,12 @@ def memory_remember(
     evidence_class: str = "observed_event",
     idempotency_key: str | None = None,
 ) -> dict[str, object]:
-    """Store a memory with explicit provenance. `source` must include `kind` at minimum."""
+    """Store a memory with explicit provenance. `source` must include `kind` at minimum.
+
+    `source.prompt_id` (Claude Code's own turn-correlation UUID -- the same value carried by
+    its claude_code.user_prompt/api_request/tool_result OTel events) links this memory to
+    later-ingested OTel telemetry for the same turn, retrievable via memory_otel_events.
+    """
     return get_store().store_memory(
         content,
         source=source,
@@ -189,10 +194,17 @@ def memory_record_otel_batch(
 ) -> dict[str, object]:
     """Plug-and-play OTel ingestion: pipe the same span/metric/log export an SDK already sends
     to the Integrity Oracle's OTLP receiver straight in here too, no translation needed --
-    same shape as its otel_spans/otel_metrics/otel_logs tables.
+    same shape as its otel_spans/otel_metrics/otel_logs tables. Also matches Claude Code's own
+    OTel event names directly (claude_code.user_prompt, claude_code.assistant_response,
+    claude_code.api_request, claude_code.tool_result -- see code.claude.com/docs/en/monitoring-usage).
 
     Each event: {"kind": "span"|"metric"|"log", "name": str, plus whichever of trace_id,
     span_id, parent_span_id, value, unit, start_time, end_time, attributes apply}.
+
+    Pass `prompt_id` (Claude Code's own turn-correlation UUID) on an event to link it to any
+    memory whose source carried the same prompt_id -- retrievable via memory_otel_events.
+    Alternatively pass `memory_id` directly for an explicit, database-enforced link to one
+    specific memory (unknown memory_id rejects the whole batch atomically).
 
     Never signed, never anchored, never feeds any scoring -- this is purely a local, private
     diagnostic mirror for the operator's own querying, distinct from the Integrity Oracle's
@@ -207,6 +219,18 @@ def memory_session_otel_summary(external_session_id: str) -> dict[str, object]:
     """Diagnostic rollup for a session: event counts by kind, and metric totals by name (e.g.
     summed claude_code.token.usage / claude_code.cost.usage, if those names were used)."""
     return get_store().session_otel_summary(external_session_id)
+
+
+@server.tool()
+def memory_otel_events(memory_id: str) -> list[dict[str, object]]:
+    f"""OTel events correlated with a specific memory. {_UNTRUSTED_EVIDENCE_NOTE}
+
+    Union of explicit memory_id matches (strong, caller-asserted link) and prompt_id matches
+    against the memory's own source.prompt_id (weak, automatic correlation) -- deduplicated.
+    This is what answers "what telemetry corresponds to this specific piece of LLM output,"
+    not just "what telemetry happened in the same session."
+    """
+    return get_store().memory_otel_events(memory_id)
 
 
 @server.tool()

@@ -251,6 +251,50 @@ sharper angle, why "no key custody" was made a hard invariant from this project'
 architecture doc rather than a preference. This project will not grow a signing tool later by
 the same incremental path that produced the gap being fixed here.
 
+## 9. Validating the "collects all LLM text, categorized as OTel telemetry" premise — and closing the gap it found
+
+Asked to validate and verify that the graph MCP server "collects all LLM text content and
+successfully categorizes it as appropriate OTel telemetry," plus surrounding context (DID,
+time), then to hypothesize whether more data is available. Ran real calls against the actual
+MCP tools rather than reasoning from the code — found the premise didn't hold as stated:
+
+- Text capture (`memory_remember`) works but is never automatic — an explicit call per turn,
+  nothing intercepts "all" LLM output.
+- Text content and OTel telemetry were **completely uncorrelated**: `otel_events` had no column
+  referencing a memory, only `session_id` — a stored memory and its own turn's telemetry shared
+  nothing queryable.
+- "Categorization" (`evidence_class`) is a static default (`observed_event`), never
+  content-derived — correct given the store runs no LLM in-process, but not what "categorizes
+  it as appropriate" implies.
+- DID/timestamp capture works correctly *when supplied*, but defaults to absent
+  (`agent_id: None`, `observed_at: None`) if the caller doesn't pass them — and default `status`
+  (`candidate`) is invisible to recall unless the caller upgrades it.
+
+**Researched what's actually available before guessing.** Fetched Claude Code's own OTel
+documentation (`code.claude.com/docs/en/monitoring-usage`) rather than assuming. Found real,
+specific, previously-unknown-to-this-project detail: `claude_code.user_prompt` and
+`claude_code.assistant_response` are real OTel log events carrying the actual prompt/response
+*text* (redacted by default, opt-in via `OTEL_LOG_USER_PROMPTS=1`/`OTEL_LOG_ASSISTANT_RESPONSES=1`)
+— i.e. "LLM text content as OTel telemetry" already exists upstream in the product this system
+integrates with; the gap was never collecting it, not that it didn't exist. Also found
+`prompt.id`, Claude Code's own UUID correlating `user_prompt`+`api_request`+`tool_result` for
+one turn — exactly the missing link, with a name already chosen by the upstream product.
+
+**Fixed:** added `prompt_id` to both `sources` and `otel_events` (weak/automatic correlation,
+matching Claude Code's own key) and `otel_events.memory_id` as an explicit foreign key
+(strong/asserted link, database-enforced — an unknown `memory_id` rejects the whole batch
+atomically). New `memory_otel_events(memory_id)` returns the union, deduplicated. Verified with
+a real correlation test before writing it up: a memory and its turn's `user_prompt`/
+`token.usage` events, correlated by `prompt_id`, retrievable together; an event from a
+different `prompt_id` correctly excluded.
+
+**What's still a hypothesis, not fixed:** whether Claude Code's redaction should be lifted for
+this system's own capture is a deployment decision, not something to default on behalf of the
+operator — recorded as an open question in spec §4.9, not resolved. Standard Claude Code
+attributes (`user.account_uuid`, `session.id`, `organization.id`) are real identity data not
+yet wired into `agent_id` capture automatically — still requires the calling agent to pass them
+through explicitly, same as before.
+
 ## Related documents
 
 - `spec/xibalba-graph-memory-v1.md` — the normative spec, §6.3 corrected per §3 above.

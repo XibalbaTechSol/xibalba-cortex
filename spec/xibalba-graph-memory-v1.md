@@ -213,6 +213,46 @@ independent of and additional to whatever the oracle centrally collects for prot
 observability. See the session log referenced at the top of this document for the fuller
 reasoning on why these must stay separate.
 
+**Correlation with memories (`prompt_id`, `memory_id`).** `sources.prompt_id` and
+`otel_events.prompt_id`/`otel_events.memory_id` (added 2026-08-05) link a stored memory to the
+OTel telemetry for the turn that produced it. Two link strengths:
+
+- **Weak / automatic**: a memory's `source.prompt_id` matched against `otel_events.prompt_id`.
+  This is Claude Code's own turn-correlation key — its real OTel documentation
+  (`code.claude.com/docs/en/monitoring-usage`) states `prompt.id` is "a UUID v4 identifier
+  linking all events produced while processing a single user prompt," present on
+  `claude_code.user_prompt`, `claude_code.api_request`, and `claude_code.tool_result`. Passing
+  the same value through both `memory_remember`'s `source.prompt_id` and
+  `record_otel_batch`'s per-event `prompt_id` requires no new identifier scheme.
+- **Strong / asserted**: `otel_events.memory_id`, an explicit foreign key, database-enforced —
+  an unknown `memory_id` rejects the whole batch atomically (`sqlite3.IntegrityError`), not a
+  silently-ignored row.
+
+`memory_otel_events(memory_id)` returns the union of both, deduplicated. Before this existed,
+`otel_events` and `memories` shared only `session_id` — correlated by coincidence of timing, not
+by anything queryable per-turn. This closes that gap.
+
+**Claude Code's real OTel surface** (verified against its own docs, not assumed): `record_otel_batch`
+accepts these event names directly, no translation needed —
+
+| Event | Kind | Carries LLM text? | Notes |
+|---|---|---|---|
+| `claude_code.user_prompt` | log | Yes — `prompt` attribute, **redacted by default** | Opt-in: `OTEL_LOG_USER_PROMPTS=1` |
+| `claude_code.assistant_response` | log | Yes — `response` attribute, **redacted by default** | Opt-in: `OTEL_LOG_ASSISTANT_RESPONSES=1`; v2.1.193+ |
+| `claude_code.api_request` | log | No | `model`, `cost_usd`, `duration_ms`, all 4 token-type counts, `request_id` |
+| `claude_code.tool_result` | log | No (tool I/O opt-in separately) | `tool_name`, `success`, `duration_ms`; `tool_input`/`tool_parameters` behind `OTEL_LOG_TOOL_DETAILS=1` |
+| `claude_code.token.usage` | metric | No | broken down by `type` (input/output/cacheRead/cacheCreation) |
+| `claude_code.cost.usage` | metric | No | USD, per request |
+
+`claude_code.user_prompt`/`claude_code.assistant_response` are the literal answer to "does this
+system capture LLM text content as OTel telemetry" — they exist upstream, redacted by default
+for privacy, and this store has no opinion on whether to enable the redaction-lifting env vars;
+that's an operator/deployment decision, not something `xibalba-graph-memory` should default on
+behalf of. Standard attributes present on every Claude Code event/metric —
+`session.id`, `organization.id`, `user.account_uuid`, `user.id` (anonymous fallback),
+`user.email` — are real identity data available for `source.agent_id` today, distinct from and
+in addition to a `did:integrity:...` value.
+
 ## 5. Lifecycle operations
 
 ### 5.1 Supersession
@@ -368,6 +408,7 @@ tool bypasses profile authorization or the append-only write model:
 | `memory_session_memories` | `session_memories` | |
 | `memory_record_otel_batch` | `record_otel_batch` | Local diagnostic mirror only — never the oracle's scored path (§4.9). |
 | `memory_session_otel_summary` | `session_otel_summary` | |
+| `memory_otel_events` | `memory_otel_events` | Correlated telemetry for one memory — weak (`prompt_id`) + strong (`memory_id`) link, deduplicated (§4.9). |
 | `memory_get` | `get_memory` | |
 | `memory_supersede` | `supersede_memory` | |
 | `memory_contradict` | `mark_contradiction` | |

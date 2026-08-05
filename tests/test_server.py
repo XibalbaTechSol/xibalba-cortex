@@ -39,6 +39,7 @@ async def test_all_tools_are_advertised(store):
         "memory_session_memories",
         "memory_record_otel_batch",
         "memory_session_otel_summary",
+        "memory_otel_events",
         "memory_get",
         "memory_supersede",
         "memory_contradict",
@@ -292,3 +293,52 @@ async def test_otel_batch_and_summary_through_mcp(store):
     payload = _dict_result(summary)
     assert payload["counts_by_kind"] == {"span": 1, "metric": 2, "log": 0}
     assert payload["metric_totals"]["claude_code.token.usage"]["total"] == 620.0
+
+
+@pytest.mark.asyncio
+async def test_memory_correlates_with_its_own_turn_otel_events_through_mcp(store):
+    """End-to-end validation: an LLM-generated memory and the real Claude Code OTel events
+    for the same turn (claude_code.user_prompt, claude_code.api_request), correlated by
+    prompt_id and retrievable together -- the gap identified when this was first tested.
+    """
+    await server.server.call_tool(
+        "memory_session_start", {"external_session_id": "sess-correlate", "retention_tier": "verbatim"}
+    )
+
+    remembered = await server.server.call_tool(
+        "memory_remember",
+        {
+            "content": "I've reviewed the login page CSS and found the flexbox alignment bug.",
+            "source": {
+                "kind": "direct_user",
+                "session_id": "sess-correlate",
+                "role": "assistant",
+                "prompt_id": "prompt-turn-1",
+            },
+            "status": "confirmed",
+        },
+    )
+    memory = _dict_result(remembered)
+    assert memory["source"]["prompt_id"] == "prompt-turn-1"
+
+    await server.server.call_tool(
+        "memory_record_otel_batch",
+        {
+            "external_session_id": "sess-correlate",
+            "events": [
+                {"kind": "log", "name": "claude_code.user_prompt", "prompt_id": "prompt-turn-1",
+                 "attributes": {"prompt_length": 42}},
+                {"kind": "metric", "name": "claude_code.token.usage", "value": 850,
+                 "prompt_id": "prompt-turn-1", "attributes": {"type": "output"}},
+                {"kind": "metric", "name": "claude_code.token.usage", "value": 90,
+                 "prompt_id": "some-other-turn", "attributes": {"type": "output"}},
+            ],
+        },
+    )
+
+    correlated = await server.server.call_tool(
+        "memory_otel_events", {"memory_id": memory["id"]}
+    )
+    events = _list_result(correlated)
+    assert {e["name"] for e in events} == {"claude_code.user_prompt", "claude_code.token.usage"}
+    assert len(events) == 2  # the "some-other-turn" event must NOT be included

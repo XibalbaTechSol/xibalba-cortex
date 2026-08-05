@@ -83,12 +83,20 @@ CREATE TABLE IF NOT EXISTS sources (
     observed_at TEXT,
     agent_id TEXT,
     identity_mode TEXT NOT NULL DEFAULT 'omit' CHECK (identity_mode IN ('full', 'pseudonymous', 'omit')),
+    -- Claude Code's own correlation key (its OTel docs: "prompt.id -- UUID v4 identifier
+    -- linking all events produced while processing a single user prompt": user_prompt,
+    -- api_request, tool_result). Carrying the same value here is what lets a memory be
+    -- correlated with the OTel events from the turn that produced it, without requiring the
+    -- caller to know the memory_id at OTel-ingestion time (record_otel_batch runs on its own
+    -- schedule/batch, independent of when memory_remember is called for the same turn).
+    prompt_id TEXT,
     content_hash TEXT NOT NULL,
     metadata_json TEXT NOT NULL DEFAULT '{}',
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE INDEX IF NOT EXISTS idx_sources_agent_id ON sources(agent_id);
+CREATE INDEX IF NOT EXISTS idx_sources_prompt_id ON sources(prompt_id);
 
 CREATE TABLE IF NOT EXISTS memories (
     id TEXT PRIMARY KEY,
@@ -203,6 +211,14 @@ CREATE TABLE IF NOT EXISTS otel_events (
     trace_id TEXT,
     span_id TEXT,
     parent_span_id TEXT,
+    -- Claude Code's own turn-correlation key (see sources.prompt_id's comment). Matching this
+    -- against a memory's sources.prompt_id is the weak/automatic link -- correct by
+    -- correlation, not by explicit assertion.
+    prompt_id TEXT,
+    -- Explicit, caller-asserted link to the specific memory this event pertains to -- the
+    -- strong link, when the caller knows it (e.g. ingesting api_request telemetry right after
+    -- the memory_remember call it corresponds to, in the same code path).
+    memory_id TEXT REFERENCES memories(id) ON DELETE SET NULL,
     value REAL,
     unit TEXT,
     start_time TEXT,
@@ -213,6 +229,8 @@ CREATE TABLE IF NOT EXISTS otel_events (
 
 CREATE INDEX IF NOT EXISTS idx_otel_events_session ON otel_events(session_id);
 CREATE INDEX IF NOT EXISTS idx_otel_events_session_name ON otel_events(session_id, name);
+CREATE INDEX IF NOT EXISTS idx_otel_events_prompt_id ON otel_events(prompt_id);
+CREATE INDEX IF NOT EXISTS idx_otel_events_memory_id ON otel_events(memory_id);
 
 CREATE TABLE IF NOT EXISTS attachments (
     id TEXT PRIMARY KEY,
@@ -547,7 +565,7 @@ class GraphStore:
         )
         known_source_fields = {
             "kind", "locator", "role", "session_id", "message_id", "tool_name", "observed_at",
-            "agent_id",
+            "agent_id", "prompt_id",
         }
         source_metadata = {
             key: value for key, value in source.items() if key not in known_source_fields
@@ -569,8 +587,9 @@ class GraphStore:
                     """
                     INSERT OR IGNORE INTO sources(
                         id, kind, locator, role, session_id, message_id, tool_name,
-                        observed_at, agent_id, identity_mode, content_hash, metadata_json
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        observed_at, agent_id, identity_mode, prompt_id, content_hash,
+                        metadata_json
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     (
                         source_id,
@@ -583,6 +602,7 @@ class GraphStore:
                         source.get("observed_at"),
                         stored_agent_id,
                         identity_mode_in_effect,
+                        source.get("prompt_id"),
                         content_digest,
                         self._canonical_json(source_metadata),
                     ),
@@ -621,7 +641,7 @@ class GraphStore:
                 """
                 SELECT m.*, s.kind AS source_kind, s.locator, s.role, s.session_id,
                        s.message_id, s.tool_name, s.observed_at, s.agent_id,
-                       s.identity_mode, s.metadata_json
+                       s.identity_mode, s.prompt_id, s.metadata_json
                 FROM memories m JOIN sources s ON s.id = m.source_id
                 WHERE m.id = ?
                 """,
@@ -644,6 +664,7 @@ class GraphStore:
             "observed_at": row["observed_at"],
             "agent_id": row["agent_id"],
             "identity_mode": row["identity_mode"],
+            "prompt_id": row["prompt_id"],
             "metadata": json.loads(row["metadata_json"]),
         }
         details = json.loads(event["detail_json"]) if event else {}
@@ -1015,6 +1036,11 @@ class GraphStore:
             event.get("trace_id"),
             event.get("span_id"),
             event.get("parent_span_id"),
+            # prompt_id: Claude Code's own turn-correlation key (claude_code.user_prompt /
+            # claude_code.api_request / claude_code.tool_result all carry it) -- pass it
+            # through unchanged so it can be matched against a memory's sources.prompt_id.
+            event.get("prompt_id"),
+            event.get("memory_id"),
             event.get("value"),
             event.get("unit"),
             event.get("start_time"),
@@ -1030,6 +1056,12 @@ class GraphStore:
         Integrity Oracle's own OTLP receiver (otel_spans/otel_metrics/otel_logs), so no
         translation is needed to point an existing OTel export at both.
 
+        Each event may carry `prompt_id` (Claude Code's turn-correlation UUID -- matches
+        against a memory's sources.prompt_id, the weak/automatic link) and/or `memory_id` (an
+        explicit FK to a specific memory, the strong/asserted link, enforced by the database:
+        an unknown memory_id raises sqlite3.IntegrityError and the whole batch rolls back
+        atomically, per the FK's ON DELETE SET NULL semantics on the other side).
+
         Never signed, never anchored, never scored -- purely local diagnostic data. See spec
         section 4.9.
         """
@@ -1042,8 +1074,8 @@ class GraphStore:
                     """
                     INSERT INTO otel_events(
                         id, session_id, kind, name, trace_id, span_id, parent_span_id,
-                        value, unit, start_time, end_time, attributes_json
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        prompt_id, memory_id, value, unit, start_time, end_time, attributes_json
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     [(row[0], external_session_id, *row[1:]) for row in rows],
                 )
@@ -1052,6 +1084,55 @@ class GraphStore:
                 self._connection.execute("ROLLBACK")
                 raise
         return {"session_id": external_session_id, "recorded": len(rows)}
+
+    def memory_otel_events(self, memory_id: str) -> list[dict[str, object]]:
+        """OTel events correlated with a specific memory: explicit memory_id matches (strong
+        link, caller-asserted) unioned with prompt_id matches against the memory's own
+        sources.prompt_id (weak link, automatic correlation) -- deduplicated, oldest first.
+        """
+        memory = self.get_memory(memory_id)
+        prompt_id = memory["source"].get("prompt_id")
+        with self._lock:
+            if prompt_id:
+                rows = self._connection.execute(
+                    """
+                    SELECT id FROM otel_events
+                    WHERE memory_id = ? OR prompt_id = ?
+                    ORDER BY rowid
+                    """,
+                    (memory_id, prompt_id),
+                ).fetchall()
+            else:
+                rows = self._connection.execute(
+                    "SELECT id FROM otel_events WHERE memory_id = ? ORDER BY rowid",
+                    (memory_id,),
+                ).fetchall()
+            events = []
+            for row in rows:
+                event_row = self._connection.execute(
+                    "SELECT * FROM otel_events WHERE id = ?", (row["id"],)
+                ).fetchone()
+                events.append(event_row)
+        return [
+            {
+                "id": e["id"],
+                "session_id": e["session_id"],
+                "kind": e["kind"],
+                "name": e["name"],
+                "trace_id": e["trace_id"],
+                "span_id": e["span_id"],
+                "parent_span_id": e["parent_span_id"],
+                "prompt_id": e["prompt_id"],
+                "memory_id": e["memory_id"],
+                "value": e["value"],
+                "unit": e["unit"],
+                "start_time": e["start_time"],
+                "end_time": e["end_time"],
+                "attributes": json.loads(e["attributes_json"]),
+                "created_at": e["created_at"],
+            }
+            for e in events
+        ]
 
     def session_otel_summary(self, external_session_id: str) -> dict[str, object]:
         """Diagnostic rollup for a session: counts by kind, and metric totals by name (e.g.

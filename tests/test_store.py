@@ -540,3 +540,75 @@ def test_otel_batch_rejects_unknown_session_and_bad_events(tmp_path):
         "span": 0, "metric": 0, "log": 0
     }
     store.close()
+
+
+def test_memory_otel_events_weak_link_via_prompt_id_correlation(tmp_path):
+    store = GraphStore(tmp_path / "graph")
+    store.start_session("s1", retention_tier="verbatim")
+
+    memory = store.store_memory(
+        "I've reviewed the login page CSS and found the flexbox bug.",
+        source={"kind": "direct_user", "session_id": "s1", "prompt_id": "prompt-abc-123"},
+        status="confirmed",
+    )
+    assert memory["source"]["prompt_id"] == "prompt-abc-123"
+
+    store.record_otel_batch("s1", [
+        {"kind": "log", "name": "claude_code.user_prompt", "prompt_id": "prompt-abc-123",
+         "attributes": {"prompt": "fix the login page css"}},
+        {"kind": "metric", "name": "claude_code.token.usage", "value": 850,
+         "prompt_id": "prompt-abc-123", "attributes": {"type": "output"}},
+        {"kind": "span", "name": "unrelated", "prompt_id": "some-other-prompt"},
+    ])
+
+    linked = store.memory_otel_events(memory["id"])
+    assert {e["name"] for e in linked} == {"claude_code.user_prompt", "claude_code.token.usage"}
+    assert linked[0]["attributes"]["prompt"] == "fix the login page css"
+    store.close()
+
+
+def test_memory_otel_events_strong_link_via_explicit_memory_id(tmp_path):
+    store = GraphStore(tmp_path / "graph")
+    store.start_session("s1")
+
+    memory = store.store_memory(
+        "Second turn, no prompt_id supplied this time.",
+        source={"kind": "direct_user", "session_id": "s1"},
+        status="confirmed",
+    )
+    store.record_otel_batch("s1", [{"kind": "span", "name": "tool_call", "memory_id": memory["id"]}])
+
+    linked = store.memory_otel_events(memory["id"])
+    assert len(linked) == 1
+    assert linked[0]["memory_id"] == memory["id"]
+    store.close()
+
+
+def test_memory_otel_events_returns_empty_when_no_correlation_exists(tmp_path):
+    store = GraphStore(tmp_path / "graph")
+    store.start_session("s1")
+    memory = store.store_memory(
+        "No otel events for this one.",
+        source={"kind": "direct_user", "session_id": "s1"},
+        status="confirmed",
+    )
+    assert store.memory_otel_events(memory["id"]) == []
+    store.close()
+
+
+def test_record_otel_batch_rejects_unknown_memory_id_atomically(tmp_path):
+    store = GraphStore(tmp_path / "graph")
+    store.start_session("s1")
+    memory = store.store_memory(
+        "Real memory.", source={"kind": "direct_user", "session_id": "s1"}, status="confirmed",
+    )
+
+    with pytest.raises(Exception):  # sqlite3.IntegrityError -- FK constraint
+        store.record_otel_batch("s1", [
+            {"kind": "span", "name": "valid", "memory_id": memory["id"]},
+            {"kind": "span", "name": "invalid", "memory_id": "does-not-exist"},
+        ])
+
+    # Atomic: the valid event in the same batch must NOT have landed either.
+    assert store.memory_otel_events(memory["id"]) == []
+    store.close()
