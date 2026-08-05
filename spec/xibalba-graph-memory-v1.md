@@ -276,8 +276,16 @@ tool bypasses profile authorization or the append-only write model:
 | `memory_events` | `memory_events` | Exposes the hash chain (`node_id`/`parent_event_id`) for external audit. |
 | `memory_verify_chain` | `verify_chain` | Local chain integrity only — see §6.3 for what it does *not* prove. |
 | `memory_status` | `status` | Schema version, WAL/FTS5/foreign-key/integrity-check status. |
+| `memory_backup` | `backup` | Online, verified, non-destructive to the live store — safe to expose without gating. |
 
-Approval-gated administrative tools (`memory_consolidate`, `memory_export`, `memory_restore`,
+`GraphStore.restore()` exists and is tested (verifies the source's `integrity_check` before
+touching the live database, refuses corrupt input) but is **deliberately not exposed as an MCP
+tool** in v1 — it overwrites the live database, and this server has no approval-gating mechanism
+yet to guard a call that destructive. This is the distinction the spec draws between "capability
+implemented" and "tool surface exposed": building the capability first and gating the surface
+deliberately, not silently shipping a destructive tool because the underlying code exists.
+
+Remaining approval-gated administrative tools (`memory_consolidate`, `memory_export`,
 `memory_hard_purge`, `memory_anchor`) are out of scope for v1 — no consolidation, hard-purge, or
 anchoring capability exists yet to gate.
 

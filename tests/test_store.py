@@ -263,3 +263,57 @@ def test_vector_search_ranks_by_similarity_and_fuses_with_lexical(tmp_path):
     with pytest.raises(ValueError, match="dimension"):
         store.search("query", query_vector=[0.0, 0.0])
     store.close()
+
+
+def test_backup_produces_verified_restorable_snapshot(tmp_path):
+    store = GraphStore(tmp_path / "graph")
+    kept = store.store_memory(
+        "Present before the backup.",
+        source={"kind": "direct_user", "locator": "hermes://session/backup"},
+        status="confirmed",
+    )
+
+    backup_path = tmp_path / "backups" / "snapshot.sqlite3"
+    result = store.backup(backup_path)
+    assert result["integrity_check"] == "ok"
+    assert result["schema_version"] == 1
+    assert backup_path.is_file()
+    assert os.stat(backup_path).st_mode & 0o777 == 0o600
+
+    # Write something after the backup -- restore must not bring this back.
+    store.store_memory(
+        "Written after the backup, must not survive restore.",
+        source={"kind": "direct_user", "locator": "hermes://session/backup-after"},
+        status="confirmed",
+    )
+    assert len(store.search("Written after the backup")) == 1
+
+    status = store.restore(backup_path)
+    assert status["integrity_check"] == "ok"
+
+    assert store.get_memory(kept["id"])["content"] == "Present before the backup."
+    assert store.search("Written after the backup") == []
+
+    # The event hash chain must still verify after the file swap underneath the connection.
+    chain = store.verify_chain(kept["id"])
+    assert chain["valid"] is True
+    store.close()
+
+
+def test_restore_refuses_corrupt_backup(tmp_path):
+    store = GraphStore(tmp_path / "graph")
+    store.store_memory(
+        "Untouched if restore is refused.",
+        source={"kind": "direct_user", "locator": "hermes://session/refuse"},
+        status="confirmed",
+    )
+
+    corrupt_path = tmp_path / "corrupt.sqlite3"
+    corrupt_path.write_bytes(b"not a sqlite database")
+
+    with pytest.raises(ValueError, match="integrity_check"):
+        store.restore(corrupt_path)
+
+    # Store must still be fully functional -- restore failed before touching the live connection.
+    assert len(store.search("Untouched if restore is refused")) == 1
+    store.close()

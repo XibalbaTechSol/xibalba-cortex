@@ -42,6 +42,7 @@ async def test_all_tools_are_advertised(store):
         "memory_events",
         "memory_verify_chain",
         "memory_status",
+        "memory_backup",
     }
 
 
@@ -143,3 +144,21 @@ async def test_embed_and_vector_fused_recall_through_mcp(store):
     )
     results = _list_result(recalled)
     assert results[0]["id"] == memory["id"]
+
+
+@pytest.mark.asyncio
+async def test_backup_tool_writes_verified_snapshot_through_mcp(store, tmp_path):
+    await server.server.call_tool(
+        "memory_remember",
+        {
+            "content": "Backed up through the MCP tool.",
+            "source": {"kind": "direct_user", "locator": "hermes://session/mcp-backup"},
+            "status": "confirmed",
+        },
+    )
+
+    destination = str(tmp_path / "backups" / "snapshot.sqlite3")
+    result = await server.server.call_tool("memory_backup", {"destination": destination})
+    payload = _dict_result(result)
+    assert payload["integrity_check"] == "ok"
+    assert payload["destination"] == destination

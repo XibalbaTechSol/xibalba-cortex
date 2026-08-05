@@ -191,6 +191,18 @@ def memory_status() -> dict[str, object]:
     return get_store().status()
 
 
+@server.tool()
+def memory_backup(destination: str) -> dict[str, object]:
+    """Write a verified online backup to `destination`. Safe -- never modifies the live store.
+
+    There is no matching `memory_restore` tool. Restoring overwrites the live database and this
+    server has no approval-gating mechanism yet to guard a destructive tool call -- see
+    spec/xibalba-graph-memory-v1.md section 10. GraphStore.restore() exists and is tested; it is
+    deliberately not exposed over MCP in v1.
+    """
+    return get_store().backup(destination)
+
+
 def main() -> None:
     asyncio.run(server.run_stdio_async())
 

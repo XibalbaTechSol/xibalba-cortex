@@ -244,6 +244,84 @@ class GraphStore:
             "integrity_check": integrity_check,
         }
 
+    def backup(self, destination: str | Path) -> dict[str, object]:
+        """Online backup via SQLite's own backup API -- safe under WAL with concurrent readers,
+        unlike copying the file directly. Verifies the copy before returning, not just that the
+        API call succeeded.
+        """
+        destination = Path(destination).expanduser().resolve()
+        destination.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+        with self._lock:
+            backup_connection = sqlite3.connect(destination)
+            try:
+                self._connection.backup(backup_connection)
+            finally:
+                backup_connection.close()
+        os.chmod(destination, 0o600)
+
+        verify_connection = sqlite3.connect(destination)
+        try:
+            integrity_check = verify_connection.execute("PRAGMA integrity_check").fetchone()[0]
+            schema_version = verify_connection.execute(
+                "SELECT COALESCE(MAX(version), 0) FROM schema_migrations"
+            ).fetchone()[0]
+        finally:
+            verify_connection.close()
+        return {
+            "destination": str(destination),
+            "integrity_check": integrity_check,
+            "schema_version": schema_version,
+        }
+
+    def restore(self, source: str | Path) -> dict[str, object]:
+        """Replace this store's live database with a backup, refusing corrupt input.
+
+        Verifies the source's integrity_check BEFORE touching the live database -- a restore
+        that installs a corrupt backup over a healthy database is strictly worse than refusing.
+        """
+        source = Path(source).expanduser().resolve()
+        if not source.is_file():
+            raise FileNotFoundError(source)
+
+        source_connection = sqlite3.connect(source)
+        try:
+            try:
+                integrity_check = source_connection.execute(
+                    "PRAGMA integrity_check"
+                ).fetchone()[0]
+            except sqlite3.DatabaseError as exc:
+                integrity_check = f"not a valid SQLite database: {exc}"
+        finally:
+            source_connection.close()
+        if integrity_check != "ok":
+            raise ValueError(
+                f"refusing to restore from a backup that fails integrity_check: {integrity_check}"
+            )
+
+        with self._lock:
+            self._connection.close()
+            for suffix in ("", "-wal", "-shm"):
+                sidecar = Path(str(self.db_path) + suffix)
+                if sidecar.exists():
+                    sidecar.unlink()
+
+            source_connection = sqlite3.connect(source)
+            dest_connection = sqlite3.connect(self.db_path)
+            try:
+                source_connection.backup(dest_connection)
+            finally:
+                source_connection.close()
+                dest_connection.close()
+            os.chmod(self.db_path, 0o600)
+
+            self._connection = sqlite3.connect(
+                self.db_path, timeout=5.0, isolation_level=None, check_same_thread=False,
+            )
+            self._connection.row_factory = sqlite3.Row
+            self._configure()
+            self._migrate()
+        return self.status()
+
     @staticmethod
     def _sha256(text: str) -> str:
         return "sha256:" + hashlib.sha256(text.encode("utf-8")).hexdigest()
