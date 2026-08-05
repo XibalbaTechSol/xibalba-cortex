@@ -350,6 +350,38 @@ def memory_vault_inspect(leaf_hash: str, vault_dir: str) -> dict[str, object]:
     return inspect_leaf(leaf_hash, vault_dir)
 
 
+@server.tool()
+def memory_build_session_exchanges(external_session_id: str) -> dict[str, object]:
+    """Build a session's Merkle-chained exchange sequence from whatever memories/otel_events
+    already exist for it (from any combination of memory_remember calls, memory_record_otel_batch,
+    or the raw_body_ingest/otlp_receiver/transcript_ingest scripts). Call once after a
+    session's data is fully ingested (e.g. at session end) -- not idempotent, calling twice
+    duplicates every exchange, since this derives exchanges from current data rather than
+    tracking them incrementally.
+    """
+    from xibalba_graph.exchange_builder import build_session_exchanges
+    return build_session_exchanges(get_store(), external_session_id)
+
+
+@server.tool()
+def memory_session_exchanges(external_session_id: str) -> list[dict[str, object]]:
+    f"""A session's complete memory, walked turn by turn: each exchange has its prompt/response
+    memories, linked tool calls, and context-window token usage, in order.
+    {_UNTRUSTED_EVIDENCE_NOTE}
+    """
+    return get_store().session_exchanges(external_session_id)
+
+
+@server.tool()
+def memory_verify_exchange_chain(external_session_id: str) -> dict[str, object]:
+    """Recompute a session's exchange hash chain and check parent linkage -- proves the
+    session's turn-by-turn sequence hasn't been reordered, forged, or dropped since it was
+    built, the same tamper-evidence memory_verify_chain gives one memory's own revision
+    history, applied to a session's complete structure instead.
+    """
+    return get_store().verify_exchange_chain(external_session_id)
+
+
 def main() -> None:
     asyncio.run(server.run_stdio_async())
 

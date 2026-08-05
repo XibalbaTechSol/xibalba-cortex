@@ -60,7 +60,9 @@ def _save_state(home: Path, state: dict[str, int]) -> None:
     (home / _STATE_FILENAME).write_text(json.dumps(state, sort_keys=True, indent=2))
 
 
-def _ingest_user_record(store: GraphStore, rec: dict[str, Any], session_id: str) -> list[dict[str, object]]:
+def _ingest_user_record(
+    store: GraphStore, rec: dict[str, Any], session_id: str, prompt_id: str | None
+) -> list[dict[str, object]]:
     message = rec.get("message") or {}
     content = message.get("content")
     results: list[dict[str, object]] = []
@@ -99,6 +101,12 @@ def _ingest_user_record(store: GraphStore, rec: dict[str, Any], session_id: str)
                 "name": "tool_result",
                 "span_id": tool_use_id,
                 "parent_span_id": tool_use_id,
+                # Propagated from the most recent user prompt in this transcript, not present
+                # on the tool_result block itself -- see ingest_transcript's current_prompt_id
+                # tracking. This is what lets the exchange builder attach tool calls to the
+                # exchange they actually belong to, matching real OTel prompt.id semantics
+                # ("links all events produced while processing a single user prompt").
+                "prompt_id": prompt_id,
                 "attributes": {
                     "is_error": block.get("is_error", False),
                     "content": text if text else block.get("content"),
@@ -108,7 +116,9 @@ def _ingest_user_record(store: GraphStore, rec: dict[str, Any], session_id: str)
     return results
 
 
-def _ingest_assistant_record(store: GraphStore, rec: dict[str, Any], session_id: str) -> list[dict[str, object]]:
+def _ingest_assistant_record(
+    store: GraphStore, rec: dict[str, Any], session_id: str, prompt_id: str | None
+) -> list[dict[str, object]]:
     message = rec.get("message") or {}
     content = message.get("content")
     usage = message.get("usage")
@@ -134,6 +144,7 @@ def _ingest_assistant_record(store: GraphStore, rec: dict[str, Any], session_id:
                             "session_id": session_id,
                             "role": "assistant",
                             "message_id": rec.get("uuid"),
+                            "prompt_id": prompt_id,
                             "observed_at": rec.get("timestamp"),
                             # store_memory auto-collects any unrecognized top-level source key
                             # into source.metadata itself -- passing block_type directly here
@@ -149,6 +160,7 @@ def _ingest_assistant_record(store: GraphStore, rec: dict[str, Any], session_id:
                     "kind": "span",
                     "name": f"tool_call.{block.get('name')}",
                     "span_id": block.get("id"),
+                    "prompt_id": prompt_id,
                     "attributes": {"tool_name": block.get("name"), "input": block.get("input") or {}},
                 }])
                 results.append({"kind": "otel_event", "name": "tool_use"})
@@ -160,10 +172,37 @@ def _ingest_assistant_record(store: GraphStore, rec: dict[str, Any], session_id:
                 "kind": "metric",
                 "name": "context_window.tokens",
                 "value": total,
+                "prompt_id": prompt_id,
                 "attributes": usage,
             }])
             results.append({"kind": "otel_event", "name": "context_window.tokens"})
     return results
+
+
+def _recover_prompt_ids_before(lines: list[str], resume_from_line: int) -> dict[str, str]:
+    """Recover the last-known prompt_id per session from already-processed lines, so a
+    resumed poll (resume_from_line > 0) correctly continues attributing tool calls to the
+    right prompt instead of losing that context at the resume boundary. Scans forward through
+    the already-processed prefix once -- cheap relative to re-ingesting, and only run once
+    per call, not per line of the new batch.
+    """
+    current: dict[str, str] = {}
+    for line in lines[:resume_from_line]:
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            rec = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if rec.get("type") != "user":
+            continue
+        message = rec.get("message") or {}
+        if isinstance(message.get("content"), str) and rec.get("promptId"):
+            session_id = rec.get("sessionId")
+            if session_id:
+                current[session_id] = rec["promptId"]
+    return current
 
 
 def ingest_transcript(store: GraphStore, transcript_path: Path, *, resume_from_line: int = 0) -> dict[str, object]:
@@ -173,6 +212,7 @@ def ingest_transcript(store: GraphStore, transcript_path: Path, *, resume_from_l
     """
     lines = transcript_path.read_text(encoding="utf-8", errors="replace").splitlines()
     new_lines = lines[resume_from_line:]
+    current_prompt_id_by_session = _recover_prompt_ids_before(lines, resume_from_line)
 
     memories = 0
     reused = 0
@@ -197,10 +237,14 @@ def ingest_transcript(store: GraphStore, transcript_path: Path, *, resume_from_l
             continue
 
         store.start_session(session_id, retention_tier="verbatim")
+        message = rec.get("message") or {}
+        if rec_type == "user" and isinstance(message.get("content"), str) and rec.get("promptId"):
+            current_prompt_id_by_session[session_id] = rec["promptId"]
+        prompt_id = current_prompt_id_by_session.get(session_id)
         if rec_type == "user":
-            results = _ingest_user_record(store, rec, session_id)
+            results = _ingest_user_record(store, rec, session_id, prompt_id)
         else:
-            results = _ingest_assistant_record(store, rec, session_id)
+            results = _ingest_assistant_record(store, rec, session_id, prompt_id)
 
         for result in results:
             if result["kind"] == "memory":

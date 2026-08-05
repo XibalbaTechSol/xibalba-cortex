@@ -232,6 +232,46 @@ CREATE INDEX IF NOT EXISTS idx_otel_events_session_name ON otel_events(session_i
 CREATE INDEX IF NOT EXISTS idx_otel_events_prompt_id ON otel_events(prompt_id);
 CREATE INDEX IF NOT EXISTS idx_otel_events_memory_id ON otel_events(memory_id);
 
+-- A session's complete memory as a walkable, Merkle-chained sequence of exchanges -- the same
+-- content-addressed, backward-linked pattern already proven for memory_events (and explored
+-- for the Integrity DAG), applied one level up: instead of chaining a single memory's own
+-- revisions, this chains a session's turn-by-turn structure. Each exchange's node_id commits
+-- to its prompt/response content hashes, its tool calls, and the previous exchange's node_id --
+-- so reordering, forging, or dropping an exchange is detectable by recomputing the chain,
+-- exactly like verify_chain() does for a single memory. See spec section 4.14.
+CREATE TABLE IF NOT EXISTS exchanges (
+    id TEXT PRIMARY KEY,
+    session_id TEXT NOT NULL REFERENCES sessions(external_session_id) ON DELETE CASCADE,
+    sequence_number INTEGER NOT NULL,
+    prompt_id TEXT,
+    prompt_time TEXT,
+    response_time TEXT,
+    latency_ms REAL,
+    node_id TEXT NOT NULL,
+    parent_node_id TEXT,
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(session_id, sequence_number)
+);
+
+CREATE INDEX IF NOT EXISTS idx_exchanges_session ON exchanges(session_id, sequence_number);
+
+-- Many-to-many, not two FK columns on exchanges: a single prompt can produce several response
+-- memories (thinking blocks, text, in Path C's terms -- verified against real transcript
+-- structure in the session that built this), and this stays flexible for that without
+-- guessing which one is "the" response.
+CREATE TABLE IF NOT EXISTS exchange_memories (
+    exchange_id TEXT NOT NULL REFERENCES exchanges(id) ON DELETE CASCADE,
+    memory_id TEXT NOT NULL REFERENCES memories(id) ON DELETE CASCADE,
+    role TEXT NOT NULL CHECK (role IN ('prompt', 'response')),
+    PRIMARY KEY (exchange_id, memory_id)
+);
+
+CREATE TABLE IF NOT EXISTS exchange_tool_calls (
+    exchange_id TEXT NOT NULL REFERENCES exchanges(id) ON DELETE CASCADE,
+    otel_event_id TEXT NOT NULL REFERENCES otel_events(id) ON DELETE CASCADE,
+    PRIMARY KEY (exchange_id, otel_event_id)
+);
+
 CREATE TABLE IF NOT EXISTS attachments (
     id TEXT PRIMARY KEY,
     memory_id TEXT NOT NULL REFERENCES memories(id) ON DELETE CASCADE,
@@ -1179,6 +1219,235 @@ class GraphStore:
             "metric_totals": {
                 row["name"]: {"total": row["total"], "count": row["n"]} for row in metric_totals
             },
+        }
+
+    def session_otel_events(self, external_session_id: str) -> list[dict[str, object]]:
+        """Raw (non-aggregated) otel_events for a session, oldest first -- what
+        session_otel_summary rolls up, exposed per-row for callers (e.g. the exchange
+        builder) that need to pair individual events with individual memories.
+        """
+        self.get_session(external_session_id)
+        with self._lock:
+            rows = self._connection.execute(
+                "SELECT id FROM otel_events WHERE session_id = ? ORDER BY rowid",
+                (external_session_id,),
+            ).fetchall()
+        events = []
+        for row in rows:
+            with self._lock:
+                e = self._connection.execute(
+                    "SELECT * FROM otel_events WHERE id = ?", (row["id"],)
+                ).fetchone()
+            events.append({
+                "id": e["id"], "session_id": e["session_id"], "kind": e["kind"], "name": e["name"],
+                "trace_id": e["trace_id"], "span_id": e["span_id"], "parent_span_id": e["parent_span_id"],
+                "prompt_id": e["prompt_id"], "memory_id": e["memory_id"], "value": e["value"],
+                "unit": e["unit"], "start_time": e["start_time"], "end_time": e["end_time"],
+                "attributes": json.loads(e["attributes_json"]), "created_at": e["created_at"],
+            })
+        return events
+
+    def record_exchange(
+        self,
+        external_session_id: str,
+        *,
+        prompt_memory_ids: list[str] = (),
+        response_memory_ids: list[str] = (),
+        tool_call_otel_event_ids: list[str] = (),
+        prompt_id: str | None = None,
+        prompt_time: str | None = None,
+        response_time: str | None = None,
+    ) -> dict[str, object]:
+        """Append one exchange to a session's Merkle-chained sequence. Hash-chained the same
+        way memory_events is: node_id commits to this exchange's content (prompt/response
+        content hashes, tool call ids) AND the previous exchange's node_id, so
+        verify_exchange_chain can detect reordering or tampering by recomputation alone.
+        """
+        self.get_session(external_session_id)
+        prompt_memory_ids = list(prompt_memory_ids)
+        response_memory_ids = list(response_memory_ids)
+        tool_call_otel_event_ids = list(tool_call_otel_event_ids)
+
+        prompt_hashes = sorted(self.get_memory(mid)["content_hash"] for mid in prompt_memory_ids)
+        response_hashes = sorted(self.get_memory(mid)["content_hash"] for mid in response_memory_ids)
+
+        latency_ms = None
+        if prompt_time and response_time:
+            try:
+                from datetime import datetime
+                t0 = datetime.fromisoformat(str(prompt_time).replace("Z", "+00:00"))
+                t1 = datetime.fromisoformat(str(response_time).replace("Z", "+00:00"))
+                latency_ms = (t1 - t0).total_seconds() * 1000
+            except (ValueError, TypeError):
+                latency_ms = None  # unparseable timestamp format -- honest absence, not a guess
+
+        with self._lock:
+            self._connection.execute("BEGIN IMMEDIATE")
+            try:
+                next_seq_row = self._connection.execute(
+                    "SELECT COALESCE(MAX(sequence_number), -1) + 1 AS n FROM exchanges WHERE session_id = ?",
+                    (external_session_id,),
+                ).fetchone()
+                sequence_number = next_seq_row["n"]
+                parent_row = self._connection.execute(
+                    "SELECT node_id FROM exchanges WHERE session_id = ? AND sequence_number = ?",
+                    (external_session_id, sequence_number - 1),
+                ).fetchone()
+                parent_node_id = parent_row["node_id"] if parent_row else None
+
+                node = {
+                    "schema": "xibalba.exchange.v1",
+                    "session_id": external_session_id,
+                    "sequence_number": sequence_number,
+                    "prompt_memory_ids": sorted(prompt_memory_ids),
+                    "prompt_content_hashes": prompt_hashes,
+                    "response_memory_ids": sorted(response_memory_ids),
+                    "response_content_hashes": response_hashes,
+                    "tool_call_otel_event_ids": sorted(tool_call_otel_event_ids),
+                    "parent_node_id": parent_node_id,
+                }
+                node_id = self._sha256(self._canonical_json(node))
+                exchange_id = str(uuid.uuid4())
+
+                self._connection.execute(
+                    """
+                    INSERT INTO exchanges(
+                        id, session_id, sequence_number, prompt_id, prompt_time, response_time,
+                        latency_ms, node_id, parent_node_id
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (exchange_id, external_session_id, sequence_number, prompt_id, prompt_time,
+                     response_time, latency_ms, node_id, parent_node_id),
+                )
+                for mid in prompt_memory_ids:
+                    self._connection.execute(
+                        "INSERT INTO exchange_memories(exchange_id, memory_id, role) VALUES (?, ?, 'prompt')",
+                        (exchange_id, mid),
+                    )
+                for mid in response_memory_ids:
+                    self._connection.execute(
+                        "INSERT INTO exchange_memories(exchange_id, memory_id, role) VALUES (?, ?, 'response')",
+                        (exchange_id, mid),
+                    )
+                for oid in tool_call_otel_event_ids:
+                    self._connection.execute(
+                        "INSERT INTO exchange_tool_calls(exchange_id, otel_event_id) VALUES (?, ?)",
+                        (exchange_id, oid),
+                    )
+                self._connection.execute("COMMIT")
+            except Exception:
+                self._connection.execute("ROLLBACK")
+                raise
+        return self.get_exchange(exchange_id)
+
+    def get_exchange(self, exchange_id: str) -> dict[str, object]:
+        with self._lock:
+            row = self._connection.execute(
+                "SELECT * FROM exchanges WHERE id = ?", (exchange_id,)
+            ).fetchone()
+            if row is None:
+                raise KeyError(exchange_id)
+            prompt_memory_ids = [
+                r["memory_id"] for r in self._connection.execute(
+                    "SELECT memory_id FROM exchange_memories WHERE exchange_id = ? AND role = 'prompt'",
+                    (exchange_id,),
+                ).fetchall()
+            ]
+            response_memory_ids = [
+                r["memory_id"] for r in self._connection.execute(
+                    "SELECT memory_id FROM exchange_memories WHERE exchange_id = ? AND role = 'response'",
+                    (exchange_id,),
+                ).fetchall()
+            ]
+            tool_call_ids = [
+                r["otel_event_id"] for r in self._connection.execute(
+                    "SELECT otel_event_id FROM exchange_tool_calls WHERE exchange_id = ?",
+                    (exchange_id,),
+                ).fetchall()
+            ]
+        return {
+            "id": row["id"],
+            "session_id": row["session_id"],
+            "sequence_number": row["sequence_number"],
+            "prompt_id": row["prompt_id"],
+            "prompt_time": row["prompt_time"],
+            "response_time": row["response_time"],
+            "latency_ms": row["latency_ms"],
+            "node_id": row["node_id"],
+            "parent_node_id": row["parent_node_id"],
+            "prompt_memories": [self.get_memory(mid) for mid in prompt_memory_ids],
+            "response_memories": [self.get_memory(mid) for mid in response_memory_ids],
+            "tool_calls": [self.get_otel_event(oid) for oid in tool_call_ids],
+        }
+
+    def get_otel_event(self, otel_event_id: str) -> dict[str, object]:
+        with self._lock:
+            e = self._connection.execute(
+                "SELECT * FROM otel_events WHERE id = ?", (otel_event_id,)
+            ).fetchone()
+        if e is None:
+            raise KeyError(otel_event_id)
+        return {
+            "id": e["id"], "session_id": e["session_id"], "kind": e["kind"], "name": e["name"],
+            "trace_id": e["trace_id"], "span_id": e["span_id"], "parent_span_id": e["parent_span_id"],
+            "prompt_id": e["prompt_id"], "memory_id": e["memory_id"], "value": e["value"],
+            "unit": e["unit"], "start_time": e["start_time"], "end_time": e["end_time"],
+            "attributes": json.loads(e["attributes_json"]), "created_at": e["created_at"],
+        }
+
+    def session_exchanges(self, external_session_id: str) -> list[dict[str, object]]:
+        """A session's complete memory, walked in order -- the point of this whole mechanism:
+        not a flat bag of memories filtered by session_id, but its actual turn-by-turn shape.
+        """
+        self.get_session(external_session_id)
+        with self._lock:
+            rows = self._connection.execute(
+                "SELECT id FROM exchanges WHERE session_id = ? ORDER BY sequence_number",
+                (external_session_id,),
+            ).fetchall()
+        return [self.get_exchange(row["id"]) for row in rows]
+
+    def verify_exchange_chain(self, external_session_id: str) -> dict[str, object]:
+        """Recompute every exchange's node_id and check parent linkage -- the same tamper-
+        evidence property verify_chain() gives a single memory, applied to a session's entire
+        turn-by-turn sequence: reordering, forging, or dropping an exchange changes the hash
+        chain, detectable by recomputation alone, no external dependency.
+        """
+        self.get_session(external_session_id)
+        with self._lock:
+            rows = self._connection.execute(
+                "SELECT id, sequence_number, node_id, parent_node_id FROM exchanges "
+                "WHERE session_id = ? ORDER BY sequence_number",
+                (external_session_id,),
+            ).fetchall()
+        expected_parent = None
+        for row in rows:
+            exchange = self.get_exchange(row["id"])
+            node = {
+                "schema": "xibalba.exchange.v1",
+                "session_id": external_session_id,
+                "sequence_number": row["sequence_number"],
+                "prompt_memory_ids": sorted(m["id"] for m in exchange["prompt_memories"]),
+                "prompt_content_hashes": sorted(m["content_hash"] for m in exchange["prompt_memories"]),
+                "response_memory_ids": sorted(m["id"] for m in exchange["response_memories"]),
+                "response_content_hashes": sorted(m["content_hash"] for m in exchange["response_memories"]),
+                "tool_call_otel_event_ids": sorted(t["id"] for t in exchange["tool_calls"]),
+                "parent_node_id": expected_parent,
+            }
+            recomputed = self._sha256(self._canonical_json(node))
+            if row["parent_node_id"] != expected_parent or recomputed != row["node_id"]:
+                return {
+                    "valid": False,
+                    "length": len(rows),
+                    "broken_at_sequence_number": row["sequence_number"],
+                    "head_node_id": rows[-1]["node_id"] if rows else None,
+                }
+            expected_parent = row["node_id"]
+        return {
+            "valid": True,
+            "length": len(rows),
+            "broken_at_sequence_number": None,
+            "head_node_id": rows[-1]["node_id"] if rows else None,
         }
 
     def supersede_memory(

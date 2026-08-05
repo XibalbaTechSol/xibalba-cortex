@@ -626,3 +626,70 @@ def test_find_memory_id_by_content_matches_exact_text_only(tmp_path):
     assert store.find_memory_id_by_content("fix the LOGIN page css") is None  # case-sensitive
     assert store.find_memory_id_by_content("something else entirely") is None
     store.close()
+
+
+def test_exchange_chain_records_and_links_sequentially(tmp_path):
+    store = GraphStore(tmp_path / "graph")
+    store.start_session("s1", retention_tier="verbatim")
+
+    prompt1 = store.store_memory("Fix the login page CSS.", source={"kind": "direct_user", "session_id": "s1"}, status="confirmed")
+    response1 = store.store_memory("Fixed the flexbox bug.", source={"kind": "direct_user", "session_id": "s1"}, status="confirmed")
+    ex1 = store.record_exchange(
+        "s1", prompt_memory_ids=[prompt1["id"]], response_memory_ids=[response1["id"]],
+        prompt_time="2026-08-05T10:00:00Z", response_time="2026-08-05T10:00:03Z",
+    )
+    assert ex1["sequence_number"] == 0
+    assert ex1["parent_node_id"] is None
+    assert ex1["latency_ms"] == 3000.0
+    assert [m["id"] for m in ex1["prompt_memories"]] == [prompt1["id"]]
+    assert [m["id"] for m in ex1["response_memories"]] == [response1["id"]]
+
+    prompt2 = store.store_memory("Now add a test.", source={"kind": "direct_user", "session_id": "s1"}, status="confirmed")
+    response2 = store.store_memory("Added a regression test.", source={"kind": "direct_user", "session_id": "s1"}, status="confirmed")
+    ex2 = store.record_exchange("s1", prompt_memory_ids=[prompt2["id"]], response_memory_ids=[response2["id"]])
+
+    assert ex2["sequence_number"] == 1
+    assert ex2["parent_node_id"] == ex1["node_id"]  # chained to the previous exchange
+
+    walked = store.session_exchanges("s1")
+    assert [e["id"] for e in walked] == [ex1["id"], ex2["id"]]
+    store.close()
+
+
+def test_exchange_chain_with_tool_calls_and_unparseable_timestamps(tmp_path):
+    store = GraphStore(tmp_path / "graph")
+    store.start_session("s1", retention_tier="verbatim")
+    prompt = store.store_memory("Read a file.", source={"kind": "direct_user", "session_id": "s1"}, status="confirmed")
+    store.record_otel_batch("s1", [{"kind": "span", "name": "tool_call.Read", "value": None}])
+    tool_event_id = store.session_otel_events("s1")[0]["id"]
+
+    ex = store.record_exchange(
+        "s1", prompt_memory_ids=[prompt["id"]], tool_call_otel_event_ids=[tool_event_id],
+        prompt_time="not-a-timestamp", response_time="also-not-one",
+    )
+    assert ex["latency_ms"] is None  # honest absence, not a guessed value
+    assert [t["id"] for t in ex["tool_calls"]] == [tool_event_id]
+    store.close()
+
+
+def test_verify_exchange_chain_detects_tampering(tmp_path):
+    store = GraphStore(tmp_path / "graph")
+    store.start_session("s1", retention_tier="verbatim")
+    prompt1 = store.store_memory("First.", source={"kind": "direct_user", "session_id": "s1"}, status="confirmed")
+    store.record_exchange("s1", prompt_memory_ids=[prompt1["id"]])
+    prompt2 = store.store_memory("Second.", source={"kind": "direct_user", "session_id": "s1"}, status="confirmed")
+    store.record_exchange("s1", prompt_memory_ids=[prompt2["id"]])
+
+    intact = store.verify_exchange_chain("s1")
+    assert intact == {
+        "valid": True, "length": 2, "broken_at_sequence_number": None,
+        "head_node_id": intact["head_node_id"],
+    }
+
+    store._connection.execute(
+        "UPDATE exchanges SET node_id = 'sha256:tampered' WHERE session_id = 's1' AND sequence_number = 0"
+    )
+    tampered = store.verify_exchange_chain("s1")
+    assert tampered["valid"] is False
+    assert tampered["broken_at_sequence_number"] == 0
+    store.close()

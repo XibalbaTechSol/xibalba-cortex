@@ -380,6 +380,38 @@ polling an in-progress session) only process newly appended lines.
 wins the memory row; later paths reuse it and attach their own evidence via `otel_events`
 rather than creating a third copy.
 
+### 4.14 Exchanges: a session's complete memory as a Merkle-chained sequence
+
+Every ingestion path (explicit `memory_remember` calls, Path A/B/C) leaves a session's data as
+memories and `otel_events` correlated by `session_id`/`prompt_id`/`memory_id` — queryable, but
+still a flat set. `exchanges` (`GraphStore.record_exchange`/`get_exchange`/`session_exchanges`/
+`verify_exchange_chain`, built automatically by `src/xibalba_graph/exchange_builder.py`'s
+`build_session_exchanges`) turns that into the session's actual turn-by-turn shape: one row per
+prompt→response exchange, in order, each carrying its own prompt/response memories, linked
+tool calls, and context-window token usage.
+
+**The novel part, not just a view over existing tables:** each exchange is a node in a local
+Merkle chain, the exact same content-addressed, backward-linked pattern already proven for
+`memory_events` (§4.4) and explored for the Integrity Protocol's own Memory DAG — applied one
+level up. `node_id = sha256(canonical({schema, session_id, sequence_number,
+prompt_memory_ids, prompt_content_hashes, response_memory_ids, response_content_hashes,
+tool_call_otel_event_ids, parent_node_id}))`. `verify_exchange_chain` recomputes the whole
+sequence and checks parent linkage — reordering, forging, or dropping an exchange is
+detectable by recomputation alone, the same tamper-evidence guarantee `verify_chain` gives a
+single memory's revision history, now covering a session's complete structure. This is a local,
+unanchored chain (no on-chain commitment, no relationship to the Integrity Protocol's Memory
+DAG or TrustVault — see §4.9's boundary, which applies here identically); its head `node_id` is
+structurally the right shape to anchor later if that's ever wanted, but nothing does that today.
+
+**Grouping rule** (`build_session_exchanges`): a memory with `source.role == "user"` starts a
+new exchange; everything after it (assistant text/thinking memories, tool calls, context-window
+metrics correlated by `prompt_id` or `memory_id`) accumulates into that exchange until the next
+`user`-role memory. Session summary memories (`evidence_class == "summary"`, written by
+`end_session`) are excluded — a session-level artifact, not a turn. Not idempotent: call once
+after a session's data is fully ingested, not on a poll loop — re-running duplicates every
+exchange, since exchanges are derived from current data at call time, not tracked
+incrementally like `transcript_ingest`'s line offset.
+
 ## 5. Lifecycle operations
 
 ### 5.1 Supersession
@@ -548,6 +580,9 @@ tool bypasses profile authorization or the append-only write model:
 | `memory_verify_chain` | `verify_chain` | Local chain integrity only — see §6.3 for what it does *not* prove. |
 | `memory_status` | `status` | Schema version, WAL/FTS5/foreign-key/integrity-check status. |
 | `memory_backup` | `backup` | Online, verified, non-destructive to the live store — safe to expose without gating. |
+| `memory_build_session_exchanges` | `exchange_builder.build_session_exchanges` | Not idempotent — call once per session after ingestion completes (§4.14). |
+| `memory_session_exchanges` | `session_exchanges` | A session's complete memory, walked turn by turn. |
+| `memory_verify_exchange_chain` | `verify_exchange_chain` | Local Merkle-chain tamper-evidence over a session's exchange sequence — see §4.14 for what it does and doesn't prove (same boundary as §6.3). |
 
 `GraphStore.restore()` exists and is tested (verifies the source's `integrity_check` before
 touching the live database, refuses corrupt input) but is **deliberately not exposed as an MCP

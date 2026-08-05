@@ -53,6 +53,9 @@ async def test_all_tools_are_advertised(store):
         "memory_status",
         "memory_backup",
         "memory_vault_inspect",
+        "memory_build_session_exchanges",
+        "memory_session_exchanges",
+        "memory_verify_exchange_chain",
     }
 
 
@@ -342,3 +345,44 @@ async def test_memory_correlates_with_its_own_turn_otel_events_through_mcp(store
     events = _list_result(correlated)
     assert {e["name"] for e in events} == {"claude_code.user_prompt", "claude_code.token.usage"}
     assert len(events) == 2  # the "some-other-turn" event must NOT be included
+
+
+@pytest.mark.asyncio
+async def test_build_and_walk_and_verify_session_exchanges_through_mcp(store):
+    await server.server.call_tool(
+        "memory_session_start", {"external_session_id": "sess-exchange", "retention_tier": "verbatim"}
+    )
+    await server.server.call_tool(
+        "memory_remember",
+        {
+            "content": "Fix the login page CSS bug.",
+            "source": {"kind": "direct_user", "session_id": "sess-exchange", "role": "user"},
+            "status": "confirmed",
+        },
+    )
+    await server.server.call_tool(
+        "memory_remember",
+        {
+            "content": "Fixed the flexbox alignment bug.",
+            "source": {"kind": "direct_user", "session_id": "sess-exchange", "role": "assistant"},
+            "status": "confirmed",
+        },
+    )
+
+    built = await server.server.call_tool(
+        "memory_build_session_exchanges", {"external_session_id": "sess-exchange"}
+    )
+    assert _dict_result(built)["exchanges_built"] == 1
+
+    exchanges = await server.server.call_tool(
+        "memory_session_exchanges", {"external_session_id": "sess-exchange"}
+    )
+    walked = _list_result(exchanges)
+    assert len(walked) == 1
+    assert walked[0]["prompt_memories"][0]["content"] == "Fix the login page CSS bug."
+    assert walked[0]["response_memories"][0]["content"] == "Fixed the flexbox alignment bug."
+
+    verified = await server.server.call_tool(
+        "memory_verify_exchange_chain", {"external_session_id": "sess-exchange"}
+    )
+    assert _dict_result(verified)["valid"] is True
