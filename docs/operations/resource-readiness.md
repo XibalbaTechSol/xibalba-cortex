@@ -54,6 +54,22 @@ This gap closes only when `INTEGRITY-LATEST/docs/design/memory-dag.md`'s own ord
 (node schema pinned → `node_id` + canonicalization → ref store → import → anchoring) ships in
 that repository. It is out of this project's scope to implement the DAG itself.
 
+**Correction, 2026-08-05 (later same day):** the above is true but incomplete. There *is* a
+real, implemented, tested Integrity Protocol evidence store —
+`integrity-sdk/integrity_sdk/vault.py`'s `TrustVault` (`~/.integrity/vault/<agent_id>/leaves.jsonl`
++ `anchors.jsonl`, a genuine Keccak Merkle tree matching `StateAnchor.sol` bit-for-bit,
+sorted-pair hashing, odd-node-promoted-unchanged). It is not blocked, not a stub — it's live,
+dogfooded infrastructure. But it covers a **different evidence domain than memories**: every
+leaf is domain-separated over `(kind="commit", task_id, commit_sha, test_result_hash,
+timestamp)` — evidence about the protocol's own development process, not about arbitrary
+content. `leaf_hash` is `keccak(preimage)` of that specific tuple, not `keccak(content)`, so
+there is no literal hash-matching path from a memory's `content_hash` to a vault `leaf_hash`
+today — not because the vault doesn't work, but because a memory was never the kind of thing it
+records. `xibalba_graph.vault_inspect` (added this session) reads this real vault read-only for
+its own sake — checking whether a given Keccak leaf hash is present/anchored — but does not and
+cannot advance `integrity_links` for memory verification. Only the (still unimplemented) Memory
+DAG could do that, because it was actually designed to cover arbitrary content, not just commits.
+
 ## Honest gap: sqlite-vec is pre-1.0
 
 Confirmed working (v0.1.9, in-process load + KNN round-trip verified during the Phase 0 spike),

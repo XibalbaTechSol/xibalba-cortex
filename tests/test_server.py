@@ -43,6 +43,7 @@ async def test_all_tools_are_advertised(store):
         "memory_verify_chain",
         "memory_status",
         "memory_backup",
+        "memory_vault_inspect",
     }
 
 
@@ -162,3 +163,14 @@ async def test_backup_tool_writes_verified_snapshot_through_mcp(store, tmp_path)
     payload = _dict_result(result)
     assert payload["integrity_check"] == "ok"
     assert payload["destination"] == destination
+
+
+@pytest.mark.asyncio
+async def test_vault_inspect_tool_reports_not_found_for_absent_vault(store, tmp_path):
+    result = await server.server.call_tool(
+        "memory_vault_inspect",
+        {"leaf_hash": "0xnonexistent", "vault_dir": str(tmp_path / "no-such-vault")},
+    )
+    payload = _dict_result(result)
+    assert payload["found"] is False
+    assert payload["anchored"] is False

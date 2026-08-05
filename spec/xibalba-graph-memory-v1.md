@@ -199,6 +199,17 @@ never synthesize a plausible-looking but unearned verification result. Local cha
 (§4.4, `verify_chain`) is a separate, fully-functional capability that does not depend on the DAG
 — it proves this system's own history is self-consistent, not that it is anchored on-chain.
 
+This gap is not simply "the DAG doesn't exist yet." A real, implemented, tested Integrity
+Protocol evidence store already exists — `integrity-sdk`'s `TrustVault`
+(`~/.integrity/vault/<agent_id>/leaves.jsonl`, genuine Keccak Merkle tree matching
+`StateAnchor.sol`) — but it covers commit/test-result evidence for the protocol's own
+development, domain-separated over `(kind, task_id, commit_sha, test_result_hash, timestamp)`,
+not arbitrary content. There is no hash-matching path from a memory's `content_hash` to a vault
+`leaf_hash`, because a memory was never the kind of thing that store records. `memory_vault_inspect`
+(§10) reads this real vault read-only for its own sake; it does not and cannot advance
+`integrity_links`. Only the Memory DAG — designed to cover arbitrary content — could. See
+`docs/operations/resource-readiness.md`'s 2026-08-05 correction for the full account.
+
 ### 6.4 Anchoring selection policy (for when the DAG exists)
 
 Two-tier: always anchor `declared_intent` and `policy`-class memories (§4.2); randomly sample
