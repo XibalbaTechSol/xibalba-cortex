@@ -376,3 +376,45 @@ def test_attach_media_guesses_type_and_enforces_size_cap(tmp_path):
     with pytest.raises(FileNotFoundError):
         store.attach_media(memory["id"], tmp_path / "does-not-exist.png")
     store.close()
+
+
+def test_session_lifecycle_is_idempotent_and_links_a_summary(tmp_path):
+    store = GraphStore(tmp_path / "graph")
+
+    started = store.start_session("sess-abc", retention_tier="digest")
+    assert started["retention_tier"] == "digest"
+    assert started["ended_at"] is None
+    again = store.start_session("sess-abc", retention_tier="verbatim")  # tier ignored on repeat
+    assert again["id"] == started["id"]
+    assert again["retention_tier"] == "digest"
+
+    store.store_memory(
+        "User wants a login page fix.",
+        source={"kind": "direct_user", "session_id": "sess-abc"},
+        status="confirmed",
+        evidence_class="declared_intent",
+    )
+    store.store_memory(
+        "Fixed the CSS bug in login.css.",
+        source={"kind": "direct_user", "session_id": "sess-abc"},
+        status="confirmed",
+        evidence_class="observed_event",
+    )
+
+    ended = store.end_session(
+        "sess-abc", summary_content="Fixed login page CSS bug per user intent."
+    )
+    assert ended["ended_at"] is not None
+    assert ended["summary_memory_id"] is not None
+    assert store.get_memory(ended["summary_memory_id"])["evidence_class"] == "summary"
+
+    memories = store.session_memories("sess-abc")
+    assert [m["evidence_class"] for m in memories] == [
+        "declared_intent", "observed_event", "summary"
+    ]
+
+    with pytest.raises(KeyError):
+        store.end_session("never-started")
+    with pytest.raises(ValueError, match="retention_tier"):
+        store.start_session("bad-tier-session", retention_tier="everything")
+    store.close()

@@ -30,6 +30,16 @@ def _default_home() -> Path:
     return Path.home() / ".hermes" / "xibalba-graph-memory"
 
 
+def _default_retention_tier() -> str | None:
+    """Profile-wide default when memory_session_start doesn't specify one explicitly.
+
+    Unset (None) falls through to GraphStore's own default ("digest"). Set
+    XIBALBA_GRAPH_MEMORY_RETENTION_TIER to "verbatim", "synopsis", or "digest" in
+    mcp_servers.xibalba_graph_memory.env (~/.hermes/config.yaml) to change it per profile.
+    """
+    return os.environ.get("XIBALBA_GRAPH_MEMORY_RETENTION_TIER")
+
+
 _store: GraphStore | None = None
 
 
@@ -118,6 +128,51 @@ def memory_attach(
 def memory_list_attachments(memory_id: str) -> list[dict[str, object]]:
     """List all attachments on a memory."""
     return get_store().list_attachments(memory_id)
+
+
+@server.tool()
+def memory_session_start(
+    external_session_id: str, retention_tier: str | None = None
+) -> dict[str, object]:
+    """Declare a session and which write-pattern tier it follows. Idempotent -- safe to call
+    again for a reconnecting session; the tier from the FIRST call wins.
+
+    Tiers (declared, not enforced -- this server can't judge whether writes actually match):
+      - "verbatim": store every turn/message as its own memory. Full-fidelity, highest volume.
+      - "synopsis": periodically call memory_supersede on a running-summary memory instead of
+        writing new ones each turn -- full history stays inspectable via memory_events, only
+        the latest synopsis is recalled by default.
+      - "digest" (default): write only declared_intent, key observed_event outcomes, and
+        attachments (documents produced), then call memory_session_end with a closing summary.
+    Falls back to XIBALBA_GRAPH_MEMORY_RETENTION_TIER if not specified, else "digest".
+    """
+    return get_store().start_session(
+        external_session_id, retention_tier=retention_tier or _default_retention_tier()
+    )
+
+
+@server.tool()
+def memory_session_end(
+    external_session_id: str,
+    summary_content: str | None = None,
+    source: dict[str, object] | None = None,
+) -> dict[str, object]:
+    """Close a session, optionally storing a closing summary memory (evidence_class=summary)."""
+    return get_store().end_session(
+        external_session_id, summary_content=summary_content, source=source
+    )
+
+
+@server.tool()
+def memory_session_get(external_session_id: str) -> dict[str, object]:
+    """Fetch a session's record: tier, start/end time, linked summary memory."""
+    return get_store().get_session(external_session_id)
+
+
+@server.tool()
+def memory_session_memories(external_session_id: str) -> list[dict[str, object]]:
+    f"""All memories written under this session, oldest first. {_UNTRUSTED_EVIDENCE_NOTE}"""
+    return get_store().session_memories(external_session_id)
 
 
 @server.tool()

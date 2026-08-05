@@ -141,6 +141,31 @@ One row per memory, optionally pointing at an external Integrity DAG `node_id`, 
 `anchored_to_configured_root`, `verification_failed`, `content_unavailable`. See §6.3 for which
 of these states this system can actually produce today.
 
+### 4.8 Sessions and retention tiers: `sessions`
+
+A session (`start_session`/`end_session`/`session_memories`) groups memories written under one
+`sources.session_id` and declares which write-pattern tier that session follows
+(`sessions.retention_tier`). This answers a real deployment question: an operator with
+resources to spare may want every token of every session preserved; an operator who only wants
+intent, documents, and outcomes should get a small, cheap footprint instead. Both are the same
+storage system — the difference is entirely in what the calling agent chooses to write, not in
+a different code path.
+
+**The tier is a declared contract, not enforced content.** This store has no LLM in-process
+(§8, §1) and cannot judge whether an agent's writes actually match the tier it declared — the
+same "extraction is agent-side" principle applied everywhere else in this system. Three tiers:
+
+| Tier | What the calling agent writes | Storage shape |
+|---|---|---|
+| `verbatim` | One memory per turn/message, full fidelity | High volume, `observed_event` mostly, `status=candidate` unless confirmed |
+| `synopsis` | A single running-summary memory, updated via `supersede_memory` as the session progresses | Low volume at any instant; full history still walkable via `memory_events`, only the current head is recalled by default |
+| `digest` (default) | Only `declared_intent`, key `observed_event` outcomes, and attachments (documents produced); closed with a summary via `end_session` | Lowest volume — the footprint this spec's own default user wants |
+
+Default tier is set per-profile via `XIBALBA_GRAPH_MEMORY_RETENTION_TIER`
+(`mcp_servers.xibalba_graph_memory.env` in `~/.hermes/config.yaml`), overridable per session at
+`memory_session_start`. `start_session` is idempotent — a reconnecting session keeps the tier
+its first call declared, rather than silently changing mid-session.
+
 ## 5. Lifecycle operations
 
 ### 5.1 Supersession
@@ -288,6 +313,12 @@ tool bypasses profile authorization or the append-only write model:
 | `memory_remember` | `store_memory` | `source` is a required object (`kind` required within it). |
 | `memory_recall` | `search` | Lexical-only unless `query_vector` supplied; then RRF-fused (§8). |
 | `memory_embed` | `store_embedding` | Caller-computed vector only — never generated in-process (§8). |
+| `memory_attach` | `attach_media` | Content-addressed blob storage, not a SQLite BLOB; not yet searchable (§8). |
+| `memory_list_attachments` | `list_attachments` | |
+| `memory_session_start` | `start_session` | Idempotent; declares the retention tier (§4.8). |
+| `memory_session_end` | `end_session` | Optional closing summary memory. |
+| `memory_session_get` | `get_session` | |
+| `memory_session_memories` | `session_memories` | |
 | `memory_get` | `get_memory` | |
 | `memory_supersede` | `supersede_memory` | |
 | `memory_contradict` | `mark_contradiction` | |

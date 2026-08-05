@@ -45,6 +45,11 @@ _EVIDENCE_CLASSES = {
     "summary",
     "policy",
 }
+# Not code-enforced content -- this store never inspects what an agent writes and can't judge
+# "is this actually verbatim." A tier is a declared write-pattern contract the calling agent
+# follows; see spec section 4.8 for what each tier means in practice.
+_RETENTION_TIERS = {"verbatim", "synopsis", "digest"}
+_DEFAULT_RETENTION_TIER = "digest"
 _INJECTION_PATTERNS = (
     re.compile(r"\bignore\s+(?:all\s+)?previous\s+instructions\b", re.IGNORECASE),
     re.compile(r"\b(system|developer)\s+(note|message|instruction)\s*:", re.IGNORECASE),
@@ -160,6 +165,15 @@ CREATE TABLE IF NOT EXISTS contradictions (
     memory_id_b TEXT NOT NULL REFERENCES memories(id),
     reason TEXT,
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS sessions (
+    id TEXT PRIMARY KEY,
+    external_session_id TEXT NOT NULL UNIQUE,
+    retention_tier TEXT NOT NULL CHECK (retention_tier IN ('verbatim', 'synopsis', 'digest')),
+    started_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    ended_at TEXT,
+    summary_memory_id TEXT REFERENCES memories(id)
 );
 
 CREATE TABLE IF NOT EXISTS attachments (
@@ -786,10 +800,119 @@ class GraphStore:
     def list_attachments(self, memory_id: str) -> list[dict[str, object]]:
         with self._lock:
             rows = self._connection.execute(
-                "SELECT id FROM attachments WHERE memory_id = ? ORDER BY created_at, id",
+                "SELECT id FROM attachments WHERE memory_id = ? ORDER BY rowid",
                 (memory_id,),
             ).fetchall()
         return [self.get_attachment(row["id"]) for row in rows]
+
+    def start_session(
+        self, external_session_id: str, *, retention_tier: str | None = None
+    ) -> dict[str, object]:
+        """Declare a session and the write-pattern tier it will follow. Idempotent -- calling
+        this again for the same external_session_id returns the existing row unchanged, so a
+        reconnecting Hermes session doesn't create a duplicate.
+
+        Tier is a declared contract, not enforced content: this store has no way to judge
+        whether an agent's writes are actually "verbatim." See spec section 4.8.
+        """
+        tier = retention_tier or _DEFAULT_RETENTION_TIER
+        if tier not in _RETENTION_TIERS:
+            raise ValueError(f"invalid retention_tier: {tier!r}, must be one of {_RETENTION_TIERS}")
+
+        with self._lock:
+            existing = self._connection.execute(
+                "SELECT id FROM sessions WHERE external_session_id = ?", (external_session_id,)
+            ).fetchone()
+            if existing:
+                return self.get_session(external_session_id)
+
+            self._connection.execute("BEGIN IMMEDIATE")
+            try:
+                self._connection.execute(
+                    "INSERT INTO sessions(id, external_session_id, retention_tier) VALUES (?, ?, ?)",
+                    (str(uuid.uuid4()), external_session_id, tier),
+                )
+                self._connection.execute("COMMIT")
+            except Exception:
+                self._connection.execute("ROLLBACK")
+                raise
+        return self.get_session(external_session_id)
+
+    def get_session(self, external_session_id: str) -> dict[str, object]:
+        with self._lock:
+            row = self._connection.execute(
+                "SELECT * FROM sessions WHERE external_session_id = ?", (external_session_id,)
+            ).fetchone()
+        if row is None:
+            raise KeyError(external_session_id)
+        return {
+            "id": row["id"],
+            "external_session_id": row["external_session_id"],
+            "retention_tier": row["retention_tier"],
+            "started_at": row["started_at"],
+            "ended_at": row["ended_at"],
+            "summary_memory_id": row["summary_memory_id"],
+        }
+
+    def end_session(
+        self,
+        external_session_id: str,
+        *,
+        summary_content: str | None = None,
+        source: dict[str, object] | None = None,
+    ) -> dict[str, object]:
+        """Close a session, optionally storing a final summary memory as its record of record.
+
+        For a `digest`-tier session, `summary_content` is typically the whole point of the
+        session's stored footprint -- intent, documents produced, observed outcomes.
+        """
+        self.get_session(external_session_id)  # raises KeyError if never started
+
+        summary_memory_id = None
+        if summary_content is not None:
+            memory_source = dict(source or {})
+            memory_source.setdefault("kind", "explicit_memory")
+            memory_source.setdefault("session_id", external_session_id)
+            summary = self.store_memory(
+                summary_content,
+                source=memory_source,
+                status="confirmed",
+                evidence_class="summary",
+            )
+            summary_memory_id = summary["id"]
+
+        with self._lock:
+            self._connection.execute("BEGIN IMMEDIATE")
+            try:
+                self._connection.execute(
+                    "UPDATE sessions SET ended_at = CURRENT_TIMESTAMP, summary_memory_id = ? "
+                    "WHERE external_session_id = ?",
+                    (summary_memory_id, external_session_id),
+                )
+                self._connection.execute("COMMIT")
+            except Exception:
+                self._connection.execute("ROLLBACK")
+                raise
+        return self.get_session(external_session_id)
+
+    def session_memories(
+        self, external_session_id: str, *, limit: int = 1000
+    ) -> list[dict[str, object]]:
+        """All memories whose source cites this session, oldest first -- reuses the existing
+        sources.session_id column rather than duplicating session linkage on every memory row.
+        """
+        with self._lock:
+            rows = self._connection.execute(
+                """
+                SELECT m.id
+                FROM memories m JOIN sources s ON s.id = m.source_id
+                WHERE s.session_id = ?
+                ORDER BY m.rowid
+                LIMIT ?
+                """,
+                (external_session_id, max(1, min(int(limit), 10000))),
+            ).fetchall()
+        return [self.get_memory(row["id"]) for row in rows]
 
     def supersede_memory(
         self,
@@ -966,7 +1089,7 @@ class GraphStore:
                     FROM relations r
                     LEFT JOIN entities oe ON oe.id = r.object_entity_id
                     WHERE r.subject_entity_id IN ({placeholders}) AND r.status = 'active'
-                    ORDER BY r.created_at, r.id
+                    ORDER BY r.rowid
                     """,
                     frontier,
                 ).fetchall()
@@ -1014,7 +1137,7 @@ class GraphStore:
                     FROM relations r
                     LEFT JOIN entities oe ON oe.id = r.object_entity_id
                     WHERE r.subject_entity_id = ? AND r.status = 'active'
-                    ORDER BY r.created_at, r.id
+                    ORDER BY r.rowid
                     """,
                     (current_id,),
                 ).fetchall()

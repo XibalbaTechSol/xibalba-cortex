@@ -33,6 +33,10 @@ async def test_all_tools_are_advertised(store):
         "memory_embed",
         "memory_attach",
         "memory_list_attachments",
+        "memory_session_start",
+        "memory_session_end",
+        "memory_session_get",
+        "memory_session_memories",
         "memory_get",
         "memory_supersede",
         "memory_contradict",
@@ -205,3 +209,42 @@ async def test_attach_and_list_through_mcp(store, tmp_path):
         "memory_list_attachments", {"memory_id": memory["id"]}
     )
     assert [item["id"] for item in _list_result(listed)] == [attachment["id"]]
+
+
+@pytest.mark.asyncio
+async def test_session_lifecycle_through_mcp(store):
+    started = await server.server.call_tool(
+        "memory_session_start", {"external_session_id": "sess-mcp", "retention_tier": "digest"}
+    )
+    session = _dict_result(started)
+    assert session["retention_tier"] == "digest"
+
+    await server.server.call_tool(
+        "memory_remember",
+        {
+            "content": "User wants the dashboard fixed.",
+            "source": {"kind": "direct_user", "session_id": "sess-mcp"},
+            "status": "confirmed",
+            "evidence_class": "declared_intent",
+        },
+    )
+
+    ended = await server.server.call_tool(
+        "memory_session_end",
+        {"external_session_id": "sess-mcp", "summary_content": "Dashboard fix completed."},
+    )
+    ended_session = _dict_result(ended)
+    assert ended_session["ended_at"] is not None
+    assert ended_session["summary_memory_id"] is not None
+
+    fetched = await server.server.call_tool(
+        "memory_session_get", {"external_session_id": "sess-mcp"}
+    )
+    assert _dict_result(fetched)["id"] == session["id"]
+
+    memories = await server.server.call_tool(
+        "memory_session_memories", {"external_session_id": "sess-mcp"}
+    )
+    assert [m["evidence_class"] for m in _list_result(memories)] == [
+        "declared_intent", "summary"
+    ]
