@@ -8,6 +8,14 @@ dependencies = [
   "mcp>=1.0.0",
   "eth-hash[pycryptodome]>=0.7.0",
   "sqlite-vec>=0.1.9",
+  "pyyaml>=6.0",
+]
+
+[project.optional-dependencies]
+drive = [
+  "google-api-python-client>=2.0",
+  "google-auth>=2.0",
+  "pypdf>=4.0",
 ]
 
 [project.scripts]
@@ -15,6 +23,8 @@ xibalba-graph-memory = "xibalba_graph.server:main"
 xibalba-graph-memory-raw-ingest = "xibalba_graph.raw_body_ingest:main"
 xibalba-graph-memory-otlp-receiver = "xibalba_graph.otlp_receiver:main"
 xibalba-graph-memory-transcript-ingest = "xibalba_graph.transcript_ingest:main"
+xibalba-graph-memory-wiki-ingest = "xibalba_graph.wiki_ingest:main"
+xibalba-graph-memory-drive-ingest = "xibalba_graph.drive_ingest:main"
 
 [dependency-groups]
 dev = [

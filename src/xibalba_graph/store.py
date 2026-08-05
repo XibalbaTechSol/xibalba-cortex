@@ -543,6 +543,25 @@ class GraphStore:
             ).fetchone()
         return row["id"] if row else None
 
+    def find_memory_id_by_locator(self, locator: str) -> str | None:
+        """Look up the current (non-superseded) memory for a given source.locator, if any --
+        the re-sync primitive for document-ingestion paths (wiki_ingest, drive_ingest): a
+        locator identifies "this specific document" independent of its content, so a changed
+        document's re-ingestion can find its own prior version to supersede_memory rather than
+        creating an unrelated duplicate. Distinct from find_memory_id_by_content, which matches
+        identical text regardless of source.
+        """
+        with self._lock:
+            row = self._connection.execute(
+                """
+                SELECT m.id FROM memories m JOIN sources s ON s.id = m.source_id
+                WHERE s.locator = ? AND m.status != 'superseded'
+                ORDER BY m.created_at DESC LIMIT 1
+                """,
+                (locator,),
+            ).fetchone()
+        return row["id"] if row else None
+
     @staticmethod
     def _canonical_json(value: object) -> str:
         return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
