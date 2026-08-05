@@ -116,3 +116,32 @@ def test_response_with_no_text_blocks_is_skipped_not_ingested_as_empty(tmp_path)
     assert results[0]["status"] == "skipped"
     assert store.search("Read") == []
     store.close()
+
+
+def test_reuses_existing_memory_when_content_already_captured_by_otlp_receiver(tmp_path):
+    """Symmetric with otlp_receiver's dedup test: if the OTLP receiver (Path B) already
+    stored this exact text with real attribution, Path A must reuse it, not create a worse-
+    attributed duplicate under the unattributed session.
+    """
+    watch_dir = tmp_path / "watch"
+    watch_dir.mkdir()
+    store = GraphStore(tmp_path / "graph")
+
+    store.start_session("real-session", retention_tier="verbatim")
+    already_attributed = store.store_memory(
+        "fix the login page css",
+        source={"kind": "direct_user", "session_id": "real-session", "prompt_id": "p1"},
+        status="candidate",
+        evidence_class="observed_event",
+    )
+
+    _write(watch_dir / "uuid-1.request.json", {
+        "messages": [{"role": "user", "content": "fix the login page css"}]
+    })
+    results = scan_once(store, watch_dir)
+
+    assert results[0]["status"] == "reused"
+    assert results[0]["memory_id"] == already_attributed["id"]
+    # The already-attributed memory's real session was not overwritten with the unattributed one.
+    assert store.get_memory(already_attributed["id"])["source"]["session_id"] == "real-session"
+    store.close()

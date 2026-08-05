@@ -320,11 +320,25 @@ pipeline (§4.1a) — pseudonymized by default, same as any other agent identifi
 through `memory_record_otel_batch` directly remains the path for token/cost totals, unchanged
 from before this module existed.
 
-**What Path A + Path B together do NOT yet do:** retroactively re-attribute memories already
-ingested by Path A under `raw-capture-unattributed` once Path B supplies the real session/
-prompt correlation for the same turns. Both paths currently ingest independently; a backfill
-job to join them (matching Path A's file-derived `message_id` against Path B's `message.uuid`/
-`prompt.id`) is identified but not built.
+### 4.12 Cross-path deduplication and linkage (Path A ↔ Path B)
+
+No separate backfill job — both paths dedupe against each other by content at ingestion time,
+via `GraphStore.find_memory_id_by_content()`. Whichever path sees a given prompt/response text
+*first* (in practice usually Path A, since raw body files are written synchronously while OTLP
+export batches on a timer) creates the memory; whichever sees it *second* — with typically
+richer attribution, since Path B always carries a real `session.id`/`prompt.id` — reuses the
+existing memory rather than duplicating it, and links its richer telemetry to that memory via
+`otel_events.memory_id`.
+
+**This does not rewrite the original memory's own provenance**, deliberately, consistent with
+`sources` being immutable everywhere else in this system: a memory first captured by Path A
+keeps `source.session_id = raw-capture-unattributed` forever — an honest record of what was
+knowable at the moment it was first observed, not silently corrected after the fact. What
+changes is that `memory_otel_events(memory_id)` on that same memory now surfaces the real
+session, `prompt_id`, and telemetry — discoverable through the evidence trail rather than by
+mutating history. Two-pass processing inside `otlp_receiver.ingest_log_records` (text events
+resolved before telemetry events) makes this correct regardless of record order within one
+OTLP export batch, which is not a documented ordering guarantee.
 
 ## 5. Lifecycle operations
 

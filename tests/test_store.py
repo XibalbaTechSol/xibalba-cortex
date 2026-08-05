@@ -612,3 +612,17 @@ def test_record_otel_batch_rejects_unknown_memory_id_atomically(tmp_path):
     # Atomic: the valid event in the same batch must NOT have landed either.
     assert store.memory_otel_events(memory["id"]) == []
     store.close()
+
+
+def test_find_memory_id_by_content_matches_exact_text_only(tmp_path):
+    store = GraphStore(tmp_path / "graph")
+    memory = store.store_memory(
+        "fix the login page css",
+        source={"kind": "direct_user", "locator": "x"},
+        status="confirmed",
+    )
+    assert store.find_memory_id_by_content("fix the login page css") == memory["id"]
+    assert store.find_memory_id_by_content("  fix the login page css  ") == memory["id"]  # stripped
+    assert store.find_memory_id_by_content("fix the LOGIN page css") is None  # case-sensitive
+    assert store.find_memory_id_by_content("something else entirely") is None
+    store.close()

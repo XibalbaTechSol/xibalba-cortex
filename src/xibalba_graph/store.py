@@ -450,6 +450,23 @@ class GraphStore:
     def _sha256(text: str) -> str:
         return "sha256:" + hashlib.sha256(text.encode("utf-8")).hexdigest()
 
+    def find_memory_id_by_content(self, content: str) -> str | None:
+        """Look up an existing memory by exact content match (same hash `store_memory` would
+        compute), oldest match if more than one -- the dedup primitive that lets independent
+        ingestion paths (e.g. raw_body_ingest and otlp_receiver capturing the same LLM turn by
+        two different routes) recognize already-captured content instead of storing a
+        duplicate. Content, not identity, is the dedup key: two different sources describing
+        the same exact text are the same memory, richer provenance attached via otel_events'
+        memory_id link rather than a second row.
+        """
+        content_hash = self._sha256(content.strip())
+        with self._lock:
+            row = self._connection.execute(
+                "SELECT id FROM memories WHERE content_hash = ? ORDER BY rowid LIMIT 1",
+                (content_hash,),
+            ).fetchone()
+        return row["id"] if row else None
+
     @staticmethod
     def _canonical_json(value: object) -> str:
         return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=True)

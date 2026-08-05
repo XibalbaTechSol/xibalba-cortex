@@ -185,3 +185,64 @@ def test_serve_returns_404_for_unconfigured_path(tmp_path):
         urllib.request.urlopen(request, timeout=5)
     assert exc_info.value.code == 404
     store.close()
+
+
+def test_ingest_dedupes_against_content_already_captured_by_raw_body_ingest(tmp_path):
+    """The actual cross-path scenario: raw_body_ingest (Path A) captures a turn first
+    (synchronous file write), otlp_receiver (Path B) sees the same text later (batched OTLP
+    export) with real attribution -- must not duplicate, must link instead.
+    """
+    from xibalba_graph.raw_body_ingest import UNATTRIBUTED_SESSION_ID as RAW_UNATTRIBUTED
+
+    store = GraphStore(tmp_path / "graph")
+    store.start_session(RAW_UNATTRIBUTED, retention_tier="verbatim")
+    unattributed = store.store_memory(
+        "fix the login page css",
+        source={"kind": "direct_user", "session_id": RAW_UNATTRIBUTED, "message_id": "uuid-1"},
+        status="candidate",
+        evidence_class="observed_event",
+    )
+
+    payload = _payload(
+        {"eventName": "claude_code.user_prompt",
+         "attributes": [_attr("prompt", "fix the login page css"), _attr("prompt.id", "prompt-77")]},
+        {"eventName": "claude_code.api_request",
+         "attributes": [_attr("model", "claude-sonnet-5"), _attr("prompt.id", "prompt-77"), _attr("duration_ms", 500)]},
+        resource_attrs=[("session.id", "real-session-99"), ("user.account_uuid", "acct-1")],
+    )
+    result = ingest_log_records(store, parse_otlp_logs_json(payload))
+
+    assert result["stored_memories"] == []  # no duplicate
+    assert result["reused_memories"] == [unattributed["id"]]
+
+    # The original memory's own provenance is honestly unchanged -- still says what was true
+    # when Path A first captured it, not silently rewritten.
+    reloaded = store.get_memory(unattributed["id"])
+    assert reloaded["source"]["session_id"] == RAW_UNATTRIBUTED
+
+    # But the real attribution and telemetry ARE discoverable via the link.
+    correlated = store.memory_otel_events(unattributed["id"])
+    assert len(correlated) == 1
+    assert correlated[0]["session_id"] == "real-session-99"
+    assert correlated[0]["attributes"]["duration_ms"] == 500
+    store.close()
+
+
+def test_telemetry_event_links_via_memory_id_even_when_text_event_arrives_second_in_the_batch(tmp_path):
+    """Two-pass processing exists specifically so ordering within one batch doesn't matter --
+    put api_request BEFORE user_prompt in the record list and confirm linkage still works.
+    """
+    store = GraphStore(tmp_path / "graph")
+    payload = _payload(
+        {"eventName": "claude_code.api_request",
+         "attributes": [_attr("model", "claude-sonnet-5"), _attr("prompt.id", "p1")]},
+        {"eventName": "claude_code.user_prompt",
+         "attributes": [_attr("prompt", "out of order test"), _attr("prompt.id", "p1")]},
+        resource_attrs=[("session.id", "s1")],
+    )
+    result = ingest_log_records(store, parse_otlp_logs_json(payload))
+    memory_id = result["stored_memories"][0]
+    correlated = store.memory_otel_events(memory_id)
+    assert len(correlated) == 1
+    assert correlated[0]["name"] == "claude_code.api_request"
+    store.close()

@@ -90,6 +90,14 @@ def _ingest_request_file(store: GraphStore, path: Path) -> dict[str, object] | N
         return {"file": str(path), "status": "skipped", "reason": "no text content in last message"}
 
     uuid_stem = path.stem.removesuffix(".request")
+
+    # Content-hash dedup, symmetric with otlp_receiver's: if Path B (or an earlier scan) has
+    # already stored this exact text with real attribution, reuse it rather than create a
+    # second, worse-attributed row under the unattributed session.
+    existing_id = store.find_memory_id_by_content(text)
+    if existing_id:
+        return {"file": str(path), "status": "reused", "memory_id": existing_id, "skipped_blocks": skipped}
+
     memory = store.store_memory(
         text,
         source={
@@ -118,6 +126,11 @@ def _ingest_response_file(store: GraphStore, path: Path) -> dict[str, object] | 
         return {"file": str(path), "status": "skipped", "reason": "no text content in response body"}
 
     request_id_stem = path.stem.removesuffix(".response")
+
+    existing_id = store.find_memory_id_by_content(text)
+    if existing_id:
+        return {"file": str(path), "status": "reused", "memory_id": existing_id, "skipped_blocks": skipped}
+
     memory = store.store_memory(
         text,
         source={

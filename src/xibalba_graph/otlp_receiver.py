@@ -90,24 +90,54 @@ def ingest_log_records(store: GraphStore, records: list[dict[str, Any]]) -> dict
     """Route decoded log records to memories (text-bearing events) or otel_events
     (structured telemetry), using session.id/prompt_id/message.uuid/user.account_uuid
     attributes for real attribution -- what Path A structurally couldn't provide alone.
+
+    Two passes, deliberately, not one: text events (user_prompt/assistant_response) are
+    resolved first, building a prompt_id -> memory_id map; telemetry events
+    (api_request/tool_result) are resolved second, so they can link via that map regardless
+    of which order the two kinds actually arrive in within a batch (OTel export ordering is
+    not a documented guarantee to rely on here).
+
+    Content-hash deduplication, not blind insertion: if a memory with the exact same content
+    already exists -- most commonly because raw_body_ingest (Path A) already captured this
+    same turn from the raw API body file, arriving independently and typically first, since
+    Path A writes synchronously while OTLP export batches on a timer -- this does NOT create a
+    duplicate memory. `sources` rows are immutable by design (append-only, same as every other
+    provenance record in this system), so an already-stored memory's own session_id/prompt_id
+    can't be rewritten in place even though this event has better attribution. Instead: the
+    existing memory is reused, and the richer/correctly-attributed telemetry for that turn is
+    linked to it via otel_events.memory_id -- so memory_otel_events() surfaces the real
+    session/prompt context even though the memory's own source record still honestly reflects
+    what was known when Path A first captured it.
     """
+    prompt_id_to_memory_id: dict[str, str] = {}
     stored_memories: list[str] = []
+    reused_memories: list[str] = []
     stored_otel_events = 0
     redacted_skipped = 0
     unrecognized_events: list[str] = []
 
+    text_records = [r for r in records if r["event_name"] in _TEXT_EVENTS]
+    telemetry_records = [r for r in records if r["event_name"] in _TELEMETRY_EVENTS]
     for record in records:
-        event_name = record["event_name"]
-        attrs = record["attributes"]
-        session_id = attrs.get("session.id") or UNATTRIBUTED_SESSION_ID
-        agent_id = attrs.get("user.account_uuid") or attrs.get("user.id")
+        if record["event_name"] not in _TEXT_EVENTS and record["event_name"] not in _TELEMETRY_EVENTS:
+            if record["event_name"]:
+                unrecognized_events.append(record["event_name"])
 
-        if event_name in _TEXT_EVENTS:
-            text_key, role = _TEXT_EVENTS[event_name]
-            text = attrs.get(text_key)
-            if not text or text == _REDACTED_SENTINEL:
-                redacted_skipped += 1
-                continue
+    for record in text_records:
+        text_key, role = _TEXT_EVENTS[record["event_name"]]
+        attrs = record["attributes"]
+        text = attrs.get(text_key)
+        if not text or text == _REDACTED_SENTINEL:
+            redacted_skipped += 1
+            continue
+
+        prompt_id = attrs.get("prompt.id")
+        existing_id = store.find_memory_id_by_content(text)
+        if existing_id:
+            reused_memories.append(existing_id)
+            memory_id = existing_id
+        else:
+            session_id = attrs.get("session.id") or UNATTRIBUTED_SESSION_ID
             store.start_session(session_id, retention_tier="verbatim")
             memory = store.store_memory(
                 text,
@@ -116,30 +146,39 @@ def ingest_log_records(store: GraphStore, records: list[dict[str, Any]]) -> dict
                     "session_id": session_id,
                     "role": role,
                     "message_id": attrs.get("message.uuid"),
-                    "prompt_id": attrs.get("prompt.id"),
-                    "agent_id": agent_id,
+                    "prompt_id": prompt_id,
+                    "agent_id": attrs.get("user.account_uuid") or attrs.get("user.id"),
                     "observed_at": record.get("time_unix_nano"),
                 },
                 status="candidate",
                 evidence_class="observed_event",
             )
-            stored_memories.append(memory["id"])
+            memory_id = memory["id"]
+            stored_memories.append(memory_id)
 
-        elif event_name in _TELEMETRY_EVENTS:
-            store.start_session(session_id, retention_tier="verbatim")
-            store.record_otel_batch(session_id, [{
-                "kind": "log",
-                "name": event_name,
-                "prompt_id": attrs.get("prompt.id"),
-                "attributes": attrs,
-            }])
-            stored_otel_events += 1
+        if prompt_id:
+            prompt_id_to_memory_id[prompt_id] = memory_id
 
-        elif event_name:
-            unrecognized_events.append(event_name)
+    for record in telemetry_records:
+        attrs = record["attributes"]
+        session_id = attrs.get("session.id") or UNATTRIBUTED_SESSION_ID
+        prompt_id = attrs.get("prompt.id")
+        store.start_session(session_id, retention_tier="verbatim")
+        event: dict[str, Any] = {
+            "kind": "log",
+            "name": record["event_name"],
+            "prompt_id": prompt_id,
+            "attributes": attrs,
+        }
+        linked_memory_id = prompt_id_to_memory_id.get(prompt_id) if prompt_id else None
+        if linked_memory_id:
+            event["memory_id"] = linked_memory_id
+        store.record_otel_batch(session_id, [event])
+        stored_otel_events += 1
 
     return {
         "stored_memories": stored_memories,
+        "reused_memories": reused_memories,
         "stored_otel_events": stored_otel_events,
         "redacted_skipped": redacted_skipped,
         "unrecognized_events": unrecognized_events,
