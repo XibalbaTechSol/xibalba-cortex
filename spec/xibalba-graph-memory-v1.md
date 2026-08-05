@@ -253,6 +253,37 @@ behalf of. Standard attributes present on every Claude Code event/metric —
 `user.email` — are real identity data available for `source.agent_id` today, distinct from and
 in addition to a `did:integrity:...` value.
 
+### 4.10 Raw body ingestion (`raw_body_ingest`) — Path A of raw LLM text capture
+
+`src/xibalba_graph/raw_body_ingest.py` (console script
+`xibalba-graph-memory-raw-ingest`) ingests the untruncated Anthropic Messages API
+request/response bodies Claude Code writes to disk when configured with
+`CLAUDE_CODE_ENABLE_TELEMETRY=1 OTEL_LOG_RAW_API_BODIES=file:<dir>` — the direct answer to
+"capture raw LLM input and output text," verified against Claude Code's own documentation,
+not assumed.
+
+**Deliberately outside the MCP server.** This is push-based background capture (Claude Code
+writes files on its own schedule), not agent-initiated action, so it runs as a separate
+polling process (`--once` for a single scan, otherwise polls every `--poll-interval` seconds),
+the same reasoning that keeps Path B (§4.9 addendum, not yet built) as its own component
+rather than an MCP tool.
+
+**What it captures, honestly, and what it can't yet:** each `<uuid>.request.json` ingests only
+the *last* message in the array as a memory (the request body carries full conversation
+history per Claude Code's docs; earlier turns were already ingested from their own prior
+request file). Each `<request_id>.response.json` ingests its text content the same way,
+reporting any non-text blocks (`tool_use`, etc.) as `skipped_blocks` rather than silently
+dropping them unremarked. Both are stored with `status=candidate` (automatic content, per
+security invariant 3, §7) and `message_id` set to the file-derived identifier.
+
+**The pairing gap is real and stated, not hidden.** Request files are named by a fresh UUID;
+response files by the Anthropic API's own `request_id` — different schemes, with no shared
+key in the files or filenames alone. Every memory this ingests lands under a fixed synthetic
+session (`raw-capture-unattributed`), not a real Claude Code session, because that attribution
+genuinely isn't available without Path B's OTLP event stream (which carries both identifiers
+via `client_request_id`/`request_id`). Path B, when built, is expected to retroactively
+correlate these memories rather than requiring re-ingestion.
+
 ## 5. Lifecycle operations
 
 ### 5.1 Supersession
