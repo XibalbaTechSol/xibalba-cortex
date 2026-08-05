@@ -13,6 +13,7 @@ dependencies = [
 [project.scripts]
 xibalba-graph-memory = "xibalba_graph.server:main"
 xibalba-graph-memory-raw-ingest = "xibalba_graph.raw_body_ingest:main"
+xibalba-graph-memory-otlp-receiver = "xibalba_graph.otlp_receiver:main"
 
 [dependency-groups]
 dev = [

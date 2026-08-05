@@ -284,6 +284,48 @@ genuinely isn't available without Path B's OTLP event stream (which carries both
 via `client_request_id`/`request_id`). Path B, when built, is expected to retroactively
 correlate these memories rather than requiring re-ingestion.
 
+### 4.11 OTLP log receiver (`otlp_receiver`) — Path B, closes Path A's attribution gap
+
+`src/xibalba_graph/otlp_receiver.py` (console script `xibalba-graph-memory-otlp-receiver`) is
+a minimal stdlib-only (`http.server`, no `opentelemetry-proto`/grpc dependency) HTTP receiver
+for Claude Code's OTLP/HTTP-JSON log export. Enable on the Claude Code side with:
+
+```
+CLAUDE_CODE_ENABLE_TELEMETRY=1
+OTEL_LOGS_EXPORTER=otlp
+OTEL_EXPORTER_OTLP_LOGS_PROTOCOL=http/json
+OTEL_EXPORTER_OTLP_LOGS_ENDPOINT=http://localhost:4318/v1/logs
+OTEL_LOG_USER_PROMPTS=1
+OTEL_LOG_ASSISTANT_RESPONSES=1
+```
+
+Routes decoded log records by `eventName` (a real OTLP JSON top-level field per the spec,
+confirmed before building against it — `otel.event.name` attribute as fallback for older
+exporters): `claude_code.user_prompt`/`claude_code.assistant_response` (text-bearing) become
+memories; `claude_code.api_request`/`claude_code.tool_result` (structured, no text) become
+`otel_events` rows via the same `record_otel_batch` path §4.9 already defines. Redacted
+prompts/responses (the `prompt`/`response` attribute absent when Claude Code's own redaction
+defaults are active) are counted and skipped, never stored as an empty memory.
+
+**This is what closes Path A's attribution gap, not a separate mechanism.** Every event
+carries `session.id`, `prompt.id`, and `message.uuid` as real attributes — used directly for
+`source.session_id`/`source.prompt_id`/`source.message_id`, giving these memories genuine
+attribution `raw_body_ingest` structurally couldn't provide alone. `user.account_uuid`
+(falling back to `user.id`) feeds `source.agent_id` through the existing `identity_mode`
+pipeline (§4.1a) — pseudonymized by default, same as any other agent identifier.
+
+**Scope, stated plainly:** only `/v1/logs` is implemented. `claude_code.token.usage`/
+`claude_code.cost.usage` are OTLP *metrics* (`/v1/metrics`, a different payload shape —
+`resourceMetrics`/`dataPoints`, not `logRecords`), not handled by this receiver; piping those
+through `memory_record_otel_batch` directly remains the path for token/cost totals, unchanged
+from before this module existed.
+
+**What Path A + Path B together do NOT yet do:** retroactively re-attribute memories already
+ingested by Path A under `raw-capture-unattributed` once Path B supplies the real session/
+prompt correlation for the same turns. Both paths currently ingest independently; a backfill
+job to join them (matching Path A's file-derived `message_id` against Path B's `message.uuid`/
+`prompt.id`) is identified but not built.
+
 ## 5. Lifecycle operations
 
 ### 5.1 Supersession
