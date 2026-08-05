@@ -27,7 +27,11 @@ framing but no additional capturable content; instrumenting both would double-co
   post_tool_call                     -> otel_events, kind=span, name=f"tool_call.{tool_name}"
   post_approval_response             -> otel_events, kind=log, name="hermes.approval"
                                          (a security-relevant decision, part of a session's
-                                         complete memory, not just LLM output)
+                                         complete memory, not just LLM output; keyed by
+                                         session_key, the field name approval hooks actually
+                                         carry -- checked against tools/approval.py's real
+                                         invoke_hook() call sites, not the field name assumed
+                                         from the docs table alone)
   subagent_start / subagent_stop     -> otel_events on the PARENT session (kind=log) --
                                          simplification, stated plainly: this does not build a
                                          parent/child session schema, it records the
@@ -40,35 +44,15 @@ needed for Hermes-sourced sessions to walk the same way Claude-Code-sourced ones
 ## Wiring this into a running Hermes agent
 
 Building the adapter here (testable, no dependency on Hermes) is deliberately separate from
-installing it as a Hermes plugin, which means writing into a different project's codebase
-(~/.hermes/hermes-agent/plugins/observability/xibalba_graph_memory/) -- not done automatically
-by this module. To wire it in:
+installing it as a Hermes plugin, which means writing into a different project's codebase.
+That wiring is done: the plugin lives at ~/.hermes/plugins/xibalba_graph_memory/ (a flat user
+plugin, not nested under hermes-agent's own plugins/observability/), registered via
+`plugins.enabled` in ~/.hermes/config.yaml. It does not import this adapter in-process --
+hermes-agent's venv doesn't have xibalba_graph installed -- it instead shells out per hook call
+to this project's own venv via `python -m xibalba_graph.hermes_bridge <hook_name>` (see
+hermes_bridge.py), which constructs this same HermesObserverAdapter and dispatches to it. See
+~/.hermes/plugins/xibalba_graph_memory/__init__.py and plugin.yaml for the deployed shim.
 
-    # ~/.hermes/hermes-agent/plugins/observability/xibalba_graph_memory/__init__.py
-    from xibalba_graph.hermes_observer import HermesObserverAdapter
-    from xibalba_graph.store import GraphStore
-
-    _adapter = None
-
-    def _get_adapter():
-        global _adapter
-        if _adapter is None:
-            _adapter = HermesObserverAdapter(GraphStore("~/.hermes/xibalba-graph-memory"))
-        return _adapter
-
-    def register(ctx) -> None:
-        adapter = _get_adapter()
-        ctx.register_hook("on_session_start", adapter.on_session_start)
-        ctx.register_hook("on_session_end", adapter.on_session_end)
-        ctx.register_hook("post_llm_call", adapter.post_llm_call)
-        ctx.register_hook("post_api_request", adapter.post_api_request)
-        ctx.register_hook("api_request_error", adapter.api_request_error)
-        ctx.register_hook("post_tool_call", adapter.post_tool_call)
-        ctx.register_hook("post_approval_response", adapter.post_approval_response)
-        ctx.register_hook("subagent_start", adapter.subagent_start)
-        ctx.register_hook("subagent_stop", adapter.subagent_stop)
-
-Plus a plugin.yaml matching nemo_relay's format (name, version, description, hooks list).
 Hook callbacks are fail-open per Hermes's own contract (exceptions are caught and logged, the
 agent loop keeps running) -- this adapter does not need its own try/except for that reason, but
 does not raise on missing/None fields either, consistent with "additive fields stay
@@ -197,11 +181,16 @@ class HermesObserverAdapter:
         }])
 
     def post_approval_response(
-        self, *, session_id: str | None = None, command: str | None = None,
+        self, *, session_key: str | None = None, command: str | None = None,
         description: str | None = None, choice: str | None = None, **kwargs: Any,
     ) -> None:
-        if not session_id:
+        # Approval hooks carry session_key, not session_id -- verified against the real
+        # invoke_hook("post_approval_response", ...) call sites in tools/approval.py, which
+        # never pass session_id at all. session_key is the same per-session identity, just
+        # under approval.py's own name for it.
+        if not session_key:
             return
+        session_id = session_key
         self.store.start_session(session_id, retention_tier="verbatim")
         self.store.record_otel_batch(session_id, [{
             "kind": "log",
@@ -228,9 +217,12 @@ class HermesObserverAdapter:
 
     def subagent_stop(
         self, *, parent_session_id: str | None = None, child_session_id: str | None = None,
-        child_subagent_id: str | None = None, status: str | None = None,
+        child_status: str | None = None,
         child_summary: str | None = None, duration_ms: float | None = None, **kwargs: Any,
     ) -> None:
+        # child_status, not status -- verified against the real _invoke_hook("subagent_stop", ...)
+        # call site in tools/delegate_tool.py, which also never passes child_subagent_id here
+        # (only subagent_start does).
         if not parent_session_id:
             return
         self.store.start_session(parent_session_id, retention_tier="verbatim")
@@ -238,7 +230,7 @@ class HermesObserverAdapter:
             "kind": "log",
             "name": "hermes.subagent_stop",
             "attributes": {
-                "child_session_id": child_session_id, "child_subagent_id": child_subagent_id,
-                "status": status, "child_summary": child_summary, "duration_ms": duration_ms,
+                "child_session_id": child_session_id,
+                "child_status": child_status, "child_summary": child_summary, "duration_ms": duration_ms,
             },
         }])

@@ -116,7 +116,7 @@ def test_post_tool_call_records_span_event_parented_to_turn(tmp_path):
 def test_post_approval_response_records_security_relevant_decision(tmp_path):
     store, adapter = _adapter(tmp_path)
     adapter.post_approval_response(
-        session_id="s1", command="rm -rf /tmp/x", description="cleanup", choice="approved",
+        session_key="s1", command="rm -rf /tmp/x", description="cleanup", choice="approved",
     )
     events = store.session_otel_events("s1")
     assert events[0]["name"] == "hermes.approval"
@@ -132,13 +132,14 @@ def test_subagent_lifecycle_recorded_on_parent_session(tmp_path):
         child_role="Explore", child_goal="find files",
     )
     adapter.subagent_stop(
-        parent_session_id="parent", child_session_id="child-1", child_subagent_id="sub-1",
-        status="ok", child_summary="found 3 files", duration_ms=500.0,
+        parent_session_id="parent", child_session_id="child-1",
+        child_status="completed", child_summary="found 3 files", duration_ms=500.0,
     )
     events = store.session_otel_events("parent")
     names = [e["name"] for e in events]
     assert names == ["hermes.subagent_start", "hermes.subagent_stop"]
     assert events[0]["attributes"]["child_session_id"] == "child-1"
+    assert events[1]["attributes"]["child_status"] == "completed"
     store.close()
 
 
@@ -147,7 +148,7 @@ def test_hooks_without_session_id_are_noops(tmp_path):
     adapter.post_llm_call(session_id=None, turn_id="t1", user_message="hi", assistant_response="hi")
     adapter.post_api_request(session_id=None)
     adapter.post_tool_call(session_id=None)
-    adapter.post_approval_response(session_id=None)
+    adapter.post_approval_response(session_key=None)
     adapter.subagent_start(parent_session_id=None)
     adapter.subagent_stop(parent_session_id=None)
     row_count = store._connection.execute("SELECT COUNT(*) FROM sessions").fetchone()[0]
