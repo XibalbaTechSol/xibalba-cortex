@@ -30,6 +30,7 @@ async def test_all_tools_are_advertised(store):
     assert names == {
         "memory_remember",
         "memory_recall",
+        "memory_embed",
         "memory_get",
         "memory_supersede",
         "memory_contradict",
@@ -111,3 +112,34 @@ async def test_entity_graph_round_trip_through_mcp(store):
     result = _dict_result(neighbors)
     assert result["truncated"] is False
     assert result["edges"][0]["predicate"] == "emits_evidence_to"
+
+
+@pytest.mark.asyncio
+async def test_embed_and_vector_fused_recall_through_mcp(store):
+    from xibalba_graph.store import EMBEDDING_DIM
+
+    def unit_vector(hot_index):
+        vector = [0.0] * EMBEDDING_DIM
+        vector[hot_index] = 1.0
+        return vector
+
+    remembered = await server.server.call_tool(
+        "memory_remember",
+        {
+            "content": "Xibalba Shield deployment notes.",
+            "source": {"kind": "direct_user", "locator": "hermes://session/mcp-embed"},
+            "status": "confirmed",
+        },
+    )
+    memory = _dict_result(remembered)
+
+    embedded = await server.server.call_tool(
+        "memory_embed", {"memory_id": memory["id"], "vector": unit_vector(0)}
+    )
+    assert _dict_result(embedded)["dim"] == EMBEDDING_DIM
+
+    recalled = await server.server.call_tool(
+        "memory_recall", {"query": "nomatchingterm-xyz", "query_vector": unit_vector(0)}
+    )
+    results = _list_result(recalled)
+    assert results[0]["id"] == memory["id"]

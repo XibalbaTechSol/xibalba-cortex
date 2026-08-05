@@ -228,14 +228,19 @@ system exposes (MCP, future REST, future CLI):
 
 ## 8. Retrieval (current vs. planned)
 
-**Implemented (v1):** FTS5 lexical search (`GraphStore.search`), status-filtered, BM25-ranked.
+**Implemented (v1):** FTS5 lexical search, status-filtered, BM25-ranked. `sqlite-vec` dense
+retrieval leg (`memory_vectors`, a `vec0` virtual table pinned to `BAAI/bge-small-en-v1.5`,
+384-dim — see `docs/architecture/embedding-model-spike.md`), fused with the lexical channel via
+Reciprocal Rank Fusion (k=60) when a caller supplies a query vector (`GraphStore.search`). This
+system never computes embeddings itself: the embedding-model spike found the model fast enough
+(77 embeds/sec) but too memory-heavy (~270MB resident) to keep always-loaded inside this
+always-on server on this machine's actual free RAM, so vectors are always caller-supplied
+(`store_embedding`) and a `model_id`/dimension mismatch is rejected outright, never silently
+tolerated.
 
-**Planned, not yet built:** `sqlite-vec` dense retrieval leg, reciprocal-rank fusion between
-lexical and vector channels, entity/graph-neighborhood expansion of top hits, temporal
-pre-filtering. `sqlite-vec` v0.1.9 was confirmed to load and perform correct KNN search
-in-process during the Phase 0 spike (`docs/architecture/advanced-memory.md` §1); wiring it into
-`search()` is future work, tracked but not committed to a phase number here to avoid the two-plan
-scope drift this spec is meant to end.
+**Planned, not yet built:** entity/graph-neighborhood expansion of top recall hits, temporal
+pre-filtering, local cross-encoder reranking. Tracked but not committed to a phase number here to
+avoid the two-plan scope drift this spec is meant to end.
 
 ## 9. Relationship to other systems
 
@@ -258,7 +263,8 @@ tool bypasses profile authorization or the append-only write model:
 | Tool | Maps to | Notes |
 |---|---|---|
 | `memory_remember` | `store_memory` | `source` is a required object (`kind` required within it). |
-| `memory_recall` | `search` | Lexical only in v1 (§8). |
+| `memory_recall` | `search` | Lexical-only unless `query_vector` supplied; then RRF-fused (§8). |
+| `memory_embed` | `store_embedding` | Caller-computed vector only — never generated in-process (§8). |
 | `memory_get` | `get_memory` | |
 | `memory_supersede` | `supersede_memory` | |
 | `memory_contradict` | `mark_contradiction` | |

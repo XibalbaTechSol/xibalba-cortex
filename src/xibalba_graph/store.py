@@ -9,7 +9,16 @@ import threading
 import uuid
 from pathlib import Path
 
+import sqlite_vec
+
 _SCHEMA_VERSION = 1
+
+# Pinned per the Phase 0 embedding-model spike (docs/architecture/advanced-memory.md addendum):
+# BAAI/bge-small-en-v1.5, 384-dim. The dimension is baked into the vec0 virtual table at create
+# time (sqlite-vec's own constraint), so changing models requires a new table, not a config flag.
+# Vectors are never computed in-process here -- see EMBEDDING_MODEL_ID docstring below.
+EMBEDDING_MODEL_ID = "BAAI/bge-small-en-v1.5"
+EMBEDDING_DIM = 384
 
 _VALID_STATUSES = {
     "candidate",
@@ -147,6 +156,14 @@ CREATE TABLE IF NOT EXISTS contradictions (
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE IF NOT EXISTS embeddings_meta (
+    memory_id TEXT PRIMARY KEY REFERENCES memories(id) ON DELETE CASCADE,
+    model_id TEXT NOT NULL,
+    dim INTEGER NOT NULL,
+    generated_from_hash TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
 CREATE TABLE IF NOT EXISTS integrity_links (
     memory_id TEXT PRIMARY KEY REFERENCES memories(id) ON DELETE CASCADE,
     node_id TEXT,
@@ -186,10 +203,21 @@ class GraphStore:
         self._connection.execute("PRAGMA foreign_keys = ON")
         self._connection.execute("PRAGMA journal_mode = WAL")
         self._connection.execute("PRAGMA synchronous = FULL")
+        self._connection.enable_load_extension(True)
+        sqlite_vec.load(self._connection)
+        self._connection.enable_load_extension(False)
 
     def _migrate(self) -> None:
         with self._lock:
             self._connection.executescript(_SCHEMA)
+            self._connection.execute(
+                f"""
+                CREATE VIRTUAL TABLE IF NOT EXISTS memory_vectors USING vec0(
+                    memory_id TEXT PRIMARY KEY,
+                    embedding FLOAT[{EMBEDDING_DIM}]
+                )
+                """
+            )
             self._connection.execute(
                 "INSERT OR IGNORE INTO schema_migrations(version) VALUES (?)",
                 (_SCHEMA_VERSION,),
@@ -453,7 +481,7 @@ class GraphStore:
             for row in rows
         ]
 
-    def search(self, query: str, *, limit: int = 10) -> list[dict[str, object]]:
+    def _lexical_ranked_ids(self, query: str, limit: int) -> list[str]:
         tokens = re.findall(r"[\w-]+", query, flags=re.UNICODE)
         if not tokens:
             return []
@@ -469,9 +497,105 @@ class GraphStore:
                 ORDER BY bm25(memory_fts)
                 LIMIT ?
                 """,
-                (fts_query, max(1, min(int(limit), 100))),
+                (fts_query, limit),
             ).fetchall()
-        return [self.get_memory(row["id"]) for row in rows]
+        return [row["id"] for row in rows]
+
+    def _vector_ranked_ids(self, query_vector: list[float], limit: int) -> list[str]:
+        if len(query_vector) != EMBEDDING_DIM:
+            raise ValueError(
+                f"query_vector must have dimension {EMBEDDING_DIM} (model {EMBEDDING_MODEL_ID}), "
+                f"got {len(query_vector)}"
+            )
+        with self._lock:
+            rows = self._connection.execute(
+                """
+                SELECT v.memory_id
+                FROM memory_vectors v
+                JOIN memories m ON m.id = v.memory_id
+                WHERE v.embedding MATCH ? AND k = ?
+                  AND m.status IN ('active', 'confirmed')
+                ORDER BY distance
+                """,
+                (sqlite_vec.serialize_float32(query_vector), limit),
+            ).fetchall()
+        return [row["memory_id"] for row in rows]
+
+    def search(
+        self,
+        query: str,
+        *,
+        query_vector: list[float] | None = None,
+        limit: int = 10,
+    ) -> list[dict[str, object]]:
+        """Recall active/confirmed memories.
+
+        Lexical-only (FTS5/BM25) when query_vector is omitted -- unchanged v1 behavior. When
+        query_vector is supplied (caller-computed; this store never runs an embedding model
+        in-process, see EMBEDDING_MODEL_ID), fuses lexical and vector channels with Reciprocal
+        Rank Fusion (k=60) rather than trusting either ranking alone.
+        """
+        bounded_limit = max(1, min(int(limit), 100))
+        if query_vector is None:
+            return [self.get_memory(memory_id) for memory_id in self._lexical_ranked_ids(query, bounded_limit)]
+
+        candidate_pool = max(bounded_limit * 4, 20)
+        lexical_ids = self._lexical_ranked_ids(query, candidate_pool)
+        vector_ids = self._vector_ranked_ids(query_vector, candidate_pool)
+
+        rrf_k = 60
+        scores: dict[str, float] = {}
+        for rank, memory_id in enumerate(lexical_ids, start=1):
+            scores[memory_id] = scores.get(memory_id, 0.0) + 1.0 / (rrf_k + rank)
+        for rank, memory_id in enumerate(vector_ids, start=1):
+            scores[memory_id] = scores.get(memory_id, 0.0) + 1.0 / (rrf_k + rank)
+
+        ranked = sorted(scores, key=lambda memory_id: scores[memory_id], reverse=True)
+        return [self.get_memory(memory_id) for memory_id in ranked[:bounded_limit]]
+
+    def store_embedding(
+        self,
+        memory_id: str,
+        vector: list[float],
+        *,
+        model_id: str = EMBEDDING_MODEL_ID,
+    ) -> dict[str, object]:
+        """Attach a caller-computed embedding to a memory.
+
+        This store never computes embeddings itself -- a local CPU model was benchmarked
+        (BAAI/bge-small-en-v1.5: 77 embeds/sec, but ~270MB resident once loaded) and found too
+        heavy to keep always-loaded inside this always-on server process on this machine's
+        actual free RAM. The model_id/dim stay pinned so a mismatched vector is rejected rather
+        than silently mixed with incompatible ones.
+        """
+        if model_id != EMBEDDING_MODEL_ID:
+            raise ValueError(
+                f"unsupported embedding model_id: {model_id!r} (this store only accepts "
+                f"{EMBEDDING_MODEL_ID!r} vectors in v1)"
+            )
+        if len(vector) != EMBEDDING_DIM:
+            raise ValueError(f"vector must have dimension {EMBEDDING_DIM}, got {len(vector)}")
+        memory = self.get_memory(memory_id)
+        with self._lock:
+            self._connection.execute("BEGIN IMMEDIATE")
+            try:
+                self._connection.execute(
+                    "DELETE FROM memory_vectors WHERE memory_id = ?", (memory_id,)
+                )
+                self._connection.execute(
+                    "INSERT INTO memory_vectors(memory_id, embedding) VALUES (?, ?)",
+                    (memory_id, sqlite_vec.serialize_float32(vector)),
+                )
+                self._connection.execute(
+                    "INSERT OR REPLACE INTO embeddings_meta("
+                    "memory_id, model_id, dim, generated_from_hash) VALUES (?, ?, ?, ?)",
+                    (memory_id, model_id, EMBEDDING_DIM, memory["content_hash"]),
+                )
+                self._connection.execute("COMMIT")
+            except Exception:
+                self._connection.execute("ROLLBACK")
+                raise
+        return {"memory_id": memory_id, "model_id": model_id, "dim": EMBEDDING_DIM}
 
     def supersede_memory(
         self,

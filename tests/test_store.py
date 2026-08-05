@@ -4,7 +4,13 @@ import re
 
 import pytest
 
-from xibalba_graph.store import GraphStore
+from xibalba_graph.store import EMBEDDING_DIM, EMBEDDING_MODEL_ID, GraphStore
+
+
+def _unit_vector(hot_index: int) -> list[float]:
+    vector = [0.0] * EMBEDDING_DIM
+    vector[hot_index] = 1.0
+    return vector
 
 
 def test_bootstrap_creates_secure_healthy_sqlite_store(tmp_path):
@@ -208,4 +214,52 @@ def test_event_chain_is_hash_linked_and_tamper_evident(tmp_path):
     tampered = store.verify_chain(old["id"])
     assert tampered["valid"] is False
     assert tampered["broken_at_event_id"] == events[0]["id"]
+    store.close()
+
+
+def test_store_embedding_rejects_wrong_model_and_wrong_dimension(tmp_path):
+    store = GraphStore(tmp_path / "graph")
+    memory = store.store_memory(
+        "Xibalba Shield is a security platform.",
+        source={"kind": "direct_user", "locator": "hermes://session/embed"},
+        status="confirmed",
+    )
+
+    with pytest.raises(ValueError, match="unsupported embedding model_id"):
+        store.store_embedding(memory["id"], _unit_vector(0), model_id="some-other-model")
+
+    with pytest.raises(ValueError, match="dimension"):
+        store.store_embedding(memory["id"], [0.1, 0.2, 0.3])
+
+    result = store.store_embedding(memory["id"], _unit_vector(0))
+    assert result == {"memory_id": memory["id"], "model_id": EMBEDDING_MODEL_ID, "dim": EMBEDDING_DIM}
+    store.close()
+
+
+def test_vector_search_ranks_by_similarity_and_fuses_with_lexical(tmp_path):
+    store = GraphStore(tmp_path / "graph")
+    close = store.store_memory(
+        "Xibalba Shield deployment notes.",
+        source={"kind": "direct_user", "locator": "hermes://session/a"},
+        status="confirmed",
+    )
+    far = store.store_memory(
+        "Unrelated content about something else entirely.",
+        source={"kind": "direct_user", "locator": "hermes://session/b"},
+        status="confirmed",
+    )
+    store.store_embedding(close["id"], _unit_vector(0))
+    store.store_embedding(far["id"], _unit_vector(1))
+
+    query_vector = _unit_vector(0)  # identical to `close`'s vector, orthogonal to `far`'s
+    # RRF fuses by rank across channels, not by a similarity cutoff -- both candidates appear
+    # (the pool isn't threshold-filtered), but the closer vector must rank first.
+    fused = store.search("nomatchingterm-xyz", query_vector=query_vector, limit=5)
+    assert [item["id"] for item in fused] == [close["id"], far["id"]]
+
+    lexical_boosted = store.search("Xibalba Shield", query_vector=query_vector, limit=5)
+    assert lexical_boosted[0]["id"] == close["id"]
+
+    with pytest.raises(ValueError, match="dimension"):
+        store.search("query", query_vector=[0.0, 0.0])
     store.close()
