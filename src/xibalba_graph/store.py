@@ -14,7 +14,7 @@ from pathlib import Path
 
 import sqlite_vec
 
-_SCHEMA_VERSION = 1
+_SCHEMA_VERSION = 2
 
 # Generous default cap on a single attachment -- not a policy decision, just a guard against
 # accidentally ingesting something absurd (e.g. a whole video library) into the blob store.
@@ -373,13 +373,49 @@ class GraphStore:
     def _migrate(self) -> None:
         with self._lock:
             self._connection.executescript(_SCHEMA)
-            self._connection.execute(
-                f"""
-                CREATE VIRTUAL TABLE IF NOT EXISTS memory_vectors USING vec0(
-                    memory_id TEXT PRIMARY KEY,
-                    embedding FLOAT[{EMBEDDING_DIM}]
+            current_version = self._connection.execute(
+                "SELECT COALESCE(MAX(version), 0) FROM schema_migrations"
+            ).fetchone()[0]
+            vectors_table_exists = self._connection.execute(
+                "SELECT 1 FROM sqlite_master WHERE name = 'memory_vectors'"
+            ).fetchone() is not None
+
+            if current_version < 2 and vectors_table_exists:
+                # v1 created memory_vectors as plain L2 (sqlite-vec's default). Cosine similarity
+                # (what similar_memories/search actually want) needs distance_metric=cosine baked
+                # in at CREATE time -- sqlite-vec has no ALTER for this, so rebuild the table.
+                # The embedding column round-trips as an opaque blob (verified: SELECT then
+                # INSERT into a differently-configured vec0 table preserves the vector exactly),
+                # so existing embeddings survive the rebuild.
+                existing_rows = self._connection.execute(
+                    "SELECT memory_id, embedding FROM memory_vectors"
+                ).fetchall()
+                self._connection.execute("DROP TABLE memory_vectors")
+                self._connection.execute(
+                    f"""
+                    CREATE VIRTUAL TABLE memory_vectors USING vec0(
+                        memory_id TEXT PRIMARY KEY,
+                        embedding FLOAT[{EMBEDDING_DIM}] distance_metric=cosine
+                    )
+                    """
                 )
-                """
+                for row in existing_rows:
+                    self._connection.execute(
+                        "INSERT INTO memory_vectors(memory_id, embedding) VALUES (?, ?)",
+                        (row["memory_id"], row["embedding"]),
+                    )
+            else:
+                self._connection.execute(
+                    f"""
+                    CREATE VIRTUAL TABLE IF NOT EXISTS memory_vectors USING vec0(
+                        memory_id TEXT PRIMARY KEY,
+                        embedding FLOAT[{EMBEDDING_DIM}] distance_metric=cosine
+                    )
+                    """
+                )
+
+            self._connection.execute(
+                "INSERT OR IGNORE INTO schema_migrations(version) VALUES (?)", (1,)
             )
             self._connection.execute(
                 "INSERT OR IGNORE INTO schema_migrations(version) VALUES (?)",
@@ -736,6 +772,82 @@ class GraphStore:
             "evidence_class": row["derivation_family"],
         }
 
+    def counts(self) -> dict[str, int]:
+        """Table row counts for a stats/overview surface -- not part of v1's spec, added for
+        the local graph API (a browser-facing read surface, distinct from the MCP tool set)."""
+        with self._lock:
+            return {
+                "memories": self._connection.execute("SELECT COUNT(*) FROM memories").fetchone()[0],
+                "entities": self._connection.execute("SELECT COUNT(*) FROM entities").fetchone()[0],
+                "relations": self._connection.execute(
+                    "SELECT COUNT(*) FROM relations WHERE status = 'active'"
+                ).fetchone()[0],
+                "sessions": self._connection.execute("SELECT COUNT(*) FROM sessions").fetchone()[0],
+                "embedded_memories": self._connection.execute(
+                    "SELECT COUNT(*) FROM memory_vectors"
+                ).fetchone()[0],
+            }
+
+    def list_memories(
+        self, *, limit: int = 200, offset: int = 0, statuses: tuple[str, ...] = ("active", "confirmed")
+    ) -> list[dict[str, object]]:
+        """Bulk-paginated memory listing for the local graph API's node payload -- distinct from
+        search()/get_memory(), which are single-memory or query-driven, not "give me a page."""
+        bounded_limit = max(1, min(int(limit), 1000))
+        placeholders = ",".join("?" * len(statuses))
+        with self._lock:
+            rows = self._connection.execute(
+                f"SELECT id FROM memories WHERE status IN ({placeholders}) ORDER BY created_at LIMIT ? OFFSET ?",
+                (*statuses, bounded_limit, max(0, int(offset))),
+            ).fetchall()
+        return [self.get_memory(row["id"]) for row in rows]
+
+    def embedded_memory_ids(self) -> list[str]:
+        """Every memory_id with a stored embedding -- used by the local graph API to compute
+        similarity-edges without guessing which memories are embeddable."""
+        with self._lock:
+            rows = self._connection.execute("SELECT memory_id FROM memory_vectors").fetchall()
+        return [row["memory_id"] for row in rows]
+
+    def list_entities(self, *, limit: int = 500) -> list[dict[str, object]]:
+        bounded_limit = max(1, min(int(limit), 5000))
+        with self._lock:
+            rows = self._connection.execute(
+                "SELECT id, canonical_name, entity_type FROM entities ORDER BY created_at LIMIT ?",
+                (bounded_limit,),
+            ).fetchall()
+        return [dict(row) for row in rows]
+
+    def list_relations(self, *, limit: int = 1000) -> list[dict[str, object]]:
+        bounded_limit = max(1, min(int(limit), 10000))
+        with self._lock:
+            rows = self._connection.execute(
+                """
+                SELECT r.id, r.predicate, r.evidence_memory_id, r.confidence,
+                       se.id AS subject_id, se.canonical_name AS subject_name,
+                       oe.id AS object_id, oe.canonical_name AS object_name, r.object_literal
+                FROM relations r
+                JOIN entities se ON se.id = r.subject_entity_id
+                LEFT JOIN entities oe ON oe.id = r.object_entity_id
+                WHERE r.status = 'active'
+                ORDER BY r.rowid LIMIT ?
+                """,
+                (bounded_limit,),
+            ).fetchall()
+        return [
+            {
+                "id": row["id"],
+                "predicate": row["predicate"],
+                "subject_id": row["subject_id"],
+                "subject_name": row["subject_name"],
+                "object_id": row["object_id"],
+                "object_name": row["object_name"] or row["object_literal"],
+                "evidence_memory_id": row["evidence_memory_id"],
+                "confidence": row["confidence"],
+            }
+            for row in rows
+        ]
+
     def memory_events(self, memory_id: str) -> list[dict[str, object]]:
         with self._lock:
             rows = self._connection.execute(
@@ -775,7 +887,14 @@ class GraphStore:
             ).fetchall()
         return [row["id"] for row in rows]
 
-    def _vector_ranked_ids(self, query_vector: list[float], limit: int) -> list[str]:
+    def _vector_ranked_ids(self, query_vector: list[float], limit: int) -> list[tuple[str, float]]:
+        """Returns (memory_id, cosine_similarity) pairs, best match first.
+
+        memory_vectors is a cosine-metric vec0 table (schema v2+), where sqlite-vec's returned
+        `distance` is `1 - cosine_similarity` exactly (verified empirically: identical vectors ->
+        0, orthogonal -> 1, opposite -> 2) -- so similarity is recovered with a plain subtraction,
+        no separate normalization step needed.
+        """
         if len(query_vector) != EMBEDDING_DIM:
             raise ValueError(
                 f"query_vector must have dimension {EMBEDDING_DIM} (model {EMBEDDING_MODEL_ID}), "
@@ -784,7 +903,7 @@ class GraphStore:
         with self._lock:
             rows = self._connection.execute(
                 """
-                SELECT v.memory_id
+                SELECT v.memory_id, v.distance
                 FROM memory_vectors v
                 JOIN memories m ON m.id = v.memory_id
                 WHERE v.embedding MATCH ? AND k = ?
@@ -793,7 +912,7 @@ class GraphStore:
                 """,
                 (sqlite_vec.serialize_float32(query_vector), limit),
             ).fetchall()
-        return [row["memory_id"] for row in rows]
+        return [(row["memory_id"], 1.0 - row["distance"]) for row in rows]
 
     def search(
         self,
@@ -807,7 +926,10 @@ class GraphStore:
         Lexical-only (FTS5/BM25) when query_vector is omitted -- unchanged v1 behavior. When
         query_vector is supplied (caller-computed; this store never runs an embedding model
         in-process, see EMBEDDING_MODEL_ID), fuses lexical and vector channels with Reciprocal
-        Rank Fusion (k=60) rather than trusting either ranking alone.
+        Rank Fusion (k=60) rather than trusting either ranking alone. Fusion determines ordering;
+        each returned memory also carries its own cosine_similarity (0.0-1.0, present only for
+        memories that matched the vector channel) so a caller can see the real score behind the
+        fused rank, not just the rank itself.
         """
         bounded_limit = max(1, min(int(limit), 100))
         if query_vector is None:
@@ -815,7 +937,9 @@ class GraphStore:
 
         candidate_pool = max(bounded_limit * 4, 20)
         lexical_ids = self._lexical_ranked_ids(query, candidate_pool)
-        vector_ids = self._vector_ranked_ids(query_vector, candidate_pool)
+        vector_hits = self._vector_ranked_ids(query_vector, candidate_pool)
+        vector_ids = [memory_id for memory_id, _ in vector_hits]
+        similarity_by_id = dict(vector_hits)
 
         rrf_k = 60
         scores: dict[str, float] = {}
@@ -825,7 +949,13 @@ class GraphStore:
             scores[memory_id] = scores.get(memory_id, 0.0) + 1.0 / (rrf_k + rank)
 
         ranked = sorted(scores, key=lambda memory_id: scores[memory_id], reverse=True)
-        return [self.get_memory(memory_id) for memory_id in ranked[:bounded_limit]]
+        results = []
+        for memory_id in ranked[:bounded_limit]:
+            memory = self.get_memory(memory_id)
+            if memory_id in similarity_by_id:
+                memory["cosine_similarity"] = similarity_by_id[memory_id]
+            results.append(memory)
+        return results
 
     def store_embedding(
         self,
@@ -870,6 +1000,40 @@ class GraphStore:
                 self._connection.execute("ROLLBACK")
                 raise
         return {"memory_id": memory_id, "model_id": model_id, "dim": EMBEDDING_DIM}
+
+    def similar_memories(self, memory_id: str, *, limit: int = 10) -> list[dict[str, object]]:
+        """Cosine-nearest other memories to memory_id's own stored embedding, excluding itself.
+
+        Reads the embedding back out of memory_vectors -- embeddings were write-only until now
+        (store_embedding never needed to read one back; this is the first read path). Raises
+        KeyError (via get_memory) if the memory doesn't exist, and ValueError if it has no
+        embedding stored yet -- there's nothing to compare against, so this can't silently return
+        an empty/misleading list.
+        """
+        self.get_memory(memory_id)  # raises KeyError if missing
+        bounded_limit = max(1, min(int(limit), 100))
+        with self._lock:
+            own_row = self._connection.execute(
+                "SELECT embedding FROM memory_vectors WHERE memory_id = ?", (memory_id,)
+            ).fetchone()
+            if own_row is None:
+                raise ValueError(f"memory {memory_id!r} has no embedding stored")
+            rows = self._connection.execute(
+                """
+                SELECT v.memory_id, v.distance
+                FROM memory_vectors v
+                JOIN memories m ON m.id = v.memory_id
+                WHERE v.embedding MATCH ? AND k = ?
+                  AND m.status IN ('active', 'confirmed')
+                  AND v.memory_id != ?
+                ORDER BY distance
+                """,
+                (own_row["embedding"], bounded_limit + 1, memory_id),
+            ).fetchall()
+        return [
+            {"memory": self.get_memory(row["memory_id"]), "cosine_similarity": 1.0 - row["distance"]}
+            for row in rows[:bounded_limit]
+        ]
 
     def attach_media(
         self,
@@ -1690,6 +1854,96 @@ class GraphStore:
                         visited.add(target_id)
                         queue.append((target_id, new_path))
         return {"edges": []}
+
+    def memory_entity_relations(self, memory_id: str) -> list[dict[str, object]]:
+        """Entities/relations evidenced by this specific memory -- the memory-centric counterpart
+        to neighbors() (which takes an entity name; a memory's content is not itself an entity
+        name, so this looks up relations by evidence_memory_id instead)."""
+        with self._lock:
+            rows = self._connection.execute(
+                """
+                SELECT DISTINCT se.canonical_name AS subject_name, oe.canonical_name AS object_name,
+                       r.predicate, r.object_literal
+                FROM relations r
+                JOIN entities se ON se.id = r.subject_entity_id
+                LEFT JOIN entities oe ON oe.id = r.object_entity_id
+                WHERE r.evidence_memory_id = ? AND r.status = 'active'
+                """,
+                (memory_id,),
+            ).fetchall()
+        return [
+            {
+                "subject": row["subject_name"],
+                "predicate": row["predicate"],
+                "object": row["object_name"] or row["object_literal"],
+            }
+            for row in rows
+        ]
+
+    def graph_payload(
+        self, *, limit: int = 500, similarity_threshold: float = 0.75
+    ) -> dict[str, object]:
+        """Bulk nodes+edges payload for a graph-visualization client: memories and entities as
+        nodes, typed relations and above-threshold cosine-similarity pairs as edges. O(n^2) over
+        embedded memories to build similarity edges via similar_memories() -- fine at
+        hundreds/low-thousands of memories, not designed to scale past that yet.
+        """
+        memories = self.list_memories(limit=limit)
+        entities = self.list_entities()
+        relations = self.list_relations()
+
+        nodes: list[dict[str, object]] = [
+            {
+                "id": f"memory:{memory['id']}",
+                "type": "memory",
+                "label": memory["content"][:80],
+                "status": memory["status"],
+                "evidence_class": memory["evidence_class"],
+                "source_kind": memory["source"]["kind"],
+            }
+            for memory in memories
+        ]
+        nodes.extend(
+            {
+                "id": f"entity:{entity['id']}",
+                "type": "entity",
+                "label": entity["canonical_name"],
+                "entity_type": entity["entity_type"],
+            }
+            for entity in entities
+        )
+
+        entity_ids = {entity["id"] for entity in entities}
+        edges: list[dict[str, object]] = [
+            {
+                "source": f"entity:{relation['subject_id']}",
+                "target": f"entity:{relation['object_id']}",
+                "type": "relation",
+                "predicate": relation["predicate"],
+            }
+            for relation in relations
+            if relation["object_id"] and relation["object_id"] in entity_ids
+        ]
+
+        memory_ids_in_payload = {memory["id"] for memory in memories}
+        embedded_ids = [mid for mid in self.embedded_memory_ids() if mid in memory_ids_in_payload]
+        seen_pairs: set[tuple[str, str]] = set()
+        for memory_id in embedded_ids:
+            for hit in self.similar_memories(memory_id, limit=10):
+                if hit["cosine_similarity"] < similarity_threshold:
+                    continue
+                pair = tuple(sorted((memory_id, hit["memory"]["id"])))
+                if pair in seen_pairs:
+                    continue
+                seen_pairs.add(pair)
+                edges.append({
+                    "source": f"memory:{pair[0]}",
+                    "target": f"memory:{pair[1]}",
+                    "type": "similarity",
+                    "cosine_similarity": hit["cosine_similarity"],
+                })
+
+        return {"nodes": nodes, "edges": edges}
 
     def close(self) -> None:
         with self._lock:

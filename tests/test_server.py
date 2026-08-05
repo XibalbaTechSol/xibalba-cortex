@@ -48,6 +48,7 @@ async def test_all_tools_are_advertised(store):
         "memory_link_entities",
         "memory_neighbors",
         "memory_find_path",
+        "memory_similar",
         "memory_events",
         "memory_verify_chain",
         "memory_status",
@@ -157,6 +158,40 @@ async def test_embed_and_vector_fused_recall_through_mcp(store):
     )
     results = _list_result(recalled)
     assert results[0]["id"] == memory["id"]
+    assert results[0]["cosine_similarity"] == pytest.approx(1.0)
+
+
+@pytest.mark.asyncio
+async def test_memory_similar_through_mcp(store):
+    from xibalba_graph.store import EMBEDDING_DIM
+
+    def unit_vector(hot_index):
+        vector = [0.0] * EMBEDDING_DIM
+        vector[hot_index] = 1.0
+        return vector
+
+    anchor = _dict_result(await server.server.call_tool(
+        "memory_remember",
+        {
+            "content": "Anchor memory.",
+            "source": {"kind": "direct_user", "locator": "hermes://session/mcp-similar-anchor"},
+            "status": "confirmed",
+        },
+    ))
+    near = _dict_result(await server.server.call_tool(
+        "memory_remember",
+        {
+            "content": "Near memory.",
+            "source": {"kind": "direct_user", "locator": "hermes://session/mcp-similar-near"},
+            "status": "confirmed",
+        },
+    ))
+    await server.server.call_tool("memory_embed", {"memory_id": anchor["id"], "vector": unit_vector(0)})
+    await server.server.call_tool("memory_embed", {"memory_id": near["id"], "vector": unit_vector(0)})
+
+    similar = _list_result(await server.server.call_tool("memory_similar", {"memory_id": anchor["id"]}))
+    assert similar[0]["memory"]["id"] == near["id"]
+    assert similar[0]["cosine_similarity"] == pytest.approx(1.0)
 
 
 @pytest.mark.asyncio

@@ -105,9 +105,21 @@ def memory_recall(
     Lexical-only (FTS5/BM25) unless query_vector is supplied, in which case it's fused with
     vector similarity via Reciprocal Rank Fusion. This server never computes embeddings itself
     -- pass a precomputed {EMBEDDING_MODEL_ID} ({EMBEDDING_DIM}-dim) vector, or omit for
-    lexical-only recall.
+    lexical-only recall. Fusion determines ordering; results that matched the vector channel
+    also carry their own `cosine_similarity` (0.0-1.0) so you can see the real score behind the
+    fused rank, not just the rank itself.
     """
     return get_store().search(query, query_vector=query_vector, limit=limit)
+
+
+@server.tool()
+def memory_similar(memory_id: str, limit: int = 10) -> list[dict[str, object]]:
+    f"""Cosine-nearest other memories to memory_id's own stored embedding. {_UNTRUSTED_EVIDENCE_NOTE}
+
+    Requires memory_id to already have an embedding attached via memory_embed -- raises if not.
+    Each result is {{"memory": ..., "cosine_similarity": 0.0-1.0}}, best match first.
+    """
+    return get_store().similar_memories(memory_id, limit=limit)
 
 
 @server.tool()

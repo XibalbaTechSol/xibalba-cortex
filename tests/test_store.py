@@ -4,6 +4,7 @@ import re
 from pathlib import Path
 
 import pytest
+import sqlite_vec
 
 from xibalba_graph.store import EMBEDDING_DIM, EMBEDDING_MODEL_ID, GraphStore
 
@@ -25,7 +26,7 @@ def test_bootstrap_creates_secure_healthy_sqlite_store(tmp_path):
     assert store.db_path.is_file()
     assert os.stat(store.db_path).st_mode & 0o777 == 0o600
     assert status == {
-        "schema_version": 1,
+        "schema_version": 2,
         "journal_mode": "wal",
         "foreign_keys": True,
         "fts5": True,
@@ -175,6 +176,70 @@ def test_entity_relations_support_bounded_neighbors_and_paths(tmp_path):
 
     with pytest.raises(ValueError, match="max_depth"):
         store.neighbors("Xibalba Shield", max_depth=5)
+
+    entity_relations = store.memory_entity_relations(evidence["id"])
+    assert {(r["subject"], r["predicate"], r["object"]) for r in entity_relations} == {
+        ("Xibalba Shield", "emits_evidence_to", "Integrity Protocol"),
+        ("Integrity Protocol", "uses", "Memory DAG"),
+    }
+    store.close()
+
+
+def test_bulk_read_methods_report_real_counts_and_listings(tmp_path):
+    store = GraphStore(tmp_path / "graph")
+    memory = store.store_memory(
+        "A memory for bulk listing.",
+        source={"kind": "direct_user", "locator": "hermes://session/bulk"},
+        status="confirmed",
+    )
+    store.store_embedding(memory["id"], _unit_vector(0))
+    store.link_entities("Xibalba Shield", "emits_evidence_to", "Integrity Protocol", evidence_memory_id=memory["id"])
+
+    counts = store.counts()
+    assert counts == {"memories": 1, "entities": 2, "relations": 1, "sessions": 0, "embedded_memories": 1}
+
+    listed = store.list_memories()
+    assert [m["id"] for m in listed] == [memory["id"]]
+
+    entities = store.list_entities()
+    assert {e["canonical_name"] for e in entities} == {"Xibalba Shield", "Integrity Protocol"}
+
+    relations = store.list_relations()
+    assert len(relations) == 1
+    assert relations[0]["subject_name"] == "Xibalba Shield"
+    assert relations[0]["object_name"] == "Integrity Protocol"
+
+    assert store.embedded_memory_ids() == [memory["id"]]
+    store.close()
+
+
+def test_graph_payload_includes_memory_entity_and_similarity_nodes(tmp_path):
+    store = GraphStore(tmp_path / "graph")
+    evidence = store.store_memory(
+        "Xibalba Shield emits signed evidence to Integrity Protocol.",
+        source={"kind": "direct_user", "locator": "hermes://session/graph-payload"},
+        status="confirmed",
+    )
+    near = store.store_memory(
+        "A near-duplicate memory.",
+        source={"kind": "direct_user", "locator": "hermes://session/graph-payload-near"},
+        status="confirmed",
+    )
+    store.link_entities("Xibalba Shield", "emits_evidence_to", "Integrity Protocol", evidence_memory_id=evidence["id"])
+    store.store_embedding(evidence["id"], _unit_vector(0))
+    store.store_embedding(near["id"], _unit_vector(0))
+
+    payload = store.graph_payload()
+    node_ids = {node["id"] for node in payload["nodes"]}
+    assert f"memory:{evidence['id']}" in node_ids
+    assert f"memory:{near['id']}" in node_ids
+    assert any(node["type"] == "entity" and node["label"] == "Xibalba Shield" for node in payload["nodes"])
+
+    relation_edges = [e for e in payload["edges"] if e["type"] == "relation"]
+    similarity_edges = [e for e in payload["edges"] if e["type"] == "similarity"]
+    assert len(relation_edges) == 1
+    assert len(similarity_edges) == 1
+    assert similarity_edges[0]["cosine_similarity"] == pytest.approx(1.0)
     store.close()
 
 
@@ -267,6 +332,103 @@ def test_vector_search_ranks_by_similarity_and_fuses_with_lexical(tmp_path):
     store.close()
 
 
+def test_search_reports_real_cosine_similarity_not_just_rank(tmp_path):
+    store = GraphStore(tmp_path / "graph")
+    identical = store.store_memory(
+        "Identical direction to the query vector.",
+        source={"kind": "direct_user", "locator": "hermes://session/identical"},
+        status="confirmed",
+    )
+    orthogonal = store.store_memory(
+        "Orthogonal to the query vector.",
+        source={"kind": "direct_user", "locator": "hermes://session/orthogonal"},
+        status="confirmed",
+    )
+    store.store_embedding(identical["id"], _unit_vector(0))
+    store.store_embedding(orthogonal["id"], _unit_vector(1))
+
+    results = store.search("nomatchingterm-xyz", query_vector=_unit_vector(0), limit=5)
+    by_id = {item["id"]: item for item in results}
+    assert by_id[identical["id"]]["cosine_similarity"] == pytest.approx(1.0)
+    assert by_id[orthogonal["id"]]["cosine_similarity"] == pytest.approx(0.0)
+    store.close()
+
+
+def test_similar_memories_ranks_by_cosine_similarity_and_excludes_self(tmp_path):
+    store = GraphStore(tmp_path / "graph")
+    anchor = store.store_memory(
+        "The anchor memory.",
+        source={"kind": "direct_user", "locator": "hermes://session/anchor"},
+        status="confirmed",
+    )
+    near = store.store_memory(
+        "A near-identical memory.",
+        source={"kind": "direct_user", "locator": "hermes://session/near"},
+        status="confirmed",
+    )
+    far = store.store_memory(
+        "An orthogonal, unrelated memory.",
+        source={"kind": "direct_user", "locator": "hermes://session/far"},
+        status="confirmed",
+    )
+    store.store_embedding(anchor["id"], _unit_vector(0))
+    store.store_embedding(near["id"], _unit_vector(0))
+    store.store_embedding(far["id"], _unit_vector(1))
+
+    results = store.similar_memories(anchor["id"], limit=5)
+    assert [r["memory"]["id"] for r in results] == [near["id"], far["id"]]
+    assert results[0]["cosine_similarity"] == pytest.approx(1.0)
+    assert results[1]["cosine_similarity"] == pytest.approx(0.0)
+    store.close()
+
+
+def test_similar_memories_requires_an_embedding(tmp_path):
+    store = GraphStore(tmp_path / "graph")
+    memory = store.store_memory(
+        "No embedding attached.",
+        source={"kind": "direct_user", "locator": "hermes://session/no-embed"},
+        status="confirmed",
+    )
+    with pytest.raises(ValueError, match="no embedding stored"):
+        store.similar_memories(memory["id"])
+    store.close()
+
+
+def test_memory_vectors_migrates_existing_l2_table_to_cosine_preserving_data(tmp_path):
+    home = tmp_path / "graph"
+    store = GraphStore(home)
+    memory = store.store_memory(
+        "Pre-migration memory.",
+        source={"kind": "direct_user", "locator": "hermes://session/premigration"},
+        status="confirmed",
+    )
+    store.store_embedding(memory["id"], _unit_vector(0))
+    store.close()
+
+    # Simulate a v1 database: drop the migration record and rebuild memory_vectors as plain L2,
+    # the way a store created before this change would already have on disk.
+    raw = sqlite3.connect(home / "graph-memory.sqlite3")
+    raw.enable_load_extension(True)
+    sqlite_vec.load(raw)
+    raw.enable_load_extension(False)
+    embedding_blob = raw.execute(
+        "SELECT embedding FROM memory_vectors WHERE memory_id = ?", (memory["id"],)
+    ).fetchone()[0]
+    raw.execute("DELETE FROM schema_migrations WHERE version = 2")
+    raw.execute("DROP TABLE memory_vectors")
+    raw.execute(f"CREATE VIRTUAL TABLE memory_vectors USING vec0(memory_id TEXT PRIMARY KEY, embedding FLOAT[{EMBEDDING_DIM}])")
+    raw.execute("INSERT INTO memory_vectors(memory_id, embedding) VALUES (?, ?)", (memory["id"], embedding_blob))
+    raw.commit()
+    raw.close()
+
+    reopened = GraphStore(home)
+    assert reopened.status()["schema_version"] == 2
+    results = reopened.search("nomatchingterm-xyz", query_vector=_unit_vector(0), limit=5)
+    assert results[0]["id"] == memory["id"]
+    assert results[0]["cosine_similarity"] == pytest.approx(1.0)
+    reopened.close()
+
+
 def test_backup_produces_verified_restorable_snapshot(tmp_path):
     store = GraphStore(tmp_path / "graph")
     kept = store.store_memory(
@@ -278,7 +440,7 @@ def test_backup_produces_verified_restorable_snapshot(tmp_path):
     backup_path = tmp_path / "backups" / "snapshot.sqlite3"
     result = store.backup(backup_path)
     assert result["integrity_check"] == "ok"
-    assert result["schema_version"] == 1
+    assert result["schema_version"] == 2
     assert backup_path.is_file()
     assert os.stat(backup_path).st_mode & 0o777 == 0o600
 
