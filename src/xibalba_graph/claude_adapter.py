@@ -170,6 +170,49 @@ class ClaudeAdapter:
         self.controller.ingest_event(event)
         return {"recorded": 1, "session_id": session_id, "tool_name": tool_name}
 
+    def pre_tool_call(
+        self,
+        *,
+        session_id: str | None = None,
+        tool_name: str | None = None,
+        tool_call_id: str | None = None,
+        turn_id: str | None = None,
+        tool_input_hash: str | None = None,
+        intent_rationale: str | None = None,
+        traceparent: str | None = None,
+        agent_id: str | None = None,
+        **kwargs: Any,
+    ) -> dict[str, Any]:
+        if not session_id:
+            return {"allowed": False, "reason": "missing session_id"}
+        decision = self.controller.evaluate_policy(
+            runtime=self.runtime,
+            session_id=session_id,
+            intent_rationale=intent_rationale,
+            tool_name=tool_name,
+            tool_input_hash=tool_input_hash,
+        )
+        self.controller.ingest_event(
+            RuntimeEvent(
+                runtime=self.runtime,
+                session_id=session_id,
+                turn_id=turn_id,
+                traceparent=traceparent,
+                agent_id=agent_id,
+                intent_rationale=intent_rationale,
+                tool_name=tool_name,
+                tool_input_hash=tool_input_hash,
+                tool_outcome="success" if decision["allowed"] else "blocked",
+                provenance={**self.provenance, **kwargs},
+                metadata={
+                    "hook": "pre_tool_call",
+                    "tool_call_id": tool_call_id,
+                    "policy_reason": decision["reason"],
+                },
+            )
+        )
+        return dict(decision)
+
     def api_request_error(self, *, session_id: str | None = None, **kwargs: Any) -> dict[str, Any]:
         if not session_id:
             return {"recorded": 0, "reason": "missing session_id"}

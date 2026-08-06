@@ -1,3 +1,4 @@
+import inspect
 import subprocess
 import sys
 
@@ -5,7 +6,7 @@ import pytest
 
 from xibalba_graph.agy_adapter import AgyWrapperShim
 from xibalba_graph.claude_adapter import ClaudeAdapter
-from xibalba_graph.codex_probe import CodexLauncherProbe
+from xibalba_graph.codex_probe import CodexLauncher, CodexLauncherProbe
 from xibalba_graph.runtime_bridge_contract import CLAUDE_ADAPTER, AGY_ADAPTER, CODEX_ADAPTER, RuntimeEvent
 from xibalba_graph.runtime_controller import XibalbaRuntimeController
 from xibalba_graph.store import GraphStore
@@ -56,6 +57,11 @@ def test_controller_facade_registers_binds_and_records_events(controller):
     assert ingest["recorded"] == 1
     events = store.session_otel_events("session-1")
     assert events[0]["name"] == "xibalba.runtime.event"
+    attrs = events[0]["attributes"]
+    assert attrs["traceparent"] is None
+    assert attrs["agent_id"] is None
+    assert attrs["intent_rationale"] is None
+    assert attrs["token_usage"] is None
 
 
 def test_claude_adapter_routes_hooks_through_controller(controller):
@@ -70,6 +76,22 @@ def test_claude_adapter_routes_hooks_through_controller(controller):
         assistant_response="Hermes MCP is necessary but insufficient.",
         intent_rationale="Describe the architecture boundary.",
     )
+    denied = adapter.pre_tool_call(
+        session_id="session-2",
+        turn_id="turn-2",
+        tool_name="memory_recall",
+        tool_call_id="tool-denied",
+    )
+    assert denied["allowed"] is False
+    allowed = adapter.pre_tool_call(
+        session_id="session-2",
+        turn_id="turn-2",
+        tool_name="memory_recall",
+        tool_call_id="tool-1",
+        tool_input_hash="sha256:abc",
+        intent_rationale="Check stored context.",
+    )
+    assert allowed["allowed"] is True
     adapter.post_tool_call(
         session_id="session-2",
         turn_id="turn-2",
@@ -90,6 +112,25 @@ def test_claude_adapter_routes_hooks_through_controller(controller):
     telemetry = store.session_otel_events("session-2")
     names = [event["name"] for event in telemetry]
     assert "xibalba.runtime.event" in names
+    tool_event = next(
+        event for event in telemetry
+        if event["attributes"].get("metadata", {}).get("hook") == "post_tool_call"
+    )
+    assert tool_event["attributes"]["tool_name"] == "memory_recall"
+    assert tool_event["attributes"]["intent_rationale"] == "Check stored context."
+    pre_tool_events = [
+        event for event in telemetry
+        if event["attributes"].get("metadata", {}).get("hook") == "pre_tool_call"
+    ]
+    assert [event["attributes"]["tool_outcome"] for event in pre_tool_events] == ["blocked", "success"]
+
+
+def test_runtime_adapters_do_not_write_directly_to_graph_store():
+    for adapter in (ClaudeAdapter, AgyWrapperShim):
+        source = inspect.getsource(adapter)
+        assert "GraphStore" not in source
+        assert ".store_memory(" not in source
+        assert ".record_otel_batch(" not in source
 
 
 def test_agy_wrapper_is_lifecycle_only_but_records_observations(controller):
@@ -108,6 +149,16 @@ def test_agy_wrapper_is_lifecycle_only_but_records_observations(controller):
         "xibalba.runtime.event",
         "xibalba.runtime.event",
     ]
+    assert not hasattr(shim, "post_tool_call")
+    assert not hasattr(shim, "pre_tool_call")
+    assert shim.record_observation(session_id="agy-1", note=None) == {
+        "recorded": 0,
+        "reason": "missing note",
+    }
+    assert all(
+        event["attributes"]["tool_name"].startswith("agy.wrapper.")
+        for event in telemetry
+    )
 
 
 def test_codex_probe_reports_absence_and_discovery(monkeypatch):
@@ -131,4 +182,68 @@ def test_codex_probe_reports_absence_and_discovery(monkeypatch):
     discovered = probe.discover()
     assert discovered.executable == "codex"
     assert discovered.surface_kind == "cli"
+    assert discovered.hook_surface == "unknown"
     assert discovered.version == "codex 1.2.3"
+
+
+def test_codex_launcher_reports_absent_executable_without_fabricating_session(controller, monkeypatch):
+    ctl, store = controller
+    monkeypatch.setattr("xibalba_graph.codex_probe.shutil.which", lambda candidate: None)
+
+    result = CodexLauncher(ctl).launch(session_id="codex-absent", args=["--help"])
+
+    assert result["launched"] is False
+    assert result["reason"] == "codex executable not found"
+    with pytest.raises(KeyError):
+        store.get_session("codex-absent")
+
+
+def test_codex_launcher_opens_session_injects_context_and_records_process_telemetry(controller, monkeypatch):
+    ctl, store = controller
+    monkeypatch.setattr("xibalba_graph.codex_probe.shutil.which", lambda candidate: "/usr/local/bin/codex")
+
+    class VersionCompleted:
+        stdout = "codex 1.2.3"
+        stderr = ""
+        returncode = 0
+
+    class LaunchCompleted:
+        stdout = "done"
+        stderr = ""
+        returncode = 0
+
+    calls = []
+
+    def fake_run(args, **kwargs):
+        calls.append((args, kwargs))
+        if args == ["codex", "--version"]:
+            return VersionCompleted()
+        assert kwargs["env"]["XIBALBA_RUNTIME"] == "codex"
+        assert kwargs["env"]["XIBALBA_SESSION_ID"] == "codex-launch"
+        assert kwargs["env"]["XIBALBA_GRAPH_HOOK_SURFACE"] == "unknown"
+        assert kwargs["env"]["XIBALBA_AGENT_ID"] == "did:integrity:codex"
+        assert kwargs["env"]["TRACEPARENT"] == "00-codex-01"
+        return LaunchCompleted()
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+
+    result = CodexLauncher(ctl).launch(
+        session_id="codex-launch",
+        args=["exec", "echo ok"],
+        agent_id="did:integrity:codex",
+        traceparent="00-codex-01",
+        env={"EXTRA": "1"},
+        timeout_seconds=5,
+    )
+
+    assert result["launched"] is True
+    assert result["command"] == ["codex", "exec", "echo ok"]
+    assert result["returncode"] == 0
+    assert store.get_session("codex-launch")["ended_at"] is not None
+    telemetry = store.session_otel_events("codex-launch")
+    launch_event = next(
+        event for event in telemetry
+        if event["attributes"]["tool_name"] == "codex.launcher"
+    )
+    assert launch_event["attributes"]["tool_outcome"] == "success"
+    assert launch_event["attributes"]["metadata"]["hook_surface"] == "unknown"

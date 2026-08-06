@@ -27,6 +27,8 @@ xibalba-graph-memory-session-sync = "xibalba_graph.session_sync:main"
 xibalba-graph-memory-session-open = "xibalba_graph.session_open:main"
 xibalba-graph-memory-wiki-ingest = "xibalba_graph.wiki_ingest:main"
 xibalba-graph-memory-drive-ingest = "xibalba_graph.drive_ingest:main"
+xibalba-graph-memory-demo-seed = "xibalba_graph.demo_seed:main"
+xibalba-graph-memory-operator = "xibalba_graph.operator:main"
 
 [dependency-groups]
 dev = [

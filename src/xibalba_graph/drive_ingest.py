@@ -30,10 +30,18 @@ import io
 from pathlib import Path
 from typing import Any
 
-from google.auth.transport.requests import Request
-from google.oauth2.credentials import Credentials
-from googleapiclient.discovery import build
-from pypdf import PdfReader
+try:  # Optional Drive extra.
+    from google.auth.transport.requests import Request
+    from google.oauth2.credentials import Credentials
+    from googleapiclient.discovery import build
+    from pypdf import PdfReader
+except ImportError:  # pragma: no cover - exercised through _require_drive_extra.
+    Request = None  # type: ignore[assignment]
+    Credentials = None  # type: ignore[assignment]
+    PdfReader = None  # type: ignore[assignment]
+
+    def build(*_args: Any, **_kwargs: Any) -> Any:  # type: ignore[no-redef]
+        _require_drive_extra()
 
 from .store import GraphStore
 
@@ -48,7 +56,16 @@ _PDF_MIME = "application/pdf"
 _PLAIN_TEXT_MIMES = {"text/plain", "text/markdown"}
 
 
+def _require_drive_extra() -> None:
+    if Request is None or Credentials is None or PdfReader is None:
+        raise RuntimeError(
+            "Drive ingestion requires optional dependencies. Install with "
+            "`uv sync --extra drive` before running xibalba-graph-memory-drive-ingest."
+        )
+
+
 def _get_credentials(token_path: Path):
+    _require_drive_extra()
     if not token_path.exists():
         raise FileNotFoundError(
             f"no Google OAuth token at {token_path} -- run the Hermes google-workspace skill's "
@@ -76,6 +93,7 @@ def _extract_doc_text(doc: dict[str, Any]) -> str:
 
 
 def _extract_pdf_text(data: bytes) -> str:
+    _require_drive_extra()
     reader = PdfReader(io.BytesIO(data))
     return "\n".join(page.extract_text() or "" for page in reader.pages)
 

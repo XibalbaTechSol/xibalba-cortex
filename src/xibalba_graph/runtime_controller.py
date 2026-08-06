@@ -168,6 +168,55 @@ class XibalbaRuntimeController:
             idempotency_key=idempotency_key,
         )
 
+    def record_model_exchange(
+        self,
+        runtime: RuntimeName,
+        *,
+        session_id: str,
+        user_prompt: str,
+        model_response: str,
+        context: list[dict[str, Any]] | None = None,
+        agent_id: str | None = None,
+        prompt_id: str | None = None,
+        prompt_time: str | None = None,
+        response_time: str | None = None,
+        metadata: dict[str, Any] | None = None,
+        idempotency_key: str | None = None,
+    ) -> dict[str, Any]:
+        self.open_session(runtime, session_id=session_id, agent_id=agent_id, retention_tier="verbatim")
+        return self.store.record_model_exchange(
+            session_id,
+            user_prompt=user_prompt,
+            model_response=model_response,
+            context=list(context or []),
+            runtime=runtime,
+            agent_id=agent_id,
+            prompt_id=prompt_id,
+            prompt_time=prompt_time,
+            response_time=response_time,
+            metadata=metadata,
+            idempotency_key=idempotency_key,
+        )
+
+    def request_memory_inference(
+        self,
+        task_type: str,
+        *,
+        subject_type: str,
+        subject_id: str,
+        input_payload: dict[str, Any],
+        requested_by: str | None = None,
+        idempotency_key: str | None = None,
+    ) -> dict[str, Any]:
+        return self.store.request_inference_task(
+            task_type,
+            subject_type=subject_type,
+            subject_id=subject_id,
+            input_payload=input_payload,
+            requested_by=requested_by,
+            idempotency_key=idempotency_key,
+        )
+
     def evaluate_policy(
         self,
         *,

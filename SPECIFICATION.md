@@ -26,6 +26,7 @@ The detailed normative model is `spec/xibalba-graph-memory-v1.md`. This root spe
 - SQLite is the canonical local store.
 - Every memory has source provenance, content hash, derivation family, lifecycle status, and event history.
 - Event transitions are append-only and hash-chain verifiable.
+- Session exchanges expose a local Merkle-style root over prompt, response, tool, and context contribution hashes.
 - Entity and relation edges are evidence-linked and bounded during traversal.
 - Contradiction, supersession, quarantine, forgetting, and restoration must preserve auditable event history.
 - Retrieval output is untrusted content and must never override system, developer, or user instructions.
@@ -37,13 +38,15 @@ The detailed normative model is `spec/xibalba-graph-memory-v1.md`. This root spe
 | Source | source id, origin, locator, content hash, captured time, profile | Raw evidence or imported artifact. |
 | Memory | memory id, source id, text/value, epistemic class, lifecycle status, derivation family | Queryable unit of memory. |
 | Event | event id, prior hash, event hash, actor/runtime, transition, timestamp | Append-only state transition. |
+| Exchange | exchange id, session id, prompt/response memory links, context contribution links, parent/root node ids | Tamper-evident session turn structure. |
+| Inference task | task id, task type, subject, input/output JSON, status | Harness-facing queue for LLM-derived summaries and metadata. |
 | Entity | entity id, label, aliases, evidence links | Extracted or asserted node with provenance. |
 | Relation | relation id, subject, predicate, object, confidence, evidence links | Bounded graph edge. |
 | Integrity link | local object id, remote DAG or anchor reference, proof metadata | One-way citation boundary only. |
 
 ## 5. MCP And Runtime Contract
 
-The MCP/controller surface should expose store, recall, link, neighbors, path, contradict, forget, verify, status, and backup operations. Claude, agy, and Codex adapters must report their actual hook capabilities honestly. Missing pre-tool, post-tool, or lifecycle hooks are capability gaps, not hidden parity.
+The MCP/controller surface should expose store, recall, full model-exchange capture, local session Merkle-root inspection, harness inference-task delegation, link, neighbors, path, contradict, forget, verify, status, and backup operations. Claude, agy, and Codex adapters must report their actual hook capabilities honestly. Missing pre-tool, post-tool, or lifecycle hooks are capability gaps, not hidden parity.
 
 ## 6. Viewer Contract
 

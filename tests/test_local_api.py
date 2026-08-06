@@ -1,5 +1,6 @@
 import itertools
 import json
+import sqlite3
 import threading
 import time
 import urllib.error
@@ -19,6 +20,21 @@ def _unit_vector(hot_index: int) -> list[float]:
 
 def _get(port: int, path: str) -> tuple[int, object]:
     request = urllib.request.Request(f"http://localhost:{port}{path}", method="GET")
+    try:
+        with urllib.request.urlopen(request, timeout=5) as response:
+            return response.status, json.loads(response.read())
+    except urllib.error.HTTPError as exc:
+        return exc.code, json.loads(exc.read())
+
+
+def _post(port: int, path: str, payload: dict[str, object]) -> tuple[int, object]:
+    body = json.dumps(payload).encode()
+    request = urllib.request.Request(
+        f"http://localhost:{port}{path}",
+        data=body,
+        method="POST",
+        headers={"Content-Type": "application/json"},
+    )
     try:
         with urllib.request.urlopen(request, timeout=5) as response:
             return response.status, json.loads(response.read())
@@ -52,6 +68,35 @@ def test_stats_reports_real_counts(running_store):
     status, body = _get(port, "/api/stats")
     assert status == 200
     assert body["memories"] == 1
+
+
+def test_status_and_integrity_links_routes(running_store):
+    store, port = running_store
+    memory = store.store_memory(
+        "Memory with unavailable Integrity content.",
+        source={"kind": "direct_user", "locator": "hermes://session/integrity-link"},
+        status="confirmed",
+    )
+    with sqlite3.connect(store.db_path) as connection:
+        connection.execute(
+            """
+            INSERT INTO integrity_links(memory_id, node_id, verification_state, expected_content_hash, verified_at)
+            VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
+            """,
+            (memory["id"], "node-1", "content_unavailable", memory["content_hash"]),
+        )
+        connection.commit()
+
+    status, body = _get(port, "/api/status")
+    assert status == 200
+    assert body["schema_version"] == 3
+    assert body["journal_mode"] == "wal"
+    assert body["backup_ready"] is True
+
+    status, body = _get(port, "/api/integrity-links")
+    assert status == 200
+    assert body["states"]["content_unavailable"] == 1
+    assert body["sample"][0]["memory_id"] == memory["id"]
 
 
 def test_search_returns_matching_memory(running_store):
@@ -116,6 +161,26 @@ def test_memory_neighbors_endpoint(running_store):
     assert body[0]["predicate"] == "emits_evidence_to"
 
 
+def test_entity_traversal_endpoints(running_store):
+    store, port = running_store
+    memory = store.store_memory(
+        "Xibalba Shield emits evidence to the Integrity Oracle.",
+        source={"kind": "direct_user", "locator": "hermes://session/entity-traversal"},
+        status="confirmed",
+    )
+    store.link_entities("Xibalba Shield", "emits_evidence_to", "Integrity Oracle", evidence_memory_id=memory["id"])
+    store.link_entities("Integrity Oracle", "anchors_into", "Integrity DAG", evidence_memory_id=memory["id"])
+
+    status, body = _get(port, "/api/entity/Xibalba%20Shield/neighbors?max_depth=1")
+    assert status == 200
+    assert body["truncated"] is False
+    assert body["edges"][0]["evidence_memory_id"] == memory["id"]
+
+    status, body = _get(port, "/api/entity/path?from=Xibalba%20Shield&to=Integrity%20DAG&max_depth=2")
+    assert status == 200
+    assert [edge["predicate"] for edge in body["edges"]] == ["emits_evidence_to", "anchors_into"]
+
+
 def test_graph_endpoint_includes_nodes_and_similarity_edges(running_store):
     store, port = running_store
     anchor = store.store_memory(
@@ -145,3 +210,183 @@ def test_returns_404_for_unconfigured_path(running_store):
     _store, port = running_store
     status, _body = _get(port, "/api/nonexistent")
     assert status == 404
+
+
+def test_model_exchange_session_and_merkle_routes(running_store):
+    _store, port = running_store
+
+    status, body = _post(
+        port,
+        "/api/exchanges/model",
+        {
+            "external_session_id": "ui-session",
+            "user_prompt": "Remember that I prefer direct engineering updates.",
+            "model_response": "Recorded the preference.",
+            "context": [
+                {
+                    "content": "The user values concise implementation notes.",
+                    "contribution_id": "recall-1",
+                    "context_kind": "retrieved_memory",
+                    "relevance": 0.9,
+                }
+            ],
+            "prompt_id": "turn-1",
+        },
+    )
+    assert status == 200
+    exchange_id = body["exchange"]["id"]
+    assert body["exchange"]["context_contributions"][0]["contribution_id"] == "recall-1"
+
+    status, sessions = _get(port, "/api/sessions")
+    assert status == 200
+    assert sessions[0]["external_session_id"] == "ui-session"
+
+    status, exchanges = _get(port, "/api/session/ui-session/exchanges")
+    assert status == 200
+    assert exchanges[0]["id"] == exchange_id
+
+    status, root = _get(port, "/api/session/ui-session/merkle-root")
+    assert status == 200
+    assert root["root_node_id"] == body["exchange"]["node_id"]
+    assert root["valid"] is True
+
+
+def test_memory_detail_supporting_routes(running_store):
+    store, port = running_store
+    memory = store.store_memory(
+        "A memory with supporting detail routes.",
+        source={"kind": "direct_user", "locator": "hermes://session/detail-routes", "prompt_id": "p1"},
+        status="confirmed",
+    )
+    store.start_session("detail-routes-session")
+    store.record_otel_batch(
+        "detail-routes-session",
+        [{"kind": "log", "name": "test.event", "prompt_id": "p1", "attributes": {"ok": True}}],
+    )
+
+    for suffix in ("events", "otel", "attachments", "contradictions"):
+        status, body = _get(port, f"/api/memory/{memory['id']}/{suffix}")
+        assert status == 200
+        assert isinstance(body, list)
+
+
+def test_inference_task_routes(running_store):
+    store, port = running_store
+    memory = store.store_memory(
+        "The user prefers terse engineering notes.",
+        source={"kind": "direct_user", "locator": "xibalba://memory/preferences"},
+        status="confirmed",
+    )
+
+    status, manifest = _get(port, "/api/inference/manifest")
+    assert status == 200
+    assert manifest["name"] == "xibalba-memory-inference"
+
+    status, task = _post(
+        port,
+        "/api/inference/tasks",
+        {
+            "task_type": "extract_memory_metadata",
+            "subject_type": "memory",
+            "subject_id": memory["id"],
+            "input_payload": {"memory_id": memory["id"]},
+            "idempotency_key": "api-task-1",
+        },
+    )
+    assert status == 200
+    assert task["status"] == "pending"
+
+    status, tasks = _get(port, "/api/inference/tasks?status=pending")
+    assert status == 200
+    assert [item["id"] for item in tasks] == ["api-task-1"]
+
+    status, claimed = _post(port, "/api/inference/tasks/api-task-1/claim", {"claimed_by": "ui"})
+    assert status == 200
+    assert claimed["status"] == "claimed"
+
+    status, completed = _post(
+        port,
+        "/api/inference/tasks/api-task-1/complete",
+        {"output_payload": {"metadata": {"kind": "preference"}}},
+    )
+    assert status == 200
+    assert completed["status"] == "completed"
+
+
+def test_inference_writeback_routes_are_explicit_operator_actions(running_store):
+    store, port = running_store
+    original = store.store_memory(
+        "The MVP is only a search page.",
+        source={"kind": "direct_user", "locator": "hermes://session/original"},
+        status="confirmed",
+    )
+    conflict = store.store_memory(
+        "The MVP includes timeline, graph, recall, inference, and integrity tabs.",
+        source={"kind": "direct_user", "locator": "hermes://session/conflict"},
+        status="confirmed",
+    )
+
+    status, proposition = _post(
+        port,
+        "/api/memory/propositions",
+        {
+            "content": "The MVP memory page exposes operator-mediated write-back actions.",
+            "source": {"kind": "inference_output", "locator": "xibalba://task/writeback"},
+            "status": "confirmed",
+            "evidence_class": "extracted_proposition",
+        },
+    )
+    assert status == 200
+    assert proposition["evidence_class"] == "extracted_proposition"
+
+    status, relation = _post(
+        port,
+        "/api/memory/link-entities",
+        {
+            "subject": "MVP Memory Page",
+            "predicate": "exposes",
+            "object": "Write Back Actions",
+            "evidence_memory_id": proposition["id"],
+            "confidence": 0.8,
+        },
+    )
+    assert status == 200
+    assert relation["evidence_memory_id"] == proposition["id"]
+
+    status, contradiction = _post(
+        port,
+        "/api/memory/contradictions",
+        {"memory_id_a": original["id"], "memory_id_b": conflict["id"], "reason": "MVP scope changed"},
+    )
+    assert status == 200
+    assert contradiction["status"] == "recorded"
+
+    status, superseding = _post(
+        port,
+        f"/api/memory/{original['id']}/supersede",
+        {
+            "new_content": "The MVP is an operator dashboard with write-back controls.",
+            "source": {"kind": "inference_output", "locator": "xibalba://task/supersede"},
+            "status": "confirmed",
+            "evidence_class": "extracted_proposition",
+        },
+    )
+    assert status == 200
+    assert superseding["supersedes_id"] == original["id"]
+    assert store.get_memory(original["id"])["status"] == "superseded"
+
+
+def test_inference_task_route_rejects_invalid_type(running_store):
+    _store, port = running_store
+    status, body = _post(
+        port,
+        "/api/inference/tasks",
+        {
+            "task_type": "invent_truth",
+            "subject_type": "memory",
+            "subject_id": "x",
+            "input_payload": {},
+        },
+    )
+    assert status == 400
+    assert "task_type" in body["error"]

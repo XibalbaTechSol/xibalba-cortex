@@ -90,10 +90,16 @@ What remains before `integrity_links` can produce `hash_match_local`/`ancestry_v
 against the real vault (73 leaves, 52 would-be-added commit nodes, 21 already present, nothing
 written); the real (non-dry) import and on-chain anchoring via `anchor_memory_dag.py` are
 separate, deliberately not-yet-taken steps — anchoring is an irreversible signed transaction
-against the live agent. `integrity_links` and this system's own `memory_verify`-style tooling
-have not yet been wired to read the DAG at all; that wiring is unstarted work, distinct from the
-DAG's own implementation status. The takeaway for future sessions: check whether unrun code
-actually works before writing "unimplemented" a second time.
+against the live agent.
+
+**Update, 2026-08-06:** this repository now has the first read-only DAG integration:
+`GraphStore.verify_integrity_link`, MCP `memory_verify_integrity_link`, and operator
+`verify-integrity-link`. It can produce `hash_match_local` when a cited `memory_nodes.jsonl`
+node exists and its Keccak `content_hash` matches the local memory content. This is byte-lineage
+verification only. It still does not prove truth, authorization, completeness, ancestry to a
+configured root, or on-chain anchoring. `ancestry_verified` and
+`anchored_to_configured_root` remain unwritten states here. The takeaway for future sessions:
+check whether unrun code actually works before writing "unimplemented" a second time.
 
 ## Honest gap: sqlite-vec is pre-1.0
 

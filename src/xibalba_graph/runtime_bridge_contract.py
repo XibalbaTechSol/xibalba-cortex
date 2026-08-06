@@ -46,6 +46,8 @@ CONTROLLER_METHODS = (
     "read_memory",
     "write_memory",
     "evaluate_policy",
+    "record_model_exchange",
+    "request_memory_inference",
 )
 
 
@@ -229,4 +231,31 @@ class RuntimeController(Protocol):
         intent_rationale: str | None = None,
         tool_name: str | None = None,
         tool_input_hash: str | None = None,
+    ) -> dict[str, Any]: ...
+
+    def record_model_exchange(
+        self,
+        runtime: RuntimeName,
+        *,
+        session_id: str,
+        user_prompt: str,
+        model_response: str,
+        context: list[dict[str, Any]] | None = None,
+        agent_id: str | None = None,
+        prompt_id: str | None = None,
+        prompt_time: str | None = None,
+        response_time: str | None = None,
+        metadata: dict[str, Any] | None = None,
+        idempotency_key: str | None = None,
+    ) -> dict[str, Any]: ...
+
+    def request_memory_inference(
+        self,
+        task_type: str,
+        *,
+        subject_type: str,
+        subject_id: str,
+        input_payload: dict[str, Any],
+        requested_by: str | None = None,
+        idempotency_key: str | None = None,
     ) -> dict[str, Any]: ...

@@ -8,9 +8,13 @@ from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field
 import os
+from pathlib import Path
 import shutil
 import subprocess
 from typing import Any
+
+from .runtime_bridge_contract import RuntimeEvent
+from .runtime_controller import XibalbaRuntimeController
 
 
 @dataclass(slots=True)
@@ -77,4 +81,122 @@ class CodexLauncherProbe:
         return text or None
 
 
-__all__ = ["CodexLauncherProbe", "CodexProbeResult"]
+class CodexLauncher:
+    """Controller-aware Codex process launcher.
+
+    This wrapper supplies identity/session context and records process-level telemetry.
+    It does not claim Codex pre-tool or post-tool hook support.
+    """
+
+    def __init__(
+        self,
+        controller: XibalbaRuntimeController,
+        *,
+        executable_candidates: tuple[str, ...] = ("codex", "openai-codex"),
+    ):
+        self.controller = controller
+        self.probe = CodexLauncherProbe(executable_candidates)
+
+    def launch(
+        self,
+        *,
+        session_id: str,
+        args: list[str] | None = None,
+        cwd: str | None = None,
+        agent_id: str | None = None,
+        traceparent: str | None = None,
+        env: dict[str, str] | None = None,
+        timeout_seconds: int | None = None,
+    ) -> dict[str, Any]:
+        discovered = self.probe.discover()
+        if discovered.executable is None:
+            return {
+                "launched": False,
+                "reason": "codex executable not found",
+                "probe": discovered.to_record(),
+            }
+
+        opened = self.controller.open_session(
+            "codex",
+            session_id=session_id,
+            traceparent=traceparent,
+            agent_id=agent_id,
+            provenance={"source": "codex_launcher", "hook_surface": discovered.hook_surface},
+        )
+        command = [discovered.executable, *list(args or [])]
+        launch_env = {
+            **os.environ,
+            **dict(env or {}),
+            "XIBALBA_RUNTIME": "codex",
+            "XIBALBA_SESSION_ID": session_id,
+            "XIBALBA_GRAPH_HOOK_SURFACE": discovered.hook_surface,
+        }
+        if agent_id:
+            launch_env["XIBALBA_AGENT_ID"] = agent_id
+        if traceparent:
+            launch_env["TRACEPARENT"] = traceparent
+
+        try:
+            completed = subprocess.run(
+                command,
+                cwd=str(Path(cwd)) if cwd else None,
+                env=launch_env,
+                check=False,
+                capture_output=True,
+                text=True,
+                timeout=timeout_seconds,
+            )
+            outcome = "success" if completed.returncode == 0 else "error"
+            result: dict[str, Any] = {
+                "launched": True,
+                "command": command,
+                "cwd": cwd,
+                "returncode": completed.returncode,
+                "stdout": completed.stdout,
+                "stderr": completed.stderr,
+                "opened": opened,
+                "probe": discovered.to_record(),
+            }
+        except subprocess.TimeoutExpired as exc:
+            outcome = "blocked"
+            result = {
+                "launched": False,
+                "reason": "timeout",
+                "command": command,
+                "cwd": cwd,
+                "timeout_seconds": timeout_seconds,
+                "stdout": exc.stdout,
+                "stderr": exc.stderr,
+                "opened": opened,
+                "probe": discovered.to_record(),
+            }
+
+        self.controller.ingest_event(
+            RuntimeEvent(
+                runtime="codex",
+                session_id=session_id,
+                traceparent=traceparent,
+                agent_id=agent_id,
+                tool_name="codex.launcher",
+                tool_outcome=outcome,
+                provenance={"source": "codex_launcher"},
+                metadata={
+                    "command": command,
+                    "cwd": cwd,
+                    "hook_surface": discovered.hook_surface,
+                    "surface_kind": discovered.surface_kind,
+                    "returncode": result.get("returncode"),
+                    "reason": result.get("reason"),
+                },
+            )
+        )
+        self.controller.close_session(
+            "codex",
+            session_id=session_id,
+            summary=f"Codex launcher exited with {outcome}.",
+            provenance={"source": "codex_launcher", "outcome": outcome},
+        )
+        return result
+
+
+__all__ = ["CodexLauncher", "CodexLauncherProbe", "CodexProbeResult"]

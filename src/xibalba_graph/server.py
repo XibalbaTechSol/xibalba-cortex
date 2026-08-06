@@ -13,7 +13,7 @@ from mcp.server import MCPServer
 
 from xibalba_graph.agy_adapter import AgyWrapperShim
 from xibalba_graph.claude_adapter import ClaudeAdapter
-from xibalba_graph.codex_probe import CodexLauncherProbe
+from xibalba_graph.codex_probe import CodexLauncher, CodexLauncherProbe
 from xibalba_graph.runtime_bridge_contract import (
     AGY_ADAPTER,
     CLAUDE_ADAPTER,
@@ -21,7 +21,12 @@ from xibalba_graph.runtime_bridge_contract import (
     RuntimeEvent,
 )
 from xibalba_graph.runtime_controller import XibalbaRuntimeController
-from xibalba_graph.store import EMBEDDING_DIM, EMBEDDING_MODEL_ID, GraphStore
+from xibalba_graph.store import (
+    EMBEDDING_DIM,
+    EMBEDDING_MODEL_ID,
+    MEMORY_INFERENCE_SUBAGENT_MANIFEST,
+    GraphStore,
+)
 from xibalba_graph.vault_inspect import inspect_leaf
 
 _UNTRUSTED_EVIDENCE_NOTE = (
@@ -355,6 +360,26 @@ def memory_verify_chain(memory_id: str) -> dict[str, object]:
 
 
 @server.tool()
+def memory_verify_integrity_link(
+    memory_id: str,
+    node_id: str | None = None,
+    dag_home: str | None = None,
+    agent_id: str | None = None,
+) -> dict[str, object]:
+    """Verify an Integrity Memory DAG citation by byte lineage only.
+
+    This can advance a link to hash_match_local, but it does not prove truth,
+    authorization, completeness, ancestry to a root, or on-chain anchoring.
+    """
+    return get_store().verify_integrity_link(
+        memory_id,
+        node_id=node_id,
+        dag_home=dag_home,
+        agent_id=agent_id,
+    )
+
+
+@server.tool()
 def memory_status() -> dict[str, object]:
     """Store health: schema version, WAL/FTS5/foreign-key status, integrity check."""
     return get_store().status()
@@ -415,6 +440,108 @@ def memory_verify_exchange_chain(external_session_id: str) -> dict[str, object]:
     history, applied to a session's complete structure instead.
     """
     return get_store().verify_exchange_chain(external_session_id)
+
+
+@server.tool()
+def memory_session_merkle_root(external_session_id: str) -> dict[str, object]:
+    """Return the current local Merkle root for a session exchange chain.
+
+    The root commits to prompt/response content hashes, linked context contribution hashes,
+    tool-call ids, and parent exchange nodes. It is local tamper evidence, not an Integrity DAG
+    anchor or proof that the remembered content is true.
+    """
+    return get_store().session_merkle_root(external_session_id)
+
+
+@server.tool()
+def memory_record_model_exchange(
+    external_session_id: str,
+    user_prompt: str,
+    model_response: str,
+    context: list[dict[str, object]] | None = None,
+    runtime: str | None = None,
+    agent_id: str | None = None,
+    prompt_id: str | None = None,
+    prompt_time: str | None = None,
+    response_time: str | None = None,
+    metadata: dict[str, object] | None = None,
+    idempotency_key: str | None = None,
+) -> dict[str, object]:
+    """Capture one complete model turn: user prompt, full model response, and every context
+    contribution as provenance-bearing memories, then append a hash-chained exchange.
+
+    `context` entries either pass `memory_id` for already-stored context or `content` plus
+    optional source/context_kind/relevance/metadata fields for newly captured context. This is
+    the preferred high-fidelity write path for agent harnesses.
+    """
+    return get_store().record_model_exchange(
+        external_session_id,
+        user_prompt=user_prompt,
+        model_response=model_response,
+        context=list(context or []),
+        runtime=runtime,
+        agent_id=agent_id,
+        prompt_id=prompt_id,
+        prompt_time=prompt_time,
+        response_time=response_time,
+        metadata=metadata,
+        idempotency_key=idempotency_key,
+    )
+
+
+@server.tool()
+def memory_inference_subagent_manifest() -> dict[str, object]:
+    """Describe the harness-facing memory inference subagent contract.
+
+    Xibalba Graph Memory does not run an LLM locally. It queues deterministic inference tasks
+    that the user's existing agent harness can claim, solve, and write back. Cloud inference can
+    implement the same contract later without changing the local store API.
+    """
+    return MEMORY_INFERENCE_SUBAGENT_MANIFEST
+
+
+@server.tool()
+def memory_request_inference(
+    task_type: str,
+    subject_type: str,
+    subject_id: str,
+    input_payload: dict[str, object],
+    requested_by: str | None = None,
+    idempotency_key: str | None = None,
+) -> dict[str, object]:
+    """Queue an inference task for the user's agent harness or future cloud inference worker."""
+    return get_store().request_inference_task(
+        task_type,
+        subject_type=subject_type,
+        subject_id=subject_id,
+        input_payload=input_payload,
+        requested_by=requested_by,
+        idempotency_key=idempotency_key,
+    )
+
+
+@server.tool()
+def memory_inference_tasks(status: str = "pending", limit: int = 50) -> list[dict[str, object]]:
+    """List queued/claimed/completed/failed memory inference tasks."""
+    return get_store().list_inference_tasks(status=status, limit=limit)
+
+
+@server.tool()
+def memory_claim_inference_task(task_id: str, claimed_by: str | None = None) -> dict[str, object]:
+    """Mark a pending inference task as claimed by a local harness worker."""
+    return get_store().claim_inference_task(task_id, claimed_by=claimed_by)
+
+
+@server.tool()
+def memory_complete_inference_task(
+    task_id: str,
+    output_payload: dict[str, object] | None = None,
+    error: str | None = None,
+) -> dict[str, object]:
+    """Complete or fail an inference task. Passing error marks it failed."""
+    return get_store().complete_inference_task(
+        task_id, output_payload=output_payload, error=error
+    )
 
 
 @server.tool()
@@ -574,6 +701,31 @@ def runtime_claude_post_llm_call(
 
 
 @server.tool()
+def runtime_claude_pre_tool_call(
+    session_id: str,
+    tool_name: str | None = None,
+    tool_call_id: str | None = None,
+    turn_id: str | None = None,
+    tool_input_hash: str | None = None,
+    intent_rationale: str | None = None,
+    traceparent: str | None = None,
+    agent_id: str | None = None,
+    provenance: dict[str, object] | None = None,
+) -> dict[str, object]:
+    """Claude adapter entry point for pre-tool policy evaluation."""
+    return ClaudeAdapter(get_controller(), provenance=dict(provenance or {})).pre_tool_call(
+        session_id=session_id,
+        tool_name=tool_name,
+        tool_call_id=tool_call_id,
+        turn_id=turn_id,
+        tool_input_hash=tool_input_hash,
+        intent_rationale=intent_rationale,
+        traceparent=traceparent,
+        agent_id=agent_id,
+    )
+
+
+@server.tool()
 def runtime_claude_post_tool_call(
     session_id: str,
     tool_name: str | None = None,
@@ -657,6 +809,28 @@ def runtime_agy_observation(
 def runtime_codex_probe() -> dict[str, object]:
     """Probe the live Codex launcher surface without assuming hook parity."""
     return CodexLauncherProbe().discover().to_record()
+
+
+@server.tool()
+def runtime_codex_launch(
+    session_id: str,
+    args: list[str] | None = None,
+    cwd: str | None = None,
+    agent_id: str | None = None,
+    traceparent: str | None = None,
+    env: dict[str, str] | None = None,
+    timeout_seconds: int | None = None,
+) -> dict[str, object]:
+    """Launch Codex with controller session context and process-level telemetry."""
+    return CodexLauncher(get_controller()).launch(
+        session_id=session_id,
+        args=args,
+        cwd=cwd,
+        agent_id=agent_id,
+        traceparent=traceparent,
+        env=env,
+        timeout_seconds=timeout_seconds,
+    )
 
 
 def main() -> None:

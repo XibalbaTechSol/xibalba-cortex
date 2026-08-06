@@ -1,4 +1,5 @@
 import os
+import json
 import sqlite3
 import re
 from pathlib import Path
@@ -25,14 +26,16 @@ def test_bootstrap_creates_secure_healthy_sqlite_store(tmp_path):
     assert os.stat(home).st_mode & 0o777 == 0o700
     assert store.db_path.is_file()
     assert os.stat(store.db_path).st_mode & 0o777 == 0o600
-    assert status == {
-        "schema_version": 2,
-        "journal_mode": "wal",
-        "foreign_keys": True,
-        "fts5": True,
-        "integrity_check": "ok",
-        "identity_mode": "pseudonymous",
-    }
+    assert status["schema_version"] == 3
+    assert status["journal_mode"] == "wal"
+    assert status["foreign_keys"] is True
+    assert status["fts5"] is True
+    assert status["integrity_check"] == "ok"
+    assert status["identity_mode"] == "pseudonymous"
+    assert status["db_path"] == str(store.db_path)
+    assert status["memory_count"] == 0
+    assert status["backup_ready"] is True
+    assert status["backup_method"] == "sqlite_online_backup"
 
     with sqlite3.connect(store.db_path) as connection:
         tables = {
@@ -54,6 +57,95 @@ def test_bootstrap_creates_secure_healthy_sqlite_store(tmp_path):
         "schema_migrations",
     }.issubset(tables)
 
+    store.close()
+
+
+def test_integrity_links_status_reports_unlinked_and_explicit_states(tmp_path):
+    store = GraphStore(tmp_path / "graph")
+    linked = store.store_memory(
+        "Linked memory.",
+        source={"kind": "direct_user", "locator": "xibalba://integrity/linked"},
+        status="confirmed",
+    )
+    store.store_memory(
+        "Unlinked memory.",
+        source={"kind": "direct_user", "locator": "xibalba://integrity/unlinked"},
+        status="confirmed",
+    )
+    with sqlite3.connect(store.db_path) as connection:
+        connection.execute(
+            """
+            INSERT INTO integrity_links(memory_id, node_id, verification_state, expected_content_hash, verified_at)
+            VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
+            """,
+            (linked["id"], "node-1", "content_unavailable", linked["content_hash"]),
+        )
+        connection.commit()
+
+    status = store.integrity_links_status()
+    assert status["total_memories"] == 2
+    assert status["linked_records"] == 1
+    assert status["states"]["unlinked"] == 1
+    assert status["states"]["content_unavailable"] == 1
+    assert status["sample"][0]["memory_id"] == linked["id"]
+    store.close()
+
+
+def test_verify_integrity_link_checks_memory_dag_hash_without_claiming_anchor(tmp_path):
+    store = GraphStore(tmp_path / "graph")
+    memory = store.store_memory(
+        "Integrity DAG byte lineage.",
+        source={"kind": "direct_user", "locator": "xibalba://integrity/dag"},
+        status="confirmed",
+    )
+    dag_dir = tmp_path / "vault" / "did_integrity_test"
+    dag_dir.mkdir(parents=True)
+    node_id = "0x" + "a" * 64
+    (dag_dir / "memory_nodes.jsonl").write_text(
+        json.dumps(
+            {
+                "node_id": node_id,
+                "kind": "memory",
+                "content_hash": GraphStore._integrity_memory_content_hash("Integrity DAG byte lineage."),
+            }
+        )
+        + "\n"
+    )
+
+    result = store.verify_integrity_link(memory["id"], node_id=node_id, dag_home=tmp_path / "vault")
+
+    assert result["verification_state"] == "hash_match_local"
+    assert result["truth_authorization_completeness"] is False
+    assert result["anchored"] is False
+    status = store.integrity_links_status()
+    assert status["states"]["hash_match_local"] == 1
+    store.close()
+
+
+def test_verify_integrity_link_reports_unlinked_missing_and_mismatch(tmp_path):
+    store = GraphStore(tmp_path / "graph")
+    memory = store.store_memory(
+        "Local content.",
+        source={"kind": "direct_user", "locator": "xibalba://integrity/mismatch"},
+        status="confirmed",
+    )
+
+    unlinked = store.verify_integrity_link(memory["id"])
+    assert unlinked["verification_state"] == "unlinked"
+    assert unlinked["failure_reason"] == "no_integrity_dag_node_id"
+
+    missing = store.verify_integrity_link(memory["id"], node_id="0x" + "b" * 64, dag_home=tmp_path / "vault")
+    assert missing["verification_state"] == "content_unavailable"
+
+    dag_dir = tmp_path / "vault" / "did_integrity_test"
+    dag_dir.mkdir(parents=True)
+    node_id = "0x" + "c" * 64
+    (dag_dir / "memory_nodes.jsonl").write_text(
+        json.dumps({"node_id": node_id, "kind": "memory", "content_hash": "0x" + "d" * 64}) + "\n"
+    )
+    mismatch = store.verify_integrity_link(memory["id"], node_id=node_id, dag_home=tmp_path / "vault")
+    assert mismatch["verification_state"] == "verification_failed"
+    assert mismatch["failure_reason"] == "content_hash_mismatch"
     store.close()
 
 
@@ -238,8 +330,35 @@ def test_graph_payload_includes_memory_entity_and_similarity_nodes(tmp_path):
     relation_edges = [e for e in payload["edges"] if e["type"] == "relation"]
     similarity_edges = [e for e in payload["edges"] if e["type"] == "similarity"]
     assert len(relation_edges) == 1
+    assert relation_edges[0]["evidence_memory_id"] == evidence["id"]
     assert len(similarity_edges) == 1
     assert similarity_edges[0]["cosine_similarity"] == pytest.approx(1.0)
+    store.close()
+
+
+def test_graph_payload_includes_contradiction_edges(tmp_path):
+    store = GraphStore(tmp_path / "graph")
+    current = store.store_memory(
+        "Xibalba Graph Memory records complete model exchanges.",
+        source={"kind": "direct_user", "locator": "hermes://session/current"},
+        status="confirmed",
+    )
+    conflict = store.store_memory(
+        "Xibalba Graph Memory is only a read-only graph viewer.",
+        source={"kind": "imported_document", "locator": "hermes://session/conflict"},
+        status="confirmed",
+    )
+    store.mark_contradiction(current["id"], conflict["id"], "Scope conflict")
+
+    payload = store.graph_payload()
+    contradiction_edges = [e for e in payload["edges"] if e["type"] == "contradiction"]
+    assert len(contradiction_edges) == 1
+    assert {contradiction_edges[0]["source"], contradiction_edges[0]["target"]} == {
+        f"memory:{conflict['id']}",
+        f"memory:{current['id']}",
+    }
+    assert contradiction_edges[0]["predicate"] == "contradicts"
+    assert contradiction_edges[0]["reason"] == "Scope conflict"
     store.close()
 
 
@@ -422,7 +541,7 @@ def test_memory_vectors_migrates_existing_l2_table_to_cosine_preserving_data(tmp
     raw.close()
 
     reopened = GraphStore(home)
-    assert reopened.status()["schema_version"] == 2
+    assert reopened.status()["schema_version"] == 3
     results = reopened.search("nomatchingterm-xyz", query_vector=_unit_vector(0), limit=5)
     assert results[0]["id"] == memory["id"]
     assert results[0]["cosine_similarity"] == pytest.approx(1.0)
@@ -440,7 +559,7 @@ def test_backup_produces_verified_restorable_snapshot(tmp_path):
     backup_path = tmp_path / "backups" / "snapshot.sqlite3"
     result = store.backup(backup_path)
     assert result["integrity_check"] == "ok"
-    assert result["schema_version"] == 2
+    assert result["schema_version"] == 3
     assert backup_path.is_file()
     assert os.stat(backup_path).st_mode & 0o777 == 0o600
 
@@ -854,4 +973,114 @@ def test_verify_exchange_chain_detects_tampering(tmp_path):
     tampered = store.verify_exchange_chain("s1")
     assert tampered["valid"] is False
     assert tampered["broken_at_sequence_number"] == 0
+    store.close()
+
+
+
+def test_record_model_exchange_captures_prompt_response_context_and_merkle_root(tmp_path):
+    store = GraphStore(tmp_path / "graph")
+
+    result = store.record_model_exchange(
+        "sess-memory",
+        user_prompt="Remember that I prefer terse engineering notes.",
+        model_response="Stored that preference and will keep future notes concise.",
+        context=[
+            {
+                "content": "User previously asked for pragmatic, direct responses.",
+                "kind": "retrieved_memory",
+                "context_kind": "retrieved_memory",
+                "contribution_id": "recall-1",
+                "relevance": 0.92,
+                "metadata": {"rank": 1},
+            }
+        ],
+        runtime="codex",
+        agent_id="agent-7",
+        prompt_id="turn-1",
+        prompt_time="2026-08-06T12:00:00Z",
+        response_time="2026-08-06T12:00:01Z",
+        idempotency_key="sess-memory:turn-1",
+    )
+
+    exchange = result["exchange"]
+    assert exchange["prompt_memories"][0]["content"] == "Remember that I prefer terse engineering notes."
+    assert exchange["response_memories"][0]["content"] == "Stored that preference and will keep future notes concise."
+    assert exchange["context_contributions"][0]["contribution_id"] == "recall-1"
+    assert exchange["context_contributions"][0]["context_kind"] == "retrieved_memory"
+    assert exchange["context_contributions"][0]["relevance"] == pytest.approx(0.92)
+    assert exchange["context_contributions"][0]["metadata"] == {"rank": 1}
+
+    root = store.session_merkle_root("sess-memory")
+    assert root == {
+        "session_id": "sess-memory",
+        "root_node_id": exchange["node_id"],
+        "exchange_count": 1,
+        "valid": True,
+        "root_kind": "xibalba.exchange_chain.local_merkle_root.v1",
+    }
+    assert store.verify_exchange_chain("sess-memory")["valid"] is True
+    store.close()
+
+
+def test_exchange_chain_detects_context_contribution_tampering(tmp_path):
+    store = GraphStore(tmp_path / "graph")
+    result = store.record_model_exchange(
+        "sess-tamper",
+        user_prompt="Use the remembered deployment target.",
+        model_response="Using staging as the target.",
+        context=[{"content": "Deployment target is staging.", "contribution_id": "target"}],
+        prompt_id="turn-1",
+    )
+
+    assert store.verify_exchange_chain("sess-tamper")["valid"] is True
+    with sqlite3.connect(store.db_path) as connection:
+        connection.execute(
+            "UPDATE exchange_context_memories SET contribution_id = 'changed' WHERE exchange_id = ?",
+            (result["exchange"]["id"],),
+        )
+        connection.commit()
+
+    tampered = store.verify_exchange_chain("sess-tamper")
+    assert tampered["valid"] is False
+    assert tampered["broken_at_sequence_number"] == 0
+    store.close()
+
+
+def test_memory_inference_task_lifecycle_is_harness_facing(tmp_path):
+    store = GraphStore(tmp_path / "graph")
+    memory = store.store_memory(
+        "The user prefers terse engineering notes.",
+        source={"kind": "direct_user", "locator": "xibalba://memory/preferences"},
+        status="confirmed",
+    )
+
+    task = store.request_inference_task(
+        "extract_memory_metadata",
+        subject_type="memory",
+        subject_id=memory["id"],
+        input_payload={"memory_id": memory["id"], "fields": ["preference", "durability"]},
+        requested_by="codex-harness",
+        idempotency_key="metadata-task-1",
+    )
+    duplicate = store.request_inference_task(
+        "extract_memory_metadata",
+        subject_type="memory",
+        subject_id=memory["id"],
+        input_payload={"ignored": True},
+        idempotency_key="metadata-task-1",
+    )
+
+    assert duplicate == task
+    assert [item["id"] for item in store.list_inference_tasks()] == [task["id"]]
+
+    claimed = store.claim_inference_task(task["id"], claimed_by="xibalba-memory-inference")
+    assert claimed["status"] == "claimed"
+
+    completed = store.complete_inference_task(
+        task["id"],
+        output_payload={"metadata": {"type": "user_preference", "durability": "long_term"}},
+    )
+    assert completed["status"] == "completed"
+    assert completed["output"]["metadata"]["type"] == "user_preference"
+    assert store.list_inference_tasks(status="pending") == []
     store.close()

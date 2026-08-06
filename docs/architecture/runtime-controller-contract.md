@@ -1,6 +1,6 @@
 # Xibalba Runtime Controller Contract
 
-Status: first implementation pass.
+Status: implemented prototype contract, not production-certified.
 
 This document defines the shared interface that lets Claude Code, agy, and Codex operate under the Xibalba identity while sharing the same canonical memory and Hermes tool bus.
 
@@ -60,6 +60,8 @@ Core methods:
 - `read_memory(...)`
 - `write_memory(...)`
 - `evaluate_policy(...)`
+- `record_model_exchange(...)`
+- `request_memory_inference(...)`
 
 The controller is the only component allowed to decide how runtime events become memory, telemetry, or policy records.
 
@@ -76,10 +78,14 @@ Responsibilities:
 - trace continuity
 - memory bus access
 
-Guarantees:
-- per-tool policy enforcement
-- normalized event ingest
-- stable session correlation
+Prototype guarantees:
+- pre-tool policy evaluation routes through `XibalbaRuntimeController.evaluate_policy`
+- post-LLM and post-tool events route through `XibalbaRuntimeController`
+- normalized event ingest preserves trace, tool, intent, outcome, and missing telemetry as explicit nulls
+- stable session correlation through the controller/store session APIs
+
+Current limitation:
+- live user-local hook installation still needs environment-level verification before claiming automatic enforcement by a running Claude Code process.
 
 ### agy
 
@@ -126,12 +132,22 @@ Limitations:
 4. A runtime that cannot emit pre-tool or post-tool hooks must not claim Claude-equivalent behavior.
 5. Canonical memory remains separate from orchestration and runtime automation.
 
-## First implementation pass
+## Implemented prototype surface
 
-This repository now contains the contract module and adapter responsibility records. The next pass should:
+This repository now contains:
 
-1. Wire the controller methods into an actual service boundary.
-2. Add a thin Claude adapter that emits `RuntimeEvent` records.
-3. Add an agy wrapper that emits lifecycle-only records when tool hooks are absent.
-4. Discover and classify the live Codex integration surface.
-5. Add tests that prove missing capabilities are surfaced honestly.
+1. `src/xibalba_graph/runtime_bridge_contract.py` for schema, controller interface, and runtime capability records.
+2. `src/xibalba_graph/runtime_controller.py` as the only adapter-facing façade over `GraphStore`.
+3. `src/xibalba_graph/claude_adapter.py` for session, pre-tool, post-LLM, post-tool, and API-error hook translation.
+4. `src/xibalba_graph/agy_adapter.py` for wrapper-only lifecycle and observation telemetry.
+5. `src/xibalba_graph/codex_probe.py` for live launcher discovery without hook-parity claims.
+6. MCP tools in `src/xibalba_graph/server.py` for controller status, session open/close, identity binding, event ingest, policy evaluation, Claude adapter hooks, agy wrapper events, and Codex probe.
+
+Runtime contract tests:
+
+- `tests/test_runtime_bridge_contract.py`
+- `tests/test_runtime_adapters.py`
+- `tests/test_server.py::test_runtime_controller_tools_through_mcp`
+- `tests/test_server.py::test_runtime_adapter_tools_through_mcp`
+
+The negative tests assert that missing telemetry remains null, agy does not expose hidden pre/post tool hooks, agy observations are wrapper-scoped, and Codex reports hook support as unknown until measured.

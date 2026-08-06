@@ -420,20 +420,31 @@ still a flat set. `exchanges` (`GraphStore.record_exchange`/`get_exchange`/`sess
 `verify_exchange_chain`, built automatically by `src/xibalba_graph/exchange_builder.py`'s
 `build_session_exchanges`) turns that into the session's actual turn-by-turn shape: one row per
 prompt→response exchange, in order, each carrying its own prompt/response memories, linked
-tool calls, and context-window token usage.
+tool calls, context-window token usage, and optional explicit context contributions.
+
+`GraphStore.record_model_exchange` is the preferred high-fidelity path for an agent harness: it
+stores the user prompt, the full model response, and every supplied context contribution as
+separate provenance-bearing memories, then appends the exchange. A context contribution may
+reference an existing `memory_id` or supply fresh `content`; either way, the exchange records
+`contribution_id`, `context_kind`, optional `relevance`, metadata, and the contributing memory's
+content hash.
 
 **The novel part, not just a view over existing tables:** each exchange is a node in a local
 Merkle chain, the exact same content-addressed, backward-linked pattern already proven for
 `memory_events` (§4.4) and explored for the Integrity Protocol's own Memory DAG — applied one
 level up. `node_id = sha256(canonical({schema, session_id, sequence_number,
 prompt_memory_ids, prompt_content_hashes, response_memory_ids, response_content_hashes,
-tool_call_otel_event_ids, parent_node_id}))`. `verify_exchange_chain` recomputes the whole
-sequence and checks parent linkage — reordering, forging, or dropping an exchange is
-detectable by recomputation alone, the same tamper-evidence guarantee `verify_chain` gives a
-single memory's revision history, now covering a session's complete structure. This is a local,
-unanchored chain (no on-chain commitment, no relationship to the Integrity Protocol's Memory
-DAG or TrustVault — see §4.9's boundary, which applies here identically); its head `node_id` is
-structurally the right shape to anchor later if that's ever wanted, but nothing does that today.
+tool_call_otel_event_ids, context_contributions?, parent_node_id}))`. `context_contributions` is
+included only when present and commits to each contribution's memory id, content hash,
+contribution id, kind, and relevance. `verify_exchange_chain` recomputes the whole sequence and
+checks parent linkage — reordering, forging, dropping an exchange, or mutating a recorded
+context contribution is detectable by recomputation alone, the same tamper-evidence guarantee
+`verify_chain` gives a single memory's revision history, now covering a session's complete
+structure. `session_merkle_root`/`memory_session_merkle_root` returns the current head node as
+`root_node_id`, plus exchange count and verification state. This is a local, unanchored chain
+(no on-chain commitment, no relationship to the Integrity Protocol's Memory DAG or TrustVault —
+see §4.9's boundary, which applies here identically); its head `node_id` is structurally the
+right shape to anchor later if that's ever wanted, but nothing does that today.
 
 **Grouping rule** (`build_session_exchanges`): a memory with `source.role == "user"` starts a
 new exchange; everything after it (assistant text/thinking memories, tool calls, context-window
@@ -520,9 +531,25 @@ not hidden, if this system ever exposes a "forgotten but the hash exists elsewhe
 ### 5.4 Quarantine
 
 Applied automatically at write time (`_quarantine_reasons`) when untrusted-source content matches
-an instruction-injection pattern, overriding any caller-supplied `status`. `direct_user` and
-`explicit_memory` source kinds are exempt (§7.1). Quarantined content is excluded from `search`
-by the same status filter as `superseded`/`forgotten`.
+an instruction-injection pattern, overriding any caller-supplied `status`. `direct_user`,
+`direct_model_response`, and `explicit_memory` source kinds are exempt (§7.1). Quarantined
+content is excluded from `search` by the same status filter as `superseded`/`forgotten`.
+
+### 5.5 Harness inference queue: `memory_inference_tasks`
+
+Xibalba Graph Memory does not run an LLM in-process for summaries, metadata extraction, entity
+extraction, relation extraction, contradiction detection, or consolidation. Instead,
+`memory_inference_tasks` is a local queue for the user's agent harness. The store records the
+subject (`memory`, `exchange`, `session`, or `context_bundle`), the task type, canonical JSON
+input, lifecycle status (`pending`, `claimed`, `completed`, `failed`, `cancelled`), and
+structured output/error.
+
+The corresponding subagent contract is exposed by `memory_inference_subagent_manifest`: a
+worker named `xibalba-memory-inference` claims tasks, reads only the explicit task input and
+referenced memory evidence, returns structured JSON, and writes durable accepted facts through
+normal memory tools (`memory_remember`, `memory_link_entities`, `memory_contradict`,
+`memory_supersede`). This keeps the free local product deterministic and lightweight while
+leaving a clean upgrade path for cloud inference that implements the same queue contract.
 
 ## 6. Cryptography
 
@@ -562,15 +589,19 @@ otherwise — the code is complete (all seven design steps) and its test suite p
 2026-08-05 (`INTERFACE_CONTRACT.md` §4.4b corrected to `[VERIFIED 2026-08-05]`). What remains is
 integration, not implementation: `import_memory_dag.py --dry-run` has been run against the real
 vault; the real import and on-chain anchoring are separate, not-yet-taken steps (anchoring is an
-irreversible signed transaction); and this system's own `integrity_links` writer/reader against
-DAG node ids does not exist yet.
+irreversible signed transaction). This system now has a read-only verifier for cited DAG node ids:
+`GraphStore.verify_integrity_link`, `memory_verify_integrity_link`, and the operator
+`verify-integrity-link` command compare a local memory's Keccak content hash against a real
+`memory_nodes.jsonl` node and write the result to `integrity_links`.
 
-Until that integration exists, this system can only truthfully produce `unlinked` or
-`content_unavailable`. `hash_match_local`, `ancestry_verified`, and `anchored_to_configured_root`
-are schema-ready with no writer. A `memory_verify` MCP tool must report this honestly, never
-synthesize a plausible-looking but unearned verification result. Local chain integrity (§4.4,
-`verify_chain`) is a separate, fully-functional capability that does not depend on any of the
-above — it proves this system's own history is self-consistent, not that it is anchored on-chain.
+Today this system can truthfully produce `unlinked`, `content_unavailable`,
+`verification_failed`, and `hash_match_local`. `hash_match_local` means byte lineage only: the
+cited DAG node exists and its `content_hash` equals the Keccak hash of the local memory content.
+It does not prove truth, authorization, completeness, ancestry to a configured root, or on-chain
+anchoring. `ancestry_verified` and `anchored_to_configured_root` remain schema-ready but have no
+writer in this repository. Local chain integrity (§4.4, `verify_chain`) is a separate,
+fully-functional capability that does not depend on any of the above — it proves this system's own
+history is self-consistent, not that it is anchored on-chain.
 
 ### 6.4 Anchoring selection policy (for when the DAG exists)
 
@@ -660,8 +691,15 @@ tool bypasses profile authorization or the append-only write model:
 | `memory_status` | `status` | Schema version, WAL/FTS5/foreign-key/integrity-check status. |
 | `memory_backup` | `backup` | Online, verified, non-destructive to the live store — safe to expose without gating. |
 | `memory_build_session_exchanges` | `exchange_builder.build_session_exchanges` | Not idempotent — call once per session after ingestion completes (§4.14). |
+| `memory_record_model_exchange` | `record_model_exchange` | Preferred harness write path for prompt, full response, and explicit context contributions (§4.14). |
 | `memory_session_exchanges` | `session_exchanges` | A session's complete memory, walked turn by turn. |
+| `memory_session_merkle_root` | `session_merkle_root` | Current local exchange-chain root/head node (§4.14). |
 | `memory_verify_exchange_chain` | `verify_exchange_chain` | Local Merkle-chain tamper-evidence over a session's exchange sequence — see §4.14 for what it does and doesn't prove (same boundary as §6.3). |
+| `memory_inference_subagent_manifest` | static manifest | Harness-facing contract for the `xibalba-memory-inference` worker (§5.5). |
+| `memory_request_inference` | `request_inference_task` | Queue a deterministic inference task for the user's harness or future cloud worker (§5.5). |
+| `memory_inference_tasks` | `list_inference_tasks` | List queued/claimed/completed/failed tasks. |
+| `memory_claim_inference_task` | `claim_inference_task` | Claim a pending task. |
+| `memory_complete_inference_task` | `complete_inference_task` | Complete or fail a task with structured output/error. |
 
 `GraphStore.restore()` exists and is tested (verifies the source's `integrity_check` before
 touching the live database, refuses corrupt input) but is **deliberately not exposed as an MCP

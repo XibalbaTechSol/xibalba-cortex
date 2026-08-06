@@ -1,9 +1,9 @@
-"""A local, read-only HTTP API for browser-based tooling (e.g. the graph viewer in viewer/).
+"""A local HTTP API for browser-based tooling (e.g. the graph viewer in viewer/).
 
 MCP is stdio-only -- a browser can't call it directly. This mirrors otlp_receiver.py's stdlib
 http.server.ThreadingHTTPServer pattern (no new framework dependency) rather than introducing
-Flask/FastAPI for a handful of GET routes. Read-only and localhost-bound: nothing here mutates
-the store, and it's not meant to be reachable off the local machine.
+Flask/FastAPI for a small local operator UI. It is localhost-bound and intentionally omits
+destructive operations such as restore or hard purge.
 
 Every route is a thin wrapper around one public GraphStore method -- all the actual query logic
 (graph_payload, memory_entity_relations, counts, etc.) lives in store.py where it's unit-tested
@@ -11,24 +11,47 @@ independent of HTTP, the same division server.py already uses for its MCP tools.
 
 Routes:
   GET /api/stats                          -> GraphStore.counts()
+  GET /api/status                         -> GraphStore.status()
+  GET /api/integrity-links?limit=          -> GraphStore.integrity_links_status()
+  GET /api/sessions?limit=                 -> GraphStore.list_sessions()
   GET /api/search?q=&limit=                -> GraphStore.search() (lexical-only; no embedding
                                                model runs in a browser, so query_vector is never
                                                supplied here -- vector search stays MCP/tool-side)
   GET /api/memory/{id}                     -> GraphStore.get_memory()
+  GET /api/memory/{id}/events              -> GraphStore.memory_events()
+  GET /api/memory/{id}/otel                -> GraphStore.memory_otel_events()
+  GET /api/memory/{id}/attachments         -> GraphStore.list_attachments()
+  GET /api/memory/{id}/contradictions      -> GraphStore.contradictions()
   GET /api/memory/{id}/similar?limit=      -> GraphStore.similar_memories()
   GET /api/memory/{id}/neighbors           -> GraphStore.memory_entity_relations()
+  GET /api/entity/{name}/neighbors?max_depth= -> GraphStore.neighbors()
+  GET /api/entity/path?from=&to=&max_depth=   -> GraphStore.find_path()
+  GET /api/session/{id}/exchanges          -> GraphStore.session_exchanges()
+  GET /api/session/{id}/merkle-root        -> GraphStore.session_merkle_root()
+  GET /api/inference/manifest              -> MEMORY_INFERENCE_SUBAGENT_MANIFEST
+  GET /api/inference/tasks?status=&limit=  -> GraphStore.list_inference_tasks()
+  POST /api/exchanges/model                -> GraphStore.record_model_exchange()
+  POST /api/memory/propositions            -> GraphStore.store_memory()
+  POST /api/memory/link-entities           -> GraphStore.link_entities()
+  POST /api/memory/contradictions          -> GraphStore.mark_contradiction()
+  POST /api/memory/{id}/supersede          -> GraphStore.supersede_memory()
+  POST /api/inference/tasks                -> GraphStore.request_inference_task()
+  POST /api/inference/tasks/{id}/claim     -> GraphStore.claim_inference_task()
+  POST /api/inference/tasks/{id}/complete  -> GraphStore.complete_inference_task()
   GET /api/graph?limit=&similarity_threshold= -> GraphStore.graph_payload()
 """
 from __future__ import annotations
 
 import json
 import logging
+import sqlite3
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from urllib.parse import parse_qs, urlparse
+from urllib.parse import parse_qs, unquote, urlparse
 
-from .store import GraphStore
+from .store import MEMORY_INFERENCE_SUBAGENT_MANIFEST, GraphStore
 
 logger = logging.getLogger("xibalba_graph.local_api")
+_MAX_JSON_BODY_BYTES = 512 * 1024
 
 
 def _make_handler(store: GraphStore, *, allowed_origin: str):
@@ -38,6 +61,7 @@ def _make_handler(store: GraphStore, *, allowed_origin: str):
             self.send_response(status)
             self.send_header("Content-Type", "application/json")
             self.send_header("Access-Control-Allow-Origin", allowed_origin)
+            self.send_header("Access-Control-Allow-Headers", "Content-Type")
             self.send_header("Content-Length", str(len(body)))
             self.end_headers()
             self.wfile.write(body)
@@ -45,8 +69,27 @@ def _make_handler(store: GraphStore, *, allowed_origin: str):
         def do_OPTIONS(self) -> None:  # noqa: N802 -- CORS preflight
             self.send_response(204)
             self.send_header("Access-Control-Allow-Origin", allowed_origin)
-            self.send_header("Access-Control-Allow-Methods", "GET, OPTIONS")
+            self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+            self.send_header("Access-Control-Allow-Headers", "Content-Type")
             self.end_headers()
+
+        def _read_json_body(self) -> dict[str, object]:
+            try:
+                length = int(self.headers.get("Content-Length") or "0")
+            except ValueError:
+                raise ValueError("invalid Content-Length")
+            if length <= 0:
+                return {}
+            if length > _MAX_JSON_BODY_BYTES:
+                raise ValueError("request body too large")
+            raw = self.rfile.read(length)
+            try:
+                payload = json.loads(raw.decode("utf-8"))
+            except json.JSONDecodeError as exc:
+                raise ValueError(f"invalid JSON body: {exc.msg}") from exc
+            if not isinstance(payload, dict):
+                raise ValueError("JSON body must be an object")
+            return payload
 
         def do_GET(self) -> None:  # noqa: N802 -- BaseHTTPRequestHandler's naming convention
             parsed = urlparse(self.path)
@@ -56,6 +99,14 @@ def _make_handler(store: GraphStore, *, allowed_origin: str):
             try:
                 if parts == ["api", "stats"]:
                     self._send_json(200, store.counts())
+                elif parts == ["api", "status"]:
+                    self._send_json(200, store.status())
+                elif parts == ["api", "integrity-links"]:
+                    limit = int(params.get("limit", 50))
+                    self._send_json(200, store.integrity_links_status(limit=limit))
+                elif parts == ["api", "sessions"]:
+                    limit = int(params.get("limit", 100))
+                    self._send_json(200, store.list_sessions(limit=limit))
                 elif parts == ["api", "search"]:
                     query = params.get("q", "")
                     limit = int(params.get("limit", 10))
@@ -64,6 +115,22 @@ def _make_handler(store: GraphStore, *, allowed_origin: str):
                     limit = int(params.get("limit", 500))
                     threshold = float(params.get("similarity_threshold", 0.75))
                     self._send_json(200, store.graph_payload(limit=limit, similarity_threshold=threshold))
+                elif len(parts) == 4 and parts[0] == "api" and parts[1] == "entity" and parts[3] == "neighbors":
+                    max_depth = int(params.get("max_depth", 1))
+                    self._send_json(200, store.neighbors(unquote(parts[2]), max_depth=max_depth))
+                elif parts == ["api", "entity", "path"]:
+                    max_depth = int(params.get("max_depth", 3))
+                    self._send_json(200, store.find_path(params.get("from", ""), params.get("to", ""), max_depth=max_depth))
+                elif len(parts) == 4 and parts[0] == "api" and parts[1] == "session" and parts[3] == "exchanges":
+                    self._send_json(200, store.session_exchanges(parts[2]))
+                elif len(parts) == 4 and parts[0] == "api" and parts[1] == "session" and parts[3] == "merkle-root":
+                    self._send_json(200, store.session_merkle_root(parts[2]))
+                elif parts == ["api", "inference", "manifest"]:
+                    self._send_json(200, MEMORY_INFERENCE_SUBAGENT_MANIFEST)
+                elif parts == ["api", "inference", "tasks"]:
+                    status = params.get("status", "pending")
+                    limit = int(params.get("limit", 50))
+                    self._send_json(200, store.list_inference_tasks(status=status, limit=limit))
                 elif len(parts) == 3 and parts[0] == "api" and parts[1] == "memory" and parts[2]:
                     self._send_json(200, store.get_memory(parts[2]))
                 elif len(parts) == 4 and parts[0] == "api" and parts[1] == "memory" and parts[3] == "similar":
@@ -71,11 +138,152 @@ def _make_handler(store: GraphStore, *, allowed_origin: str):
                     self._send_json(200, store.similar_memories(parts[2], limit=limit))
                 elif len(parts) == 4 and parts[0] == "api" and parts[1] == "memory" and parts[3] == "neighbors":
                     self._send_json(200, store.memory_entity_relations(parts[2]))
+                elif len(parts) == 4 and parts[0] == "api" and parts[1] == "memory" and parts[3] == "events":
+                    self._send_json(200, store.memory_events(parts[2]))
+                elif len(parts) == 4 and parts[0] == "api" and parts[1] == "memory" and parts[3] == "otel":
+                    self._send_json(200, store.memory_otel_events(parts[2]))
+                elif len(parts) == 4 and parts[0] == "api" and parts[1] == "memory" and parts[3] == "attachments":
+                    self._send_json(200, store.list_attachments(parts[2]))
+                elif len(parts) == 4 and parts[0] == "api" and parts[1] == "memory" and parts[3] == "contradictions":
+                    self._send_json(200, store.contradictions(parts[2]))
                 else:
                     self._send_json(404, {"error": "not found"})
             except KeyError:
-                self._send_json(404, {"error": "memory not found"})
+                self._send_json(404, {"error": "not found"})
             except ValueError as exc:
+                self._send_json(400, {"error": str(exc)})
+            except Exception:
+                logger.exception("local_api request failed: %s", self.path)
+                self._send_json(500, {"error": "internal error"})
+
+        def do_POST(self) -> None:  # noqa: N802 -- BaseHTTPRequestHandler's naming convention
+            parsed = urlparse(self.path)
+            parts = [p for p in parsed.path.split("/") if p]
+
+            try:
+                payload = self._read_json_body()
+                if parts == ["api", "exchanges", "model"]:
+                    self._send_json(
+                        200,
+                        store.record_model_exchange(
+                            str(payload.get("external_session_id") or ""),
+                            user_prompt=str(payload.get("user_prompt") or ""),
+                            model_response=str(payload.get("model_response") or ""),
+                            context=list(payload.get("context") or []),
+                            runtime=payload.get("runtime") if isinstance(payload.get("runtime"), str) else None,
+                            agent_id=payload.get("agent_id") if isinstance(payload.get("agent_id"), str) else None,
+                            prompt_id=payload.get("prompt_id") if isinstance(payload.get("prompt_id"), str) else None,
+                            prompt_time=payload.get("prompt_time") if isinstance(payload.get("prompt_time"), str) else None,
+                            response_time=payload.get("response_time") if isinstance(payload.get("response_time"), str) else None,
+                            metadata=payload.get("metadata") if isinstance(payload.get("metadata"), dict) else None,
+                            idempotency_key=payload.get("idempotency_key")
+                            if isinstance(payload.get("idempotency_key"), str)
+                            else None,
+                        ),
+                    )
+                elif parts == ["api", "inference", "tasks"]:
+                    input_payload = payload.get("input_payload")
+                    if not isinstance(input_payload, dict):
+                        raise ValueError("input_payload must be an object")
+                    self._send_json(
+                        200,
+                        store.request_inference_task(
+                            str(payload.get("task_type") or ""),
+                            subject_type=str(payload.get("subject_type") or ""),
+                            subject_id=str(payload.get("subject_id") or ""),
+                            input_payload=input_payload,
+                            requested_by=payload.get("requested_by")
+                            if isinstance(payload.get("requested_by"), str)
+                            else None,
+                            idempotency_key=payload.get("idempotency_key")
+                            if isinstance(payload.get("idempotency_key"), str)
+                            else None,
+                        ),
+                    )
+                elif parts == ["api", "memory", "propositions"]:
+                    source = payload.get("source")
+                    if source is not None and not isinstance(source, dict):
+                        raise ValueError("source must be an object")
+                    self._send_json(
+                        200,
+                        store.store_memory(
+                            str(payload.get("content") or ""),
+                            source=source
+                            if isinstance(source, dict)
+                            else {"kind": "inference_output", "locator": "xibalba://viewer/inference"},
+                            status=str(payload.get("status") or "candidate"),
+                            evidence_class=str(payload.get("evidence_class") or "extracted_proposition"),
+                            idempotency_key=payload.get("idempotency_key")
+                            if isinstance(payload.get("idempotency_key"), str)
+                            else None,
+                        ),
+                    )
+                elif parts == ["api", "memory", "link-entities"]:
+                    self._send_json(
+                        200,
+                        store.link_entities(
+                            str(payload.get("subject") or ""),
+                            str(payload.get("predicate") or ""),
+                            str(payload.get("object") or ""),
+                            evidence_memory_id=str(payload.get("evidence_memory_id") or ""),
+                            confidence=float(payload.get("confidence", 1.0)),
+                        ),
+                    )
+                elif parts == ["api", "memory", "contradictions"]:
+                    self._send_json(
+                        200,
+                        store.mark_contradiction(
+                            str(payload.get("memory_id_a") or ""),
+                            str(payload.get("memory_id_b") or ""),
+                            str(payload.get("reason") or ""),
+                        ),
+                    )
+                elif len(parts) == 4 and parts[0] == "api" and parts[1] == "memory" and parts[3] == "supersede":
+                    source = payload.get("source")
+                    if source is not None and not isinstance(source, dict):
+                        raise ValueError("source must be an object")
+                    self._send_json(
+                        200,
+                        store.supersede_memory(
+                            parts[2],
+                            str(payload.get("new_content") or ""),
+                            source=source
+                            if isinstance(source, dict)
+                            else {"kind": "inference_output", "locator": "xibalba://viewer/supersede"},
+                            status=str(payload.get("status") or "confirmed"),
+                            evidence_class=str(payload.get("evidence_class") or "extracted_proposition"),
+                            idempotency_key=payload.get("idempotency_key")
+                            if isinstance(payload.get("idempotency_key"), str)
+                            else None,
+                        ),
+                    )
+                elif len(parts) == 5 and parts[:3] == ["api", "inference", "tasks"] and parts[4] == "claim":
+                    self._send_json(
+                        200,
+                        store.claim_inference_task(
+                            parts[3],
+                            claimed_by=payload.get("claimed_by")
+                            if isinstance(payload.get("claimed_by"), str)
+                            else None,
+                        ),
+                    )
+                elif len(parts) == 5 and parts[:3] == ["api", "inference", "tasks"] and parts[4] == "complete":
+                    output_payload = payload.get("output_payload")
+                    if output_payload is not None and not isinstance(output_payload, dict):
+                        raise ValueError("output_payload must be an object")
+                    self._send_json(
+                        200,
+                        store.complete_inference_task(
+                            parts[3],
+                            output_payload=output_payload,
+                            error=payload.get("error") if isinstance(payload.get("error"), str) else None,
+                        ),
+                    )
+                else:
+                    self._send_json(404, {"error": "not found"})
+            except KeyError:
+                self._send_json(404, {"error": "not found"})
+            except (sqlite3.IntegrityError, TypeError, ValueError) as exc:
                 self._send_json(400, {"error": str(exc)})
             except Exception:
                 logger.exception("local_api request failed: %s", self.path)
@@ -89,7 +297,7 @@ def _make_handler(store: GraphStore, *, allowed_origin: str):
 
 def serve(store: GraphStore, *, host: str = "localhost", port: int = 8420, allowed_origin: str = "*") -> None:
     server = ThreadingHTTPServer((host, port), _make_handler(store, allowed_origin=allowed_origin))
-    logger.info("local_api listening on http://%s:%d (read-only)", host, port)
+    logger.info("local_api listening on http://%s:%d (local operator API)", host, port)
     try:
         server.serve_forever()
     finally:

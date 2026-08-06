@@ -51,12 +51,20 @@ async def test_all_tools_are_advertised(store):
         "memory_similar",
         "memory_events",
         "memory_verify_chain",
+        "memory_verify_integrity_link",
         "memory_status",
         "memory_backup",
         "memory_vault_inspect",
         "memory_build_session_exchanges",
+        "memory_record_model_exchange",
         "memory_session_exchanges",
+        "memory_session_merkle_root",
         "memory_verify_exchange_chain",
+        "memory_inference_subagent_manifest",
+        "memory_request_inference",
+        "memory_inference_tasks",
+        "memory_claim_inference_task",
+        "memory_complete_inference_task",
         "runtime_controller_status",
         "runtime_open_session",
         "runtime_close_session",
@@ -64,11 +72,13 @@ async def test_all_tools_are_advertised(store):
         "runtime_ingest_event",
         "runtime_evaluate_policy",
         "runtime_claude_post_llm_call",
+        "runtime_claude_pre_tool_call",
         "runtime_claude_post_tool_call",
         "runtime_agy_start",
         "runtime_agy_end",
         "runtime_agy_observation",
         "runtime_codex_probe",
+        "runtime_codex_launch",
     }
 
 
@@ -509,6 +519,16 @@ async def test_runtime_adapter_tools_through_mcp(store, monkeypatch):
     }
 
     tool = await server.server.call_tool(
+        "runtime_claude_pre_tool_call",
+        {
+            "session_id": "runtime-claude-mcp",
+            "turn_id": "turn-1",
+            "tool_name": "memory_recall",
+        },
+    )
+    assert _dict_result(tool)["allowed"] is False
+
+    tool = await server.server.call_tool(
         "runtime_claude_post_tool_call",
         {
             "session_id": "runtime-claude-mcp",
@@ -542,3 +562,9 @@ async def test_runtime_adapter_tools_through_mcp(store, monkeypatch):
     monkeypatch.setattr("xibalba_graph.codex_probe.shutil.which", lambda candidate: None)
     codex = await server.server.call_tool("runtime_codex_probe", {})
     assert _dict_result(codex)["surface_kind"] == "absent"
+
+    launched = await server.server.call_tool(
+        "runtime_codex_launch",
+        {"session_id": "runtime-codex-mcp", "args": ["--help"]},
+    )
+    assert _dict_result(launched)["launched"] is False

@@ -58,4 +58,6 @@ def test_controller_method_surface_is_explicit():
         "read_memory",
         "write_memory",
         "evaluate_policy",
+        "record_model_exchange",
+        "request_memory_inference",
     )
