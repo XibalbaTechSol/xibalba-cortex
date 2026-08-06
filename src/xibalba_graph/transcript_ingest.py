@@ -37,6 +37,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 from pathlib import Path
 from typing import Any
 
@@ -44,6 +45,26 @@ from .raw_body_ingest import _extract_text
 from .store import GraphStore
 
 _STATE_FILENAME = "transcript_ingest_state.json"
+
+_SECRET_PATTERNS = (
+    (re.compile(r"(?i)(bearer\s+)[A-Za-z0-9._~+/=-]+"), r"\1[REDACTED]"),
+    (re.compile(r"(?i)(api[_ -]?key\s*[:=\s])[^\s,;]+"), r"\1[REDACTED]"),
+    (re.compile(r"(?i)(secret|password|token|private[_ -]?key)\s*[:=]\s*[^\s,;]+"), r"\1=[REDACTED]"),
+    (re.compile(r"\bsk-[A-Za-z0-9_-]{12,}\b"), "[REDACTED]"),
+    (re.compile(r"\b(?:0x)?[0-9a-fA-F]{64}\b"), "[REDACTED]"),
+)
+
+
+def _redact(value: Any) -> Any:
+    if isinstance(value, str):
+        for pattern, replacement in _SECRET_PATTERNS:
+            value = pattern.sub(replacement, value)
+        return value
+    if isinstance(value, list):
+        return [_redact(item) for item in value]
+    if isinstance(value, dict):
+        return {key: _redact(item) for key, item in value.items()}
+    return value
 
 
 def _load_state(home: Path) -> dict[str, int]:
@@ -70,24 +91,26 @@ def _ingest_user_record(
     if isinstance(content, str):
         if not content.strip():
             return results
-        existing = store.find_memory_id_by_content(content)
-        if existing:
-            results.append({"kind": "memory_reused", "id": existing, "role": "user"})
-        else:
-            memory = store.store_memory(
-                content,
-                source={
-                    "kind": "direct_user",
-                    "session_id": session_id,
-                    "role": "user",
-                    "message_id": rec.get("uuid"),
-                    "prompt_id": rec.get("promptId"),
-                    "observed_at": rec.get("timestamp"),
-                },
-                status="candidate",
-                evidence_class="observed_event",
-            )
-            results.append({"kind": "memory", "id": memory["id"], "role": "user"})
+        content = _redact(content)
+        if store.find_memory_id_by_content(content):
+            # Retain the diagnostic counter for compatibility, but do not reuse
+            # the prior row: this occurrence still gets its own provenance.
+            results.append({"kind": "memory_reused", "role": "user"})
+        memory = store.store_memory(
+            content,
+            source={
+                "kind": "runtime_observed",
+                "session_id": session_id,
+                "role": "user",
+                "message_id": rec.get("uuid"),
+                "prompt_id": rec.get("promptId"),
+                "observed_at": rec.get("timestamp"),
+            },
+            status="candidate",
+            evidence_class="observed_event",
+            idempotency_key=f"occurrence:{session_id}:{rec.get('uuid')}:user",
+        )
+        results.append({"kind": "memory", "id": memory["id"], "role": "user"})
         return results
 
     if isinstance(content, list):
@@ -130,38 +153,34 @@ def _ingest_assistant_record(
                 continue
             block_type = block.get("type")
             if block_type in ("text", "thinking"):
-                text = block.get("text") or block.get("thinking") or ""
+                text = _redact(block.get("text") or block.get("thinking") or "")
                 if not text.strip():
                     continue
-                existing = store.find_memory_id_by_content(text)
-                if existing:
-                    results.append({"kind": "memory_reused", "id": existing, "role": "assistant"})
-                else:
-                    memory = store.store_memory(
-                        text,
-                        source={
-                            "kind": "direct_user",
-                            "session_id": session_id,
-                            "role": "assistant",
-                            "message_id": rec.get("uuid"),
-                            "prompt_id": prompt_id,
-                            "observed_at": rec.get("timestamp"),
-                            # store_memory auto-collects any unrecognized top-level source key
-                            # into source.metadata itself -- passing block_type directly here
-                            # (not nested under a "metadata" key) is what lands it correctly.
-                            "block_type": block_type,
-                        },
-                        status="candidate",
-                        evidence_class="observed_event",
-                    )
-                    results.append({"kind": "memory", "id": memory["id"], "role": "assistant"})
+                if store.find_memory_id_by_content(text):
+                    results.append({"kind": "memory_reused", "role": "assistant"})
+                memory = store.store_memory(
+                    text,
+                    source={
+                        "kind": "runtime_observed",
+                        "session_id": session_id,
+                        "role": "assistant",
+                        "message_id": rec.get("uuid"),
+                        "prompt_id": prompt_id,
+                        "observed_at": rec.get("timestamp"),
+                        "block_type": block_type,
+                    },
+                    status="candidate",
+                    evidence_class="observed_event",
+                    idempotency_key=f"occurrence:{session_id}:{rec.get('uuid')}:{block_type}",
+                )
+                results.append({"kind": "memory", "id": memory["id"], "role": "assistant"})
             elif block_type == "tool_use":
                 store.record_otel_batch(session_id, [{
                     "kind": "span",
                     "name": f"tool_call.{block.get('name')}",
                     "span_id": block.get("id"),
                     "prompt_id": prompt_id,
-                    "attributes": {"tool_name": block.get("name"), "input": block.get("input") or {}},
+                    "attributes": {"tool_name": block.get("name"), "input": _redact(block.get("input") or {})},
                 }])
                 results.append({"kind": "otel_event", "name": "tool_use"})
 

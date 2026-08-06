@@ -84,7 +84,7 @@ def test_ingest_captures_per_turn_context_window_token_usage(tmp_path):
     store.close()
 
 
-def test_ingest_dedupes_against_content_already_captured_elsewhere(tmp_path):
+def test_ingest_preserves_session_occurrence_when_content_exists_elsewhere(tmp_path):
     store = GraphStore(tmp_path / "graph")
     store.start_session("other-session", retention_tier="verbatim")
     already_there = store.store_memory(
@@ -98,9 +98,11 @@ def test_ingest_dedupes_against_content_already_captured_elsewhere(tmp_path):
     result = ingest_transcript(store, transcript)
 
     assert result["memories_reused"] == 1
-    assert result["memories_created"] == 3  # one fewer than the no-dedup case
-    # the reused memory's original session was not overwritten
+    assert result["memories_created"] == 4
+    # The existing content remains in its original session, while this
+    # transcript receives a distinct occurrence with its own provenance.
     assert store.get_memory(already_there["id"])["source"]["session_id"] == "other-session"
+    assert len(store.session_memories("sess-xyz")) == 4
     store.close()
 
 

@@ -61,6 +61,7 @@ backward-compatible" from the observer contract itself.
 from __future__ import annotations
 
 from typing import Any
+import os
 
 from .store import GraphStore
 
@@ -83,7 +84,13 @@ class HermesObserverAdapter:
         self.store.start_session(session_id, retention_tier="verbatim")
         memory = self.store.store_memory(
             text,
-            source={"kind": "direct_user", "session_id": session_id, "role": role, "prompt_id": prompt_id},
+            source={
+                "kind": "direct_user",
+                "session_id": session_id,
+                "role": role,
+                "prompt_id": prompt_id,
+                "agent_id": os.environ.get("XIBALBA_AGENT_ID", "xibalba.agent"),
+            },
             status="candidate",
             evidence_class="observed_event",
         )

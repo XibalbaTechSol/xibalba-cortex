@@ -11,6 +11,16 @@ from pathlib import Path
 
 from mcp.server import MCPServer
 
+from xibalba_graph.agy_adapter import AgyWrapperShim
+from xibalba_graph.claude_adapter import ClaudeAdapter
+from xibalba_graph.codex_probe import CodexLauncherProbe
+from xibalba_graph.runtime_bridge_contract import (
+    AGY_ADAPTER,
+    CLAUDE_ADAPTER,
+    CODEX_ADAPTER,
+    RuntimeEvent,
+)
+from xibalba_graph.runtime_controller import XibalbaRuntimeController
 from xibalba_graph.store import EMBEDDING_DIM, EMBEDDING_MODEL_ID, GraphStore
 from xibalba_graph.vault_inspect import inspect_leaf
 
@@ -49,6 +59,7 @@ def _identity_mode() -> str:
 
 
 _store: GraphStore | None = None
+_controller: XibalbaRuntimeController | None = None
 
 
 def get_store() -> GraphStore:
@@ -58,10 +69,22 @@ def get_store() -> GraphStore:
     return _store
 
 
+def get_controller() -> XibalbaRuntimeController:
+    """Runtime controller façade over the same GraphStore used by the MCP memory tools."""
+    global _controller
+    if _controller is None or _controller.store is not get_store():
+        _controller = XibalbaRuntimeController(get_store())
+        _controller.register_runtime(CLAUDE_ADAPTER, provenance={"source": "mcp_server"})
+        _controller.register_runtime(AGY_ADAPTER, provenance={"source": "mcp_server"})
+        _controller.register_runtime(CODEX_ADAPTER, provenance={"source": "mcp_server"})
+    return _controller
+
+
 def set_store_for_testing(store: GraphStore) -> None:
     """Test-only hook to inject a temp-dir store instead of the default Hermes-home path."""
-    global _store
+    global _store, _controller
     _store = store
+    _controller = None
 
 
 server = MCPServer(
@@ -392,6 +415,248 @@ def memory_verify_exchange_chain(external_session_id: str) -> dict[str, object]:
     history, applied to a session's complete structure instead.
     """
     return get_store().verify_exchange_chain(external_session_id)
+
+
+@server.tool()
+def runtime_controller_status() -> dict[str, object]:
+    """Runtime bridge status: registered adapters and normalized event schema version."""
+    controller = get_controller()
+    return {
+        "schema_version": "xibalba.runtime.bridge.v1",
+        "registered_runtimes": sorted(controller._registrations),
+        "adapters": {
+            runtime: registration.adapter
+            for runtime, registration in controller._registrations.items()
+        },
+    }
+
+
+@server.tool()
+def runtime_open_session(
+    runtime: str,
+    session_id: str,
+    traceparent: str | None = None,
+    retention_tier: str | None = None,
+    agent_id: str | None = None,
+    provenance: dict[str, object] | None = None,
+) -> dict[str, object]:
+    """Open or rehydrate a runtime session through the Xibalba controller."""
+    if runtime not in {"claude", "agy", "codex"}:
+        raise ValueError("runtime must be one of: claude, agy, codex")
+    return get_controller().open_session(
+        runtime,  # type: ignore[arg-type]
+        session_id=session_id,
+        traceparent=traceparent,
+        retention_tier=retention_tier,
+        agent_id=agent_id,
+        provenance=provenance,
+    )
+
+
+@server.tool()
+def runtime_close_session(
+    runtime: str,
+    session_id: str,
+    summary: str | None = None,
+    provenance: dict[str, object] | None = None,
+) -> dict[str, object]:
+    """Close a runtime session through the Xibalba controller."""
+    if runtime not in {"claude", "agy", "codex"}:
+        raise ValueError("runtime must be one of: claude, agy, codex")
+    return get_controller().close_session(
+        runtime,  # type: ignore[arg-type]
+        session_id=session_id,
+        summary=summary,
+        provenance=provenance,
+    )
+
+
+@server.tool()
+def runtime_bind_identity(
+    runtime: str,
+    session_id: str,
+    agent_id: str,
+    provenance: dict[str, object] | None = None,
+) -> dict[str, object]:
+    """Bind a runtime session to the Xibalba agent identity."""
+    if runtime not in {"claude", "agy", "codex"}:
+        raise ValueError("runtime must be one of: claude, agy, codex")
+    return get_controller().bind_identity(
+        runtime,  # type: ignore[arg-type]
+        session_id=session_id,
+        agent_id=agent_id,
+        provenance=provenance,
+    )
+
+
+@server.tool()
+def runtime_ingest_event(
+    runtime: str,
+    session_id: str,
+    turn_id: str | None = None,
+    traceparent: str | None = None,
+    agent_id: str | None = None,
+    intent_rationale: str | None = None,
+    tool_name: str | None = None,
+    tool_input_hash: str | None = None,
+    tool_outcome: str = "unknown",
+    token_usage: dict[str, int] | None = None,
+    assistant_response: str | None = None,
+    observed_at_utc: str | None = None,
+    provenance: dict[str, object] | None = None,
+    metadata: dict[str, object] | None = None,
+) -> dict[str, object]:
+    """Ingest one normalized runtime event into the controller telemetry path."""
+    if runtime not in {"claude", "agy", "codex"}:
+        raise ValueError("runtime must be one of: claude, agy, codex")
+    if tool_outcome not in {"success", "error", "blocked", "unknown"}:
+        raise ValueError("tool_outcome must be one of: success, error, blocked, unknown")
+    event = RuntimeEvent(
+        runtime=runtime,  # type: ignore[arg-type]
+        session_id=session_id,
+        turn_id=turn_id,
+        traceparent=traceparent,
+        agent_id=agent_id,
+        intent_rationale=intent_rationale,
+        tool_name=tool_name,
+        tool_input_hash=tool_input_hash,
+        tool_outcome=tool_outcome,  # type: ignore[arg-type]
+        token_usage=token_usage,
+        assistant_response=assistant_response,
+        observed_at_utc=observed_at_utc,
+        provenance=dict(provenance or {}),
+        metadata=dict(metadata or {}),
+    )
+    return get_controller().ingest_event(event)
+
+
+@server.tool()
+def runtime_evaluate_policy(
+    runtime: str,
+    session_id: str,
+    intent_rationale: str | None = None,
+    tool_name: str | None = None,
+    tool_input_hash: str | None = None,
+) -> dict[str, object]:
+    """Evaluate the controller's minimal runtime policy boundary."""
+    if runtime not in {"claude", "agy", "codex"}:
+        raise ValueError("runtime must be one of: claude, agy, codex")
+    return get_controller().evaluate_policy(
+        runtime=runtime,  # type: ignore[arg-type]
+        session_id=session_id,
+        intent_rationale=intent_rationale,
+        tool_name=tool_name,
+        tool_input_hash=tool_input_hash,
+    )
+
+
+@server.tool()
+def runtime_claude_post_llm_call(
+    session_id: str,
+    turn_id: str | None = None,
+    user_message: str | None = None,
+    assistant_response: str | None = None,
+    intent_rationale: str | None = None,
+    traceparent: str | None = None,
+    agent_id: str | None = None,
+    provenance: dict[str, object] | None = None,
+) -> dict[str, object]:
+    """Claude adapter entry point for post-LLM hook data."""
+    return ClaudeAdapter(get_controller(), provenance=dict(provenance or {})).post_llm_call(
+        session_id=session_id,
+        turn_id=turn_id,
+        user_message=user_message,
+        assistant_response=assistant_response,
+        intent_rationale=intent_rationale,
+        traceparent=traceparent,
+        agent_id=agent_id,
+    )
+
+
+@server.tool()
+def runtime_claude_post_tool_call(
+    session_id: str,
+    tool_name: str | None = None,
+    tool_call_id: str | None = None,
+    turn_id: str | None = None,
+    result: dict[str, object] | str | None = None,
+    duration_ms: float | None = None,
+    status: str | None = None,
+    error_type: str | None = None,
+    error_message: str | None = None,
+    intent_rationale: str | None = None,
+    traceparent: str | None = None,
+    agent_id: str | None = None,
+    provenance: dict[str, object] | None = None,
+) -> dict[str, object]:
+    """Claude adapter entry point for post-tool hook data."""
+    return ClaudeAdapter(get_controller(), provenance=dict(provenance or {})).post_tool_call(
+        session_id=session_id,
+        tool_name=tool_name,
+        tool_call_id=tool_call_id,
+        turn_id=turn_id,
+        result=result,
+        duration_ms=duration_ms,
+        status=status,
+        error_type=error_type,
+        error_message=error_message,
+        intent_rationale=intent_rationale,
+        traceparent=traceparent,
+        agent_id=agent_id,
+    )
+
+
+@server.tool()
+def runtime_agy_start(
+    session_id: str,
+    traceparent: str | None = None,
+    agent_id: str | None = None,
+    command: str | None = None,
+    cwd: str | None = None,
+    provenance: dict[str, object] | None = None,
+) -> dict[str, object]:
+    """agy wrapper entry hook: lifecycle-only start event."""
+    return AgyWrapperShim(get_controller(), provenance=dict(provenance or {})).start(
+        session_id=session_id,
+        traceparent=traceparent,
+        agent_id=agent_id,
+        command=command,
+        cwd=cwd,
+    )
+
+
+@server.tool()
+def runtime_agy_end(
+    session_id: str,
+    exit_code: int | None = None,
+    summary: str | None = None,
+    provenance: dict[str, object] | None = None,
+) -> dict[str, object]:
+    """agy wrapper exit hook: lifecycle-only end event."""
+    return AgyWrapperShim(get_controller(), provenance=dict(provenance or {})).end(
+        session_id=session_id,
+        exit_code=exit_code,
+        summary=summary,
+    )
+
+
+@server.tool()
+def runtime_agy_observation(
+    session_id: str,
+    note: str,
+    provenance: dict[str, object] | None = None,
+) -> dict[str, object]:
+    """agy wrapper best-effort observation. This is not a per-tool hook."""
+    return AgyWrapperShim(get_controller(), provenance=dict(provenance or {})).record_observation(
+        session_id=session_id,
+        note=note,
+    )
+
+
+@server.tool()
+def runtime_codex_probe() -> dict[str, object]:
+    """Probe the live Codex launcher surface without assuming hook parity."""
+    return CodexLauncherProbe().discover().to_record()
 
 
 def main() -> None:

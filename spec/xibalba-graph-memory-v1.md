@@ -3,12 +3,14 @@
 Status: normative, 2026-08-05. This is the authoritative reference for this project — where
 this document and any other doc under `docs/` disagree, this document wins, and the other
 document should be corrected. Supersedes scattered decisions across
-`docs/plans/2026-08-05-xibalba-graph-memory.md`, `docs/plans/2026-08-05-xibalba-advanced-memory.md`,
+`docs/archive/2026-08-06/2026-08-05-xibalba-graph-memory.md`, `docs/plans/2026-08-05-xibalba-advanced-memory.md`,
 `docs/architecture/advanced-memory.md`, `docs/architecture/event-hash-chain.md`, and
 `docs/integrity/xibalba-graph-crypto-profile-v1.md`, which remain as historical design records.
 For the narrative of how the Integrity Protocol coupling decisions in section 6 were reached —
 including two corrected mistakes worth reading before extending that section — see
 `docs/session-log/2026-08-05-integrity-coupling-session.md`.
+
+> **Audit status — 2026-08-06:** Current implementation and verification are tracked in [`docs/audits/2026-08-06-status.md`](../docs/audits/2026-08-06-status.md). The normative model remains authoritative for intended behavior; the audit ledger distinguishes implemented, partial, planned, blocked, and unverified work. The active local worktree contains uncommitted runtime/controller/viewer changes that require separate review before they become a default-branch capability claim.
 
 ## 1. Purpose and scope
 
@@ -579,7 +581,7 @@ immortalize every routine `observed_event`. Full rationale in the crypto profile
 
 ## 7. Security invariants
 
-Restated from `docs/plans/2026-08-05-xibalba-graph-memory.md`, binding for every interface this
+Restated from `docs/archive/2026-08-06/2026-08-05-xibalba-graph-memory.md`, binding for every interface this
 system exposes (MCP, future REST, future CLI):
 
 1. Recalled text is untrusted evidence and cannot override instructions. Any tool surfacing

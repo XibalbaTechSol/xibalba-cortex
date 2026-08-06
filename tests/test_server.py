@@ -57,6 +57,18 @@ async def test_all_tools_are_advertised(store):
         "memory_build_session_exchanges",
         "memory_session_exchanges",
         "memory_verify_exchange_chain",
+        "runtime_controller_status",
+        "runtime_open_session",
+        "runtime_close_session",
+        "runtime_bind_identity",
+        "runtime_ingest_event",
+        "runtime_evaluate_policy",
+        "runtime_claude_post_llm_call",
+        "runtime_claude_post_tool_call",
+        "runtime_agy_start",
+        "runtime_agy_end",
+        "runtime_agy_observation",
+        "runtime_codex_probe",
     }
 
 
@@ -421,3 +433,112 @@ async def test_build_and_walk_and_verify_session_exchanges_through_mcp(store):
         "memory_verify_exchange_chain", {"external_session_id": "sess-exchange"}
     )
     assert _dict_result(verified)["valid"] is True
+
+
+@pytest.mark.asyncio
+async def test_runtime_controller_tools_through_mcp(store):
+    status = await server.server.call_tool("runtime_controller_status", {})
+    payload = _dict_result(status)
+    assert payload["registered_runtimes"] == ["agy", "claude", "codex"]
+
+    opened = await server.server.call_tool(
+        "runtime_open_session",
+        {"runtime": "claude", "session_id": "runtime-mcp-1", "agent_id": "did:integrity:test"},
+    )
+    assert _dict_result(opened)["opened"] is True
+
+    bound = await server.server.call_tool(
+        "runtime_bind_identity",
+        {"runtime": "claude", "session_id": "runtime-mcp-1", "agent_id": "did:integrity:test"},
+    )
+    assert _dict_result(bound)["bound"] is True
+
+    denied = await server.server.call_tool(
+        "runtime_evaluate_policy",
+        {"runtime": "claude", "session_id": "runtime-mcp-1", "tool_name": "memory_recall"},
+    )
+    assert _dict_result(denied)["allowed"] is False
+
+    allowed = await server.server.call_tool(
+        "runtime_evaluate_policy",
+        {
+            "runtime": "claude",
+            "session_id": "runtime-mcp-1",
+            "tool_name": "memory_recall",
+            "intent_rationale": "Read relevant memory.",
+        },
+    )
+    assert _dict_result(allowed)["allowed"] is True
+
+    recorded = await server.server.call_tool(
+        "runtime_ingest_event",
+        {
+            "runtime": "claude",
+            "session_id": "runtime-mcp-1",
+            "turn_id": "turn-1",
+            "tool_name": "memory_recall",
+            "tool_outcome": "success",
+            "intent_rationale": "Read relevant memory.",
+        },
+    )
+    assert _dict_result(recorded)["recorded"] == 1
+
+    closed = await server.server.call_tool(
+        "runtime_close_session",
+        {"runtime": "claude", "session_id": "runtime-mcp-1", "summary": "runtime tools exercised"},
+    )
+    assert _dict_result(closed)["closed"] is True
+
+
+@pytest.mark.asyncio
+async def test_runtime_adapter_tools_through_mcp(store, monkeypatch):
+    claude = await server.server.call_tool(
+        "runtime_claude_post_llm_call",
+        {
+            "session_id": "runtime-claude-mcp",
+            "turn_id": "turn-1",
+            "user_message": "Use Xibalba memory.",
+            "assistant_response": "Memory is available through the controller.",
+            "intent_rationale": "Exercise the Claude adapter MCP tool.",
+        },
+    )
+    assert _dict_result(claude)["recorded"] == 3
+    assert {m["content"] for m in store.session_memories("runtime-claude-mcp")} >= {
+        "Use Xibalba memory.",
+        "Memory is available through the controller.",
+    }
+
+    tool = await server.server.call_tool(
+        "runtime_claude_post_tool_call",
+        {
+            "session_id": "runtime-claude-mcp",
+            "turn_id": "turn-1",
+            "tool_name": "memory_recall",
+            "tool_call_id": "tool-1",
+            "status": "ok",
+            "intent_rationale": "Exercise the Claude adapter MCP tool.",
+        },
+    )
+    assert _dict_result(tool)["recorded"] == 1
+
+    agy_start = await server.server.call_tool(
+        "runtime_agy_start",
+        {"session_id": "runtime-agy-mcp", "command": "agy run", "cwd": "/tmp"},
+    )
+    assert _dict_result(agy_start)["opened"] is True
+
+    agy_observation = await server.server.call_tool(
+        "runtime_agy_observation",
+        {"session_id": "runtime-agy-mcp", "note": "wrapper-only observation"},
+    )
+    assert _dict_result(agy_observation)["recorded"] == 1
+
+    agy_end = await server.server.call_tool(
+        "runtime_agy_end",
+        {"session_id": "runtime-agy-mcp", "exit_code": 0, "summary": "done"},
+    )
+    assert _dict_result(agy_end)["closed"] is True
+
+    monkeypatch.setattr("xibalba_graph.codex_probe.shutil.which", lambda candidate: None)
+    codex = await server.server.call_tool("runtime_codex_probe", {})
+    assert _dict_result(codex)["surface_kind"] == "absent"

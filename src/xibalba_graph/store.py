@@ -1207,6 +1207,8 @@ class GraphStore:
         *,
         summary_content: str | None = None,
         source: dict[str, object] | None = None,
+        idempotency_key: str | None = None,
+        summary_status: str = "confirmed",
     ) -> dict[str, object]:
         """Close a session, optionally storing a final summary memory as its record of record.
 
@@ -1223,7 +1225,8 @@ class GraphStore:
             summary = self.store_memory(
                 summary_content,
                 source=memory_source,
-                status="confirmed",
+                status=summary_status,
+                idempotency_key=idempotency_key,
                 evidence_class="summary",
             )
             summary_memory_id = summary["id"]

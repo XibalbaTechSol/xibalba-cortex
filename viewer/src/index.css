@@ -1,0 +1,185 @@
+:root {
+  --text: #2b2d33;
+  --text-muted: #6b6f7a;
+  --bg: #ffffff;
+  --panel-bg: #f7f7f9;
+  --border: #e2e2e6;
+  --accent: #5b8def;
+  --error: #d64545;
+
+  color-scheme: light dark;
+  font: 15px/1.5 system-ui, 'Segoe UI', Roboto, sans-serif;
+  color: var(--text);
+  background: var(--bg);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --text: #e4e4e8;
+    --text-muted: #9ca3af;
+    --bg: #14151a;
+    --panel-bg: #1c1d24;
+    --border: #2e303a;
+    --accent: #7ba6ff;
+    --error: #ff6b6b;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  margin: 0;
+  height: 100%;
+}
+
+.app {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+}
+
+.topbar {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--border);
+  background: var(--panel-bg);
+  flex-shrink: 0;
+}
+
+.topbar h1 {
+  font-size: 16px;
+  font-weight: 600;
+  margin: 0;
+}
+
+.stats {
+  color: var(--text-muted);
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.search-box {
+  margin-left: auto;
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--text);
+  min-width: 260px;
+}
+
+.error {
+  color: var(--error);
+}
+
+.error.banner {
+  padding: 8px 16px;
+  background: var(--panel-bg);
+  border-bottom: 1px solid var(--border);
+  margin: 0;
+}
+
+.main {
+  flex: 1;
+  display: flex;
+  min-height: 0;
+  position: relative;
+}
+
+.graph-area {
+  flex: 1;
+  min-width: 0;
+}
+
+.search-results,
+.side-panel {
+  width: 320px;
+  flex-shrink: 0;
+  border-left: 1px solid var(--border);
+  background: var(--panel-bg);
+  padding: 16px;
+  overflow-y: auto;
+}
+
+.side-panel {
+  position: relative;
+}
+
+.close-button {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  background: none;
+  border: none;
+  font-size: 20px;
+  color: var(--text-muted);
+  cursor: pointer;
+  line-height: 1;
+}
+
+.side-panel h3 {
+  margin: 0 24px 4px 0;
+  font-size: 15px;
+}
+
+.side-panel h4,
+.search-results h4 {
+  margin: 16px 0 6px;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+}
+
+.meta {
+  color: var(--text-muted);
+  font-size: 12px;
+  margin-bottom: 10px;
+}
+
+.content {
+  white-space: pre-wrap;
+  font-size: 13px;
+}
+
+.side-panel ul,
+.search-results ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.side-panel li {
+  font-size: 13px;
+}
+
+.predicate {
+  color: var(--accent);
+  font-style: italic;
+}
+
+.clickable {
+  cursor: pointer;
+}
+
+.clickable:hover {
+  color: var(--accent);
+}
+
+.score {
+  font-family: ui-monospace, monospace;
+  color: var(--accent);
+}
+
+.search-results li {
+  font-size: 13px;
+}
