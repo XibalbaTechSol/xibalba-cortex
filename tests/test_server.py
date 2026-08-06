@@ -59,6 +59,7 @@ async def test_all_tools_are_advertised(store):
         "memory_record_model_exchange",
         "memory_session_exchanges",
         "memory_session_merkle_root",
+        "memory_anchor_session_root",
         "memory_verify_exchange_chain",
         "memory_inference_subagent_manifest",
         "memory_request_inference",

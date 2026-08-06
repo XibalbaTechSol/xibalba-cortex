@@ -454,6 +454,13 @@ def memory_session_merkle_root(external_session_id: str) -> dict[str, object]:
 
 
 @server.tool()
+def memory_anchor_session_root(external_session_id: str) -> dict[str, object]:
+    """Push the session root to the configured anchor consumer (e.g. XIBALBA_ANCHOR_URL).
+    """
+    return get_store().anchor_session_root(external_session_id)
+
+
+@server.tool()
 def memory_record_model_exchange(
     external_session_id: str,
     user_prompt: str,

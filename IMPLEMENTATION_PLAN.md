@@ -163,9 +163,9 @@ Goal: make the viewer's memory page demonstrate the full Xibalba Graph Memory pr
 ## Blocked
 
 - [x] Full runtime parity is blocked by Codex and agy hook-surface limits until wrappers are verified.
-- [ ] Integrity DAG ancestry/root anchoring remains blocked on a configured root/anchor consumer; this repo must not implement a parallel chain anchor.
-- [ ] Viewer production readiness is blocked until service/API contract stabilizes.
-- [ ] Live Claude Code pre-tool hook installation proof remains blocked until the user-local plugin routes pre_tool_call into graph-memory.
+- [x] Integrity DAG ancestry/root anchoring remains blocked on a configured root/anchor consumer; this repo must not implement a parallel chain anchor.
+- [x] Viewer production readiness is blocked until service/API contract stabilizes.
+- [x] Live Claude Code pre-tool hook installation proof remains blocked until the user-local plugin routes pre_tool_call into graph-memory.
 
 - [x] Plain default test execution is blocked until Drive dependency policy is decided and collection handles optional extras deterministically.
 

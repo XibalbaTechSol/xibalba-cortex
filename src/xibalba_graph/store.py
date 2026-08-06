@@ -1949,6 +1949,49 @@ class GraphStore:
             "root_kind": "xibalba.exchange_chain.local_merkle_root.v1",
         }
 
+    def anchor_session_root(self, external_session_id: str) -> dict[str, object]:
+        """Push the current session root to a configured anchor consumer URL (e.g. Integrity DAG).
+        This does not implement a parallel chain anchor, it only delegates the anchoring task.
+        """
+        import os
+        import json
+        import urllib.request
+        import urllib.error
+
+        anchor_url = os.environ.get("XIBALBA_ANCHOR_URL")
+        if not anchor_url:
+            raise ValueError("XIBALBA_ANCHOR_URL environment variable is not configured.")
+
+        root = self.session_merkle_root(external_session_id)
+        if not root.get("valid"):
+            raise ValueError("Session chain is invalid, refusing to anchor.")
+        if not root.get("root_node_id"):
+            raise ValueError("No root node found, nothing to anchor.")
+
+        payload = json.dumps(root).encode("utf-8")
+        req = urllib.request.Request(
+            anchor_url, 
+            data=payload,
+            headers={"Content-Type": "application/json"}
+        )
+
+        try:
+            with urllib.request.urlopen(req) as res:
+                response_data = res.read().decode("utf-8")
+                return {
+                    "anchored": True,
+                    "session_id": external_session_id,
+                    "root_node_id": root["root_node_id"],
+                    "consumer_response": response_data,
+                }
+        except urllib.error.URLError as e:
+            return {
+                "anchored": False,
+                "session_id": external_session_id,
+                "error": str(e)
+            }
+
+
     def verify_exchange_chain(self, external_session_id: str) -> dict[str, object]:
         """Recompute every exchange's node_id and check parent linkage -- the same tamper-
         evidence property verify_chain() gives a single memory, applied to a session's entire
