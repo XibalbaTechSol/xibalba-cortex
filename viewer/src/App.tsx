@@ -360,6 +360,343 @@ function Section({
   )
 }
 
+function ContextContributionItem({
+  item,
+  onSelectMemory,
+}: {
+  item: any
+  onSelectMemory: (id: string) => void
+}) {
+  const [attachments, setAttachments] = useState<any[]>([])
+
+  useEffect(() => {
+    if (!item.memory?.id) return;
+    fetch(`/api/memory/${encodeURIComponent(item.memory.id)}/attachments`)
+      .then((res) => res.json())
+      .then((data) => {
+        if (Array.isArray(data)) {
+          setAttachments(data)
+        }
+      })
+      .catch((err) => console.error('Failed to fetch memory attachments', err))
+  }, [item.memory?.id])
+
+  return (
+    <div className="context-contribution-card" style={{
+      background: 'rgba(255, 255, 255, 0.02)',
+      border: '1px solid rgba(255, 255, 255, 0.06)',
+      borderRadius: '8px',
+      padding: '12px',
+      marginBottom: '8px',
+      width: '100%'
+    }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px', fontSize: '12px' }}>
+        <button className="list-button" type="button" onClick={() => item.memory?.id && onSelectMemory(item.memory.id)} style={{ fontWeight: '600', padding: '4px 8px' }}>
+          {item.contribution_id} · {item.context_kind} (Relevance: {item.relevance ?? 'n/a'})
+        </button>
+        {item.memory?.id && <span className="muted" style={{ fontSize: '11px' }}>Memory ID: {item.memory.id.slice(0, 8)}</span>}
+      </div>
+
+      <p style={{ margin: '0 0 8px 0', fontSize: '13px', lineHeight: '1.4', whiteSpace: 'pre-wrap', color: 'var(--text-muted)' }}>
+        {item.memory?.content?.replace(/\\n/g, '\n').replace(/\\"/g, '"') ?? 'Memory content unavailable'}
+      </p>
+
+      {attachments.length > 0 && (
+        <div className="attachments-grid" style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginTop: '8px' }}>
+          {attachments.map((att) => {
+            const isImage = att.media_type && att.media_type.startsWith('image/')
+            const fileUrl = `/api/attachment/${encodeURIComponent(att.id)}/file`
+            return (
+              <div key={att.id} className="attachment-item" style={{
+                background: 'rgba(0,0,0,0.2)',
+                border: '1px solid rgba(255,255,255,0.05)',
+                borderRadius: '6px',
+                padding: '8px',
+                width: '100%',
+                maxWidth: '220px',
+                fontSize: '11px'
+              }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                  <span className="badge" style={{ fontSize: '9px', alignSelf: 'flex-start' }}>{att.media_type}</span>
+                  {isImage ? (
+                    <img 
+                      src={fileUrl} 
+                      alt="Attachment Preview" 
+                      style={{ maxWidth: '100%', maxHeight: '120px', borderRadius: '4px', marginTop: '4px', objectFit: 'contain' }}
+                    />
+                  ) : (
+                    <a href={fileUrl} target="_blank" rel="noreferrer" style={{ color: 'var(--brand)', textDecoration: 'underline', marginTop: '4px', wordBreak: 'break-all' }}>
+                      Download File ({att.byte_size} bytes)
+                    </a>
+                  )}
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function OtelTreeNode({
+  event,
+  childrenMap,
+}: {
+  event: OtelEvent
+  childrenMap: Map<string, OtelEvent[]>
+}) {
+  const [collapsed, setCollapsed] = useState(true)
+  const children = childrenMap.get(event.span_id || '') || []
+  
+  const formatTime = (timeStr: string | null) => {
+    if (!timeStr) return ''
+    const d = new Date(timeStr.endsWith('Z') ? timeStr : timeStr + 'Z')
+    return isNaN(d.getTime()) ? '' : d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false })
+  }
+
+  const startTimeStr = formatTime(event.start_time || event.created_at)
+  
+  return (
+    <div style={{ marginLeft: '12px', marginTop: '6px', borderLeft: '1px dashed rgba(255,255,255,0.1)', paddingLeft: '8px' }}>
+      <div 
+        onClick={() => setCollapsed(!collapsed)}
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '8px',
+          cursor: 'pointer',
+          padding: '4px 6px',
+          background: 'rgba(255,255,255,0.02)',
+          borderRadius: '4px',
+          fontSize: '13px'
+        }}
+      >
+        <span style={{ fontSize: '10px', width: '12px', display: 'inline-block', color: 'var(--text-muted)' }}>
+          {children.length > 0 ? (collapsed ? '▶' : '▼') : '•'}
+        </span>
+        <span className="badge" style={{ fontSize: '9px', background: 'rgba(245, 158, 11, 0.15)', color: '#fbbf24', border: '1px solid rgba(245, 158, 11, 0.25)' }}>
+          {event.kind}
+        </span>
+        <strong style={{ color: '#e2e8f0' }}>{event.name}</strong>
+        {startTimeStr && <span className="muted" style={{ fontSize: '11px' }}>[{startTimeStr}]</span>}
+      </div>
+
+      {!collapsed && (
+        <div style={{ marginTop: '4px', paddingLeft: '12px' }}>
+          {event.attributes && Object.keys(event.attributes).length > 0 && (
+            <pre style={{
+              margin: '4px 0',
+              padding: '6px 8px',
+              background: 'rgba(0,0,0,0.3)',
+              borderRadius: '4px',
+              fontSize: '11px',
+              overflowX: 'auto',
+              color: '#a0aec0',
+              whiteSpace: 'pre-wrap'
+            }}>
+              {JSON.stringify(event.attributes, null, 2)}
+            </pre>
+          )}
+
+          {children.map((child) => (
+            <OtelTreeNode key={child.id} event={child} childrenMap={childrenMap} />
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function OtelTree({ events }: { events: OtelEvent[] }) {
+  const childrenMap = useMemo(() => {
+    const map = new Map<string, OtelEvent[]>()
+    events.forEach((ev) => {
+      if (ev.parent_span_id) {
+        if (!map.has(ev.parent_span_id)) {
+          map.set(ev.parent_span_id, [])
+        }
+        map.get(ev.parent_span_id)!.push(ev)
+      }
+    })
+    return map
+  }, [events])
+
+  const roots = useMemo(() => {
+    const spanIds = new Set(events.map((ev) => ev.span_id).filter(Boolean) as string[])
+    return events.filter((ev) => !ev.parent_span_id || !spanIds.has(ev.parent_span_id))
+  }, [events])
+
+  if (events.length === 0) return <p className="muted small">No tool calls or events.</p>
+
+  return (
+    <div className="otel-tree" style={{ width: '100%' }}>
+      {roots.map((root) => (
+        <OtelTreeNode key={root.id} event={root} childrenMap={childrenMap} />
+      ))}
+    </div>
+  )
+}
+
+function formatMemoryContent(rawContent: string): string {
+  const content = rawContent.replace(/\\n/g, '\n').replace(/\\"/g, '"')
+  let extractedText = ''
+  let hasJsonL = false
+
+  const lines = content.split('\n')
+  for (const line of lines) {
+    const trimmed = line.trim()
+    if (!trimmed) continue
+    if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
+      try {
+        const parsed = JSON.parse(trimmed)
+        hasJsonL = true
+        if (parsed.message?.content) {
+          const msg = parsed.message.content
+          if (typeof msg === 'string') extractedText += msg + '\n\n'
+          else if (Array.isArray(msg)) extractedText += msg.map((b: any) => b.text || b.type || '').join('\n') + '\n\n'
+        } else if (parsed.text) {
+          extractedText += parsed.text + '\n\n'
+        }
+      } catch {
+        extractedText += line + '\n'
+      }
+    } else {
+      extractedText += line + '\n'
+    }
+  }
+
+  const finalOutput = extractedText.trim()
+  if (hasJsonL && !finalOutput) {
+    return "⚙️ [Internal System/Tool Data]"
+  }
+  return finalOutput || content
+}
+
+function CollapsibleExchange({
+  exchange,
+  onSelectMemory,
+}: {
+  exchange: any
+  onSelectMemory: (id: string) => void
+}) {
+  const [showMetadata, setShowMetadata] = useState(false)
+
+  const formatTime = (timeStr: string | null) => {
+    if (!timeStr) return 'n/a'
+    const d = new Date(timeStr.endsWith('Z') ? timeStr : timeStr + 'Z')
+    return isNaN(d.getTime()) ? timeStr : d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false })
+  }
+
+  const timestamp = formatTime(exchange.created_at || (exchange.prompt_memories[0]?.created_at))
+
+  return (
+    <article className="exchange-thread" key={exchange.id} style={{ marginBottom: '24px' }}>
+      
+      {/* Chat Bubble: User (Prompt) */}
+      {exchange.prompt_memories.length > 0 && (
+        <div className="chat-bubble user" style={{
+          maxWidth: '75%',
+          marginLeft: 'auto',
+          background: 'rgba(59, 130, 246, 0.15)',
+          border: '1px solid rgba(59, 130, 246, 0.3)',
+          padding: '12px 16px',
+          borderRadius: '16px 16px 2px 16px',
+          marginBottom: '12px'
+        }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+            <span style={{ fontSize: '10px', textTransform: 'uppercase', opacity: 0.6, fontWeight: 'bold' }}>User</span>
+            <span style={{ fontSize: '10px', opacity: 0.5 }}>{timestamp}</span>
+          </div>
+          {exchange.prompt_memories.map((memory: any) => (
+            <div key={memory.id} style={{ cursor: 'pointer' }} onClick={() => onSelectMemory(memory.id)}>
+              <p style={{ margin: 0, fontSize: '14px', lineHeight: '1.5', whiteSpace: 'pre-wrap' }}>
+                {formatMemoryContent(memory.content)}
+              </p>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Chat Bubble: Assistant (Response) */}
+      {exchange.response_memories.length > 0 && (
+        <div className="chat-bubble assistant" style={{
+          maxWidth: '75%',
+          marginRight: 'auto',
+          background: 'rgba(255, 255, 255, 0.04)',
+          border: '1px solid rgba(255, 255, 255, 0.08)',
+          padding: '12px 16px',
+          borderRadius: '16px 16px 16px 2px',
+          marginBottom: '12px'
+        }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+            <span style={{ fontSize: '10px', textTransform: 'uppercase', opacity: 0.6, fontWeight: 'bold' }}>Assistant</span>
+            {exchange.response_memories[0]?.created_at && (
+              <span style={{ fontSize: '10px', opacity: 0.5 }}>
+                {formatTime(exchange.response_memories[0].created_at)}
+              </span>
+            )}
+          </div>
+          {exchange.response_memories.map((memory: any) => (
+            <div key={memory.id} style={{ cursor: 'pointer', marginBottom: '8px' }} onClick={() => onSelectMemory(memory.id)}>
+              <p style={{ margin: 0, fontSize: '14px', lineHeight: '1.5', whiteSpace: 'pre-wrap', fontFamily: formatMemoryContent(memory.content).startsWith('⚙️') ? 'monospace' : 'inherit', opacity: formatMemoryContent(memory.content).startsWith('⚙️') ? 0.6 : 1 }}>
+                {formatMemoryContent(memory.content)}
+              </p>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Metadata toggles (OTel, Context, Exchange Info) */}
+      <div style={{ display: 'flex', justifyContent: 'center', margin: '8px 0' }}>
+        <button onClick={() => setShowMetadata(!showMetadata)} className="small-button" style={{ background: 'transparent', border: '1px dashed rgba(255,255,255,0.2)' }}>
+          {showMetadata ? 'Hide Technical Details' : 'Show Technical Details'} (Exchange {exchange.sequence_number})
+        </button>
+      </div>
+
+      {showMetadata && (
+        <div className="exchange-metadata" style={{ padding: '16px', background: 'rgba(255,255,255,0.02)', borderRadius: '8px', fontSize: '12px', border: '1px solid rgba(255,255,255,0.05)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '16px', opacity: 0.7 }}>
+            <span>Latency: {exchange.latency_ms?.toFixed(0) ?? 'n/a'} ms</span>
+            <span>Node ID: <Hash value={exchange.node_id} /></span>
+          </div>
+
+          {exchange.tool_calls.length > 0 && (
+            <div style={{ margin: '16px 0' }}>
+              <Section title="Tools and OTel Events" empty={false}>
+                <OtelTree events={exchange.tool_calls} />
+              </Section>
+            </div>
+          )}
+
+          {exchange.context_contributions.length > 0 && (
+            <div style={{ marginTop: '16px' }}>
+              <Section title="Context Contributions" empty={false}>
+                <div className="exchange-context-cards" style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                  {exchange.context_contributions.map((item: any) => (
+                    <ContextContributionItem 
+                      key={item.contribution_id} 
+                      item={item} 
+                      onSelectMemory={onSelectMemory} 
+                    />
+                  ))}
+                </div>
+              </Section>
+            </div>
+          )}
+        </div>
+      )}
+    </article>
+  )
+}
+
+function formatSessionLabel(session: Session) {
+  const d = new Date(session.started_at + 'Z')
+  const f = isNaN(d.getTime()) ? session.started_at : d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
+  const s = session.external_session_id.substring(0, 8)
+  return `${f} (${s})`
+}
+
 export default function App() {
   const [stats, setStats] = useState<Stats | null>(null)
   const [storeStatus, setStoreStatus] = useState<StoreStatus | null>(null)
@@ -375,13 +712,14 @@ export default function App() {
   const [searchResults, setSearchResults] = useState<Memory[]>([])
   const [selectedMemoryId, setSelectedMemoryId] = useState<string | null>(null)
   const [selectedGraphNode, setSelectedGraphNode] = useState<DemoNode | null>(null)
-  const [activeTab, setActiveTab] = useState<Tab>('timeline')
+  const [activeTab, setActiveTab] = useState<Tab>('graph')
   const [contextBundle, setContextBundle] = useState<Memory[]>([])
   const [manifest, setManifest] = useState<InferenceManifest | null>(null)
   const [tasks, setTasks] = useState<InferenceTask[]>([])
   const [taskStatus, setTaskStatus] = useState('pending')
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
+  const [isNavOpen, setIsNavOpen] = useState(false)
 
   const refreshOverview = () => {
     api.stats().then(setStats).catch((e) => setError(String(e)))
@@ -400,13 +738,29 @@ export default function App() {
   }, [])
 
   useEffect(() => {
+    const timer = setTimeout(() => {
+      window.dispatchEvent(new Event('resize'))
+    }, 250)
+    return () => clearTimeout(timer)
+  }, [isNavOpen, selectedMemoryId])
+
+  useEffect(() => {
     api.graph(500, similarityThreshold).then(setGraph).catch((e) => setError(String(e)))
   }, [similarityThreshold])
 
   useEffect(() => {
+    // Clear stale state and inspector panels when session changes
+    setExchanges([])
+    setRoot(null)
+    setSelectedGraphNode((prev) => {
+      if (prev && prev.type === 'session' && (prev.payload as Session)?.external_session_id === selectedSessionId) {
+        return prev
+      }
+      return null
+    })
+    setSelectedMemoryId(null)
+    
     if (!selectedSessionId) {
-      setExchanges([])
-      setRoot(null)
       return
     }
     api.sessionExchanges(selectedSessionId).then(setExchanges).catch(() => setExchanges([]))
@@ -468,8 +822,9 @@ export default function App() {
   }
 
   const selectMemory = (id: string) => {
-    setSelectedMemoryId(id)
-    const node = demoGraph.nodes.find((item) => item.id === memoryNodeId(id))
+    const rawId = id.startsWith('memory:') ? id.slice('memory:'.length) : id
+    setSelectedMemoryId(rawId)
+    const node = demoGraph.nodes.find((item) => item.id === `memory:${rawId}`)
     if (node) setSelectedGraphNode(node)
   }
 
@@ -597,9 +952,12 @@ export default function App() {
   return (
     <div className="app">
       <header className="topbar">
-        <div>
-          <h1>xibalba-graph-memory</h1>
-          <p className="subhead">Local provenance graph memory for agent harnesses</p>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <button className="menu-button" onClick={() => setIsNavOpen((open) => !open)} type="button" style={{ background: 'none', border: 'none', color: 'inherit', fontSize: '1.4rem', cursor: 'pointer', padding: '4px 8px' }}>☰</button>
+          <div>
+            <h1>xibalba-graph-memory</h1>
+            <p className="subhead">Local provenance graph memory for agent harnesses</p>
+          </div>
         </div>
         {stats && (
           <span className="stats">
@@ -614,18 +972,6 @@ export default function App() {
           <Badge>{storeStatus?.backup_ready ? 'backup ready' : 'backup pending'}</Badge>
           <Badge>{root?.valid ? 'root valid' : 'root unverified'}</Badge>
         </div>
-        <select
-          className="session-select"
-          value={selectedSessionId}
-          onChange={(event) => setSelectedSessionId(event.target.value)}
-        >
-          <option value="">No session</option>
-          {sessions.map((session) => (
-            <option key={session.id} value={session.external_session_id}>
-              {session.external_session_id}
-            </option>
-          ))}
-        </select>
       </header>
 
       {error && (
@@ -639,7 +985,7 @@ export default function App() {
         </p>
       )}
 
-      <div className="shell">
+      <div className={`shell ${isNavOpen ? 'nav-open' : 'nav-closed'} ${selectedMemoryId ? 'inspector-open' : 'inspector-closed'}`}>
         <nav className="left-rail">
           <h2>Views</h2>
           {tabs.map((tab) => (
@@ -651,23 +997,7 @@ export default function App() {
               {tab.label}
             </button>
           ))}
-          <section className="rail-section">
-            <h3>Session</h3>
-            <div className="rail-list">
-              {sessions.slice(0, 8).map((session) => (
-                <button
-                  className={session.external_session_id === selectedSessionId ? 'rail-filter active' : 'rail-filter'}
-                  key={session.id}
-                  onClick={() => setSelectedSessionId(session.external_session_id)}
-                  type="button"
-                >
-                  {session.external_session_id}
-                </button>
-              ))}
-            </div>
-            <p>{selectedSession?.retention_tier ?? 'none'}</p>
-            <p className="small muted">{selectedSession?.started_at ?? 'No active session selected.'}</p>
-          </section>
+
           <section className="rail-section">
             <h3>Saved Filters</h3>
             <button className="rail-filter" onClick={() => applyRailGraphFilter({ status: 'confirmed' })} type="button">
@@ -720,6 +1050,8 @@ export default function App() {
               selectedSessionId={selectedSessionId}
               onRecord={handleRecordExchange}
               onSelectMemory={selectMemory}
+              sessions={sessions}
+              setSelectedSessionId={setSelectedSessionId}
             />
           )}
           {activeTab === 'graph' && (
@@ -731,6 +1063,9 @@ export default function App() {
               onSimilarityThresholdChange={setSimilarityThreshold}
               onSelectNode={selectGraphNode}
               onSelectMemory={selectMemory}
+              sessions={sessions}
+              selectedSessionId={selectedSessionId}
+              setSelectedSessionId={setSelectedSessionId}
             />
           )}
           {activeTab === 'recall' && (
@@ -750,6 +1085,8 @@ export default function App() {
               taskStatus={taskStatus}
               selectedMemoryId={selectedMemoryId}
               selectedSessionId={selectedSessionId}
+              sessions={sessions}
+              setSelectedSessionId={setSelectedSessionId}
               onStatus={setTaskStatus}
               onQueue={queueInference}
               onClaim={async (task) => {
@@ -760,7 +1097,17 @@ export default function App() {
               onWriteBack={applyWriteBack}
             />
           )}
-          {activeTab === 'integrity' && <IntegrityTab root={root} exchanges={exchanges} storeStatus={storeStatus} integrityLinks={integrityLinks} />}
+          {activeTab === 'integrity' && (
+            <IntegrityTab
+              root={root}
+              exchanges={exchanges}
+              storeStatus={storeStatus}
+              integrityLinks={integrityLinks}
+              sessions={sessions}
+              selectedSessionId={selectedSessionId}
+              setSelectedSessionId={setSelectedSessionId}
+            />
+          )}
         </main>
 
         <Inspector
@@ -788,18 +1135,44 @@ function TimelineTab({
   selectedSessionId,
   onRecord,
   onSelectMemory,
+  sessions,
+  setSelectedSessionId,
 }: {
   exchanges: Exchange[]
   contextBundle: Memory[]
   selectedSessionId: string
   onRecord: (event: FormEvent<HTMLFormElement>) => void
   onSelectMemory: (id: string) => void
+  sessions: Session[]
+  setSelectedSessionId: (id: string) => void
 }) {
   return (
     <section className="tab-panel">
-      <div className="panel-header">
-        <h2>Timeline</h2>
-        <p>{exchanges.length} exchanges</p>
+      <div className="panel-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+          <h2>Timeline</h2>
+          <select
+            className="session-select"
+            value={selectedSessionId}
+            onChange={(event) => setSelectedSessionId(event.target.value)}
+          >
+            <option value="">No session</option>
+            {sessions.map((session) => (
+              <option key={session.id} value={session.external_session_id}>
+                {formatSessionLabel(session)}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+          <p>{exchanges.length} exchanges</p>
+          {exchanges.length === 0 && selectedSessionId && (
+            <button type="button" onClick={() => {
+              fetch(`/api/session/${encodeURIComponent(selectedSessionId)}/exchanges/build`, { method: 'POST' })
+                .then(() => window.location.reload())
+            }}>Build Exchanges</button>
+          )}
+        </div>
       </div>
       <form className="exchange-form" onSubmit={onRecord}>
         <input name="session" defaultValue={selectedSessionId || 'mvp-demo-session'} placeholder="session id" />
@@ -813,38 +1186,26 @@ function TimelineTab({
       </form>
 
       <div className="timeline">
-        {exchanges.map((exchange) => (
-          <article className="exchange" key={exchange.id}>
-            <div className="exchange-meta">
-              <Badge>{`#${exchange.sequence_number}`}</Badge>
-              <span>prompt {exchange.prompt_id ?? 'none'}</span>
-              <span>latency {exchange.latency_ms?.toFixed(0) ?? 'n/a'} ms</span>
-              <Hash value={exchange.node_id} />
-            </div>
-            {exchange.prompt_memories.map((memory) => (
-              <MemorySnippet key={memory.id} memory={memory} onSelect={onSelectMemory} />
-            ))}
-            {exchange.response_memories.map((memory) => (
-              <MemorySnippet key={memory.id} memory={memory} onSelect={onSelectMemory} />
-            ))}
-            <Section title="Context Contributions" empty={exchange.context_contributions.length === 0}>
-              {exchange.context_contributions.map((item) => (
-                <button className="list-button" key={item.contribution_id} onClick={() => onSelectMemory(item.memory.id)}>
-                  {item.contribution_id} · {item.context_kind} · {item.relevance ?? 'n/a'} ·{' '}
-                  {item.memory.content.slice(0, 90)}
-                </button>
-              ))}
-            </Section>
-            <Section title="Tool and OTel Events" empty={exchange.tool_calls.length === 0}>
-              {exchange.tool_calls.map((tool) => (
-                <p className="compact-row" key={tool.id}>
-                  <Badge>{tool.kind}</Badge>
-                  {tool.name}
-                </p>
-              ))}
-            </Section>
-          </article>
-        ))}
+        {exchanges.length === 0 ? (
+          <div className="empty-state">
+            <h4>No Exchanges Found</h4>
+            <p>This session has no recorded conversational history. To populate this timeline, either run a connected agent harness or manually record an exchange.</p>
+            {selectedSessionId && (
+              <button type="button" onClick={() => {
+                fetch(`/api/session/${encodeURIComponent(selectedSessionId)}/exchanges/build`, { method: 'POST' })
+                  .then(() => window.location.reload())
+              }}>Build Unstructured Exchanges</button>
+            )}
+          </div>
+        ) : (
+          exchanges.map((exchange) => (
+            <CollapsibleExchange 
+              key={exchange.id} 
+              exchange={exchange} 
+              onSelectMemory={onSelectMemory} 
+            />
+          ))
+        )}
       </div>
     </section>
   )
@@ -907,6 +1268,9 @@ function GraphTab({
   onSimilarityThresholdChange,
   onSelectNode,
   onSelectMemory,
+  sessions,
+  selectedSessionId,
+  setSelectedSessionId,
 }: {
   graph: DemoGraph
   selectedNodeId: string | null
@@ -915,6 +1279,9 @@ function GraphTab({
   onSimilarityThresholdChange: (threshold: number) => void
   onSelectNode: (node: DemoNode) => void
   onSelectMemory: (id: string) => void
+  sessions: Session[]
+  selectedSessionId: string
+  setSelectedSessionId: (id: string) => void
 }) {
   const [background, setBackground] = useState<GraphBackground>('midnight')
   const [nodeType, setNodeType] = useState<DemoNodeType | 'all'>('all')
@@ -935,6 +1302,7 @@ function GraphTab({
   const [pathTo, setPathTo] = useState('')
   const [pathDepth, setPathDepth] = useState(3)
   const [traversalError, setTraversalError] = useState<string | null>(null)
+  const [showGrid, setShowGrid] = useState(true)
 
   useEffect(() => {
     setStatusFilter(filterIntent.status ?? 'all')
@@ -981,7 +1349,8 @@ function GraphTab({
   const selectedNodeHidden = Boolean(selectedNodeId && !filteredGraph.nodes.some((node) => node.id === selectedNodeId))
   const selectedEdgeHidden = Boolean(selectedEdge && !filteredGraph.edges.some((edge) => graphEdgeKey(edge) === graphEdgeKey(selectedEdge)))
   const selectedEntityLabel = selectedNodeId ? graph.nodes.find((node) => node.id === selectedNodeId && node.type === 'entity')?.label : undefined
-  const options: GraphViewOptions = { background, zoom, panX, panY, fitMode, fitNonce }
+  const selectedNodeLabel = selectedNodeId ? graph.nodes.find((node) => node.id === selectedNodeId)?.label : undefined
+  const options: GraphViewOptions = { background, zoom, panX, panY, fitMode, fitNonce, showGrid }
   const refit = (mode: 'all' | 'selected') => {
     setFitMode(mode)
     setFitNonce((value) => value + 1)
@@ -1007,126 +1376,119 @@ function GraphTab({
   return (
     <section className="tab-panel full-bleed">
       <div className="panel-header">
-        <h2>3D Memory Graph</h2>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+          <h2>3D Memory Graph</h2>
+          <select
+            className="session-select"
+            value={selectedSessionId}
+            onChange={(event) => setSelectedSessionId(event.target.value)}
+          >
+            <option value="">No session</option>
+            {sessions.map((session) => (
+              <option key={session.id} value={session.external_session_id}>
+                {formatSessionLabel(session)}
+              </option>
+            ))}
+          </select>
+        </div>
         <p>
           {filteredGraph.nodes.length} of {graph.nodes.length} nodes · {filteredGraph.edges.length} of {graph.edges.length} links · click a node to zoom and inspect
         </p>
       </div>
-      <div className="graph-controls" aria-label="3D graph controls">
-        <fieldset className="background-picker">
-          <legend>Background</legend>
-          {backgroundOptions.map((item) => (
-            <button
-              className={`background-choice ${item.value}${background === item.value ? ' active' : ''}`}
-              key={item.value}
-              onClick={() => setBackground(item.value)}
-              title={item.detail}
-              type="button"
-            >
-              <span className="swatch" />
-              <span>{item.label}</span>
-            </button>
-          ))}
-        </fieldset>
-        <label>
-          Node type
-          <select value={nodeType} onChange={(event) => setNodeType(event.target.value as DemoNodeType | 'all')}>
-            {nodeTypes.map((type) => (
-              <option key={type} value={type}>
-                {type === 'all' ? 'All nodes' : type}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label>
-          Lifecycle status
-          <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}>
-            {statusOptions.map((status) => (
-              <option key={status} value={status}>
-                {status === 'all' ? 'All statuses' : status}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label>
-          Evidence class
-          <select value={evidenceFilter} onChange={(event) => setEvidenceFilter(event.target.value)}>
-            {evidenceOptions.map((item) => (
-              <option key={item} value={item}>
-                {item === 'all' ? 'All evidence' : item}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label>
-          Source kind
-          <select value={sourceKindFilter} onChange={(event) => setSourceKindFilter(event.target.value)}>
-            {sourceKindOptions.map((item) => (
-              <option key={item} value={item}>
-                {item === 'all' ? 'All sources' : item}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label>
-          Connection type
-          <select value={edgeType} onChange={(event) => setEdgeType(event.target.value)}>
-            {edgeTypes.map((type) => (
-              <option key={type} value={type}>
-                {type === 'all' ? 'All connections' : `${connectionReference[type]?.label ?? type} (${edgeCounts.get(type) ?? 0})`}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label>
-          Relation predicate
-          <select value={predicateFilter} onChange={(event) => setPredicateFilter(event.target.value)}>
-            {predicateOptions.map((predicate) => (
-              <option key={predicate} value={predicate}>
-                {predicate === 'all' ? 'All predicates' : predicate}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label>
-          Similarity threshold
-          <span className="range-control">
-            <input
-              max="0.99"
-              min="0.2"
-              onChange={(event) => onSimilarityThresholdChange(Number(event.target.value))}
-              step="0.01"
-              type="range"
-              value={similarityThreshold}
-            />
-            <output>{similarityThreshold.toFixed(2)}</output>
-          </span>
-        </label>
-        <div className="button-group camera-buttons" aria-label="Camera controls">
-          <button onClick={() => refit('all')} type="button">Fit all</button>
-          <button disabled={!selectedNodeId || selectedNodeHidden} onClick={() => refit('selected')} type="button">Fit selected</button>
-          <button onClick={() => setZoom((value) => Math.min(2.4, value + 0.18))} type="button">Zoom in</button>
-          <button onClick={() => setZoom((value) => Math.max(0.55, value - 0.18))} type="button">Zoom out</button>
-          <button onClick={() => setPanX((value) => value - 18)} type="button">Left</button>
-          <button onClick={() => setPanX((value) => value + 18)} type="button">Right</button>
-          <button onClick={() => setPanY((value) => value + 12)} type="button">Up</button>
-          <button onClick={() => setPanY((value) => value - 12)} type="button">Down</button>
-          <button
-            onClick={() => {
-              setZoom(1)
-              setPanX(0)
-              setPanY(0)
-              refit('all')
-            }}
-            type="button"
-          >
-            Reset
-          </button>
-        </div>
-      </div>
       {selectedNodeHidden && <p className="graph-note">The selected node is hidden by the current node filter. Switch to all nodes or fit the full graph.</p>}
       {selectedEdgeHidden && <p className="graph-note">The selected edge is hidden by the current filters. Clear the edge selection or reset filters.</p>}
       <div className="graph3d-area">
+        <div className="graph-overlay-tools">
+          <select value={background} onChange={(event) => setBackground(event.target.value as GraphBackground)} title="Background">
+            {backgroundOptions.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
+          </select>
+          <select value={nodeType} onChange={(event) => setNodeType(event.target.value as DemoNodeType | 'all')} title="Node type">
+            {nodeTypes.map((type) => <option key={type} value={type}>{type === 'all' ? 'All nodes' : type}</option>)}
+          </select>
+          <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} title="Lifecycle Status">
+            {statusOptions.map((status) => <option key={status} value={status}>{status === 'all' ? 'All statuses' : status}</option>)}
+          </select>
+          <select value={evidenceFilter} onChange={(event) => setEvidenceFilter(event.target.value)} title="Evidence Class">
+            {evidenceOptions.map((item) => <option key={item} value={item}>{item === 'all' ? 'All evidence' : item}</option>)}
+          </select>
+          <select value={sourceKindFilter} onChange={(event) => setSourceKindFilter(event.target.value)} title="Source Kind">
+            {sourceKindOptions.map((item) => <option key={item} value={item}>{item === 'all' ? 'All sources' : item}</option>)}
+          </select>
+          <select value={edgeType} onChange={(event) => setEdgeType(event.target.value)} title="Connection Type">
+            {edgeTypes.map((type) => <option key={type} value={type}>{type === 'all' ? 'All connections' : `${connectionReference[type]?.label ?? type} (${edgeCounts.get(type) ?? 0})`}</option>)}
+          </select>
+          <select value={predicateFilter} onChange={(event) => setPredicateFilter(event.target.value)} title="Relation Predicate">
+            {predicateOptions.map((predicate) => <option key={predicate} value={predicate}>{predicate === 'all' ? 'All predicates' : predicate}</option>)}
+          </select>
+          <input
+            title={`Similarity Threshold: ${similarityThreshold.toFixed(2)}`}
+            max="0.99"
+            min="0.2"
+            onChange={(event) => onSimilarityThresholdChange(Number(event.target.value))}
+            step="0.01"
+            type="range"
+            value={similarityThreshold}
+            style={{ width: '80px', pointerEvents: 'auto', alignSelf: 'center' }}
+          />
+          <div className="button-group">
+            <button onClick={() => setShowGrid((v) => !v)} type="button" title="Toggle 3D Grid">🌐</button>
+            <button onClick={() => setZoom((value) => Math.min(2.4, value + 0.18))} type="button" title="Zoom In">➕</button>
+            <button onClick={() => setZoom((value) => Math.max(0.55, value - 0.18))} type="button" title="Zoom Out">➖</button>
+            <button onClick={() => setPanX((value) => value - 18)} type="button" title="Pan Left">⬅</button>
+            <button onClick={() => setPanX((value) => value + 18)} type="button" title="Pan Right">➡</button>
+            <button onClick={() => setPanY((value) => value + 12)} type="button" title="Pan Up">⬆</button>
+            <button onClick={() => setPanY((value) => value - 12)} type="button" title="Pan Down">⬇</button>
+            <button onClick={() => refit('all')} type="button" title="Fit All">⛶</button>
+            <button disabled={!selectedNodeId || selectedNodeHidden} onClick={() => refit('selected')} type="button" title="Fit Selected">🎯</button>
+          </div>
+        </div>
+        <div className="graph-overlay-key" style={{ display: 'flex', flexDirection: 'column', gap: '8px', pointerEvents: 'auto', background: 'rgba(15, 23, 42, 0.85)', padding: '8px 12px', borderRadius: '6px', backdropFilter: 'blur(4px)', minWidth: '180px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px' }}>
+            <span style={{ fontSize: '11px', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '0.05em', opacity: 0.8 }}>Connections</span>
+            <select
+              value={edgeType}
+              onChange={(e) => setEdgeType(e.target.value)}
+              style={{ background: 'rgba(255,255,255,0.1)', border: 'none', borderRadius: '4px', color: '#fff', fontSize: '11px', padding: '2px 6px', cursor: 'pointer' }}
+            >
+              <option value="all" style={{ background: '#0f172a' }}>All Connections</option>
+              {edgeTypes.map((type) => {
+                if (type === 'all') return null
+                return (
+                  <option key={type} value={type} style={{ background: '#0f172a' }}>
+                    {connectionReference[type]?.label ?? type} ({edgeCounts.get(type) ?? 0})
+                  </option>
+                )
+              })}
+            </select>
+          </div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+            {Object.entries(connectionReference).map(([type, info]) => {
+              const count = edgeCounts.get(type) ?? 0
+              if (count === 0) return null
+              const isActive = edgeType === 'all' || edgeType === type
+              return (
+                <span
+                  className={`edge-key ${type}`}
+                  key={type}
+                  onClick={() => setEdgeType(edgeType === type ? 'all' : type)}
+                  style={{
+                    cursor: 'pointer',
+                    opacity: isActive ? 1 : 0.35,
+                    userSelect: 'none',
+                    transition: 'opacity 0.2s',
+                    padding: '2px 8px',
+                    borderRadius: '999px',
+                    fontSize: '11px',
+                    margin: 0
+                  }}
+                  title={`Filter by connection: ${info.detail}`}
+                >
+                  {info.label}
+                </span>
+              )
+            })}
+          </div>
+        </div>
         <Graph3DView
           graph={filteredGraph}
           selectedNodeId={selectedNodeHidden ? null : selectedNodeId}
@@ -1189,13 +1551,19 @@ function GraphTab({
           <button disabled={!selectedEntityLabel} onClick={loadSelectedNeighbors} type="button">
             Selected neighbors
           </button>
-          <label>
+          <label style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
             From
-            <input value={pathFrom} onChange={(event) => setPathFrom(event.target.value)} placeholder={selectedEntityLabel ?? 'Entity name'} />
+            <input value={pathFrom} onChange={(event) => setPathFrom(event.target.value)} placeholder={selectedNodeLabel ?? 'Entity name'} />
+            {selectedNodeLabel && (
+              <button onClick={() => setPathFrom(selectedNodeLabel)} type="button" style={{ padding: '2px 6px', fontSize: '10px', whiteSpace: 'nowrap' }} title="Use selected node as From">Use Selected</button>
+            )}
           </label>
-          <label>
+          <label style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
             To
             <input value={pathTo} onChange={(event) => setPathTo(event.target.value)} placeholder="Entity name" />
+            {selectedNodeLabel && (
+              <button onClick={() => setPathTo(selectedNodeLabel)} type="button" style={{ padding: '2px 6px', fontSize: '10px', whiteSpace: 'nowrap' }} title="Use selected node as To">Use Selected</button>
+            )}
           </label>
           <label>
             Path depth
@@ -1229,57 +1597,7 @@ function GraphTab({
           </div>
         )}
       </section>
-      <div className="graph-key detailed">
-        <section>
-          <h3>Node Key</h3>
-          <div className="key-list">
-            {nodeReference.map((item) => (
-              <div className="key-row" key={item.type}>
-                <span className={`legend-item ${item.type}`}>{item.label}</span>
-                <p>{item.detail}</p>
-              </div>
-            ))}
-          </div>
-        </section>
-        <section>
-          <h3>Connection Key</h3>
-          <div className="key-list">
-            {edgeTypes.filter((type) => type !== 'all').map((type) => (
-              <div className="key-row" key={type}>
-                <span className={`edge-key ${type}`}>{connectionReference[type]?.label ?? type}</span>
-                <p>{connectionReference[type]?.detail ?? 'Custom graph relationship returned by the local API.'}</p>
-              </div>
-            ))}
-          </div>
-        </section>
-        <section>
-          <h3>Camera And Filters</h3>
-          <dl className="graph-reference">
-            <dt>Fit all</dt>
-            <dd>Frames every visible node after node and connection filters are applied.</dd>
-            <dt>Fit selected</dt>
-            <dd>Frames the clicked node and its local neighborhood when the node is visible.</dd>
-            <dt>Zoom</dt>
-            <dd>Changes camera distance without changing filters or selected node state.</dd>
-            <dt>Node filter</dt>
-            <dd>Limits rendered points by memory, entity, session, exchange, or Merkle root.</dd>
-            <dt>Status</dt>
-            <dd>Limits memory-backed nodes by lifecycle state such as active, contradicted, superseded, or forgotten.</dd>
-            <dt>Evidence</dt>
-            <dd>Limits memory-backed nodes by epistemic/evidence class without converting recall into truth.</dd>
-            <dt>Source</dt>
-            <dd>Limits memory-backed nodes by source kind, preserving sessions, exchanges, and roots only when they match other visible endpoints.</dd>
-            <dt>Connection</dt>
-            <dd>Shows one edge family at a time while retaining only links whose endpoints are visible.</dd>
-            <dt>Predicate</dt>
-            <dd>Limits labeled relation edges by predicate or exchange context label.</dd>
-            <dt>Threshold</dt>
-            <dd>Refetches similarity edges from the local API using the selected cosine threshold.</dd>
-            <dt>Traversal</dt>
-            <dd>Runs bounded entity neighbors or shortest-path lookups through the local API and reports truncation.</dd>
-          </dl>
-        </section>
-      </div>
+
     </section>
   )
 }
@@ -1344,12 +1662,12 @@ function NodePopup({
             <section>
               <h3>Related Tags</h3>
               <div className="badges">
-                {node.tags.map((tag) => (
+                {node.tags?.map((tag) => (
                   <Badge key={tag}>{tag}</Badge>
                 ))}
               </div>
               <h3>Neighborhood</h3>
-              {node.relatedIds.map((id) => (
+              {node.relatedIds?.map((id) => (
                 <button className="list-button" key={id} onClick={() => nodeMemoryId(id) && onSelectMemory(nodeMemoryId(id)!)}>
                   {id}
                 </button>
@@ -1372,7 +1690,7 @@ function NodePopup({
                   <div className="dense-columns">
                     <div>
                       <h4>Prompt</h4>
-                      {item.prompt_memories.map((prompt) => (
+                      {item.prompt_memories?.map((prompt) => (
                         <button className="dense-block" key={prompt.id} onClick={() => onSelectMemory(prompt.id)}>
                           {prompt.content}
                         </button>
@@ -1380,7 +1698,7 @@ function NodePopup({
                     </div>
                     <div>
                       <h4>LLM Output</h4>
-                      {item.response_memories.map((response) => (
+                      {item.response_memories?.map((response) => (
                         <button className="dense-block" key={response.id} onClick={() => onSelectMemory(response.id)}>
                           {response.content}
                         </button>
@@ -1388,18 +1706,18 @@ function NodePopup({
                     </div>
                     <div>
                       <h4>Context</h4>
-                      {item.context_contributions.map((context) => (
-                        <button className="dense-block" key={context.contribution_id} onClick={() => onSelectMemory(context.memory.id)}>
+                      {item.context_contributions?.map((context) => (
+                        <button className="dense-block" key={context.contribution_id} onClick={() => context.memory?.id && onSelectMemory(context.memory.id)}>
                           <strong>{context.contribution_id}</strong> · {context.context_kind} ·{' '}
                           {context.relevance ?? 'n/a'}
                           <br />
-                          {context.memory.content}
+                          {context.memory?.content ?? 'Missing memory content'}
                         </button>
                       ))}
                     </div>
                     <div>
                       <h4>Tool Calls</h4>
-                      {item.tool_calls.length === 0 ? (
+                      {!item.tool_calls || item.tool_calls.length === 0 ? (
                         <p className="muted small">No tool calls recorded for this exchange.</p>
                       ) : (
                         item.tool_calls.map((tool) => (
@@ -1510,6 +1828,8 @@ function InferenceTab({
   taskStatus: string
   selectedMemoryId: string | null
   selectedSessionId: string
+  sessions: Session[]
+  setSelectedSessionId: (id: string) => void
   onStatus: (status: string) => void
   onQueue: (subjectType: string, subjectId: string, taskType: string) => void
   onClaim: (task: InferenceTask) => void
@@ -1520,8 +1840,22 @@ function InferenceTab({
   return (
     <section className="tab-panel two-column">
       <div>
-        <div className="panel-header">
-          <h2>Inference</h2>
+        <div className="panel-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+            <h2>Inference</h2>
+            <select
+              className="session-select"
+              value={selectedSessionId}
+              onChange={(event) => setSelectedSessionId(event.target.value)}
+            >
+              <option value="">No session</option>
+              {sessions.map((session) => (
+                <option key={session.id} value={session.external_session_id}>
+                  {formatSessionLabel(session)}
+                </option>
+              ))}
+            </select>
+          </div>
           <p>{manifest?.name ?? 'xibalba-memory-inference'}</p>
         </div>
         {manifest && (
@@ -1691,17 +2025,37 @@ function IntegrityTab({
   exchanges,
   storeStatus,
   integrityLinks,
+  sessions,
+  selectedSessionId,
+  setSelectedSessionId,
 }: {
   root: MerkleRoot | null
   exchanges: Exchange[]
   storeStatus: StoreStatus | null
   integrityLinks: IntegrityLinksStatus | null
+  sessions: Session[]
+  selectedSessionId: string
+  setSelectedSessionId: (id: string) => void
 }) {
   const linkStates = integrityLinks?.states ? Object.entries(integrityLinks.states) : []
   return (
     <section className="tab-panel">
-      <div className="panel-header">
-        <h2>Integrity</h2>
+      <div className="panel-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+          <h2>Integrity</h2>
+          <select
+            className="session-select"
+            value={selectedSessionId}
+            onChange={(event) => setSelectedSessionId(event.target.value)}
+          >
+            <option value="">No session</option>
+            {sessions.map((session) => (
+              <option key={session.id} value={session.external_session_id}>
+                {formatSessionLabel(session)}
+              </option>
+            ))}
+          </select>
+        </div>
         <p>Local tamper evidence only. Not truth, authorization, completeness, or DAG anchoring.</p>
       </div>
       <div className="integrity-grid">
@@ -1742,7 +2096,7 @@ function IntegrityTab({
       </div>
       <article className="item">
         <div className="item-head">
-          <strong>Session Merkle Root</strong>
+          <strong data-tooltip="Integrity head for the session graph; proves structure and byte lineage">Session Merkle Root</strong>
           <Badge>{root?.valid ? 'valid' : 'unverified'}</Badge>
         </div>
         <dl className="details">
@@ -1795,17 +2149,25 @@ function IntegrityTab({
           </div>
         )}
       </article>
-      <div className="item-list">
-        {exchanges.map((exchange) => (
-          <article className="item" key={exchange.id}>
-            <div className="item-head">
-              <strong>Exchange #{exchange.sequence_number}</strong>
-              <Hash value={exchange.node_id} />
-            </div>
-            <p className="small muted">parent {exchange.parent_node_id ?? 'none'}</p>
-          </article>
-        ))}
-      </div>
+      
+      {exchanges.length === 0 ? (
+        <div className="empty-state">
+          <h4>No Graph Nodes</h4>
+          <p>This session has no exchanges recorded in the cryptographic DAG.</p>
+        </div>
+      ) : (
+        <div className="item-list">
+          {exchanges.map((exchange) => (
+            <article className="item" key={exchange.id}>
+              <div className="item-head">
+                <strong>Exchange #{exchange.sequence_number}</strong>
+                <Hash value={exchange.node_id} />
+              </div>
+              <p className="small muted">parent {exchange.parent_node_id ?? 'none'}</p>
+            </article>
+          ))}
+        </div>
+      )}
     </section>
   )
 }

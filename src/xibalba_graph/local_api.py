@@ -144,6 +144,23 @@ def _make_handler(store: GraphStore, *, allowed_origin: str):
                     self._send_json(200, store.memory_otel_events(parts[2]))
                 elif len(parts) == 4 and parts[0] == "api" and parts[1] == "memory" and parts[3] == "attachments":
                     self._send_json(200, store.list_attachments(parts[2]))
+                elif len(parts) == 4 and parts[0] == "api" and parts[1] == "attachment" and parts[3] == "file":
+                    attachment = store.get_attachment(parts[2])
+                    if not attachment:
+                        self._send_json(404, {"error": "attachment not found"})
+                    else:
+                        locator = attachment["storage_locator"]
+                        file_path = locator[7:] if locator.startswith("file://") else locator
+                        import os
+                        if not os.path.exists(file_path):
+                            self._send_json(404, {"error": f"file not found at {file_path}"})
+                        else:
+                            self.send_response(200)
+                            self.send_header("Content-Type", attachment.get("media_type") or "application/octet-stream")
+                            self.send_header("Content-Length", str(os.path.getsize(file_path)))
+                            self.end_headers()
+                            with open(file_path, "rb") as f:
+                                self.wfile.write(f.read())
                 elif len(parts) == 4 and parts[0] == "api" and parts[1] == "memory" and parts[3] == "contradictions":
                     self._send_json(200, store.contradictions(parts[2]))
                 else:
@@ -162,7 +179,10 @@ def _make_handler(store: GraphStore, *, allowed_origin: str):
 
             try:
                 payload = self._read_json_body()
-                if parts == ["api", "exchanges", "model"]:
+                if len(parts) == 5 and parts[0] == "api" and parts[1] == "session" and parts[3] == "exchanges" and parts[4] == "build":
+                    from .exchange_builder import build_session_exchanges
+                    self._send_json(200, build_session_exchanges(store, parts[2]))
+                elif parts == ["api", "exchanges", "model"]:
                     self._send_json(
                         200,
                         store.record_model_exchange(

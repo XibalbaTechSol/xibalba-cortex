@@ -1880,6 +1880,13 @@ class GraphStore:
                     (exchange_id,),
                 ).fetchall()
             ]
+            if not tool_call_ids and row["prompt_id"]:
+                tool_call_ids = [
+                    r["id"] for r in self._connection.execute(
+                        "SELECT id FROM otel_events WHERE prompt_id = ?",
+                        (row["prompt_id"],),
+                    ).fetchall()
+                ]
         return {
             "id": row["id"],
             "session_id": row["session_id"],

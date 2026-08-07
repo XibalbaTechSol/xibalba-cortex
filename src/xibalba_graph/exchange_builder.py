@@ -53,21 +53,25 @@ def build_session_exchanges(store: GraphStore, external_session_id: str) -> dict
     current_prompt: dict[str, object] | None = None
     current_responses: list[dict[str, object]] = []
     current_events: dict[str, dict] = {}
+    seen_prompt_ids = set()
 
     def _flush():
-        if current_prompt is None and not current_responses:
+        if current_prompt is None and not current_responses and not current_events:
             return
         prompt_ids = [current_prompt["id"]] if current_prompt else []
         response_ids = [m["id"] for m in current_responses]
         tool_call_ids = list(current_events.keys())
         prompt_time = current_prompt["source"]["observed_at"] if current_prompt else None
         response_time = current_responses[-1]["source"]["observed_at"] if current_responses else None
+        pid = current_prompt["source"].get("prompt_id") if current_prompt else None
+        if pid:
+            seen_prompt_ids.add(pid)
         exchange = store.record_exchange(
             external_session_id,
             prompt_memory_ids=prompt_ids,
             response_memory_ids=response_ids,
             tool_call_otel_event_ids=tool_call_ids,
-            prompt_id=current_prompt["source"].get("prompt_id") if current_prompt else None,
+            prompt_id=pid,
             prompt_time=prompt_time,
             response_time=response_time,
         )
@@ -87,6 +91,24 @@ def build_session_exchanges(store: GraphStore, external_session_id: str) -> dict
             for event in _linked_events(memory):
                 current_events[event["id"]] = event
     _flush()
+
+    unseen_prompt_ids = set(events_by_prompt_id.keys()) - seen_prompt_ids - {None}
+    if unseen_prompt_ids:
+        def earliest_event(pid):
+            return min(e["created_at"] for e in events_by_prompt_id[pid])
+        
+        for pid in sorted(unseen_prompt_ids, key=earliest_event):
+            events = events_by_prompt_id[pid]
+            exchange = store.record_exchange(
+                external_session_id,
+                prompt_memory_ids=[],
+                response_memory_ids=[],
+                tool_call_otel_event_ids=[e["id"] for e in events],
+                prompt_id=pid,
+                prompt_time=None,
+                response_time=None,
+            )
+            exchanges_built.append(exchange["id"])
 
     return {
         "session_id": external_session_id,

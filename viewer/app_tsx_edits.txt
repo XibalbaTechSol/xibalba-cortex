@@ -1,0 +1,481 @@
+=== STEP 36 ===
+{
+  "Description": "Fix App.tsx UI/UX bugs, including shell grid conditionally updating columns and rewriting graph traversal inputs to guided dropdown workflows.",
+  "Instruction": "Update shell classes based on state. Rewrite inputs in Find Connection Path to selects.",
+  "ReplacementChunks": [
+    {
+      "AllowMultiple": false,
+      "EndLine": 645,
+      "ReplacementContent": "      <div className={`shell ${isNavOpen ? 'nav-open' : 'nav-closed'} ${selectedMemoryId ? 'inspector-open' : 'inspector-closed'}`}>\n        <div className=\"nav-toggle-container\" style={{ position: 'absolute', top: '10px', left: isNavOpen ? '230px' : '10px', zIndex: 100, transition: 'left 0.2s' }}>\n          <button className=\"icon-button\" onClick={() => setIsNavOpen(!isNavOpen)} aria-label=\"Toggle navigation\">\n            {isNavOpen ? '\u25c0' : '\u25b6'}\n          </button>\n        </div>\n        \n        {isNavOpen ? (",
+      "StartLine": 639,
+      "TargetContent": "      <div className=\"shell\">\n        <div className=\"nav-toggle-container\" style={{ position: 'absolute', top: '10px', left: isNavOpen ? '260px' : '10px', zIndex: 100, transition: 'left 0.2s' }}>\n          <button className=\"icon-button\" onClick={() => setIsNavOpen(!isNavOpen)} aria-label=\"Toggle navigation\">\n            {isNavOpen ? '\u25c0' : '\u25b6'}\n          </button>\n        </div>\n        \n        {isNavOpen ? ("
+    },
+    {
+      "AllowMultiple": false,
+      "EndLine": 1241,
+      "ReplacementContent": "              <label>\n                From\n                <select value={pathFrom} onChange={(event) => setPathFrom(event.target.value)}>\n                  <option value=\"\">{selectedEntityLabel ?? 'Select start node...'}</option>\n                  {graph.nodes.filter((n) => n.type === 'entity').map((n) => (\n                    <option key={n.id} value={n.label}>{n.label}</option>\n                  ))}\n                </select>\n              </label>\n              <label>\n                To\n                <select value={pathTo} onChange={(event) => setPathTo(event.target.value)}>\n                  <option value=\"\">Select target node...</option>\n                  {graph.nodes.filter((n) => n.type === 'entity').map((n) => (\n                    <option key={n.id} value={n.label}>{n.label}</option>\n                  ))}\n                </select>\n              </label>",
+      "StartLine": 1234,
+      "TargetContent": "              <label>\n                From\n                <input id=\"path-from\" value={pathFrom} onChange={(event) => setPathFrom(event.target.value)} placeholder={selectedEntityLabel ?? 'Start node...'} />\n              </label>\n              <label>\n                To\n                <input value={pathTo} onChange={(event) => setPathTo(event.target.value)} placeholder=\"Target node...\" />\n              </label>"
+    }
+  ],
+  "TargetFile": "/home/xibalba/Projects/xibalba-graph-memory/viewer/src/App.tsx",
+  "toolAction": "Replacing content in App.tsx",
+  "toolSummary": "Modify App.tsx"
+}
+=== STEP 44 ===
+{
+  "Description": "Add explicit validation errors for queueInference and findEntityPath to prevent HTTP 400.",
+  "Instruction": "Update findEntityPath and queueInference in App.tsx to handle empty inputs.",
+  "ReplacementChunks": [
+    {
+      "AllowMultiple": false,
+      "EndLine": 545,
+      "ReplacementContent": "  const queueInference = async (subjectType: string, subjectId: string, taskType: string) => {\n    if (!subjectId) {\n      setError('Cannot queue inference: Subject ID is empty.')\n      return\n    }\n    try {\n      const task = await api.requestInferenceTask({\n        task_type: taskType,\n        subject_type: subjectType,\n        subject_id: subjectId,\n        input_payload: { subject_type: subjectType, subject_id: subjectId },\n        requested_by: 'viewer',\n        idempotency_key: `viewer:${taskType}:${subjectType}:${subjectId}:${Date.now()}`,\n      })",
+      "StartLine": 535,
+      "TargetContent": "  const queueInference = async (subjectType: string, subjectId: string, taskType: string) => {\n    try {\n      const task = await api.requestInferenceTask({\n        task_type: taskType,\n        subject_type: subjectType,\n        subject_id: subjectId,\n        input_payload: { subject_type: subjectType, subject_id: subjectId },\n        requested_by: 'viewer',\n        idempotency_key: `viewer:${taskType}:${subjectType}:${subjectId}:${Date.now()}`,\n      })"
+    },
+    {
+      "AllowMultiple": false,
+      "EndLine": 1027,
+      "ReplacementContent": "  const findEntityPath = async () => {\n    const startNode = pathFrom.trim() || selectedEntityLabel || ''\n    const targetNode = pathTo.trim()\n    if (!startNode || !targetNode) {\n      setTraversalError('Start node and target node must be selected.')\n      return\n    }",
+      "StartLine": 1024,
+      "TargetContent": "  const findEntityPath = async () => {\n    const startNode = pathFrom.trim() || selectedEntityLabel || ''\n    const targetNode = pathTo.trim()\n    if (!startNode || !targetNode) return"
+    }
+  ],
+  "TargetFile": "/home/xibalba/Projects/xibalba-graph-memory/viewer/src/App.tsx",
+  "toolAction": "Replacing content in App.tsx",
+  "toolSummary": "Add validation to App.tsx"
+}
+=== STEP 65 ===
+{
+  "Description": "Set Graph as default tab, hide nav by default, and streamline graph settings to an overlay instead of detailed keys.",
+  "Instruction": "Update App.tsx to use graph as default tab, remove verbose keys, and add overlay tools.",
+  "ReplacementChunks": [
+    {
+      "AllowMultiple": false,
+      "EndLine": 374,
+      "ReplacementContent": "  const [selectedGraphNode, setSelectedGraphNode] = useState<DemoNode | null>(null)\n  const [activeTab, setActiveTab] = useState<Tab>('graph')\n  const [contextBundle, setContextBundle] = useState<Memory[]>([])",
+      "StartLine": 373,
+      "TargetContent": "  const [selectedGraphNode, setSelectedGraphNode] = useState<DemoNode | null>(null)\n  const [activeTab, setActiveTab] = useState<Tab>('timeline')\n  const [contextBundle, setContextBundle] = useState<Memory[]>([])"
+    },
+    {
+      "AllowMultiple": false,
+      "EndLine": 382,
+      "ReplacementContent": "  const [notice, setNotice] = useState<string | null>(null)\n  const [isNavOpen, setIsNavOpen] = useState(false)\n\n  const refreshOverview = () => {",
+      "StartLine": 380,
+      "TargetContent": "  const [notice, setNotice] = useState<string | null>(null)\n  const [isNavOpen, setIsNavOpen] = useState(true)\n\n  const refreshOverview = () => {"
+    },
+    {
+      "AllowMultiple": false,
+      "EndLine": 1175,
+      "ReplacementContent": "      {selectedNodeHidden && <p className=\"graph-note\">The selected node is hidden by the current node filter. Switch to all nodes or fit the full graph.</p>}\n      {selectedEdgeHidden && <p className=\"graph-note\">The selected edge is hidden by the current filters. Clear the edge selection or reset filters.</p>}\n      <div className=\"graph3d-area\">\n        <div className=\"graph-overlay-tools\">\n          <select value={background} onChange={(event) => setBackground(event.target.value as GraphBackground)} title=\"Background\">\n            {backgroundOptions.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}\n          </select>\n          <select value={nodeType} onChange={(event) => setNodeType(event.target.value as DemoNodeType | 'all')} title=\"Node type\">\n            {nodeTypes.map((type) => <option key={type} value={type}>{type === 'all' ? 'All nodes' : type}</option>)}\n          </select>\n          <div className=\"button-group\">\n            <button onClick={() => setZoom((value) => Math.min(2.4, value + 0.18))} type=\"button\" title=\"Zoom In\">\u2795</button>\n            <button onClick={() => setZoom((value) => Math.max(0.55, value - 0.18))} type=\"button\" title=\"Zoom Out\">\u2796</button>\n            <button onClick={() => refit('all')} type=\"button\" title=\"Fit All\">\u26f6</button>\n            <button disabled={!selectedNodeId || selectedNodeHidden} onClick={() => refit('selected')} type=\"button\" title=\"Fit Selected\">\ud83c\udfaf</button>\n          </div>\n        </div>\n        <div className=\"graph-overlay-key\">\n          {nodeReference.map((item) => (\n            <span className={`legend-item ${item.type}`} key={item.type}>{item.label}</span>\n          ))}\n        </div>\n        <Graph3DView\n          graph={filteredGraph}\n          selectedNodeId={selectedNodeHidden ? null : selectedNodeId}\n          selectedEdgeKey={selectedEdgeHidden ? null : selectedEdge ? graphEdgeKey(selectedEdge) : null}\n          options={options}\n          onSelectNode={onSelectNode}\n          onSelectEdge={setSelectedEdge}\n        />\n      </div>",
+      "StartLine": 1053,
+      "TargetContent": "      <div className=\"graph-controls\" aria-label=\"3D graph controls\">\n        <fieldset className=\"background-picker\">\n          <legend>Background</legend>\n          {backgroundOptions.map((item) => (\n            <button\n              className={`background-choice ${item.value}${background === item.value ? ' active' : ''}`}\n              key={item.value}\n              onClick={() => setBackground(item.value)}\n              title={item.detail}\n              type=\"button\"\n            >\n              <span className=\"swatch\" />\n              <span>{item.label}</span>\n            </button>\n          ))}\n        </fieldset>\n        <label>\n          Node type\n          <select value={nodeType} onChange={(event) => setNodeType(event.target.value as DemoNodeType | 'all')}>\n            {nodeTypes.map((type) => (\n              <option key={type} value={type}>\n                {type === 'all' ? 'All nodes' : type}\n              </option>\n            ))}\n          </select>\n        </label>\n        <label>\n          Lifecycle status\n          <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}>\n            {statusOptions.map((status) => (\n              <option key={status} value={status}>\n                {status === 'all' ? 'All statuses' : status}\n              </option>\n            ))}\n          </select>\n        </label>\n        <label>\n          Evidence class\n          <select value={evidenceFilter} onChange={(event) => setEvidenceFilter(event.target.value)}>\n            {evidenceOptions.map((item) => (\n              <option key={item} value={item}>\n                {item === 'all' ? 'All evidence' : item}\n              </option>\n            ))}\n          </select>\n        </label>\n        <label>\n          Source kind\n          <select value={sourceKindFilter} onChange={(event) => setSourceKindFilter(event.target.value)}>\n            {sourceKindOptions.map((item) => (\n              <option key={item} value={item}>\n                {item === 'all' ? 'All sources' : item}\n              </option>\n            ))}\n          </select>\n        </label>\n        <label>\n          Connection type\n          <select value={edgeType} onChange={(event) => setEdgeType(event.target.value)}>\n            {edgeTypes.map((type) => (\n              <option key={type} value={type}>\n                {type === 'all' ? 'All connections' : `${connectionReference[type]?.label ?? type} (${edgeCounts.get(type) ?? 0})`}\n              </option>\n            ))}\n          </select>\n        </label>\n        <label>\n          Relation predicate\n          <select value={predicateFilter} onChange={(event) => setPredicateFilter(event.target.value)}>\n            {predicateOptions.map((predicate) => (\n              <option key={predicate} value={predicate}>\n                {predicate === 'all' ? 'All predicates' : predicate}\n              </option>\n            ))}\n          </select>\n        </label>\n        <label>\n          Similarity threshold\n          <span className=\"range-control\">\n            <input\n              max=\"0.99\"\n              min=\"0.2\"\n              onChange={(event) => onSimilarityThresholdChange(Number(event.target.value))}\n              step=\"0.01\"\n              type=\"range\"\n              value={similarityThreshold}\n            />\n            <output>{similarityThreshold.toFixed(2)}</output>\n          </span>\n        </label>\n        <div className=\"button-group camera-buttons\" aria-label=\"Camera controls\">\n          <button onClick={() => refit('all')} type=\"button\">Fit all</button>\n          <button disabled={!selectedNodeId || selectedNodeHidden} onClick={() => refit('selected')} type=\"button\">Fit selected</button>\n          <button onClick={() => setZoom((value) => Math.min(2.4, value + 0.18))} type=\"button\">Zoom in</button>\n          <button onClick={() => setZoom((value) => Math.max(0.55, value - 0.18))} type=\"button\">Zoom out</button>\n          <button onClick={() => setPanX((value) => value - 18)} type=\"button\">Left</button>\n          <button onClick={() => setPanX((value) => value + 18)} type=\"button\">Right</button>\n          <button onClick={() => setPanY((value) => value + 12)} type=\"button\">Up</button>\n          <button onClick={() => setPanY((value) => value - 12)} type=\"button\">Down</button>\n          <button\n            onClick={() => {\n              setZoom(1)\n              setPanX(0)\n              setPanY(0)\n              refit('all')\n            }}\n            type=\"button\"\n          >\n            Reset\n          </button>\n        </div>\n      </div>\n      {selectedNodeHidden && <p className=\"graph-note\">The selected node is hidden by the current node filter. Switch to all nodes or fit the full graph.</p>}\n      {selectedEdgeHidden && <p className=\"graph-note\">The selected edge is hidden by the current filters. Clear the edge selection or reset filters.</p>}\n      <div className=\"graph3d-area\">\n        <Graph3DView\n          graph={filteredGraph}\n          selectedNodeId={selectedNodeHidden ? null : selectedNodeId}\n          selectedEdgeKey={selectedEdgeHidden ? null : selectedEdge ? graphEdgeKey(selectedEdge) : null}\n          options={options}\n          onSelectNode={onSelectNode}\n          onSelectEdge={setSelectedEdge}\n        />\n      </div>"
+    },
+    {
+      "AllowMultiple": false,
+      "EndLine": 1342,
+      "ReplacementContent": "",
+      "StartLine": 1293,
+      "TargetContent": "      <div className=\"graph-key detailed\">\n        <section>\n          <h3>Node Key</h3>\n          <div className=\"key-list\">\n            {nodeReference.map((item) => (\n              <div className=\"key-row\" key={item.type}>\n                <span className={`legend-item ${item.type}`}>{item.label}</span>\n                <p>{item.detail}</p>\n              </div>\n            ))}\n          </div>\n        </section>\n        <section>\n          <h3>Connection Key</h3>\n          <div className=\"key-list\">\n            {edgeTypes.filter((type) => type !== 'all').map((type) => (\n              <div className=\"key-row\" key={type}>\n                <span className={`edge-key ${type}`}>{connectionReference[type]?.label ?? type}</span>\n                <p>{connectionReference[type]?.detail ?? 'Custom graph relationship returned by the local API.'}</p>\n              </div>\n            ))}\n          </div>\n        </section>\n        <section>\n          <h3>Camera And Filters</h3>\n          <dl className=\"graph-reference\">\n            <dt>Fit all</dt>\n            <dd>Frames every visible node after node and connection filters are applied.</dd>\n            <dt>Fit selected</dt>\n            <dd>Frames the clicked node and its local neighborhood when the node is visible.</dd>\n            <dt>Zoom</dt>\n            <dd>Changes camera distance without changing filters or selected node state.</dd>\n            <dt>Node filter</dt>\n            <dd>Limits rendered points by memory, entity, session, exchange, or Merkle root.</dd>\n            <dt>Status</dt>\n            <dd>Limits memory-backed nodes by lifecycle state such as active, contradicted, superseded, or forgotten.</dd>\n            <dt>Evidence</dt>\n            <dd>Limits memory-backed nodes by epistemic/evidence class without converting recall into truth.</dd>\n            <dt>Source</dt>\n            <dd>Limits memory-backed nodes by source kind, preserving sessions, exchanges, and roots only when they match other visible endpoints.</dd>\n            <dt>Connection</dt>\n            <dd>Shows one edge family at a time while retaining only links whose endpoints are visible.</dd>\n            <dt>Predicate</dt>\n            <dd>Limits labeled relation edges by predicate or exchange context label.</dd>\n            <dt>Threshold</dt>\n            <dd>Refetches similarity edges from the local API using the selected cosine threshold.</dd>\n            <dt>Traversal</dt>\n            <dd>Runs bounded entity neighbors or shortest-path lookups through the local API and reports truncation.</dd>\n          </dl>\n        </section>\n      </div>"
+    }
+  ],
+  "TargetFile": "/home/xibalba/Projects/xibalba-graph-memory/viewer/src/App.tsx",
+  "toolAction": "Updating App.tsx with graph improvements",
+  "toolSummary": "Update App.tsx"
+}
+=== STEP 83 ===
+{
+  "Description": "Restore unused filtering and camera state into the graph overlay toolbar so it functions correctly.",
+  "Instruction": "Update App.tsx `.graph-overlay-tools` to contain all the selects and buttons that use the previously unused state.",
+  "ReplacementChunks": [
+    {
+      "AllowMultiple": false,
+      "EndLine": 1062,
+      "ReplacementContent": "      <div className=\"graph3d-area\">\n        <div className=\"graph-overlay-tools\">\n          <select value={background} onChange={(event) => setBackground(event.target.value as GraphBackground)} title=\"Background\">\n            {backgroundOptions.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}\n          </select>\n          <select value={nodeType} onChange={(event) => setNodeType(event.target.value as DemoNodeType | 'all')} title=\"Node type\">\n            {nodeTypes.map((type) => <option key={type} value={type}>{type === 'all' ? 'All nodes' : type}</option>)}\n          </select>\n          <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} title=\"Lifecycle Status\">\n            {statusOptions.map((status) => <option key={status} value={status}>{status === 'all' ? 'All statuses' : status}</option>)}\n          </select>\n          <select value={evidenceFilter} onChange={(event) => setEvidenceFilter(event.target.value)} title=\"Evidence Class\">\n            {evidenceOptions.map((item) => <option key={item} value={item}>{item === 'all' ? 'All evidence' : item}</option>)}\n          </select>\n          <select value={sourceKindFilter} onChange={(event) => setSourceKindFilter(event.target.value)} title=\"Source Kind\">\n            {sourceKindOptions.map((item) => <option key={item} value={item}>{item === 'all' ? 'All sources' : item}</option>)}\n          </select>\n          <select value={edgeType} onChange={(event) => setEdgeType(event.target.value)} title=\"Connection Type\">\n            {edgeTypes.map((type) => <option key={type} value={type}>{type === 'all' ? 'All connections' : `${connectionReference[type]?.label ?? type} (${edgeCounts.get(type) ?? 0})`}</option>)}\n          </select>\n          <select value={predicateFilter} onChange={(event) => setPredicateFilter(event.target.value)} title=\"Relation Predicate\">\n            {predicateOptions.map((predicate) => <option key={predicate} value={predicate}>{predicate === 'all' ? 'All predicates' : predicate}</option>)}\n          </select>\n          <input\n            title={`Similarity Threshold: ${similarityThreshold.toFixed(2)}`}\n            max=\"0.99\"\n            min=\"0.2\"\n            onChange={(event) => onSimilarityThresholdChange(Number(event.target.value))}\n            step=\"0.01\"\n            type=\"range\"\n            value={similarityThreshold}\n            style={{ width: '80px', pointerEvents: 'auto', alignSelf: 'center' }}\n          />\n          <div className=\"button-group\">\n            <button onClick={() => setZoom((value) => Math.min(2.4, value + 0.18))} type=\"button\" title=\"Zoom In\">\u2795</button>\n            <button onClick={() => setZoom((value) => Math.max(0.55, value - 0.18))} type=\"button\" title=\"Zoom Out\">\u2796</button>\n            <button onClick={() => setPanX((value) => value - 18)} type=\"button\" title=\"Pan Left\">\u2b05</button>\n            <button onClick={() => setPanX((value) => value + 18)} type=\"button\" title=\"Pan Right\">\u27a1</button>\n            <button onClick={() => setPanY((value) => value + 12)} type=\"button\" title=\"Pan Up\">\u2b06</button>\n            <button onClick={() => setPanY((value) => value - 12)} type=\"button\" title=\"Pan Down\">\u2b07</button>\n            <button onClick={() => refit('all')} type=\"button\" title=\"Fit All\">\u26f6</button>\n            <button disabled={!selectedNodeId || selectedNodeHidden} onClick={() => refit('selected')} type=\"button\" title=\"Fit Selected\">\ud83c\udfaf</button>\n          </div>\n        </div>",
+      "StartLine": 1049,
+      "TargetContent": "      <div className=\"graph3d-area\">\n        <div className=\"graph-overlay-tools\">\n          <select value={background} onChange={(event) => setBackground(event.target.value as GraphBackground)} title=\"Background\">\n            {backgroundOptions.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}\n          </select>\n          <select value={nodeType} onChange={(event) => setNodeType(event.target.value as DemoNodeType | 'all')} title=\"Node type\">\n            {nodeTypes.map((type) => <option key={type} value={type}>{type === 'all' ? 'All nodes' : type}</option>)}\n          </select>\n          <div className=\"button-group\">\n            <button onClick={() => setZoom((value) => Math.min(2.4, value + 0.18))} type=\"button\" title=\"Zoom In\">\u2795</button>\n            <button onClick={() => setZoom((value) => Math.max(0.55, value - 0.18))} type=\"button\" title=\"Zoom Out\">\u2796</button>\n            <button onClick={() => refit('all')} type=\"button\" title=\"Fit All\">\u26f6</button>\n            <button disabled={!selectedNodeId || selectedNodeHidden} onClick={() => refit('selected')} type=\"button\" title=\"Fit Selected\">\ud83c\udfaf</button>\n          </div>\n        </div>"
+    }
+  ],
+  "TargetFile": "/home/xibalba/Projects/xibalba-graph-memory/viewer/src/App.tsx",
+  "toolAction": "Adding UI tools back",
+  "toolSummary": "Fix unused vars in App.tsx"
+}
+=== STEP 109 ===
+{
+  "Description": "Move the session selector to the Graph tab and remove it from the topbar and left navigation rail.",
+  "Instruction": "Perform 5 replacements in App.tsx to migrate the session selector into the GraphTab header.",
+  "ReplacementChunks": [
+    {
+      "AllowMultiple": false,
+      "EndLine": 630,
+      "ReplacementContent": "        <div className=\"health-strip\" title={storeStatus?.db_path ?? 'No store path loaded'}>\n          <Badge>{storeStatus?.integrity_check ?? 'unknown'}</Badge>\n          <Badge>{storeStatus ? `schema ${storeStatus.schema_version}` : 'schema unknown'}</Badge>\n          <Badge>{storeStatus?.journal_mode ?? 'journal unknown'}</Badge>\n          <Badge>{storeStatus?.backup_ready ? 'backup ready' : 'backup pending'}</Badge>\n          <Badge>{root?.valid ? 'root valid' : 'root unverified'}</Badge>\n        </div>\n      </header>",
+      "StartLine": 611,
+      "TargetContent": "        <div className=\"health-strip\" title={storeStatus?.db_path ?? 'No store path loaded'}>\n          <Badge>{storeStatus?.integrity_check ?? 'unknown'}</Badge>\n          <Badge>{storeStatus ? `schema ${storeStatus.schema_version}` : 'schema unknown'}</Badge>\n          <Badge>{storeStatus?.journal_mode ?? 'journal unknown'}</Badge>\n          <Badge>{storeStatus?.backup_ready ? 'backup ready' : 'backup pending'}</Badge>\n          <Badge>{root?.valid ? 'root valid' : 'root unverified'}</Badge>\n        </div>\n        <select\n          className=\"session-select\"\n          value={selectedSessionId}\n          onChange={(event) => setSelectedSessionId(event.target.value)}\n        >\n          <option value=\"\">No session</option>\n          {sessions.map((session) => (\n            <option key={session.id} value={session.external_session_id}>\n              {session.external_session_id}\n            </option>\n          ))}\n        </select>\n      </header>"
+    },
+    {
+      "AllowMultiple": false,
+      "EndLine": 679,
+      "ReplacementContent": "          ))}\n          <section className=\"rail-section\">",
+      "StartLine": 661,
+      "TargetContent": "          ))}\n          <section className=\"rail-section\">\n            <h3>Session</h3>\n            <div className=\"rail-list\">\n              {sessions.slice(0, 8).map((session) => (\n                <button\n                  className={session.external_session_id === selectedSessionId ? 'rail-filter active' : 'rail-filter'}\n                  key={session.id}\n                  onClick={() => setSelectedSessionId(session.external_session_id)}\n                  type=\"button\"\n                >\n                  {session.external_session_id}\n                </button>\n              ))}\n            </div>\n            <p>{selectedSession?.retention_tier ?? 'none'}</p>\n            <p className=\"small muted\">{selectedSession?.started_at ?? 'No active session selected.'}</p>\n          </section>\n          <section className=\"rail-section\">"
+    },
+    {
+      "AllowMultiple": false,
+      "EndLine": 752,
+      "ReplacementContent": "          {activeTab === 'graph' && (\n            <GraphTab\n              graph={demoGraph}\n              selectedNodeId={selectedGraphNode?.id ?? null}\n              similarityThreshold={similarityThreshold}\n              filterIntent={graphFilterIntent}\n              onSimilarityThresholdChange={setSimilarityThreshold}\n              onSelectNode={selectGraphNode}\n              onSelectMemory={selectMemory}\n              sessions={sessions}\n              selectedSessionId={selectedSessionId}\n              setSelectedSessionId={setSelectedSessionId}\n            />\n          )}",
+      "StartLine": 745,
+      "TargetContent": "          {activeTab === 'graph' && (\n            <GraphTab\n              graph={demoGraph}\n              selectedNodeId={selectedGraphNode?.id ?? null}\n              similarityThreshold={similarityThreshold}\n              filterIntent={graphFilterIntent}\n              onSimilarityThresholdChange={setSimilarityThreshold}\n              onSelectNode={selectGraphNode}\n              onSelectMemory={selectMemory}\n            />\n          )}"
+    },
+    {
+      "AllowMultiple": false,
+      "EndLine": 948,
+      "ReplacementContent": "  similarityThreshold,\n  filterIntent,\n  onSimilarityThresholdChange,\n  onSelectNode,\n  onSelectMemory,\n  sessions,\n  selectedSessionId,\n  setSelectedSessionId,\n}: {\n  graph: DemoGraph\n  selectedNodeId: string | null\n  similarityThreshold: number\n  filterIntent: GraphFilterIntent\n  onSimilarityThresholdChange: (threshold: number) => void\n  onSelectNode: (node: DemoNode) => void\n  onSelectMemory: (id: string) => void\n  sessions: Session[]\n  selectedSessionId: string\n  setSelectedSessionId: (id: string) => void\n}) {",
+      "StartLine": 935,
+      "TargetContent": "  similarityThreshold,\n  filterIntent,\n  onSimilarityThresholdChange,\n  onSelectNode,\n  onSelectMemory,\n}: {\n  graph: DemoGraph\n  selectedNodeId: string | null\n  similarityThreshold: number\n  filterIntent: GraphFilterIntent\n  onSimilarityThresholdChange: (threshold: number) => void\n  onSelectNode: (node: DemoNode) => void\n  onSelectMemory: (id: string) => void\n}) {"
+    },
+    {
+      "AllowMultiple": false,
+      "EndLine": 1049,
+      "ReplacementContent": "  return (\n    <section className=\"tab-panel full-bleed\">\n      <div className=\"panel-header\">\n        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>\n          <h2>3D Memory Graph</h2>\n          <select\n            className=\"session-select\"\n            value={selectedSessionId}\n            onChange={(event) => setSelectedSessionId(event.target.value)}\n          >\n            <option value=\"\">No session</option>\n            {sessions.map((session) => (\n              <option key={session.id} value={session.external_session_id}>\n                {session.external_session_id}\n              </option>\n            ))}\n          </select>\n        </div>\n        <p>",
+      "StartLine": 1045,
+      "TargetContent": "  return (\n    <section className=\"tab-panel full-bleed\">\n      <div className=\"panel-header\">\n        <h2>3D Memory Graph</h2>\n        <p>"
+    }
+  ],
+  "TargetFile": "/home/xibalba/Projects/xibalba-graph-memory/viewer/src/App.tsx",
+  "toolAction": "Moving session select to GraphTab",
+  "toolSummary": "Move session select"
+}
+=== STEP 118 ===
+{
+  "Description": "Remove unused selectedSession variable in App.tsx.",
+  "Instruction": "Remove selectedSession useMemo.",
+  "ReplacementChunks": [
+    {
+      "AllowMultiple": false,
+      "EndLine": 431,
+      "ReplacementContent": "",
+      "StartLine": 428,
+      "TargetContent": "  const selectedSession = useMemo(\n    () => sessions.find((s) => s.external_session_id === selectedSessionId) ?? null,\n    [sessions, selectedSessionId],\n  )"
+    }
+  ],
+  "TargetFile": "/home/xibalba/Projects/xibalba-graph-memory/viewer/src/App.tsx",
+  "toolAction": "Removing unused variable",
+  "toolSummary": "Remove selectedSession"
+}
+=== STEP 237 ===
+{
+  "Description": "Added session selector to Timeline view and removed global blank state blocker.",
+  "Instruction": "Update TimelineTab to accept `sessions` and `setSelectedSessionId`, render the dropdown in its header, and remove the `!selectedSessionId` block so that tabs render unconditionally.",
+  "ReplacementChunks": [
+    {
+      "AllowMultiple": false,
+      "EndLine": 711,
+      "ReplacementContent": "        <main className=\"workspace\">\n          {activeTab === 'timeline' && (\n            <TimelineTab\n              exchanges={exchanges}\n              contextBundle={contextBundle}\n              selectedSessionId={selectedSessionId}\n              onRecord={handleRecordExchange}\n              onSelectMemory={selectMemory}\n              sessions={sessions}\n              setSelectedSessionId={setSelectedSessionId}\n            />\n          )}",
+      "StartLine": 693,
+      "TargetContent": "        <main className=\"workspace\">\n          {!selectedSessionId ? (\n            <div className=\"dashboard-empty\">\n              <h2>Graph Memory Explorer</h2>\n              <p>\n                Welcome to the knowledge graph. Select a session from the left navigation panel to view its conversational timeline, graph relationships, and deep telemetry data.\n              </p>\n            </div>\n          ) : (\n            <>\n              {activeTab === 'timeline' && (\n                <TimelineTab\n                  exchanges={exchanges}\n                  contextBundle={contextBundle}\n                  selectedSessionId={selectedSessionId}\n                  onRecord={handleRecordExchange}\n                  onSelectMemory={selectMemory}\n                />\n              )}"
+    },
+    {
+      "AllowMultiple": false,
+      "EndLine": 756,
+      "ReplacementContent": "          {activeTab === 'integrity' && <IntegrityTab root={root} exchanges={exchanges} storeStatus={storeStatus} integrityLinks={integrityLinks} />}\n        </main>",
+      "StartLine": 753,
+      "TargetContent": "          {activeTab === 'integrity' && <IntegrityTab root={root} exchanges={exchanges} storeStatus={storeStatus} integrityLinks={integrityLinks} />}\n            </>\n          )}\n        </main>"
+    },
+    {
+      "AllowMultiple": false,
+      "EndLine": 789,
+      "ReplacementContent": "function TimelineTab({\n  exchanges,\n  contextBundle,\n  selectedSessionId,\n  onRecord,\n  onSelectMemory,\n  sessions,\n  setSelectedSessionId,\n}: {\n  exchanges: Exchange[]\n  contextBundle: Memory[]\n  selectedSessionId: string\n  onRecord: (event: FormEvent<HTMLFormElement>) => void\n  onSelectMemory: (id: string) => void\n  sessions: Session[]\n  setSelectedSessionId: (id: string) => void\n}) {",
+      "StartLine": 777,
+      "TargetContent": "function TimelineTab({\n  exchanges,\n  contextBundle,\n  selectedSessionId,\n  onRecord,\n  onSelectMemory,\n}: {\n  exchanges: Exchange[]\n  contextBundle: Memory[]\n  selectedSessionId: string\n  onRecord: (event: FormEvent<HTMLFormElement>) => void\n  onSelectMemory: (id: string) => void\n}) {"
+    },
+    {
+      "AllowMultiple": false,
+      "EndLine": 803,
+      "ReplacementContent": "  return (\n    <section className=\"tab-panel\">\n      <div className=\"panel-header\" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>\n        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>\n          <h2>Timeline</h2>\n          <select\n            className=\"session-select\"\n            value={selectedSessionId}\n            onChange={(event) => setSelectedSessionId(event.target.value)}\n          >\n            <option value=\"\">No session</option>\n            {sessions.map((session) => (\n              <option key={session.id} value={session.external_session_id}>\n                {session.external_session_id}\n              </option>\n            ))}\n          </select>\n        </div>\n        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>\n          <p>{exchanges.length} exchanges</p>\n          {exchanges.length === 0 && selectedSessionId && (\n            <button type=\"button\" onClick={() => {\n              fetch(`/api/session/${encodeURIComponent(selectedSessionId)}/exchanges/build`, { method: 'POST' })\n                .then(() => window.location.reload())\n            }}>Build Exchanges</button>\n          )}\n        </div>\n      </div>",
+      "StartLine": 790,
+      "TargetContent": "  return (\n    <section className=\"tab-panel\">\n      <div className=\"panel-header\" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>\n        <div>\n          <h2>Timeline</h2>\n          <p>{exchanges.length} exchanges</p>\n        </div>\n        {exchanges.length === 0 && selectedSessionId && (\n          <button type=\"button\" onClick={() => {\n            fetch(`/api/session/${encodeURIComponent(selectedSessionId)}/exchanges/build`, { method: 'POST' })\n              .then(() => window.location.reload())\n          }}>Build Exchanges</button>\n        )}\n      </div>"
+    }
+  ],
+  "TargetFile": "/home/xibalba/Projects/xibalba-graph-memory/viewer/src/App.tsx",
+  "toolAction": "Fixing Timeline session selector",
+  "toolSummary": "Fix TimelineTab"
+}
+=== STEP 285 ===
+{
+  "Description": "Add session selector to IntegrityTab header",
+  "Instruction": "Update IntegrityTab in App.tsx to receive `sessions` and `setSelectedSessionId`, and render the session selector dropdown in its header.",
+  "ReplacementChunks": [
+    {
+      "AllowMultiple": false,
+      "EndLine": 1652,
+      "ReplacementContent": "function IntegrityTab({\n  root,\n  exchanges,\n  storeStatus,\n  integrityLinks,\n  sessions,\n  selectedSessionId,\n  setSelectedSessionId,\n}: {\n  root: MerkleRoot | null\n  exchanges: Exchange[]\n  storeStatus: StoreStatus | null\n  integrityLinks: IntegrityLinksStatus | null\n  sessions: Session[]\n  selectedSessionId: string\n  setSelectedSessionId: (id: string) => void\n}) {\n  const linkStates = integrityLinks?.states ? Object.entries(integrityLinks.states) : []\n  return (\n    <section className=\"tab-panel\">\n      <div className=\"panel-header\" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>\n        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>\n          <h2>Integrity</h2>\n          <select\n            className=\"session-select\"\n            value={selectedSessionId}\n            onChange={(event) => setSelectedSessionId(event.target.value)}\n          >\n            <option value=\"\">No session</option>\n            {sessions.map((session) => (\n              <option key={session.id} value={session.external_session_id}>\n                {session.external_session_id}\n              </option>\n            ))}\n          </select>\n        </div>\n        <p>Local tamper evidence only. Not truth, authorization, completeness, or DAG anchoring.</p>\n      </div>",
+      "StartLine": 1635,
+      "TargetContent": "function IntegrityTab({\n  root,\n  exchanges,\n  storeStatus,\n  integrityLinks,\n}: {\n  root: MerkleRoot | null\n  exchanges: Exchange[]\n  storeStatus: StoreStatus | null\n  integrityLinks: IntegrityLinksStatus | null\n}) {\n  const linkStates = integrityLinks?.states ? Object.entries(integrityLinks.states) : []\n  return (\n    <section className=\"tab-panel\">\n      <div className=\"panel-header\">\n        <h2>Integrity</h2>\n        <p>Local tamper evidence only. Not truth, authorization, completeness, or DAG anchoring.</p>\n      </div>"
+    },
+    {
+      "AllowMultiple": false,
+      "EndLine": 754,
+      "ReplacementContent": "          {activeTab === 'integrity' && (\n            <IntegrityTab \n              root={root} \n              exchanges={exchanges} \n              storeStatus={storeStatus} \n              integrityLinks={integrityLinks} \n              sessions={sessions}\n              selectedSessionId={selectedSessionId}\n              setSelectedSessionId={setSelectedSessionId}\n            />\n          )}",
+      "StartLine": 752,
+      "TargetContent": "          {activeTab === 'integrity' && <IntegrityTab root={root} exchanges={exchanges} storeStatus={storeStatus} integrityLinks={integrityLinks} />}"
+    }
+  ],
+  "TargetFile": "/home/xibalba/Projects/xibalba-graph-memory/viewer/src/App.tsx",
+  "toolAction": "Updating IntegrityTab session selector",
+  "toolSummary": "Fix IntegrityTab"
+}
+=== STEP 354 ===
+{
+  "Description": "Add formatSessionLabel helper and update session selects.",
+  "Instruction": "Add formatSessionLabel function before App and use it to format all session options.",
+  "ReplacementChunks": [
+    {
+      "AllowMultiple": false,
+      "EndLine": 359,
+      "ReplacementContent": "function formatSessionLabel(session: Session) {\n  const d = new Date(session.started_at + 'Z')\n  const f = isNaN(d.getTime()) ? session.started_at : d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })\n  const s = session.external_session_id.substring(0, 8)\n  return `${f} (${s})`\n}\n\nexport default function App() {",
+      "StartLine": 359,
+      "TargetContent": "export default function App() {"
+    },
+    {
+      "AllowMultiple": false,
+      "EndLine": 808,
+      "ReplacementContent": "            {sessions.map((session) => (\n              <option key={session.id} value={session.external_session_id}>\n                {formatSessionLabel(session)}\n              </option>\n            ))}",
+      "StartLine": 806,
+      "TargetContent": "            {sessions.map((session) => (\n              <option key={session.id} value={session.external_session_id}>\n                {session.external_session_id}\n              </option>\n            ))}"
+    },
+    {
+      "AllowMultiple": false,
+      "EndLine": 1053,
+      "ReplacementContent": "            {sessions.map((session) => (\n              <option key={session.id} value={session.external_session_id}>\n                {formatSessionLabel(session)}\n              </option>\n            ))}",
+      "StartLine": 1051,
+      "TargetContent": "            {sessions.map((session) => (\n              <option key={session.id} value={session.external_session_id}>\n                {session.external_session_id}\n              </option>\n            ))}"
+    },
+    {
+      "AllowMultiple": false,
+      "EndLine": 1676,
+      "ReplacementContent": "            {sessions.map((session) => (\n              <option key={session.id} value={session.external_session_id}>\n                {formatSessionLabel(session)}\n              </option>\n            ))}",
+      "StartLine": 1674,
+      "TargetContent": "            {sessions.map((session) => (\n              <option key={session.id} value={session.external_session_id}>\n                {session.external_session_id}\n              </option>\n            ))}"
+    }
+  ],
+  "TargetFile": "/home/xibalba/Projects/xibalba-graph-memory/viewer/src/App.tsx",
+  "toolAction": "Formatting session labels",
+  "toolSummary": "Format session labels"
+}
+=== STEP 360 ===
+{
+  "Description": "Format session labels in dropdowns.",
+  "Instruction": "Use formatSessionLabel to format the session dropdown options in TimelineTab, GraphTab, and IntegrityTab.",
+  "ReplacementChunks": [
+    {
+      "AllowMultiple": false,
+      "EndLine": 816,
+      "ReplacementContent": "            {sessions.map((session) => (\n              <option key={session.id} value={session.external_session_id}>\n                {formatSessionLabel(session)}\n              </option>\n            ))}",
+      "StartLine": 813,
+      "TargetContent": "            {sessions.map((session) => (\n              <option key={session.id} value={session.external_session_id}>\n                {session.external_session_id}\n              </option>\n            ))}"
+    },
+    {
+      "AllowMultiple": false,
+      "EndLine": 1061,
+      "ReplacementContent": "            {sessions.map((session) => (\n              <option key={session.id} value={session.external_session_id}>\n                {formatSessionLabel(session)}\n              </option>\n            ))}",
+      "StartLine": 1058,
+      "TargetContent": "            {sessions.map((session) => (\n              <option key={session.id} value={session.external_session_id}>\n                {session.external_session_id}\n              </option>\n            ))}"
+    },
+    {
+      "AllowMultiple": false,
+      "EndLine": 1684,
+      "ReplacementContent": "            {sessions.map((session) => (\n              <option key={session.id} value={session.external_session_id}>\n                {formatSessionLabel(session)}\n              </option>\n            ))}",
+      "StartLine": 1681,
+      "TargetContent": "            {sessions.map((session) => (\n              <option key={session.id} value={session.external_session_id}>\n                {session.external_session_id}\n              </option>\n            ))}"
+    }
+  ],
+  "TargetFile": "/home/xibalba/Projects/xibalba-graph-memory/viewer/src/App.tsx",
+  "toolAction": "Formatting session options",
+  "toolSummary": "Format session options"
+}
+=== STEP 366 ===
+{
+  "AllowMultiple": true,
+  "Description": "Format session options",
+  "EndLine": 1700,
+  "Instruction": "Format session options with helper.",
+  "ReplacementContent": "            {sessions.map((session) => (\n              <option key={session.id} value={session.external_session_id}>\n                {formatSessionLabel(session)}\n              </option>\n            ))}",
+  "StartLine": 1,
+  "TargetContent": "            {sessions.map((session) => (\n              <option key={session.id} value={session.external_session_id}>\n                {session.external_session_id}\n              </option>\n            ))}",
+  "TargetFile": "/home/xibalba/Projects/xibalba-graph-memory/viewer/src/App.tsx",
+  "toolAction": "Formatting session options",
+  "toolSummary": "Format session options"
+}
+=== STEP 375 ===
+{
+  "Description": "Add Cmd+K global command palette support",
+  "Instruction": "Add useEffect for Cmd+K and update RecallTab input className.",
+  "ReplacementChunks": [
+    {
+      "AllowMultiple": false,
+      "EndLine": 434,
+      "ReplacementContent": "  useEffect(() => {\n    api.inferenceTasks(taskStatus).then(setTasks).catch(() => setTasks([]))\n  }, [taskStatus])\n\n  useEffect(() => {\n    const handleKeyDown = (e: KeyboardEvent) => {\n      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {\n        e.preventDefault()\n        setActiveTab('recall')\n        setTimeout(() => {\n          const input = document.querySelector('.recall-input') as HTMLInputElement\n          if (input) input.focus()\n        }, 10)\n      }\n    }\n    window.addEventListener('keydown', handleKeyDown)\n    return () => window.removeEventListener('keydown', handleKeyDown)\n  }, [])",
+      "StartLine": 431,
+      "TargetContent": "  useEffect(() => {\n    api.inferenceTasks(taskStatus).then(setTasks).catch(() => setTasks([]))\n  }, [taskStatus])"
+    },
+    {
+      "AllowMultiple": false,
+      "EndLine": 1440,
+      "ReplacementContent": "      <input\n        className=\"wide-input recall-input\"\n        value={query}",
+      "StartLine": 1438,
+      "TargetContent": "      <input\n        className=\"wide-input\"\n        value={query}"
+    }
+  ],
+  "TargetFile": "/home/xibalba/Projects/xibalba-graph-memory/viewer/src/App.tsx",
+  "toolAction": "Adding Cmd+K command palette",
+  "toolSummary": "Add Cmd+K support"
+}
+=== STEP 390 ===
+{
+  "AllowMultiple": false,
+  "Description": "Apply Empty State and Chat-Style Timeline",
+  "EndLine": 889,
+  "Instruction": "Update the Timeline view to use the empty state class when there are 0 exchanges, and redesign the exchanges list to use the chat-style CSS.",
+  "ReplacementContent": "      <div className=\"timeline\">\n        {exchanges.length === 0 ? (\n          <div className=\"empty-state\">\n            <h4>No Exchanges Found</h4>\n            <p>This session has no recorded conversational history. To populate this timeline, either run a connected agent harness or manually record an exchange.</p>\n            {selectedSessionId && (\n              <button type=\"button\" onClick={() => {\n                fetch(`/api/session/${encodeURIComponent(selectedSessionId)}/exchanges/build`, { method: 'POST' })\n                  .then(() => window.location.reload())\n              }}>Build Unstructured Exchanges</button>\n            )}\n          </div>\n        ) : (\n          exchanges.map((exchange) => (\n            <article className=\"exchange\" key={exchange.id}>\n              <div className=\"exchange-meta\" style={{ marginBottom: '16px', opacity: 0.7 }}>\n                <Badge>{`#${exchange.sequence_number}`}</Badge>\n                <span data-tooltip=\"Latency in milliseconds\">latency {exchange.latency_ms?.toFixed(0) ?? 'n/a'} ms</span>\n                <Hash value={exchange.node_id} />\n              </div>\n\n              <div className=\"exchange-prompt\">\n                <h5>User Prompt</h5>\n                {exchange.prompt_memories.map((memory) => (\n                  <div key={memory.id} style={{ cursor: 'pointer' }} onClick={() => onSelectMemory(memory.id)}>\n                    <p>{memory.content}</p>\n                  </div>\n                ))}\n              </div>\n\n              <div className=\"exchange-response\">\n                <h5>AI Response</h5>\n                {exchange.response_memories.map((memory) => (\n                  <div key={memory.id} style={{ cursor: 'pointer' }} onClick={() => onSelectMemory(memory.id)}>\n                    <p>{memory.content}</p>\n                  </div>\n                ))}\n              </div>\n\n              <Section title=\"Context Contributions\" empty={exchange.context_contributions.length === 0}>\n                <div className=\"exchange-context\">\n                  {exchange.context_contributions.map((item) => (\n                    <button className=\"list-button\" key={item.contribution_id} onClick={() => onSelectMemory(item.memory.id)}>\n                      {item.contribution_id} \u00b7 {item.context_kind} \u00b7 {item.relevance ?? 'n/a'} \u00b7{' '}\n                      {item.memory.content.slice(0, 90)}\n                    </button>\n                  ))}\n                </div>\n              </Section>\n              <Section title=\"Tool and OTel Events\" empty={exchange.tool_calls.length === 0}>\n                {exchange.tool_calls.map((tool) => (\n                  <p className=\"compact-row\" key={tool.id}>\n                    <Badge>{tool.kind}</Badge>\n                    {tool.name}\n                  </p>\n                ))}\n              </Section>\n            </article>\n          ))\n        )}\n      </div>",
+  "StartLine": 856,
+  "TargetContent": "      <div className=\"timeline\">\n        {exchanges.map((exchange) => (\n          <article className=\"exchange\" key={exchange.id}>\n            <div className=\"exchange-meta\">\n              <Badge>{`#${exchange.sequence_number}`}</Badge>\n              <span>prompt {exchange.prompt_id ?? 'none'}</span>\n              <span>latency {exchange.latency_ms?.toFixed(0) ?? 'n/a'} ms</span>\n              <Hash value={exchange.node_id} />\n            </div>\n            {exchange.prompt_memories.map((memory) => (\n              <MemorySnippet key={memory.id} memory={memory} onSelect={onSelectMemory} />\n            ))}\n            {exchange.response_memories.map((memory) => (\n              <MemorySnippet key={memory.id} memory={memory} onSelect={onSelectMemory} />\n            ))}\n            <Section title=\"Context Contributions\" empty={exchange.context_contributions.length === 0}>\n              {exchange.context_contributions.map((item) => (\n                <button className=\"list-button\" key={item.contribution_id} onClick={() => onSelectMemory(item.memory.id)}>\n                  {item.contribution_id} \u00b7 {item.context_kind} \u00b7 {item.relevance ?? 'n/a'} \u00b7{' '}\n                  {item.memory.content.slice(0, 90)}\n                </button>\n              ))}\n            </Section>\n            <Section title=\"Tool and OTel Events\" empty={exchange.tool_calls.length === 0}>\n              {exchange.tool_calls.map((tool) => (\n                <p className=\"compact-row\" key={tool.id}>\n                  <Badge>{tool.kind}</Badge>\n                  {tool.name}\n                </p>\n              ))}\n            </Section>\n          </article>\n        ))}\n      </div>",
+  "TargetFile": "/home/xibalba/Projects/xibalba-graph-memory/viewer/src/App.tsx",
+  "toolAction": "Redesigning Timeline UI",
+  "toolSummary": "Redesign Timeline UI"
+}
+=== STEP 402 ===
+{
+  "AllowMultiple": false,
+  "Description": "Apply empty state to IntegrityTab and tooltips",
+  "EndLine": 1833,
+  "Instruction": "Add empty state for exchanges list in IntegrityTab. Add tooltips for Merkle Root and FTS5.",
+  "ReplacementContent": "      <article className=\"item\">\n        <div className=\"item-head\">\n          <strong data-tooltip=\"Integrity head for the session graph; proves structure and byte lineage\">Session Merkle Root</strong>\n          <Badge>{root?.valid ? 'valid' : 'unverified'}</Badge>\n        </div>\n        <dl className=\"details\">\n          <dt>Root</dt>\n          <dd>\n            <Hash value={root?.root_node_id} />\n          </dd>\n          <dt>Exchange count</dt>\n          <dd>{root?.exchange_count ?? 0}</dd>\n          <dt>Kind</dt>\n          <dd>{root?.root_kind ?? 'none'}</dd>\n        </dl>\n      </article>\n      <article className=\"item\">\n        <div className=\"item-head\">\n          <strong>Integrity Links</strong>\n          <Badge>{integrityLinks ? `${integrityLinks.linked_records}/${integrityLinks.total_memories} linked` : 'unknown'}</Badge>\n        </div>\n        <div className=\"integrity-state-grid\">\n          {linkStates.map(([state, count]) => (\n            <div className=\"state-chip\" key={state}>\n              <span>{state}</span>\n              <strong>{count}</strong>\n            </div>\n          ))}\n        </div>\n        <p className=\"small muted\">\n          `unlinked` means no Integrity DAG record has been associated locally. `content_unavailable` means a link exists but bytes were not available for verification.\n        </p>\n        {integrityLinks && integrityLinks.sample.length > 0 && (\n          <div className=\"item-list compact\">\n            {integrityLinks.sample.map((link) => (\n              <article className=\"item dense-row\" key={link.memory_id}>\n                <div>\n                  <Badge>{link.verification_state}</Badge>\n                  <p className=\"small muted\">memory {link.memory_id}</p>\n                </div>\n                <dl className=\"details wide\">\n                  <dt>Node</dt>\n                  <dd>{link.node_id ?? 'none'}</dd>\n                  <dt>Hash</dt>\n                  <dd><Hash value={link.expected_content_hash} /></dd>\n                  <dt>Failure</dt>\n                  <dd>{link.failure_reason ?? 'none'}</dd>\n                  <dt>Verified</dt>\n                  <dd>{link.verified_at ?? 'never'}</dd>\n                </dl>\n              </article>\n            ))}\n          </div>\n        )}\n      </article>\n      \n      {exchanges.length === 0 ? (\n        <div className=\"empty-state\">\n          <h4>No Graph Nodes</h4>\n          <p>This session has no exchanges recorded in the cryptographic DAG.</p>\n        </div>\n      ) : (\n        <div className=\"item-list\">\n          {exchanges.map((exchange) => (\n            <article className=\"item\" key={exchange.id}>\n              <div className=\"item-head\">\n                <strong>Exchange #{exchange.sequence_number}</strong>\n                <Hash value={exchange.node_id} />\n              </div>\n              <p className=\"small muted\">parent {exchange.parent_node_id ?? 'none'}</p>\n            </article>\n          ))}\n        </div>\n      )}",
+  "StartLine": 1768,
+  "TargetContent": "      <article className=\"item\">\n        <div className=\"item-head\">\n          <strong>Session Merkle Root</strong>\n          <Badge>{root?.valid ? 'valid' : 'unverified'}</Badge>\n        </div>\n        <dl className=\"details\">\n          <dt>Root</dt>\n          <dd>\n            <Hash value={root?.root_node_id} />\n          </dd>\n          <dt>Exchange count</dt>\n          <dd>{root?.exchange_count ?? 0}</dd>\n          <dt>Kind</dt>\n          <dd>{root?.root_kind ?? 'none'}</dd>\n        </dl>\n      </article>\n      <article className=\"item\">\n        <div className=\"item-head\">\n          <strong>Integrity Links</strong>\n          <Badge>{integrityLinks ? `${integrityLinks.linked_records}/${integrityLinks.total_memories} linked` : 'unknown'}</Badge>\n        </div>\n        <div className=\"integrity-state-grid\">\n          {linkStates.map(([state, count]) => (\n            <div className=\"state-chip\" key={state}>\n              <span>{state}</span>\n              <strong>{count}</strong>\n            </div>\n          ))}\n        </div>\n        <p className=\"small muted\">\n          `unlinked` means no Integrity DAG record has been associated locally. `content_unavailable` means a link exists but bytes were not available for verification.\n        </p>\n        {integrityLinks && integrityLinks.sample.length > 0 && (\n          <div className=\"item-list compact\">\n            {integrityLinks.sample.map((link) => (\n              <article className=\"item dense-row\" key={link.memory_id}>\n                <div>\n                  <Badge>{link.verification_state}</Badge>\n                  <p className=\"small muted\">memory {link.memory_id}</p>\n                </div>\n                <dl className=\"details wide\">\n                  <dt>Node</dt>\n                  <dd>{link.node_id ?? 'none'}</dd>\n                  <dt>Hash</dt>\n                  <dd><Hash value={link.expected_content_hash} /></dd>\n                  <dt>Failure</dt>\n                  <dd>{link.failure_reason ?? 'none'}</dd>\n                  <dt>Verified</dt>\n                  <dd>{link.verified_at ?? 'never'}</dd>\n                </dl>\n              </article>\n            ))}\n          </div>\n        )}\n      </article>\n      <div className=\"item-list\">\n        {exchanges.map((exchange) => (\n          <article className=\"item\" key={exchange.id}>\n            <div className=\"item-head\">\n              <strong>Exchange #{exchange.sequence_number}</strong>\n              <Hash value={exchange.node_id} />\n            </div>\n            <p className=\"small muted\">parent {exchange.parent_node_id ?? 'none'}</p>\n          </article>\n        ))}\n      </div>",
+  "TargetFile": "/home/xibalba/Projects/xibalba-graph-memory/viewer/src/App.tsx",
+  "toolAction": "Adding Empty State to IntegrityTab",
+  "toolSummary": "IntegrityTab Empty State"
+}
+=== STEP 459 ===
+{
+  "Description": "Add 3D Grid Toggle to GraphTab",
+  "Instruction": "Add showGrid state and a toggle button to the graph controls.",
+  "ReplacementChunks": [
+    {
+      "AllowMultiple": false,
+      "EndLine": 1005,
+      "ReplacementContent": "  const [fitMode, setFitMode] = useState<'all' | 'selected'>('all')\n  const [fitNonce, setFitNonce] = useState(0)\n  const [showGrid, setShowGrid] = useState(true)\n  const [selectedEdge, setSelectedEdge] = useState<DemoEdge | null>(null)",
+      "StartLine": 1003,
+      "TargetContent": "  const [fitMode, setFitMode] = useState<'all' | 'selected'>('all')\n  const [fitNonce, setFitNonce] = useState(0)\n  const [selectedEdge, setSelectedEdge] = useState<DemoEdge | null>(null)"
+    },
+    {
+      "AllowMultiple": false,
+      "EndLine": 1059,
+      "ReplacementContent": "  const selectedEntityLabel = selectedNodeId ? graph.nodes.find((node) => node.id === selectedNodeId && node.type === 'entity')?.label : undefined\n  const options: GraphViewOptions = { background, zoom, panX, panY, fitMode, fitNonce, showGrid }\n  const refit = (mode: 'all' | 'selected') => {",
+      "StartLine": 1057,
+      "TargetContent": "  const selectedEntityLabel = selectedNodeId ? graph.nodes.find((node) => node.id === selectedNodeId && node.type === 'entity')?.label : undefined\n  const options: GraphViewOptions = { background, zoom, panX, panY, fitMode, fitNonce, showGrid: true }\n  const refit = (mode: 'all' | 'selected') => {"
+    },
+    {
+      "AllowMultiple": false,
+      "EndLine": 1148,
+      "ReplacementContent": "          <div className=\"button-group\">\n            <button onClick={() => setShowGrid((v) => !v)} type=\"button\" title=\"Toggle 3D Grid\">\ud83c\udf10</button>\n            <button onClick={() => setZoom((value) => Math.min(2.4, value + 0.18))} type=\"button\" title=\"Zoom In\">\u2795</button>\n            <button onClick={() => setZoom((value) => Math.max(0.55, value - 0.18))} type=\"button\" title=\"Zoom Out\">\u2796</button>",
+      "StartLine": 1146,
+      "TargetContent": "          <div className=\"button-group\">\n            <button onClick={() => setZoom((value) => Math.min(2.4, value + 0.18))} type=\"button\" title=\"Zoom In\">\u2795</button>\n            <button onClick={() => setZoom((value) => Math.max(0.55, value - 0.18))} type=\"button\" title=\"Zoom Out\">\u2796</button>"
+    }
+  ],
+  "TargetFile": "/home/xibalba/Projects/xibalba-graph-memory/viewer/src/App.tsx",
+  "toolAction": "Adding 3D Grid Toggle",
+  "toolSummary": "Add Grid Toggle"
+}
+=== STEP 939 ===
+{
+  "AllowMultiple": false,
+  "Description": "Expose setters to window for browser debugging",
+  "EndLine": 390,
+  "Instruction": "Expose setSelectedEdge, setSelectedMemoryId, setSelectedGraphNode, and demoGraph to window object for testing",
+  "ReplacementContent": "  const [isNavOpen, setIsNavOpen] = useState(false)\n\n  // Debug hooks\n  (window as any).setSelectedMemoryId = setSelectedMemoryId;\n  (window as any).setSelectedGraphNode = setSelectedGraphNode;\n  (window as any).demoGraph = demoGraph;\n\n  const refreshOverview = () => {",
+  "StartLine": 388,
+  "TargetContent": "  const [isNavOpen, setIsNavOpen] = useState(false)\n\n  const refreshOverview = () => {",
+  "TargetFile": "/home/xibalba/Projects/xibalba-graph-memory/viewer/src/App.tsx",
+  "toolAction": "Exposing debug hooks to window",
+  "toolSummary": "Expose debug hooks"
+}
+=== STEP 943 ===
+{
+  "AllowMultiple": false,
+  "Description": "Expose setSelectedEdge to window for browser debugging",
+  "EndLine": 1018,
+  "Instruction": "Expose setSelectedEdge to window object for testing",
+  "ReplacementContent": "  const [traversalError, setTraversalError] = useState<string | null>(null)\n\n  // Debug hook\n  (window as any).setSelectedEdge = setSelectedEdge;\n",
+  "StartLine": 1017,
+  "TargetContent": "  const [traversalError, setTraversalError] = useState<string | null>(null)",
+  "TargetFile": "/home/xibalba/Projects/xibalba-graph-memory/viewer/src/App.tsx",
+  "toolAction": "Exposing setSelectedEdge to window",
+  "toolSummary": "Expose setSelectedEdge"
+}
+=== STEP 978 ===
+{
+  "AllowMultiple": false,
+  "Description": "Add showGrid state and options update",
+  "EndLine": 938,
+  "Instruction": "Add showGrid state variable and update options definition to include it",
+  "ReplacementContent": "  const [traversalError, setTraversalError] = useState<string | null>(null)\n  const [showGrid, setShowGrid] = useState(true)\n\n  useEffect(() => {",
+  "StartLine": 937,
+  "TargetContent": "  const [traversalError, setTraversalError] = useState<string | null>(null)\n\n  useEffect(() => {",
+  "TargetFile": "/home/xibalba/Projects/xibalba-graph-memory/viewer/src/App.tsx",
+  "toolAction": "Adding showGrid state",
+  "toolSummary": "Add showGrid state"
+}
+=== STEP 982 ===
+{
+  "AllowMultiple": false,
+  "Description": "Pass showGrid state to GraphViewOptions",
+  "EndLine": 986,
+  "Instruction": "Update const options to include showGrid property",
+  "ReplacementContent": "  const options: GraphViewOptions = { background, zoom, panX, panY, fitMode, fitNonce, showGrid }",
+  "StartLine": 984,
+  "TargetContent": "  const options: GraphViewOptions = { background, zoom, panX, panY, fitMode, fitNonce }",
+  "TargetFile": "/home/xibalba/Projects/xibalba-graph-memory/viewer/src/App.tsx",
+  "toolAction": "Updating options object",
+  "toolSummary": "Update options object"
+}
+=== STEP 986 ===
+{
+  "AllowMultiple": false,
+  "Description": "Add Toggle grid button",
+  "EndLine": 1107,
+  "Instruction": "Insert Toggle grid button inside camera controls button group",
+  "ReplacementContent": "        <div className=\"button-group camera-buttons\" aria-label=\"Camera controls\">\n          <button onClick={() => setShowGrid((v) => !v)} type=\"button\">Toggle grid</button>\n          <button onClick={() => refit('all')} type=\"button\">Fit all</button>",
+  "StartLine": 1105,
+  "TargetContent": "        <div className=\"button-group camera-buttons\" aria-label=\"Camera controls\">\n          <button onClick={() => refit('all')} type=\"button\">Fit all</button>",
+  "TargetFile": "/home/xibalba/Projects/xibalba-graph-memory/viewer/src/App.tsx",
+  "toolAction": "Adding Toggle grid button to App.tsx",
+  "toolSummary": "Add toggle grid button"
+}
+=== STEP 1042 ===
+{
+  "AllowMultiple": false,
+  "Description": "Make selectMemory robust to prefixed and raw memory IDs",
+  "EndLine": 474,
+  "Instruction": "Update selectMemory to handle both prefixed and non-prefixed memory IDs gracefully",
+  "ReplacementContent": "  const selectMemory = (id: string) => {\n    const rawId = id.startsWith('memory:') ? id.slice('memory:'.length) : id\n    setSelectedMemoryId(rawId)\n    const node = demoGraph.nodes.find((item) => item.id === `memory:${rawId}`)\n    if (node) setSelectedGraphNode(node)\n  }",
+  "StartLine": 470,
+  "TargetContent": "  const selectMemory = (id: string) => {\n    setSelectedMemoryId(id)\n    const node = demoGraph.nodes.find((item) => item.id === memoryNodeId(id))\n    if (node) setSelectedGraphNode(node)\n  }",
+  "TargetFile": "/home/xibalba/Projects/xibalba-graph-memory/viewer/src/App.tsx",
+  "toolAction": "Updating selectMemory in App.tsx",
+  "toolSummary": "Update selectMemory"
+}
+=== STEP 1058 ===
+{
+  "AllowMultiple": false,
+  "Description": "Restore dynamic CSS classes on shell container",
+  "EndLine": 644,
+  "Instruction": "Change className of shell container to include dynamic states for nav rail and inspector panel",
+  "ReplacementContent": "      <div className={`shell ${isNavOpen ? 'nav-open' : 'nav-closed'} ${selectedMemoryId ? 'inspector-open' : 'inspector-closed'}`}>\n        <nav className=\"left-rail\">",
+  "StartLine": 641,
+  "TargetContent": "      <div className=\"shell\">\n        <nav className=\"left-rail\">",
+  "TargetFile": "/home/xibalba/Projects/xibalba-graph-memory/viewer/src/App.tsx",
+  "toolAction": "Updating shell className in App.tsx",
+  "toolSummary": "Update shell className"
+}
