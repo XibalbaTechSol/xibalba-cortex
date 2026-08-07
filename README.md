@@ -10,6 +10,35 @@ The local worktree contains uncommitted runtime adapters, controller/session syn
 
 Normative behavior is defined by [`spec/xibalba-graph-memory-v1.md`](spec/xibalba-graph-memory-v1.md), with this repository entry-point specification in [`SPECIFICATION.md`](SPECIFICATION.md). Historical plans are archived under [`docs/archive/2026-08-06`](docs/archive/2026-08-06); they do not override the normative specification or current audit ledger.
 
+## Ecosystem Role: 🧠 The Brain & Intelligence Layer
+
+This repository is the **cognitive store** in a four-project ecosystem designed as a living organism:
+
+| Repository | Analogy | Role |
+|---|---|---|
+| **`xibalba-graph-memory`** | **🧠 The Brain** | Local cognitive store — memories, context, reasoning provenance, session Merkle roots |
+| `xibalba-shield` | 🛡️ The Immune System | Endpoint enforcement, kernel sensing, policy gating, semantic guardrails |
+| `INTEGRITY-LATEST` | 🦴 The Unifying Backend | Protocol backbone — on-chain identity, BCC, Oracle scoring, smart contracts |
+| `integrity-mvp` | 👁️ The Human Control Center | Operator dashboard — visualizes health, surfaces evidence, enables human intervention |
+
+**How the Brain connects:**
+- **Inbound:** Agents (e.g., Hermes) read/write prompts, context, and memories via the 40+ MCP tool surface.
+- **Outbound (to Backbone):** Session Merkle roots are anchored to INTEGRITY-LATEST's BCC middleware via `XIBALBA_ANCHOR_URL`. Anchoring can be triggered manually via the `memory_anchor_session_root` MCP tool, or automatically on session close by setting `XIBALBA_AUTO_ANCHOR_ON_SESSION_END=1`. When enabled, the runtime controller calls `anchor_session_root` during `close_session()`, with graceful error handling — anchor failures never block session teardown.
+- **Outbound (to Control Center):** The local viewer and HTTP API surface memory, provenance, and integrity state that `integrity-mvp` renders in its Memory page.
+
+```mermaid
+flowchart LR
+    Agent["🤖 Agent"] <-->|"MCP tools<br/>(40+ operations)"| Brain["🧠 xibalba-graph-memory<br/>(This repo)"]
+    Brain -->|"Session Merkle roots<br/>(XIBALBA_ANCHOR_URL)"| Backbone["🦴 INTEGRITY-LATEST<br/>(BCC → StateAnchor)"]
+    Brain -.->|"Local API"| Eyes["👁️ integrity-mvp<br/>(Memory page)"]
+    Immune["🛡️ xibalba-shield"] -->|"Signed telemetry"| Backbone
+    Backbone -->|"AIS, identity, evidence"| Eyes
+    Eyes -->|"Operator interventions"| Agent
+```
+
+See [`INTEGRITY-LATEST/docs/architecture/ecosystem-dependencies.md`](https://github.com/XibalbaTechSol/integrity-latest/blob/main/docs/architecture/ecosystem-dependencies.md) for the canonical ownership boundaries.
+Current closure evidence is recorded in [`docs/audits/2026-08-07-gap-closure.md`](docs/audits/2026-08-07-gap-closure.md).
+
 ## Operations contract
 
 The current SQLite store contract is documented in [`docs/operations/store-contract.md`](docs/operations/store-contract.md). It covers schema versioning, migration markers, WAL/foreign-key/FTS5 health, append-only event chains, recall eligibility, vector metadata, bounded graph traversal, backup/restore behavior, and forgotten-record hash disclosure.

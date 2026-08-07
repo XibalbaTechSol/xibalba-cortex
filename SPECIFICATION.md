@@ -60,11 +60,25 @@ The viewer should expose recall, graph traversal, provenance, contradiction, for
 - Drive ingestion dependencies must be either a supported default, optional extra, or cleanly skipped test group.
 - MCP discovery should be verified through an isolated Hermes profile before operational use.
 
-## 8. Integrity Boundary
+## 8. Ecosystem Role: 🧠 The Brain & Intelligence Layer
+
+This repository is the cognitive store in a four-project ecosystem. It provides memories, context, provenance, and session Merkle roots to the agent and anchors session evidence into the protocol backbone.
+
+```mermaid
+flowchart LR
+    Agent["🤖 Agent"] <-->|"MCP tools"| Brain["🧠 This Repo"]
+    Brain -->|"Session Merkle roots"| Backbone["🦴 INTEGRITY-LATEST"]
+    Brain -.->|"Local API"| Eyes["👁️ integrity-mvp"]
+    Immune["🛡️ xibalba-shield"] -->|"Signed telemetry"| Backbone
+    Backbone -->|"AIS, evidence"| Eyes
+    Eyes -->|"Interventions"| Agent
+```
+
+## 9. Integrity Boundary
 
 This repository may cite future Integrity Memory DAG or protocol anchors. It must not implement a parallel chain anchor or claim that byte lineage proves truth, authorization, or completeness. Integrity links are evidence references, not protocol authority.
 
-## 9. Acceptance Criteria
+## 10. Acceptance Criteria
 
 - Store can be created, migrated, backed up, restored, and verified.
 - Tests pass under the documented install command.

@@ -64,6 +64,39 @@ def test_controller_facade_registers_binds_and_records_events(controller):
     assert attrs["token_usage"] is None
 
 
+def test_controller_auto_anchors_when_session_closes(controller, monkeypatch):
+    ctl, store = controller
+    ctl.auto_anchor_on_session_end = True
+    ctl.open_session("claude", session_id="anchor-session")
+    monkeypatch.setattr(
+        store,
+        "anchor_session_root",
+        lambda session_id: {"anchored": True, "session_id": session_id},
+    )
+
+    result = ctl.close_session("claude", session_id="anchor-session")
+
+    assert result["closed"] is True
+    assert result["anchor"] == {"anchored": True, "session_id": "anchor-session"}
+
+
+def test_controller_reports_anchor_failure_without_failing_session_close(controller, monkeypatch):
+    ctl, store = controller
+    ctl.auto_anchor_on_session_end = True
+    ctl.open_session("claude", session_id="anchor-failure")
+
+    def fail_anchor(session_id):
+        raise RuntimeError("anchor endpoint unavailable")
+
+    monkeypatch.setattr(store, "anchor_session_root", fail_anchor)
+    result = ctl.close_session("claude", session_id="anchor-failure")
+
+    assert result["closed"] is True
+    assert result["anchor"]["anchored"] is False
+    assert result["anchor"]["error"] == "anchor endpoint unavailable"
+    assert store.get_session("anchor-failure")["ended_at"] is not None
+
+
 def test_claude_adapter_routes_hooks_through_controller(controller):
     ctl, store = controller
     adapter = ClaudeAdapter(ctl)

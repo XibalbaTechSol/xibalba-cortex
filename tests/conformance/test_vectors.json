@@ -1,0 +1,15 @@
+{
+  "canonicalization": "xibalba.canonical-json.v1",
+  "event_schema": "xibalba.memory.event.v1",
+  "events": [
+    {
+      "sequence": 0,
+      "event_type": "intent",
+      "subject_id": "memory-1",
+      "payload": {"action": "remember"},
+      "previous_hash": null,
+      "evidence_class": "declared_intent"
+    }
+  ],
+  "merkle_leaves": ["sha256:0000000000000000000000000000000000000000000000000000000000000000", "sha256:0000000000000000000000000000000000000000000000000000000000000001"]
+}

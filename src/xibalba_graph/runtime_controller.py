@@ -7,6 +7,7 @@ handing anything to the canonical memory layer.
 """
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -31,8 +32,18 @@ class RuntimeRegistration:
 class XibalbaRuntimeController:
     """Thin controller façade around GraphStore."""
 
-    def __init__(self, store: GraphStore):
+    def __init__(
+        self,
+        store: GraphStore,
+        *,
+        auto_anchor_on_session_end: bool | None = None,
+    ):
         self.store = store
+        self.auto_anchor_on_session_end = (
+            _env_flag("XIBALBA_AUTO_ANCHOR_ON_SESSION_END")
+            if auto_anchor_on_session_end is None
+            else bool(auto_anchor_on_session_end)
+        )
         self._registrations: dict[str, RuntimeRegistration] = {}
         self._bindings: dict[str, dict[str, Any]] = {}
 
@@ -113,12 +124,23 @@ class XibalbaRuntimeController:
     ) -> dict[str, Any]:
         session = self.store.end_session(session_id, summary_content=summary)
         binding = self._bindings.get(session_id, {})
+        anchor: dict[str, Any] | None = None
+        if self.auto_anchor_on_session_end:
+            try:
+                anchor = self.store.anchor_session_root(session_id)
+            except Exception as exc:  # anchoring must not prevent lifecycle close
+                anchor = {
+                    "anchored": False,
+                    "session_id": session_id,
+                    "error": str(exc),
+                }
         return {
             "runtime": runtime,
             "session": session,
             "binding": binding,
             "closed": True,
             "provenance": dict(provenance or {}),
+            "anchor": anchor,
         }
 
     def ingest_event(self, event: RuntimeEvent) -> dict[str, Any]:
@@ -253,3 +275,7 @@ __all__ = [
     "CLAUDE_ADAPTER",
     "CODEX_ADAPTER",
 ]
+
+
+def _env_flag(name: str) -> bool:
+    return os.getenv(name, "").strip().lower() in {"1", "true", "yes", "on"}

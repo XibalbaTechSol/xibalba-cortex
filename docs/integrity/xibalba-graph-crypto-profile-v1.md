@@ -48,8 +48,9 @@ policy, decided now so it doesn't get improvised later:
 
 ## Deferred (not yet needed)
 
-Canonical JSON/CBOR envelope encoding, leaf ordering, sorted-pair behavior, odd-node duplication
-policy, and cross-language conformance vectors for the DAG's own Merkle structure are the
-Integrity Protocol repository's concern (`INTEGRITY-LATEST/docs/design/memory-dag.md`, itself
-unimplemented — see `docs/operations/resource-readiness.md`). This project consumes that
-convention when the DAG exists; it does not redefine it.
+The portable event kernel uses the versioned canonical JSON encoding above and a local SHA-256
+Merkle batch profile: leaves retain insertion position, each pair is sorted lexicographically
+before hashing, and an odd final node is promoted unchanged. Inclusion proofs omit a sibling at
+an unchanged promotion level. These rules are published in `tests/conformance/test_vectors.json`
+so an independent implementation can reproduce them. This local batch root is evidence of byte
+inclusion only; it is not a BCC commitment, Memory DAG node, or StateAnchor identifier.
