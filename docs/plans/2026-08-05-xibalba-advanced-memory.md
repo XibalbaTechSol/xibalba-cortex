@@ -68,7 +68,7 @@ The system is feature-complete for the first replacement review only when it pro
 
 The detailed research and source register are in:
 
-`/home/xibalba/Projects/xibalba-graph-memory/docs/research/2026-08-05-agent-memory-landscape.md`
+`/home/xibalba/Projects/xibalba-cortex/docs/research/2026-08-05-agent-memory-landscape.md`
 
 ## 4. Canonical data model
 
@@ -233,7 +233,7 @@ The future Hermes provider adapter should implement initialization, prefetch, as
 
 ### Phase 0: Architecture and resource gate
 
-**Files:** create `docs/integrity/xibalba-graph-crypto-profile-v1.md`, `docs/architecture/advanced-memory.md`, `docs/operations/resource-readiness.md`, and `tests/conformance/`.
+**Files:** create `docs/integrity/xibalba-cortex-crypto-profile-v1.md`, `docs/architecture/advanced-memory.md`, `docs/operations/resource-readiness.md`, and `tests/conformance/`.
 
 Tasks:
 
@@ -248,8 +248,8 @@ Exit gate: no schema or production hash implementation proceeds while tree conve
 
 ### Phase 1: Portable event kernel
 
-**Modify:** existing `src/xibalba_graph/store.py` only as needed.
-**Create:** `src/xibalba_graph/canonical.py`, `src/xibalba_graph/events.py`, `tests/test_events.py`, `tests/test_conformance.py`.
+**Modify:** existing `src/xibalba_cortex/store.py` only as needed.
+**Create:** `src/xibalba_cortex/canonical.py`, `src/xibalba_cortex/events.py`, `tests/test_events.py`, `tests/test_conformance.py`.
 
 Tasks:
 
@@ -266,7 +266,7 @@ Exit gate: all conformance vectors pass and all known earlier graph-memory red t
 
 ### Phase 2: PostgreSQL canonical store
 
-**Create:** `docker-compose.postgres.yml`, `migrations/`, `src/xibalba_graph/db/postgres.py`, `src/xibalba_graph/db/repositories.py`, `tests/integration/test_postgres_store.py`.
+**Create:** `docker-compose.postgres.yml`, `migrations/`, `src/xibalba_cortex/db/postgres.py`, `src/xibalba_cortex/db/repositories.py`, `tests/integration/test_postgres_store.py`.
 
 Tasks:
 
@@ -284,7 +284,7 @@ Exit gate: concurrent writers, rollback, crash recovery, cross-profile access at
 
 ### Phase 3: Embedding and lexical layer
 
-**Create:** `src/xibalba_graph/embeddings/`, `src/xibalba_graph/search/lexical.py`, `src/xibalba_graph/search/vector.py`, `tests/search/`.
+**Create:** `src/xibalba_cortex/embeddings/`, `src/xibalba_cortex/search/lexical.py`, `src/xibalba_cortex/search/vector.py`, `tests/search/`.
 
 Tasks:
 
@@ -302,7 +302,7 @@ Exit gate: vector model migration, index rebuild, deterministic query replay, an
 
 ### Phase 4: Entity graph and temporal memory
 
-**Create:** `src/xibalba_graph/graph/`, `src/xibalba_graph/temporal/`, `tests/graph/`, `tests/temporal/`.
+**Create:** `src/xibalba_cortex/graph/`, `src/xibalba_cortex/temporal/`, `tests/graph/`, `tests/temporal/`.
 
 Tasks:
 
@@ -319,7 +319,7 @@ Exit gate: delayed ingestion, backdated claims, overlapping validity, contradict
 
 ### Phase 5: Hybrid retrieval and context assembly
 
-**Create:** `src/xibalba_graph/retrieval/`, `tests/retrieval/`.
+**Create:** `src/xibalba_cortex/retrieval/`, `tests/retrieval/`.
 
 Tasks:
 
@@ -336,7 +336,7 @@ Exit gate: each answer claim can be traced to an evidence bundle, unsupported cl
 
 ### Phase 6: Profiles, reflection, and lifecycle
 
-**Create:** `src/xibalba_graph/profiles/`, `src/xibalba_graph/consolidation/`, `tests/profiles/`, `tests/lifecycle/`.
+**Create:** `src/xibalba_cortex/profiles/`, `src/xibalba_cortex/consolidation/`, `tests/profiles/`, `tests/lifecycle/`.
 
 Tasks:
 
@@ -354,7 +354,7 @@ Exit gate: corrections, forgetting, retention policy, profile regeneration, and 
 
 ### Phase 7: Interfaces and operations
 
-**Create:** `src/xibalba_graph/api/`, `src/xibalba_graph/mcp_server.py`, `src/xibalba_graph/cli.py`, `tests/protocol/`, `Dockerfile`, and `docker-compose.yml`.
+**Create:** `src/xibalba_cortex/api/`, `src/xibalba_cortex/mcp_server.py`, `src/xibalba_cortex/cli.py`, `tests/protocol/`, `Dockerfile`, and `docker-compose.yml`.
 
 Tasks:
 

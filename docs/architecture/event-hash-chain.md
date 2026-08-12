@@ -2,7 +2,7 @@
 
 Status: implemented, 2026-08-05. Extends `docs/architecture/advanced-memory.md` with the
 mechanism that lets this memory system inherit Integrity Protocol's security properties without
-depending on the Integrity DAG (`INTEGRITY-LATEST/docs/design/memory-dag.md`) actually existing.
+depending on the Integrity DAG (`integrity-core/docs/design/memory-dag.md`) actually existing.
 
 ## The idea
 
@@ -65,7 +65,7 @@ future change doesn't "fix" it into a bug.
 
 ## Migration path to the real Integrity DAG
 
-When `INTEGRITY-LATEST`'s Memory DAG ships, `integrity_links.node_id` starts referencing *its*
+When `integrity-core`'s Memory DAG ships, `integrity_links.node_id` starts referencing *its*
 node ids instead of (or alongside) this local chain's. No schema change to `memory_events` is
 needed — the local chain remains valid on its own terms; external anchoring becomes an additive
 verification state (`hash_match_local` → `ancestry_verified` → `anchored_to_configured_root`),

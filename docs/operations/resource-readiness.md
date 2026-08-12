@@ -12,7 +12,7 @@ why, including the still-open "one coherent system" question, is in
 | Point | `/home` free | RAM free | Swap used |
 |---|---|---|---|
 | Before reclamation | 2.1GB (99% full) | 248MiB | 6.8GB |
-| After `cargo clean` x2 (`INTEGRITY`, `INTEGRITY-LATEST` `integrity-oracle/target/`) | 26GB | — | — |
+| After `cargo clean` x2 (`INTEGRITY`, `integrity-core` `integrity-oracle/target/`) | 26GB | — | — |
 | After `docker system prune -a --volumes` (0 active containers; reclaimed 20.49GB, on a mount other than `/home`) | 26GB (unchanged on `/home`) | — | — |
 | After `uv`/`pip`/`npm`/playwright/puppeteer cache clean | 41GB (64% used) | 208MiB | 7.4GB |
 
@@ -39,7 +39,7 @@ states: `unlinked`, `hash_match_local`, `ancestry_verified`, `anchored_to_config
 
 The Integrity Protocol's own Memory DAG — the thing `hash_match_local` / `ancestry_verified` /
 `anchored_to_configured_root` would verify against — is **unimplemented**.
-`INTEGRITY-LATEST/docs/design/memory-dag.md` is explicitly marked "design — not implemented, not
+`integrity-core/docs/design/memory-dag.md` is explicitly marked "design — not implemented, not
 tested... blocked on the shell from step 2 onward," and its code stub
 (`integrity-sdk/integrity_sdk/memory_dag.py`) has no working node/ref store to query.
 
@@ -52,7 +52,7 @@ memory-evidence layer, and any MCP tool built on `integrity_links` must surface 
 (e.g., a `memory_verify` tool should return `unlinked`/`content_unavailable` truthfully and say
 why, not synthesize a plausible-looking but unearned verification result).
 
-This gap closes only when `INTEGRITY-LATEST/docs/design/memory-dag.md`'s own order-of-work
+This gap closes only when `integrity-core/docs/design/memory-dag.md`'s own order-of-work
 (node schema pinned → `node_id` + canonicalization → ref store → import → anchoring) ships in
 that repository. It is out of this project's scope to implement the DAG itself.
 

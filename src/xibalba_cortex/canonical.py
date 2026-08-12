@@ -10,7 +10,7 @@ CANONICAL_JSON_V1 = "xibalba.canonical-json.v1"
 
 
 def canonical_json_bytes(value: Any) -> bytes:
-    """Return the UTF-8 encoding shared with INTEGRITY-LATEST BCC JSON."""
+    """Return the UTF-8 encoding shared with integrity-core BCC JSON."""
     return json.dumps(
         value,
         sort_keys=True,

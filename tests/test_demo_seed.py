@@ -12,5 +12,5 @@ def test_seed_demo_creates_showcase_profile(tmp_path):
     assert len(store.session_exchanges("mvp-demo-session")) == 1
     assert len(store.list_inference_tasks()) == 1
     assert store.search("Temporary demo note") == []
-    assert store.neighbors("Xibalba Graph Memory")["edges"]
+    assert store.neighbors("Xibalba Cortex")["edges"]
     store.close()

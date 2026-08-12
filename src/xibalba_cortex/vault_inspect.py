@@ -2,7 +2,7 @@
 
 Independent of integrity-sdk (not a dependency of this project) -- parses the same
 leaves.jsonl/anchors.jsonl format documented in
-INTEGRITY-LATEST/integrity-sdk/integrity_sdk/vault.py, and recomputes each leaf's
+integrity-core/integrity-sdk/integrity_sdk/vault.py, and recomputes each leaf's
 domain-separated Keccak hash rather than trusting the stored leaf_hash field, so a
 tampered-with-but-consistent-looking JSON Lines file is still caught.
 

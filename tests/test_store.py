@@ -339,12 +339,12 @@ def test_graph_payload_includes_memory_entity_and_similarity_nodes(tmp_path):
 def test_graph_payload_includes_contradiction_edges(tmp_path):
     store = GraphStore(tmp_path / "graph")
     current = store.store_memory(
-        "Xibalba Graph Memory records complete model exchanges.",
+        "Xibalba Cortex records complete model exchanges.",
         source={"kind": "direct_user", "locator": "hermes://session/current"},
         status="confirmed",
     )
     conflict = store.store_memory(
-        "Xibalba Graph Memory is only a read-only graph viewer.",
+        "Xibalba Cortex is only a read-only graph viewer.",
         source={"kind": "imported_document", "locator": "hermes://session/conflict"},
         status="confirmed",
     )

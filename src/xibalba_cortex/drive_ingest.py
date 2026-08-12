@@ -3,7 +3,7 @@
 Reuses the credential Hermes Agent's own "Google Workspace" skill already maintains at
 ~/.hermes/google_token.json (drive.readonly + documents.readonly scopes already granted,
 confirmed live/refreshed, and already exercised against these exact documents once before --
-see INTEGRITY-LATEST/docs/drive/ORIGINAL_DOCUMENT_MANIFEST.json). No new OAuth app registration
+see integrity-core/docs/drive/ORIGINAL_DOCUMENT_MANIFEST.json). No new OAuth app registration
 here -- this only reads that existing token file, the same pattern
 xibalba-agents/*/framework/skills/productivity/google-workspace/scripts/google_api.py already
 uses (get_credentials/build_service), reimplemented minimally rather than importing that script

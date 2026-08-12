@@ -955,7 +955,7 @@ export default function App() {
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
           <button className="menu-button" onClick={() => setIsNavOpen((open) => !open)} type="button" style={{ background: 'none', border: 'none', color: 'inherit', fontSize: '1.4rem', cursor: 'pointer', padding: '4px 8px' }}>☰</button>
           <div>
-            <h1>xibalba-graph-memory</h1>
+            <h1>xibalba-cortex</h1>
             <p className="subhead">Local provenance graph memory for agent harnesses</p>
           </div>
         </div>

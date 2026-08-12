@@ -197,7 +197,7 @@ its first call declared, rather than silently changing mid-session.
 ### 4.9 OTel diagnostic mirror: `otel_events`
 
 A local, private mirror of the Integrity Oracle's "unsigned_vendor" OTel evidence tier
-(`otel_spans`/`otel_metrics`/`otel_logs`, `INTEGRITY-LATEST/integrity-oracle/backend/migrations/`
+(`otel_spans`/`otel_metrics`/`otel_logs`, `integrity-core/integrity-oracle/backend/migrations/`
 0004 and 0008) — same shape deliberately, so a caller already exporting OTel to the oracle can
 pipe the identical batch here too with no translation. `record_otel_batch(external_session_id,
 events)` ingests `{kind: "span"|"metric"|"log", name, ...}` rows against an existing session;
@@ -571,7 +571,7 @@ operation) but never signs on an agent's behalf.
 ### 6.3 Verification states this system can actually produce (today)
 
 `integrity_links.verification_state` enumerates six states. Two evidence stores exist in
-`INTEGRITY-LATEST` and neither is currently wired to `integrity_links` — this section states
+`integrity-core` and neither is currently wired to `integrity_links` — this section states
 precisely what each one is and isn't, after two successive corrections the same day this was
 first written (full account in `docs/operations/resource-readiness.md`).
 
@@ -582,7 +582,7 @@ structurally — a memory was never the kind of thing that store records. `memor
 (§10) reads it read-only for its own sake and cannot advance `integrity_links`.
 
 **The Memory DAG** (`integrity-sdk`'s `memory_dag.py`, design in
-`INTEGRITY-LATEST/docs/design/memory-dag.md`) *is* designed to cover arbitrary content
+`integrity-core/docs/design/memory-dag.md`) *is* designed to cover arbitrary content
 (`NODE_KINDS` includes `"memory"`) and is the actual target `integrity_links` should eventually
 cite. It was believed unimplemented; a Devil's Advocate review found and independently verified
 otherwise — the code is complete (all seven design steps) and its test suite passes 21/21 as of

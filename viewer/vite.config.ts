@@ -2,7 +2,7 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 
 // Explicit, non-default port -- avoids any ambiguity with the Dockerized integrity-dashboard
-// instances already mapped to 5173/5174 (see docker-compose.yml in INTEGRITY-LATEST).
+// instances already mapped to 5173/5174 (see docker-compose.yml in integrity-core).
 export default defineConfig({
   plugins: [react()],
   server: {

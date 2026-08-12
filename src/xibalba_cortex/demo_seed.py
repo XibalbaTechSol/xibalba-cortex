@@ -23,14 +23,14 @@ def seed_demo(store: GraphStore, *, session_id: str = "mvp-demo-session") -> dic
         idempotency_key="demo:preference",
     )
     product = store.store_memory(
-        "Xibalba Graph Memory is a local provenance-aware graph memory system for agent harnesses.",
+        "Xibalba Cortex is a local provenance-aware graph memory system for agent harnesses.",
         source={"kind": "explicit_memory", "locator": "xibalba://demo/product", "session_id": session_id},
         status="confirmed",
         evidence_class="extracted_proposition",
         idempotency_key="demo:product",
     )
     stale = store.store_memory(
-        "Xibalba Graph Memory is only a read-only graph viewer.",
+        "Xibalba Cortex is only a read-only graph viewer.",
         source={"kind": "imported_document", "locator": "xibalba://demo/stale", "session_id": session_id},
         status="active",
         evidence_class="extracted_proposition",
@@ -38,7 +38,7 @@ def seed_demo(store: GraphStore, *, session_id: str = "mvp-demo-session") -> dic
     )
     current = store.supersede_memory(
         stale["id"],
-        "Xibalba Graph Memory records model exchanges, context contributions, inference tasks, and graph memories.",
+        "Xibalba Cortex records model exchanges, context contributions, inference tasks, and graph memories.",
         source={"kind": "explicit_memory", "locator": "xibalba://demo/current", "session_id": session_id},
         status="confirmed",
         evidence_class="extracted_proposition",
@@ -64,9 +64,9 @@ def seed_demo(store: GraphStore, *, session_id: str = "mvp-demo-session") -> dic
     )
     store.forget_memory(forgotten["id"])
 
-    store.link_entities("Xibalba Graph Memory", "runs_alongside", "Agent Harness", evidence_memory_id=product["id"])
-    store.link_entities("Xibalba Graph Memory", "uses", "SQLite", evidence_memory_id=product["id"])
-    store.link_entities("Xibalba Graph Memory", "delegates_inference_to", "xibalba-memory-inference", evidence_memory_id=current["id"])
+    store.link_entities("Xibalba Cortex", "runs_alongside", "Agent Harness", evidence_memory_id=product["id"])
+    store.link_entities("Xibalba Cortex", "uses", "SQLite", evidence_memory_id=product["id"])
+    store.link_entities("Xibalba Cortex", "delegates_inference_to", "xibalba-memory-inference", evidence_memory_id=current["id"])
 
     store.store_embedding(preference["id"], _unit_vector(0))
     store.store_embedding(product["id"], _unit_vector(1))
@@ -122,7 +122,7 @@ def seed_demo(store: GraphStore, *, session_id: str = "mvp-demo-session") -> dic
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Seed a demo Xibalba Graph Memory profile.")
+    parser = argparse.ArgumentParser(description="Seed a demo Xibalba Cortex profile.")
     parser.add_argument("--home", required=True, help="xibalba-cortex profile home")
     parser.add_argument("--session-id", default="mvp-demo-session")
     args = parser.parse_args()

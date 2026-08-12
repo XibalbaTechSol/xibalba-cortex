@@ -1,4 +1,4 @@
-"""Ingest the Integrity Protocol wiki (INTEGRITY-LATEST/docs/wiki/) as graph memory.
+"""Ingest the Integrity Protocol wiki (integrity-core/docs/wiki/) as graph memory.
 
 Per docs/wiki/WIKI_SCHEMA.md (read before building this, not guessed): the wiki is the
 canonical, actively-maintained knowledge base for the Integrity Protocol monorepo -- one page
@@ -155,7 +155,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--home", required=True, help="xibalba-cortex profile home")
     parser.add_argument(
-        "--wiki-dir", required=True, help="path to INTEGRITY-LATEST/docs/wiki"
+        "--wiki-dir", required=True, help="path to integrity-core/docs/wiki"
     )
     args = parser.parse_args()
 
