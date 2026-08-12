@@ -2,7 +2,7 @@ import json
 
 from eth_hash.auto import keccak
 
-from xibalba_graph.vault_inspect import inspect_leaf
+from xibalba_cortex.vault_inspect import inspect_leaf
 
 
 def _write_leaf(vault_dir, *, task_id="task-1", commit_sha="abc123", test_result_hash="deadbeef", timestamp=1000):

@@ -2,12 +2,12 @@ import json
 import subprocess
 import sys
 
-from xibalba_graph.store import GraphStore
+from xibalba_cortex.store import GraphStore
 
 
 def _run_bridge(hook_name, kwargs, env):
     return subprocess.run(
-        [sys.executable, "-m", "xibalba_graph.hermes_bridge", hook_name],
+        [sys.executable, "-m", "xibalba_cortex.hermes_bridge", hook_name],
         input=json.dumps(kwargs), text=True, capture_output=True, env=env, timeout=30,
     )
 
@@ -15,7 +15,7 @@ def _run_bridge(hook_name, kwargs, env):
 def test_bridge_dispatches_post_llm_call_to_the_env_selected_store(tmp_path, monkeypatch):
     import os
     env = dict(os.environ)
-    env["XIBALBA_GRAPH_MEMORY_HOME"] = str(tmp_path / "graph")
+    env["XIBALBA_CORTEX_HOME"] = str(tmp_path / "graph")
 
     result = _run_bridge(
         "post_llm_call",
@@ -33,7 +33,7 @@ def test_bridge_dispatches_post_llm_call_to_the_env_selected_store(tmp_path, mon
 def test_bridge_rejects_unknown_hook_name(tmp_path):
     import os
     env = dict(os.environ)
-    env["XIBALBA_GRAPH_MEMORY_HOME"] = str(tmp_path / "graph")
+    env["XIBALBA_CORTEX_HOME"] = str(tmp_path / "graph")
 
     result = _run_bridge("not_a_real_hook", {"session_id": "s1"}, env)
     assert result.returncode == 1
@@ -43,10 +43,10 @@ def test_bridge_rejects_unknown_hook_name(tmp_path):
 def test_bridge_requires_exactly_one_argument(tmp_path):
     import os
     env = dict(os.environ)
-    env["XIBALBA_GRAPH_MEMORY_HOME"] = str(tmp_path / "graph")
+    env["XIBALBA_CORTEX_HOME"] = str(tmp_path / "graph")
 
     result = subprocess.run(
-        [sys.executable, "-m", "xibalba_graph.hermes_bridge"],
+        [sys.executable, "-m", "xibalba_cortex.hermes_bridge"],
         input="{}", text=True, capture_output=True, env=env, timeout=30,
     )
     assert result.returncode == 2

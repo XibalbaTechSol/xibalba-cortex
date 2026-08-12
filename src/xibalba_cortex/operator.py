@@ -90,7 +90,7 @@ def run_command(args: argparse.Namespace) -> dict[str, Any]:
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--home", default=os.environ.get("XIBALBA_GRAPH_MEMORY_HOME"))
+    parser.add_argument("--home", default=os.environ.get("XIBALBA_CORTEX_HOME"))
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     readiness_parser = subparsers.add_parser("readiness", help="Check local disk/memory startup readiness.")

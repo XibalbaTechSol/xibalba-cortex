@@ -1,7 +1,7 @@
 import json
 
-from xibalba_graph.store import GraphStore
-from xibalba_graph.transcript_ingest import ingest_transcript, run
+from xibalba_cortex.store import GraphStore
+from xibalba_cortex.transcript_ingest import ingest_transcript, run
 
 # Matches the REAL schema verified against actual Claude Code transcript files on disk
 # (see the commit message / session log for the structural inspection this was built from),

@@ -1,5 +1,5 @@
-from xibalba_graph.hermes_observer import HermesObserverAdapter
-from xibalba_graph.store import GraphStore
+from xibalba_cortex.hermes_observer import HermesObserverAdapter
+from xibalba_cortex.store import GraphStore
 
 
 def _adapter(tmp_path):

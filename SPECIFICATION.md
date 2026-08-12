@@ -1,13 +1,13 @@
-# Xibalba Graph Memory Repository Specification
+# Xibalba Cortex Repository Specification
 
 **Updated:** 2026-08-06
 **Status:** Local provenance-aware MCP memory prototype; not production-certified.
 
 ## 1. Purpose
 
-xibalba-graph-memory provides local, profile-isolated, provenance-aware graph memory for Xibalba runtimes. It stores sources, memories, events, entities, relations, contradictions, and integrity links without treating recalled text as instruction authority.
+xibalba-cortex provides local, profile-isolated, provenance-aware graph memory for Xibalba runtimes. It stores sources, memories, events, entities, relations, contradictions, and integrity links without treating recalled text as instruction authority.
 
-The detailed normative model is `spec/xibalba-graph-memory-v1.md`. This root specification is the repository entry-point contract for implementation, operations, and integration boundaries.
+The detailed normative model is `spec/xibalba-cortex-v1.md`. This root specification is the repository entry-point contract for implementation, operations, and integration boundaries.
 
 ## 2. Authority
 
@@ -16,9 +16,9 @@ The detailed normative model is `spec/xibalba-graph-memory-v1.md`. This root spe
 | README.md | Repository overview and current operational status. |
 | SPECIFICATION.md | Root implementation and integration specification. |
 | IMPLEMENTATION_PLAN.md | Closed/planned/blocked implementation ledger. |
-| spec/xibalba-graph-memory-v1.md | Normative memory-system specification. |
+| spec/xibalba-cortex-v1.md | Normative memory-system specification. |
 | docs/audits/2026-08-06-status.md | Current audit evidence and packaging findings. |
-| docs/archive/2026-08-06/2026-08-05-xibalba-graph-memory.md | Historical implementation sequence. |
+| docs/archive/2026-08-06/2026-08-05-xibalba-cortex.md | Historical implementation sequence. |
 | docs/archive/2026-08-06/2026-08-05-xibalba-runtime-adapter-checklist.md | Historical runtime adapter checklist. |
 
 ## 3. Core Requirements

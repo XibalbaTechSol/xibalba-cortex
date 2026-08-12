@@ -29,7 +29,7 @@ node = {
 node_id = sha256(canonical_json(node))
 ```
 
-`GraphStore._append_event()` (`src/xibalba_graph/store.py`) is the single insertion point —
+`GraphStore._append_event()` (`src/xibalba_cortex/store.py`) is the single insertion point —
 every `memory_events` write goes through it, so no call site can accidentally skip hash-chaining.
 `GraphStore.verify_chain(memory_id)` recomputes every node from scratch and checks
 `parent_event_id` resolves at each step — pure computation, no network, no external dependency.

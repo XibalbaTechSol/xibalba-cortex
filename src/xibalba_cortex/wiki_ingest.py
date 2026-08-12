@@ -153,7 +153,7 @@ def ingest_wiki(store: GraphStore, wiki_dir: str | Path) -> dict[str, object]:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--home", required=True, help="xibalba-graph-memory profile home")
+    parser.add_argument("--home", required=True, help="xibalba-cortex profile home")
     parser.add_argument(
         "--wiki-dir", required=True, help="path to INTEGRITY-LATEST/docs/wiki"
     )

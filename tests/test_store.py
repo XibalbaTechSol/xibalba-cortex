@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 import sqlite_vec
 
-from xibalba_graph.store import EMBEDDING_DIM, EMBEDDING_MODEL_ID, GraphStore
+from xibalba_cortex.store import EMBEDDING_DIM, EMBEDDING_MODEL_ID, GraphStore
 
 
 def _unit_vector(hot_index: int) -> list[float]:

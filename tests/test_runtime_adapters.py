@@ -4,12 +4,12 @@ import sys
 
 import pytest
 
-from xibalba_graph.agy_adapter import AgyWrapperShim
-from xibalba_graph.claude_adapter import ClaudeAdapter
-from xibalba_graph.codex_probe import CodexLauncher, CodexLauncherProbe
-from xibalba_graph.runtime_bridge_contract import CLAUDE_ADAPTER, AGY_ADAPTER, CODEX_ADAPTER, RuntimeEvent
-from xibalba_graph.runtime_controller import XibalbaRuntimeController
-from xibalba_graph.store import GraphStore
+from xibalba_cortex.agy_adapter import AgyWrapperShim
+from xibalba_cortex.claude_adapter import ClaudeAdapter
+from xibalba_cortex.codex_probe import CodexLauncher, CodexLauncherProbe
+from xibalba_cortex.runtime_bridge_contract import CLAUDE_ADAPTER, AGY_ADAPTER, CODEX_ADAPTER, RuntimeEvent
+from xibalba_cortex.runtime_controller import XibalbaRuntimeController
+from xibalba_cortex.store import GraphStore
 
 
 @pytest.fixture
@@ -196,12 +196,12 @@ def test_agy_wrapper_is_lifecycle_only_but_records_observations(controller):
 
 def test_codex_probe_reports_absence_and_discovery(monkeypatch):
     probe = CodexLauncherProbe()
-    monkeypatch.setattr("xibalba_graph.codex_probe.shutil.which", lambda candidate: None)
+    monkeypatch.setattr("xibalba_cortex.codex_probe.shutil.which", lambda candidate: None)
     absent = probe.discover()
     assert absent.surface_kind == "absent"
     assert absent.executable is None
 
-    monkeypatch.setattr("xibalba_graph.codex_probe.shutil.which", lambda candidate: "/usr/local/bin/codex")
+    monkeypatch.setattr("xibalba_cortex.codex_probe.shutil.which", lambda candidate: "/usr/local/bin/codex")
 
     class Completed:
         stdout = "codex 1.2.3"
@@ -221,7 +221,7 @@ def test_codex_probe_reports_absence_and_discovery(monkeypatch):
 
 def test_codex_launcher_reports_absent_executable_without_fabricating_session(controller, monkeypatch):
     ctl, store = controller
-    monkeypatch.setattr("xibalba_graph.codex_probe.shutil.which", lambda candidate: None)
+    monkeypatch.setattr("xibalba_cortex.codex_probe.shutil.which", lambda candidate: None)
 
     result = CodexLauncher(ctl).launch(session_id="codex-absent", args=["--help"])
 
@@ -233,7 +233,7 @@ def test_codex_launcher_reports_absent_executable_without_fabricating_session(co
 
 def test_codex_launcher_opens_session_injects_context_and_records_process_telemetry(controller, monkeypatch):
     ctl, store = controller
-    monkeypatch.setattr("xibalba_graph.codex_probe.shutil.which", lambda candidate: "/usr/local/bin/codex")
+    monkeypatch.setattr("xibalba_cortex.codex_probe.shutil.which", lambda candidate: "/usr/local/bin/codex")
 
     class VersionCompleted:
         stdout = "codex 1.2.3"

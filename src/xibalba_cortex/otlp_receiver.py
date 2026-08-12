@@ -41,7 +41,7 @@ from typing import Any
 
 from .store import GraphStore
 
-logger = logging.getLogger("xibalba_graph.otlp_receiver")
+logger = logging.getLogger("xibalba_cortex.otlp_receiver")
 
 UNATTRIBUTED_SESSION_ID = "otlp-unattributed"
 _REDACTED_SENTINEL = "<REDACTED>"
@@ -415,7 +415,7 @@ def main() -> None:
     import argparse
 
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--home", required=True, help="xibalba-graph-memory profile home")
+    parser.add_argument("--home", required=True, help="xibalba-cortex profile home")
     parser.add_argument("--host", default="localhost")
     parser.add_argument("--port", type=int, default=4318)
     args = parser.parse_args()

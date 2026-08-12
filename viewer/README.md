@@ -1,14 +1,14 @@
-# xibalba-graph-memory viewer
+# xibalba-cortex viewer
 
-Standalone graph visualization for `xibalba-graph-memory`. Not yet integrated into
+Standalone graph visualization for `xibalba-cortex`. Not yet integrated into
 `integrity-mvp` (that app has no routing/API-client scaffold yet) -- run this locally first,
 integrate once validated against real data.
 
 ## Run
 
-1. Start the read-only local API from the `xibalba-graph-memory` project root:
+1. Start the read-only local API from the `xibalba-cortex` project root:
    ```
-   .venv/bin/python -m xibalba_graph.local_api --home ~/.hermes/xibalba-graph-memory --allowed-origin http://localhost:5190
+   .venv/bin/python -m xibalba_cortex.local_api --home ~/.hermes/xibalba-cortex --allowed-origin http://localhost:5190
    ```
 2. In this directory:
    ```

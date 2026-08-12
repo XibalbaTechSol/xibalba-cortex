@@ -1,7 +1,7 @@
 import json
 
-from xibalba_graph.raw_body_ingest import UNATTRIBUTED_SESSION_ID, scan_once
-from xibalba_graph.store import GraphStore
+from xibalba_cortex.raw_body_ingest import UNATTRIBUTED_SESSION_ID, scan_once
+from xibalba_cortex.store import GraphStore
 
 
 def _write(path, body):

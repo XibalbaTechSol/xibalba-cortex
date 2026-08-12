@@ -1,6 +1,6 @@
-"""CLI bridge invoked by the Hermes plugin at ~/.hermes/plugins/xibalba_graph_memory/.
+"""CLI bridge invoked by the Hermes plugin at ~/.hermes/plugins/xibalba_cortex_memory/.
 
-The Hermes agent's own venv (~/.hermes/hermes-agent/venv) does not have xibalba_graph
+The Hermes agent's own venv (~/.hermes/hermes-agent/venv) does not have xibalba_cortex
 installed -- it's a separate project with its own dependencies (mcp, eth-hash, sqlite-vec) --
 so the plugin shells out to this project's own venv, the same cross-venv pattern already
 established by ~/.hermes/plugins/integrity_telemetry (which shells out to integrity-sdk's venv
@@ -9,7 +9,7 @@ promptly and never raise past its own boundary, matching the observer contract's
 guarantee at the Hermes side and integrity_telemetry's swallow-everything posture at the
 subprocess side.
 
-Usage: python -m xibalba_graph.hermes_bridge <hook_name>, with the hook's kwargs as a JSON
+Usage: python -m xibalba_cortex.hermes_bridge <hook_name>, with the hook's kwargs as a JSON
 object on stdin. stdin (not argv) because hook payloads carry full prompt/response text, which
 can exceed OS argv length limits and contain characters that need cross-venv shell escaping.
 """
@@ -18,9 +18,9 @@ from __future__ import annotations
 import json
 import sys
 
-from xibalba_graph.hermes_observer import HermesObserverAdapter
-from xibalba_graph.server import _default_home, _identity_mode
-from xibalba_graph.store import GraphStore
+from xibalba_cortex.hermes_observer import HermesObserverAdapter
+from xibalba_cortex.server import _default_home, _identity_mode
+from xibalba_cortex.store import GraphStore
 
 _store: GraphStore | None = None
 

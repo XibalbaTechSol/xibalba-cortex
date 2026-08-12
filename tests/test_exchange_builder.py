@@ -1,8 +1,8 @@
 import json
 
-from xibalba_graph.exchange_builder import build_session_exchanges
-from xibalba_graph.store import GraphStore
-from xibalba_graph.transcript_ingest import ingest_transcript
+from xibalba_cortex.exchange_builder import build_session_exchanges
+from xibalba_cortex.store import GraphStore
+from xibalba_cortex.transcript_ingest import ingest_transcript
 
 # Same schema verified against real transcript files, same records used to validate the
 # prompt_id propagation fix that makes tool-call linkage actually work.

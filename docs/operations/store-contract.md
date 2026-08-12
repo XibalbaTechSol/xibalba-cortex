@@ -1,6 +1,6 @@
-# Xibalba Graph Memory Store Contract
+# Xibalba Cortex Store Contract
 
-This document is the operator-facing companion to `src/xibalba_graph/store.py`. The normative model remains `spec/xibalba-graph-memory-v1.md`; this file records what the current implementation exposes and how it is verified.
+This document is the operator-facing companion to `src/xibalba_cortex/store.py`. The normative model remains `spec/xibalba-cortex-v1.md`; this file records what the current implementation exposes and how it is verified.
 
 ## SQLite Authority And Schema
 

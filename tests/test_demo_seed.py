@@ -1,5 +1,5 @@
-from xibalba_graph.demo_seed import seed_demo
-from xibalba_graph.store import GraphStore
+from xibalba_cortex.demo_seed import seed_demo
+from xibalba_cortex.store import GraphStore
 
 
 def test_seed_demo_creates_showcase_profile(tmp_path):

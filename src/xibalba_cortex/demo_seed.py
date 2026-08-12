@@ -123,7 +123,7 @@ def seed_demo(store: GraphStore, *, session_id: str = "mvp-demo-session") -> dic
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Seed a demo Xibalba Graph Memory profile.")
-    parser.add_argument("--home", required=True, help="xibalba-graph-memory profile home")
+    parser.add_argument("--home", required=True, help="xibalba-cortex profile home")
     parser.add_argument("--session-id", default="mvp-demo-session")
     args = parser.parse_args()
 

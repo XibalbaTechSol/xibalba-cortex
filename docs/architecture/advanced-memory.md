@@ -13,7 +13,7 @@ pattern is where DuckDB's columnar/OLAP design was flagged as a risk. PostgreSQL
 benchmarked; see §1.3.
 
 Method: 3000 single-row `INSERT` + `COMMIT` cycles against an equivalent five-column table,
-SQLite configured exactly as `src/xibalba_graph/store.py` configures it today (`WAL`,
+SQLite configured exactly as `src/xibalba_cortex/store.py` configures it today (`WAL`,
 `synchronous = FULL`, `foreign_keys = ON`), DuckDB with default durability. Measured with
 `resource.getrusage(RUSAGE_SELF).ru_maxrss`.
 
@@ -130,7 +130,7 @@ table that the DAG never reads from. Decision stands: one-way coupling as design
   is the faster, better-supported choice for a purely local, non-anchored content hash, and
   forcing Keccak into the hot path for every `store_memory` call to satisfy a boundary that
   doesn't exist yet (the DAG is unimplemented) is premature. Pinned in
-  `docs/integrity/xibalba-graph-crypto-profile-v1.md`. This is the hardest of the four to change
+  `docs/integrity/xibalba-cortex-crypto-profile-v1.md`. This is the hardest of the four to change
   once real data accumulates, so it is pinned first and treated as load-bearing.
 - **`derivation_family` vs. epistemic class**: steelmanned against "leave it as a placeholder
   until Phase 4 entity work needs it" — rejected, because every row written between now and

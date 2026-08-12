@@ -9,7 +9,7 @@ import os
 import sqlite3
 import threading
 
-from xibalba_graph.store import GraphStore
+from xibalba_cortex.store import GraphStore
 
 
 def _crash_mid_write(db_path: str, memory_id: str) -> None:

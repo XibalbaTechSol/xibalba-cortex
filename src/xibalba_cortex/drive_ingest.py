@@ -60,7 +60,7 @@ def _require_drive_extra() -> None:
     if Request is None or Credentials is None or PdfReader is None:
         raise RuntimeError(
             "Drive ingestion requires optional dependencies. Install with "
-            "`uv sync --extra drive` before running xibalba-graph-memory-drive-ingest."
+            "`uv sync --extra drive` before running xibalba-cortex-drive-ingest."
         )
 
 
@@ -190,7 +190,7 @@ def ingest_drive(
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--home", required=True, help="xibalba-graph-memory profile home")
+    parser.add_argument("--home", required=True, help="xibalba-cortex profile home")
     parser.add_argument("--query", default=_DEFAULT_QUERY, help="Drive fullText search query")
     parser.add_argument("--token-path", default=str(_DEFAULT_TOKEN_PATH))
     args = parser.parse_args()

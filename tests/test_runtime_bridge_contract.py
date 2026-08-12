@@ -1,4 +1,4 @@
-from xibalba_graph.runtime_bridge_contract import (
+from xibalba_cortex.runtime_bridge_contract import (
     AGY_ADAPTER,
     CLAUDE_ADAPTER,
     CODEX_ADAPTER,

@@ -1,4 +1,4 @@
-from xibalba_graph.events import (
+from xibalba_cortex.events import (
     Event,
     append_event,
     ingest_signed_bcc,

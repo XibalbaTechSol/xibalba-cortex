@@ -8,8 +8,8 @@ import urllib.request
 
 import pytest
 
-from xibalba_graph.local_api import serve
-from xibalba_graph.store import EMBEDDING_DIM, GraphStore
+from xibalba_cortex.local_api import serve
+from xibalba_cortex.store import EMBEDDING_DIM, GraphStore
 
 
 def _unit_vector(hot_index: int) -> list[float]:

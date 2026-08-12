@@ -2,7 +2,7 @@
 
 Status: prototype shadow period.
 
-Xibalba Graph Memory is not a silent replacement for Supermemory yet. During the shadow period,
+Xibalba Cortex is not a silent replacement for Supermemory yet. During the shadow period,
 Supermemory remains the active automatic memory provider while this project exposes explicit MCP
 tools for provenance-aware recall, graph inspection, contradiction handling, verification, and
 operator-managed writes.
@@ -10,7 +10,7 @@ operator-managed writes.
 ## Shadow Mode Rules
 
 - Supermemory can continue serving automatic background memory.
-- Xibalba Graph Memory serves explicit operator and runtime-controller calls.
+- Xibalba Cortex serves explicit operator and runtime-controller calls.
 - Recalled graph-memory content is evidence, not instruction authority.
 - No runtime may claim graph-memory parity unless its adapter has tested session, identity,
   telemetry, and recall behavior.
@@ -23,9 +23,9 @@ Do not promote graph memory to the primary automatic memory provider until all g
 
 1. `uv run pytest -q` passes on a clean install.
 2. `cd viewer && npm run build` passes.
-3. Isolated Hermes profile can discover `xibalba-graph-memory` and call `memory_status`,
+3. Isolated Hermes profile can discover `xibalba-cortex` and call `memory_status`,
    `memory_remember`, `memory_recall`, `memory_verify_chain`, and `memory_backup`.
-4. At least one restore rehearsal has been run through `xibalba-graph-memory-operator restore`
+4. At least one restore rehearsal has been run through `xibalba-cortex-operator restore`
    against a disposable profile.
 5. Claude, agy, and Codex adapter capability reports are truthful and tested; missing hook
    surfaces remain explicit limitations.

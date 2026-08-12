@@ -2,8 +2,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from xibalba_graph.drive_ingest import ingest_drive
-from xibalba_graph.store import GraphStore
+from xibalba_cortex.drive_ingest import ingest_drive
+from xibalba_cortex.store import GraphStore
 
 
 def _doc_response(text: str) -> dict:
@@ -38,8 +38,8 @@ def _mock_services(files: list[dict], doc_texts: dict[str, str]):
     return drive_service, docs_service
 
 
-@patch("xibalba_graph.drive_ingest._get_credentials", return_value=MagicMock())
-@patch("xibalba_graph.drive_ingest.build")
+@patch("xibalba_cortex.drive_ingest._get_credentials", return_value=MagicMock())
+@patch("xibalba_cortex.drive_ingest.build")
 def test_ingest_drive_stores_google_docs_and_skips_unsupported(mock_build, _mock_creds, store, tmp_path):
     files = [
         {"id": "doc1", "name": "Integrity Protocol Overview", "mimeType": "application/vnd.google-apps.document",
@@ -65,8 +65,8 @@ def test_ingest_drive_stores_google_docs_and_skips_unsupported(mock_build, _mock
     assert memory["source"]["locator"] == "drive://doc1"
 
 
-@patch("xibalba_graph.drive_ingest._get_credentials", return_value=MagicMock())
-@patch("xibalba_graph.drive_ingest.build")
+@patch("xibalba_cortex.drive_ingest._get_credentials", return_value=MagicMock())
+@patch("xibalba_cortex.drive_ingest.build")
 def test_ingest_drive_skips_unchanged_and_resyncs_changed(mock_build, _mock_creds, store, tmp_path):
     file_v1 = {"id": "doc1", "name": "Doc", "mimeType": "application/vnd.google-apps.document",
                "modifiedTime": "2026-08-01T00:00:00Z", "owners": []}
@@ -99,8 +99,8 @@ def test_ingest_drive_skips_unchanged_and_resyncs_changed(mock_build, _mock_cred
     assert doc1_memories[0]["content"] == "Version two content."
 
 
-@patch("xibalba_graph.drive_ingest._get_credentials", return_value=MagicMock())
-@patch("xibalba_graph.drive_ingest.build")
+@patch("xibalba_cortex.drive_ingest._get_credentials", return_value=MagicMock())
+@patch("xibalba_cortex.drive_ingest.build")
 def test_ingest_drive_extracts_plain_text_and_markdown(mock_build, _mock_creds, store, tmp_path):
     files = [
         {"id": "md1", "name": "Notes.md", "mimeType": "text/markdown",

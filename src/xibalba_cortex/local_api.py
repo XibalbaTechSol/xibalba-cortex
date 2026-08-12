@@ -50,7 +50,7 @@ from urllib.parse import parse_qs, unquote, urlparse
 
 from .store import MEMORY_INFERENCE_SUBAGENT_MANIFEST, GraphStore
 
-logger = logging.getLogger("xibalba_graph.local_api")
+logger = logging.getLogger("xibalba_cortex.local_api")
 _MAX_JSON_BODY_BYTES = 512 * 1024
 
 
@@ -328,7 +328,7 @@ def main() -> None:
     import argparse
 
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--home", required=True, help="xibalba-graph-memory profile home")
+    parser.add_argument("--home", required=True, help="xibalba-cortex profile home")
     parser.add_argument("--host", default="localhost")
     parser.add_argument("--port", type=int, default=8420)
     parser.add_argument("--allowed-origin", default="*", help="CORS origin for the browser viewer")

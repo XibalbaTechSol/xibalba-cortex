@@ -1,24 +1,24 @@
-# Xibalba Graph Memory Implementation Plan
+# Xibalba Cortex Implementation Plan
 
 **Updated:** 2026-08-06
-**Repository:** xibalba-graph-memory
+**Repository:** xibalba-cortex
 **Role:** Local, provenance-aware graph memory MCP server and runtime-controller substrate for Xibalba agent memory.
 
-This plan merges README.md, SPECIFICATION.md, docs/audits/2026-08-06-status.md, spec/xibalba-graph-memory-v1.md, archived docs/plans, docs/architecture, docs/integrity, session logs, viewer docs, and runtime adapter checklist into one implementation task ledger.
+This plan merges README.md, SPECIFICATION.md, docs/audits/2026-08-06-status.md, spec/xibalba-cortex-v1.md, archived docs/plans, docs/architecture, docs/integrity, session logs, viewer docs, and runtime adapter checklist into one implementation task ledger.
 
 ## Specification Authority
 
 | Source | Authority |
 |---|---|
-| spec/xibalba-graph-memory-v1.md | Normative memory-system specification. |
+| spec/xibalba-cortex-v1.md | Normative memory-system specification. |
 | SPECIFICATION.md | Root implementation and integration specification. |
 | README.md | Short repo description and deployment intent. |
 | docs/audits/2026-08-06-status.md | Current audit evidence, packaging finding, and production posture. |
-| docs/archive/2026-08-06/2026-08-05-xibalba-graph-memory.md | Historical original implementation sequence. |
+| docs/archive/2026-08-06/2026-08-05-xibalba-cortex.md | Historical original implementation sequence. |
 | docs/archive/2026-08-06/2026-08-05-xibalba-runtime-adapter-checklist.md | Historical runtime adapter checklist for Claude, agy, and Codex. |
 | docs/architecture/runtime-controller-contract.md | Controller/API contract when present. |
 | docs/architecture/event-hash-chain.md | Hash-chain event model. |
-| docs/integrity/xibalba-graph-crypto-profile-v1.md | Integrity coupling and crypto profile. |
+| docs/integrity/xibalba-cortex-crypto-profile-v1.md | Integrity coupling and crypto profile. |
 
 ## Audit checkpoint — 2026-08-06
 
@@ -41,7 +41,7 @@ Current observed status is [`docs/audits/2026-08-06-status.md`](docs/audits/2026
 
 ### MVP Memory Page Wiring
 
-Goal: make the viewer's memory page demonstrate the full Xibalba Graph Memory product, not only graph search. The page should prove the system can capture a complete model turn, show the prompt/response/context that produced it, expose the local Merkle root, delegate inference work to the user's agent harness, and inspect provenance/lifecycle state without implying recalled memory is instruction authority.
+Goal: make the viewer's memory page demonstrate the full Xibalba Cortex product, not only graph search. The page should prove the system can capture a complete model turn, show the prompt/response/context that produced it, expose the local Merkle root, delegate inference work to the user's agent harness, and inspect provenance/lifecycle state without implying recalled memory is instruction authority.
 
 #### Backend/API prerequisites
 
@@ -118,7 +118,7 @@ Goal: make the viewer's memory page demonstrate the full Xibalba Graph Memory pr
 
 ### Core Memory Store
 
-- [x] Confirm schema version and migrations are documented against src/xibalba_graph/store.py.
+- [x] Confirm schema version and migrations are documented against src/xibalba_cortex/store.py.
 - [x] Finish tests for bootstrap, WAL, foreign keys, FTS5, idempotency, and profile isolation.
 - [x] Confirm append-only event transitions for create, confirm, contradict, supersede, quarantine, forget, and restore.
 - [x] Document backup/restore and residual hash disclosure for forgotten records.

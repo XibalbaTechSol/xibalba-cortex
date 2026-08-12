@@ -1,8 +1,8 @@
 from argparse import Namespace
 import json
 
-from xibalba_graph.operator import readiness, run_command
-from xibalba_graph.store import GraphStore
+from xibalba_cortex.operator import readiness, run_command
+from xibalba_cortex.store import GraphStore
 
 
 def _args(command, home, **kwargs):

@@ -1,8 +1,8 @@
 import json
 from pathlib import Path
 
-from xibalba_graph.canonical import canonical_json_bytes
-from xibalba_graph.events import Event, merkle_root, verify_events
+from xibalba_cortex.canonical import canonical_json_bytes
+from xibalba_cortex.events import Event, merkle_root, verify_events
 
 
 def test_published_event_vector_is_reproducible():

@@ -41,7 +41,7 @@ stores, indexes, and searches it.
 
 ## What's pinned as a result
 
-- `EMBEDDING_MODEL_ID = "BAAI/bge-small-en-v1.5"`, `EMBEDDING_DIM = 384` (`src/xibalba_graph/store.py`).
+- `EMBEDDING_MODEL_ID = "BAAI/bge-small-en-v1.5"`, `EMBEDDING_DIM = 384` (`src/xibalba_cortex/store.py`).
   The dimension is baked into the `vec0` virtual table at creation time — sqlite-vec's own
   constraint, not a design choice — so changing models means a new table, not a config flag.
 - `store_embedding()` rejects any `model_id` other than the pinned one and any vector of the

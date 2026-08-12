@@ -20,7 +20,7 @@ from typing import Any
 from .store import GraphStore
 from .transcript_ingest import run as ingest_claude
 
-DEFAULT_HOME = Path(os.environ.get("XIBALBA_GRAPH_MEMORY_HOME", "~/.hermes/xibalba-graph-memory")).expanduser()
+DEFAULT_HOME = Path(os.environ.get("XIBALBA_CORTEX_HOME", "~/.hermes/xibalba-cortex")).expanduser()
 HERMES_AGENT_ROOT = Path(os.environ.get("HERMES_AGENT_ROOT", "~/.hermes/hermes-agent")).expanduser()
 
 _SECRET_PATTERNS = (

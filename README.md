@@ -1,4 +1,4 @@
-# Xibalba Graph Memory
+# Xibalba Cortex
 
 A local, provenance-aware graph memory Model Context Protocol server for Hermes Agent. It stores prompts, full model responses, explicit context contributions, graph edges, and local Merkle-style exchange roots while delegating LLM inference work to the user's agent harness.
 
@@ -8,7 +8,7 @@ The current status ledger is [`docs/audits/2026-08-06-status.md`](docs/audits/20
 
 The local worktree contains uncommitted runtime adapters, controller/session synchronization, tests, and a viewer. `uv run pytest -q` and `cd viewer && npm run build` pass after Drive ingestion was made optional at import time. This repository is a local prototype, not production-certified.
 
-Normative behavior is defined by [`spec/xibalba-graph-memory-v1.md`](spec/xibalba-graph-memory-v1.md), with this repository entry-point specification in [`SPECIFICATION.md`](SPECIFICATION.md). Historical plans are archived under [`docs/archive/2026-08-06`](docs/archive/2026-08-06); they do not override the normative specification or current audit ledger.
+Normative behavior is defined by [`spec/xibalba-cortex-v1.md`](spec/xibalba-cortex-v1.md), with this repository entry-point specification in [`SPECIFICATION.md`](SPECIFICATION.md). Historical plans are archived under [`docs/archive/2026-08-06`](docs/archive/2026-08-06); they do not override the normative specification or current audit ledger.
 
 ## Ecosystem Role: 🧠 The Brain & Intelligence Layer
 
@@ -16,7 +16,7 @@ This repository is the **cognitive store** in a four-project ecosystem designed 
 
 | Repository | Analogy | Role |
 |---|---|---|
-| **`xibalba-graph-memory`** | **🧠 The Brain** | Local cognitive store — memories, context, reasoning provenance, session Merkle roots |
+| **`xibalba-cortex`** | **🧠 The Brain** | Local cognitive store — memories, context, reasoning provenance, session Merkle roots |
 | `xibalba-shield` | 🛡️ The Immune System | Endpoint enforcement, kernel sensing, policy gating, semantic guardrails |
 | `INTEGRITY-LATEST` | 🦴 The Unifying Backend | Protocol backbone — on-chain identity, BCC, Oracle scoring, smart contracts |
 | `integrity-mvp` | 👁️ The Human Control Center | Operator dashboard — visualizes health, surfaces evidence, enables human intervention |
@@ -28,7 +28,7 @@ This repository is the **cognitive store** in a four-project ecosystem designed 
 
 ```mermaid
 flowchart LR
-    Agent["🤖 Agent"] <-->|"MCP tools<br/>(40+ operations)"| Brain["🧠 xibalba-graph-memory<br/>(This repo)"]
+    Agent["🤖 Agent"] <-->|"MCP tools<br/>(40+ operations)"| Brain["🧠 xibalba-cortex<br/>(This repo)"]
     Brain -->|"Session Merkle roots<br/>(XIBALBA_ANCHOR_URL)"| Backbone["🦴 INTEGRITY-LATEST<br/>(BCC → StateAnchor)"]
     Brain -.->|"Local API"| Eyes["👁️ integrity-mvp<br/>(Memory page)"]
     Immune["🛡️ xibalba-shield"] -->|"Signed telemetry"| Backbone
@@ -63,14 +63,14 @@ uv run pytest -q
 
 The reproducible full CI command for this prototype is `uv sync --extra drive && uv run pytest -q`. The viewer build is separate: `cd viewer && npm install && npm run build`.
 
-Local operator commands are available through `uv run xibalba-graph-memory-operator`. Supported commands include `readiness`, `status`, `backup`, `restore`, `verify-memory`, `verify-integrity-link`, `verify-session`, and `integrity-links`.
+Local operator commands are available through `uv run xibalba-cortex-operator`. Supported commands include `readiness`, `status`, `backup`, `restore`, `verify-memory`, `verify-integrity-link`, `verify-session`, and `integrity-links`.
 
 ## MCP operations
 
 Run the server with:
 
 ```bash
-uv run xibalba-graph-memory
+uv run xibalba-cortex
 ```
 
 The MCP surface exposes explicit tools for remembering, recalling, attaching artifacts, session records, graph linking, bounded neighbors/path traversal, contradiction marking, forgetting, event-chain verification, store status, backups, inference task queues, and runtime controller events. Recalled memories are context, not instruction authority; callers must preserve provenance and lifecycle state in any downstream prompt.
@@ -78,7 +78,7 @@ The MCP surface exposes explicit tools for remembering, recalling, attaching art
 Live Hermes profile smoke:
 
 ```bash
-hermes mcp test xibalba_graph_memory
+hermes mcp test xibalba_cortex_memory
 XIBALBA_RUN_HERMES_MCP_SMOKE=1 uv run pytest tests/test_hermes_mcp_smoke.py -q
 ```
 

@@ -45,13 +45,13 @@ needed for Hermes-sourced sessions to walk the same way Claude-Code-sourced ones
 
 Building the adapter here (testable, no dependency on Hermes) is deliberately separate from
 installing it as a Hermes plugin, which means writing into a different project's codebase.
-That wiring is done: the plugin lives at ~/.hermes/plugins/xibalba_graph_memory/ (a flat user
+That wiring is done: the plugin lives at ~/.hermes/plugins/xibalba_cortex_memory/ (a flat user
 plugin, not nested under hermes-agent's own plugins/observability/), registered via
 `plugins.enabled` in ~/.hermes/config.yaml. It does not import this adapter in-process --
-hermes-agent's venv doesn't have xibalba_graph installed -- it instead shells out per hook call
-to this project's own venv via `python -m xibalba_graph.hermes_bridge <hook_name>` (see
+hermes-agent's venv doesn't have xibalba_cortex installed -- it instead shells out per hook call
+to this project's own venv via `python -m xibalba_cortex.hermes_bridge <hook_name>` (see
 hermes_bridge.py), which constructs this same HermesObserverAdapter and dispatches to it. See
-~/.hermes/plugins/xibalba_graph_memory/__init__.py and plugin.yaml for the deployed shim.
+~/.hermes/plugins/xibalba_cortex_memory/__init__.py and plugin.yaml for the deployed shim.
 
 Hook callbacks are fail-open per Hermes's own contract (exceptions are caught and logged, the
 agent loop keeps running) -- this adapter does not need its own try/except for that reason, but

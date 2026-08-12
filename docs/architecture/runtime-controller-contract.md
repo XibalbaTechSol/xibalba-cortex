@@ -21,7 +21,7 @@ The key design rule is simple:
 
 The normalized controller event record is defined in:
 
-`src/xibalba_graph/runtime_bridge_contract.py`
+`src/xibalba_cortex/runtime_bridge_contract.py`
 
 Required record fields:
 
@@ -47,7 +47,7 @@ The event record must preserve missing values as explicit nulls. Missing context
 
 The controller boundary is also defined in:
 
-`src/xibalba_graph/runtime_bridge_contract.py`
+`src/xibalba_cortex/runtime_bridge_contract.py`
 
 Core methods:
 
@@ -136,12 +136,12 @@ Limitations:
 
 This repository now contains:
 
-1. `src/xibalba_graph/runtime_bridge_contract.py` for schema, controller interface, and runtime capability records.
-2. `src/xibalba_graph/runtime_controller.py` as the only adapter-facing façade over `GraphStore`.
-3. `src/xibalba_graph/claude_adapter.py` for session, pre-tool, post-LLM, post-tool, and API-error hook translation.
-4. `src/xibalba_graph/agy_adapter.py` for wrapper-only lifecycle and observation telemetry.
-5. `src/xibalba_graph/codex_probe.py` for live launcher discovery without hook-parity claims.
-6. MCP tools in `src/xibalba_graph/server.py` for controller status, session open/close, identity binding, event ingest, policy evaluation, Claude adapter hooks, agy wrapper events, and Codex probe.
+1. `src/xibalba_cortex/runtime_bridge_contract.py` for schema, controller interface, and runtime capability records.
+2. `src/xibalba_cortex/runtime_controller.py` as the only adapter-facing façade over `GraphStore`.
+3. `src/xibalba_cortex/claude_adapter.py` for session, pre-tool, post-LLM, post-tool, and API-error hook translation.
+4. `src/xibalba_cortex/agy_adapter.py` for wrapper-only lifecycle and observation telemetry.
+5. `src/xibalba_cortex/codex_probe.py` for live launcher discovery without hook-parity claims.
+6. MCP tools in `src/xibalba_cortex/server.py` for controller status, session open/close, identity binding, event ingest, policy evaluation, Claude adapter hooks, agy wrapper events, and Codex probe.
 
 Runtime contract tests:
 

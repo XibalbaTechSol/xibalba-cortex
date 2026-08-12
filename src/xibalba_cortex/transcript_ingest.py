@@ -302,7 +302,7 @@ def run(store: GraphStore, home: Path, transcript_path: Path) -> dict[str, objec
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--transcript", required=True, type=Path, help="Path to a Claude Code session transcript JSONL")
-    parser.add_argument("--home", required=True, type=Path, help="xibalba-graph-memory profile home")
+    parser.add_argument("--home", required=True, type=Path, help="xibalba-cortex profile home")
     args = parser.parse_args()
 
     store = GraphStore(args.home)

@@ -33,7 +33,7 @@ Reject unsafe startup rather than degrade silently:
 
 ## Honest gap: Integrity DAG verification is degraded by design, not by oversight
 
-`integrity_links.verification_state` (schema in `src/xibalba_graph/store.py`) enumerates six
+`integrity_links.verification_state` (schema in `src/xibalba_cortex/store.py`) enumerates six
 states: `unlinked`, `hash_match_local`, `ancestry_verified`, `anchored_to_configured_root`,
 `verification_failed`, `content_unavailable`.
 
@@ -67,7 +67,7 @@ timestamp)` — evidence about the protocol's own development process, not about
 content. `leaf_hash` is `keccak(preimage)` of that specific tuple, not `keccak(content)`, so
 there is no literal hash-matching path from a memory's `content_hash` to a vault `leaf_hash`
 today — not because the vault doesn't work, but because a memory was never the kind of thing it
-records. `xibalba_graph.vault_inspect` (added this session) reads this real vault read-only for
+records. `xibalba_cortex.vault_inspect` (added this session) reads this real vault read-only for
 its own sake — checking whether a given Keccak leaf hash is present/anchored — but does not and
 cannot advance `integrity_links` for memory verification. Only the (still unimplemented) Memory
 DAG could do that, because it was actually designed to cover arbitrary content, not just commits.

@@ -6,7 +6,7 @@ INTEGRITY-LATEST/integrity-sdk/integrity_sdk/vault.py, and recomputes each leaf'
 domain-separated Keccak hash rather than trusting the stored leaf_hash field, so a
 tampered-with-but-consistent-looking JSON Lines file is still caught.
 
-This does NOT verify memories. See spec/xibalba-graph-memory-v1.md section 6.3 and
+This does NOT verify memories. See spec/xibalba-cortex-v1.md section 6.3 and
 docs/operations/resource-readiness.md's 2026-08-05 correction: a memory's content_hash has no
 matching leaf_hash in this vault, because leaf_hash commits to (kind, task_id, commit_sha,
 test_result_hash, timestamp) -- development-process evidence, not arbitrary content. This module

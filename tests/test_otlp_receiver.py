@@ -4,7 +4,7 @@ import urllib.request
 
 import pytest
 
-from xibalba_graph.otlp_receiver import (
+from xibalba_cortex.otlp_receiver import (
     UNATTRIBUTED_SESSION_ID,
     ingest_gen_ai_spans,
     ingest_log_records,
@@ -12,7 +12,7 @@ from xibalba_graph.otlp_receiver import (
     parse_otlp_spans_json,
     serve,
 )
-from xibalba_graph.store import GraphStore
+from xibalba_cortex.store import GraphStore
 
 
 def _sval(v):
@@ -225,7 +225,7 @@ def test_ingest_dedupes_against_content_already_captured_by_raw_body_ingest(tmp_
     (synchronous file write), otlp_receiver (Path B) sees the same text later (batched OTLP
     export) with real attribution -- must not duplicate, must link instead.
     """
-    from xibalba_graph.raw_body_ingest import UNATTRIBUTED_SESSION_ID as RAW_UNATTRIBUTED
+    from xibalba_cortex.raw_body_ingest import UNATTRIBUTED_SESSION_ID as RAW_UNATTRIBUTED
 
     store = GraphStore(tmp_path / "graph")
     store.start_session(RAW_UNATTRIBUTED, retention_tier="verbatim")

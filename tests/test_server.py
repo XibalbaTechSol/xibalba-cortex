@@ -1,7 +1,7 @@
 import pytest
 
-from xibalba_graph import server
-from xibalba_graph.store import GraphStore
+from xibalba_cortex import server
+from xibalba_cortex.store import GraphStore
 
 
 @pytest.fixture
@@ -154,7 +154,7 @@ async def test_entity_graph_round_trip_through_mcp(store):
 
 @pytest.mark.asyncio
 async def test_embed_and_vector_fused_recall_through_mcp(store):
-    from xibalba_graph.store import EMBEDDING_DIM
+    from xibalba_cortex.store import EMBEDDING_DIM
 
     def unit_vector(hot_index):
         vector = [0.0] * EMBEDDING_DIM
@@ -186,7 +186,7 @@ async def test_embed_and_vector_fused_recall_through_mcp(store):
 
 @pytest.mark.asyncio
 async def test_memory_similar_through_mcp(store):
-    from xibalba_graph.store import EMBEDDING_DIM
+    from xibalba_cortex.store import EMBEDDING_DIM
 
     def unit_vector(hot_index):
         vector = [0.0] * EMBEDDING_DIM
@@ -321,9 +321,9 @@ async def test_status_tool_surfaces_identity_mode(store):
 
 
 def test_identity_mode_env_var_is_read_by_default_config(monkeypatch):
-    monkeypatch.setenv("XIBALBA_GRAPH_MEMORY_IDENTITY_MODE", "full")
+    monkeypatch.setenv("XIBALBA_CORTEX_IDENTITY_MODE", "full")
     assert server._identity_mode() == "full"
-    monkeypatch.delenv("XIBALBA_GRAPH_MEMORY_IDENTITY_MODE")
+    monkeypatch.delenv("XIBALBA_CORTEX_IDENTITY_MODE")
     assert server._identity_mode() == "pseudonymous"
 
 
@@ -560,7 +560,7 @@ async def test_runtime_adapter_tools_through_mcp(store, monkeypatch):
     )
     assert _dict_result(agy_end)["closed"] is True
 
-    monkeypatch.setattr("xibalba_graph.codex_probe.shutil.which", lambda candidate: None)
+    monkeypatch.setattr("xibalba_cortex.codex_probe.shutil.which", lambda candidate: None)
     codex = await server.server.call_tool("runtime_codex_probe", {})
     assert _dict_result(codex)["surface_kind"] == "absent"
 

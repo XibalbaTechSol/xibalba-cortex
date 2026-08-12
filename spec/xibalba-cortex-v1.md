@@ -1,11 +1,11 @@
-# Xibalba Graph Memory — Specification v1
+# Xibalba Cortex — Specification v1
 
 Status: normative, 2026-08-05. This is the authoritative reference for this project — where
 this document and any other doc under `docs/` disagree, this document wins, and the other
 document should be corrected. Supersedes scattered decisions across
-`docs/archive/2026-08-06/2026-08-05-xibalba-graph-memory.md`, `docs/plans/2026-08-05-xibalba-advanced-memory.md`,
+`docs/archive/2026-08-06/2026-08-05-xibalba-cortex.md`, `docs/plans/2026-08-05-xibalba-advanced-memory.md`,
 `docs/architecture/advanced-memory.md`, `docs/architecture/event-hash-chain.md`, and
-`docs/integrity/xibalba-graph-crypto-profile-v1.md`, which remain as historical design records.
+`docs/integrity/xibalba-cortex-crypto-profile-v1.md`, which remain as historical design records.
 For the narrative of how the Integrity Protocol coupling decisions in section 6 were reached —
 including two corrected mistakes worth reading before extending that section — see
 `docs/session-log/2026-08-05-integrity-coupling-session.md`.
@@ -75,7 +75,7 @@ separate graph database in v1.
 ### 3.3 Deployment model
 
 One profile-local SQLite file per Hermes profile, behind one MCP stdio server process
-(`src/xibalba_graph/server.py`). No network listener, no concurrent-writer scenario to defend
+(`src/xibalba_cortex/server.py`). No network listener, no concurrent-writer scenario to defend
 against beyond what SQLite WAL already provides (concurrent readers, one writer), because MCP
 stdio serializes calls at the protocol layer before they reach the database. Storage path is
 always explicit and derived from the configured Hermes home (`hermes_home` kwarg convention used
@@ -83,7 +83,7 @@ by Hermes memory-provider plugins) — never a hardcoded `~/.hermes` path.
 
 ## 4. Data model
 
-Schema lives in `src/xibalba_graph/store.py::_SCHEMA`. This section is the narrative reference;
+Schema lives in `src/xibalba_cortex/store.py::_SCHEMA`. This section is the narrative reference;
 the code is authoritative for exact column types and constraints.
 
 ### 4.1 Provenance: `sources`, `memories`
@@ -117,8 +117,8 @@ spec (§6.2) — it only needs to make pseudonyms unguessable, not authenticate 
 The mode in effect is recorded per-row (`sources.identity_mode`) at write time, the same
 audit pattern already used for `embedding_models`/`derivation_family` — so it's always
 inspectable later which policy was active when a given memory was written, even after a
-profile's configured default changes. Set via `XIBALBA_GRAPH_MEMORY_IDENTITY_MODE` in
-`mcp_servers.xibalba_graph_memory.env`; surfaced at runtime via `memory_status`.
+profile's configured default changes. Set via `XIBALBA_CORTEX_IDENTITY_MODE` in
+`mcp_servers.xibalba_cortex_memory.env`; surfaced at runtime via `memory_status`.
 
 ### 4.2 Epistemic class (`derivation_family`)
 
@@ -189,8 +189,8 @@ same "extraction is agent-side" principle applied everywhere else in this system
 | `synopsis` | A single running-summary memory, updated via `supersede_memory` as the session progresses | Low volume at any instant; full history still walkable via `memory_events`, only the current head is recalled by default |
 | `digest` (default) | Only `declared_intent`, key `observed_event` outcomes, and attachments (documents produced); closed with a summary via `end_session` | Lowest volume — the footprint this spec's own default user wants |
 
-Default tier is set per-profile via `XIBALBA_GRAPH_MEMORY_RETENTION_TIER`
-(`mcp_servers.xibalba_graph_memory.env` in `~/.hermes/config.yaml`), overridable per session at
+Default tier is set per-profile via `XIBALBA_CORTEX_RETENTION_TIER`
+(`mcp_servers.xibalba_cortex_memory.env` in `~/.hermes/config.yaml`), overridable per session at
 `memory_session_start`. `start_session` is idempotent — a reconnecting session keeps the tier
 its first call declared, rather than silently changing mid-session.
 
@@ -249,7 +249,7 @@ accepts these event names directly, no translation needed —
 `claude_code.user_prompt`/`claude_code.assistant_response` are the literal answer to "does this
 system capture LLM text content as OTel telemetry" — they exist upstream, redacted by default
 for privacy, and this store has no opinion on whether to enable the redaction-lifting env vars;
-that's an operator/deployment decision, not something `xibalba-graph-memory` should default on
+that's an operator/deployment decision, not something `xibalba-cortex` should default on
 behalf of. Standard attributes present on every Claude Code event/metric —
 `session.id`, `organization.id`, `user.account_uuid`, `user.id` (anonymous fallback),
 `user.email` — are real identity data available for `source.agent_id` today, distinct from and
@@ -257,8 +257,8 @@ in addition to a `did:integrity:...` value.
 
 ### 4.10 Raw body ingestion (`raw_body_ingest`) — Path A of raw LLM text capture
 
-`src/xibalba_graph/raw_body_ingest.py` (console script
-`xibalba-graph-memory-raw-ingest`) ingests the untruncated Anthropic Messages API
+`src/xibalba_cortex/raw_body_ingest.py` (console script
+`xibalba-cortex-raw-ingest`) ingests the untruncated Anthropic Messages API
 request/response bodies Claude Code writes to disk when configured with
 `CLAUDE_CODE_ENABLE_TELEMETRY=1 OTEL_LOG_RAW_API_BODIES=file:<dir>` — the direct answer to
 "capture raw LLM input and output text," verified against Claude Code's own documentation,
@@ -288,7 +288,7 @@ correlate these memories rather than requiring re-ingestion.
 
 ### 4.11 OTLP receiver (`otlp_receiver`) — Path B, two endpoints, two conventions
 
-`src/xibalba_graph/otlp_receiver.py` (console script `xibalba-graph-memory-otlp-receiver`) is
+`src/xibalba_cortex/otlp_receiver.py` (console script `xibalba-cortex-otlp-receiver`) is
 a minimal stdlib-only (`http.server`, no `opentelemetry-proto`/grpc dependency) HTTP receiver
 serving two fixed OTLP paths on one port, each a genuinely different signal and convention:
 
@@ -374,8 +374,8 @@ OTLP export batch, which is not a documented ordering guarantee.
 
 ### 4.13 Transcript ingestion (`transcript_ingest`) — Path C, the richest single source
 
-`src/xibalba_graph/transcript_ingest.py` (console script
-`xibalba-graph-memory-transcript-ingest`) ingests Claude Code's own session transcript JSONL
+`src/xibalba_cortex/transcript_ingest.py` (console script
+`xibalba-cortex-transcript-ingest`) ingests Claude Code's own session transcript JSONL
 (`~/.claude/projects/<project>/<session-uuid>.jsonl`) — schema verified by direct structural
 inspection of real transcript files on this machine before building against it, not assumed
 from documentation. This is the most complete of the three paths for "an entire session
@@ -417,7 +417,7 @@ rather than creating a third copy.
 Every ingestion path (explicit `memory_remember` calls, Path A/B/C) leaves a session's data as
 memories and `otel_events` correlated by `session_id`/`prompt_id`/`memory_id` — queryable, but
 still a flat set. `exchanges` (`GraphStore.record_exchange`/`get_exchange`/`session_exchanges`/
-`verify_exchange_chain`, built automatically by `src/xibalba_graph/exchange_builder.py`'s
+`verify_exchange_chain`, built automatically by `src/xibalba_cortex/exchange_builder.py`'s
 `build_session_exchanges`) turns that into the session's actual turn-by-turn shape: one row per
 prompt→response exchange, in order, each carrying its own prompt/response memories, linked
 tool calls, context-window token usage, and optional explicit context contributions.
@@ -463,7 +463,7 @@ ships its own typed, in-process callback contract instead: "Observer Hooks"
 (`telemetry_schema_version = "hermes.observer.v1"`, documented in
 `~/.hermes/hermes-agent/docs/observability/README.md`, and already used by Hermes's bundled
 NeMo Relay/Langfuse plugins via a `register(ctx)` / `ctx.register_hook(name, fn)` pattern).
-`HermesObserverAdapter` (`src/xibalba_graph/hermes_observer.py`) maps that contract onto the
+`HermesObserverAdapter` (`src/xibalba_cortex/hermes_observer.py`) maps that contract onto the
 same `GraphStore` API every other path uses — no new grouping logic, no new schema.
 
 **Why this is a better fit than adding a fourth OTLP endpoint, not a fallback:** Hermes hooks
@@ -498,7 +498,7 @@ see it reuses the existing memory rather than duplicating it, per §4.12's rule.
 **Wiring is deliberately two separate steps.** This module is pure, dependency-free,
 Hermes-independent, and lives in this repo like every other ingestion path. Actually registering
 it as a running Hermes plugin means writing a `register(ctx)` shim and `plugin.yaml` into
-`~/.hermes/hermes-agent/plugins/observability/xibalba_graph_memory/` — a different project's
+`~/.hermes/hermes-agent/plugins/observability/xibalba_cortex_memory/` — a different project's
 codebase — which is not done by this module and is a distinct, explicitly-flagged action, not
 implied by building the adapter.
 
@@ -537,7 +537,7 @@ content is excluded from `search` by the same status filter as `superseded`/`for
 
 ### 5.5 Harness inference queue: `memory_inference_tasks`
 
-Xibalba Graph Memory does not run an LLM in-process for summaries, metadata extraction, entity
+Xibalba Cortex does not run an LLM in-process for summaries, metadata extraction, entity
 extraction, relation extraction, contradiction detection, or consolidation. Instead,
 `memory_inference_tasks` is a local queue for the user's agent harness. The store records the
 subject (`memory`, `exchange`, `session`, or `context_bundle`), the task type, canonical JSON
@@ -553,7 +553,7 @@ leaving a clean upgrade path for cloud inference that implements the same queue 
 
 ## 6. Cryptography
 
-Full detail in `docs/integrity/xibalba-graph-crypto-profile-v1.md`; summary below is binding.
+Full detail in `docs/integrity/xibalba-cortex-crypto-profile-v1.md`; summary below is binding.
 
 ### 6.1 Hash boundary
 
@@ -612,7 +612,7 @@ immortalize every routine `observed_event`. Full rationale in the crypto profile
 
 ## 7. Security invariants
 
-Restated from `docs/archive/2026-08-06/2026-08-05-xibalba-graph-memory.md`, binding for every interface this
+Restated from `docs/archive/2026-08-06/2026-08-05-xibalba-cortex.md`, binding for every interface this
 system exposes (MCP, future REST, future CLI):
 
 1. Recalled text is untrusted evidence and cannot override instructions. Any tool surfacing
@@ -661,7 +661,7 @@ avoid the two-plan scope drift this spec is meant to end.
 
 ## 10. MCP tool surface (v1)
 
-Implemented in `src/xibalba_graph/server.py`, one tool per `GraphStore` public method, no
+Implemented in `src/xibalba_cortex/server.py`, one tool per `GraphStore` public method, no
 tool bypasses profile authorization or the append-only write model:
 
 | Tool | Maps to | Notes |

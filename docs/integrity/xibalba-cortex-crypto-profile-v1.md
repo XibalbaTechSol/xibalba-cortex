@@ -1,4 +1,4 @@
-# Xibalba Graph Memory — Cryptographic Profile v1
+# Xibalba Cortex — Cryptographic Profile v1
 
 Status: pinned, 2026-08-05. This is the normative reference for hashing decisions in this
 project; code and future documents must not silently diverge from it.
@@ -10,7 +10,7 @@ interchangeable and never compared to each other directly.
 
 | Boundary | Algorithm | Where | Why |
 |---|---|---|---|
-| Local content hash | SHA-256, `sha256:`-hex-prefixed | `sources.content_hash`, `memories.content_hash` in `src/xibalba_graph/store.py` | Purely local, never anchored, never leaves this process. SHA-256 is faster and better-supported for a hot-path hash computed on every `store_memory` call. |
+| Local content hash | SHA-256, `sha256:`-hex-prefixed | `sources.content_hash`, `memories.content_hash` in `src/xibalba_cortex/store.py` | Purely local, never anchored, never leaves this process. SHA-256 is faster and better-supported for a hot-path hash computed on every `store_memory` call. |
 | Integrity DAG verification | Keccak-256 (`eth-hash[pycryptodome]`) | `integrity_links.node_id` comparison only | Matches `keccak256` node-id convention in `INTEGRITY-LATEST/docs/design/memory-dag.md` and `StateAnchor.sol`'s leaf hashing. Used only when comparing against, or computing a candidate for, an anchored DAG node id. |
 
 **Rule:** a content hash computed for local storage (`memories.content_hash`) is never presented

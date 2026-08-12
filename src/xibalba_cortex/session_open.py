@@ -8,7 +8,7 @@ from pathlib import Path
 
 from .store import GraphStore
 
-DEFAULT_HOME = Path(os.environ.get("XIBALBA_GRAPH_MEMORY_HOME", "~/.hermes/xibalba-graph-memory")).expanduser()
+DEFAULT_HOME = Path(os.environ.get("XIBALBA_CORTEX_HOME", "~/.hermes/xibalba-cortex")).expanduser()
 HERMES_AGENT_ROOT = Path(os.environ.get("HERMES_AGENT_ROOT", "~/.hermes/hermes-agent")).expanduser()
 
 

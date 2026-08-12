@@ -177,7 +177,7 @@ def watch(store: GraphStore, watch_dir: Path, *, poll_interval: float = 2.0) -> 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--dir", required=True, type=Path, help="Directory Claude Code writes raw bodies to (matches OTEL_LOG_RAW_API_BODIES=file:<dir>)")
-    parser.add_argument("--home", required=True, type=Path, help="xibalba-graph-memory profile home")
+    parser.add_argument("--home", required=True, type=Path, help="xibalba-cortex profile home")
     parser.add_argument("--once", action="store_true", help="Scan once and exit, instead of polling forever")
     parser.add_argument("--poll-interval", type=float, default=2.0)
     args = parser.parse_args()

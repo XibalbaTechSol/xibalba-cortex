@@ -1,4 +1,4 @@
-// Thin client for xibalba_graph.local_api (stdlib http.server, read-only, localhost:8420 by
+// Thin client for xibalba_cortex.local_api (stdlib http.server, read-only, localhost:8420 by
 // default). No auth, no framework response envelope -- every route just returns the JSON body
 // GraphStore's own method returned, so these types mirror store.py's returned dicts directly.
 

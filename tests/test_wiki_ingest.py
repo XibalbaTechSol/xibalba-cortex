@@ -1,7 +1,7 @@
 from pathlib import Path
 
-from xibalba_graph.store import GraphStore
-from xibalba_graph.wiki_ingest import ingest_wiki
+from xibalba_cortex.store import GraphStore
+from xibalba_cortex.wiki_ingest import ingest_wiki
 
 
 def _write_page(path: Path, *, title: str, page_type: str, tags: list[str], body: str) -> None:
