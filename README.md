@@ -18,25 +18,25 @@ This repository is the **cognitive store** in a four-project ecosystem designed 
 |---|---|---|
 | **`xibalba-cortex`** | **🧠 The Brain** | Local cognitive store — memories, context, reasoning provenance, session Merkle roots |
 | `xibalba-shield` | 🛡️ The Immune System | Endpoint enforcement, kernel sensing, policy gating, semantic guardrails |
-| `INTEGRITY-LATEST` | 🦴 The Unifying Backend | Protocol backbone — on-chain identity, BCC, Oracle scoring, smart contracts |
+| `integrity-core` | 🦴 The Unifying Backend | Protocol backbone — on-chain identity, BCC, Oracle scoring, smart contracts |
 | `integrity-mvp` | 👁️ The Human Control Center | Operator dashboard — visualizes health, surfaces evidence, enables human intervention |
 
 **How the Brain connects:**
 - **Inbound:** Agents (e.g., Hermes) read/write prompts, context, and memories via the 40+ MCP tool surface.
-- **Outbound (to Backbone):** Session Merkle roots are anchored to INTEGRITY-LATEST's BCC middleware via `XIBALBA_ANCHOR_URL`. Anchoring can be triggered manually via the `memory_anchor_session_root` MCP tool, or automatically on session close by setting `XIBALBA_AUTO_ANCHOR_ON_SESSION_END=1`. When enabled, the runtime controller calls `anchor_session_root` during `close_session()`, with graceful error handling — anchor failures never block session teardown.
+- **Outbound (to Backbone):** Session Merkle roots are anchored to integrity-core's BCC middleware via `XIBALBA_ANCHOR_URL`. Anchoring can be triggered manually via the `memory_anchor_session_root` MCP tool, or automatically on session close by setting `XIBALBA_AUTO_ANCHOR_ON_SESSION_END=1`. When enabled, the runtime controller calls `anchor_session_root` during `close_session()`, with graceful error handling — anchor failures never block session teardown.
 - **Outbound (to Control Center):** The local viewer and HTTP API surface memory, provenance, and integrity state that `integrity-mvp` renders in its Memory page.
 
 ```mermaid
 flowchart LR
     Agent["🤖 Agent"] <-->|"MCP tools<br/>(40+ operations)"| Brain["🧠 xibalba-cortex<br/>(This repo)"]
-    Brain -->|"Session Merkle roots<br/>(XIBALBA_ANCHOR_URL)"| Backbone["🦴 INTEGRITY-LATEST<br/>(BCC → StateAnchor)"]
+    Brain -->|"Session Merkle roots<br/>(XIBALBA_ANCHOR_URL)"| Backbone["🦴 integrity-core<br/>(BCC → StateAnchor)"]
     Brain -.->|"Local API"| Eyes["👁️ integrity-mvp<br/>(Memory page)"]
     Immune["🛡️ xibalba-shield"] -->|"Signed telemetry"| Backbone
     Backbone -->|"AIS, identity, evidence"| Eyes
     Eyes -->|"Operator interventions"| Agent
 ```
 
-See [`INTEGRITY-LATEST/docs/architecture/ecosystem-dependencies.md`](https://github.com/XibalbaTechSol/integrity-latest/blob/main/docs/architecture/ecosystem-dependencies.md) for the canonical ownership boundaries.
+See [`integrity-core/docs/architecture/ecosystem-dependencies.md`](https://github.com/XibalbaTechSol/integrity-core/blob/main/docs/architecture/ecosystem-dependencies.md) for the canonical ownership boundaries.
 Current closure evidence is recorded in [`docs/audits/2026-08-07-gap-closure.md`](docs/audits/2026-08-07-gap-closure.md).
 
 ## Operations contract
@@ -78,9 +78,64 @@ The MCP surface exposes explicit tools for remembering, recalling, attaching art
 Live Hermes profile smoke:
 
 ```bash
-hermes mcp test xibalba_cortex_memory
+hermes mcp test xibalba_cortex
 XIBALBA_RUN_HERMES_MCP_SMOKE=1 uv run pytest tests/test_hermes_mcp_smoke.py -q
 ```
+
+## Generic ingestion for any agent harness (local or cloud-hosted)
+
+Every other ingestion path in this repo (transcript files, Hermes hook subprocess dispatch,
+localhost-only OTLP/API servers) assumes a caller on the same machine. `memory_ingest_agent_turn`
+plus a network-reachable, authenticated MCP transport is the path for a harness that can't spawn
+a local subprocess or read local files — e.g. a cloud-hosted agent.
+
+**1. Issue a token per harness** (a single shared deployment is just one token — there's no
+separate "shared mode"):
+
+```bash
+uv run xibalba-cortex-ingest-tokens --home ~/.hermes/xibalba-cortex issue --label "perplexity-personal"
+# Issued token for 'perplexity-personal'. Shown once, save it now:
+# <the raw token>
+uv run xibalba-cortex-ingest-tokens --home ~/.hermes/xibalba-cortex list
+uv run xibalba-cortex-ingest-tokens --home ~/.hermes/xibalba-cortex revoke --id <token-id>
+```
+
+**2. Start the server in streamable-HTTP mode** (stdio, used for locally-spawned harnesses, is
+still the default and is unaffected):
+
+```bash
+uv run xibalba-cortex --transport streamable-http --host 127.0.0.1 --port 8421 --path /mcp
+```
+
+Binds to `127.0.0.1` by default even in HTTP mode. **This server has no TLS of its own** —
+reaching it from anywhere off this machine requires a TLS-terminating reverse proxy or tunnel
+(Caddy, nginx, Cloudflare Tunnel, ngrok, whatever you already run) in front of it; without one,
+the bearer token travels in plaintext. Binding a non-loopback `--host` prints a loud warning at
+startup as a reminder — it does not set one up for you.
+
+**3. Point a harness at it.** Every call after `initialize` needs
+`Authorization: Bearer <token>`. Two concretely researched examples:
+
+- **Google Antigravity CLI** supports a `serverUrl` field for remote MCP servers
+  (`~/.gemini/config/mcp_config.json`):
+  ```json
+  { "mcpServers": { "xibalba-cortex": {
+      "serverUrl": "https://your-tunnel-host/mcp",
+      "headers": { "Authorization": "Bearer <token>" }
+  } } }
+  ```
+- **Perplexity** (Pro/Max/Enterprise) supports adding a custom remote MCP connector for
+  Computer/Comet workflows via a server URL plus an API key, configured in Perplexity's own
+  connector settings.
+
+**4. One call captures a complete turn.** `memory_ingest_agent_turn(external_session_id, runtime,
+prompt, response, tool_calls=[...], agent_id=, prompt_id=, metadata=, idempotency_key=)` —
+`runtime` is a free string (no fixed harness allowlist; identify your integration however you
+like), and everything is redacted for likely secrets before storage (see `redaction.py`). This
+wraps the same `record_model_exchange`/`record_otel_batch` primitives every other ingestion path
+uses, so a cloud-sourced turn gets the identical hash-chained exchange/Merkle-root guarantees as
+a local one — just also linking every tool call into the exchange's own commitment, which
+`record_model_exchange` alone doesn't do.
 
 ## Claude Code Integration
 
@@ -92,4 +147,4 @@ While this local repository does not implement a parallel chain anchor, it can d
 
 ## Privacy and retention
 
-The store is local SQLite under the configured profile home. Agent identity is controlled by `XIBALBA_GRAPH_IDENTITY_MODE`: `pseudonymous` by default, `full` for raw agent IDs, and `omit` for no agent ID storage. Forgetting removes user-visible content while retaining residual tamper-evidence hashes as documented in the store contract.
+The store is local SQLite under the configured profile home. Agent identity is controlled by `XIBALBA_CORTEX_IDENTITY_MODE`: `pseudonymous` by default, `full` for raw agent IDs, and `omit` for no agent ID storage. Forgetting removes user-visible content while retaining residual tamper-evidence hashes as documented in the store contract.

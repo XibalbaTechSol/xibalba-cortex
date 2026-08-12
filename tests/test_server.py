@@ -57,6 +57,7 @@ async def test_all_tools_are_advertised(store):
         "memory_vault_inspect",
         "memory_build_session_exchanges",
         "memory_record_model_exchange",
+        "memory_ingest_agent_turn",
         "memory_session_exchanges",
         "memory_session_merkle_root",
         "memory_anchor_session_root",

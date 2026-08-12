@@ -10,6 +10,7 @@ dependencies = [
   "sqlite-vec>=0.1.9",
   "pyyaml>=6.0",
   "integrity-sdk",
+  "uvicorn>=0.30",
 ]
 
 [project.optional-dependencies]
@@ -30,6 +31,7 @@ xibalba-cortex-wiki-ingest = "xibalba_cortex.wiki_ingest:main"
 xibalba-cortex-drive-ingest = "xibalba_cortex.drive_ingest:main"
 xibalba-cortex-demo-seed = "xibalba_cortex.demo_seed:main"
 xibalba-cortex-operator = "xibalba_cortex.operator:main"
+xibalba-cortex-ingest-tokens = "xibalba_cortex.ingest_tokens:main"
 
 [dependency-groups]
 dev = [

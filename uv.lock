@@ -2379,7 +2379,7 @@ wheels = [
 ]
 
 [[package]]
-name = "xibalba-graph-memory"
+name = "xibalba-cortex"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
@@ -2388,6 +2388,7 @@ dependencies = [
     { name = "mcp" },
     { name = "pyyaml" },
     { name = "sqlite-vec" },
+    { name = "uvicorn" },
 ]
 
 [package.optional-dependencies]
@@ -2413,6 +2414,7 @@ requires-dist = [
     { name = "pypdf", marker = "extra == 'drive'", specifier = ">=4.0" },
     { name = "pyyaml", specifier = ">=6.0" },
     { name = "sqlite-vec", specifier = ">=0.1.9" },
+    { name = "uvicorn", specifier = ">=0.30" },
 ]
 provides-extras = ["drive"]
 

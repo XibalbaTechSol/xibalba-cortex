@@ -16,6 +16,8 @@ import sqlite_vec
 from eth_hash.auto import keccak
 from integrity_sdk.crypto.merkle import compute_node_hash
 
+from .redaction import redact
+
 _SCHEMA_VERSION = 3
 
 # Generous default cap on a single attachment -- not a policy decision, just a guard against
@@ -2167,6 +2169,124 @@ class GraphStore:
             "prompt_memory": prompt_memory,
             "response_memory": response_memory,
             "context_memory_ids": [item["memory_id"] for item in context_links],
+        }
+
+    def ingest_agent_turn(
+        self,
+        external_session_id: str,
+        *,
+        runtime: str,
+        prompt: str,
+        response: str,
+        tool_calls: list[dict[str, object]] = (),
+        agent_id: str | None = None,
+        prompt_id: str | None = None,
+        prompt_time: str | None = None,
+        response_time: str | None = None,
+        metadata: dict[str, object] | None = None,
+        idempotency_key: str | None = None,
+    ) -> dict[str, object]:
+        """One-call generic ingestion primitive for an arbitrary agent harness: prompt,
+        response, every tool call, and metadata in a single call, instead of a new
+        integration having to hand-assemble the session_start + record_model_exchange +
+        record_otel_batch sequence itself. `runtime` is a free string, no harness allowlist --
+        same precedent as `record_model_exchange`'s own `runtime` parameter.
+
+        `tool_calls` entries: `{"name": str, "span_id": str | None, "start_time": str | None,
+        "end_time": str | None, "attributes": dict}`. `span_id` is generated if omitted. Each
+        becomes a `kind="span"` otel_event named `f"tool_call.{name}"`, correlated to the
+        resulting exchange BOTH weakly (via `prompt_id`, matching every other ingestion path's
+        convention) and strongly (via the exchange's own `tool_call_otel_event_ids`
+        commitment, so the Merkle chain actually covers tool-call identity, not just
+        prompt/response content -- unlike `record_model_exchange`, which has no tool-call
+        parameter at all today).
+
+        All string content passes through the shared redaction pass (`redaction.redact`)
+        before storage. This matters more here than for the local-file ingestion paths:
+        this is the entry point for network-reachable, less-trusted callers.
+        """
+        self.start_session(external_session_id, retention_tier="verbatim")
+
+        base_source = {
+            "session_id": external_session_id,
+            "prompt_id": prompt_id,
+            "agent_id": agent_id,
+            "runtime": runtime,
+            **dict(metadata or {}),
+        }
+        prompt_memory = self.store_memory(
+            redact(prompt),
+            source={
+                **base_source,
+                "kind": "direct_user",
+                "role": "user",
+                "observed_at": prompt_time,
+                "locator": f"xibalba://sessions/{external_session_id}/prompts/{prompt_id or 'unassigned'}",
+            },
+            status="confirmed",
+            evidence_class="declared_intent",
+            idempotency_key=f"{idempotency_key}:prompt" if idempotency_key else None,
+        )
+        response_memory = self.store_memory(
+            redact(response),
+            source={
+                **base_source,
+                "kind": "direct_model_response",
+                "role": "assistant",
+                "observed_at": response_time,
+                "locator": f"xibalba://sessions/{external_session_id}/responses/{prompt_id or 'unassigned'}",
+            },
+            status="confirmed",
+            evidence_class="observed_event",
+            idempotency_key=f"{idempotency_key}:response" if idempotency_key else None,
+        )
+
+        tool_call_event_ids: list[str] = []
+        span_ids: list[str] = []
+        if tool_calls:
+            batch = []
+            for call in tool_calls:
+                name = str(call.get("name") or "unknown")
+                span_id = str(call.get("span_id") or uuid.uuid4())
+                span_ids.append(span_id)
+                batch.append({
+                    "kind": "span",
+                    "name": f"tool_call.{name}",
+                    "span_id": span_id,
+                    "prompt_id": prompt_id,
+                    "start_time": call.get("start_time"),
+                    "end_time": call.get("end_time"),
+                    "attributes": redact(dict(call.get("attributes") or {})),
+                })
+            self.record_otel_batch(external_session_id, batch)
+            # record_otel_batch generates each row's id internally and doesn't return them --
+            # look them up by the span_ids we just supplied (unique per this batch by
+            # construction) so they can be committed into the exchange's Merkle node below.
+            with self._lock:
+                placeholders = ",".join("?" for _ in span_ids)
+                rows = self._connection.execute(
+                    f"SELECT id, span_id FROM otel_events "
+                    f"WHERE session_id = ? AND span_id IN ({placeholders})",
+                    (external_session_id, *span_ids),
+                ).fetchall()
+            by_span_id = {row["span_id"]: row["id"] for row in rows}
+            tool_call_event_ids = [by_span_id[sid] for sid in span_ids if sid in by_span_id]
+
+        exchange = self.record_exchange(
+            external_session_id,
+            prompt_memory_ids=[prompt_memory["id"]],
+            response_memory_ids=[response_memory["id"]],
+            tool_call_otel_event_ids=tool_call_event_ids,
+            prompt_id=prompt_id,
+            prompt_time=prompt_time,
+            response_time=response_time,
+        )
+        return {
+            "session": self.get_session(external_session_id),
+            "exchange": exchange,
+            "prompt_memory": prompt_memory,
+            "response_memory": response_memory,
+            "tool_call_otel_event_ids": tool_call_event_ids,
         }
 
     def request_inference_task(

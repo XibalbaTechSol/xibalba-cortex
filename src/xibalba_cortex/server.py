@@ -1,7 +1,15 @@
-"""MCP stdio server exposing GraphStore per spec/xibalba-cortex-v1.md section 10.
+"""MCP server exposing GraphStore per spec/xibalba-cortex-v1.md section 10.
 
-No network listener. One tool per GraphStore public method. Recalled content is untrusted
-evidence, not instructions -- see spec section 7.
+One tool per GraphStore public method. Recalled content is untrusted evidence, not
+instructions -- see spec section 7.
+
+Two transports: `--transport stdio` (default, unchanged) for a locally-spawned harness
+(Claude Code, Hermes, etc.), and `--transport streamable-http` for a network-reachable
+harness that can't spawn a local subprocess (a cloud-hosted agent). The HTTP transport is
+gated by `auth_middleware.BearerTokenAuth` -- every request needs a valid
+`Authorization: Bearer <token>` issued via `python -m xibalba_cortex.ingest_tokens issue`.
+Binds to 127.0.0.1 by default even in HTTP mode; see `main()`'s own warning before binding
+elsewhere.
 """
 from __future__ import annotations
 
@@ -497,10 +505,55 @@ def memory_record_model_exchange(
 
 
 @server.tool()
+def memory_ingest_agent_turn(
+    external_session_id: str,
+    runtime: str,
+    prompt: str,
+    response: str,
+    tool_calls: list[dict[str, object]] | None = None,
+    agent_id: str | None = None,
+    prompt_id: str | None = None,
+    prompt_time: str | None = None,
+    response_time: str | None = None,
+    metadata: dict[str, object] | None = None,
+    idempotency_key: str | None = None,
+) -> dict[str, object]:
+    """One-call generic ingestion for an arbitrary agent harness (local or cloud-hosted):
+    prompt, response, every tool call, and metadata, in a single call instead of
+    orchestrating memory_session_start + memory_record_model_exchange + memory_record_otel_batch
+    yourself. `runtime` is a free string identifying the calling harness (e.g. "claude",
+    "codex", "antigravity-cli", "perplexity-computer") -- there is no fixed allowlist.
+
+    `tool_calls` entries: `{"name": str, "span_id": str (optional), "start_time": str
+    (optional, ISO8601), "end_time": str (optional, ISO8601), "attributes": dict (optional)}`.
+    Each is recorded as a real otel_event AND committed into the resulting exchange's Merkle
+    node, so tool-call identity is tamper-evident, not just prompt/response content.
+
+    All string content is redacted for likely secrets (bearer tokens, API keys, etc.) before
+    storage -- see `redaction.py`. This is the intended entry point for the network-reachable
+    streamable-HTTP transport (`server.py --transport streamable-http`); it works identically
+    over stdio for a local harness that prefers one call over three.
+    """
+    return get_store().ingest_agent_turn(
+        external_session_id,
+        runtime=runtime,
+        prompt=prompt,
+        response=response,
+        tool_calls=list(tool_calls or []),
+        agent_id=agent_id,
+        prompt_id=prompt_id,
+        prompt_time=prompt_time,
+        response_time=response_time,
+        metadata=metadata,
+        idempotency_key=idempotency_key,
+    )
+
+
+@server.tool()
 def memory_inference_subagent_manifest() -> dict[str, object]:
     """Describe the harness-facing memory inference subagent contract.
 
-    Xibalba Graph Memory does not run an LLM locally. It queues deterministic inference tasks
+    Xibalba Cortex does not run an LLM locally. It queues deterministic inference tasks
     that the user's existing agent harness can claim, solve, and write back. Cloud inference can
     implement the same contract later without changing the local store API.
     """
@@ -575,8 +628,11 @@ def runtime_open_session(
     provenance: dict[str, object] | None = None,
 ) -> dict[str, object]:
     """Open or rehydrate a runtime session through the Xibalba controller."""
-    if runtime not in {"claude", "agy", "codex"}:
-        raise ValueError("runtime must be one of: claude, agy, codex")
+    if not runtime or not runtime.strip():
+        # No fixed harness allowlist -- "claude"/"agy"/"codex" have real adapters with richer
+        # guarantees (see runtime_bridge_contract.py), but a generic/new harness name is valid
+        # here too; only reject an empty/missing identifier, not an unrecognized one.
+        raise ValueError("runtime must be a non-empty string")
     return get_controller().open_session(
         runtime,  # type: ignore[arg-type]
         session_id=session_id,
@@ -595,8 +651,11 @@ def runtime_close_session(
     provenance: dict[str, object] | None = None,
 ) -> dict[str, object]:
     """Close a runtime session through the Xibalba controller."""
-    if runtime not in {"claude", "agy", "codex"}:
-        raise ValueError("runtime must be one of: claude, agy, codex")
+    if not runtime or not runtime.strip():
+        # No fixed harness allowlist -- "claude"/"agy"/"codex" have real adapters with richer
+        # guarantees (see runtime_bridge_contract.py), but a generic/new harness name is valid
+        # here too; only reject an empty/missing identifier, not an unrecognized one.
+        raise ValueError("runtime must be a non-empty string")
     return get_controller().close_session(
         runtime,  # type: ignore[arg-type]
         session_id=session_id,
@@ -613,8 +672,11 @@ def runtime_bind_identity(
     provenance: dict[str, object] | None = None,
 ) -> dict[str, object]:
     """Bind a runtime session to the Xibalba agent identity."""
-    if runtime not in {"claude", "agy", "codex"}:
-        raise ValueError("runtime must be one of: claude, agy, codex")
+    if not runtime or not runtime.strip():
+        # No fixed harness allowlist -- "claude"/"agy"/"codex" have real adapters with richer
+        # guarantees (see runtime_bridge_contract.py), but a generic/new harness name is valid
+        # here too; only reject an empty/missing identifier, not an unrecognized one.
+        raise ValueError("runtime must be a non-empty string")
     return get_controller().bind_identity(
         runtime,  # type: ignore[arg-type]
         session_id=session_id,
@@ -641,8 +703,11 @@ def runtime_ingest_event(
     metadata: dict[str, object] | None = None,
 ) -> dict[str, object]:
     """Ingest one normalized runtime event into the controller telemetry path."""
-    if runtime not in {"claude", "agy", "codex"}:
-        raise ValueError("runtime must be one of: claude, agy, codex")
+    if not runtime or not runtime.strip():
+        # No fixed harness allowlist -- "claude"/"agy"/"codex" have real adapters with richer
+        # guarantees (see runtime_bridge_contract.py), but a generic/new harness name is valid
+        # here too; only reject an empty/missing identifier, not an unrecognized one.
+        raise ValueError("runtime must be a non-empty string")
     if tool_outcome not in {"success", "error", "blocked", "unknown"}:
         raise ValueError("tool_outcome must be one of: success, error, blocked, unknown")
     event = RuntimeEvent(
@@ -673,8 +738,11 @@ def runtime_evaluate_policy(
     tool_input_hash: str | None = None,
 ) -> dict[str, object]:
     """Evaluate the controller's minimal runtime policy boundary."""
-    if runtime not in {"claude", "agy", "codex"}:
-        raise ValueError("runtime must be one of: claude, agy, codex")
+    if not runtime or not runtime.strip():
+        # No fixed harness allowlist -- "claude"/"agy"/"codex" have real adapters with richer
+        # guarantees (see runtime_bridge_contract.py), but a generic/new harness name is valid
+        # here too; only reject an empty/missing identifier, not an unrecognized one.
+        raise ValueError("runtime must be a non-empty string")
     return get_controller().evaluate_policy(
         runtime=runtime,  # type: ignore[arg-type]
         session_id=session_id,
@@ -841,7 +909,43 @@ def runtime_codex_launch(
 
 
 def main() -> None:
-    asyncio.run(server.run_stdio_async())
+    import argparse
+
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--transport", choices=("stdio", "streamable-http"), default="stdio",
+        help="stdio (default): spawned as a local subprocess by the calling harness. "
+             "streamable-http: network-reachable, for harnesses that can't spawn a local "
+             "process (e.g. a cloud-hosted agent) -- requires a bearer token, see "
+             "ingest_tokens.py.",
+    )
+    parser.add_argument("--host", default="127.0.0.1", help="streamable-http only")
+    parser.add_argument("--port", type=int, default=8421, help="streamable-http only")
+    parser.add_argument("--path", default="/mcp", help="streamable-http mount path")
+    args = parser.parse_args()
+
+    if args.transport == "stdio":
+        asyncio.run(server.run_stdio_async())
+        return
+
+    if args.host not in ("127.0.0.1", "localhost", "::1"):
+        print(
+            f"WARNING: binding streamable-http to {args.host!r}, not localhost.\n"
+            "This server has no TLS of its own -- bearer tokens travel in PLAINTEXT over any\n"
+            "connection that isn't terminated by a TLS-capable reverse proxy or tunnel (Caddy,\n"
+            "nginx, Cloudflare Tunnel, ngrok, etc.) sitting in front of it. Do not point a\n"
+            "non-loopback host directly at the open internet without one.",
+        )
+
+    from .auth_middleware import BearerTokenAuth
+
+    home = _default_home()
+    app = server.streamable_http_app(streamable_http_path=args.path, host=args.host)
+    authed_app = BearerTokenAuth(app, home=home)
+
+    import uvicorn
+
+    uvicorn.run(authed_app, host=args.host, port=args.port, log_level="info")
 
 
 if __name__ == "__main__":

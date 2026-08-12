@@ -48,6 +48,14 @@ The detailed normative model is `spec/xibalba-cortex-v1.md`. This root specifica
 
 The MCP/controller surface should expose store, recall, full model-exchange capture, local session Merkle-root inspection, harness inference-task delegation, link, neighbors, path, contradict, forget, verify, status, and backup operations. Claude, agy, and Codex adapters must report their actual hook capabilities honestly. Missing pre-tool, post-tool, or lifecycle hooks are capability gaps, not hidden parity.
 
+The server must support two transports: stdio (default, for a locally-spawned harness) and a
+network-reachable streamable-HTTP transport (for a harness with no local filesystem/subprocess
+access, e.g. a cloud-hosted agent). The generic ingestion entry point (`memory_ingest_agent_turn`)
+must not require a fixed harness allowlist — `runtime` is a free string. Every request over the
+HTTP transport must carry a valid per-harness bearer token (`ingest_tokens.py`); the transport
+must default to binding loopback-only and must not silently accept a non-loopback bind without
+warning that the underlying server has no TLS of its own.
+
 ## 6. Viewer Contract
 
 The viewer should expose recall, graph traversal, provenance, contradiction, forgetting, lifecycle status, and verification state. It must make untrusted-memory status visible and avoid presenting retrieved content as instruction authority.
@@ -59,6 +67,8 @@ The viewer should expose recall, graph traversal, provenance, contradiction, for
 - Forgetting must document residual hash disclosure and restore semantics.
 - Drive ingestion dependencies must be either a supported default, optional extra, or cleanly skipped test group.
 - MCP discovery should be verified through an isolated Hermes profile before operational use.
+- Only a bearer token's hash is ever stored (`ingest_tokens.py`); the raw value is shown once at
+  issuance and cannot be recovered later — rotation, not recovery, is the intended path.
 
 ## 8. Ecosystem Role: 🧠 The Brain & Intelligence Layer
 
@@ -67,7 +77,7 @@ This repository is the cognitive store in a four-project ecosystem. It provides 
 ```mermaid
 flowchart LR
     Agent["🤖 Agent"] <-->|"MCP tools"| Brain["🧠 This Repo"]
-    Brain -->|"Session Merkle roots"| Backbone["🦴 INTEGRITY-LATEST"]
+    Brain -->|"Session Merkle roots"| Backbone["🦴 integrity-core"]
     Brain -.->|"Local API"| Eyes["👁️ integrity-mvp"]
     Immune["🛡️ xibalba-shield"] -->|"Signed telemetry"| Backbone
     Backbone -->|"AIS, evidence"| Eyes
