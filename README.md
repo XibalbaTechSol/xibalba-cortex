@@ -1,6 +1,24 @@
 # Xibalba Cortex
 
-A local, provenance-aware graph memory Model Context Protocol server for Hermes Agent. It stores prompts, full model responses, explicit context contributions, graph edges, and local Merkle-style exchange roots while delegating LLM inference work to the user's agent harness.
+A local, provenance-aware graph memory Model Context Protocol server for AI agent harnesses. It stores prompts, full model responses, explicit context contributions, graph edges, and local Merkle-style exchange roots while delegating LLM inference work to the user's agent harness.
+
+## Cortex is a standalone product
+
+Cortex works as a generic MCP memory server with any MCP-speaking agent — it started as Hermes
+Agent's memory layer, but the generic ingestion path (`memory_ingest_agent_turn` plus a
+network-reachable, authenticated transport, see below) means Claude Code, Codex, Antigravity CLI,
+or a cloud-hosted harness like Perplexity's Computer/Comet can all record turns into the same
+store with zero code change here per new harness — `runtime` is a free string, not a hardcoded
+allowlist. The "Ecosystem Role" section below describes how Cortex's evidence *additionally*
+flows into the broader Integrity Protocol ecosystem when configured to (anchoring session Merkle
+roots, surfacing to `integrity-core`'s `integrity-dashboard/` component); it is not a description
+of a dependency Cortex needs in order to work as a memory server on its own.
+
+Architecture status: the store schema, hash-chain/Merkle model, and core MCP tool contract are
+**frozen for v1** as of 2026-08-12 — see [`SPECIFICATION.md`](SPECIFICATION.md) §0 for exactly
+what's frozen, what extension points remain open (new harnesses, new tools, richer optional
+adapters), and the full [Goals and Milestones](SPECIFICATION.md#11-goals-and-milestones) list.
+Full architecture detail also lives in the [wiki](../../wiki) (`docs/wiki/` in this repository).
 
 ## 2026-08-06 audit status
 
@@ -12,25 +30,27 @@ Normative behavior is defined by [`spec/xibalba-cortex-v1.md`](spec/xibalba-cort
 
 ## Ecosystem Role: 🧠 The Brain & Intelligence Layer
 
-This repository is the **cognitive store** in a four-project ecosystem designed as a living organism:
+This repository is the **cognitive store** in a three-repository ecosystem designed as a living
+organism. (`integrity-dashboard` — the operator presentation layer, previously developed as a
+separate `integrity-mvp` repository — now lives inside `integrity-core` as a component, not a
+fourth sibling repository.)
 
 | Repository | Analogy | Role |
 |---|---|---|
 | **`xibalba-cortex`** | **🧠 The Brain** | Local cognitive store — memories, context, reasoning provenance, session Merkle roots |
 | `xibalba-shield` | 🛡️ The Immune System | Endpoint enforcement, kernel sensing, policy gating, semantic guardrails |
-| `integrity-core` | 🦴 The Unifying Backend | Protocol backbone — on-chain identity, BCC, Oracle scoring, smart contracts |
-| `integrity-mvp` | 👁️ The Human Control Center | Operator dashboard — visualizes health, surfaces evidence, enables human intervention |
+| `integrity-core` | 🦴 The Unifying Backend + 👁️ Control Center | Protocol backbone — on-chain identity, BCC, Oracle scoring, smart contracts — plus `integrity-dashboard/`, the operator presentation layer |
 
 **How the Brain connects:**
 - **Inbound:** Agents (e.g., Hermes) read/write prompts, context, and memories via the 40+ MCP tool surface.
 - **Outbound (to Backbone):** Session Merkle roots are anchored to integrity-core's BCC middleware via `XIBALBA_ANCHOR_URL`. Anchoring can be triggered manually via the `memory_anchor_session_root` MCP tool, or automatically on session close by setting `XIBALBA_AUTO_ANCHOR_ON_SESSION_END=1`. When enabled, the runtime controller calls `anchor_session_root` during `close_session()`, with graceful error handling — anchor failures never block session teardown.
-- **Outbound (to Control Center):** The local viewer and HTTP API surface memory, provenance, and integrity state that `integrity-mvp` renders in its Memory page.
+- **Outbound (to Control Center):** The local viewer and HTTP API surface memory, provenance, and integrity state that `integrity-core`'s `integrity-dashboard/` component renders in its Memory page.
 
 ```mermaid
 flowchart LR
     Agent["🤖 Agent"] <-->|"MCP tools<br/>(40+ operations)"| Brain["🧠 xibalba-cortex<br/>(This repo)"]
     Brain -->|"Session Merkle roots<br/>(XIBALBA_ANCHOR_URL)"| Backbone["🦴 integrity-core<br/>(BCC → StateAnchor)"]
-    Brain -.->|"Local API"| Eyes["👁️ integrity-mvp<br/>(Memory page)"]
+    Brain -.->|"Local API"| Eyes["👁️ integrity-core/integrity-dashboard<br/>(Memory page)"]
     Immune["🛡️ xibalba-shield"] -->|"Signed telemetry"| Backbone
     Backbone -->|"AIS, identity, evidence"| Eyes
     Eyes -->|"Operator interventions"| Agent
@@ -148,3 +168,24 @@ While this local repository does not implement a parallel chain anchor, it can d
 ## Privacy and retention
 
 The store is local SQLite under the configured profile home. Agent identity is controlled by `XIBALBA_CORTEX_IDENTITY_MODE`: `pseudonymous` by default, `full` for raw agent IDs, and `omit` for no agent ID storage. Forgetting removes user-visible content while retaining residual tamper-evidence hashes as documented in the store contract.
+
+## Goals and Milestones
+
+Cortex's north star: give any AI agent harness a place to record what it did, with enough
+provenance and fidelity that a compliance reviewer can retrieve exactly what happened down to the
+second, without trusting the agent's own self-report — the recurring need behind requests like
+"did the agent touch a HIPAA-regulated record, and when." Framed for the verticals this matters
+most for (finance, healthcare):
+
+- **Complete capture, not sampling** — full prompt, response, and every tool call, not a summary.
+- **Provenance an auditor can trust** — hash-chained events and per-exchange Merkle roots make
+  "this record hasn't been silently edited" verifiable, not just asserted.
+- **Untrusted-by-default retrieval** — recalled memory is context, never instruction authority, a
+  security property that also protects against a compromised stored memory steering an agent.
+
+Covered by v1 today: local hash-chain/Merkle store, generic MCP tool surface with a free-string
+`runtime`, two transports, redaction on every ingestion path, per-harness bearer-token auth.
+Deferred past v1 — real-time streaming queries, multi-tenant profile-sharing, automatic (not
+opt-in) Integrity anchoring, and a documented finance/healthcare audit-framework mapping — see
+[`SPECIFICATION.md`'s §11](SPECIFICATION.md#11-goals-and-milestones) for the full breakdown and
+what's deliberately left open rather than silently claimed.

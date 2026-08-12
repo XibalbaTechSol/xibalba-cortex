@@ -179,6 +179,38 @@ Goal: make the viewer's memory page demonstrate the full Xibalba Cortex product,
 - [x] Runtime capability gaps are explicit and tested.
 - [x] Viewer and MCP tools expose provenance and verification state clearly.
 
+## Known open items — not closed this session (2026-08-12)
+
+Real gaps, honestly listed as open rather than implied closed. Each is either not this
+repository's decision to make, or needs a resource this session doesn't have:
+
+- **`INTEGRITY_CORE_PAT` GitHub secret does not exist, and may no longer even be needed.** It was
+  meant for `integrity-dashboard`'s wiki-sync workflow to check out `integrity-core` as a private
+  sibling repo — but `integrity-dashboard` now lives *inside* `integrity-core` (folded in during
+  an earlier session), and that workflow still does a redundant second checkout of `integrity-core`
+  from within `integrity-core` itself. Removing that redundant checkout would likely eliminate the
+  need for this secret entirely — an `integrity-core`-side fix, out of scope for this repo, not
+  evaluated further this session. Unrelated to this repo's own `sync-wiki.yml`, which only ever
+  needed the default `GITHUB_TOKEN`.
+- **`audit/harness-loop-2026-07-30` (in `integrity-core`) is not landed into `main`.** A timing
+  decision for the user, not a code gap in this repository.
+- **GitHub Actions "Read and write permissions" for the new `sync-wiki.yml` workflow** — a repo
+  Settings toggle needed for the default `GITHUB_TOKEN` to push to the wiki repo; the user needs
+  to confirm this is set (see `.github/workflows/sync-wiki.yml`'s own comment for the exact
+  setting).
+- **Real internet reachability for the streamable-HTTP ingestion endpoint** — the server binds
+  loopback-only by default and has no TLS of its own; a tunnel or reverse proxy is a user/deploy
+  decision, not something built here (see README.md's "Generic ingestion" section).
+- **`xibalba-session-reconcile.py` and the Claude/agy session hooks (`~/.claude/xibalba/*.py`)
+  live outside any git repo** — fixed live this session (stale `xibalba-graph-memory` path/module
+  references after the rename), but there's no commit anywhere that captures the fix; if that
+  machine's home directory is ever rebuilt, this fix is lost unless those scripts get checked
+  into a repo.
+- **Real-time streaming/subscription queries, multi-tenant profile-sharing, and a documented
+  finance/healthcare audit-framework mapping** — all explicitly deferred past v1, see
+  `SPECIFICATION.md`'s §11 Goals and Milestones for the full list and why each is deferred rather
+  than silently unaddressed.
+
 ## Update Rule
 
 Update this file whenever the spec, runtime controller contract, MCP tools, adapter status, viewer status, or Integrity coupling changes.

@@ -1,7 +1,38 @@
 # Xibalba Cortex Repository Specification
 
-**Updated:** 2026-08-06
+**Updated:** 2026-08-12
 **Status:** Local provenance-aware MCP memory prototype; not production-certified.
+
+## 0. Architecture Status: v1 (frozen)
+
+As of 2026-08-12, the store schema (§4), the hash-chain/Merkle model (§3, §4), and the MCP tool
+contract's core primitives (§5) are **frozen for v1**: existing tools keep their current
+signatures and semantics, and existing table shapes don't change field meaning. This is a
+deliberate stability commitment, made because Cortex is a standalone product other harnesses
+integrate against — a breaking change to `record_model_exchange`'s shape, for example, would
+break every existing integration silently.
+
+Freezing v1 does not mean the surface stops growing. Three extension points are explicitly
+**not** frozen, and are exactly where v1 growth is expected to happen without touching the frozen
+core:
+
+1. **`runtime` stays a free string everywhere it appears.** A brand-new agent harness integrates
+   with zero schema or code change here — this is what the 2026-08-12 generic-ingestion work
+   (`memory_ingest_agent_turn`, streamable-HTTP transport) already proved, not a future promise.
+2. **New MCP tools may be added freely.** The tool surface has grown from an initial set to 40+
+   tools across this project's history without breaking an existing caller; that pattern
+   continues. A new tool is additive by construction — it cannot retroactively change what an
+   existing tool does.
+3. **The runtime-controller/adapter layer (claude/agy/codex) is an optional richer layer on top
+   of the frozen generic primitives, not part of the frozen surface itself.** It may grow new
+   adapters, richer identity binding, or new policy-evaluation hooks without touching §4's store
+   schema or §5's generic tool contract — those adapters call the same frozen
+   `record_model_exchange`/`record_otel_batch` primitives every other ingestion path uses.
+
+What "frozen" does NOT cover: operational surfaces (viewer, CLI operator commands, backup/restore
+mechanics) may still change; those are implementation details, not the integration contract other
+harnesses depend on. A breaking change to anything actually frozen above requires a v2 or an
+explicit migration note, per §10's Acceptance Criteria and this document's revision discipline.
 
 ## 1. Purpose
 
@@ -20,6 +51,7 @@ The detailed normative model is `spec/xibalba-cortex-v1.md`. This root specifica
 | docs/audits/2026-08-06-status.md | Current audit evidence and packaging findings. |
 | docs/archive/2026-08-06/2026-08-05-xibalba-cortex.md | Historical implementation sequence. |
 | docs/archive/2026-08-06/2026-08-05-xibalba-runtime-adapter-checklist.md | Historical runtime adapter checklist. |
+| [Wiki](../../wiki) (`docs/wiki/`) | Architecture concept pages, ecosystem role, compliance evidence trail — a core set, not exhaustive. |
 
 ## 3. Core Requirements
 
@@ -72,13 +104,17 @@ The viewer should expose recall, graph traversal, provenance, contradiction, for
 
 ## 8. Ecosystem Role: 🧠 The Brain & Intelligence Layer
 
-This repository is the cognitive store in a four-project ecosystem. It provides memories, context, provenance, and session Merkle roots to the agent and anchors session evidence into the protocol backbone.
+This repository is the cognitive store in a three-repository ecosystem. It provides memories,
+context, provenance, and session Merkle roots to the agent and anchors session evidence into the
+protocol backbone. (`integrity-dashboard` — the operator presentation layer, previously developed
+as a separate `integrity-mvp` repository — now lives inside `integrity-core` as a component, not
+a fourth sibling repository.)
 
 ```mermaid
 flowchart LR
     Agent["🤖 Agent"] <-->|"MCP tools"| Brain["🧠 This Repo"]
     Brain -->|"Session Merkle roots"| Backbone["🦴 integrity-core"]
-    Brain -.->|"Local API"| Eyes["👁️ integrity-mvp"]
+    Brain -.->|"Local API"| Eyes["👁️ integrity-core/integrity-dashboard"]
     Immune["🛡️ xibalba-shield"] -->|"Signed telemetry"| Backbone
     Backbone -->|"AIS, evidence"| Eyes
     Eyes -->|"Interventions"| Agent
@@ -95,3 +131,35 @@ This repository may cite future Integrity Memory DAG or protocol anchors. It mus
 - Optional Drive dependencies have deterministic test behavior.
 - Runtime adapters and viewer changes are reviewed and committed as a clean baseline.
 - README, SPECIFICATION, implementation plan, and v1 normative spec agree on status and boundaries.
+
+## 11. Goals And Milestones
+
+Cortex's north star: give any AI agent harness — local or cloud-hosted — a place to record what
+it did, with enough provenance and fidelity that a compliance reviewer can retrieve exactly what
+happened down to the second, without trusting the agent's own self-report. Framed for the
+verticals this matters most for (finance, healthcare):
+
+- **Complete capture, not sampling.** Prompt, response, every tool call, and timestamps for each
+  — not a summary. `memory_ingest_agent_turn` and the transcript-ingestion paths both target this.
+- **Provenance an auditor can trust.** Hash-chained events and per-exchange Merkle roots mean
+  "this record hasn't been silently edited" is verifiable, not just asserted.
+- **Untrusted-by-default retrieval.** Recalled memory is context, never instruction authority —
+  a security property, not just a UX note, since a compromised or adversarial stored memory must
+  never be able to redirect an agent's behavior on recall.
+
+Milestones (v1 vs. explicitly deferred):
+
+**Covered by v1 (frozen, §0):** local SQLite store with hash-chain/Merkle provenance; generic
+MCP tool surface (40+ tools) with a free-string `runtime`; two transports (stdio, authenticated
+streamable-HTTP); redaction on all ingestion paths; per-harness bearer-token auth with hash-only
+storage; optional richer adapters for claude/agy/codex on top of the generic primitives.
+
+**Deferred past v1, not started:**
+1. Real-time streaming/subscription queries (a compliance dashboard watching live, not polling).
+2. Multi-tenant profile-sharing for a compliance team (today's profile isolation is single-owner).
+3. Automatic (not opt-in) Integrity Protocol anchoring of every session root — today's
+   `XIBALBA_AUTO_ANCHOR_ON_SESSION_END` is real but off by default and requires a configured
+   `XIBALBA_ANCHOR_URL`.
+4. A documented mapping from Cortex's provenance model to specific finance/healthcare audit
+   frameworks (SOC 2, HIPAA) — not started; requires domain expertise this repository does not
+   itself claim.
