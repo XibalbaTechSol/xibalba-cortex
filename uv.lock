@@ -1144,7 +1144,7 @@ wheels = [
 [[package]]
 name = "integrity-sdk"
 version = "0.1.0"
-source = { directory = "../INTEGRITY-LATEST/integrity-sdk" }
+source = { directory = "../integrity-core/integrity-sdk" }
 dependencies = [
     { name = "base58" },
     { name = "cbor2" },
@@ -2408,7 +2408,7 @@ requires-dist = [
     { name = "eth-hash", extras = ["pycryptodome"], specifier = ">=0.7.0" },
     { name = "google-api-python-client", marker = "extra == 'drive'", specifier = ">=2.0" },
     { name = "google-auth", marker = "extra == 'drive'", specifier = ">=2.0" },
-    { name = "integrity-sdk", directory = "../INTEGRITY-LATEST/integrity-sdk" },
+    { name = "integrity-sdk", directory = "../integrity-core/integrity-sdk" },
     { name = "mcp", specifier = ">=1.0.0" },
     { name = "pypdf", marker = "extra == 'drive'", specifier = ">=4.0" },
     { name = "pyyaml", specifier = ">=6.0" },

@@ -49,4 +49,4 @@ testpaths = ["tests"]
 addopts = "-q"
 
 [tool.uv.sources]
-integrity-sdk = { path = "../INTEGRITY-LATEST/integrity-sdk" }
+integrity-sdk = { path = "../integrity-core/integrity-sdk" }
