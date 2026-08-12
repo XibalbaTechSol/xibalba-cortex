@@ -10,15 +10,18 @@ _RECORDS = [
     {"type": "user", "sessionId": "sess-xyz", "uuid": "u1", "promptId": "prompt-1",
      "timestamp": "2026-08-05T10:00:00Z", "message": {"role": "user", "content": "Fix the login page CSS bug."}},
     {"type": "assistant", "sessionId": "sess-xyz", "uuid": "a1", "parentUuid": "u1",
+     "timestamp": "2026-08-05T10:00:05.100Z",
      "message": {"role": "assistant", "usage": {"input_tokens": 1200, "output_tokens": 5, "cache_read_input_tokens": 300},
                  "content": [{"type": "thinking", "thinking": "I should check the CSS file first."}]}},
     {"type": "assistant", "sessionId": "sess-xyz", "uuid": "a2", "parentUuid": "a1",
+     "timestamp": "2026-08-05T10:00:12.450Z",
      "message": {"role": "assistant", "usage": {"input_tokens": 50, "output_tokens": 20},
                  "content": [
                      {"type": "text", "text": "Let me look at the file."},
                      {"type": "tool_use", "id": "tool-1", "name": "Read", "input": {"file_path": "login.css"}},
                  ]}},
     {"type": "user", "sessionId": "sess-xyz", "uuid": "u2", "parentUuid": "a2",
+     "timestamp": "2026-08-05T10:00:13.900Z",
      "message": {"role": "user", "content": [
          {"type": "tool_result", "tool_use_id": "tool-1", "is_error": False,
           "content": [{"type": "text", "text": ".login { display: flex; }"}]},
@@ -68,6 +71,30 @@ def test_ingest_links_tool_use_and_tool_result_via_shared_span_id(tmp_path):
     assert tool_call["span_id"] == "tool-1"
     assert tool_result["span_id"] == "tool-1"
     assert tool_result["parent_span_id"] == "tool-1"
+    store.close()
+
+
+def test_ingest_stamps_tool_call_spans_with_the_real_transcript_timestamp(tmp_path):
+    """Regression test: tool_use/tool_result otel_events used to be stored with no
+    start_time/end_time at all (the transcript record's real timestamp was available but
+    never passed through to record_otel_batch), so nothing in the store carried real,
+    second-precision event time for tool calls -- only the coarse, ingest-batch-time
+    created_at column. Fixed 2026-08-12."""
+    store = GraphStore(tmp_path / "graph")
+    transcript = tmp_path / "s.jsonl"
+    _write_transcript(transcript, _RECORDS)
+    ingest_transcript(store, transcript)
+
+    rows = store._connection.execute(
+        "SELECT name, start_time, end_time FROM otel_events "
+        "WHERE session_id = 'sess-xyz' AND kind = 'span' ORDER BY rowid"
+    ).fetchall()
+    tool_call = next(r for r in rows if r["name"] == "tool_call.Read")
+    tool_result = next(r for r in rows if r["name"] == "tool_result")
+    assert tool_call["start_time"] == "2026-08-05T10:00:12.450Z"
+    assert tool_call["end_time"] == "2026-08-05T10:00:12.450Z"
+    assert tool_result["start_time"] == "2026-08-05T10:00:13.900Z"
+    assert tool_result["end_time"] == "2026-08-05T10:00:13.900Z"
     store.close()
 
 

@@ -12,36 +12,16 @@ import hashlib
 import importlib.util
 import json
 import os
-import re
 import sys
 from pathlib import Path
 from typing import Any
 
+from .redaction import redact
 from .store import GraphStore
 from .transcript_ingest import run as ingest_claude
 
 DEFAULT_HOME = Path(os.environ.get("XIBALBA_CORTEX_HOME", "~/.hermes/xibalba-cortex")).expanduser()
 HERMES_AGENT_ROOT = Path(os.environ.get("HERMES_AGENT_ROOT", "~/.hermes/hermes-agent")).expanduser()
-
-_SECRET_PATTERNS = (
-    (re.compile(r"(?i)(bearer\s+)[A-Za-z0-9._~+/=-]+"), r"\1[REDACTED]"),
-    (re.compile(r"(?i)(api[_ -]?key\s*[:=]\s*)[^\s,;]+"), r"\1[REDACTED]"),
-    (re.compile(r"(?i)(secret|password|token|private[_ -]?key)\s*[:=]\s*[^\s,;]+"), r"\1=[REDACTED]"),
-    (re.compile(r"\bsk-[A-Za-z0-9_-]{12,}\b"), "[REDACTED]"),
-    (re.compile(r"\b(?:0x)?[0-9a-fA-F]{64}\b"), "[REDACTED]"),
-)
-
-
-def redact(value: Any) -> Any:
-    if isinstance(value, str):
-        for pattern, replacement in _SECRET_PATTERNS:
-            value = pattern.sub(replacement, value)
-        return value
-    if isinstance(value, list):
-        return [redact(item) for item in value]
-    if isinstance(value, dict):
-        return {str(key): redact(item) for key, item in value.items()}
-    return value
 
 
 def canonical_json(value: Any) -> str:

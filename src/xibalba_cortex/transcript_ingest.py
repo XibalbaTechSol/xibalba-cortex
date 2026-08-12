@@ -37,34 +37,14 @@ from __future__ import annotations
 
 import argparse
 import json
-import re
 from pathlib import Path
 from typing import Any
 
 from .raw_body_ingest import _extract_text
+from .redaction import redact as _redact
 from .store import GraphStore
 
 _STATE_FILENAME = "transcript_ingest_state.json"
-
-_SECRET_PATTERNS = (
-    (re.compile(r"(?i)(bearer\s+)[A-Za-z0-9._~+/=-]+"), r"\1[REDACTED]"),
-    (re.compile(r"(?i)(api[_ -]?key\s*[:=\s])[^\s,;]+"), r"\1[REDACTED]"),
-    (re.compile(r"(?i)(secret|password|token|private[_ -]?key)\s*[:=]\s*[^\s,;]+"), r"\1=[REDACTED]"),
-    (re.compile(r"\bsk-[A-Za-z0-9_-]{12,}\b"), "[REDACTED]"),
-    (re.compile(r"\b(?:0x)?[0-9a-fA-F]{64}\b"), "[REDACTED]"),
-)
-
-
-def _redact(value: Any) -> Any:
-    if isinstance(value, str):
-        for pattern, replacement in _SECRET_PATTERNS:
-            value = pattern.sub(replacement, value)
-        return value
-    if isinstance(value, list):
-        return [_redact(item) for item in value]
-    if isinstance(value, dict):
-        return {key: _redact(item) for key, item in value.items()}
-    return value
 
 
 def _load_state(home: Path) -> dict[str, int]:
@@ -130,6 +110,14 @@ def _ingest_user_record(
                 # exchange they actually belong to, matching real OTel prompt.id semantics
                 # ("links all events produced while processing a single user prompt").
                 "prompt_id": prompt_id,
+                # The transcript only records a single instant per record (when this record
+                # was written), not a separate call-start/call-end pair -- rec["timestamp"] is
+                # the same field already used for memories' observed_at above, so start/end
+                # are set equal rather than left null. Without this, every otel_event in the
+                # store had no real timestamp at all (only the coarse, ingest-batch-time
+                # created_at column), which defeated second-precision compliance search.
+                "start_time": rec.get("timestamp"),
+                "end_time": rec.get("timestamp"),
                 "attributes": {
                     "is_error": block.get("is_error", False),
                     "content": text if text else block.get("content"),
@@ -180,6 +168,11 @@ def _ingest_assistant_record(
                     "name": f"tool_call.{block.get('name')}",
                     "span_id": block.get("id"),
                     "prompt_id": prompt_id,
+                    # See the matching comment on the tool_result span above -- same fix,
+                    # same reason: rec["timestamp"] was available and simply not passed
+                    # through, leaving every tool-call span with no real event time.
+                    "start_time": rec.get("timestamp"),
+                    "end_time": rec.get("timestamp"),
                     "attributes": {"tool_name": block.get("name"), "input": _redact(block.get("input") or {})},
                 }])
                 results.append({"kind": "otel_event", "name": "tool_use"})
@@ -192,6 +185,8 @@ def _ingest_assistant_record(
                 "name": "context_window.tokens",
                 "value": total,
                 "prompt_id": prompt_id,
+                "start_time": rec.get("timestamp"),
+                "end_time": rec.get("timestamp"),
                 "attributes": usage,
             }])
             results.append({"kind": "otel_event", "name": "context_window.tokens"})
