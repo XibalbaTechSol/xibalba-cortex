@@ -14,6 +14,7 @@ from pathlib import Path
 
 import sqlite_vec
 from eth_hash.auto import keccak
+from integrity_sdk.crypto.merkle import compute_node_hash
 
 _SCHEMA_VERSION = 3
 
@@ -858,7 +859,7 @@ class GraphStore:
             "detail": detail,
             "parent_event_id": parent_event_id,
         }
-        node_id = self._sha256(self._canonical_json(node))
+        node_id = compute_node_hash(node)
         self._connection.execute(
             "INSERT INTO memory_events(memory_id, event_type, detail_json, node_id, parent_event_id) "
             "VALUES (?, ?, ?, ?, ?)",
@@ -886,7 +887,7 @@ class GraphStore:
                 "detail": json.loads(row["detail_json"]),
                 "parent_event_id": expected_parent,
             }
-            recomputed = self._sha256(self._canonical_json(node))
+            recomputed = compute_node_hash(node)
             if row["parent_event_id"] != expected_parent or recomputed != row["node_id"]:
                 return {
                     "valid": False,
@@ -930,7 +931,7 @@ class GraphStore:
         # Hashed from the raw caller-supplied payload (including raw agent_id, if any) so dedup
         # is keyed on what the caller actually sent, independent of this store's identity_mode --
         # only the persisted/returned agent_id column is policy-filtered, not the dedup key.
-        source_id = self._sha256(self._canonical_json(source_payload))
+        source_id = compute_node_hash(source_payload)
         memory_id = str(uuid.uuid4())
         stored_agent_id, identity_mode_in_effect = self._resolve_agent_id(
             source.get("agent_id") if isinstance(source.get("agent_id"), str) else None
@@ -1800,7 +1801,7 @@ class GraphStore:
                         ),
                         key=lambda item: (str(item["contribution_id"]), str(item["memory_id"])),
                     )
-                node_id = self._sha256(self._canonical_json(node))
+                node_id = compute_node_hash(node)
                 exchange_id = str(uuid.uuid4())
 
                 self._connection.execute(
@@ -2040,7 +2041,7 @@ class GraphStore:
                     ),
                     key=lambda item: (str(item["contribution_id"]), str(item["memory_id"])),
                 )
-            recomputed = self._sha256(self._canonical_json(node))
+            recomputed = compute_node_hash(node)
             if row["parent_node_id"] != expected_parent or recomputed != row["node_id"]:
                 return {
                     "valid": False,

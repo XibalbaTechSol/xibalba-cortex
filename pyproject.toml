@@ -3,12 +3,13 @@ name = "xibalba-graph-memory"
 version = "0.1.0"
 description = "Local provenance-aware graph memory MCP server for Hermes Agent"
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.12"
 dependencies = [
   "mcp>=1.0.0",
   "eth-hash[pycryptodome]>=0.7.0",
   "sqlite-vec>=0.1.9",
   "pyyaml>=6.0",
+  "integrity-sdk",
 ]
 
 [project.optional-dependencies]
@@ -46,3 +47,6 @@ packages = ["src/xibalba_graph"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-q"
+
+[tool.uv.sources]
+integrity-sdk = { path = "../INTEGRITY-LATEST/integrity-sdk" }
