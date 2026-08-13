@@ -1,6 +1,6 @@
 # Xibalba Cortex Implementation Plan
 
-**Updated:** 2026-08-06
+**Updated:** 2026-08-13
 **Repository:** xibalba-cortex
 **Role:** Local, provenance-aware graph memory MCP server and runtime-controller substrate for Xibalba agent memory.
 
@@ -168,6 +168,99 @@ Goal: make the viewer's memory page demonstrate the full Xibalba Cortex product,
 - [x] Live Claude Code pre-tool hook installation proof remains blocked until the user-local plugin routes pre_tool_call into graph-memory.
 
 - [x] Plain default test execution is blocked until Drive dependency policy is decided and collection handles optional extras deterministically.
+
+## Hybrid Local-First Extension — 2026-08-13
+
+Goal: make Cortex configurable as a fully local graph memory system or a hybrid system while
+preserving SQLite as the canonical evidence store, delegating language-model inference to the
+native agent harness, and generating embeddings with local model workers by default.
+
+### Architecture decisions
+
+- [x] Keep v1 store and MCP primitives backward-compatible; add provider interfaces and tools
+  rather than changing existing signatures.
+- [x] Define explicit local, hybrid, and remote-inference/local-embedding profiles.
+- [x] Treat native-harness inference as the preferred inference provider.
+- [x] Treat local embedding workers as the preferred vector provider.
+- [x] Keep remote vector, inference, reranking, backup, and synchronization systems rebuildable
+  and non-authoritative.
+- [x] Make effective configuration inspectable with redaction.
+- [x] Use Merkle roots as tamper-evident checkpoints, inclusion-proof anchors, synchronization
+  comparisons, and evidence-lineage references; never as proof of truth or authorization.
+
+### Phase H1 — Configuration and provider contracts
+
+- [x] Add profile-scoped YAML or JSON configuration with defaults, environment overrides, and CLI
+  overrides.
+- [x] Add `InferenceProvider`, `EmbeddingProvider`, `RetrievalProvider`, and `ProjectionProvider`
+  protocols.
+- [x] Add `config show --effective --redact`, `doctor`, `models list`, and `workers status`.
+- [x] Preserve current defaults when no configuration exists.
+- [x] Test profile isolation, redaction, invalid configuration, and degraded local startup.
+
+### Phase H2 — Native-harness inference contract
+
+- [x] Version task input/output schemas and add evidence scope, input snapshot hash, output schema,
+  promotion policy, and worker runtime metadata.
+- [ ] Add task families for `extract_entities`, `extract_relations`, `extract_propositions`,
+  `detect_contradictions`, `find_duplicates`, and `classify_para`.
+- [x] Keep all inference output reviewable and separate from raw observations.
+- [ ] Add retry-after, failure class, dead-letter reason, and stale-source states.
+- [ ] Repair or dead-letter the six legacy claimed live tasks with missing claim metadata.
+- [ ] Add a live Hermes worker vertical slice with bounded evidence access and structured output.
+- [x] Route the PARA worker's default runner through the native-harness provider boundary; keep
+  the subprocess injectable for tests and do not load a language model in the store server.
+
+### Phase H3 — Local embedding model registry
+
+- [ ] Add an embedding model registry with model ID, revision, dimension, normalization, and
+  distance metric.
+- [ ] Add local model availability/download diagnostics without loading models in the MCP server.
+- [ ] Add re-embedding jobs, model migration, rollback, and reconciliation reports.
+- [ ] Add optional CPU/GPU worker selection while preserving bounded processing.
+- [ ] Keep failed vectors retryable and source memory durable.
+
+### Phase H4 — Hybrid retrieval
+
+- [ ] Add independent lexical, vector, graph, exact-identifier, and temporal candidate generators.
+- [ ] Add rank fusion, optional local/remote reranking, diversity, token budgets, and retrieval
+  traces.
+- [ ] Add namespace, profile, lifecycle, trust, and sensitivity filters before prompt assembly.
+- [ ] Keep lexical-only recall functional when embeddings are unavailable.
+- [ ] Add evaluation fixtures for recall, temporal updates, contradictions, graph hops, poisoning,
+  profile isolation, and provenance citation.
+
+### Phase H5 — Merkle evidence services
+
+- [x] Define versioned leaf and tree profiles for memory events, exchange batches, retrieval traces,
+  and projection checkpoints.
+- [x] Add recomputation and inclusion-proof APIs for committed local batches.
+- [ ] Add root comparison and reconciliation APIs for backups and hybrid projections.
+- [ ] Record root/leaf citations on derived proposals and retrieval traces.
+- [x] Add adversarial tests for reordering, omission, mutation, duplicate leaves, and profile
+  mismatch.
+- [x] Document the boundary: roots prove limited byte commitments, not truth, authorization,
+  completeness, identity ownership, or external finality.
+
+### H6 — Operator and viewer workflow
+
+- [ ] Replace identifier-heavy inference controls with selection-driven actions.
+- [ ] Show `captured -> queued -> processing -> ready for review -> applied/dismissed/stale`.
+- [ ] Display subject, evidence scope, source hash, confidence, uncertainty, and exact side effect.
+- [ ] Add visual state for provider mode, model version, projection lag, retrieval signals, and
+  root verification.
+- [ ] Add headless browser coverage for empty, proposed, accepted, dismissed, stale, and degraded
+  states.
+
+### Hybrid acceptance gate
+
+- [ ] Local mode passes with no external provider.
+- [ ] Native-harness inference passes the queue contract without direct store-side model loading.
+- [ ] Local embedding backfill and reconciliation pass with zero data loss.
+- [ ] Hybrid projections can be disabled, rebuilt, and compared by root without canonical drift.
+- [ ] Retrieval traces and Merkle evidence are queryable.
+- [ ] Provider outage leaves capture, lexical recall, graph traversal, and task evidence available.
+- [ ] Full tests, viewer build, live API checks, and documented resource measurements pass.
 
 ## Acceptance Criteria
 

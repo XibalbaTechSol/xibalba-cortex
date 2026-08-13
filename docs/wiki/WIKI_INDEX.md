@@ -4,7 +4,7 @@
 > now — see the schema's "no aspirational content" rule. This is a focused core set covering
 > Cortex's actual architecture, not an exhaustive catalog — contributions adding more pages are
 > welcome.
-> Last updated: 2026-08-12 | Total pages: 13 (7 concepts, 3 entities, 2 architecture, 1 query)
+> Last updated: 2026-08-13 | Total pages: 18 (10 concepts, 5 architecture, 3 entities, 1 query)
 
 ## Acronym glossary
 - [MCP](concepts/mcp-tool-surface.md) — Model Context Protocol
@@ -19,6 +19,10 @@
 - [Generic Ingestion](concepts/generic-ingestion.md) — `memory_ingest_agent_turn`, streamable-HTTP, and per-harness bearer-token auth for any agent harness
 - [Redaction](concepts/redaction.md) — `redact()`: shared secret-scrubbing logic used across every ingestion path
 - [Lifecycle and Forgetting](concepts/lifecycle-and-forgetting.md) — memory lifecycle states, contradiction, supersession, quarantine, and forgetting's residual-hash tradeoff
+- [PARA Classification](concepts/para-classification.md) — reviewable Projects/Areas/Resources/Archives proposals with stale-source protection
+- [Integrity and Merkle Evidence](concepts/integrity-and-merkle-evidence.md) — local roots, hash chains, and evidence boundaries
+- [Embedding Worker](concepts/embedding-worker.md) — bounded, hash-protected vector backfill with strict validation
+- [Hybrid Extraction and Retrieval](concepts/hybrid-extraction-and-retrieval.md) — Hermes extraction validation, four-channel retrieval traces, and canonical-left projection reconciliation
 
 ## Entities
 - [Sessions and Exchanges](entities/sessions-and-exchanges.md) — the `sessions`/`exchanges`/`exchange_memories`/`exchange_tool_calls`/`exchange_context_memories` tables
@@ -28,6 +32,9 @@
 ## Architecture
 - [Ecosystem Role](architecture/ecosystem-role.md) — Cortex as 🧠 The Brain in the three-repository ecosystem, and as a standalone MCP memory server first
 - [Store Schema Overview](architecture/store-schema-overview.md) — a schema-level tour of every table in `graph-memory.sqlite3`
+- [Inference Queue and Recovery](architecture/inference-queue.md) — claim ownership, leases, bounded retries, and legacy queue reconciliation
+- [Viewer and Local API](architecture/viewer-and-local-api.md) — graph, recall, inference, PARA, integrity, and headless validation
+- [Hybrid Local-First Providers](architecture/hybrid-local-first-providers.md) — local/hybrid modes, native harness inference, and local embeddings
 
 ## Open queries
 - [Compliance Evidence Trail](queries/compliance-evidence-trail.md) — how far Cortex's queryable, hash-chained history goes toward compliance-grade evidence, and what's still open (streaming queries, multi-tenant sharing, opt-in anchoring)
