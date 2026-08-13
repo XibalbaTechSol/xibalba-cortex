@@ -81,6 +81,35 @@ def validate_extraction_result(output: dict[str, Any], *, expected_hash: str, ki
     return validated
 
 
+def validate_contradiction_result(output: dict[str, Any], *, expected_hash: str) -> dict[str, Any]:
+    """Validate a detect_contradictions worker output: a list of candidate memories the
+    subject memory conflicts with, each with a stated reason and confidence. Unlike
+    extract_entities/extract_relations there's no single verbatim evidence_quote -- a
+    contradiction is a claim about a *pair* of memories, not a span within one."""
+    if output.get("schema_version") != "xibalba.contradictions.v1":
+        raise ValueError("output schema_version must be xibalba.contradictions.v1")
+    if output.get("input_snapshot_hash") != expected_hash:
+        raise ValueError("input_snapshot_hash does not match task evidence snapshot")
+    items = output.get("contradictions")
+    if not isinstance(items, list) or len(items) > 20:
+        raise ValueError("contradictions must be a list with at most 20 items")
+    validated: list[dict[str, Any]] = []
+    for item in items:
+        if not isinstance(item, dict):
+            raise ValueError("contradictions items must be objects")
+        memory_id = item.get("contradicting_memory_id")
+        reason = item.get("reason")
+        confidence = item.get("confidence")
+        if not isinstance(memory_id, str) or not memory_id.strip():
+            raise ValueError("contradicting_memory_id is required")
+        if not isinstance(reason, str) or not reason.strip():
+            raise ValueError("reason is required")
+        if not isinstance(confidence, (int, float)) or not 0 <= confidence <= 1:
+            raise ValueError("confidence must be between 0 and 1")
+        validated.append({"contradicting_memory_id": memory_id, "reason": reason.strip(), "confidence": float(confidence)})
+    return {"schema_version": output["schema_version"], "input_snapshot_hash": expected_hash, "contradictions": validated}
+
+
 def validate_extraction_output(output: dict[str, Any], *, kind: str) -> dict[str, Any]:
     """Validate bounded, reviewable entity/relation extraction output."""
     if output.get("schema_version") != f"xibalba.{kind}.v1":

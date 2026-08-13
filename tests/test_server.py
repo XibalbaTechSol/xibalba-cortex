@@ -33,6 +33,7 @@ async def test_all_tools_are_advertised(store):
         "memory_hybrid_retrieve",
         "memory_retrieval_trace",
         "memory_embed",
+        "memory_embedding_models",
         "memory_attach",
         "memory_list_attachments",
         "memory_session_start",

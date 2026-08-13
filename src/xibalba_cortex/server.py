@@ -134,10 +134,22 @@ def memory_remember(
 
 @server.tool()
 def memory_hybrid_retrieve(
-    query: str, query_vector: list[float] | None = None, limit: int = 10, temporal_at: str | None = None
+    query: str,
+    query_vector: list[float] | None = None,
+    limit: int = 10,
+    temporal_at: str | None = None,
+    filters: dict[str, object] | None = None,
+    max_per_source: int | None = None,
+    max_total_chars: int | None = None,
 ) -> dict[str, object]:
-    f"""Fuse lexical, vector, graph, and temporal candidates with persisted provenance trace. {_UNTRUSTED_EVIDENCE_NOTE}"""
-    return get_store().hybrid_retrieve(query, query_vector=query_vector, limit=limit, temporal_at=temporal_at)
+    f"""Fuse lexical, vector, graph, temporal, and exact-identifier candidates with a persisted
+    provenance trace. filters narrows by status/evidence_class; max_per_source/max_total_chars
+    cap diversity and result size, recording any drops in the trace rather than silently
+    omitting them. {_UNTRUSTED_EVIDENCE_NOTE}"""
+    return get_store().hybrid_retrieve(
+        query, query_vector=query_vector, limit=limit, temporal_at=temporal_at,
+        filters=filters, max_per_source=max_per_source, max_total_chars=max_total_chars,
+    )
 
 
 @server.tool()
@@ -183,6 +195,13 @@ def memory_embed(
     the vector in the calling agent's own process and pass it here.
     """
     return get_store().store_embedding(memory_id, vector, model_id=model_id)
+
+
+@server.tool()
+def memory_embedding_models() -> list[dict[str, object]]:
+    """List registered embedding models -- id, revision, dimension, distance metric, and which
+    one is currently active. store_embedding validates against whichever model is active."""
+    return get_store().list_embedding_models()
 
 
 @server.tool()

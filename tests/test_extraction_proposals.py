@@ -67,7 +67,7 @@ def test_completion_fails_closed_on_contaminated_evidence_quote(tmp_path: Path):
         claimed["id"], claimed_by="test-worker", claim_token=claimed["claim_token"], output_payload=output,
     )
     assert completed["status"] == "failed"
-    assert completed["failure_class"] == "permanent"
+    assert completed["failure_class"] == "validation"
     assert completed["dead_letter_reason"] == "extraction_validation_failed"
     assert store.list_extraction_proposals(status="proposed", task_id=claimed["id"]) == []
 

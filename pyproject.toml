@@ -33,6 +33,7 @@ xibalba-cortex-drive-ingest = "xibalba_cortex.drive_ingest:main"
 xibalba-cortex-demo-seed = "xibalba_cortex.demo_seed:main"
 xibalba-cortex-embedding-worker = "xibalba_cortex.embedding_worker:main"
 xibalba-cortex-para-worker = "xibalba_cortex.para_worker:main"
+xibalba-cortex-contradiction-worker = "xibalba_cortex.contradiction_worker:main"
 xibalba-cortex-operator = "xibalba_cortex.operator:main"
 xibalba-cortex-ingest-tokens = "xibalba_cortex.ingest_tokens:main"
 

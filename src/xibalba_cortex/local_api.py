@@ -31,6 +31,12 @@ Routes:
   GET /api/session/{id}/merkle-proof?index= -> GraphStore.session_merkle_evidence()
   GET /api/inference/manifest              -> MEMORY_INFERENCE_SUBAGENT_MANIFEST
   GET /api/inference/tasks?status=&limit=  -> GraphStore.list_inference_tasks()
+  GET /api/extraction-proposals?status=&task_id=&source_memory_id=&limit= -> GraphStore.list_extraction_proposals()
+  GET /api/retrieval/trace/{id}            -> GraphStore.get_retrieval_trace()
+  GET /api/retrieval/trace/{id}/evidence?rank= -> GraphStore.retrieval_trace_evidence()
+  GET /api/projections/{id}/checkpoints?limit= -> GraphStore.list_projection_checkpoints()
+  GET /api/projections/{id}/checkpoints/latest -> GraphStore.get_latest_projection_checkpoint()
+  GET /api/embedding/models                -> GraphStore.list_embedding_models()
   POST /api/exchanges/model                -> GraphStore.record_model_exchange()
   POST /api/memory/propositions            -> GraphStore.store_memory()
   POST /api/memory/link-entities           -> GraphStore.link_entities()
@@ -39,6 +45,11 @@ Routes:
   POST /api/inference/tasks                -> GraphStore.request_inference_task()
   POST /api/inference/tasks/{id}/claim     -> GraphStore.claim_inference_task()
   POST /api/inference/tasks/{id}/complete  -> GraphStore.complete_inference_task()
+  POST /api/extraction-proposals/{id}/decision -> GraphStore.decide_extraction_proposal()
+  POST /api/retrieval/hybrid               -> GraphStore.hybrid_retrieve()
+  POST /api/projections/{id}/checkpoint    -> GraphStore.create_projection_checkpoint()
+  POST /api/projections/{id}/reconcile     -> GraphStore.reconcile_projection_checkpoint()
+  POST /api/projections/{id}/rebuild       -> GraphStore.rebuild_projection_checkpoint()
   GET /api/graph?limit=&similarity_threshold= -> GraphStore.graph_payload()
 """
 from __future__ import annotations
@@ -139,6 +150,28 @@ def _make_handler(store: GraphStore, *, allowed_origin: str):
                     status = params.get("status", "proposed")
                     limit = int(params.get("limit", 50))
                     self._send_json(200, store.list_para_classifications(status=status, limit=limit))
+                elif parts == ["api", "extraction-proposals"]:
+                    status = params.get("status", "proposed")
+                    limit = int(params.get("limit", 50))
+                    task_id = params.get("task_id")
+                    source_memory_id = params.get("source_memory_id")
+                    self._send_json(200, store.list_extraction_proposals(status=status, task_id=task_id, source_memory_id=source_memory_id, limit=limit))
+                elif len(parts) == 4 and parts[0] == "api" and parts[1] == "retrieval" and parts[2] == "trace":
+                    self._send_json(200, store.get_retrieval_trace(parts[3]))
+                elif len(parts) == 5 and parts[0] == "api" and parts[1] == "retrieval" and parts[2] == "trace" and parts[4] == "evidence":
+                    rank = int(params.get("rank", 1))
+                    self._send_json(200, store.retrieval_trace_evidence(parts[3], rank=rank))
+                elif len(parts) == 4 and parts[0] == "api" and parts[1] == "projections" and parts[3] == "checkpoints":
+                    limit = int(params.get("limit", 50))
+                    self._send_json(200, store.list_projection_checkpoints(parts[2], limit=limit))
+                elif len(parts) == 5 and parts[0] == "api" and parts[1] == "projections" and parts[3] == "checkpoints" and parts[4] == "latest":
+                    latest = store.get_latest_projection_checkpoint(parts[2])
+                    if latest is None:
+                        self._send_json(404, {"error": "no checkpoint exists for this projection yet"})
+                    else:
+                        self._send_json(200, latest)
+                elif parts == ["api", "embedding", "models"]:
+                    self._send_json(200, store.list_embedding_models())
                 elif len(parts) == 3 and parts[0] == "api" and parts[1] == "memory" and parts[2]:
                     self._send_json(200, store.get_memory(parts[2]))
                 elif len(parts) == 4 and parts[0] == "api" and parts[1] == "memory" and parts[3] == "similar":
@@ -303,6 +336,39 @@ def _make_handler(store: GraphStore, *, allowed_origin: str):
                     decision = str(payload.get("decision") or "")
                     note = payload.get("note") if isinstance(payload.get("note"), str) else None
                     self._send_json(200, store.accept_para_classification(parts[3], decision=decision, note=note))
+                elif len(parts) == 4 and parts[:2] == ["api", "extraction-proposals"] and parts[3] == "decision":
+                    decision = str(payload.get("decision") or "")
+                    note = payload.get("note") if isinstance(payload.get("note"), str) else None
+                    decided_by = payload.get("decided_by") if isinstance(payload.get("decided_by"), str) else None
+                    self._send_json(200, store.decide_extraction_proposal(parts[2], decision=decision, decided_by=decided_by, note=note))
+                elif parts == ["api", "retrieval", "hybrid"]:
+                    query_vector = payload.get("query_vector")
+                    if query_vector is not None and not isinstance(query_vector, list):
+                        raise ValueError("query_vector must be a list")
+                    filters = payload.get("filters")
+                    if filters is not None and not isinstance(filters, dict):
+                        raise ValueError("filters must be an object")
+                    self._send_json(
+                        200,
+                        store.hybrid_retrieve(
+                            str(payload.get("query") or ""),
+                            query_vector=[float(v) for v in query_vector] if query_vector is not None else None,
+                            limit=int(payload.get("limit", 10)),
+                            temporal_at=payload.get("temporal_at") if isinstance(payload.get("temporal_at"), str) else None,
+                            filters=filters,
+                            max_per_source=payload.get("max_per_source") if isinstance(payload.get("max_per_source"), int) else None,
+                            max_total_chars=payload.get("max_total_chars") if isinstance(payload.get("max_total_chars"), int) else None,
+                        ),
+                    )
+                elif len(parts) == 4 and parts[0] == "api" and parts[1] == "projections" and parts[3] == "checkpoint":
+                    metadata = payload.get("metadata")
+                    if metadata is not None and not isinstance(metadata, dict):
+                        raise ValueError("metadata must be an object")
+                    self._send_json(200, store.create_projection_checkpoint(parts[2], metadata=metadata))
+                elif len(parts) == 4 and parts[0] == "api" and parts[1] == "projections" and parts[3] == "reconcile":
+                    self._send_json(200, store.reconcile_projection_checkpoint(parts[2]))
+                elif len(parts) == 4 and parts[0] == "api" and parts[1] == "projections" and parts[3] == "rebuild":
+                    self._send_json(200, store.rebuild_projection_checkpoint(parts[2]))
                 elif len(parts) == 5 and parts[:3] == ["api", "inference", "tasks"] and parts[4] == "claim":
                     self._send_json(
                         200,
