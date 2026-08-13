@@ -3,6 +3,24 @@
 > Chronological record of wiki actions. Append-only — never edit past entries.
 > Actions: ingest, create, update, lint, query, archive
 
+## [2026-08-13] update | Strict contradiction evidence scope
+
+- Replaced worker-side unrestricted similarity candidate retrieval with explicit task-contract `evidence_scope` retrieval.
+- Tasks without explicit scope fail closed; out-of-scope candidates are excluded; evidence order is deterministic.
+- Candidate discovery remains a trusted task-creation responsibility and must bind candidate IDs and observed hashes before queueing.
+- Verification: focused contradiction/evidence suite passed 27 tests.
+- Residual limits: no live MCP/external-model proof; full-suite fixed-port and daemon-thread contamination remains separate.
+
+
+- Added `concepts/contradiction-worker.md`, covering the bounded worker, source-hash checks,
+  candidate-memory hash binding, reviewable proposal lifecycle, and actionable-status guard.
+- Added the page to `index.md` and `WIKI_INDEX.md`.
+- Focused verification recorded: 25 tests passed for contradiction worker, stale-hash proposal handling,
+  task-contract migration, extraction proposals, and provider validation.
+- Preserved the boundary that local focused tests do not prove live Model Context Protocol (MCP)
+  integration or external-model execution. Fixed-port and daemon-thread test contamination remains
+  open separately.
+
 ## [2026-08-13] create | Hybrid local-first provider boundary
 
 - Added `architecture/hybrid-local-first-providers.md` and `concepts/integrity-and-merkle-evidence.md`.

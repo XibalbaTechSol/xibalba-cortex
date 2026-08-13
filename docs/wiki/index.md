@@ -38,6 +38,7 @@ flowchart LR
 - [Lifecycle and Forgetting](concepts/lifecycle-and-forgetting.md) — memory states, contradiction, supersession, and forgetting
 - [PARA Classification](concepts/para-classification.md) — reviewable PARA proposals and stale-source safety
 - [Embedding Worker](concepts/embedding-worker.md) — bounded, hash-protected vector backfill
+- [Contradiction Worker and Proposal Lifecycle](concepts/contradiction-worker.md) — bounded contradiction detection and reviewable proposal acceptance
 
 ### Entities
 - [Sessions and Exchanges](entities/sessions-and-exchanges.md) — session turn structure and Merkle chaining
