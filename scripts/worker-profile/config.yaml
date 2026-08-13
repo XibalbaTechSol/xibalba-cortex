@@ -1,0 +1,50 @@
+# Config for the isolated `xibalba-cortex-worker` Hermes profile.
+#
+# A profile's config.yaml is a full replacement, not an overlay on the default
+# ~/.hermes/config.yaml (hermes_cli/config.py: get_config_path() resolves strictly under
+# the active HERMES_HOME with no fallback to the default home) -- so this file must be
+# self-sufficient: model/provider plus the one MCP server this worker is allowed to use.
+#
+# Isolation has two independent axes, both required:
+#   1. Tool restriction: mcp_servers.xibalba_cortex.tools.include is an explicit allowlist,
+#      not the bare server (which would expose ~60 tools including memory_recall/
+#      memory_hybrid_retrieve -- the exact leak class this profile exists to eliminate --
+#      and destructive tools like memory_forget/memory_supersede).
+#   2. Context suppression: memory_enabled/user_profile_enabled: false and no `plugins`
+#      key stop the default agent's recalled memory and observer plugins from attaching
+#      to this worker's turns. `--ignore-rules` does NOT apply in `-z`/--oneshot mode
+#      (hermes_cli/oneshot.py runs the same context-loading path as a normal chat turn),
+#      so this config-level suppression is the only thing that actually isolates the worker.
+model:
+  default: gpt-5.6-luna
+  provider: openai-codex
+  base_url: https://chatgpt.com/backend-api/codex
+agent:
+  max_turns: 6
+  verify_on_stop: false
+  verbose: false
+  reasoning_effort: low
+memory:
+  memory_enabled: false
+  user_profile_enabled: false
+compression:
+  enabled: false
+streaming:
+  enabled: false
+mcp_servers:
+  xibalba_cortex:
+    command: /home/xibalba/Projects/xibalba-cortex/.venv/bin/xibalba-cortex
+    env:
+      XIBALBA_CORTEX_HOME: /home/xibalba/.hermes/xibalba-cortex
+      XIBALBA_CORTEX_RETENTION_TIER: digest
+      XIBALBA_CORTEX_IDENTITY_MODE: full
+      XIBALBA_AGENT_ID: xibalba.extraction-worker
+    tools:
+      include:
+        - memory_claim_inference_task
+        - memory_evidence_bundle
+        - memory_complete_inference_task
+        - memory_inference_subagent_manifest
+# `plugins` key deliberately absent: the default config has no `plugins` key of its own
+# (DEFAULT_CONFIG carries none), so omission -- not an explicit empty list -- is what
+# disables integrity_telemetry and the xibalba_cortex observer plugin for this profile.

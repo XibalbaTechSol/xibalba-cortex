@@ -68,6 +68,7 @@ async def test_all_tools_are_advertised(store):
         "memory_request_inference",
         "memory_inference_tasks",
         "memory_claim_inference_task",
+        "memory_evidence_bundle",
         "memory_complete_inference_task",
         "runtime_controller_status",
         "runtime_open_session",
@@ -572,3 +573,45 @@ async def test_runtime_adapter_tools_through_mcp(store, monkeypatch):
         {"session_id": "runtime-codex-mcp", "args": ["--help"]},
     )
     assert _dict_result(launched)["launched"] is False
+
+
+@pytest.mark.asyncio
+async def test_extraction_task_claim_evidence_and_complete_round_trip_through_mcp(store):
+    memory = _dict_result(await server.server.call_tool(
+        "memory_remember",
+        {"content": "Xibalba Solutions LLC is based in Texas.", "source": {"kind": "direct_user", "locator": "hermes://session/mcp/1"}, "status": "active"},
+    ))
+
+    requested = _dict_result(await server.server.call_tool(
+        "memory_request_inference",
+        {
+            "task_type": "extract_entities",
+            "subject_type": "memory",
+            "subject_id": memory["id"],
+            "input_payload": {"source_content_hash": memory["content_hash"]},
+        },
+    ))
+
+    claimed = _dict_result(await server.server.call_tool(
+        "memory_claim_inference_task", {"task_id": requested["id"], "claimed_by": "mcp-test-worker"},
+    ))
+    assert claimed["status"] == "claimed"
+
+    bundle = _dict_result(await server.server.call_tool("memory_evidence_bundle", {"task_id": requested["id"]}))
+    assert bundle["subject_id"] == memory["id"]
+    assert bundle["items"][0]["content"] == memory["content"]
+
+    completed = _dict_result(await server.server.call_tool(
+        "memory_complete_inference_task",
+        {
+            "task_id": requested["id"],
+            "claimed_by": "mcp-test-worker",
+            "claim_token": claimed["claim_token"],
+            "output_payload": {
+                "schema_version": "xibalba.entities.v1",
+                "input_snapshot_hash": memory["content_hash"],
+                "entities": [{"name": "Xibalba Solutions LLC", "entity_type": "organization", "evidence_quote": "Xibalba Solutions LLC", "confidence": 0.9}],
+            },
+        },
+    ))
+    assert completed["status"] == "completed"

@@ -4,7 +4,7 @@ from collections import Counter
 from collections.abc import Mapping
 from typing import Any
 
-from .events import merkle_root
+from .events import domain_merkle_root
 
 
 def _validate_checkpoint(value: Mapping[str, Any]) -> tuple[str, list[str]]:
@@ -14,7 +14,10 @@ def _validate_checkpoint(value: Mapping[str, Any]) -> tuple[str, list[str]]:
     leaves = list(value.get("leaf_hashes") or [])
     if any(not isinstance(leaf, str) or not leaf.startswith("sha256:") for leaf in leaves):
         raise ValueError("leaf_hashes must contain sha256 hashes")
-    expected = merkle_root(leaves)
+    # domain_merkle_root (not the plain merkle_root) both binds root_profile into the actual
+    # hash preimage -- not just carried as sibling metadata -- and makes the root sensitive to
+    # leaf order, which plain merkle_root's sibling-sorting does not guarantee.
+    expected = domain_merkle_root(leaves, domain="projection_checkpoint")
     if value.get("root_hash") != expected:
         raise ValueError("root_hash does not match ordered leaf_hashes")
     return str(value["root_hash"]), leaves
