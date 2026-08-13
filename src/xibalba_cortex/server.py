@@ -133,6 +133,20 @@ def memory_remember(
 
 
 @server.tool()
+def memory_hybrid_retrieve(
+    query: str, query_vector: list[float] | None = None, limit: int = 10, temporal_at: str | None = None
+) -> dict[str, object]:
+    f"""Fuse lexical, vector, graph, and temporal candidates with persisted provenance trace. {_UNTRUSTED_EVIDENCE_NOTE}"""
+    return get_store().hybrid_retrieve(query, query_vector=query_vector, limit=limit, temporal_at=temporal_at)
+
+
+@server.tool()
+def memory_retrieval_trace(trace_id: str) -> dict[str, object]:
+    """Read a persisted retrieval trace and its root commitment."""
+    return get_store().get_retrieval_trace(trace_id)
+
+
+@server.tool()
 def memory_recall(
     query: str, query_vector: list[float] | None = None, limit: int = 10
 ) -> list[dict[str, object]]:
@@ -597,10 +611,13 @@ def memory_complete_inference_task(
     task_id: str,
     output_payload: dict[str, object] | None = None,
     error: str | None = None,
+    claimed_by: str | None = None,
+    claim_token: str | None = None,
 ) -> dict[str, object]:
     """Complete or fail an inference task. Passing error marks it failed."""
     return get_store().complete_inference_task(
-        task_id, output_payload=output_payload, error=error
+        task_id, output_payload=output_payload, error=error,
+        claimed_by=claimed_by, claim_token=claim_token,
     )
 
 

@@ -35,7 +35,9 @@ flowchart LR
 - [Runtime Adapters](concepts/runtime-adapters.md) — the claude/agy/codex identity+policy layer
 - [Generic Ingestion](concepts/generic-ingestion.md) — `memory_ingest_agent_turn`, streamable-HTTP, bearer tokens
 - [Redaction](concepts/redaction.md) — shared secret-scrubbing logic
-- [Lifecycle and Forgetting](concepts/lifecycle-and-forgetting.md) — memory states, contradiction, supersession, forgetting
+- [Lifecycle and Forgetting](concepts/lifecycle-and-forgetting.md) — memory states, contradiction, supersession, and forgetting
+- [PARA Classification](concepts/para-classification.md) — reviewable PARA proposals and stale-source safety
+- [Embedding Worker](concepts/embedding-worker.md) — bounded, hash-protected vector backfill
 
 ### Entities
 - [Sessions and Exchanges](entities/sessions-and-exchanges.md) — session turn structure and Merkle chaining
@@ -45,6 +47,10 @@ flowchart LR
 ### Architecture
 - [Ecosystem Role](architecture/ecosystem-role.md) — Cortex as 🧠 The Brain, and as a standalone product first
 - [Store Schema Overview](architecture/store-schema-overview.md) — a schema-level tour of every table
+- [Inference Queue and Recovery](architecture/inference-queue.md) — claim ownership, leases, retries, and stale-task recovery
+- [Viewer and Local API](architecture/viewer-and-local-api.md) — operator surfaces and local API boundaries
+- [Hybrid Local-First Providers](architecture/hybrid-local-first-providers.md) — local/hybrid modes, native harness inference, and local embeddings
+- [Integrity and Merkle Evidence](concepts/integrity-and-merkle-evidence.md) — local roots and evidence boundaries
 
 ### Open queries
 - [Compliance Evidence Trail](queries/compliance-evidence-trail.md) — how far Cortex's queryable history goes toward compliance-grade evidence

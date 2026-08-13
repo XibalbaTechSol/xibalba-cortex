@@ -14,6 +14,7 @@ import {
   type MemoryEvent,
   type MerkleRoot,
   type OtelEvent,
+  type ParaClassification,
   type Session,
   type SimilarHit,
   type Stats,
@@ -34,7 +35,7 @@ const tabs: Array<{ id: Tab; label: string }> = [
   { id: 'integrity', label: 'Integrity' },
 ]
 
-function Badge({ children }: { children: string | number | null | undefined }) {
+function Badge({ children }: { children: ReactNode }) {
   if (children === null || children === undefined || children === '') return null
   return <span className="badge">{children}</span>
 }
@@ -475,7 +476,7 @@ function OtelTreeNode({
         <span style={{ fontSize: '10px', width: '12px', display: 'inline-block', color: 'var(--text-muted)' }}>
           {children.length > 0 ? (collapsed ? '▶' : '▼') : '•'}
         </span>
-        <span className="badge" style={{ fontSize: '9px', background: 'rgba(245, 158, 11, 0.15)', color: '#fbbf24', border: '1px solid rgba(245, 158, 11, 0.25)' }}>
+        <span className="badge" style={{ fontSize: '9px', background: 'rgba(245, 158, 11, 0.15)', color: '#fbbf24', border: 'none', padding: '3px 8px', borderRadius: '4px' }}>
           {event.kind}
         </span>
         <strong style={{ color: '#e2e8f0' }}>{event.name}</strong>
@@ -580,7 +581,7 @@ function CollapsibleExchange({
   exchange: any
   onSelectMemory: (id: string) => void
 }) {
-  const [showMetadata, setShowMetadata] = useState(false)
+  const [showMetadata, setShowMetadata] = useState(true)
 
   const formatTime = (timeStr: string | null) => {
     if (!timeStr) return 'n/a'
@@ -599,7 +600,8 @@ function CollapsibleExchange({
           maxWidth: '75%',
           marginLeft: 'auto',
           background: 'rgba(59, 130, 246, 0.15)',
-          border: '1px solid rgba(59, 130, 246, 0.3)',
+          border: 'none',
+          boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
           padding: '12px 16px',
           borderRadius: '16px 16px 2px 16px',
           marginBottom: '12px'
@@ -623,8 +625,9 @@ function CollapsibleExchange({
         <div className="chat-bubble assistant" style={{
           maxWidth: '75%',
           marginRight: 'auto',
-          background: 'rgba(255, 255, 255, 0.04)',
-          border: '1px solid rgba(255, 255, 255, 0.08)',
+          background: 'rgba(255, 255, 255, 0.05)',
+          border: 'none',
+          boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
           padding: '12px 16px',
           borderRadius: '16px 16px 16px 2px',
           marginBottom: '12px'
@@ -655,7 +658,7 @@ function CollapsibleExchange({
       </div>
 
       {showMetadata && (
-        <div className="exchange-metadata" style={{ padding: '16px', background: 'rgba(255,255,255,0.02)', borderRadius: '8px', fontSize: '12px', border: '1px solid rgba(255,255,255,0.05)' }}>
+        <div className="exchange-metadata" style={{ padding: '16px', background: 'rgba(255,255,255,0.02)', borderRadius: '8px', fontSize: '12px', border: 'none', boxShadow: 'inset 0 1px 4px rgba(0,0,0,0.2)' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '16px', opacity: 0.7 }}>
             <span>Latency: {exchange.latency_ms?.toFixed(0) ?? 'n/a'} ms</span>
             <span>Node ID: <Hash value={exchange.node_id} /></span>
@@ -710,12 +713,15 @@ export default function App() {
   const [graphFilterIntent, setGraphFilterIntent] = useState<GraphFilterIntent>({ nonce: 0 })
   const [query, setQuery] = useState('')
   const [searchResults, setSearchResults] = useState<Memory[]>([])
+  const [searchLoading, setSearchLoading] = useState(false)
+  const [searchError, setSearchError] = useState<string | null>(null)
   const [selectedMemoryId, setSelectedMemoryId] = useState<string | null>(null)
   const [selectedGraphNode, setSelectedGraphNode] = useState<DemoNode | null>(null)
   const [activeTab, setActiveTab] = useState<Tab>('graph')
   const [contextBundle, setContextBundle] = useState<Memory[]>([])
   const [manifest, setManifest] = useState<InferenceManifest | null>(null)
   const [tasks, setTasks] = useState<InferenceTask[]>([])
+  const [paraClassifications, setParaClassifications] = useState<ParaClassification[]>([])
   const [taskStatus, setTaskStatus] = useState('pending')
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
@@ -770,10 +776,17 @@ export default function App() {
   useEffect(() => {
     if (!query.trim()) {
       setSearchResults([])
+      setSearchLoading(false)
+      setSearchError(null)
       return
     }
+    setSearchLoading(true)
+    setSearchError(null)
     const timeout = setTimeout(() => {
-      api.search(query).then(setSearchResults).catch(() => setSearchResults([]))
+      api.search(query).then(setSearchResults).catch((error) => {
+        setSearchResults([])
+        setSearchError(String(error))
+      }).finally(() => setSearchLoading(false))
     }, 200)
     return () => clearTimeout(timeout)
   }, [query])
@@ -782,10 +795,11 @@ export default function App() {
     api.inferenceTasks(taskStatus).then(setTasks).catch(() => setTasks([]))
   }, [taskStatus])
 
-  const selectedSession = useMemo(
-    () => sessions.find((item) => item.external_session_id === selectedSessionId) ?? null,
-    [sessions, selectedSessionId],
-  )
+  useEffect(() => {
+    api.paraClassifications().then(setParaClassifications).catch(() => setParaClassifications([]))
+  }, [tasks])
+
+
   const demoGraph = useMemo(
     () => buildDemoGraph(graph, sessions, selectedSessionId, exchanges, root),
     [graph, sessions, selectedSessionId, exchanges, root],
@@ -892,11 +906,16 @@ export default function App() {
 
   const queueInference = async (subjectType: string, subjectId: string, taskType: string) => {
     try {
+      const inputPayload: Record<string, unknown> = { subject_type: subjectType, subject_id: subjectId }
+      if (taskType === 'classify_para' && subjectType === 'memory') {
+        const memory = await api.memory(subjectId)
+        inputPayload.source_content_hash = memory.content_hash
+      }
       const task = await api.requestInferenceTask({
         task_type: taskType,
         subject_type: subjectType,
         subject_id: subjectId,
-        input_payload: { subject_type: subjectType, subject_id: subjectId },
+        input_payload: inputPayload,
         requested_by: 'viewer',
         idempotency_key: `viewer:${taskType}:${subjectType}:${subjectId}:${Date.now()}`,
       })
@@ -914,7 +933,7 @@ export default function App() {
         demo_output: true,
         subject_id: task.subject_id,
         note: 'Operator-supplied MVP demo output.',
-      })
+      }, undefined, task.claim_owner, task.claim_token)
       setNotice(`Completed task ${completed.id}.`)
       api.inferenceTasks(taskStatus).then(setTasks)
     } catch (e) {
@@ -1073,29 +1092,46 @@ export default function App() {
               query={query}
               results={searchResults}
               contradictionCounts={contradictionCounts}
+              searchLoading={searchLoading}
+              searchError={searchError}
               onQuery={setQuery}
               onSelectMemory={selectMemory}
               onUseAsContext={addContext}
             />
           )}
           {activeTab === 'inference' && (
-            <InferenceTab
-              manifest={manifest}
-              tasks={tasks}
-              taskStatus={taskStatus}
-              selectedMemoryId={selectedMemoryId}
-              selectedSessionId={selectedSessionId}
-              sessions={sessions}
-              setSelectedSessionId={setSelectedSessionId}
-              onStatus={setTaskStatus}
-              onQueue={queueInference}
-              onClaim={async (task) => {
-                await api.claimInferenceTask(task.id, 'viewer')
-                api.inferenceTasks(taskStatus).then(setTasks)
-              }}
-              onComplete={completeTask}
-              onWriteBack={applyWriteBack}
-            />
+            <>
+              <InferenceTab
+                manifest={manifest}
+                tasks={tasks}
+                taskStatus={taskStatus}
+                selectedMemoryId={selectedMemoryId}
+                selectedSessionId={selectedSessionId}
+                sessions={sessions}
+                setSelectedSessionId={setSelectedSessionId}
+                onStatus={setTaskStatus}
+                onQueue={queueInference}
+                onClaim={async (task) => {
+                  await api.claimInferenceTask(task.id, 'viewer')
+                  api.inferenceTasks(taskStatus).then(setTasks)
+                }}
+                onComplete={completeTask}
+                onWriteBack={applyWriteBack}
+              />
+              <ParaPanel
+                proposals={paraClassifications}
+                onDecision={async (taskId, decision) => {
+                  try {
+                    await api.decidePara(taskId, decision)
+                    setParaClassifications(await api.paraClassifications())
+                    setNotice(`PARA proposal ${decision === 'accept' ? 'accepted' : decision === 'dismiss' ? 'dismissed' : 'kept original'}.`)
+                  } catch (e) {
+                    setError(String(e))
+                  }
+                }}
+                onSelectMemory={selectMemory}
+              />
+            </>
           )}
           {activeTab === 'integrity' && (
             <IntegrityTab
@@ -1773,6 +1809,8 @@ function RecallTab({
   query,
   results,
   contradictionCounts,
+  searchLoading,
+  searchError,
   onQuery,
   onSelectMemory,
   onUseAsContext,
@@ -1780,6 +1818,8 @@ function RecallTab({
   query: string
   results: Memory[]
   contradictionCounts: Map<string, number>
+  searchLoading: boolean
+  searchError: string | null
   onQuery: (query: string) => void
   onSelectMemory: (id: string) => void
   onUseAsContext: (memory: Memory) => void
@@ -1795,18 +1835,71 @@ function RecallTab({
         value={query}
         onChange={(event) => onQuery(event.target.value)}
         placeholder="Search active and confirmed memories"
+        aria-label="Search memories"
       />
-      <div className="item-list">
-        {results.map((memory) => (
-          <MemorySnippet
-            key={memory.id}
-            memory={memory}
-            contradictionCount={contradictionCounts.get(memory.id) ?? 0}
-            onSelect={onSelectMemory}
-            onUseAsContext={onUseAsContext}
-          />
-        ))}
+      {searchError ? (
+        <div className="empty-state error-state" role="alert"><h4>Recall unavailable</h4><p>{searchError}</p></div>
+      ) : searchLoading ? (
+        <div className="empty-state" role="status"><h4>Searching memories…</h4><p>Checking active and confirmed memory records.</p></div>
+      ) : query.trim() && results.length === 0 ? (
+        <div className="empty-state" role="status"><h4>No matching memories</h4><p>Try a broader phrase or confirm that the memory is active.</p></div>
+      ) : !query.trim() ? (
+        <div className="empty-state"><h4>Search your memory graph</h4><p>Enter a phrase to find active and confirmed memories.</p></div>
+      ) : (
+        <div className="item-list">
+          {results.map((memory) => (
+            <MemorySnippet
+              key={memory.id}
+              memory={memory}
+              contradictionCount={contradictionCounts.get(memory.id) ?? 0}
+              onSelect={onSelectMemory}
+              onUseAsContext={onUseAsContext}
+            />
+          ))}
+        </div>
+      )}
+    </section>
+  )
+}
+
+function ParaPanel({
+  proposals,
+  onDecision,
+  onSelectMemory,
+}: {
+  proposals: ParaClassification[]
+  onDecision: (taskId: string, decision: 'accept' | 'dismiss' | 'keep_original') => void
+  onSelectMemory: (memoryId: string) => void
+}) {
+  return (
+    <section className="tab-panel">
+      <div className="panel-header">
+        <div>
+          <h2>PARA review</h2>
+          <p>Derived organization suggestions. Nothing moves automatically.</p>
+        </div>
+        <Badge>{proposals.length} proposed</Badge>
       </div>
+      {proposals.length === 0 ? (
+        <div className="empty-state"><h4>No PARA proposals</h4><p>Queue a PARA classification for a selected memory.</p></div>
+      ) : (
+        <div className="item-list">
+          {proposals.map((proposal) => (
+            <article className="item" key={proposal.task_id}>
+              <div className="item-head"><strong>{proposal.category}</strong><Badge>{proposal.confidence.toFixed(2)} confidence</Badge></div>
+              <p>{proposal.rationale}</p>
+              <p className="small muted">source hash <Hash value={proposal.source_content_hash} /></p>
+              {proposal.signals.length > 0 && <p className="small muted">signals: {proposal.signals.join(', ')}</p>}
+              <div className="action-row">
+                <button type="button" onClick={() => onSelectMemory(proposal.memory_id)}>Inspect source</button>
+                <button type="button" onClick={() => onDecision(proposal.task_id, 'accept')}>Accept</button>
+                <button type="button" onClick={() => onDecision(proposal.task_id, 'keep_original')}>Keep original</button>
+                <button type="button" onClick={() => onDecision(proposal.task_id, 'dismiss')}>Dismiss</button>
+              </div>
+            </article>
+          ))}
+        </div>
+      )}
     </section>
   )
 }
@@ -1817,6 +1910,8 @@ function InferenceTab({
   taskStatus,
   selectedMemoryId,
   selectedSessionId,
+  sessions,
+  setSelectedSessionId,
   onStatus,
   onQueue,
   onClaim,
@@ -1836,7 +1931,9 @@ function InferenceTab({
   onComplete: (task: InferenceTask) => void
   onWriteBack: (action: string, payload: Record<string, unknown>) => void
 }) {
-  const taskType = manifest?.task_types[0] ?? 'extract_memory_metadata'
+  const defaultTask = manifest?.task_types[0] ?? 'extract_memory_metadata'
+  const [selectedTaskType, setSelectedTaskType] = useState(defaultTask)
+
   return (
     <section className="tab-panel two-column">
       <div>
@@ -1863,19 +1960,25 @@ function InferenceTab({
             <p>{manifest.role}</p>
             <p className="small muted">{manifest.input_rule}</p>
             <p className="small muted">{manifest.output_rule}</p>
-            <div className="badges">
-              {manifest.task_types.map((type) => (
-                <Badge key={type}>{type}</Badge>
-              ))}
+            <div className="badges" style={{ marginTop: '12px' }}>
+              <select
+                value={selectedTaskType}
+                onChange={(e) => setSelectedTaskType(e.target.value)}
+                style={{ padding: '4px', borderRadius: '4px' }}
+              >
+                {manifest.task_types.map((type) => (
+                  <option key={type} value={type}>{type}</option>
+                ))}
+              </select>
             </div>
           </div>
         )}
         <div className="action-row">
-          <button disabled={!selectedMemoryId} onClick={() => selectedMemoryId && onQueue('memory', selectedMemoryId, taskType)}>
+          <button disabled={!selectedMemoryId} onClick={() => selectedMemoryId && onQueue('memory', selectedMemoryId, selectedTaskType)}>
             Queue selected memory
           </button>
-          <button disabled={!selectedSessionId} onClick={() => onQueue('session', selectedSessionId, 'summarize_session')}>
-            Queue session summary
+          <button disabled={!selectedSessionId} onClick={() => onQueue('session', selectedSessionId, selectedTaskType)}>
+            Queue selected session
           </button>
         </div>
       </div>

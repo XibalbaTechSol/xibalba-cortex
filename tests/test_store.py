@@ -7,6 +7,8 @@ from pathlib import Path
 import pytest
 import sqlite_vec
 
+from xibalba_cortex.events import verify_merkle_proof
+from xibalba_cortex.providers import InferenceTaskContract
 from xibalba_cortex.store import EMBEDDING_DIM, EMBEDDING_MODEL_ID, GraphStore
 
 
@@ -26,7 +28,7 @@ def test_bootstrap_creates_secure_healthy_sqlite_store(tmp_path):
     assert os.stat(home).st_mode & 0o777 == 0o700
     assert store.db_path.is_file()
     assert os.stat(store.db_path).st_mode & 0o777 == 0o600
-    assert status["schema_version"] == 3
+    assert status["schema_version"] == 7
     assert status["journal_mode"] == "wal"
     assert status["foreign_keys"] is True
     assert status["fts5"] is True
@@ -403,6 +405,25 @@ def test_event_chain_is_hash_linked_and_tamper_evident(tmp_path):
     store.close()
 
 
+def test_store_embedding_rejects_nonfinite_values_and_ineligible_memories(tmp_path):
+    store = GraphStore(tmp_path)
+    memory = store.store_memory("candidate", source={"kind": "test"}, status="candidate")
+    with pytest.raises(ValueError, match="not eligible"):
+        store.store_embedding(memory["id"], _unit_vector(0))
+    active = store.store_memory("active", source={"kind": "test"}, status="active")
+    vector = _unit_vector(0)
+    vector[3] = float("nan")
+    with pytest.raises(ValueError, match="finite"):
+        store.store_embedding(active["id"], vector)
+
+
+def test_store_embedding_requires_current_content_hash(tmp_path):
+    store = GraphStore(tmp_path)
+    memory = store.store_memory("current", source={"kind": "test"}, status="active")
+    with pytest.raises(ValueError, match="content changed"):
+        store.store_embedding(memory["id"], _unit_vector(0), expected_content_hash="sha256:stale")
+
+
 def test_store_embedding_rejects_wrong_model_and_wrong_dimension(tmp_path):
     store = GraphStore(tmp_path / "graph")
     memory = store.store_memory(
@@ -541,7 +562,7 @@ def test_memory_vectors_migrates_existing_l2_table_to_cosine_preserving_data(tmp
     raw.close()
 
     reopened = GraphStore(home)
-    assert reopened.status()["schema_version"] == 3
+    assert reopened.status()["schema_version"] == 7
     results = reopened.search("nomatchingterm-xyz", query_vector=_unit_vector(0), limit=5)
     assert results[0]["id"] == memory["id"]
     assert results[0]["cosine_similarity"] == pytest.approx(1.0)
@@ -559,7 +580,7 @@ def test_backup_produces_verified_restorable_snapshot(tmp_path):
     backup_path = tmp_path / "backups" / "snapshot.sqlite3"
     result = store.backup(backup_path)
     assert result["integrity_check"] == "ok"
-    assert result["schema_version"] == 3
+    assert result["schema_version"] == 7
     assert backup_path.is_file()
     assert os.stat(backup_path).st_mode & 0o777 == 0o600
 
@@ -1022,6 +1043,151 @@ def test_record_model_exchange_captures_prompt_response_context_and_merkle_root(
     store.close()
 
 
+def test_session_merkle_evidence_proves_exchange_inclusion(tmp_path):
+    store = GraphStore(tmp_path / "graph")
+    store.start_session("proof-session")
+    first = store.record_model_exchange("proof-session", user_prompt="one", model_response="answer one")
+    second = store.record_model_exchange("proof-session", user_prompt="two", model_response="answer two")
+
+    evidence = store.session_merkle_evidence("proof-session", exchange_index=1)
+
+    assert evidence["tree_kind"] == "xibalba.exchange_batch.merkle.v1"
+    assert evidence["leaf"] == second["exchange"]["node_id"]
+    assert evidence["leaf_index"] == 1
+    assert evidence["exchange_count"] == 2
+    assert verify_merkle_proof(evidence["proof"]) is True
+    assert evidence["root"] == evidence["proof"]["root"]
+    assert first["exchange"]["node_id"] != second["exchange"]["node_id"]
+    store.close()
+
+
+def _seeded_session_store(tmp_path, session_id="sess-anchor"):
+    store = GraphStore(tmp_path / "graph")
+    store.start_session(session_id, retention_tier="verbatim")
+    memory = store.store_memory("hello", source={"kind": "direct_user", "session_id": session_id}, status="confirmed")
+    store.record_exchange(session_id, prompt_memory_ids=[memory["id"]])
+    return store
+
+
+def test_anchor_session_root_requires_anchor_url(tmp_path, monkeypatch):
+    monkeypatch.delenv("XIBALBA_ANCHOR_URL", raising=False)
+    store = _seeded_session_store(tmp_path)
+    with pytest.raises(ValueError, match="XIBALBA_ANCHOR_URL"):
+        store.anchor_session_root("sess-anchor")
+    store.close()
+
+
+def test_anchor_session_root_refuses_to_send_when_oracle_confirms_unregistered(tmp_path, monkeypatch):
+    import urllib.error
+
+    monkeypatch.setenv("XIBALBA_ANCHOR_URL", "https://anchor.example/consume")
+    monkeypatch.setenv("XIBALBA_ORACLE_URL", "https://oracle.example")
+    monkeypatch.setenv("XIBALBA_AGENT_ID", "did:xibalba:unregistered")
+
+    def _fake_urlopen(request, timeout=None):
+        if "oracle.example" in request.full_url:
+            raise urllib.error.HTTPError(request.full_url, 404, "not found", hdrs=None, fp=None)
+        raise AssertionError("anchor consumer must not be POSTed to for an unregistered agent")
+
+    monkeypatch.setattr("urllib.request.urlopen", _fake_urlopen)
+
+    store = _seeded_session_store(tmp_path)
+    result = store.anchor_session_root("sess-anchor")
+    assert result["anchored"] is False
+    assert "not registered" in result["error"]
+    store.close()
+
+
+def test_anchor_session_root_refuses_when_oracle_returns_200_but_not_oracle_registered(tmp_path, monkeypatch):
+    # The real-world case this exists to catch: a DID that resolves live on-chain
+    # (backend::handlers::get_agent's chain-backfill fallback) returns a plain 200 with
+    # oracle_registered=false, not a 404 — bare HTTP-status checking would wrongly treat
+    # this as clear to send.
+    monkeypatch.setenv("XIBALBA_ANCHOR_URL", "https://anchor.example/consume")
+    monkeypatch.setenv("XIBALBA_ORACLE_URL", "https://oracle.example")
+    monkeypatch.setenv("XIBALBA_AGENT_ID", "did:integrity:chain-known-only")
+
+    class _Resp:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
+        def read(self):
+            return b'{"id": "did:integrity:chain-known-only", "oracle_registered": false, "primitives_source": "chain-backfill"}'
+
+    def _fake_urlopen(request, timeout=None):
+        if "oracle.example" in request.full_url:
+            return _Resp()
+        raise AssertionError("anchor consumer must not be POSTed to for an oracle_registered=false agent")
+
+    monkeypatch.setattr("urllib.request.urlopen", _fake_urlopen)
+
+    store = _seeded_session_store(tmp_path)
+    result = store.anchor_session_root("sess-anchor")
+    assert result["anchored"] is False
+    assert "oracle_registered=false" in result["error"]
+    store.close()
+
+
+def test_anchor_session_root_proceeds_when_registration_check_is_inconclusive(tmp_path, monkeypatch):
+    import urllib.error
+
+    monkeypatch.setenv("XIBALBA_ANCHOR_URL", "https://anchor.example/consume")
+    monkeypatch.setenv("XIBALBA_ORACLE_URL", "https://oracle.example")
+    monkeypatch.setenv("XIBALBA_AGENT_ID", "did:xibalba:some-agent")
+
+    posted = []
+
+    class _Resp:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
+        def read(self):
+            return b'{"consumed": true}'
+
+    def _fake_urlopen(request, timeout=None):
+        if "oracle.example" in request.full_url:
+            raise urllib.error.URLError("oracle unreachable")
+        posted.append(request.full_url)
+        return _Resp()
+
+    monkeypatch.setattr("urllib.request.urlopen", _fake_urlopen)
+
+    store = _seeded_session_store(tmp_path)
+    result = store.anchor_session_root("sess-anchor")
+    assert result["anchored"] is True
+    assert posted == ["https://anchor.example/consume"]
+    store.close()
+
+
+def test_anchor_session_root_proceeds_without_registration_env_configured(tmp_path, monkeypatch):
+    monkeypatch.setenv("XIBALBA_ANCHOR_URL", "https://anchor.example/consume")
+    monkeypatch.delenv("XIBALBA_ORACLE_URL", raising=False)
+    monkeypatch.delenv("XIBALBA_AGENT_ID", raising=False)
+
+    class _Resp:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
+        def read(self):
+            return b'{"consumed": true}'
+
+    monkeypatch.setattr("urllib.request.urlopen", lambda request, timeout=None: _Resp())
+
+    store = _seeded_session_store(tmp_path)
+    result = store.anchor_session_root("sess-anchor")
+    assert result["anchored"] is True
+    store.close()
+
+
 def test_exchange_chain_detects_context_contribution_tampering(tmp_path):
     store = GraphStore(tmp_path / "graph")
     result = store.record_model_exchange(
@@ -1078,9 +1244,60 @@ def test_memory_inference_task_lifecycle_is_harness_facing(tmp_path):
 
     completed = store.complete_inference_task(
         task["id"],
+        claimed_by="xibalba-memory-inference",
+        claim_token=claimed["claim_token"],
         output_payload={"metadata": {"type": "user_preference", "durability": "long_term"}},
     )
     assert completed["status"] == "completed"
     assert completed["output"]["metadata"]["type"] == "user_preference"
     assert store.list_inference_tasks(status="pending") == []
     store.close()
+
+
+def test_inference_task_cannot_be_claimed_twice(tmp_path):
+    store = GraphStore(tmp_path / "claim")
+    memory = store.store_memory("claim me", source={"kind": "test"}, status="active")
+    task = store.request_inference_task(
+        "extract_memory_metadata",
+        subject_type="memory",
+        subject_id=memory["id"],
+        input_payload={},
+        idempotency_key="claim-once",
+    )
+
+    claimed = store.claim_inference_task(task["id"], claimed_by="worker-a")
+    assert claimed["status"] == "claimed"
+    with pytest.raises(ValueError, match="not pending"):
+        store.claim_inference_task(task["id"], claimed_by="worker-b")
+
+
+def test_inference_task_completion_requires_claim_token(tmp_path):
+    store = GraphStore(tmp_path / "claim-token")
+    memory = store.store_memory("token claim", source={"kind": "test"}, status="active")
+    task = store.request_inference_task(
+        "extract_memory_metadata", subject_type="memory", subject_id=memory["id"], input_payload={}, idempotency_key="token-task"
+    )
+    claimed = store.claim_inference_task(task["id"], claimed_by="worker-a")
+    assert claimed["claim_owner"] == "worker-a"
+    assert claimed["claim_token"]
+    with pytest.raises(ValueError, match="claim"):
+        store.complete_inference_task(task["id"], claimed_by="worker-b", claim_token=claimed["claim_token"], output_payload={})
+    completed = store.complete_inference_task(
+        task["id"], claimed_by="worker-a", claim_token=claimed["claim_token"], output_payload={}
+    )
+    assert completed["status"] == "completed"
+
+
+def test_expired_inference_claim_is_requeued_and_bounded(tmp_path):
+    store = GraphStore(tmp_path / "lease")
+    memory = store.store_memory("lease", source={"kind": "test"}, status="active")
+    task = store.request_inference_task("extract_memory_metadata", subject_type="memory", subject_id=memory["id"], input_payload={}, idempotency_key="lease-task")
+    store.claim_inference_task(task["id"], claimed_by="worker-a")
+    with store._lock:
+        store._connection.execute("UPDATE memory_inference_tasks SET lease_expires_at = '2000-01-01 00:00:00' WHERE id = ?", (task["id"],))
+    assert store.requeue_expired_inference_tasks(max_attempts=3) == {"expired": 1, "requeued": 1, "failed": 0, "dead_lettered": 0}
+    reclaimed = store.claim_inference_task(task["id"], claimed_by="worker-b")
+    assert reclaimed["attempt_count"] == 2
+    with store._lock:
+        store._connection.execute("UPDATE memory_inference_tasks SET lease_expires_at = '2000-01-01 00:00:00', attempt_count = 3 WHERE id = ?", (task["id"],))
+    assert store.requeue_expired_inference_tasks(max_attempts=3) == {"expired": 1, "requeued": 0, "failed": 1, "dead_lettered": 1}

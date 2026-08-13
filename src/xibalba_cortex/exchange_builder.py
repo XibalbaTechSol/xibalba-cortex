@@ -24,6 +24,13 @@ def build_session_exchanges(store: GraphStore, external_session_id: str) -> dict
     poll loop -- a future incremental version is possible but not built here.
     """
     store.get_session(external_session_id)  # raises KeyError if unknown
+    existing_exchanges = store.session_exchanges(external_session_id)
+    if existing_exchanges:
+        return {
+            "session_id": external_session_id,
+            "exchanges_built": 0,
+            "exchange_ids": [],
+        }
     memories = [
         m for m in store.session_memories(external_session_id)
         if m["evidence_class"] != "summary"

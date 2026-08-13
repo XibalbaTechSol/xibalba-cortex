@@ -206,9 +206,28 @@ export interface InferenceTask {
   input: Record<string, unknown>
   output: Record<string, unknown> | null
   requested_by: string | null
+  claim_owner: string | null
+  claim_token: string | null
+  lease_expires_at: string | null
+  attempt_count: number
   error: string | null
   created_at: string
   updated_at: string
+}
+
+export interface ParaClassification {
+  task_id: string
+  memory_id: string
+  source_content_hash: string
+  category: 'project' | 'area' | 'resource' | 'archive'
+  confidence: number
+  rationale: string
+  signals: string[]
+  alternatives: string[]
+  status: 'proposed' | 'accepted' | 'dismissed' | 'kept_original' | 'stale'
+  decision_note: string | null
+  created_at: string
+  decided_at: string | null
 }
 
 export interface RecordModelExchangePayload {
@@ -295,9 +314,18 @@ export const api = {
     postJson<Memory>(`/api/memory/${encodeURIComponent(id)}/supersede`, payload),
   claimInferenceTask: (id: string, claimedBy: string) =>
     postJson<InferenceTask>(`/api/inference/tasks/${encodeURIComponent(id)}/claim`, { claimed_by: claimedBy }),
-  completeInferenceTask: (id: string, outputPayload: Record<string, unknown>, error?: string) =>
+  completeInferenceTask: (id: string, outputPayload: Record<string, unknown>, error?: string, claimedBy?: string | null, claimToken?: string | null) =>
     postJson<InferenceTask>(`/api/inference/tasks/${encodeURIComponent(id)}/complete`, {
       output_payload: outputPayload,
       ...(error ? { error } : {}),
+      ...(claimedBy ? { claimed_by: claimedBy } : {}),
+      ...(claimToken ? { claim_token: claimToken } : {}),
+    }),
+  paraClassifications: (status = 'proposed', limit = 50) =>
+    getJson<ParaClassification[]>(`/api/para/classifications?status=${encodeURIComponent(status)}&limit=${limit}`),
+  decidePara: (taskId: string, decision: 'accept' | 'dismiss' | 'keep_original', note?: string) =>
+    postJson<ParaClassification>(`/api/para/classifications/${encodeURIComponent(taskId)}/decision`, {
+      decision,
+      ...(note ? { note } : {}),
     }),
 }

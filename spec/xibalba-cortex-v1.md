@@ -1,6 +1,6 @@
 # Xibalba Cortex — Specification v1
 
-Status: normative, 2026-08-05. This is the authoritative reference for this project — where
+Status: normative v1 plus additive hybrid extensions, 2026-08-13. This is the authoritative reference for this project — where
 this document and any other doc under `docs/` disagree, this document wins, and the other
 document should be corrected. Supersedes scattered decisions across
 `docs/archive/2026-08-06/2026-08-05-xibalba-cortex.md`, `docs/plans/2026-08-05-xibalba-advanced-memory.md`,
@@ -23,10 +23,9 @@ its source and every historical revision inspectable rather than silently overwr
 supersession/contradiction/forgetting lifecycle, local tamper-evident history (event hash
 chain), one-way citation into the Integrity Protocol's Memory DAG when it exists.
 
-**Out of scope:** multi-tenant serving, the Integrity Protocol's on-chain anchoring mechanism
-itself (consumed, not implemented, here), running an LLM for extraction (the calling agent
-extracts; this system stores, indexes, and retrieves), replacing Supermemory (coexists with it
-during the shadow period defined in §9).
+**Out of scope for frozen v1:** multi-tenant serving, the Integrity Protocol's on-chain anchoring mechanism itself (consumed, not implemented, here), and replacing Supermemory without a measured shadow period.
+
+**Additive hybrid scope:** Cortex may be configured as local-only or hybrid. SQLite remains the canonical evidence store. Native agent harnesses perform extraction and inference through the queue contract. Local embedding workers produce versioned vector projections. Remote inference, vector, reranking, backup, or synchronization providers are optional, rebuildable projections or explicitly configured fallbacks; they are never canonical writers.
 
 ## 2. Non-negotiable design rules
 
@@ -72,14 +71,40 @@ populated from this system's canonical tables and is rebuildable from them. It i
 writer. This system's own `entities`/`relations` tables are themselves the graph; there is no
 separate graph database in v1.
 
+### 3.3 Configurable provider boundary
+
+Provider selection is configuration, not storage authority. The implementation must expose additive provider contracts for inference, embeddings, retrieval, and optional projections without changing frozen v1 MCP tool semantics.
+
+The supported posture is:
+
+| Mode | Inference | Embeddings | Canonical store |
+|---|---|---|---|
+| `local` | native agent harness through the local MCP queue | local model worker | profile-local SQLite |
+| `hybrid` | native harness or explicitly configured fallback | local model worker, optional remote projection | profile-local SQLite |
+| `remote-inference` | explicitly configured remote provider | local model worker by default | profile-local SQLite |
+
+A provider may return a result or a degraded/unavailable state. It must not bypass source-hash validation, profile isolation, append-only writes, task ownership, or promotion policy. Remote projections must be rebuildable from canonical tables and reconciled by content hash and Merkle checkpoints before they are used for retrieval.
+
+Configuration precedence is built-in defaults, profile configuration, environment overrides, command-line overrides, then task-scoped provider selection. Effective configuration must be inspectable with secrets redacted. No provider credential, token, or connection string belongs in the SQLite database or graph-memory content.
+
+### 3.5 Native-harness inference boundary
+
+Cortex does not embed a language model in the deterministic MCP server. It queues typed tasks whose evidence scope, subject, source-content snapshot hash, output schema, promotion policy, and retry policy are explicit. A native agent harness claims a task, reads only the permitted evidence, emits schema-valid JSON, and completes through the queue API. Extraction, entity resolution, contradiction detection, summarization, PARA classification, and consolidation are derived proposals until an explicit acceptance policy applies them.
+
+At-least-once task recovery is permitted; exactly-once model execution is not claimed. Derived writes must therefore be idempotent and source-hash guarded.
+
+### 3.6 Local embedding boundary
+
+Embedding generation is performed by a bounded, short-lived local worker rather than the always-on MCP server. Each vector is associated with model identifier, revision, dimension, normalization, distance metric, worker version, and the source memory content hash. Wrong dimensions, non-finite values, and zero-norm vectors are rejected before persistence. A model change creates a new versioned vector projection; vectors from incompatible spaces must never be silently mixed.
+
+### 3.7 Merkle-root capabilities
+
+Merkle roots and hash-chain heads may be used for local tamper-evident checkpoints, inclusion proofs, backup comparisons, projection reconciliation, retrieval-trace citations, and derived-proposal evidence references. A root proves only the committed bytes and structure covered by its declared profile. It does not prove truth, completeness, authorization, identity ownership, external anchoring, or successful execution.
+
 ### 3.3 Deployment model
 
 One profile-local SQLite file per Hermes profile, behind one MCP stdio server process
-(`src/xibalba_cortex/server.py`). No network listener, no concurrent-writer scenario to defend
-against beyond what SQLite WAL already provides (concurrent readers, one writer), because MCP
-stdio serializes calls at the protocol layer before they reach the database. Storage path is
-always explicit and derived from the configured Hermes home (`hermes_home` kwarg convention used
-by Hermes memory-provider plugins) — never a hardcoded `~/.hermes` path.
+(`src/xibalba_cortex/server.py`). Network-reachable transports are optional adapters with their own authentication and loopback/TLS boundary; they do not change the canonical store. SQLite WAL provides concurrent readers and one writer, while MCP stdio serializes calls at the protocol layer before they reach the database. Storage path is always explicit and derived from the configured Hermes home (`hermes_home` kwarg convention used by Hermes memory-provider plugins) — never a hardcoded `~/.hermes` path.
 
 ## 4. Data model
 

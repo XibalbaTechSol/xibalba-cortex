@@ -28,6 +28,7 @@ Routes:
   GET /api/entity/path?from=&to=&max_depth=   -> GraphStore.find_path()
   GET /api/session/{id}/exchanges          -> GraphStore.session_exchanges()
   GET /api/session/{id}/merkle-root        -> GraphStore.session_merkle_root()
+  GET /api/session/{id}/merkle-proof?index= -> GraphStore.session_merkle_evidence()
   GET /api/inference/manifest              -> MEMORY_INFERENCE_SUBAGENT_MANIFEST
   GET /api/inference/tasks?status=&limit=  -> GraphStore.list_inference_tasks()
   POST /api/exchanges/model                -> GraphStore.record_model_exchange()
@@ -48,6 +49,7 @@ import sqlite3
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, unquote, urlparse
 
+from .providers import InferenceTaskContract
 from .store import MEMORY_INFERENCE_SUBAGENT_MANIFEST, GraphStore
 
 logger = logging.getLogger("xibalba_cortex.local_api")
@@ -125,12 +127,18 @@ def _make_handler(store: GraphStore, *, allowed_origin: str):
                     self._send_json(200, store.session_exchanges(parts[2]))
                 elif len(parts) == 4 and parts[0] == "api" and parts[1] == "session" and parts[3] == "merkle-root":
                     self._send_json(200, store.session_merkle_root(parts[2]))
+                elif len(parts) == 4 and parts[0] == "api" and parts[1] == "session" and parts[3] == "merkle-proof":
+                    self._send_json(200, store.session_merkle_evidence(parts[2], exchange_index=int(params.get("index", "0"))))
                 elif parts == ["api", "inference", "manifest"]:
                     self._send_json(200, MEMORY_INFERENCE_SUBAGENT_MANIFEST)
                 elif parts == ["api", "inference", "tasks"]:
                     status = params.get("status", "pending")
                     limit = int(params.get("limit", 50))
                     self._send_json(200, store.list_inference_tasks(status=status, limit=limit))
+                elif parts == ["api", "para", "classifications"]:
+                    status = params.get("status", "proposed")
+                    limit = int(params.get("limit", 50))
+                    self._send_json(200, store.list_para_classifications(status=status, limit=limit))
                 elif len(parts) == 3 and parts[0] == "api" and parts[1] == "memory" and parts[2]:
                     self._send_json(200, store.get_memory(parts[2]))
                 elif len(parts) == 4 and parts[0] == "api" and parts[1] == "memory" and parts[3] == "similar":
@@ -205,6 +213,19 @@ def _make_handler(store: GraphStore, *, allowed_origin: str):
                     input_payload = payload.get("input_payload")
                     if not isinstance(input_payload, dict):
                         raise ValueError("input_payload must be an object")
+                    contract_raw = payload.get("contract")
+                    contract = None
+                    if contract_raw is not None:
+                        if not isinstance(contract_raw, dict):
+                            raise ValueError("contract must be an object")
+                        contract = InferenceTaskContract(
+                            schema_version=str(contract_raw.get("schema_version", "xibalba.inference.task.v1")),
+                            evidence_scope=tuple(str(item) for item in contract_raw.get("evidence_scope", [])),
+                            input_snapshot_hash=contract_raw.get("input_snapshot_hash") if isinstance(contract_raw.get("input_snapshot_hash"), str) else None,
+                            output_schema=str(contract_raw.get("output_schema", "xibalba.inference.output.v1")),
+                            promotion_policy=str(contract_raw.get("promotion_policy", "review_required")),
+                            worker_runtime=contract_raw.get("worker_runtime") if isinstance(contract_raw.get("worker_runtime"), str) else None,
+                        )
                     self._send_json(
                         200,
                         store.request_inference_task(
@@ -218,6 +239,7 @@ def _make_handler(store: GraphStore, *, allowed_origin: str):
                             idempotency_key=payload.get("idempotency_key")
                             if isinstance(payload.get("idempotency_key"), str)
                             else None,
+                            contract=contract,
                         ),
                     )
                 elif parts == ["api", "memory", "propositions"]:
@@ -277,6 +299,10 @@ def _make_handler(store: GraphStore, *, allowed_origin: str):
                             else None,
                         ),
                     )
+                elif len(parts) == 5 and parts[:3] == ["api", "para", "classifications"] and parts[4] == "decision":
+                    decision = str(payload.get("decision") or "")
+                    note = payload.get("note") if isinstance(payload.get("note"), str) else None
+                    self._send_json(200, store.accept_para_classification(parts[3], decision=decision, note=note))
                 elif len(parts) == 5 and parts[:3] == ["api", "inference", "tasks"] and parts[4] == "claim":
                     self._send_json(
                         200,
@@ -297,6 +323,8 @@ def _make_handler(store: GraphStore, *, allowed_origin: str):
                             parts[3],
                             output_payload=output_payload,
                             error=payload.get("error") if isinstance(payload.get("error"), str) else None,
+                            claimed_by=payload.get("claimed_by") if isinstance(payload.get("claimed_by"), str) else None,
+                            claim_token=payload.get("claim_token") if isinstance(payload.get("claim_token"), str) else None,
                         ),
                     )
                 else:

@@ -1,6 +1,6 @@
 # Xibalba Cortex Repository Specification
 
-**Updated:** 2026-08-12
+**Updated:** 2026-08-13
 **Status:** Local provenance-aware MCP memory prototype; not production-certified.
 
 ## 0. Architecture Status: v1 (frozen)
@@ -163,3 +163,108 @@ storage; optional richer adapters for claude/agy/codex on top of the generic pri
 4. A documented mapping from Cortex's provenance model to specific finance/healthcare audit
    frameworks (SOC 2, HIPAA) — not started; requires domain expertise this repository does not
    itself claim.
+
+## 12. Configurable Local And Hybrid Intelligence
+
+Cortex remains a deterministic, profile-local evidence store. Intelligence is an additive,
+provider-facing layer and must not change the authority of the canonical store.
+
+### 12.1 Operating modes
+
+The effective configuration selects one of these modes:
+
+- **local** — SQLite is canonical, the native agent harness performs inference, and a local
+  embedding worker produces versioned vector projections.
+- **hybrid** — SQLite remains canonical while optional remote inference, vector, reranking, or
+  backup services operate as rebuildable projections or explicitly configured providers.
+- **remote-inference/local-embedding** — a remote inference provider is used by policy while
+  source capture, embeddings, and provenance remain local.
+
+Remote services must never become an independent authority for memories, events, graph edges,
+or integrity evidence. A projection must be replayable from the canonical store and its lag,
+errors, and reconciliation state must be observable.
+
+### 12.2 Provider boundaries
+
+New provider interfaces are additive and must preserve existing MCP and store signatures:
+
+- `InferenceProvider` — submits or dispatches a typed task to the configured native harness or
+  optional external provider; it cannot directly promote durable memory.
+- `EmbeddingProvider` — produces vectors with model identifier, dimension, normalization, and
+  revision metadata; it cannot write a vector without a source-content-hash compare-and-set.
+- `RetrievalProvider` — produces lexical, vector, graph, or temporal candidates with a retrieval
+  trace; it cannot bypass profile, namespace, lifecycle, or sensitivity filters.
+- `ProjectionProvider` — mirrors canonical records to an optional external system and reports
+  lag, failures, and reconciliation results; it is never authoritative.
+
+Configuration precedence is built-in defaults, profile configuration, environment variables,
+command-line flags, then explicit task/provider overrides. Effective configuration must be
+inspectable with secrets redacted.
+
+### 12.3 Native-harness inference
+
+The preferred inference path is the user's native agent harness, such as Hermes, Claude Code,
+Codex, or another MCP-speaking runtime. Cortex queues a task containing an explicit subject,
+evidence scope, input snapshot hash, output schema, and promotion policy. The harness reads only
+the task input and referenced evidence, returns schema-valid JSON, and completes through the
+claim-owner and claim-token queue contract.
+
+Inference output is a derived proposal. It must not overwrite raw observations or silently
+promote a proposition, entity, relation, profile, procedure, contradiction, or summary. Each
+task family must define its output schema, source-authority policy, stale-source behavior,
+idempotency key, retry limit, and review or promotion state.
+
+### 12.4 Local embedding models
+
+Embedding generation is performed by a short-lived external worker rather than the always-on
+MCP server. A model registry records model identifier, revision, dimension, normalization, and
+distance metric. Each vector records the model metadata and the source content hash from which it
+was generated.
+
+Workers must use bounded batches, validate exact dimension, finite values, and non-zero norm,
+isolate item-level failures, and report remaining work. Changing models creates a new vector
+projection; vector spaces must never be mixed silently.
+
+### 12.5 Hybrid retrieval
+
+Retrieval may combine lexical, dense-vector, graph-neighborhood, exact-identifier, lifecycle,
+and temporal candidates. Candidate generation, filtering, rank fusion, reranking, diversity,
+and token-budget assembly remain separately observable. The browser Recall path may remain
+lexical-only when no local query-embedding provider is configured; MCP/tool-side similarity is
+the initial semantic path.
+
+### 12.6 Merkle-root capabilities and limits
+
+The session exchange Merkle-style root and append-only memory event chains provide capabilities
+that ordinary hosted memory APIs do not provide by default:
+
+1. **Tamper-evident readback** — a verifier can recompute whether the committed exchange or event
+   bytes match the recorded root under the declared hash and tree profile.
+2. **Inclusion proofs** — a selected exchange, memory event, or retrieval-trace leaf can be
+   accompanied by a bounded proof of inclusion in a committed batch without disclosing every
+   other leaf.
+3. **Cross-system synchronization checks** — a local profile, backup, or rebuildable projection
+   can compare roots and identify divergence before accepting synchronization as complete.
+4. **Historical state comparison** — roots over ordered batches provide checkpoints for detecting
+   deletion, reordering, omission, or unexpected mutation between snapshots.
+5. **Evidence lineage** — a proposal, retrieval trace, or external projection can cite the root
+   and leaf hash from which it was derived, making the evidence boundary explicit.
+
+These properties do not prove truth, completeness outside the committed input set, authorization,
+identity ownership, model correctness, or external finality. A root is evidence that specific
+bytes were committed under a specified construction. External anchoring remains opt-in and is a
+separate verification dimension.
+
+### 12.7 Acceptance criteria for the hybrid extension
+
+- Existing v1 MCP tools and store semantics remain backward-compatible.
+- A local profile runs with no remote provider configured.
+- Native-harness inference can queue, claim, validate, and complete a task without direct model
+  access inside the deterministic store server.
+- Local embedding workers can backfill and reconcile versioned vectors without losing raw memory.
+- Hybrid projections can be disabled and rebuilt without changing canonical memory state.
+- Retrieval traces identify lexical, vector, graph, and temporal contributions.
+- Merkle roots can be recomputed, inclusion-checked, and compared across a backup or projection.
+- Provider failures leave capture, lexical recall, graph traversal, and queue evidence available
+  in degraded mode.
+- No documentation calls a root proof of truth, authorization, completeness, or ownership.

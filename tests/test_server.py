@@ -30,6 +30,8 @@ async def test_all_tools_are_advertised(store):
     assert names == {
         "memory_remember",
         "memory_recall",
+        "memory_hybrid_retrieve",
+        "memory_retrieval_trace",
         "memory_embed",
         "memory_attach",
         "memory_list_attachments",

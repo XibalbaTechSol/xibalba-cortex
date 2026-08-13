@@ -4,21 +4,25 @@ import os
 import hashlib
 import hmac
 import json
+import math
 import mimetypes
 import re
 import shutil
 import sqlite3
 import threading
 import uuid
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import sqlite_vec
 from eth_hash.auto import keccak
 from integrity_sdk.crypto.merkle import compute_node_hash
 
+from .events import merkle_proof, merkle_root
+from .providers import InferenceTaskContract
 from .redaction import redact
 
-_SCHEMA_VERSION = 3
+_SCHEMA_VERSION = 7
 
 # Generous default cap on a single attachment -- not a policy decision, just a guard against
 # accidentally ingesting something absurd (e.g. a whole video library) into the blob store.
@@ -70,6 +74,7 @@ _INFERENCE_TASK_TYPES = {
     "extract_relations",
     "detect_contradictions",
     "consolidate_memories",
+    "classify_para",
 }
 _INFERENCE_SUBJECT_TYPES = {"memory", "exchange", "session", "context_bundle"}
 MEMORY_INFERENCE_SUBAGENT_MANIFEST = {
@@ -328,7 +333,7 @@ CREATE TABLE IF NOT EXISTS memory_inference_tasks (
     id TEXT PRIMARY KEY,
     task_type TEXT NOT NULL CHECK (task_type IN (
         'summarize_session', 'extract_memory_metadata', 'extract_entities',
-        'extract_relations', 'detect_contradictions', 'consolidate_memories'
+        'extract_relations', 'detect_contradictions', 'consolidate_memories', 'classify_para'
     )),
     status TEXT NOT NULL CHECK (status IN ('pending', 'claimed', 'completed', 'failed', 'cancelled')),
     subject_type TEXT NOT NULL CHECK (subject_type IN ('memory', 'exchange', 'session', 'context_bundle')),
@@ -336,6 +341,13 @@ CREATE TABLE IF NOT EXISTS memory_inference_tasks (
     input_json TEXT NOT NULL,
     output_json TEXT,
     requested_by TEXT,
+    claim_owner TEXT,
+    claim_token TEXT,
+    lease_expires_at TEXT,
+    attempt_count INTEGER NOT NULL DEFAULT 0,
+    retry_after TEXT,
+    failure_class TEXT,
+    dead_letter_reason TEXT,
     error TEXT,
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
@@ -356,6 +368,23 @@ CREATE TABLE IF NOT EXISTS attachments (
 
 CREATE INDEX IF NOT EXISTS idx_attachments_memory_id ON attachments(memory_id);
 
+CREATE TABLE IF NOT EXISTS para_classifications (
+    task_id TEXT PRIMARY KEY REFERENCES memory_inference_tasks(id) ON DELETE CASCADE,
+    memory_id TEXT NOT NULL REFERENCES memories(id) ON DELETE CASCADE,
+    source_content_hash TEXT NOT NULL,
+    category TEXT NOT NULL CHECK (category IN ('project', 'area', 'resource', 'archive')),
+    confidence REAL NOT NULL CHECK (confidence >= 0 AND confidence <= 1),
+    rationale TEXT NOT NULL,
+    signals_json TEXT NOT NULL DEFAULT '[]',
+    alternatives_json TEXT NOT NULL DEFAULT '[]',
+    status TEXT NOT NULL CHECK (status IN ('proposed', 'accepted', 'dismissed', 'kept_original', 'stale')),
+    decision_note TEXT,
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    decided_at TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_para_classifications_memory ON para_classifications(memory_id, status);
+
 CREATE TABLE IF NOT EXISTS embeddings_meta (
     memory_id TEXT PRIMARY KEY REFERENCES memories(id) ON DELETE CASCADE,
     model_id TEXT NOT NULL,
@@ -374,6 +403,23 @@ CREATE TABLE IF NOT EXISTS integrity_links (
     expected_content_hash TEXT,
     failure_reason TEXT,
     verified_at TEXT
+);
+
+CREATE TABLE IF NOT EXISTS retrieval_traces (
+    id TEXT PRIMARY KEY,
+    query TEXT NOT NULL,
+    signals_json TEXT NOT NULL,
+    results_json TEXT NOT NULL,
+    root_hash TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS projection_checkpoints (
+    projection_id TEXT PRIMARY KEY,
+    root_hash TEXT NOT NULL,
+    leaf_hashes_json TEXT NOT NULL,
+    metadata_json TEXT NOT NULL DEFAULT '{}',
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 """
 
@@ -451,18 +497,100 @@ class GraphStore:
             vectors_table_exists = self._connection.execute(
                 "SELECT 1 FROM sqlite_master WHERE name = 'memory_vectors'"
             ).fetchone() is not None
+            if current_version < 4:
+                task_table_sql = self._connection.execute(
+                    "SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'memory_inference_tasks'"
+                ).fetchone()
+                if task_table_sql and "classify_para" not in (task_table_sql[0] or ""):
+                    self._connection.execute("ALTER TABLE memory_inference_tasks RENAME TO memory_inference_tasks_v3")
+                    self._connection.execute(
+                        """
+                        CREATE TABLE memory_inference_tasks (
+                            id TEXT PRIMARY KEY,
+                            task_type TEXT NOT NULL CHECK (task_type IN (
+                                'summarize_session', 'extract_memory_metadata', 'extract_entities',
+                                'extract_relations', 'detect_contradictions', 'consolidate_memories', 'classify_para'
+                            )),
+                            status TEXT NOT NULL CHECK (status IN ('pending', 'claimed', 'completed', 'failed', 'cancelled')),
+                            subject_type TEXT NOT NULL CHECK (subject_type IN ('memory', 'exchange', 'session', 'context_bundle')),
+                            subject_id TEXT NOT NULL,
+                            input_json TEXT NOT NULL,
+                            output_json TEXT,
+                            requested_by TEXT,
+                            claim_owner TEXT,
+                            claim_token TEXT,
+                            lease_expires_at TEXT,
+                            attempt_count INTEGER NOT NULL DEFAULT 0,
+                            error TEXT,
+                            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                            updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+                        )
+                        """
+                    )
+                    self._connection.execute(
+                        """INSERT INTO memory_inference_tasks
+                        (id, task_type, status, subject_type, subject_id, input_json, output_json,
+                         requested_by, error, created_at, updated_at)
+                        SELECT id, task_type, status, subject_type, subject_id, input_json, output_json,
+                               requested_by, error, created_at, updated_at
+                        FROM memory_inference_tasks_v3"""
+                    )
+                    self._connection.execute("DROP TABLE memory_inference_tasks_v3")
+                    self._connection.execute("DROP TABLE IF EXISTS para_classifications")
+                    self._connection.execute(
+                        """CREATE TABLE para_classifications (
+                            task_id TEXT PRIMARY KEY REFERENCES memory_inference_tasks(id) ON DELETE CASCADE,
+                            memory_id TEXT NOT NULL REFERENCES memories(id) ON DELETE CASCADE,
+                            source_content_hash TEXT NOT NULL,
+                            category TEXT NOT NULL CHECK (category IN ('project', 'area', 'resource', 'archive')),
+                            confidence REAL NOT NULL CHECK (confidence >= 0 AND confidence <= 1),
+                            rationale TEXT NOT NULL,
+                            signals_json TEXT NOT NULL DEFAULT '[]',
+                            alternatives_json TEXT NOT NULL DEFAULT '[]',
+                            status TEXT NOT NULL CHECK (status IN ('proposed', 'accepted', 'dismissed', 'kept_original', 'stale')),
+                            decision_note TEXT,
+                            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                            decided_at TEXT
+                        )"""
+                    )
+                    self._connection.execute("CREATE INDEX IF NOT EXISTS idx_para_classifications_memory ON para_classifications(memory_id, status)")
 
-            if current_version < 2 and vectors_table_exists:
-                # v1 created memory_vectors as plain L2 (sqlite-vec's default). Cosine similarity
-                # (what similar_memories/search actually want) needs distance_metric=cosine baked
-                # in at CREATE time -- sqlite-vec has no ALTER for this, so rebuild the table.
-                # The embedding column round-trips as an opaque blob (verified: SELECT then
-                # INSERT into a differently-configured vec0 table preserves the vector exactly),
-                # so existing embeddings survive the rebuild.
-                existing_rows = self._connection.execute(
-                    "SELECT memory_id, embedding FROM memory_vectors"
-                ).fetchall()
-                self._connection.execute("DROP TABLE memory_vectors")
+
+                if vectors_table_exists:
+                    # v1 created memory_vectors as plain L2; rebuild it as cosine.
+                    existing_rows = self._connection.execute(
+                        "SELECT memory_id, embedding FROM memory_vectors"
+                    ).fetchall()
+                    self._connection.execute("DROP TABLE memory_vectors")
+                    self._connection.execute(
+                        f"""
+                        CREATE VIRTUAL TABLE memory_vectors USING vec0(
+                            memory_id TEXT PRIMARY KEY,
+                            embedding FLOAT[{EMBEDDING_DIM}] distance_metric=cosine
+                        )
+                        """
+                    )
+                    for row in existing_rows:
+                        self._connection.execute(
+                            "INSERT INTO memory_vectors(memory_id, embedding) VALUES (?, ?)",
+                            (row["memory_id"], row["embedding"]),
+                        )
+            task_columns = {row["name"] for row in self._connection.execute("PRAGMA table_info(memory_inference_tasks)")}
+            if current_version < 6 or "attempt_count" not in task_columns or "claim_token" not in task_columns:
+                columns = task_columns
+                for name, definition in (
+                    ("claim_owner", "TEXT"),
+                    ("claim_token", "TEXT"),
+                    ("lease_expires_at", "TEXT"),
+                    ("attempt_count", "INTEGER NOT NULL DEFAULT 0"),
+                    ("retry_after", "TEXT"),
+                    ("failure_class", "TEXT"),
+                    ("dead_letter_reason", "TEXT"),
+                ):
+                    if name not in columns:
+                        self._connection.execute(f"ALTER TABLE memory_inference_tasks ADD COLUMN {name} {definition}")
+                self._connection.execute("CREATE INDEX IF NOT EXISTS idx_inference_claimable ON memory_inference_tasks(status, lease_expires_at, created_at)")
+            if not vectors_table_exists:
                 self._connection.execute(
                     f"""
                     CREATE VIRTUAL TABLE memory_vectors USING vec0(
@@ -471,21 +599,6 @@ class GraphStore:
                     )
                     """
                 )
-                for row in existing_rows:
-                    self._connection.execute(
-                        "INSERT INTO memory_vectors(memory_id, embedding) VALUES (?, ?)",
-                        (row["memory_id"], row["embedding"]),
-                    )
-            else:
-                self._connection.execute(
-                    f"""
-                    CREATE VIRTUAL TABLE IF NOT EXISTS memory_vectors USING vec0(
-                        memory_id TEXT PRIMARY KEY,
-                        embedding FLOAT[{EMBEDDING_DIM}] distance_metric=cosine
-                    )
-                    """
-                )
-
             self._connection.execute(
                 "INSERT OR IGNORE INTO schema_migrations(version) VALUES (?)", (1,)
             )
@@ -1239,44 +1352,126 @@ class GraphStore:
             results.append(memory)
         return results
 
+    def hybrid_retrieve(
+        self,
+        query: str,
+        *,
+        query_vector: list[float] | None = None,
+        limit: int = 10,
+        temporal_at: str | None = None,
+    ) -> dict[str, object]:
+        """Fuse available lexical, vector, graph, and temporal signals and persist a trace.
+
+        Missing vector or graph evidence is represented explicitly; lexical retrieval remains
+        available in degraded mode. Scores are rank-fusion scores, not truth or confidence.
+        """
+        bounded = max(1, min(int(limit), 100))
+        lexical_ids = self._lexical_ranked_ids(query, max(20, bounded * 4))
+        vector_hits = self._vector_ranked_ids(query_vector, max(20, bounded * 4)) if query_vector is not None else []
+        vector_ids = [item[0] for item in vector_hits]
+        similarity = dict(vector_hits)
+        graph_ids: list[str] = []
+        terms = [term for term in re.findall(r"[\\w-]+", query) if len(term) > 2]
+        for term in terms[:3]:
+            try:
+                graph = self.neighbors(term, max_depth=1, node_limit=20, edge_limit=40)
+            except (KeyError, ValueError):
+                continue
+            for edge in graph.get("edges", []):
+                evidence = edge.get("evidence_memory_id")
+                if evidence and evidence not in graph_ids:
+                    graph_ids.append(str(evidence))
+        with self._lock:
+            if temporal_at:
+                temporal_rows = self._connection.execute(
+                    """
+                    SELECT m.id FROM memories m JOIN sources s ON s.id = m.source_id
+                    WHERE m.status IN ('active','confirmed')
+                      AND COALESCE(s.observed_at, m.valid_from, m.created_at) <= ?
+                    ORDER BY COALESCE(s.observed_at, m.valid_from, m.created_at) DESC LIMIT ?
+                    """,
+                    (temporal_at, max(20, bounded * 4)),
+                ).fetchall()
+            else:
+                temporal_rows = self._connection.execute(
+                    "SELECT id FROM memories WHERE status IN ('active','confirmed') ORDER BY COALESCE(valid_from, created_at) DESC LIMIT ?",
+                    (max(20, bounded * 4),),
+                ).fetchall()
+        temporal_ids = [str(row["id"]) for row in temporal_rows]
+        if temporal_at:
+            eligible = set(temporal_ids)
+            lexical_ids = [memory_id for memory_id in lexical_ids if memory_id in eligible]
+            vector_ids = [memory_id for memory_id in vector_ids if memory_id in eligible]
+            graph_ids = [memory_id for memory_id in graph_ids if memory_id in eligible]
+        channels = {"lexical": lexical_ids, "vector": vector_ids, "graph": graph_ids, "temporal": temporal_ids}
+        channel_status = {"lexical": "available", "vector": "available" if query_vector is not None else "unavailable", "graph": "available" if graph_ids else "no_candidates", "temporal": "available"}
+        scores: dict[str, float] = {}
+        for ids in channels.values():
+            for rank, memory_id in enumerate(ids, 1):
+                scores[memory_id] = scores.get(memory_id, 0.0) + 1.0 / (60 + rank)
+        ranked = sorted(scores, key=lambda item: (-scores[item], item))[:bounded]
+        records = []
+        for rank, memory_id in enumerate(ranked, 1):
+            memory = self.get_memory(memory_id)
+            records.append({"rank": rank, "memory_id": memory_id, "score": scores[memory_id], "signals": [name for name, ids in channels.items() if memory_id in ids], "cosine_similarity": similarity.get(memory_id), "provenance": {"content_hash": memory["content_hash"], "source_id": memory["source"]["id"], "evidence_class": memory["evidence_class"], "status": memory["status"]}})
+        payload = {"query": query, "signals": list(channels), "results": records, "temporal_at": temporal_at}
+        root_hash = "sha256:" + hashlib.sha256(self._canonical_json(payload).encode()).hexdigest()
+        trace_id = str(uuid.uuid4())
+        with self._lock:
+            self._connection.execute("INSERT INTO retrieval_traces(id, query, signals_json, results_json, root_hash) VALUES (?, ?, ?, ?, ?)", (trace_id, query, self._canonical_json(list(channels)), self._canonical_json(records), root_hash))
+        return {"trace_id": trace_id, "root_hash": root_hash, "signals": list(channels), "channel_status": channel_status, "results": [self.get_memory(item["memory_id"]) | {"retrieval": item} for item in records]}
+
+    def get_retrieval_trace(self, trace_id: str) -> dict[str, object]:
+        with self._lock:
+            row = self._connection.execute("SELECT * FROM retrieval_traces WHERE id = ?", (trace_id,)).fetchone()
+        if row is None:
+            raise KeyError(trace_id)
+        return {"id": row["id"], "query": row["query"], "signals": json.loads(row["signals_json"]), "results": json.loads(row["results_json"]), "root_hash": row["root_hash"], "created_at": row["created_at"]}
+
     def store_embedding(
         self,
         memory_id: str,
         vector: list[float],
         *,
         model_id: str = EMBEDDING_MODEL_ID,
+        expected_content_hash: str | None = None,
     ) -> dict[str, object]:
-        """Attach a caller-computed embedding to a memory.
-
-        This store never computes embeddings itself -- a local CPU model was benchmarked
-        (BAAI/bge-small-en-v1.5: 77 embeds/sec, but ~270MB resident once loaded) and found too
-        heavy to keep always-loaded inside this always-on server process on this machine's
-        actual free RAM. The model_id/dim stay pinned so a mismatched vector is rejected rather
-        than silently mixed with incompatible ones.
-        """
+        """Attach a validated caller-computed embedding, conditionally on source content."""
         if model_id != EMBEDDING_MODEL_ID:
-            raise ValueError(
-                f"unsupported embedding model_id: {model_id!r} (this store only accepts "
-                f"{EMBEDDING_MODEL_ID!r} vectors in v1)"
-            )
+            raise ValueError(f"unsupported embedding model_id: {model_id!r} (this store only accepts {EMBEDDING_MODEL_ID!r} vectors in v1)")
         if len(vector) != EMBEDDING_DIM:
             raise ValueError(f"vector must have dimension {EMBEDDING_DIM}, got {len(vector)}")
-        memory = self.get_memory(memory_id)
+        normalized: list[float] = []
+        for value in vector:
+            try:
+                number = float(value)
+            except (TypeError, ValueError) as exc:
+                raise ValueError("embedding values must be numeric") from exc
+            if not math.isfinite(number):
+                raise ValueError("embedding values must be finite")
+            normalized.append(number)
         with self._lock:
+            memory_row = self._connection.execute("SELECT status, content_hash FROM memories WHERE id = ?", (memory_id,)).fetchone()
+            if memory_row is None:
+                raise KeyError(memory_id)
+            if memory_row["status"] not in {"active", "confirmed"}:
+                raise ValueError(f"memory {memory_id!r} is not eligible for embedding")
+            current_hash = memory_row["content_hash"]
+            if expected_content_hash is not None and current_hash != expected_content_hash:
+                raise ValueError("memory content changed before embedding write")
+            existing = self._connection.execute("SELECT model_id, dim, generated_from_hash FROM embeddings_meta WHERE memory_id = ?", (memory_id,)).fetchone()
+            if existing and existing["model_id"] == model_id and existing["dim"] == EMBEDDING_DIM and existing["generated_from_hash"] == current_hash:
+                return {"memory_id": memory_id, "model_id": model_id, "dim": EMBEDDING_DIM}
             self._connection.execute("BEGIN IMMEDIATE")
             try:
-                self._connection.execute(
-                    "DELETE FROM memory_vectors WHERE memory_id = ?", (memory_id,)
-                )
-                self._connection.execute(
-                    "INSERT INTO memory_vectors(memory_id, embedding) VALUES (?, ?)",
-                    (memory_id, sqlite_vec.serialize_float32(vector)),
-                )
-                self._connection.execute(
-                    "INSERT OR REPLACE INTO embeddings_meta("
-                    "memory_id, model_id, dim, generated_from_hash) VALUES (?, ?, ?, ?)",
-                    (memory_id, model_id, EMBEDDING_DIM, memory["content_hash"]),
-                )
+                latest = self._connection.execute("SELECT status, content_hash FROM memories WHERE id = ?", (memory_id,)).fetchone()
+                if latest is None or latest["status"] not in {"active", "confirmed"}:
+                    raise ValueError(f"memory {memory_id!r} is no longer eligible for embedding")
+                if latest["content_hash"] != current_hash:
+                    raise ValueError("memory content changed during embedding write")
+                self._connection.execute("DELETE FROM memory_vectors WHERE memory_id = ?", (memory_id,))
+                self._connection.execute("INSERT INTO memory_vectors(memory_id, embedding) VALUES (?, ?)", (memory_id, sqlite_vec.serialize_float32(normalized)))
+                self._connection.execute("INSERT OR REPLACE INTO embeddings_meta(memory_id, model_id, dim, generated_from_hash) VALUES (?, ?, ?, ?)", (memory_id, model_id, EMBEDDING_DIM, current_hash))
                 self._connection.execute("COMMIT")
             except Exception:
                 self._connection.execute("ROLLBACK")
@@ -1519,6 +1714,13 @@ class GraphStore:
             except Exception:
                 self._connection.execute("ROLLBACK")
                 raise
+
+        # Automatically build the Merkle-chained exchanges for the timeline.
+        # This resolves the "empty sessions in timeline" issue by ensuring that
+        # exchanges are constructed from unstructured memories upon session closure.
+        from .exchange_builder import build_session_exchanges
+        build_session_exchanges(self, external_session_id)
+
         return self.get_session(external_session_id)
 
     def session_memories(
@@ -1959,9 +2161,59 @@ class GraphStore:
             "root_kind": "xibalba.exchange_chain.local_merkle_root.v1",
         }
 
+    def session_merkle_evidence(self, external_session_id: str, *, exchange_index: int) -> dict[str, object]:
+        """Return a portable inclusion proof for one ordered exchange leaf.
+
+        This is a batch checkpoint over exchange node identifiers. It proves inclusion under the
+        declared local Merkle construction; it does not prove truth, authorization, completeness,
+        or external anchoring.
+        """
+        exchanges = self.session_exchanges(external_session_id)
+        leaves = [str(exchange["node_id"]) for exchange in exchanges]
+        proof = merkle_proof(leaves, exchange_index)
+        return {
+            "session_id": external_session_id,
+            "tree_kind": "xibalba.exchange_batch.merkle.v1",
+            "leaf": leaves[exchange_index],
+            "leaf_index": exchange_index,
+            "exchange_count": len(leaves),
+            "root": proof["root"],
+            "proof": proof,
+            "disclaimer": "Inclusion evidence only; not proof of truth, authorization, completeness, ownership, or external finality.",
+        }
+
     def anchor_session_root(self, external_session_id: str) -> dict[str, object]:
         """Push the current session root to a configured anchor consumer URL (e.g. Integrity DAG).
         This does not implement a parallel chain anchor, it only delegates the anchoring task.
+
+        Default-deny on registration: before sending anything, this checks
+        `XIBALBA_ORACLE_URL`'s `GET /v1/agent/{XIBALBA_AGENT_ID}` (the same endpoint
+        `integrity_sdk.client.IntegrityClient._sync_nonce_from_oracle` reads) and only
+        proceeds if the oracle confirms that agent_id is registered. This matters more
+        here than it might look: unlike the SDK's telemetry path, this method has no
+        DID signature at all — it is a bare, unauthenticated POST of the session root
+        JSON to whatever URL is configured. Without this check, a misconfigured or
+        never-registered install would still transmit session-root data to that URL on
+        every anchor call; the oracle-side `AgentNotFound` gate that protects real
+        telemetry submissions (`bcc_middleware`/`integrity-oracle`) does not apply here,
+        since this call never goes through that path. `XIBALBA_ORACLE_URL` and
+        `XIBALBA_ANCHOR_URL` are deliberately separate env vars: they name different
+        services (`integrity-oracle` backend's REST API vs. the anchor consumer this
+        root is actually POSTed to), not two names for the same thing.
+
+        An inconclusive check (oracle unreachable, `XIBALBA_ORACLE_URL` unset) does NOT
+        block the call — it degrades to the prior best-effort behavior, matching
+        `IntegrityClient`'s own "unknown is not the same as confirmed-unregistered"
+        posture. Only a confirmed-unregistered answer from the oracle blocks the send.
+
+        **Must read the response body's `oracle_registered` field, not just the HTTP
+        status.** `GET /v1/agent/{id}` returns a real `200` for a DID that merely
+        resolves live on-chain, even when it was never registered against THIS oracle
+        (`backend::handlers::get_agent`'s chain-backfill fallback) — and that DID still
+        gets rejected by the actual telemetry/AIS endpoints, which check a strict local
+        DB row. Treating any 2xx as "safe to send" would misread that response —
+        confirmed empirically against a live oracle instance where exactly this agent
+        shape exists (on-chain primitives resolve; `oracle_registered: false`).
         """
         import os
         import json
@@ -1971,6 +2223,35 @@ class GraphStore:
         anchor_url = os.environ.get("XIBALBA_ANCHOR_URL")
         if not anchor_url:
             raise ValueError("XIBALBA_ANCHOR_URL environment variable is not configured.")
+
+        oracle_url = os.environ.get("XIBALBA_ORACLE_URL")
+        agent_id = os.environ.get("XIBALBA_AGENT_ID")
+        if oracle_url and agent_id:
+            check_url = f"{oracle_url.rstrip('/')}/v1/agent/{agent_id}"
+
+            def _not_registered(reason: str) -> dict[str, object]:
+                return {
+                    "anchored": False,
+                    "session_id": external_session_id,
+                    "error": (
+                        f"agent {agent_id} is not registered with oracle {oracle_url} "
+                        f"({reason}) — refusing to send by default"
+                    ),
+                }
+
+            try:
+                with urllib.request.urlopen(urllib.request.Request(check_url), timeout=10) as res:
+                    body = json.loads(res.read().decode("utf-8") or "{}")
+                if not body.get("oracle_registered", False):
+                    return _not_registered("oracle_registered=false in GET /v1/agent response")
+                # oracle_registered=true — confirmed, proceed to anchor below.
+            except urllib.error.HTTPError as e:
+                if e.code == 404:
+                    return _not_registered("confirmed via 404")
+                # Any other HTTP error is inconclusive (oracle-side problem, not a
+                # registration answer) — fall through to best-effort behavior below.
+            except (urllib.error.URLError, ValueError):
+                pass  # unreachable oracle / unparseable body is inconclusive, not a denial
 
         root = self.session_merkle_root(external_session_id)
         if not root.get("valid"):
@@ -2289,6 +2570,43 @@ class GraphStore:
             "tool_call_otel_event_ids": tool_call_event_ids,
         }
 
+    def fetch_bounded_evidence(
+        self,
+        *,
+        subject_type: str,
+        subject_id: str,
+        allowed_subject_ids: list[str] | tuple[str, ...] | None = None,
+        max_items: int = 20,
+        max_bytes: int = 32_000,
+        max_depth: int = 1,
+    ) -> dict[str, object]:
+        """Return only bounded, explicitly scoped evidence for an inference worker."""
+        if subject_type not in _INFERENCE_SUBJECT_TYPES:
+            raise ValueError(f"invalid evidence subject_type: {subject_type!r}")
+        if not 1 <= max_items <= 100 or not 256 <= max_bytes <= 1_000_000 or not 0 <= max_depth <= 3:
+            raise ValueError("invalid evidence bounds")
+        allowed = set(allowed_subject_ids or [subject_id])
+        if subject_id not in allowed:
+            raise ValueError("subject_id is outside evidence scope")
+        records: list[dict[str, object]] = []
+        if subject_type == "memory":
+            for item_id in list(allowed)[:max_items]:
+                memory = self.get_memory(item_id)
+                records.append({"kind": "memory", "id": memory["id"], "content": memory["content"], "content_hash": memory["content_hash"], "status": memory["status"]})
+        elif subject_type == "session":
+            records = [{"kind": "exchange", "id": item["exchange"]["id"], "sequence_number": item["exchange"]["sequence_number"], "exchange": item["exchange"]} for item in self.session_exchanges(subject_id, limit=max_items)]
+        else:
+            records.append({"kind": subject_type, "id": subject_id, "task_subject": True})
+        bounded: list[dict[str, object]] = []
+        used = 0
+        for record in records:
+            encoded = self._canonical_json(record)
+            if len(encoded.encode("utf-8")) + used > max_bytes:
+                break
+            bounded.append(record)
+            used += len(encoded.encode("utf-8"))
+        return {"subject_type": subject_type, "subject_id": subject_id, "items": bounded, "item_count": len(bounded), "bytes": used, "max_items": max_items, "max_bytes": max_bytes, "max_depth": max_depth, "truncated": len(bounded) < len(records)}
+
     def request_inference_task(
         self,
         task_type: str,
@@ -2298,11 +2616,18 @@ class GraphStore:
         input_payload: dict[str, object],
         requested_by: str | None = None,
         idempotency_key: str | None = None,
+        contract: InferenceTaskContract | None = None,
     ) -> dict[str, object]:
         if task_type not in _INFERENCE_TASK_TYPES:
             raise ValueError(f"invalid inference task_type: {task_type!r}")
         if subject_type not in _INFERENCE_SUBJECT_TYPES:
             raise ValueError(f"invalid inference subject_type: {subject_type!r}")
+        if not isinstance(input_payload, dict):
+            raise ValueError("input_payload must be an object")
+        effective_contract = contract or InferenceTaskContract()
+        contract_payload = effective_contract.as_dict()
+        task_input = dict(input_payload)
+        task_input.setdefault("_contract", contract_payload)
         task_id = idempotency_key or str(uuid.uuid4())
         with self._lock:
             self._connection.execute("BEGIN IMMEDIATE")
@@ -2318,7 +2643,7 @@ class GraphStore:
                         task_type,
                         subject_type,
                         subject_id,
-                        self._canonical_json(input_payload),
+                        self._canonical_json(task_input),
                         requested_by,
                     ),
                 )
@@ -2344,6 +2669,13 @@ class GraphStore:
             "input": json.loads(row["input_json"]),
             "output": json.loads(row["output_json"]) if row["output_json"] else None,
             "requested_by": row["requested_by"],
+            "claim_owner": row["claim_owner"],
+            "claim_token": row["claim_token"],
+            "lease_expires_at": row["lease_expires_at"],
+            "attempt_count": row["attempt_count"],
+            "retry_after": row["retry_after"],
+            "failure_class": row["failure_class"],
+            "dead_letter_reason": row["dead_letter_reason"],
             "error": row["error"],
             "created_at": row["created_at"],
             "updated_at": row["updated_at"],
@@ -2357,7 +2689,8 @@ class GraphStore:
             rows = self._connection.execute(
                 """
                 SELECT id FROM memory_inference_tasks
-                WHERE status = ? ORDER BY created_at LIMIT ?
+                WHERE status = ? AND (retry_after IS NULL OR retry_after <= CURRENT_TIMESTAMP)
+                ORDER BY created_at LIMIT ?
                 """,
                 (status, bounded_limit),
             ).fetchall()
@@ -2370,11 +2703,14 @@ class GraphStore:
                 cursor = self._connection.execute(
                     """
                     UPDATE memory_inference_tasks
-                    SET status = 'claimed', requested_by = COALESCE(?, requested_by),
+                    SET status = 'claimed', requested_by = requested_by,
+                        claim_owner = ?, claim_token = ?,
+                        lease_expires_at = datetime('now', '+' || ? || ' seconds'),
+                        attempt_count = attempt_count + 1,
                         updated_at = CURRENT_TIMESTAMP
-                    WHERE id = ? AND status = 'pending'
+                    WHERE id = ? AND (status = 'pending' OR (status = 'claimed' AND lease_expires_at <= CURRENT_TIMESTAMP))
                     """,
-                    (claimed_by, task_id),
+                    (claimed_by or "anonymous-worker", str(uuid.uuid4()), 900, task_id),
                 )
                 if cursor.rowcount == 0:
                     existing = self._connection.execute(
@@ -2382,11 +2718,44 @@ class GraphStore:
                     ).fetchone()
                     if existing is None:
                         raise KeyError(task_id)
+                    raise ValueError(f"inference task {task_id!r} is not pending")
                 self._connection.execute("COMMIT")
             except Exception:
                 self._connection.execute("ROLLBACK")
                 raise
         return self.get_inference_task(task_id)
+
+    def requeue_expired_inference_tasks(self, *, limit: int = 50, max_attempts: int = 3) -> dict[str, int]:
+        """Recover expired claims with a bounded retry count."""
+        if limit < 1 or max_attempts < 1:
+            raise ValueError("limit and max_attempts must be positive")
+        with self._lock:
+            self._connection.execute("BEGIN IMMEDIATE")
+            try:
+                rows = self._connection.execute(
+                    "SELECT id, attempt_count FROM memory_inference_tasks "
+                    "WHERE status = 'claimed' AND lease_expires_at <= CURRENT_TIMESTAMP "
+                    "ORDER BY updated_at LIMIT ?", (min(int(limit), 500),)
+                ).fetchall()
+                requeued = failed = 0
+                for row in rows:
+                    if int(row["attempt_count"]) >= max_attempts:
+                        self._connection.execute(
+                            "UPDATE memory_inference_tasks SET status = 'failed', error = ?, failure_class = 'permanent', dead_letter_reason = ?, claim_owner = NULL, claim_token = NULL, lease_expires_at = NULL, retry_after = NULL, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+                            (f"inference lease expired after {max_attempts} attempts", f"max_attempts_exceeded:{max_attempts}", row["id"]),
+                        )
+                        failed += 1
+                    else:
+                        self._connection.execute(
+                            "UPDATE memory_inference_tasks SET status = 'pending', error = ?, failure_class = 'transient', retry_after = NULL, dead_letter_reason = NULL, claim_owner = NULL, claim_token = NULL, lease_expires_at = NULL, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+                            ("inference lease expired; queued for retry", row["id"]),
+                        )
+                        requeued += 1
+                self._connection.execute("COMMIT")
+            except Exception:
+                self._connection.execute("ROLLBACK")
+                raise
+        return {"expired": len(rows), "requeued": requeued, "failed": failed, "dead_lettered": failed}
 
     def complete_inference_task(
         self,
@@ -2394,31 +2763,116 @@ class GraphStore:
         *,
         output_payload: dict[str, object] | None = None,
         error: str | None = None,
+        failure_class: str | None = None,
+        retry_after: str | None = None,
+        dead_letter_reason: str | None = None,
+        claimed_by: str | None = None,
+        claim_token: str | None = None,
     ) -> dict[str, object]:
+        task = self.get_inference_task(task_id)
+        if task["status"] != "claimed" or task["claim_owner"] != claimed_by or task["claim_token"] != claim_token:
+            raise ValueError(f"inference task {task_id!r} claim is invalid")
+        if task["task_type"] == "classify_para" and error is None:
+            self._validate_para_output(task, output_payload or {})
+            memory = self.get_memory(str(task["subject_id"]))
+            if output_payload["source_content_hash"] != memory["content_hash"]:
+                raise ValueError("PARA source_content_hash does not match current memory")
         status = "failed" if error else "completed"
+        effective_failure_class = failure_class or ("transient" if error else None)
+        effective_retry_after = retry_after or (
+            (datetime.now(timezone.utc) + timedelta(seconds=60)).replace(microsecond=0).isoformat()
+            if error and effective_failure_class == "transient"
+            else None
+        )
         with self._lock:
             self._connection.execute("BEGIN IMMEDIATE")
             try:
                 cursor = self._connection.execute(
                     """
                     UPDATE memory_inference_tasks
-                    SET status = ?, output_json = ?, error = ?, updated_at = CURRENT_TIMESTAMP
-                    WHERE id = ?
+                    SET status = ?, output_json = ?, error = ?, failure_class = ?, retry_after = ?, dead_letter_reason = ?, claim_owner = NULL,
+                        claim_token = NULL, lease_expires_at = NULL, updated_at = CURRENT_TIMESTAMP
+                    WHERE id = ? AND status = 'claimed' AND claim_owner = ? AND claim_token = ?
                     """,
                     (
                         status,
                         self._canonical_json(output_payload or {}) if output_payload is not None else None,
                         error,
+                        effective_failure_class,
+                        effective_retry_after,
+                        dead_letter_reason,
                         task_id,
+                        claimed_by,
+                        claim_token,
                     ),
                 )
                 if cursor.rowcount == 0:
                     raise KeyError(task_id)
+                if task["task_type"] == "classify_para" and error is None:
+                    self._insert_para_proposal(task, output_payload or {})
                 self._connection.execute("COMMIT")
             except Exception:
                 self._connection.execute("ROLLBACK")
                 raise
         return self.get_inference_task(task_id)
+
+    @staticmethod
+    def _validate_para_output(task: dict[str, object], output: dict[str, object]) -> None:
+        category = output.get("category")
+        if category not in {"project", "area", "resource", "archive"}:
+            raise ValueError("PARA category must be project, area, resource, or archive")
+        confidence = output.get("confidence")
+        if not isinstance(confidence, (int, float)) or not 0 <= float(confidence) <= 1:
+            raise ValueError("PARA confidence must be between 0 and 1")
+        rationale = output.get("rationale")
+        if not isinstance(rationale, str) or not rationale.strip():
+            raise ValueError("PARA rationale is required")
+        source_id = output.get("source_memory_id")
+        source_hash = output.get("source_content_hash")
+        if source_id != task["subject_id"] or not isinstance(source_hash, str):
+            raise ValueError("PARA source_memory_id and source_content_hash are required")
+
+    def _insert_para_proposal(self, task: dict[str, object], output: dict[str, object]) -> None:
+        memory = self.get_memory(str(task["subject_id"]))
+        self._connection.execute(
+                """INSERT OR REPLACE INTO para_classifications
+                (task_id, memory_id, source_content_hash, category, confidence, rationale,
+                 signals_json, alternatives_json, status)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'proposed')""",
+                (task["id"], memory["id"], memory["content_hash"], output["category"],
+                 float(output["confidence"]), output["rationale"],
+                 self._canonical_json(output.get("signals") or []),
+                 self._canonical_json(output.get("alternatives") or [])),
+            )
+
+    def get_para_classification(self, task_id: str) -> dict[str, object]:
+        with self._lock:
+            row = self._connection.execute("SELECT * FROM para_classifications WHERE task_id = ?", (task_id,)).fetchone()
+        if row is None:
+            raise KeyError(task_id)
+        return {"task_id": row["task_id"], "memory_id": row["memory_id"], "source_content_hash": row["source_content_hash"], "category": row["category"], "confidence": row["confidence"], "rationale": row["rationale"], "signals": json.loads(row["signals_json"]), "alternatives": json.loads(row["alternatives_json"]), "status": row["status"], "decision_note": row["decision_note"], "created_at": row["created_at"], "decided_at": row["decided_at"]}
+
+    def list_para_classifications(self, *, status: str = "proposed", limit: int = 50) -> list[dict[str, object]]:
+        with self._lock:
+            rows = self._connection.execute("SELECT task_id FROM para_classifications WHERE status = ? ORDER BY created_at DESC LIMIT ?", (status, max(1, min(int(limit), 500)))).fetchall()
+        return [self.get_para_classification(row["task_id"]) for row in rows]
+
+    def accept_para_classification(self, task_id: str, *, decision: str, note: str | None = None) -> dict[str, object]:
+        if decision not in {"accept", "dismiss", "keep_original"}:
+            raise ValueError("decision must be accept, dismiss, or keep_original")
+        proposal = self.get_para_classification(task_id)
+        memory = self.get_memory(str(proposal["memory_id"]))
+        status = {"accept": "accepted", "dismiss": "dismissed", "keep_original": "kept_original"}[decision]
+        if memory["content_hash"] != proposal["source_content_hash"]:
+            with self._lock:
+                self._connection.execute(
+                    "UPDATE para_classifications SET status = 'stale', decision_note = ?, decided_at = CURRENT_TIMESTAMP WHERE task_id = ?",
+                    (note or "Source memory changed before operator decision.", task_id),
+                )
+            raise ValueError("PARA proposal is stale because the source memory changed")
+        with self._lock:
+            self._connection.execute("UPDATE para_classifications SET status = ?, decision_note = ?, decided_at = CURRENT_TIMESTAMP WHERE task_id = ?", (status, note, task_id))
+        return self.get_para_classification(task_id)
 
     def supersede_memory(
         self,
@@ -2719,6 +3173,49 @@ class GraphStore:
             for entity in entities
         )
 
+        sessions = self.list_sessions(limit=limit)
+        session_ids = {s["external_session_id"] for s in sessions}
+        nodes.extend(
+            {
+                "id": f"session:{session['external_session_id']}",
+                "type": "session",
+                "label": f"Session {session['external_session_id'][:8]}",
+                "status": "active" if session.get("active") else "closed",
+                "started_at": session["started_at"],
+            }
+            for session in sessions
+        )
+
+        exchanges = []
+        for sid in session_ids:
+            exchanges.extend(self.session_exchanges(sid))
+
+        nodes.extend(
+            {
+                "id": f"exchange:{exchange['id']}",
+                "type": "exchange",
+                "label": f"Exchange {exchange['sequence_number']}",
+                "timestamp": exchange.get("prompt_time") or exchange.get("response_time"),
+            }
+            for exchange in exchanges
+        )
+
+        merkle_roots = []
+        for sid in session_ids:
+            mr = self.session_merkle_root(sid)
+            if mr and mr.get("root_node_id"):
+                merkle_roots.append(mr)
+
+        nodes.extend(
+            {
+                "id": f"merkle:{mr['root_node_id']}",
+                "type": "merkle",
+                "label": f"Root {mr['root_node_id'][:8]}",
+                "valid": mr.get("valid"),
+            }
+            for mr in merkle_roots
+        )
+
         entity_ids = {entity["id"] for entity in entities}
         edges: list[dict[str, object]] = [
             {
@@ -2758,6 +3255,39 @@ class GraphStore:
                         "reason": row["reason"],
                     }
                 )
+
+        # Edges for sessions, exchanges, contexts, prompts, responses
+        for exchange in exchanges:
+            edges.append({
+                "source": f"session:{exchange['session_id']}",
+                "target": f"exchange:{exchange['id']}",
+                "type": "contains",
+            })
+            for pm in exchange.get("prompt_memories", []):
+                edges.append({
+                    "source": f"exchange:{exchange['id']}",
+                    "target": f"memory:{pm['id']}",
+                    "type": "prompt",
+                })
+            for rm in exchange.get("response_memories", []):
+                edges.append({
+                    "source": f"exchange:{exchange['id']}",
+                    "target": f"memory:{rm['id']}",
+                    "type": "response",
+                })
+            for cc in exchange.get("context_contributions", []):
+                edges.append({
+                    "source": f"exchange:{exchange['id']}",
+                    "target": f"memory:{cc['memory']['id']}",
+                    "type": "context",
+                })
+
+        for mr in merkle_roots:
+            edges.append({
+                "source": f"session:{mr['session_id']}",
+                "target": f"merkle:{mr['root_node_id']}",
+                "type": "merkle_root",
+            })
 
         embedded_ids = [mid for mid in self.embedded_memory_ids() if mid in memory_ids_in_payload]
         seen_pairs: set[tuple[str, str]] = set()

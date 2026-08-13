@@ -18,9 +18,16 @@ Architecture status: the store schema, hash-chain/Merkle model, and core MCP too
 **frozen for v1** as of 2026-08-12 — see [`SPECIFICATION.md`](SPECIFICATION.md) §0 for exactly
 what's frozen, what extension points remain open (new harnesses, new tools, richer optional
 adapters), and the full [Goals and Milestones](SPECIFICATION.md#11-goals-and-milestones) list.
-Full architecture detail also lives in the [wiki](../../wiki) (`docs/wiki/` in this repository).
+Full architecture detail also lives in the [wiki](docs/wiki/index.md) (`docs/wiki/` in this repository).
 
-## 2026-08-06 audit status
+## Visual overview
+
+The screenshot below is a real headless Chromium capture of the local viewer's populated knowledge graph. It shows graph nodes, evidence-linked edges, session context, filters, and bounded traversal controls.
+
+![Xibalba Cortex knowledge graph](docs/assets/knowledge-graph.png)
+
+> Screenshot evidence: captured from the local viewer on 2026-08-12. Graph contents are profile-dependent and may include operational labels; the image is illustrative, not a claim that every stored memory is embedded or externally anchored.
+
 
 The current status ledger is [`docs/audits/2026-08-06-status.md`](docs/audits/2026-08-06-status.md), and the consolidated cross-repository implementation plan is `/home/xibalba/Documents/INTEGRITY — Cross-Repository Audit and Implementation Plan.md`.
 

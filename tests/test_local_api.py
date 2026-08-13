@@ -89,7 +89,7 @@ def test_status_and_integrity_links_routes(running_store):
 
     status, body = _get(port, "/api/status")
     assert status == 200
-    assert body["schema_version"] == 3
+    assert body["schema_version"] == 7
     assert body["journal_mode"] == "wal"
     assert body["backup_ready"] is True
 
@@ -250,6 +250,12 @@ def test_model_exchange_session_and_merkle_routes(running_store):
     assert root["root_node_id"] == body["exchange"]["node_id"]
     assert root["valid"] is True
 
+    status, proof = _get(port, "/api/session/ui-session/merkle-proof?index=0")
+    assert status == 200
+    assert proof["tree_kind"] == "xibalba.exchange_batch.merkle.v1"
+    assert proof["leaf"] == body["exchange"]["node_id"]
+    assert proof["proof"]["root"].startswith("sha256:")
+
 
 def test_memory_detail_supporting_routes(running_store):
     store, port = running_store
@@ -307,7 +313,7 @@ def test_inference_task_routes(running_store):
     status, completed = _post(
         port,
         "/api/inference/tasks/api-task-1/complete",
-        {"output_payload": {"metadata": {"kind": "preference"}}},
+        {"output_payload": {"metadata": {"kind": "preference"}}, "claimed_by": "ui", "claim_token": claimed["claim_token"]},
     )
     assert status == 200
     assert completed["status"] == "completed"
