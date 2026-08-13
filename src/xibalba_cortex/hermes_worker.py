@@ -4,20 +4,15 @@ import json
 from collections.abc import Callable, Iterable
 from typing import Any
 
-from .providers import NativeHarnessInferenceProvider, validate_extraction_output
+from .providers import NativeHarnessInferenceProvider, validate_extraction_result
 from .store import GraphStore
 
+# Re-exported for back-compat: tests and callers import validate_extraction_result from here.
+# The implementation lives in providers.py so store.py can call it from inside
+# complete_inference_task without importing this module (which imports GraphStore).
+__all__ = ["validate_extraction_result", "process_extraction_tasks"]
 
-def validate_extraction_result(output: dict[str, Any], *, expected_hash: str, kind: str, source_content: str | None = None) -> dict[str, Any]:
-    if output.get("input_snapshot_hash") != expected_hash:
-        raise ValueError("input_snapshot_hash does not match task evidence snapshot")
-    validated = validate_extraction_output(output, kind=kind)
-    if source_content is not None:
-        for item in validated[kind]:
-            quote = item["evidence_quote"]
-            if quote not in source_content:
-                raise ValueError("evidence_quote is not contained in source content")
-    return validated
+WORKER_PROFILE_NAME = "xibalba-cortex-worker"
 
 
 def _prompt(task: dict[str, Any], memory: dict[str, Any]) -> str:
@@ -42,7 +37,7 @@ def process_extraction_tasks(
     worker_id: str = "xibalba-hermes-extraction-worker",
     limit: int = 5,
 ) -> dict[str, int]:
-    provider = NativeHarnessInferenceProvider(harness="hermes")
+    provider = NativeHarnessInferenceProvider(harness="hermes", profile_name=WORKER_PROFILE_NAME)
     effective_runner = runner or (lambda prompt: provider.infer(prompt))
     tasks = [task for task in store.list_inference_tasks(status="pending", limit=max(limit, 100)) if task["task_type"] in {"extract_entities", "extract_relations"}][:limit]
     processed = completed = failed = 0

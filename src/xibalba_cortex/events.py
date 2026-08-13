@@ -139,3 +139,77 @@ def verify_merkle_proof(proof: Mapping[str, Any]) -> bool:
     for sibling in proof["siblings"]:
         current = merkle_parent(current, sibling["hash"])
     return "sha256:" + current == proof["root"]
+
+
+# Domain-separated, order-committing Merkle construction.
+#
+# `merkle_root`/`merkle_proof` above have two properties that make them unsuitable for
+# cross-domain roots (projection checkpoints, retrieval traces): (1) they hash only the leaf
+# values -- nothing about *which kind* of root this is enters the preimage, so a projection
+# root and a trace root over an identical leaf set are byte-identical; (2) `merkle_parent`
+# sorts its two children before hashing, so the root commits to a *multiset* of leaves, not
+# an ordered sequence -- two permutations of the same leaves produce the same root, which
+# defeats reorder detection.
+#
+# The functions below wrap each leaf's hash with a domain tag and its position before handing
+# it to the existing (untouched) tree-building primitives. Because the position is baked into
+# each leaf's own hash, permuting the input list changes which leaf occupies which position,
+# which changes the leaf *set* itself -- so the resulting root differs even though the
+# underlying `merkle_parent` still sorts pairs. Nothing above this line changes: existing
+# `merkle_root`/`merkle_proof` roots (e.g. session exchange chains) stay verifiable exactly
+# as before.
+MERKLE_DOMAINS: dict[str, bytes] = {
+    "projection_checkpoint": b"xibalba.projection_checkpoint.v1",
+    "retrieval_trace": b"xibalba.retrieval_trace.v1",
+}
+
+
+def _domain_tag(domain: str) -> bytes:
+    try:
+        return MERKLE_DOMAINS[domain]
+    except KeyError:
+        raise ValueError(f"unknown Merkle domain: {domain!r}") from None
+
+
+def domain_leaf(domain: str, index: int, payload_hash: str) -> str:
+    """A domain- and position-committed leaf hash for one item's payload hash."""
+    tag = _domain_tag(domain)
+    digest = hashlib.sha256(
+        tag + b"\x00leaf\x00" + index.to_bytes(8, "big") + bytes.fromhex(str(payload_hash).removeprefix("sha256:"))
+    ).hexdigest()
+    return "sha256:" + digest
+
+
+def _wrap_domain_root(domain: str, inner_root: str) -> str:
+    tag = _domain_tag(domain)
+    digest = hashlib.sha256(tag + b"\x00root\x00" + bytes.fromhex(inner_root.removeprefix("sha256:"))).hexdigest()
+    return "sha256:" + digest
+
+
+def domain_merkle_root(payload_hashes: Iterable[str], *, domain: str) -> str | None:
+    leaves = [domain_leaf(domain, index, payload_hash) for index, payload_hash in enumerate(payload_hashes)]
+    inner = merkle_root(leaves)
+    if inner is None:
+        return None
+    return _wrap_domain_root(domain, inner)
+
+
+def domain_merkle_proof(payload_hashes: list[str], index: int, *, domain: str) -> dict[str, Any]:
+    leaves = [domain_leaf(domain, i, payload_hash) for i, payload_hash in enumerate(payload_hashes)]
+    proof = merkle_proof(leaves, index)
+    return {
+        "domain": domain,
+        "index": index,
+        "payload_hash": payload_hashes[index],
+        "siblings": proof["siblings"],
+        "root": _wrap_domain_root(domain, proof["root"]),
+    }
+
+
+def verify_domain_merkle_proof(proof: Mapping[str, Any]) -> bool:
+    domain = str(proof["domain"])
+    leaf = domain_leaf(domain, int(proof["index"]), str(proof["payload_hash"]))
+    current = leaf.removeprefix("sha256:")
+    for sibling in proof["siblings"]:
+        current = merkle_parent(current, sibling["hash"])
+    return _wrap_domain_root(domain, "sha256:" + current) == proof["root"]

@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from xibalba_cortex.events import merkle_root
+from xibalba_cortex.events import domain_merkle_root
 from xibalba_cortex.hermes_worker import process_extraction_tasks, validate_extraction_result
 from xibalba_cortex.projection_reconcile import compare_roots, reconcile_projection
 from xibalba_cortex.store import GraphStore
@@ -27,9 +27,9 @@ def test_hybrid_retrieval_persists_trace_with_provenance_and_root(tmp_path: Path
 
 def test_merkle_root_comparison_and_projection_reconciliation():
     left = {"root_profile": "xibalba.projection_checkpoint.v1", "leaf_hashes": ["sha256:" + "1" * 64]}
-    left["root_hash"] = merkle_root(left["leaf_hashes"])
+    left["root_hash"] = domain_merkle_root(left["leaf_hashes"], domain="projection_checkpoint")
     right = {"root_profile": "xibalba.projection_checkpoint.v1", "leaf_hashes": ["sha256:" + "1" * 64, "sha256:" + "2" * 64]}
-    right["root_hash"] = merkle_root(right["leaf_hashes"])
+    right["root_hash"] = domain_merkle_root(right["leaf_hashes"], domain="projection_checkpoint")
     comparison = compare_roots(left, right)
     assert comparison["equal"] is False
     assert comparison["missing_on_left"] == ["sha256:" + "2" * 64]

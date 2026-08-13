@@ -64,6 +64,23 @@ class ExtractedRelation:
             raise ValueError("relation confidence must be between 0 and 1")
 
 
+def validate_extraction_result(output: dict[str, Any], *, expected_hash: str, kind: str, source_content: str | None = None) -> dict[str, Any]:
+    """Validate a raw worker output against schema, snapshot hash, and evidence-quote containment.
+
+    Lives here (not in hermes_worker.py) so store.py can call it from inside
+    complete_inference_task without an import cycle -- hermes_worker.py imports GraphStore.
+    """
+    if output.get("input_snapshot_hash") != expected_hash:
+        raise ValueError("input_snapshot_hash does not match task evidence snapshot")
+    validated = validate_extraction_output(output, kind=kind)
+    if source_content is not None:
+        for item in validated[kind]:
+            quote = item["evidence_quote"]
+            if quote not in source_content:
+                raise ValueError("evidence_quote is not contained in source content")
+    return validated
+
+
 def validate_extraction_output(output: dict[str, Any], *, kind: str) -> dict[str, Any]:
     """Validate bounded, reviewable entity/relation extraction output."""
     if output.get("schema_version") != f"xibalba.{kind}.v1":
@@ -152,16 +169,26 @@ class ProjectionProvider(Protocol):
 
 @dataclass(frozen=True)
 class NativeHarnessInferenceProvider:
-    """Native agent-harness boundary; the harness, not Cortex, performs inference."""
+    """Native agent-harness boundary; the harness, not Cortex, performs inference.
+
+    ``profile_name``, when set, invokes the harness under an isolated Hermes profile
+    (``hermes -z <prompt> -p <profile_name>``) instead of the caller's default profile --
+    this is the mechanism that keeps the default agent's recalled memory/context out of
+    bounded extraction evidence. Left unset by default for test/back-compat callers that
+    don't need isolation.
+    """
 
     harness: str = "hermes"
+    profile_name: str | None = None
     runner: Callable[..., str] | None = None
 
     def capabilities(self) -> dict[str, Any]:
-        return {"queue": True, "direct_model": False, "harness": self.harness}
+        return {"queue": True, "direct_model": False, "harness": self.harness, "profile_name": self.profile_name}
 
     def infer(self, prompt: str, *, timeout: int = 120) -> str:
         command = [self.harness, "-z", prompt]
+        if self.profile_name:
+            command += ["-p", self.profile_name]
         if self.runner is not None:
             return self.runner(command, prompt=prompt, timeout=timeout)
         result = subprocess.run(command, capture_output=True, text=True, timeout=timeout, check=False)

@@ -28,7 +28,7 @@ def test_bootstrap_creates_secure_healthy_sqlite_store(tmp_path):
     assert os.stat(home).st_mode & 0o777 == 0o700
     assert store.db_path.is_file()
     assert os.stat(store.db_path).st_mode & 0o777 == 0o600
-    assert status["schema_version"] == 7
+    assert status["schema_version"] == 8
     assert status["journal_mode"] == "wal"
     assert status["foreign_keys"] is True
     assert status["fts5"] is True
@@ -562,7 +562,7 @@ def test_memory_vectors_migrates_existing_l2_table_to_cosine_preserving_data(tmp
     raw.close()
 
     reopened = GraphStore(home)
-    assert reopened.status()["schema_version"] == 7
+    assert reopened.status()["schema_version"] == 8
     results = reopened.search("nomatchingterm-xyz", query_vector=_unit_vector(0), limit=5)
     assert results[0]["id"] == memory["id"]
     assert results[0]["cosine_similarity"] == pytest.approx(1.0)
@@ -580,7 +580,7 @@ def test_backup_produces_verified_restorable_snapshot(tmp_path):
     backup_path = tmp_path / "backups" / "snapshot.sqlite3"
     result = store.backup(backup_path)
     assert result["integrity_check"] == "ok"
-    assert result["schema_version"] == 7
+    assert result["schema_version"] == 8
     assert backup_path.is_file()
     assert os.stat(backup_path).st_mode & 0o777 == 0o600
 

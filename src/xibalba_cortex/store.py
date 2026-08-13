@@ -18,11 +18,12 @@ import sqlite_vec
 from eth_hash.auto import keccak
 from integrity_sdk.crypto.merkle import compute_node_hash
 
-from .events import merkle_proof, merkle_root
-from .providers import InferenceTaskContract
+from .events import domain_merkle_proof, domain_merkle_root, merkle_proof, merkle_root
+from . import projection_reconcile
+from .providers import InferenceTaskContract, validate_extraction_result
 from .redaction import redact
 
-_SCHEMA_VERSION = 7
+_SCHEMA_VERSION = 8
 
 # Generous default cap on a single attachment -- not a policy decision, just a guard against
 # accidentally ingesting something absurd (e.g. a whole video library) into the blob store.
@@ -42,6 +43,12 @@ _DEFAULT_IDENTITY_MODE = "pseudonymous"
 # Vectors are never computed in-process here -- see EMBEDDING_MODEL_ID docstring below.
 EMBEDDING_MODEL_ID = "BAAI/bge-small-en-v1.5"
 EMBEDDING_DIM = 384
+EMBEDDING_MODEL_REVISION = "r1"
+
+# Reciprocal Rank Fusion constant used by hybrid_retrieve. Was previously a bare literal
+# inline in the scoring loop -- promoted to a named constant so it can be persisted into each
+# trace's rrf_params_json instead of vanishing into the code.
+_RRF_K = 60
 
 _VALID_STATUSES = {
     "candidate",
@@ -77,6 +84,19 @@ _INFERENCE_TASK_TYPES = {
     "classify_para",
 }
 _INFERENCE_SUBJECT_TYPES = {"memory", "exchange", "session", "context_bundle"}
+# Task types whose completion validates through validate_extraction_result and produces rows in
+# extraction_proposals (as opposed to classify_para, which has its own dedicated table/pipeline).
+_EXTRACTION_PROPOSAL_TASK_TYPES = {"extract_entities", "extract_relations"}
+_EXTRACTION_PROPOSAL_STATUSES = {"proposed", "accepted", "dismissed", "stale"}
+# Projections this store can checkpoint and reconcile. Each entry names the canonical table
+# and the columns whose canonical-JSON form (not the whole row) becomes the leaf payload --
+# keep this narrow and stable so re-running compute_projection_leaves against unchanged data
+# is deterministic across runs, not sensitive to columns like updated_at.
+_PROJECTION_LEAF_SOURCES: dict[str, tuple[str, tuple[str, ...], str]] = {
+    "memories": ("memories", ("id", "content_hash", "status"), "id"),
+    "entities": ("entities", ("id", "canonical_name", "entity_type"), "id"),
+    "relations": ("relations", ("id", "subject_entity_id", "predicate", "object_entity_id", "object_literal", "status"), "id"),
+}
 MEMORY_INFERENCE_SUBAGENT_MANIFEST = {
     "name": "xibalba-memory-inference",
     "role": (
@@ -411,16 +431,71 @@ CREATE TABLE IF NOT EXISTS retrieval_traces (
     signals_json TEXT NOT NULL,
     results_json TEXT NOT NULL,
     root_hash TEXT NOT NULL,
+    profile_domain TEXT NOT NULL DEFAULT 'xibalba.retrieval_trace.v1',
+    query_vector_hash TEXT,
+    embedding_model_id TEXT,
+    embedding_model_revision TEXT,
+    filters_json TEXT NOT NULL DEFAULT '{}',
+    candidate_pool_sizes_json TEXT NOT NULL DEFAULT '{}',
+    rrf_params_json TEXT NOT NULL DEFAULT '{}',
+    graph_evidence_json TEXT NOT NULL DEFAULT '[]',
+    leaf_hashes_json TEXT NOT NULL DEFAULT '[]',
+    checkpoint_id TEXT REFERENCES projection_checkpoints(id) ON DELETE SET NULL,
+    linked_task_id TEXT,
+    linked_session_id TEXT,
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE IF NOT EXISTS extraction_proposals (
+    id TEXT PRIMARY KEY,
+    task_id TEXT NOT NULL REFERENCES memory_inference_tasks(id) ON DELETE CASCADE,
+    task_type TEXT NOT NULL,
+    item_index INTEGER NOT NULL,
+    source_memory_id TEXT NOT NULL REFERENCES memories(id) ON DELETE CASCADE,
+    source_content_hash TEXT NOT NULL,
+    payload_json TEXT NOT NULL,
+    evidence_quote TEXT,
+    status TEXT NOT NULL CHECK (status IN ('proposed', 'accepted', 'dismissed', 'stale')),
+    decision_note TEXT,
+    decided_by TEXT,
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    decided_at TEXT,
+    UNIQUE(task_id, item_index)
+);
+
+CREATE INDEX IF NOT EXISTS idx_extraction_proposals_source ON extraction_proposals(source_memory_id, status);
+CREATE INDEX IF NOT EXISTS idx_extraction_proposals_task ON extraction_proposals(task_id);
+
 CREATE TABLE IF NOT EXISTS projection_checkpoints (
-    projection_id TEXT PRIMARY KEY,
+    id TEXT PRIMARY KEY,
+    projection_id TEXT NOT NULL,
     root_hash TEXT NOT NULL,
+    leaf_count INTEGER NOT NULL,
     leaf_hashes_json TEXT NOT NULL,
     metadata_json TEXT NOT NULL DEFAULT '{}',
+    status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'degraded', 'unavailable')),
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+
+CREATE INDEX IF NOT EXISTS idx_projection_checkpoints_projection
+ON projection_checkpoints(projection_id, created_at DESC);
+
+CREATE TABLE IF NOT EXISTS projection_reconciliations (
+    id TEXT PRIMARY KEY,
+    projection_id TEXT NOT NULL,
+    checkpoint_id TEXT REFERENCES projection_checkpoints(id) ON DELETE SET NULL,
+    canonical_root_hash TEXT NOT NULL,
+    observed_root_hash TEXT,
+    equal INTEGER NOT NULL,
+    reordered INTEGER NOT NULL,
+    missing_json TEXT NOT NULL DEFAULT '[]',
+    extra_json TEXT NOT NULL DEFAULT '[]',
+    action TEXT NOT NULL CHECK (action IN ('noop', 'rebuild_projection', 'mark_degraded', 'manual_review')),
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_projection_reconciliations_projection
+ON projection_reconciliations(projection_id, created_at DESC);
 """
 
 
@@ -599,6 +674,65 @@ class GraphStore:
                     )
                     """
                 )
+            checkpoint_columns = {row["name"] for row in self._connection.execute("PRAGMA table_info(projection_checkpoints)")}
+            if checkpoint_columns and "id" not in checkpoint_columns:
+                # v7 shape had projection_id as the PK (one checkpoint per projection, no
+                # history). Reshape to a surrogate id PK so checkpoints accumulate over time --
+                # this table has always had zero store methods writing to it, so it's empty in
+                # every real deployment, but reshape by copy rather than assume that.
+                self._connection.execute("ALTER TABLE projection_checkpoints RENAME TO projection_checkpoints_v7")
+                self._connection.execute(
+                    """
+                    CREATE TABLE projection_checkpoints (
+                        id TEXT PRIMARY KEY,
+                        projection_id TEXT NOT NULL,
+                        root_hash TEXT NOT NULL,
+                        leaf_count INTEGER NOT NULL,
+                        leaf_hashes_json TEXT NOT NULL,
+                        metadata_json TEXT NOT NULL DEFAULT '{}',
+                        status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'degraded', 'unavailable')),
+                        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+                    )
+                    """
+                )
+                for old_row in self._connection.execute("SELECT * FROM projection_checkpoints_v7").fetchall():
+                    leaf_hashes = json.loads(old_row["leaf_hashes_json"] or "[]")
+                    self._connection.execute(
+                        """INSERT INTO projection_checkpoints
+                        (id, projection_id, root_hash, leaf_count, leaf_hashes_json, metadata_json, status, created_at)
+                        VALUES (?, ?, ?, ?, ?, ?, 'active', ?)""",
+                        (
+                            str(uuid.uuid4()),
+                            old_row["projection_id"],
+                            old_row["root_hash"],
+                            len(leaf_hashes),
+                            old_row["leaf_hashes_json"],
+                            old_row["metadata_json"],
+                            old_row["created_at"],
+                        ),
+                    )
+                self._connection.execute("DROP TABLE projection_checkpoints_v7")
+                self._connection.execute(
+                    "CREATE INDEX IF NOT EXISTS idx_projection_checkpoints_projection ON projection_checkpoints(projection_id, created_at DESC)"
+                )
+            trace_columns = {row["name"] for row in self._connection.execute("PRAGMA table_info(retrieval_traces)")}
+            if trace_columns and "profile_domain" not in trace_columns:
+                for name, definition in (
+                    ("profile_domain", "TEXT NOT NULL DEFAULT 'xibalba.retrieval_trace.v1'"),
+                    ("query_vector_hash", "TEXT"),
+                    ("embedding_model_id", "TEXT"),
+                    ("embedding_model_revision", "TEXT"),
+                    ("filters_json", "TEXT NOT NULL DEFAULT '{}'"),
+                    ("candidate_pool_sizes_json", "TEXT NOT NULL DEFAULT '{}'"),
+                    ("rrf_params_json", "TEXT NOT NULL DEFAULT '{}'"),
+                    ("graph_evidence_json", "TEXT NOT NULL DEFAULT '[]'"),
+                    ("leaf_hashes_json", "TEXT NOT NULL DEFAULT '[]'"),
+                    ("checkpoint_id", "TEXT"),
+                    ("linked_task_id", "TEXT"),
+                    ("linked_session_id", "TEXT"),
+                ):
+                    if name not in trace_columns:
+                        self._connection.execute(f"ALTER TABLE retrieval_traces ADD COLUMN {name} {definition}")
             self._connection.execute(
                 "INSERT OR IGNORE INTO schema_migrations(version) VALUES (?)", (1,)
             )
@@ -1371,6 +1505,7 @@ class GraphStore:
         vector_ids = [item[0] for item in vector_hits]
         similarity = dict(vector_hits)
         graph_ids: list[str] = []
+        graph_evidence: list[dict[str, object]] = []
         terms = [term for term in re.findall(r"[\\w-]+", query) if len(term) > 2]
         for term in terms[:3]:
             try:
@@ -1381,6 +1516,13 @@ class GraphStore:
                 evidence = edge.get("evidence_memory_id")
                 if evidence and evidence not in graph_ids:
                     graph_ids.append(str(evidence))
+                if evidence:
+                    graph_evidence.append({
+                        "seed_term": term,
+                        "predicate": edge.get("predicate"),
+                        "object": edge.get("object"),
+                        "evidence_memory_id": str(evidence),
+                    })
         with self._lock:
             if temporal_at:
                 temporal_rows = self._connection.execute(
@@ -1405,20 +1547,66 @@ class GraphStore:
             graph_ids = [memory_id for memory_id in graph_ids if memory_id in eligible]
         channels = {"lexical": lexical_ids, "vector": vector_ids, "graph": graph_ids, "temporal": temporal_ids}
         channel_status = {"lexical": "available", "vector": "available" if query_vector is not None else "unavailable", "graph": "available" if graph_ids else "no_candidates", "temporal": "available"}
+        # Pre-fusion candidate pool sizes, per channel -- discarded after fusion until now.
+        candidate_pool_sizes = {name: len(ids) for name, ids in channels.items()}
+        # Per-channel rank (position within that channel's own ranking), not just membership.
+        channel_ranks: dict[str, dict[str, int]] = {
+            name: {memory_id: rank for rank, memory_id in enumerate(ids, 1)} for name, ids in channels.items()
+        }
+        weights = {name: 1.0 for name in channels}
         scores: dict[str, float] = {}
-        for ids in channels.values():
+        for name, ids in channels.items():
             for rank, memory_id in enumerate(ids, 1):
-                scores[memory_id] = scores.get(memory_id, 0.0) + 1.0 / (60 + rank)
+                scores[memory_id] = scores.get(memory_id, 0.0) + weights[name] / (_RRF_K + rank)
         ranked = sorted(scores, key=lambda item: (-scores[item], item))[:bounded]
         records = []
         for rank, memory_id in enumerate(ranked, 1):
             memory = self.get_memory(memory_id)
-            records.append({"rank": rank, "memory_id": memory_id, "score": scores[memory_id], "signals": [name for name, ids in channels.items() if memory_id in ids], "cosine_similarity": similarity.get(memory_id), "provenance": {"content_hash": memory["content_hash"], "source_id": memory["source"]["id"], "evidence_class": memory["evidence_class"], "status": memory["status"]}})
-        payload = {"query": query, "signals": list(channels), "results": records, "temporal_at": temporal_at}
-        root_hash = "sha256:" + hashlib.sha256(self._canonical_json(payload).encode()).hexdigest()
+            record_channels = {
+                name: {"rank": channel_ranks[name][memory_id], "raw_score": similarity.get(memory_id) if name == "vector" else None}
+                for name in channels
+                if memory_id in channel_ranks[name]
+            }
+            records.append({
+                "rank": rank,
+                "memory_id": memory_id,
+                "score": scores[memory_id],
+                "signals": [name for name, ids in channels.items() if memory_id in ids],
+                "channels": record_channels,
+                "cosine_similarity": similarity.get(memory_id),
+                "provenance": {"content_hash": memory["content_hash"], "source_id": memory["source"]["id"], "evidence_class": memory["evidence_class"], "status": memory["status"]},
+            })
+        rrf_params = {"method": "rrf", "k": _RRF_K, "weights": weights}
+        query_vector_hash = ("sha256:" + hashlib.sha256(self._canonical_json(list(query_vector)).encode()).hexdigest()) if query_vector is not None else None
+        latest_memories_checkpoint = self.get_latest_projection_checkpoint("memories")
+        checkpoint_id = latest_memories_checkpoint["id"] if latest_memories_checkpoint else None
+
+        # Leaf-based root: each result record's canonical JSON becomes one domain-tagged leaf,
+        # so a caller can verify one result's inclusion without trusting the whole trace blob --
+        # replaces the prior whole-payload hash, which committed to the trace but not to any
+        # individual result being genuinely part of it.
+        leaf_payload_hashes = ["sha256:" + hashlib.sha256(self._canonical_json(record).encode()).hexdigest() for record in records]
+        root_hash = domain_merkle_root(leaf_payload_hashes, domain="retrieval_trace") or (
+            "sha256:" + hashlib.sha256(self._canonical_json({"query": query, "results": []}).encode()).hexdigest()
+        )
         trace_id = str(uuid.uuid4())
         with self._lock:
-            self._connection.execute("INSERT INTO retrieval_traces(id, query, signals_json, results_json, root_hash) VALUES (?, ?, ?, ?, ?)", (trace_id, query, self._canonical_json(list(channels)), self._canonical_json(records), root_hash))
+            self._connection.execute(
+                """INSERT INTO retrieval_traces(
+                    id, query, signals_json, results_json, root_hash, profile_domain,
+                    query_vector_hash, embedding_model_id, embedding_model_revision,
+                    filters_json, candidate_pool_sizes_json, rrf_params_json,
+                    graph_evidence_json, leaf_hashes_json, checkpoint_id
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                (
+                    trace_id, query, self._canonical_json(list(channels)), self._canonical_json(records), root_hash,
+                    "xibalba.retrieval_trace.v1", query_vector_hash,
+                    EMBEDDING_MODEL_ID if query_vector is not None else None,
+                    EMBEDDING_MODEL_REVISION if query_vector is not None else None,
+                    self._canonical_json({}), self._canonical_json(candidate_pool_sizes), self._canonical_json(rrf_params),
+                    self._canonical_json(graph_evidence), self._canonical_json(leaf_payload_hashes), checkpoint_id,
+                ),
+            )
         return {"trace_id": trace_id, "root_hash": root_hash, "signals": list(channels), "channel_status": channel_status, "results": [self.get_memory(item["memory_id"]) | {"retrieval": item} for item in records]}
 
     def get_retrieval_trace(self, trace_id: str) -> dict[str, object]:
@@ -1426,7 +1614,36 @@ class GraphStore:
             row = self._connection.execute("SELECT * FROM retrieval_traces WHERE id = ?", (trace_id,)).fetchone()
         if row is None:
             raise KeyError(trace_id)
-        return {"id": row["id"], "query": row["query"], "signals": json.loads(row["signals_json"]), "results": json.loads(row["results_json"]), "root_hash": row["root_hash"], "created_at": row["created_at"]}
+        return {
+            "id": row["id"],
+            "query": row["query"],
+            "signals": json.loads(row["signals_json"]),
+            "results": json.loads(row["results_json"]),
+            "root_hash": row["root_hash"],
+            "profile_domain": row["profile_domain"],
+            "query_vector_hash": row["query_vector_hash"],
+            "embedding_model_id": row["embedding_model_id"],
+            "embedding_model_revision": row["embedding_model_revision"],
+            "filters": json.loads(row["filters_json"]),
+            "candidate_pool_sizes": json.loads(row["candidate_pool_sizes_json"]),
+            "rrf_params": json.loads(row["rrf_params_json"]),
+            "graph_evidence": json.loads(row["graph_evidence_json"]),
+            "leaf_hashes": json.loads(row["leaf_hashes_json"]),
+            "checkpoint_id": row["checkpoint_id"],
+            "linked_task_id": row["linked_task_id"],
+            "linked_session_id": row["linked_session_id"],
+            "created_at": row["created_at"],
+        }
+
+    def retrieval_trace_evidence(self, trace_id: str, *, rank: int) -> dict[str, object]:
+        """A Merkle inclusion proof that the result at ``rank`` is genuinely part of the trace
+        committed by ``root_hash`` -- verifiable without trusting the whole trace blob."""
+        trace = self.get_retrieval_trace(trace_id)
+        leaves = trace["leaf_hashes"]
+        index = rank - 1
+        if not 0 <= index < len(leaves):
+            raise IndexError(f"rank {rank} is out of range for trace {trace_id!r} with {len(leaves)} results")
+        return domain_merkle_proof(leaves, index, domain="retrieval_trace")
 
     def store_embedding(
         self,
@@ -2772,11 +2989,40 @@ class GraphStore:
         task = self.get_inference_task(task_id)
         if task["status"] != "claimed" or task["claim_owner"] != claimed_by or task["claim_token"] != claim_token:
             raise ValueError(f"inference task {task_id!r} claim is invalid")
-        if task["task_type"] == "classify_para" and error is None:
+
+        # Validation runs server-side, inside this call, regardless of which caller invokes
+        # completion (in-process Python or an external MCP client holding a valid claim token
+        # -- see the isolated extraction worker). This is what makes it safe to let a
+        # less-trusted external worker call completion directly: the store, not the caller,
+        # is the fail-closed gate.
+        extraction_items: list[dict[str, object]] | None = None
+        extraction_source_hash: str | None = None
+        if error is None and task["task_type"] in _EXTRACTION_PROPOSAL_TASK_TYPES:
+            kind = "entities" if task["task_type"] == "extract_entities" else "relations"
+            try:
+                memory = self.get_memory(str(task["subject_id"]))
+                expected_hash = str(task["input"].get("source_content_hash") or memory["content_hash"])
+                if expected_hash != memory["content_hash"]:
+                    raise ValueError("task source_content_hash does not match current memory")
+                validated = validate_extraction_result(
+                    output_payload or {}, expected_hash=expected_hash, kind=kind, source_content=str(memory["content"])
+                )
+            except Exception as exc:
+                # Fail closed: this call becomes the failed completion itself, rather than
+                # raising and requiring the caller to make a second call to record failure --
+                # an external MCP-connected worker may have no such retry loop.
+                error = str(exc)
+                failure_class = failure_class or "permanent"
+                dead_letter_reason = dead_letter_reason or "extraction_validation_failed"
+            else:
+                extraction_items = validated[kind]
+                extraction_source_hash = expected_hash
+        elif task["task_type"] == "classify_para" and error is None:
             self._validate_para_output(task, output_payload or {})
             memory = self.get_memory(str(task["subject_id"]))
             if output_payload["source_content_hash"] != memory["content_hash"]:
                 raise ValueError("PARA source_content_hash does not match current memory")
+
         status = "failed" if error else "completed"
         effective_failure_class = failure_class or ("transient" if error else None)
         effective_retry_after = retry_after or (
@@ -2810,6 +3056,8 @@ class GraphStore:
                     raise KeyError(task_id)
                 if task["task_type"] == "classify_para" and error is None:
                     self._insert_para_proposal(task, output_payload or {})
+                elif extraction_items is not None:
+                    self._insert_extraction_proposals(task, extraction_items, source_content_hash=str(extraction_source_hash))
                 self._connection.execute("COMMIT")
             except Exception:
                 self._connection.execute("ROLLBACK")
@@ -2873,6 +3121,290 @@ class GraphStore:
         with self._lock:
             self._connection.execute("UPDATE para_classifications SET status = ?, decision_note = ?, decided_at = CURRENT_TIMESTAMP WHERE task_id = ?", (status, note, task_id))
         return self.get_para_classification(task_id)
+
+    def _insert_extraction_proposals(
+        self, task: dict[str, object], items: list[dict[str, object]], *, source_content_hash: str
+    ) -> None:
+        """Insert one proposal row per extracted item. Called inside complete_inference_task's
+        own transaction -- runs on ``self._connection`` directly, not through ``self._lock``."""
+        source_memory_id = str(task["subject_id"])
+        for index, item in enumerate(items):
+            self._connection.execute(
+                """INSERT OR REPLACE INTO extraction_proposals
+                (id, task_id, task_type, item_index, source_memory_id, source_content_hash,
+                 payload_json, evidence_quote, status)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'proposed')""",
+                (
+                    f"{task['id']}:{index}",
+                    task["id"],
+                    task["task_type"],
+                    index,
+                    source_memory_id,
+                    source_content_hash,
+                    self._canonical_json(item),
+                    item.get("evidence_quote"),
+                ),
+            )
+
+    def _row_to_extraction_proposal(self, row: sqlite3.Row) -> dict[str, object]:
+        return {
+            "id": row["id"],
+            "task_id": row["task_id"],
+            "task_type": row["task_type"],
+            "item_index": row["item_index"],
+            "source_memory_id": row["source_memory_id"],
+            "source_content_hash": row["source_content_hash"],
+            "payload": json.loads(row["payload_json"]),
+            "evidence_quote": row["evidence_quote"],
+            "status": row["status"],
+            "decision_note": row["decision_note"],
+            "decided_by": row["decided_by"],
+            "created_at": row["created_at"],
+            "decided_at": row["decided_at"],
+        }
+
+    def get_extraction_proposal(self, proposal_id: str) -> dict[str, object]:
+        with self._lock:
+            row = self._connection.execute(
+                "SELECT * FROM extraction_proposals WHERE id = ?", (proposal_id,)
+            ).fetchone()
+        if row is None:
+            raise KeyError(proposal_id)
+        return self._row_to_extraction_proposal(row)
+
+    def list_extraction_proposals(
+        self,
+        *,
+        status: str = "proposed",
+        task_id: str | None = None,
+        source_memory_id: str | None = None,
+        limit: int = 50,
+    ) -> list[dict[str, object]]:
+        if status not in _EXTRACTION_PROPOSAL_STATUSES:
+            raise ValueError(f"invalid extraction proposal status: {status!r}")
+        clauses = ["status = ?"]
+        params: list[object] = [status]
+        if task_id is not None:
+            clauses.append("task_id = ?")
+            params.append(task_id)
+        if source_memory_id is not None:
+            clauses.append("source_memory_id = ?")
+            params.append(source_memory_id)
+        params.append(max(1, min(int(limit), 500)))
+        with self._lock:
+            rows = self._connection.execute(
+                f"SELECT * FROM extraction_proposals WHERE {' AND '.join(clauses)} "
+                "ORDER BY created_at DESC LIMIT ?",
+                params,
+            ).fetchall()
+        return [self._row_to_extraction_proposal(row) for row in rows]
+
+    def _apply_extraction_proposal(self, proposal: dict[str, object]) -> dict[str, object]:
+        """Write the derived record an accepted proposal represents. Never touches the source
+        memory row -- only inserts new entity/relation records evidenced by it."""
+        payload = proposal["payload"]
+        memory_id = str(proposal["source_memory_id"])
+        if proposal["task_type"] == "extract_entities":
+            entity = self._get_or_create_entity(str(payload["name"]), str(payload.get("entity_type") or "unknown"))
+            return {"kind": "entity", "entity_id": entity["id"], "canonical_name": entity["canonical_name"]}
+        if proposal["task_type"] == "extract_relations":
+            subject = self._get_or_create_entity(str(payload["subject"]))
+            obj = self._get_or_create_entity(str(payload["object"]))
+            relation_id = str(uuid.uuid4())
+            self._connection.execute(
+                """
+                INSERT INTO relations(id, subject_entity_id, predicate, object_entity_id, evidence_memory_id, confidence)
+                VALUES (?, ?, ?, ?, ?, ?)
+                """,
+                (relation_id, subject["id"], str(payload["predicate"]), obj["id"], memory_id, float(payload.get("confidence") or 1.0)),
+            )
+            return {"kind": "relation", "relation_id": relation_id}
+        raise ValueError(f"no applier for extraction proposal task_type {proposal['task_type']!r}")
+
+    def decide_extraction_proposal(
+        self, proposal_id: str, *, decision: str, decided_by: str | None = None, note: str | None = None
+    ) -> dict[str, object]:
+        if decision not in {"accept", "dismiss"}:
+            raise ValueError("decision must be accept or dismiss")
+        proposal = self.get_extraction_proposal(proposal_id)
+        memory = self.get_memory(str(proposal["source_memory_id"]))
+
+        # Reject acceptance if the source memory has diverged since the proposal was generated --
+        # never accept a proposal against evidence that no longer matches what it was extracted from.
+        if memory["content_hash"] != proposal["source_content_hash"]:
+            with self._lock:
+                self._connection.execute(
+                    "UPDATE extraction_proposals SET status = 'stale', decision_note = ?, decided_by = ?, decided_at = CURRENT_TIMESTAMP WHERE id = ?",
+                    (note or "Source memory changed before operator decision.", decided_by, proposal_id),
+                )
+            raise ValueError("extraction proposal is stale because the source memory changed")
+
+        if decision == "dismiss":
+            with self._lock:
+                self._connection.execute(
+                    "UPDATE extraction_proposals SET status = 'dismissed', decision_note = ?, decided_by = ?, decided_at = CURRENT_TIMESTAMP WHERE id = ?",
+                    (note, decided_by, proposal_id),
+                )
+            return self.get_extraction_proposal(proposal_id)
+
+        with self._lock:
+            self._connection.execute("BEGIN IMMEDIATE")
+            try:
+                # Acceptance never mutates the source memory row -- only inserts new derived
+                # entity/relation records, evidenced by (not replacing) the source.
+                self._apply_extraction_proposal(proposal)
+                self._connection.execute(
+                    "UPDATE extraction_proposals SET status = 'accepted', decision_note = ?, decided_by = ?, decided_at = CURRENT_TIMESTAMP WHERE id = ?",
+                    (note, decided_by, proposal_id),
+                )
+                self._connection.execute("COMMIT")
+            except Exception:
+                self._connection.execute("ROLLBACK")
+                raise
+        return self.get_extraction_proposal(proposal_id)
+
+    def compute_projection_leaves(self, projection_id: str) -> list[str]:
+        """Recompute leaf hashes for a projection from canonical SQLite data only.
+
+        Ordered by id so re-running this against unchanged data is deterministic and so a
+        row insertion/deletion (not just a reorder) is what actually moves the root -- id
+        order is stable and doesn't depend on write timing the way created_at could.
+        """
+        if projection_id not in _PROJECTION_LEAF_SOURCES:
+            raise ValueError(f"unknown projection_id: {projection_id!r}")
+        table, columns, order_column = _PROJECTION_LEAF_SOURCES[projection_id]
+        column_list = ", ".join(columns)
+        with self._lock:
+            rows = self._connection.execute(
+                f"SELECT {column_list} FROM {table} ORDER BY {order_column}"
+            ).fetchall()
+        return [
+            "sha256:" + hashlib.sha256(self._canonical_json({col: row[col] for col in columns}).encode()).hexdigest()
+            for row in rows
+        ]
+
+    def create_projection_checkpoint(
+        self, projection_id: str, *, metadata: dict[str, object] | None = None
+    ) -> dict[str, object]:
+        leaves = self.compute_projection_leaves(projection_id)
+        root_hash = domain_merkle_root(leaves, domain="projection_checkpoint")
+        checkpoint_id = str(uuid.uuid4())
+        with self._lock:
+            self._connection.execute(
+                """INSERT INTO projection_checkpoints
+                (id, projection_id, root_hash, leaf_count, leaf_hashes_json, metadata_json, status)
+                VALUES (?, ?, ?, ?, ?, ?, 'active')""",
+                (checkpoint_id, projection_id, root_hash, len(leaves), self._canonical_json(leaves), self._canonical_json(metadata or {})),
+            )
+        return self.get_projection_checkpoint(checkpoint_id)
+
+    def _row_to_projection_checkpoint(self, row: sqlite3.Row) -> dict[str, object]:
+        return {
+            "id": row["id"],
+            "projection_id": row["projection_id"],
+            "root_hash": row["root_hash"],
+            "leaf_count": row["leaf_count"],
+            "leaf_hashes": json.loads(row["leaf_hashes_json"]),
+            "metadata": json.loads(row["metadata_json"]),
+            "status": row["status"],
+            "created_at": row["created_at"],
+        }
+
+    def get_projection_checkpoint(self, checkpoint_id: str) -> dict[str, object]:
+        with self._lock:
+            row = self._connection.execute(
+                "SELECT * FROM projection_checkpoints WHERE id = ?", (checkpoint_id,)
+            ).fetchone()
+        if row is None:
+            raise KeyError(checkpoint_id)
+        return self._row_to_projection_checkpoint(row)
+
+    def list_projection_checkpoints(self, projection_id: str, *, limit: int = 50) -> list[dict[str, object]]:
+        with self._lock:
+            rows = self._connection.execute(
+                "SELECT * FROM projection_checkpoints WHERE projection_id = ? ORDER BY created_at DESC, rowid DESC LIMIT ?",
+                (projection_id, max(1, min(int(limit), 500))),
+            ).fetchall()
+        return [self._row_to_projection_checkpoint(row) for row in rows]
+
+    def get_latest_projection_checkpoint(self, projection_id: str) -> dict[str, object] | None:
+        checkpoints = self.list_projection_checkpoints(projection_id, limit=1)
+        return checkpoints[0] if checkpoints else None
+
+    def reconcile_projection_checkpoint(self, projection_id: str) -> dict[str, object]:
+        """Recompute the projection's root from canonical data, compare it against the latest
+        stored checkpoint, and persist the reconciliation result. On mismatch, marks that
+        checkpoint degraded rather than silently continuing to serve it as if verified."""
+        latest = self.get_latest_projection_checkpoint(projection_id)
+        if latest is None:
+            latest = self.create_projection_checkpoint(projection_id)
+
+        fresh_leaves = self.compute_projection_leaves(projection_id)
+        fresh_root = domain_merkle_root(fresh_leaves, domain="projection_checkpoint")
+        canonical = {"root_profile": "xibalba.projection_checkpoint.v1", "root_hash": fresh_root, "leaf_hashes": fresh_leaves}
+        stored = {"root_profile": "xibalba.projection_checkpoint.v1", "root_hash": latest["root_hash"], "leaf_hashes": latest["leaf_hashes"]}
+        result = projection_reconcile.reconcile_projection(canonical, stored)
+
+        reconciliation_id = str(uuid.uuid4())
+        with self._lock:
+            self._connection.execute("BEGIN IMMEDIATE")
+            try:
+                self._connection.execute(
+                    """INSERT INTO projection_reconciliations
+                    (id, projection_id, checkpoint_id, canonical_root_hash, observed_root_hash,
+                     equal, reordered, missing_json, extra_json, action)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                    (
+                        reconciliation_id,
+                        projection_id,
+                        latest["id"],
+                        fresh_root,
+                        latest["root_hash"],
+                        int(result["equal"]),
+                        int(result["reordered"]),
+                        self._canonical_json(result["missing_on_right"]),
+                        self._canonical_json(result["missing_on_left"]),
+                        result["action"],
+                    ),
+                )
+                if not result["equal"]:
+                    self._connection.execute(
+                        "UPDATE projection_checkpoints SET status = 'degraded' WHERE id = ?", (latest["id"],)
+                    )
+                self._connection.execute("COMMIT")
+            except Exception:
+                self._connection.execute("ROLLBACK")
+                raise
+        return {
+            "id": reconciliation_id,
+            "projection_id": projection_id,
+            "checkpoint_id": latest["id"],
+            "canonical_root_hash": fresh_root,
+            "observed_root_hash": latest["root_hash"],
+            "equal": result["equal"],
+            "reordered": result["reordered"],
+            # missing: canonical has these leaves, the stored checkpoint does not (stale/behind).
+            "missing": result["missing_on_right"],
+            # extra: the stored checkpoint has these leaves, canonical no longer does.
+            "extra": result["missing_on_left"],
+            "action": result["action"],
+        }
+
+    def rebuild_projection_checkpoint(self, projection_id: str) -> dict[str, object]:
+        """Create a fresh checkpoint from canonical data and verify it against a second,
+        independent recomputation -- if those two disagree, something is non-deterministic
+        or canonical data changed mid-rebuild, and the checkpoint is marked degraded rather
+        than trusted."""
+        rebuilt = self.create_projection_checkpoint(projection_id, metadata={"rebuilt_from": "canonical_sqlite"})
+        verify_leaves = self.compute_projection_leaves(projection_id)
+        verify_root = domain_merkle_root(verify_leaves, domain="projection_checkpoint")
+        if verify_root != rebuilt["root_hash"]:
+            with self._lock:
+                self._connection.execute(
+                    "UPDATE projection_checkpoints SET status = 'degraded' WHERE id = ?", (rebuilt["id"],)
+                )
+            return {**self.get_projection_checkpoint(rebuilt["id"]), "verified": False}
+        return {**rebuilt, "verified": True}
 
     def supersede_memory(
         self,

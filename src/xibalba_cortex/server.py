@@ -607,6 +607,30 @@ def memory_claim_inference_task(task_id: str, claimed_by: str | None = None) -> 
 
 
 @server.tool()
+def memory_evidence_bundle(task_id: str) -> dict[str, object]:
+    """Return only the bounded evidence a claimed task's contract permits.
+
+    Resolves the task's own evidence_scope (max_items/max_bytes/max_depth, and the explicit
+    subject_ids it's allowed to read) and returns exactly that -- not arbitrary recall. An
+    isolated extraction worker restricted to this tool (plus claim/complete) can only ever
+    see what its task was scoped to see.
+    """
+    store = get_store()
+    task = store.get_inference_task(task_id)
+    contract = (task.get("input") or {}).get("_contract") or {}
+    limits = contract.get("evidence_limits") or {}
+    allowed_subject_ids = contract.get("evidence_scope") or None
+    return store.fetch_bounded_evidence(
+        subject_type=str(task["subject_type"]),
+        subject_id=str(task["subject_id"]),
+        allowed_subject_ids=allowed_subject_ids,
+        max_items=int(limits.get("max_items", 20)),
+        max_bytes=int(limits.get("max_bytes", 32_000)),
+        max_depth=int(limits.get("max_depth", 1)),
+    )
+
+
+@server.tool()
 def memory_complete_inference_task(
     task_id: str,
     output_payload: dict[str, object] | None = None,
