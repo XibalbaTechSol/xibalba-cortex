@@ -56,6 +56,17 @@ responses. The proof remains inclusion evidence only, not proof of truth, author
 completeness, ownership, or external finality. See [Sessions and Exchanges](../entities/sessions-and-exchanges.md)
 for how an exchange gets built out of a prompt, response, and tool calls.
 
+**Known, reviewed, deliberately-unfixed residual (2026-08-17):** the underlying tree-combination
+step (`merkle_parent`) has no domain tag or level marker on internal nodes, and an odd-width
+level's unpaired node is promoted upward unhashed — the same *shape* as Bitcoin's CVE-2012-2459
+padding ambiguity. An adversarial review found this isn't practically exploitable today (each
+leaf is forced through `domain_leaf`'s own tag before ever entering the tree, so an attacker
+can't place a chosen value into leaf position for free the way Satoshi's original bug allowed),
+and that patching it in place would force a breaking wire-format change plus a migration of two
+other domains' persisted roots (`projection_checkpoint`, `retrieval_trace`) — bigger than the
+gap justifies today. Full reasoning in `spec/xibalba-cortex-v1.md`'s residual-construction note
+next to the v2 profile description above.
+
 ## Verification vs. anchoring
 
 `verify_chain()` and `verify_exchange_chain()` only prove internal self-consistency: that the

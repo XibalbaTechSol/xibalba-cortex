@@ -3,6 +3,22 @@
 > Chronological record of wiki actions. Append-only — never edit past entries.
 > Actions: ingest, create, update, lint, query, archive
 
+## [2026-08-17] update | Merkle promotion-ambiguity residual reviewed, left unfixed
+
+- An adversarial review (independent agent, no prior context) evaluated a proposed fix for
+  `merkle_parent`'s internal-node combination lacking a domain/level tag and odd-width nodes
+  being promoted unchanged (CVE-2012-2459 shape). Verdict: not practically exploitable today
+  given `domain_leaf`'s existing leaf-position tagging and recompute-leaf-first verification;
+  the proposed fix's own rationale (level separation) didn't hold up under review; a
+  leaf-count-in-root alternative would force a breaking wire-format bump plus migration of
+  `projection_checkpoint`/`retrieval_trace`'s persisted roots.
+- Decision: documented as a known, reviewed, deliberately-unfixed residual rather than patched.
+  See `spec/xibalba-cortex-v1.md`'s residual-construction note and
+  [Hash Chain and Merkle Roots](concepts/hash-chain-and-merkle-roots.md).
+- If ever revisited: do it as a deliberate versioned profile bump (e.g. RFC 6962-style, no
+  padding/promotion step) with an explicit migration plan for both persisted root columns, not
+  an in-place patch.
+
 ## [2026-08-17] update | Session exchange-batch Merkle evidence v2
 
 - Replaced new `session_merkle_evidence()` responses' legacy unordered,

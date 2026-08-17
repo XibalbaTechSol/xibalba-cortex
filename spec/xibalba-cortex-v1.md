@@ -482,6 +482,33 @@ malformed input. Position commitment prevents permutation ambiguity, but the pro
 authenticate the response envelope's `session_id` or `exchange_count` and therefore does not
 prove chronology, completeness, truth, authorization, ownership, or external finality.
 
+**Residual construction note (reviewed 2026-08-17, not fixed by design — see below).**
+`merkle_parent`'s internal-node combination (`events.py`) carries no domain tag and no tree-level
+marker, and the odd-width promotion above (`level[-1]` carried forward unhashed) is structurally
+the same *shape* as Bitcoin's CVE-2012-2459 padding ambiguity: nothing in a promoted node's own
+hash value distinguishes "this arrived via promotion" from "this is a genuine parent-combination
+output." An adversarial review of a proposed fix (domain-tagging internal nodes + committing
+leaf count into the wrapped root) found: (1) the disclosed ambiguity is **not practically
+exploitable today**, because `verify_domain_merkle_proof` recomputes each leaf from its
+committed `(domain, index, payload_hash)` via `domain_leaf`'s own "leaf" tag *before* any sibling
+folding — an attacker cannot place a chosen value directly into leaf position, unlike Satoshi's
+original bug where `hash(C,C)` was computable for free from public data with zero cryptographic
+work. Reproducing an equivalent free collision here would require breaking SHA-256 preimage
+resistance against a specific tagged target, not merely choosing convenient leaf content. (2) The
+specific proposed fix was itself flawed — a domain tag on internal nodes provides cross-*domain*
+separation, not the cross-*level* separation its own rationale claimed, since the preimage
+carries no height. (3) A leaf-count commitment would force a breaking wire-format change to this
+v2 profile (a new field in the proof JSON) plus a migration of the two OTHER domains that persist
+their roots to storage (`projection_checkpoint` in `projection_checkpoints.root_hash`,
+`retrieval_trace` in `retrieval_traces.root_hash`) — `reconcile_projection_checkpoint` would raise
+an unhandled `ValueError` on every pre-existing checkpoint the moment `domain_merkle_root`'s
+output changed, indistinguishable from real tampering, and `retrieval_trace_evidence` would
+silently diverge from its own stored `root_hash` with no error at all. **Decision: left
+unfixed.** If a future change bumps this construction anyway (e.g. adopting RFC 6962's
+recursive-split tree, which needs no padding/promotion step and binds leaf count to shape
+implicitly), do it as a deliberate v3 profile with an explicit migration plan for both persisted
+root columns above — not as an in-place patch to `merkle_parent`.
+
 **Grouping rule** (`build_session_exchanges`): a memory with `source.role == "user"` starts a
 new exchange; everything after it (assistant text/thinking memories, tool calls, context-window
 metrics correlated by `prompt_id` or `memory_id`) accumulates into that exchange until the next
