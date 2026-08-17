@@ -252,7 +252,7 @@ def test_model_exchange_session_and_merkle_routes(running_store):
 
     status, proof = _get(port, "/api/session/ui-session/merkle-proof?index=0")
     assert status == 200
-    assert proof["tree_kind"] == "xibalba.exchange_batch.merkle.v1"
+    assert proof["tree_kind"] == "xibalba.exchange_batch.merkle.v2"
     assert proof["leaf"] == body["exchange"]["node_id"]
     assert proof["proof"]["root"].startswith("sha256:")
 

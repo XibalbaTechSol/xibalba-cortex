@@ -161,6 +161,7 @@ def verify_merkle_proof(proof: Mapping[str, Any]) -> bool:
 MERKLE_DOMAINS: dict[str, bytes] = {
     "projection_checkpoint": b"xibalba.projection_checkpoint.v1",
     "retrieval_trace": b"xibalba.retrieval_trace.v1",
+    "exchange_batch": b"xibalba.exchange_batch.v2",
 }
 
 
@@ -207,9 +208,21 @@ def domain_merkle_proof(payload_hashes: list[str], index: int, *, domain: str) -
 
 
 def verify_domain_merkle_proof(proof: Mapping[str, Any]) -> bool:
-    domain = str(proof["domain"])
-    leaf = domain_leaf(domain, int(proof["index"]), str(proof["payload_hash"]))
-    current = leaf.removeprefix("sha256:")
-    for sibling in proof["siblings"]:
-        current = merkle_parent(current, sibling["hash"])
-    return _wrap_domain_root(domain, "sha256:" + current) == proof["root"]
+    """Return whether a domain proof is valid; malformed untrusted proofs fail closed."""
+    try:
+        domain = str(proof["domain"])
+        index = int(proof["index"])
+        if index < 0:
+            return False
+        leaf = domain_leaf(domain, index, str(proof["payload_hash"]))
+        current = leaf.removeprefix("sha256:")
+        siblings = proof["siblings"]
+        if not isinstance(siblings, list):
+            return False
+        for sibling in siblings:
+            if not isinstance(sibling, Mapping):
+                return False
+            current = merkle_parent(current, str(sibling["hash"]))
+        return _wrap_domain_root(domain, "sha256:" + current) == proof["root"]
+    except (KeyError, TypeError, ValueError, OverflowError, IndexError):
+        return False

@@ -690,9 +690,7 @@ class GraphStore:
                             (row["memory_id"], row["embedding"]),
                         )
             task_columns = {row["name"] for row in self._connection.execute("PRAGMA table_info(memory_inference_tasks)")}
-            if current_version < 6 or "attempt_count" not in task_columns or "claim_token" not in task_columns:
-                columns = task_columns
-                for name, definition in (
+            lease_failure_columns = (
                     ("claim_owner", "TEXT"),
                     ("claim_token", "TEXT"),
                     ("lease_expires_at", "TEXT"),
@@ -700,7 +698,10 @@ class GraphStore:
                     ("retry_after", "TEXT"),
                     ("failure_class", "TEXT"),
                     ("dead_letter_reason", "TEXT"),
-                ):
+            )
+            if current_version < 6 or any(name not in task_columns for name, _definition in lease_failure_columns):
+                columns = task_columns
+                for name, definition in lease_failure_columns:
                     if name not in columns:
                         self._connection.execute(f"ALTER TABLE memory_inference_tasks ADD COLUMN {name} {definition}")
                 self._connection.execute("CREATE INDEX IF NOT EXISTS idx_inference_claimable ON memory_inference_tasks(status, lease_expires_at, created_at)")
@@ -2721,10 +2722,10 @@ class GraphStore:
         """
         exchanges = self.session_exchanges(external_session_id)
         leaves = [str(exchange["node_id"]) for exchange in exchanges]
-        proof = merkle_proof(leaves, exchange_index)
+        proof = domain_merkle_proof(leaves, exchange_index, domain="exchange_batch")
         return {
             "session_id": external_session_id,
-            "tree_kind": "xibalba.exchange_batch.merkle.v1",
+            "tree_kind": "xibalba.exchange_batch.merkle.v2",
             "leaf": leaves[exchange_index],
             "leaf_index": exchange_index,
             "exchange_count": len(leaves),

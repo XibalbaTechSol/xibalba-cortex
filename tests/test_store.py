@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 import sqlite_vec
 
-from xibalba_cortex.events import verify_merkle_proof
+from xibalba_cortex.events import verify_domain_merkle_proof
 from xibalba_cortex.providers import InferenceTaskContract
 from xibalba_cortex.store import EMBEDDING_DIM, EMBEDDING_MODEL_ID, GraphStore
 
@@ -1051,12 +1051,17 @@ def test_session_merkle_evidence_proves_exchange_inclusion(tmp_path):
 
     evidence = store.session_merkle_evidence("proof-session", exchange_index=1)
 
-    assert evidence["tree_kind"] == "xibalba.exchange_batch.merkle.v1"
+    assert evidence["tree_kind"] == "xibalba.exchange_batch.merkle.v2"
     assert evidence["leaf"] == second["exchange"]["node_id"]
     assert evidence["leaf_index"] == 1
     assert evidence["exchange_count"] == 2
-    assert verify_merkle_proof(evidence["proof"]) is True
+    assert verify_domain_merkle_proof(evidence["proof"]) is True
     assert evidence["root"] == evidence["proof"]["root"]
+    assert evidence["proof"]["domain"] == "exchange_batch"
+    assert evidence["proof"]["payload_hash"] == evidence["leaf"]
+    assert evidence["proof"]["index"] == evidence["leaf_index"]
+    assert "leaf" not in evidence["proof"]
+    assert "leaf_index" not in evidence["proof"]
     assert first["exchange"]["node_id"] != second["exchange"]["node_id"]
     store.close()
 

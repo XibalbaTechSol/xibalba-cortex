@@ -2,7 +2,7 @@
 title: Hash Chain and Merkle Roots
 acronyms: []
 created: 2026-08-12
-updated: 2026-08-12
+updated: 2026-08-17
 type: concept
 tags: [provenance, cryptography, storage]
 confidence: high
@@ -49,8 +49,12 @@ sequence. `GraphStore.session_merkle_root(external_session_id)` returns the late
 `node_id` as the session's root — labeled `root_kind:
 "xibalba.exchange_chain.local_merkle_root.v1"` in the returned payload, an explicit reminder that
 this is a local Merkle-style root over this session's own exchanges, not a proof anchored to
-anything external. See [Sessions and Exchanges](../entities/sessions-and-exchanges.md) for how
-an exchange gets built out of a prompt, response, and tool calls.
+anything external. `GraphStore.session_merkle_evidence()` exposes a separately versioned,
+domain-separated and position-committing inclusion proof (`tree_kind:
+"xibalba.exchange_batch.merkle.v2"`); the legacy unordered v1 construction is not used for new
+responses. The proof remains inclusion evidence only, not proof of truth, authorization,
+completeness, ownership, or external finality. See [Sessions and Exchanges](../entities/sessions-and-exchanges.md)
+for how an exchange gets built out of a prompt, response, and tool calls.
 
 ## Verification vs. anchoring
 

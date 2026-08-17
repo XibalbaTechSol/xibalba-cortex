@@ -3,6 +3,21 @@
 > Chronological record of wiki actions. Append-only — never edit past entries.
 > Actions: ingest, create, update, lint, query, archive
 
+## [2026-08-17] update | Session exchange-batch Merkle evidence v2
+
+- Replaced new `session_merkle_evidence()` responses' legacy unordered,
+  undomain-separated batch proof with the versioned `exchange_batch` domain profile and
+  `xibalba.exchange_batch.merkle.v2` discriminator.
+- The v2 leaf commits to its sequence index, so permutations change the root. Odd-width trees
+  retain explicit promote-unchanged behavior; malformed proof objects fail closed.
+- The nested v2 proof omits unauthenticated legacy aliases. Outer `session_id`,
+  `exchange_count`, `leaf`, and `leaf_index` remain descriptive response metadata and are not
+  represented as authenticated completeness or chronology claims.
+- Verification evidence is recorded in the associated source/tests and the normative profile in
+  `spec/xibalba-cortex-v1.md`; residual boundary: no compatibility endpoint emits historical v1
+  proofs, and no external consumer inventory can prove that undiscovered clients do not depend
+  on v1.
+
 ## [2026-08-13] update | Strict contradiction evidence scope
 
 - Replaced worker-side unrestricted similarity candidate retrieval with explicit task-contract `evidence_scope` retrieval.

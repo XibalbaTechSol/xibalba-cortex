@@ -471,6 +471,17 @@ structure. `session_merkle_root`/`memory_session_merkle_root` returns the curren
 see §4.9's boundary, which applies here identically); its head `node_id` is structurally the
 right shape to anchor later if that's ever wanted, but nothing does that today.
 
+`session_merkle_evidence` and `GET /api/session/{id}/merkle-proof?index=` expose a separate
+batch-inclusion profile identified as `xibalba.exchange_batch.merkle.v2`. Its leaf preimage is
+`SHA-256("xibalba.exchange_batch.v2" || 0x00 || "leaf" || 0x00 || uint64be(index) ||
+payload_hash)`. Internal sibling pairs retain the historical lexicographic ordering rule;
+unpaired odd-width nodes are promoted unchanged; the final inner root is wrapped as
+`SHA-256("xibalba.exchange_batch.v2" || 0x00 || "root" || 0x00 || inner_root)`. The proof JSON
+contains `domain`, `index`, `payload_hash`, `siblings`, and `root`. Verifiers fail closed on
+malformed input. Position commitment prevents permutation ambiguity, but the proof does not
+authenticate the response envelope's `session_id` or `exchange_count` and therefore does not
+prove chronology, completeness, truth, authorization, ownership, or external finality.
+
 **Grouping rule** (`build_session_exchanges`): a memory with `source.role == "user"` starts a
 new exchange; everything after it (assistant text/thinking memories, tool calls, context-window
 metrics correlated by `prompt_id` or `memory_id`) accumulates into that exchange until the next
