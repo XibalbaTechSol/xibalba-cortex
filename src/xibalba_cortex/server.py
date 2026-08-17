@@ -159,6 +159,43 @@ def memory_retrieval_trace(trace_id: str) -> dict[str, object]:
 
 
 @server.tool()
+def memory_retrieval_trace_evidence(trace_id: str, rank: int) -> dict[str, object]:
+    """Merkle inclusion proof for one ranked result within a retrieval trace -- lets a caller
+    verify a single candidate was really part of the traced fusion without trusting the whole
+    trace record. Previously HTTP-only (`GET /api/retrieval/trace/{id}/evidence`)."""
+    return get_store().retrieval_trace_evidence(trace_id, rank=rank)
+
+
+@server.tool()
+def memory_list_extraction_proposals(
+    status: str = "proposed",
+    task_id: str | None = None,
+    source_memory_id: str | None = None,
+    limit: int = 50,
+) -> list[dict[str, object]]:
+    """List extraction proposals awaiting (or already given) a review decision -- entity/
+    relation/contradiction candidates the extraction pipeline found but never auto-committed to
+    the graph. status defaults to "proposed"; see memory_decide_extraction_proposal to act on
+    one. Previously HTTP-only (`GET /api/extraction-proposals`)."""
+    return get_store().list_extraction_proposals(
+        status=status, task_id=task_id, source_memory_id=source_memory_id, limit=limit
+    )
+
+
+@server.tool()
+def memory_decide_extraction_proposal(
+    proposal_id: str, decision: str, decided_by: str | None = None, note: str | None = None
+) -> dict[str, object]:
+    """Accept or dismiss an extraction proposal. decision must be "accept" or "dismiss" --
+    accepting writes the derived entity/relation/contradiction record; the proposal is rejected
+    as stale if its source memory changed since extraction rather than applied blindly.
+    Previously HTTP-only (`POST /api/extraction-proposals/{id}/decision`)."""
+    return get_store().decide_extraction_proposal(
+        proposal_id, decision=decision, decided_by=decided_by, note=note
+    )
+
+
+@server.tool()
 def memory_recall(
     query: str, query_vector: list[float] | None = None, limit: int = 10
 ) -> list[dict[str, object]]:

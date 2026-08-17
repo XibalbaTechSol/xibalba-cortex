@@ -85,6 +85,9 @@ async def test_all_tools_are_advertised(store):
         "runtime_agy_observation",
         "runtime_codex_probe",
         "runtime_codex_launch",
+        "memory_retrieval_trace_evidence",
+        "memory_list_extraction_proposals",
+        "memory_decide_extraction_proposal",
     }
 
 

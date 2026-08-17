@@ -168,6 +168,15 @@ uv run pytest -q
 
 Full suite: `273 passed, 1 skipped, 1 warning` as of 2026-08-13 (the skip and warning are pre-existing and unrelated to recent work). Viewer build is separate: `cd viewer && npm install && npm run build`. Local operator commands: `uv run xibalba-cortex-operator [readiness|status|backup|restore|verify-memory|verify-integrity-link|verify-session|integrity-links]`.
 
+**Not yet installable standalone.** `pyproject.toml` pins `integrity-sdk` as a local path
+dependency on `../integrity-core/integrity-sdk` (`[tool.uv.sources]`) — `uv sync` only resolves
+if `integrity-core` is checked out as a sibling directory (this is also how CI installs it — see
+`.github/workflows/ci.yml`). There is no PyPI package and no git-pinned alternative dependency
+yet, so a `pip install xibalba-cortex` or an install outside this sibling-repo layout does not
+currently work. Fixing this means either publishing `integrity-sdk` as its own installable
+package, vendoring the (small) subset this repo actually uses, or pinning a git dependency —
+not yet decided; until then, clone both repos as siblings.
+
 > The local worktree contains work in progress ahead of the next commit — see `docs/plans/` for the active implementation plans and `spec/latest-hybrid-extraction.md` for measured, dated verification output rather than aspirational claims. The dated status ledger is [`docs/audits/2026-08-06-status.md`](docs/audits/2026-08-06-status.md) and [`docs/audits/2026-08-07-gap-closure.md`](docs/audits/2026-08-07-gap-closure.md).
 
 ## MCP Operations
