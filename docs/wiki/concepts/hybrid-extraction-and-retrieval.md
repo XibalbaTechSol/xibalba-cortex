@@ -1,3 +1,11 @@
+
+
+## Table of contents
+
+- [Overview](#overview)
+
+## Overview
+
 # Hybrid Retrieval, Hermes Extraction, and Projection Reconciliation
 
 **Status:** Implemented partial vertical slice; locally verified.
