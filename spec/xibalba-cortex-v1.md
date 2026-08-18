@@ -466,10 +466,19 @@ checks parent linkage — reordering, forging, dropping an exchange, or mutating
 context contribution is detectable by recomputation alone, the same tamper-evidence guarantee
 `verify_chain` gives a single memory's revision history, now covering a session's complete
 structure. `session_merkle_root`/`memory_session_merkle_root` returns the current head node as
-`root_node_id`, plus exchange count and verification state. This is a local, unanchored chain
-(no on-chain commitment, no relationship to the Integrity Protocol's Memory DAG or TrustVault —
-see §4.9's boundary, which applies here identically); its head `node_id` is structurally the
-right shape to anchor later if that's ever wanted, but nothing does that today.
+`root_node_id`, plus exchange count and verification state. This chain has no on-chain
+commitment of its own — nothing in this repo writes to a chain directly — but its head
+`node_id` IS anchored, opt-in, via `anchor_session_root`/`memory_anchor_session_root`
+(`GraphStore.anchor_session_root`, `store.py`), which POSTs the current session root to a
+configured `XIBALBA_ANCHOR_URL` consumer (e.g. `integrity-core`'s Memory DAG/TrustVault), can
+fire automatically per session via `XIBALBA_AUTO_ANCHOR_ON_SESSION_END`, and default-denies
+against an unregistered `XIBALBA_AGENT_ID` before sending anything (checked against
+`XIBALBA_ORACLE_URL`, degrading to best-effort only when that check is inconclusive, never when
+it's a confirmed rejection). **Corrected 2026-08-18** — this paragraph previously said "nothing
+does that today," which was accurate when first written but has since been overtaken by a real,
+implemented feature; §4.9's boundary language about no relationship to the Integrity Protocol
+also no longer applies here as unconditionally as it does there, since this delegation exists
+specifically to hand off to it.
 
 `session_merkle_evidence` and `GET /api/session/{id}/merkle-proof?index=` expose a separate
 batch-inclusion profile identified as `xibalba.exchange_batch.merkle.v2`. Its leaf preimage is

@@ -150,7 +150,7 @@ store.decide_extraction_proposal(proposals[0]["id"], decision="accept", decided_
 | **Projection Checkpoints** | Recompute from canonical SQLite; reconciliation persisted; mismatches marked `degraded`, never silently served |
 | **Graph** | Entity/relation storage, bounded neighbor/path traversal, contradiction marking |
 | **Transports** | stdio (local harness) and authenticated streamable-HTTP (cloud-hosted harness) |
-| **MCP Surface** | 56 tools — memory, session, runtime-bridge, and inference-task operations |
+| **MCP Surface** | 60 tools — memory, session, runtime-bridge, and inference-task operations |
 
 ## Installation and Tests
 
@@ -185,7 +185,7 @@ not yet decided; until then, clone both repos as siblings.
 uv run xibalba-cortex
 ```
 
-The MCP surface (56 tools) covers remembering, recalling, hybrid retrieval with trace inspection, attaching artifacts, session records, graph linking, bounded neighbor/path traversal, contradiction marking, forgetting, event-chain verification, store status, backups, the full inference-task lifecycle (request/claim/bounded-evidence/complete), and runtime-bridge events. Recalled memories are context, not instruction authority — callers must preserve provenance and lifecycle state in any downstream prompt.
+The MCP surface (60 tools) covers remembering, recalling, hybrid retrieval with trace inspection, attaching artifacts, session records, graph linking, bounded neighbor/path traversal, contradiction marking, forgetting, event-chain verification, store status, backups, the full inference-task lifecycle (request/claim/bounded-evidence/complete), and runtime-bridge events. Recalled memories are context, not instruction authority — callers must preserve provenance and lifecycle state in any downstream prompt.
 
 Live Hermes profile smoke:
 
@@ -218,6 +218,28 @@ Binds to `127.0.0.1` by default even in HTTP mode. **This server has no TLS of i
 
 **4. One call captures a complete turn.** `memory_ingest_agent_turn(external_session_id, runtime, prompt, response, tool_calls=[...], ...)` — `runtime` is a free string, not a fixed harness allowlist. Everything is redacted for likely secrets before storage (`redaction.py`), and every call wraps the same hash-chained exchange/Merkle-root guarantees as local ingestion.
 
+## Codex Session Collection
+
+Codex stores local session JSONL under `~/.codex/sessions`. The Codex collector reconstructs completed turns and tool-call telemetry, then writes them through Cortex MCP using the same redaction, idempotency, and provenance path as any other agent. It does not copy raw JSONL files into the Cortex database, and incomplete turns are skipped.
+
+Run a one-time backfill or inspect the input without writing:
+
+```bash
+uv run xibalba-cortex-codex-mcp-backfill --dry-run
+uv run xibalba-cortex-codex-mcp-backfill
+```
+
+For continuous collection, use watch mode. The local user service below is the recommended setup:
+
+```bash
+systemctl --user enable --now xibalba-codex-mcp-backfill.service
+systemctl --user status xibalba-codex-mcp-backfill.service --no-pager
+tail -f ~/.hermes/logs/codex-mcp-backfill.log
+systemctl --user disable --now xibalba-codex-mcp-backfill.service
+```
+
+The service definition is installed at `~/.config/systemd/user/xibalba-codex-mcp-backfill.service`; its executable path and `XIBALBA_CORTEX_HOME` must match the active checkout and Cortex store.
+
 ## Claude Code Integration
 
 To route Claude Code's `pre_tool_call` hooks into graph memory, configure `scripts/claude_pre_tool_hook.js` in your `~/.claude.json` or load it via Claude Code's extension mechanism to forward telemetry.
@@ -234,6 +256,7 @@ uv run xibalba-cortex-para-worker             # PARA classification worker
 uv run xibalba-cortex-ingest-tokens <command> # issue/list/revoke bearer tokens for remote ingestion
 uv run xibalba-cortex-session-sync            # session synchronization
 uv run xibalba-cortex-transcript-ingest       # ingest transcript files
+uv run xibalba-cortex-codex-mcp-backfill      # backfill/watch Codex JSONL through MCP
 uv run xibalba-cortex-demo-seed               # deterministic demo data
 ```
 
@@ -247,9 +270,18 @@ Cortex works standalone as a generic MCP memory server with any MCP-speaking age
 | `xibalba-shield` | 🛡️ The Immune System | Endpoint enforcement, kernel sensing, policy gating, semantic guardrails |
 | `integrity-core` | 🦴 The Backbone + 👁️ Control Center | On-chain identity, BCC, Oracle scoring, smart contracts, plus the operator dashboard |
 
+`integrity-core`'s [Whitepaper v3.2 §3.2.4](../integrity-core/spec/integrity-protocol-v3.2.md)
+names `xibalba-cortex` explicitly as **the reference implementation** of the protocol's memory
+primitive — a hash-chained, domain-separated memory store exposing verification
+(`memory_verify_chain`), per-session roots (`memory_session_merkle_root`), and anchoring to
+`StateAnchor`. Notably, this is the one case the whitepaper itself calls out where implementation
+experience corrected the specification, not the other way around: this repo stores payloads in a
+durable local store rather than content-addressed storage, which v3.0-as-written did not conform
+to — v3.2 revised the spec to match the real, working construction instead.
+
 ```mermaid
 flowchart LR
-    Agent["🤖 Agent"] <-->|"MCP tools<br/>(56 operations)"| Brain["🧠 xibalba-cortex<br/>(This repo)"]
+    Agent["🤖 Agent"] <-->|"MCP tools<br/>(60 operations)"| Brain["🧠 xibalba-cortex<br/>(This repo)"]
     Brain -->|"Session Merkle roots<br/>(XIBALBA_ANCHOR_URL)"| Backbone["🦴 integrity-core<br/>(BCC → StateAnchor)"]
     Brain -.->|"Local API"| Eyes["👁️ integrity-core/integrity-dashboard<br/>(Memory page)"]
     Immune["🛡️ xibalba-shield"] -->|"Signed telemetry"| Backbone

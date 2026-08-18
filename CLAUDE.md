@@ -8,7 +8,7 @@ repository.
 xibalba-cortex — the graph-memory MCP server for the Xibalba ecosystem. It is the "brain": the
 persistent, hash-chained memory layer that `xibalba-shield` (local enforcement/detection) and
 `integrity-core` (on-chain identity/reputation protocol) both read from and write into via MCP
-tool calls. Python 3.12, `uv`-managed, exposes ~56 MCP tools (`memory_remember`,
+tool calls. Python 3.12, `uv`-managed, exposes 60 MCP tools (`memory_remember`,
 `memory_hybrid_retrieve`, `memory_recall`, `memory_verify_chain`, `runtime_*` bridge tools, etc.)
 over stdio or streamable-HTTP.
 
@@ -23,7 +23,7 @@ check it before assuming a feature is unimplemented.
 
 ```
 src/xibalba_cortex/
-├── server.py              # MCP server entry — @server.tool() decorators, all ~56 tools
+├── server.py              # MCP server entry — @server.tool() decorators, all 60 tools
 ├── store.py                # GraphStore — canonical SQLite persistence, hash-chained events,
 │                             domain-separated Merkle roots
 ├── config.py                # CortexConfig — mode local/hybrid/remote-inference, YAML/env driven
