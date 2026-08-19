@@ -623,6 +623,67 @@ def test_restore_refuses_corrupt_backup(tmp_path):
     store.close()
 
 
+def test_reconcile_backup_catches_a_mutated_copy(tmp_path):
+    """PRAGMA integrity_check alone would accept this file -- it's a structurally valid
+    SQLite database, just not a byte-identical copy of the live store anymore."""
+    store = GraphStore(tmp_path / "graph")
+    store.store_memory(
+        "Original content, present in the live store.",
+        source={"kind": "direct_user", "locator": "hermes://session/reconcile"},
+        status="confirmed",
+    )
+
+    backup_path = tmp_path / "backups" / "snapshot.sqlite3"
+    result = store.backup(backup_path)
+    assert result["reconciliation"]["equal"] is True
+    assert result["reconciliation"]["domains"]["memories"]["equal"] is True
+
+    # Mutate the BACKUP FILE directly (not the live store) -- simulates corruption/tampering
+    # between backup time and a later reconciliation check.
+    tamper_conn = sqlite3.connect(backup_path)
+    tamper_conn.execute("UPDATE memories SET content_hash = 'sha256:' || substr(content_hash, 8) || 'ff' WHERE 1=1")
+    tamper_conn.commit()
+    tamper_conn.close()
+
+    # Still a valid SQLite file -- PRAGMA integrity_check alone would not catch this.
+    check_conn = sqlite3.connect(backup_path)
+    assert check_conn.execute("PRAGMA integrity_check").fetchone()[0] == "ok"
+    check_conn.close()
+
+    reconciliation = store.reconcile_backup(backup_path)
+    assert reconciliation["equal"] is False
+    assert reconciliation["domains"]["memories"]["equal"] is False
+    assert reconciliation["domains"]["memories"]["live_root"] != reconciliation["domains"]["memories"]["destination_root"]
+    # Domains untouched by the tamper (entities/relations, empty in this test) still agree.
+    assert reconciliation["domains"]["entities"]["equal"] is True
+
+    # Persisted, not just returned.
+    row = store._connection.execute(
+        "SELECT equal FROM backup_reconciliations WHERE id = ?", (reconciliation["id"],)
+    ).fetchone()
+    assert row["equal"] == 0
+    store.close()
+
+
+def test_reconcile_backup_domain_separation_from_projection_checkpoint(tmp_path):
+    """Same (table, columns) source as compute_projection_leaves("memories"), but the
+    backup.* Merkle domain must produce a DIFFERENT root -- domain separation would be void
+    if a live-vs-backup root could collide with a live-vs-projection root."""
+    store = GraphStore(tmp_path / "graph")
+    store.store_memory(
+        "Content used to compare domain-separated roots.",
+        source={"kind": "direct_user", "locator": "hermes://session/domain-sep"},
+        status="confirmed",
+    )
+    backup_path = tmp_path / "backups" / "snapshot.sqlite3"
+    result = store.backup(backup_path, reconcile=False)
+    reconciliation = store.reconcile_backup(backup_path, domains=("memories",))
+
+    projection_root = store.create_projection_checkpoint("memories")["root_hash"]
+    assert reconciliation["domains"]["memories"]["live_root"] != projection_root
+    store.close()
+
+
 def test_attach_media_stores_content_addressed_blob_and_dedupes(tmp_path):
     store = GraphStore(tmp_path / "graph")
     memory = store.store_memory(

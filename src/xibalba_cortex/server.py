@@ -467,12 +467,37 @@ def memory_status() -> dict[str, object]:
 def memory_backup(destination: str) -> dict[str, object]:
     """Write a verified online backup to `destination`. Safe -- never modifies the live store.
 
+    Includes a `reconciliation` result (GraphStore.backup's `reconcile=True` default):
+    canonical leaf/root comparison between the live store and the fresh copy, catching a
+    corrupted/incomplete backup that `PRAGMA integrity_check` alone would miss -- see
+    `memory_backup_reconcile`'s docstring for the full design.
+
     There is no matching `memory_restore` tool. Restoring overwrites the live database and this
     server has no approval-gating mechanism yet to guard a destructive tool call -- see
     spec/xibalba-cortex-v1.md section 10. GraphStore.restore() exists and is tested; it is
     deliberately not exposed over MCP in v1.
     """
     return get_store().backup(destination)
+
+
+@server.tool()
+def memory_backup_reconcile(destination: str) -> dict[str, object]:
+    """Independently re-verify an existing backup file against the live store's current state.
+
+    Recomputes canonical leaf hashes/roots for the memories/entities/relations domains from
+    BOTH the live store and the SQLite file at `destination`, and compares them -- proving the
+    file's content is byte-identical to the live store right now, not merely that it's a
+    structurally valid SQLite file. Useful for re-checking a backup pulled from cold storage,
+    independent of `memory_backup`'s own automatic reconciliation at creation time.
+
+    Real, disclosed scope limitation (docs/plans/2026-08-18-phase-h5-backup-reconciliation-
+    proposal.md): this compares against the live store's CURRENT state, not a root recorded at
+    the original backup time -- it cannot by itself prove `destination` matches what the live
+    store looked like when the backup was actually taken, only that it does or doesn't match
+    right now. Persisting a backup-time sidecar root for that comparison is separable,
+    unattempted follow-on work.
+    """
+    return get_store().reconcile_backup(destination)
 
 
 @server.tool()

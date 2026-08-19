@@ -88,6 +88,7 @@ async def test_all_tools_are_advertised(store):
         "memory_retrieval_trace_evidence",
         "memory_list_extraction_proposals",
         "memory_decide_extraction_proposal",
+        "memory_backup_reconcile",
     }
 
 
@@ -241,6 +242,12 @@ async def test_backup_tool_writes_verified_snapshot_through_mcp(store, tmp_path)
     payload = _dict_result(result)
     assert payload["integrity_check"] == "ok"
     assert payload["destination"] == destination
+    assert payload["reconciliation"]["equal"] is True
+
+    reconcile_result = await server.server.call_tool("memory_backup_reconcile", {"destination": destination})
+    reconcile_payload = _dict_result(reconcile_result)
+    assert reconcile_payload["equal"] is True
+    assert reconcile_payload["domains"]["memories"]["equal"] is True
 
 
 @pytest.mark.asyncio

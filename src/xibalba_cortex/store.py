@@ -105,6 +105,21 @@ _RETRYABLE_FAILURE_CLASSES = {"transient", "timeout", "unavailable"}
 # extraction_proposals (as opposed to classify_para, which has its own dedicated table/pipeline).
 _EXTRACTION_PROPOSAL_TASK_TYPES = {"extract_entities", "extract_relations"}
 _EXTRACTION_PROPOSAL_STATUSES = {"proposed", "accepted", "dismissed", "stale"}
+def _compute_leaves(connection: sqlite3.Connection, table: str, columns: tuple[str, ...], order_column: str) -> list[str]:
+    """Recompute canonical leaf hashes for one (table, columns) source against an explicit
+    connection, rather than `self._connection` -- so the same computation can run against a
+    backup/restored SQLite file (docs/plans/2026-08-18-phase-h5-backup-reconciliation-
+    proposal.md's `GraphStore.reconcile_backup`) as well as the live store
+    (`compute_projection_leaves`). `GraphStore._canonical_json` is a `@staticmethod`, callable
+    without an instance."""
+    column_list = ", ".join(columns)
+    rows = connection.execute(f"SELECT {column_list} FROM {table} ORDER BY {order_column}").fetchall()
+    return [
+        "sha256:" + hashlib.sha256(GraphStore._canonical_json({col: row[col] for col in columns}).encode()).hexdigest()
+        for row in rows
+    ]
+
+
 # Projections this store can checkpoint and reconcile. Each entry names the canonical table
 # and the columns whose canonical-JSON form (not the whole row) becomes the leaf payload --
 # keep this narrow and stable so re-running compute_projection_leaves against unchanged data
@@ -535,6 +550,20 @@ CREATE TABLE IF NOT EXISTS projection_reconciliations (
 
 CREATE INDEX IF NOT EXISTS idx_projection_reconciliations_projection
 ON projection_reconciliations(projection_id, created_at DESC);
+
+-- docs/plans/2026-08-18-phase-h5-backup-reconciliation-proposal.md: backup()/restore()
+-- previously verified only PRAGMA integrity_check (structural SQLite validity), never
+-- that a backup's canonical content actually matches the live store it was taken from.
+CREATE TABLE IF NOT EXISTS backup_reconciliations (
+    id TEXT PRIMARY KEY,
+    destination TEXT NOT NULL,
+    equal INTEGER NOT NULL,
+    per_domain_json TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_backup_reconciliations_created
+ON backup_reconciliations(created_at DESC);
 """
 
 
@@ -1072,10 +1101,17 @@ class GraphStore:
                 ),
             )
 
-    def backup(self, destination: str | Path) -> dict[str, object]:
+    def backup(self, destination: str | Path, *, reconcile: bool = True) -> dict[str, object]:
         """Online backup via SQLite's own backup API -- safe under WAL with concurrent readers,
         unlike copying the file directly. Verifies the copy before returning, not just that the
         API call succeeded.
+
+        `PRAGMA integrity_check` only proves `destination` is a structurally uncorrupted SQLite
+        file -- it does NOT prove the backup's canonical content actually matches the live store
+        it was taken from (docs/plans/2026-08-18-phase-h5-backup-reconciliation-proposal.md).
+        `reconcile=True` (default) additionally calls `reconcile_backup` and includes its result
+        under the `reconciliation` key; pass `reconcile=False` to skip it (e.g. for a very large
+        store where the extra pass isn't wanted on every backup call).
         """
         destination = Path(destination).expanduser().resolve()
         destination.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
@@ -1095,10 +1131,81 @@ class GraphStore:
             ).fetchone()[0]
         finally:
             verify_connection.close()
-        return {
+        result: dict[str, object] = {
             "destination": str(destination),
             "integrity_check": integrity_check,
             "schema_version": schema_version,
+        }
+        if reconcile:
+            result["reconciliation"] = self.reconcile_backup(destination)
+        return result
+
+    def reconcile_backup(self, destination: str | Path, *, domains: tuple[str, ...] | None = None) -> dict[str, object]:
+        """Recompute canonical leaf hashes/roots for each named domain from BOTH this live
+        store and the SQLite file at `destination`, and compare -- proving the backup's
+        content is byte-identical to the live store at the moment this runs, not merely that
+        `destination` is a structurally valid SQLite file (which `PRAGMA integrity_check`
+        already covers in `backup()`/`restore()`). Domains default to every entry in
+        `_PROJECTION_LEAF_SOURCES` (memories, entities, relations) -- the same canonical
+        sources `compute_projection_leaves`/`reconcile_projection_checkpoint` already use for
+        hybrid-projection reconciliation; this reuses that exact pattern for a whole-database
+        snapshot instead of one projection.
+
+        Real, disclosed scope limitation: this compares LIVE-vs-`destination` at call time. It
+        does not itself persist a root recorded at backup time for later comparison against a
+        `restore()`-time state (a "sidecar" record surviving the file traveling to a different
+        machine) -- that's real, separable follow-on work, not attempted here. Calling this
+        right after `backup()` (the default) catches a corrupted/incomplete copy; calling it
+        with an independently-obtained `destination` (e.g. a backup fetched from another host)
+        still proves it matches THIS store's current state, just not the state at whatever time
+        that backup was actually taken.
+        """
+        domain_names = domains if domains is not None else tuple(_PROJECTION_LEAF_SOURCES)
+        destination_path = Path(destination).expanduser().resolve()
+        dest_connection = sqlite3.connect(destination_path)
+        dest_connection.row_factory = sqlite3.Row
+        try:
+            per_domain: dict[str, object] = {}
+            all_equal = True
+            for name in domain_names:
+                if name not in _PROJECTION_LEAF_SOURCES:
+                    raise ValueError(f"unknown domain: {name!r}")
+                table, columns, order_column = _PROJECTION_LEAF_SOURCES[name]
+                with self._lock:
+                    live_leaves = _compute_leaves(self._connection, table, columns, order_column)
+                dest_leaves = _compute_leaves(dest_connection, table, columns, order_column)
+                live_root = domain_merkle_root(live_leaves, domain=f"backup.{name}")
+                dest_root = domain_merkle_root(dest_leaves, domain=f"backup.{name}")
+                equal = live_root == dest_root and live_leaves == dest_leaves
+                all_equal = all_equal and equal
+                per_domain[name] = {
+                    "equal": equal,
+                    "live_root": live_root,
+                    "destination_root": dest_root,
+                    "live_leaf_count": len(live_leaves),
+                    "destination_leaf_count": len(dest_leaves),
+                }
+        finally:
+            dest_connection.close()
+
+        reconciliation_id = str(uuid.uuid4())
+        with self._lock:
+            self._connection.execute("BEGIN IMMEDIATE")
+            try:
+                self._connection.execute(
+                    """INSERT INTO backup_reconciliations (id, destination, equal, per_domain_json)
+                    VALUES (?, ?, ?, ?)""",
+                    (reconciliation_id, str(destination_path), int(all_equal), self._canonical_json(per_domain)),
+                )
+                self._connection.execute("COMMIT")
+            except Exception:
+                self._connection.execute("ROLLBACK")
+                raise
+        return {
+            "id": reconciliation_id,
+            "destination": str(destination_path),
+            "equal": all_equal,
+            "domains": per_domain,
         }
 
     def restore(self, source: str | Path) -> dict[str, object]:
@@ -3692,15 +3799,8 @@ class GraphStore:
         if projection_id not in _PROJECTION_LEAF_SOURCES:
             raise ValueError(f"unknown projection_id: {projection_id!r}")
         table, columns, order_column = _PROJECTION_LEAF_SOURCES[projection_id]
-        column_list = ", ".join(columns)
         with self._lock:
-            rows = self._connection.execute(
-                f"SELECT {column_list} FROM {table} ORDER BY {order_column}"
-            ).fetchall()
-        return [
-            "sha256:" + hashlib.sha256(self._canonical_json({col: row[col] for col in columns}).encode()).hexdigest()
-            for row in rows
-        ]
+            return _compute_leaves(self._connection, table, columns, order_column)
 
     def create_projection_checkpoint(
         self, projection_id: str, *, metadata: dict[str, object] | None = None
