@@ -248,6 +248,8 @@ flowchart LR
     Eyes -->|"Operator interventions"| Agent
 ```
 
+Session Merkle roots MAY be anchored into Integrity Protocol's oracle. Cortex is not the Integrity oracle and MUST NOT be described as a second verifier. Protocol specification: [`integrity-core` `docs/SPEC.md`](https://github.com/XibalbaTechSol/integrity-core/blob/main/docs/SPEC.md).
+
 Anchoring is opt-in: set `XIBALBA_ANCHOR_URL` and call `memory_anchor_session_root` manually, or set `XIBALBA_AUTO_ANCHOR_ON_SESSION_END=1` to anchor automatically on session close (anchor failures never block session teardown). See [`integrity-core/docs/architecture/ecosystem-dependencies.md`](https://github.com/XibalbaTechSol/integrity-core/blob/main/docs/architecture/ecosystem-dependencies.md) for ownership boundaries.
 
 ## Privacy and Retention
