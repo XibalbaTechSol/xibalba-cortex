@@ -6,8 +6,19 @@ import pytest
 
 from xibalba_cortex.agy_adapter import AgyWrapperShim
 from xibalba_cortex.claude_adapter import ClaudeAdapter
-from xibalba_cortex.codex_probe import CodexLauncher, CodexLauncherProbe
-from xibalba_cortex.runtime_bridge_contract import CLAUDE_ADAPTER, AGY_ADAPTER, CODEX_ADAPTER, RuntimeEvent
+from xibalba_cortex.codex_probe import CodexAdapter, CodexLauncher, CodexLauncherProbe
+from xibalba_cortex.cursor_adapter import CursorAdapter
+from xibalba_cortex.gemini_adapter import GeminiCliAdapter
+from xibalba_cortex.openai_compatible_adapter import OpenAICompatibleAdapter
+from xibalba_cortex.runtime_bridge_contract import (
+    AGY_ADAPTER,
+    CLAUDE_ADAPTER,
+    CODEX_ADAPTER,
+    CURSOR_ADAPTER,
+    GEMINI_ADAPTER,
+    OPENAI_COMPATIBLE_ADAPTER,
+    RuntimeEvent,
+)
 from xibalba_cortex.runtime_controller import XibalbaRuntimeController
 from xibalba_cortex.store import GraphStore
 
@@ -159,7 +170,14 @@ def test_claude_adapter_routes_hooks_through_controller(controller):
 
 
 def test_runtime_adapters_do_not_write_directly_to_graph_store():
-    for adapter in (ClaudeAdapter, AgyWrapperShim):
+    for adapter in (
+        ClaudeAdapter,
+        AgyWrapperShim,
+        CodexAdapter,
+        GeminiCliAdapter,
+        CursorAdapter,
+        OpenAICompatibleAdapter,
+    ):
         source = inspect.getsource(adapter)
         assert "GraphStore" not in source
         assert ".store_memory(" not in source
@@ -280,3 +298,74 @@ def test_codex_launcher_opens_session_injects_context_and_records_process_teleme
     )
     assert launch_event["attributes"]["tool_outcome"] == "success"
     assert launch_event["attributes"]["metadata"]["hook_surface"] == "unknown"
+
+
+def test_codex_adapter_is_lifecycle_only_and_attaches_probe_discovery(controller, monkeypatch):
+    ctl, store = controller
+    monkeypatch.setattr("xibalba_cortex.codex_probe.shutil.which", lambda candidate: None)
+    adapter = CodexAdapter(ctl)
+
+    started = adapter.start(session_id="codex-adapter-1")
+    assert started["opened"] is True
+    adapter.record_observation(session_id="codex-adapter-1", note="lifecycle-only observation")
+    adapter.end(session_id="codex-adapter-1", summary="finished")
+
+    session = store.get_session("codex-adapter-1")
+    assert session["ended_at"] is not None
+    telemetry = store.session_otel_events("codex-adapter-1")
+    assert [event["name"] for event in telemetry] == ["xibalba.runtime.event"] * 3
+    start_event = next(
+        event for event in telemetry
+        if event["attributes"]["tool_name"] == "codex.adapter.start"
+    )
+    assert start_event["attributes"]["metadata"]["probe"]["surface_kind"] == "absent"
+    assert not hasattr(adapter, "post_tool_call")
+    assert not hasattr(adapter, "pre_tool_call")
+
+
+@pytest.mark.parametrize(
+    "adapter_cls,tool_prefix,extra_start_kwargs",
+    [
+        (GeminiCliAdapter, "gemini.wrapper.", {"command": "gemini chat", "cwd": "/tmp/work"}),
+        (CursorAdapter, "cursor.wrapper.", {"workspace": "/tmp/work"}),
+        (OpenAICompatibleAdapter, "openai_compatible.wrapper.", {}),
+    ],
+)
+def test_wrapper_style_adapter_is_lifecycle_only_but_records_observations(
+    controller, adapter_cls, tool_prefix, extra_start_kwargs,
+):
+    ctl, store = controller
+    shim = adapter_cls(ctl)
+    session_id = f"{adapter_cls.__name__}-1"
+
+    shim.start(session_id=session_id, **extra_start_kwargs)
+    shim.record_observation(session_id=session_id, note="wrapper observed a completed command")
+    shim.end(session_id=session_id, summary="finished")
+
+    session = store.get_session(session_id)
+    assert session["ended_at"] is not None
+    telemetry = store.session_otel_events(session_id)
+    assert [event["name"] for event in telemetry] == ["xibalba.runtime.event"] * 3
+    assert not hasattr(shim, "post_tool_call")
+    assert not hasattr(shim, "pre_tool_call")
+    assert shim.record_observation(session_id=session_id, note=None) == {
+        "recorded": 0,
+        "reason": "missing note",
+    }
+    assert all(
+        event["attributes"]["tool_name"].startswith(tool_prefix)
+        for event in telemetry
+    )
+
+
+@pytest.mark.parametrize(
+    "adapter",
+    [CLAUDE_ADAPTER, AGY_ADAPTER, CODEX_ADAPTER, GEMINI_ADAPTER, CURSOR_ADAPTER, OPENAI_COMPATIBLE_ADAPTER],
+)
+def test_every_declared_adapter_registers_and_documents_honest_status(controller, adapter):
+    ctl, _store = controller
+    registration = ctl.register_runtime(adapter, provenance={"source": "test"})
+    assert registration["registered"] is True
+    assert registration["runtime"] == adapter.runtime
+    if adapter.status != "implemented":
+        assert adapter.limitations, f"{adapter.runtime} is not implemented but declares no limitations"

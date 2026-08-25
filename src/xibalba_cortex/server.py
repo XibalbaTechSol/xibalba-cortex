@@ -21,11 +21,17 @@ from mcp.server import MCPServer
 
 from xibalba_cortex.agy_adapter import AgyWrapperShim
 from xibalba_cortex.claude_adapter import ClaudeAdapter
-from xibalba_cortex.codex_probe import CodexLauncher, CodexLauncherProbe
+from xibalba_cortex.codex_probe import CodexAdapter, CodexLauncher, CodexLauncherProbe
+from xibalba_cortex.cursor_adapter import CursorAdapter
+from xibalba_cortex.gemini_adapter import GeminiCliAdapter
+from xibalba_cortex.openai_compatible_adapter import OpenAICompatibleAdapter
 from xibalba_cortex.runtime_bridge_contract import (
     AGY_ADAPTER,
     CLAUDE_ADAPTER,
     CODEX_ADAPTER,
+    CURSOR_ADAPTER,
+    GEMINI_ADAPTER,
+    OPENAI_COMPATIBLE_ADAPTER,
     RuntimeEvent,
 )
 from xibalba_cortex.runtime_controller import XibalbaRuntimeController
@@ -90,6 +96,9 @@ def get_controller() -> XibalbaRuntimeController:
         _controller.register_runtime(CLAUDE_ADAPTER, provenance={"source": "mcp_server"})
         _controller.register_runtime(AGY_ADAPTER, provenance={"source": "mcp_server"})
         _controller.register_runtime(CODEX_ADAPTER, provenance={"source": "mcp_server"})
+        _controller.register_runtime(GEMINI_ADAPTER, provenance={"source": "mcp_server"})
+        _controller.register_runtime(CURSOR_ADAPTER, provenance={"source": "mcp_server"})
+        _controller.register_runtime(OPENAI_COMPATIBLE_ADAPTER, provenance={"source": "mcp_server"})
     return _controller
 
 
@@ -1027,6 +1036,178 @@ def runtime_codex_launch(
         traceparent=traceparent,
         env=env,
         timeout_seconds=timeout_seconds,
+    )
+
+
+@server.tool()
+def runtime_codex_adapter_start(
+    session_id: str,
+    traceparent: str | None = None,
+    agent_id: str | None = None,
+    provenance: dict[str, object] | None = None,
+) -> dict[str, object]:
+    """Codex lifecycle-only entry hook (identity binding without spawning a process)."""
+    return CodexAdapter(get_controller(), provenance=dict(provenance or {})).start(
+        session_id=session_id,
+        traceparent=traceparent,
+        agent_id=agent_id,
+    )
+
+
+@server.tool()
+def runtime_codex_adapter_end(
+    session_id: str,
+    summary: str | None = None,
+    provenance: dict[str, object] | None = None,
+) -> dict[str, object]:
+    """Codex lifecycle-only exit hook."""
+    return CodexAdapter(get_controller(), provenance=dict(provenance or {})).end(
+        session_id=session_id,
+        summary=summary,
+    )
+
+
+@server.tool()
+def runtime_codex_adapter_observation(
+    session_id: str,
+    note: str,
+    provenance: dict[str, object] | None = None,
+) -> dict[str, object]:
+    """Codex best-effort observation. This is not a per-tool hook."""
+    return CodexAdapter(get_controller(), provenance=dict(provenance or {})).record_observation(
+        session_id=session_id,
+        note=note,
+    )
+
+
+@server.tool()
+def runtime_gemini_start(
+    session_id: str,
+    traceparent: str | None = None,
+    agent_id: str | None = None,
+    command: str | None = None,
+    cwd: str | None = None,
+    provenance: dict[str, object] | None = None,
+) -> dict[str, object]:
+    """Gemini CLI wrapper entry hook: lifecycle-only start event."""
+    return GeminiCliAdapter(get_controller(), provenance=dict(provenance or {})).start(
+        session_id=session_id,
+        traceparent=traceparent,
+        agent_id=agent_id,
+        command=command,
+        cwd=cwd,
+    )
+
+
+@server.tool()
+def runtime_gemini_end(
+    session_id: str,
+    exit_code: int | None = None,
+    summary: str | None = None,
+    provenance: dict[str, object] | None = None,
+) -> dict[str, object]:
+    """Gemini CLI wrapper exit hook: lifecycle-only end event."""
+    return GeminiCliAdapter(get_controller(), provenance=dict(provenance or {})).end(
+        session_id=session_id,
+        exit_code=exit_code,
+        summary=summary,
+    )
+
+
+@server.tool()
+def runtime_gemini_observation(
+    session_id: str,
+    note: str,
+    provenance: dict[str, object] | None = None,
+) -> dict[str, object]:
+    """Gemini CLI wrapper best-effort observation. This is not a per-tool hook."""
+    return GeminiCliAdapter(get_controller(), provenance=dict(provenance or {})).record_observation(
+        session_id=session_id,
+        note=note,
+    )
+
+
+@server.tool()
+def runtime_cursor_start(
+    session_id: str,
+    traceparent: str | None = None,
+    agent_id: str | None = None,
+    workspace: str | None = None,
+    provenance: dict[str, object] | None = None,
+) -> dict[str, object]:
+    """Cursor wrapper entry hook: lifecycle-only start event."""
+    return CursorAdapter(get_controller(), provenance=dict(provenance or {})).start(
+        session_id=session_id,
+        traceparent=traceparent,
+        agent_id=agent_id,
+        workspace=workspace,
+    )
+
+
+@server.tool()
+def runtime_cursor_end(
+    session_id: str,
+    summary: str | None = None,
+    provenance: dict[str, object] | None = None,
+) -> dict[str, object]:
+    """Cursor wrapper exit hook: lifecycle-only end event."""
+    return CursorAdapter(get_controller(), provenance=dict(provenance or {})).end(
+        session_id=session_id,
+        summary=summary,
+    )
+
+
+@server.tool()
+def runtime_cursor_observation(
+    session_id: str,
+    note: str,
+    provenance: dict[str, object] | None = None,
+) -> dict[str, object]:
+    """Cursor wrapper best-effort observation. This is not a per-tool hook."""
+    return CursorAdapter(get_controller(), provenance=dict(provenance or {})).record_observation(
+        session_id=session_id,
+        note=note,
+    )
+
+
+@server.tool()
+def runtime_openai_compatible_start(
+    session_id: str,
+    traceparent: str | None = None,
+    agent_id: str | None = None,
+    provenance: dict[str, object] | None = None,
+) -> dict[str, object]:
+    """Reference wrapper entry hook for any OpenAI-compatible harness with no dedicated adapter."""
+    return OpenAICompatibleAdapter(get_controller(), provenance=dict(provenance or {})).start(
+        session_id=session_id,
+        traceparent=traceparent,
+        agent_id=agent_id,
+    )
+
+
+@server.tool()
+def runtime_openai_compatible_end(
+    session_id: str,
+    summary: str | None = None,
+    provenance: dict[str, object] | None = None,
+) -> dict[str, object]:
+    """Reference wrapper exit hook for any OpenAI-compatible harness with no dedicated adapter."""
+    return OpenAICompatibleAdapter(get_controller(), provenance=dict(provenance or {})).end(
+        session_id=session_id,
+        summary=summary,
+    )
+
+
+@server.tool()
+def runtime_openai_compatible_observation(
+    session_id: str,
+    note: str,
+    provenance: dict[str, object] | None = None,
+) -> dict[str, object]:
+    """Reference wrapper best-effort observation. This is not a per-tool hook."""
+    return OpenAICompatibleAdapter(get_controller(), provenance=dict(provenance or {})).record_observation(
+        session_id=session_id,
+        note=note,
     )
 
 

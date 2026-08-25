@@ -12,6 +12,9 @@ source_files:
   - src/xibalba_cortex/claude_adapter.py
   - src/xibalba_cortex/agy_adapter.py
   - src/xibalba_cortex/codex_probe.py
+  - src/xibalba_cortex/gemini_adapter.py
+  - src/xibalba_cortex/cursor_adapter.py
+  - src/xibalba_cortex/openai_compatible_adapter.py
   - src/xibalba_cortex/server.py
 ---
 
@@ -26,13 +29,13 @@ source_files:
 
 The runtime-adapter layer is a richer, opt-in identity-and-policy layer on top of the generic
 store primitives — not the only way into Cortex. `RuntimeName = Literal["claude", "agy",
-"codex"]` in `runtime_bridge_contract.py` documents the three officially-adapted runtimes, each
-with a real per-runtime adapter and a declared set of guarantees. Any other harness talks to
-the store directly through the generic MCP tools (`memory_remember`, `memory_recall`,
-`memory_ingest_agent_turn`, …) without going through this layer at all — see
-[Generic Ingestion](generic-ingestion.md).
+"codex", "gemini", "cursor", "openai_compatible"]` in `runtime_bridge_contract.py` documents the
+six officially-adapted runtimes, each with a real per-runtime adapter and a declared set of
+guarantees. Any other harness talks to the store directly through the generic MCP tools
+(`memory_remember`, `memory_recall`, `memory_ingest_agent_turn`, …) without going through this
+layer at all — see [Generic Ingestion](generic-ingestion.md).
 
-## The three adapters
+## The six adapters
 
 `runtime_bridge_contract.py` defines a `RuntimeAdapterResponsibilities` record per runtime:
 
@@ -40,11 +43,16 @@ the store directly through the generic MCP tools (`memory_remember`, `memory_rec
 |---|---|---|---|
 | `claude` (`claude_adapter.py`) | `hooks` | `implemented` | Richest native hook surface; treated as the reference adapter. Guarantees per-tool policy enforcement, session trace propagation, normalized event ingest. |
 | `agy` (`agy_adapter.py`) | `wrapper` | `partial` | Wrapper-only today: `no_native_hook_surface`, `no_pre_tool_or_post_tool_hooks`, `trace_continuity_is_best_effort_only` — explicitly must not claim Claude-equivalent tool-level parity. |
-| `codex` (`codex_probe.py`) | `launcher` | `unknown` | `hook_surface_must_be_discovered`, `tool_level_parity_is_unverified` — the integration surface must be measured live before stronger claims are made. |
+| `codex` (`codex_probe.py`) | `launcher` | `partial` | `CodexAdapter` (lifecycle-only, mirrors the Agy shim) plus `CodexLauncher` (subprocess wrapper) give real identity binding and session telemetry; `hook_surface_must_be_discovered` and `tool_level_parity_is_unverified` still stand — pre/post-tool parity with Claude has not been measured live. |
+| `gemini` (`gemini_adapter.py`) | `wrapper` | `partial` | Same shape as the Agy shim: lifecycle-only, `no_native_hook_surface`, `no_pre_tool_or_post_tool_hooks`, `trace_continuity_is_best_effort_only`. |
+| `cursor` (`cursor_adapter.py`) | `wrapper` | `partial` | Editor-embedded; lifecycle-only with the same limitations as `gemini`, plus `editor_embedded_lifecycle_boundaries_are_approximate` since start/end come from the wrapper invocation, not a native Cursor event. |
+| `openai_compatible` (`openai_compatible_adapter.py`) | `wrapper` | `partial` | The reference/template adapter — intentionally the thinnest in the layer. Copy this file when wiring up a brand-new runtime rather than adding vendor-specific guarantees to it directly. |
 
 Each adapter's `limitations` tuple is populated honestly: missing pre-tool/post-tool/lifecycle
 hooks are recorded as real capability gaps, not smoothed over to look like parity with the
-Claude adapter.
+Claude adapter. `gemini`, `cursor`, `openai_compatible`, and Codex's `CodexAdapter` are all
+lifecycle-only (`start`/`end`/`record_observation`) — none of them claims a native `pre_tool_call`
+or `post_tool_call` hook.
 
 ## Enforcement boundary is looser than the type
 

@@ -16,6 +16,9 @@ from .runtime_bridge_contract import (
     AGY_ADAPTER,
     CLAUDE_ADAPTER,
     CODEX_ADAPTER,
+    CURSOR_ADAPTER,
+    GEMINI_ADAPTER,
+    OPENAI_COMPATIBLE_ADAPTER,
     RuntimeAdapterResponsibilities,
     RuntimeEvent,
     RuntimeName,
@@ -274,6 +277,9 @@ __all__ = [
     "AGY_ADAPTER",
     "CLAUDE_ADAPTER",
     "CODEX_ADAPTER",
+    "CURSOR_ADAPTER",
+    "GEMINI_ADAPTER",
+    "OPENAI_COMPATIBLE_ADAPTER",
 ]
 
 

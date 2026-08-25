@@ -85,6 +85,18 @@ async def test_all_tools_are_advertised(store):
         "runtime_agy_observation",
         "runtime_codex_probe",
         "runtime_codex_launch",
+        "runtime_codex_adapter_start",
+        "runtime_codex_adapter_end",
+        "runtime_codex_adapter_observation",
+        "runtime_gemini_start",
+        "runtime_gemini_end",
+        "runtime_gemini_observation",
+        "runtime_cursor_start",
+        "runtime_cursor_end",
+        "runtime_cursor_observation",
+        "runtime_openai_compatible_start",
+        "runtime_openai_compatible_end",
+        "runtime_openai_compatible_observation",
         "memory_retrieval_trace_evidence",
         "memory_list_extraction_proposals",
         "memory_decide_extraction_proposal",
@@ -465,7 +477,14 @@ async def test_build_and_walk_and_verify_session_exchanges_through_mcp(store):
 async def test_runtime_controller_tools_through_mcp(store):
     status = await server.server.call_tool("runtime_controller_status", {})
     payload = _dict_result(status)
-    assert payload["registered_runtimes"] == ["agy", "claude", "codex"]
+    assert payload["registered_runtimes"] == [
+        "agy",
+        "claude",
+        "codex",
+        "cursor",
+        "gemini",
+        "openai_compatible",
+    ]
 
     opened = await server.server.call_tool(
         "runtime_open_session",

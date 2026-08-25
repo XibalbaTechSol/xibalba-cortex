@@ -5,6 +5,9 @@ from xibalba_cortex.runtime_bridge_contract import (
     CONTROLLER_EVENT_SCHEMA_VERSION,
     CONTROLLER_METHODS,
     CONTROLLER_REQUIRED_EVENT_FIELDS,
+    CURSOR_ADAPTER,
+    GEMINI_ADAPTER,
+    OPENAI_COMPATIBLE_ADAPTER,
     RuntimeEvent,
 )
 
@@ -43,8 +46,14 @@ def test_adapter_responsibility_records_keep_runtime_specific_limits_explicit():
     assert AGY_ADAPTER.status == "partial"
     assert "no_native_hook_surface" in AGY_ADAPTER.limitations
     assert "trace_continuity_is_best_effort_only" in AGY_ADAPTER.limitations
-    assert CODEX_ADAPTER.status == "unknown"
+    assert CODEX_ADAPTER.status == "partial"
     assert "hook_surface_must_be_discovered" in CODEX_ADAPTER.limitations
+    assert GEMINI_ADAPTER.status == "partial"
+    assert "no_native_hook_surface" in GEMINI_ADAPTER.limitations
+    assert CURSOR_ADAPTER.status == "partial"
+    assert "no_native_hook_surface" in CURSOR_ADAPTER.limitations
+    assert OPENAI_COMPATIBLE_ADAPTER.status == "partial"
+    assert "no_native_hook_surface" in OPENAI_COMPATIBLE_ADAPTER.limitations
 
 
 def test_controller_method_surface_is_explicit():
