@@ -2570,6 +2570,54 @@ class GraphStore:
             })
         return events
 
+    def kernel_bridge_intents(self, external_session_id: str) -> list[dict[str, object]]:
+        """Correlated (declared intent, kernel/adapter decision, actual outcome) triples for a
+        session -- the dashboard's read path for the kernel-first intent-vs-outcome bridge
+        (~/.claude/plans/iridescent-stirring-kettle.md, Phase C). Joins each `pre_tool_call`
+        otel event that carried a `kernel_decision` (opt-in, see claude_adapter.py's
+        `XIBALBA_KERNEL_BRIDGE_ENABLED`) with its corresponding `post_tool_call` event by
+        `tool_call_id` -- the same correlation id both hooks already share, no new id scheme.
+        """
+        events = self.session_otel_events(external_session_id)
+        pre_by_tool_call_id: dict[str, dict[str, object]] = {}
+        post_by_tool_call_id: dict[str, dict[str, object]] = {}
+        for event in events:
+            attrs = event["attributes"]
+            metadata = attrs.get("metadata") or {}
+            tool_call_id = metadata.get("tool_call_id")
+            if not tool_call_id:
+                continue
+            if metadata.get("hook") == "pre_tool_call":
+                pre_by_tool_call_id[tool_call_id] = attrs
+            elif metadata.get("hook") == "post_tool_call":
+                post_by_tool_call_id[tool_call_id] = attrs
+
+        triples = []
+        for tool_call_id, pre in pre_by_tool_call_id.items():
+            kernel_decision = pre["metadata"].get("kernel_decision")
+            if kernel_decision is None:
+                continue
+            post = post_by_tool_call_id.get(tool_call_id)
+            triples.append({
+                "tool_call_id": tool_call_id,
+                "tool_name": pre.get("tool_name"),
+                "declared_intent": {
+                    "intent_rationale": pre.get("intent_rationale"),
+                    "tool_input_hash": pre.get("tool_input_hash"),
+                },
+                "kernel_decision": kernel_decision,
+                "actual_outcome": {
+                    "outcome": post.get("tool_outcome") if post else None,
+                    "result": (post.get("metadata") or {}).get("result") if post else None,
+                    "duration_ms": (post.get("metadata") or {}).get("duration_ms") if post else None,
+                } if post else None,
+                "diverges": bool(post) and (
+                    (kernel_decision.get("success") is True and post.get("tool_outcome") != "success")
+                    or (kernel_decision.get("success") is False and post.get("tool_outcome") == "success")
+                ),
+            })
+        return triples
+
     def record_exchange(
         self,
         external_session_id: str,

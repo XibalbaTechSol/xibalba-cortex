@@ -51,6 +51,7 @@ Routes:
   POST /api/projections/{id}/reconcile     -> GraphStore.reconcile_projection_checkpoint()
   POST /api/projections/{id}/rebuild       -> GraphStore.rebuild_projection_checkpoint()
   GET /api/graph?limit=&similarity_threshold= -> GraphStore.graph_payload()
+  GET /api/session/{id}/kernel-intents     -> GraphStore.kernel_bridge_intents()
 """
 from __future__ import annotations
 
@@ -140,6 +141,8 @@ def _make_handler(store: GraphStore, *, allowed_origin: str):
                     self._send_json(200, store.session_merkle_root(parts[2]))
                 elif len(parts) == 4 and parts[0] == "api" and parts[1] == "session" and parts[3] == "merkle-proof":
                     self._send_json(200, store.session_merkle_evidence(parts[2], exchange_index=int(params.get("index", "0"))))
+                elif len(parts) == 4 and parts[0] == "api" and parts[1] == "session" and parts[3] == "kernel-intents":
+                    self._send_json(200, store.kernel_bridge_intents(parts[2]))
                 elif parts == ["api", "inference", "manifest"]:
                     self._send_json(200, MEMORY_INFERENCE_SUBAGENT_MANIFEST)
                 elif parts == ["api", "inference", "tasks"]:
