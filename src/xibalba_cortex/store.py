@@ -3314,6 +3314,23 @@ class GraphStore:
             used += len(encoded.encode("utf-8"))
         return {"subject_type": subject_type, "subject_id": subject_id, "items": bounded, "item_count": len(bounded), "bytes": used, "max_items": max_items, "max_bytes": max_bytes, "max_depth": max_depth, "truncated": len(bounded) < len(records)}
 
+    def fetch_bounded_evidence_for_task(self, task: dict[str, object]) -> dict[str, object]:
+        """Resolve a claimed task's own contract (evidence_limits/evidence_scope) and fetch
+        exactly the evidence it permits -- the shared logic behind `memory_evidence_bundle`
+        (server.py) and `start_self_extraction` below, so both go through one code path
+        rather than two copies of the same contract parsing."""
+        contract = (task.get("input") or {}).get("_contract") or {}
+        limits = contract.get("evidence_limits") or {}
+        allowed_subject_ids = contract.get("evidence_scope") or None
+        return self.fetch_bounded_evidence(
+            subject_type=str(task["subject_type"]),
+            subject_id=str(task["subject_id"]),
+            allowed_subject_ids=allowed_subject_ids,
+            max_items=int(limits.get("max_items", 20)),
+            max_bytes=int(limits.get("max_bytes", 32_000)),
+            max_depth=int(limits.get("max_depth", 1)),
+        )
+
     def request_inference_task(
         self,
         task_type: str,
@@ -3431,6 +3448,76 @@ class GraphStore:
                 self._connection.execute("ROLLBACK")
                 raise
         return self.get_inference_task(task_id)
+
+    def start_self_extraction(
+        self,
+        task_type: str,
+        *,
+        subject_type: str,
+        subject_id: str,
+        input_payload: dict[str, object],
+        claimed_by: str,
+        contract: InferenceTaskContract | None = None,
+    ) -> dict[str, object]:
+        """One round trip instead of three: request + claim + bounded-evidence fetch, for a
+        caller (e.g. this very MCP session) doing its own extraction inline rather than
+        through the isolated NativeHarnessInferenceProvider subprocess. Deliberately narrower
+        than `request_inference_task` -- only the task types with a real server-side output
+        validator (see `complete_inference_task`'s handling of `_EXTRACTION_PROPOSAL_TASK_TYPES`
+        and `detect_contradictions`) are accepted, so an in-session caller can't silently
+        produce an unvalidated task type. Completion still goes through the existing
+        `complete_inference_task` -- this only replaces the request+claim+evidence dance, not
+        the validation that makes the output trustworthy regardless of who produced it (see
+        `complete_inference_task`'s own comment on that point).
+        """
+        allowed_types = _EXTRACTION_PROPOSAL_TASK_TYPES | {"detect_contradictions"}
+        if task_type not in allowed_types:
+            raise ValueError(
+                f"start_self_extraction only supports {sorted(allowed_types)}, not {task_type!r} "
+                "-- other task types have no server-side output validator to make an in-session "
+                "result trustworthy; use request_inference_task for those."
+            )
+        task = self.request_inference_task(
+            task_type,
+            subject_type=subject_type,
+            subject_id=subject_id,
+            input_payload=input_payload,
+            requested_by=claimed_by,
+            contract=contract,
+        )
+        claimed = self.claim_inference_task(task["id"], claimed_by=claimed_by)
+        evidence = self.fetch_bounded_evidence_for_task(claimed)
+        return {"task_id": claimed["id"], "claim_token": claimed["claim_token"], "evidence": evidence}
+
+    def run_structural_extraction(self, subject_id: str, *, claimed_by: str = "structural-extractor") -> dict[str, object]:
+        """Deterministic, regex-based extract_entities -- request+claim+extract+complete in
+        one call, since there's no "agent does inference in between" step the way
+        start_self_extraction has (structural_extraction.py's extractors are synchronous and
+        instant). Still goes through the exact same complete_inference_task validation gate
+        as every other extraction path -- see that method's handling of
+        _EXTRACTION_PROPOSAL_TASK_TYPES. Scoped to subject_type="memory" only; regex
+        extraction over a full session/exchange has no single content string to match against.
+        """
+        from .structural_extraction import extract_structural_entities
+
+        memory = self.get_memory(subject_id)
+        task = self.request_inference_task(
+            "extract_entities",
+            subject_type="memory",
+            subject_id=subject_id,
+            input_payload={"source_content_hash": memory["content_hash"]},
+            requested_by=claimed_by,
+        )
+        claimed = self.claim_inference_task(task["id"], claimed_by=claimed_by)
+        entities = extract_structural_entities(str(memory["content"]))
+        output = {
+            "schema_version": "xibalba.entities.v1",
+            "input_snapshot_hash": memory["content_hash"],
+            "entities": entities,
+        }
+        return self.complete_inference_task(
+            claimed["id"], output_payload=output, claimed_by=claimed_by, claim_token=claimed["claim_token"]
+        )
 
     def requeue_expired_inference_tasks(self, *, limit: int = 50, max_attempts: int = 3) -> dict[str, int]:
         """Recover expired claims with a bounded retry count."""

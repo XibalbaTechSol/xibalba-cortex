@@ -227,6 +227,39 @@ class NativeHarnessInferenceProvider:
 
 
 @dataclass(frozen=True)
+class InSessionInferenceProvider:
+    """The calling agent's own in-process inference, via `memory_start_self_extraction` +
+    `memory_complete_inference_task` -- no subprocess, no isolated harness profile.
+
+    Trades `NativeHarnessInferenceProvider`'s isolation guarantee (a subprocess literally
+    cannot see anything outside its evidence scope) for speed and simplicity: the calling
+    agent CAN see more than its evidence scope (the rest of its own session), so there's no
+    mechanical proof its extraction wasn't influenced by things outside that scope, even
+    though `complete_inference_task` still validates every output the same way regardless
+    of who produced it (schema, snapshot-hash match, evidence_quote containment -- see that
+    method's own comment on why this is safe to allow from any caller holding a valid claim
+    token). Use this when speed matters more than that isolation guarantee; use
+    NativeHarnessInferenceProvider when it doesn't.
+    """
+
+    def capabilities(self) -> dict[str, Any]:
+        return {"queue": True, "direct_model": True, "harness": None, "isolated": False}
+
+
+@dataclass(frozen=True)
+class StructuralExtractionProvider:
+    """Deterministic, regex-based extraction (structural_extraction.py) -- no model, no
+    subprocess, no queue latency. Every match gets confidence 1.0 by construction: a regex
+    match against the source content IS the evidence, nothing to hedge against the way a
+    model's confidence score would need to. Narrower than the other two providers -- covers
+    only pattern-shaped entities (URLs, paths, UUIDs, git hashes), not semantic extraction.
+    """
+
+    def capabilities(self) -> dict[str, Any]:
+        return {"queue": False, "direct_model": False, "deterministic": True}
+
+
+@dataclass(frozen=True)
 class LocalEmbeddingProvider:
     """Metadata-only local embedding boundary used by the external worker."""
 
@@ -246,7 +279,7 @@ class SqliteRetrievalProvider:
 
 def provider_manifest() -> dict[str, Any]:
     return {
-        "inference": "native_harness",
+        "inference": ["native_harness", "in_session", "structural"],
         "embeddings": "local",
         "retrieval": "sqlite",
         "canonical_store": "sqlite",

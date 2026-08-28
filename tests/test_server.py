@@ -70,6 +70,8 @@ async def test_all_tools_are_advertised(store):
         "memory_inference_tasks",
         "memory_claim_inference_task",
         "memory_evidence_bundle",
+        "memory_start_self_extraction",
+        "memory_extract_structural_entities",
         "memory_complete_inference_task",
         "runtime_controller_status",
         "runtime_open_session",

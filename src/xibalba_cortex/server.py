@@ -697,6 +697,45 @@ def memory_claim_inference_task(task_id: str, claimed_by: str | None = None) -> 
 
 
 @server.tool()
+def memory_start_self_extraction(
+    task_type: str,
+    subject_type: str,
+    subject_id: str,
+    input_payload: dict[str, object],
+    claimed_by: str,
+) -> dict[str, object]:
+    """Request + claim + fetch bounded evidence in one call, for the CALLING agent to do its
+    own extraction inline instead of the isolated NativeHarnessInferenceProvider subprocess.
+
+    Only extract_entities/extract_relations/detect_contradictions are accepted -- the task
+    types with a real server-side output validator. After extracting from the returned
+    `evidence`, call memory_complete_inference_task(task_id, output_payload, claimed_by,
+    claim_token) with your own structured result -- it goes through the exact same
+    server-side validation (schema, snapshot-hash match, evidence_quote containment) a
+    worker-produced output would. See docs/wiki/architecture/inference-queue.md for the
+    trust tradeoff versus the isolated worker path.
+    """
+    return get_store().start_self_extraction(
+        task_type,
+        subject_type=subject_type,
+        subject_id=subject_id,
+        input_payload=input_payload,
+        claimed_by=claimed_by,
+    )
+
+
+@server.tool()
+def memory_extract_structural_entities(subject_id: str, claimed_by: str = "structural-extractor") -> dict[str, object]:
+    """Deterministic, regex-based entity extraction (URLs, file paths, UUIDs, git commit
+    hashes, code-fence languages) over a memory's content -- no model, no inference. Runs
+    the full request+claim+extract+complete cycle in one call and returns the completed
+    task. Every match gets confidence 1.0: a regex match is unambiguous by construction, so
+    there's nothing to hedge against. See docs/wiki/architecture/inference-queue.md.
+    """
+    return get_store().run_structural_extraction(subject_id, claimed_by=claimed_by)
+
+
+@server.tool()
 def memory_evidence_bundle(task_id: str) -> dict[str, object]:
     """Return only the bounded evidence a claimed task's contract permits.
 
@@ -707,17 +746,7 @@ def memory_evidence_bundle(task_id: str) -> dict[str, object]:
     """
     store = get_store()
     task = store.get_inference_task(task_id)
-    contract = (task.get("input") or {}).get("_contract") or {}
-    limits = contract.get("evidence_limits") or {}
-    allowed_subject_ids = contract.get("evidence_scope") or None
-    return store.fetch_bounded_evidence(
-        subject_type=str(task["subject_type"]),
-        subject_id=str(task["subject_id"]),
-        allowed_subject_ids=allowed_subject_ids,
-        max_items=int(limits.get("max_items", 20)),
-        max_bytes=int(limits.get("max_bytes", 32_000)),
-        max_depth=int(limits.get("max_depth", 1)),
-    )
+    return store.fetch_bounded_evidence_for_task(task)
 
 
 @server.tool()
