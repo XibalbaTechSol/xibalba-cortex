@@ -2,7 +2,7 @@
 title: PARA Classification Worker
 acronyms: [PARA]
 created: 2026-08-13
-updated: 2026-08-13
+updated: 2026-08-29
 type: concept
 tags: [storage, provenance, infrastructure]
 confidence: high
@@ -16,7 +16,9 @@ source_files:
 
 # PARA Classification Worker
 
-The implementation described on this page exists in the current uncommitted worktree and has passed the cited tests. It is not a released or default-branch capability until the worktree changes are reviewed and committed.
+The implementation described on this page exists on the current feature branch and has
+passed the cited tests. It is not a default-branch capability until the branch changes
+are reviewed and merged.
 
 The PARA worker classifies a selected memory into **Project**, **Area**, **Resource**, or **Archive**. It produces a reviewable proposal; it does not move or mutate a memory automatically.
 

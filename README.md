@@ -60,8 +60,8 @@ result = memory_hybrid_retrieve("eligibility review", limit=5)
 trace = memory_retrieval_trace(result["trace_id"])
 # → trace["rrf_params"], trace["candidate_pool_sizes"], per-result trace["results"][i]["channels"]
 
-# Every trace result is independently, cryptographically checkable (Python store API today;
-# an MCP wrapper for this is planned but not yet built)
+# Every trace result is independently, cryptographically checkable through the store API
+# and the `memory_retrieval_trace_evidence` MCP tool.
 proof = store.retrieval_trace_evidence(result["trace_id"], rank=1)
 # → verify_domain_merkle_proof(proof) is True, without trusting the trace blob as a whole
 ```
@@ -131,8 +131,8 @@ memory_complete_inference_task(
     output_payload={...},  # validated server-side before this ever lands as a proposal
 )
 
-# A human reviews before anything is trusted. Today this is the Python store API --
-# MCP/REST wrapping for proposal review is planned but not yet built (see docs/plans/):
+# A human reviews before anything is trusted. Both the MCP and local HTTP operator
+# surfaces expose proposal listing and explicit decisions:
 proposals = store.list_extraction_proposals(status="proposed", task_id=task["id"])
 store.decide_extraction_proposal(proposals[0]["id"], decision="accept", decided_by="operator")
 ```
@@ -166,7 +166,7 @@ uv sync --extra drive
 uv run pytest -q
 ```
 
-Full suite is validated in CI and locally; run `uv run pytest -q` for the current result. (the skip and warning are pre-existing and unrelated to recent work). Viewer build is separate: `cd viewer && npm install && npm run build`. Local operator commands: `uv run xibalba-cortex-operator [readiness|status|backup|restore|verify-memory|verify-integrity-link|verify-session|integrity-links|production-readiness|evaluation-smoke|retention-sweep]`.
+Full suite is validated in CI and locally; run `uv run pytest -q` for the current result. (the skip and warning are pre-existing and unrelated to recent work). Viewer build is separate: `cd viewer && npm install && npm run build`. Local operator commands: `uv run xibalba-cortex-operator [readiness|status|backup|restore|verify-memory|verify-integrity-link|verify-session|integrity-links|production-readiness|evaluation-smoke|retention-sweep|audit]`.
 
 **Not yet installable standalone.** `pyproject.toml` pins `integrity-sdk` as a local path
 dependency on `../integrity-core/integrity-sdk` (`[tool.uv.sources]`) — `uv sync` only resolves
@@ -177,7 +177,7 @@ currently work. Fixing this means either publishing `integrity-sdk` as its own i
 package, vendoring the (small) subset this repo actually uses, or pinning a git dependency —
 not yet decided; until then, clone both repos as siblings.
 
-> The local worktree contains work in progress ahead of the next commit — see `docs/plans/` for the active implementation plans and `spec/latest-hybrid-extraction.md` for measured, dated verification output rather than aspirational claims. The dated status ledger is [`docs/audits/2026-08-06-status.md`](docs/audits/2026-08-06-status.md) and [`docs/audits/2026-08-07-gap-closure.md`](docs/audits/2026-08-07-gap-closure.md).
+> The current feature branch contains reviewed work beyond the default branch — see `IMPLEMENTATION_PLAN.md` for the active implementation ledger and `spec/xibalba-cortex-v1.md` for the normative contract. The dated audit records remain useful historical evidence, but branch status and verification must be checked against the current commit and test run.
 
 ## MCP Operations
 
