@@ -20,6 +20,7 @@ from pathlib import Path
 from mcp.server import MCPServer
 
 from xibalba_cortex.agy_adapter import AgyWrapperShim
+from xibalba_cortex.config import load_config
 from xibalba_cortex.claude_adapter import ClaudeAdapter
 from xibalba_cortex.codex_probe import CodexAdapter, CodexLauncher, CodexLauncherProbe
 from xibalba_cortex.cursor_adapter import CursorAdapter
@@ -79,12 +80,16 @@ def _identity_mode() -> str:
 
 _store: GraphStore | None = None
 _controller: XibalbaRuntimeController | None = None
+_config = None
 
 
 def get_store() -> GraphStore:
-    global _store
+    global _store, _config
     if _store is None:
-        _store = GraphStore(_default_home(), identity_mode=_identity_mode())
+        _config = load_config(home=_default_home())
+        feature_flags = _config.features.as_dict()
+        feature_flags.update({"lexical": _config.retrieval.lexical, "vector": _config.retrieval.vector, "graph": _config.retrieval.graph})
+        _store = GraphStore(_default_home(), identity_mode=_identity_mode(), features=feature_flags)
     return _store
 
 
@@ -158,6 +163,20 @@ def memory_hybrid_retrieve(
     return get_store().hybrid_retrieve(
         query, query_vector=query_vector, limit=limit, temporal_at=temporal_at,
         filters=filters, max_per_source=max_per_source, max_total_chars=max_total_chars,
+    )
+
+
+@server.tool()
+def memory_context_assemble(
+    query: str, query_vector: list[float] | None = None, limit: int = 12,
+    temporal_at: str | None = None, max_total_chars: int = 12000,
+    filters: dict[str, object] | None = None,
+) -> dict[str, object]:
+    """Return a bounded context block with facts, history, summaries, observations, and
+    provenance. This convenience projection is optional and can be disabled per profile."""
+    return get_store().assemble_context(
+        query, query_vector=query_vector, limit=limit, temporal_at=temporal_at,
+        max_total_chars=max_total_chars, filters=filters,
     )
 
 

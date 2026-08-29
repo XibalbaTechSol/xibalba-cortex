@@ -115,7 +115,7 @@ def test_v8_database_migrates_task_type_check_and_dead_letters_legacy_claims(tmp
     raw.close()
 
     reopened = GraphStore(home)
-    assert reopened.status()["schema_version"] == 11
+    assert reopened.status()["schema_version"] == 12
 
     # Pre-existing row preserved.
     preserved = reopened.get_inference_task(task["id"])
@@ -131,3 +131,21 @@ def test_v8_database_migrates_task_type_check_and_dead_letters_legacy_claims(tmp
     legacy = reopened.get_inference_task("legacy-1")
     assert legacy["status"] == "failed"
     assert legacy["dead_letter_reason"] == "legacy_claim_without_metadata"
+
+
+def test_repairs_extraction_proposals_fk_rewritten_by_v8_migration(tmp_path: Path):
+    """The v8 temporary task-table rename must not strand proposals on its old name."""
+    store = GraphStore(tmp_path)
+    task_sql = store._connection.execute(
+        "SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'memory_inference_tasks'"
+    ).fetchone()[0]
+    store._connection.execute("ALTER TABLE memory_inference_tasks RENAME TO memory_inference_tasks_v8")
+    store._connection.execute(task_sql)
+    store._connection.execute("DELETE FROM schema_migrations WHERE version = 12")
+    store.close()
+
+    repaired = GraphStore(tmp_path)
+    fk = repaired._connection.execute("PRAGMA foreign_key_list(extraction_proposals)").fetchall()
+    task_fk = next(row for row in fk if row[3] == "task_id")
+    assert task_fk[2] == "memory_inference_tasks"
+    assert repaired.status()["schema_version"] == 12

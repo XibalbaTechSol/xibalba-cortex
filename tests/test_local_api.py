@@ -89,7 +89,7 @@ def test_status_and_integrity_links_routes(running_store):
 
     status, body = _get(port, "/api/status")
     assert status == 200
-    assert body["schema_version"] == 11
+    assert body["schema_version"] == 12
     assert body["journal_mode"] == "wal"
     assert body["backup_ready"] is True
 

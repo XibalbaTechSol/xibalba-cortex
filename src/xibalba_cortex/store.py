@@ -23,7 +23,7 @@ from . import projection_reconcile
 from .providers import InferenceTaskContract, validate_contradiction_result, validate_extraction_result
 from .redaction import redact
 
-_SCHEMA_VERSION = 11
+_SCHEMA_VERSION = 12
 
 # Generous default cap on a single attachment -- not a policy decision, just a guard against
 # accidentally ingesting something absurd (e.g. a whole video library) into the blob store.
@@ -570,12 +570,23 @@ ON backup_reconciliations(created_at DESC);
 class GraphStore:
     """Profile-local SQLite authority for Xibalba graph memory."""
 
-    def __init__(self, home: str | Path, *, identity_mode: str = _DEFAULT_IDENTITY_MODE):
+    def __init__(self, home: str | Path, *, identity_mode: str = _DEFAULT_IDENTITY_MODE,
+                 features: dict[str, bool] | None = None):
         if identity_mode not in _IDENTITY_MODES:
             raise ValueError(
                 f"invalid identity_mode: {identity_mode!r}, must be one of {_IDENTITY_MODES}"
             )
         self.identity_mode = identity_mode
+        self.features = {
+            "provenance": True, "lexical": True, "vector": True, "inference": True, "embeddings": True, "graph": True,
+            "context_assembly": True, "connectors": True, "governance": True,
+            "telemetry": True, "audit": True,
+        }
+        if features:
+            unknown = set(features) - set(self.features)
+            if unknown:
+                raise ValueError(f"unknown feature flags: {sorted(unknown)}")
+            self.features.update({name: bool(value) for name, value in features.items()})
         self.home = Path(home).expanduser().resolve()
         self.home.mkdir(parents=True, exist_ok=True, mode=0o700)
         os.chmod(self.home, 0o700)
@@ -630,6 +641,55 @@ class GraphStore:
         self._connection.enable_load_extension(True)
         sqlite_vec.load(self._connection)
         self._connection.enable_load_extension(False)
+
+    def _repair_extraction_proposals_foreign_key_locked(self) -> None:
+        """Repair the FK rewritten by SQLite during the v8 task-table migration."""
+        table = self._connection.execute(
+            "SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'extraction_proposals'"
+        ).fetchone()
+        if table is None:
+            return
+        foreign_keys = self._connection.execute("PRAGMA foreign_key_list(extraction_proposals)").fetchall()
+        task_fk = next((row for row in foreign_keys if row[3] == "task_id"), None)
+        if task_fk is None or task_fk[2] == "memory_inference_tasks":
+            return
+        if self._connection.execute(
+            "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'memory_inference_tasks'"
+        ).fetchone() is None:
+            raise RuntimeError("cannot repair extraction_proposals: memory_inference_tasks is missing")
+
+        self._connection.execute("ALTER TABLE extraction_proposals RENAME TO extraction_proposals_v11")
+        self._connection.execute(
+            """
+            CREATE TABLE extraction_proposals (
+                id TEXT PRIMARY KEY,
+                task_id TEXT NOT NULL REFERENCES memory_inference_tasks(id) ON DELETE CASCADE,
+                task_type TEXT NOT NULL,
+                item_index INTEGER NOT NULL,
+                source_memory_id TEXT NOT NULL REFERENCES memories(id) ON DELETE CASCADE,
+                source_content_hash TEXT NOT NULL,
+                payload_json TEXT NOT NULL,
+                evidence_quote TEXT,
+                status TEXT NOT NULL CHECK (status IN ('proposed', 'accepted', 'dismissed', 'stale')),
+                decision_note TEXT,
+                decided_by TEXT,
+                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                decided_at TEXT,
+                UNIQUE(task_id, item_index)
+            )
+            """
+        )
+        self._connection.execute(
+            """INSERT INTO extraction_proposals
+            (id, task_id, task_type, item_index, source_memory_id, source_content_hash,
+             payload_json, evidence_quote, status, decision_note, decided_by, created_at, decided_at)
+            SELECT id, task_id, task_type, item_index, source_memory_id, source_content_hash,
+                   payload_json, evidence_quote, status, decision_note, decided_by, created_at, decided_at
+            FROM extraction_proposals_v11"""
+        )
+        self._connection.execute("DROP TABLE extraction_proposals_v11")
+        self._connection.execute("CREATE INDEX IF NOT EXISTS idx_extraction_proposals_source ON extraction_proposals(source_memory_id, status)")
+        self._connection.execute("CREATE INDEX IF NOT EXISTS idx_extraction_proposals_task ON extraction_proposals(task_id)")
 
     def _migrate(self) -> None:
         with self._lock:
@@ -880,6 +940,9 @@ class GraphStore:
                     "UPDATE embeddings_meta SET model_key = ?, revision = ? WHERE model_key IS NULL",
                     (pinned_key, EMBEDDING_MODEL_REVISION),
                 )
+            # Run the detector on every open so a database that already recorded an older
+            # schema version is repaired too; healthy stores return immediately.
+            self._repair_extraction_proposals_foreign_key_locked()
             self._connection.execute(
                 "INSERT OR IGNORE INTO schema_migrations(version) VALUES (?)", (1,)
             )
@@ -923,6 +986,7 @@ class GraphStore:
             "memory_count": memory_count,
             "backup_ready": backup_ready,
             "backup_method": "sqlite_online_backup",
+            "features": dict(self.features),
         }
 
     def integrity_links_status(self, *, limit: int = 50) -> dict[str, object]:
@@ -1747,14 +1811,16 @@ class GraphStore:
         effective_filters = dict(filters or {})
         allowed_statuses = set(effective_filters.get("status") or []) or None
         allowed_evidence_classes = set(effective_filters.get("evidence_class") or []) or None
-        lexical_ids = self._lexical_ranked_ids(query, max(20, bounded * 4))
+        lexical_ids = self._lexical_ranked_ids(query, max(20, bounded * 4)) if self.features["lexical"] else []
+        if not self.features["embeddings"] or not self.features["vector"]:
+            query_vector = None
         vector_hits = self._vector_ranked_ids(query_vector, max(20, bounded * 4)) if query_vector is not None else []
         vector_ids = [item[0] for item in vector_hits]
         similarity = dict(vector_hits)
         graph_ids: list[str] = []
         graph_evidence: list[dict[str, object]] = []
         terms = [term for term in re.findall(r"[\\w-]+", query) if len(term) > 2]
-        for term in terms[:3]:
+        for term in terms[:3] if self.features["graph"] else []:
             try:
                 graph = self.neighbors(term, max_depth=1, node_limit=20, edge_limit=40)
             except (KeyError, ValueError):
@@ -1836,11 +1902,14 @@ class GraphStore:
             temporal_ids = [m for m in temporal_ids if _passes_filters(m)]
             exact_ids = [m for m in exact_ids if _passes_filters(m)]
 
+        if not self.features["lexical"]:
+            temporal_ids = []
+            exact_ids = []
         channels = {"lexical": lexical_ids, "vector": vector_ids, "graph": graph_ids, "temporal": temporal_ids, "exact": exact_ids}
         channel_status = {
-            "lexical": "available",
-            "vector": "available" if query_vector is not None else "unavailable",
-            "graph": "available" if graph_ids else "no_candidates",
+            "lexical": "available" if self.features["lexical"] else "disabled",
+            "vector": "available" if query_vector is not None else ("disabled" if not self.features["embeddings"] or not self.features["vector"] else "unavailable"),
+            "graph": "disabled" if not self.features["graph"] else ("available" if graph_ids else "no_candidates"),
             "temporal": "available",
             "exact": "matched" if exact_ids else "no_match",
         }
@@ -1941,6 +2010,63 @@ class GraphStore:
             "trace_id": trace_id, "root_hash": root_hash, "signals": list(channels), "channel_status": channel_status,
             "degraded": degraded,
             "results": [(memory_cache.get(item["memory_id"]) or self.get_memory(item["memory_id"])) | {"retrieval": item} for item in records],
+        }
+
+    def assemble_context(
+        self, query: str, *, query_vector: list[float] | None = None, limit: int = 12,
+        temporal_at: str | None = None, max_total_chars: int = 12000,
+        filters: dict[str, object] | None = None,
+    ) -> dict[str, object]:
+        """Assemble a bounded, provenance-bearing context block from hybrid retrieval.
+
+        This is an optional convenience projection: canonical memories and retrieval traces
+        remain authoritative, and every item keeps its source hash and channel attribution.
+        """
+        if not self.features["context_assembly"]:
+            raise RuntimeError("context assembly is disabled by feature policy")
+        if max_total_chars < 1:
+            raise ValueError("max_total_chars must be positive")
+        retrieval = self.hybrid_retrieve(
+            query, query_vector=query_vector, limit=limit, temporal_at=temporal_at,
+            filters=filters, max_total_chars=max_total_chars,
+        )
+        current_facts: list[dict[str, object]] = []
+        historical_facts: list[dict[str, object]] = []
+        summaries: list[dict[str, object]] = []
+        observations: list[dict[str, object]] = []
+        used_chars = 0
+        for memory in retrieval["results"]:
+            content = str(memory["content"])
+            if used_chars + len(content) > max_total_chars:
+                continue
+            used_chars += len(content)
+            item = {
+                "memory_id": memory["id"], "content": content,
+                "valid_from": memory.get("valid_from"), "valid_to": memory.get("valid_to"),
+                "provenance": {
+                    "content_hash": memory["content_hash"],
+                    "source": memory["source"],
+                    "evidence_class": memory["evidence_class"],
+                    "status": memory["status"],
+                },
+                "retrieval": memory.get("retrieval", {}),
+            }
+            evidence_class = memory["evidence_class"]
+            if evidence_class == "summary":
+                summaries.append(item)
+            elif memory.get("valid_to") or memory["status"] == "superseded":
+                historical_facts.append(item)
+            elif evidence_class in {"extracted_proposition", "policy", "declared_intent"}:
+                current_facts.append(item)
+            else:
+                observations.append(item)
+        return {
+            "schema_version": "xibalba.context_block.v1",
+            "query": query, "trace_id": retrieval["trace_id"],
+            "budget": {"max_total_chars": max_total_chars, "used_chars": used_chars},
+            "current_facts": current_facts, "historical_facts": historical_facts,
+            "summaries": summaries, "observations": observations,
+            "degraded": retrieval["degraded"], "channel_status": retrieval["channel_status"],
         }
 
     def get_retrieval_trace(self, trace_id: str) -> dict[str, object]:
@@ -2084,6 +2210,8 @@ class GraphStore:
         model_id: str = EMBEDDING_MODEL_ID,
         expected_content_hash: str | None = None,
     ) -> dict[str, object]:
+        if not self.features["embeddings"]:
+            raise RuntimeError("embeddings are disabled by feature policy")
         """Attach a validated caller-computed embedding, conditionally on source content.
 
         Validates against the currently *active* embedding_models registry entry, not a bare
@@ -2440,6 +2568,8 @@ class GraphStore:
     def record_otel_batch(
         self, external_session_id: str, events: list[dict[str, object]]
     ) -> dict[str, object]:
+        if not self.features["telemetry"]:
+            raise RuntimeError("telemetry is disabled by feature policy")
         """Ingest a batch of OTel spans/metrics/logs against a session -- the plug-and-play
         path: an SDK buffers its own export and flushes here periodically, same shape as the
         Integrity Oracle's own OTLP receiver (otel_spans/otel_metrics/otel_logs), so no
@@ -3416,6 +3546,8 @@ class GraphStore:
         idempotency_key: str | None = None,
         contract: InferenceTaskContract | None = None,
     ) -> dict[str, object]:
+        if not self.features["inference"]:
+            raise RuntimeError("inference is disabled by feature policy")
         if task_type not in _INFERENCE_TASK_TYPES:
             raise ValueError(f"invalid inference task_type: {task_type!r}")
         if subject_type not in _INFERENCE_SUBJECT_TYPES:

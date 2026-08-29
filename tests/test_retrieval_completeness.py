@@ -76,3 +76,33 @@ def test_trace_persists_effective_filters_and_degraded(tmp_path: Path):
     trace = store.get_retrieval_trace(result["trace_id"])
     assert trace["filters"] == {"evidence_class": ["observed_event"]}
     assert trace["degraded"] == []
+
+
+def test_feature_policy_disables_channels_without_losing_trace(tmp_path):
+    store = GraphStore(tmp_path / "graph", features={"lexical": False, "vector": False, "graph": False})
+    store.store_memory("policy evidence", source={"kind": "test"}, status="confirmed")
+
+    result = store.hybrid_retrieve("policy evidence", query_vector=[1.0] + [0.0] * 383)
+
+    assert result["channel_status"]["lexical"] == "disabled"
+    assert result["channel_status"]["vector"] == "disabled"
+    assert result["channel_status"]["graph"] == "disabled"
+    assert result["trace_id"]
+    store.close()
+
+
+def test_context_block_is_bounded_and_provenance_bearing(tmp_path):
+    store = GraphStore(tmp_path / "graph")
+    memory = store.store_memory(
+        "A current project fact.", source={"kind": "test"}, status="confirmed",
+        evidence_class="extracted_proposition",
+    )
+
+    block = store.assemble_context("current project fact", max_total_chars=100)
+
+    assert block["schema_version"] == "xibalba.context_block.v1"
+    assert block["current_facts"][0]["memory_id"] == memory["id"]
+    assert block["current_facts"][0]["provenance"]["content_hash"] == memory["content_hash"]
+    assert block["budget"]["used_chars"] <= 100
+    assert block["trace_id"]
+    store.close()

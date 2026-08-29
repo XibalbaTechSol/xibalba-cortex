@@ -71,6 +71,12 @@ def run_command(args: argparse.Namespace) -> dict[str, Any]:
             "embedding_provider": config.embeddings.provider,
             "retrieval_provider": manifest["retrieval"],
             "remote_projections": manifest["remote_projections"],
+            "features": config.features.as_dict(),
+            "retrieval_channels": {
+                "lexical": config.retrieval.lexical,
+                "vector": config.retrieval.vector,
+                "graph": config.retrieval.graph,
+            },
         }
     if args.command == "readiness":
         return readiness(

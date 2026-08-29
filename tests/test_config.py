@@ -58,3 +58,18 @@ def test_effective_config_redacts_secret_like_values(tmp_path):
 
     assert rendered["remote"]["api_key"] == "[REDACTED]"
     assert "should-not-be-shown" not in str(rendered)
+
+
+def test_feature_flags_support_yaml_and_environment_overrides(tmp_path):
+    (tmp_path / "config.yaml").write_text(
+        "features:\n"
+        "  context_assembly: false\n"
+        "  connectors: false\n"
+        "retrieval:\n"
+        "  vector: false\n"
+    )
+    config = load_config(home=tmp_path, environ={"XIBALBA_CORTEX_FEATURE_CONNECTORS": "true"})
+
+    assert config.features.context_assembly is False
+    assert config.features.connectors is True
+    assert config.retrieval.vector is False
