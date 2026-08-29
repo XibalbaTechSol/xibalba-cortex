@@ -2,7 +2,7 @@
 title: Embedding Worker
 acronyms: [FTS5]
 created: 2026-08-13
-updated: 2026-08-13
+updated: 2026-08-29
 type: concept
 tags: [storage, provenance, infrastructure]
 confidence: high
@@ -15,7 +15,9 @@ source_files:
 
 # Embedding Worker
 
-The implementation described on this page exists in the current uncommitted worktree and has passed the cited tests. It is not a released or default-branch capability until the worktree changes are reviewed and committed.
+The implementation described on this page exists on the current feature branch and has
+passed the cited tests. It is not a default-branch capability until the branch changes
+are reviewed and merged.
 
 The embedding worker is a short-lived sidecar process that projects eligible memory content into the versioned vector index. The always-on Model Context Protocol server does not load the embedding model.
 

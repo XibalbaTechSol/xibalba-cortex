@@ -2,12 +2,13 @@
 title: Hybrid Extraction and Retrieval
 acronyms: [MCP, RRF]
 created: 2026-08-13
-updated: 2026-08-19
+updated: 2026-08-29
 type: concept
 tags: [storage, provenance, mcp, compliance]
 confidence: high
 source_files:
-  - spec/latest-hybrid-extraction.md
+  - spec/xibalba-cortex-v1.md
+  - docs/audits/2026-08-28-extraction-fk-repair.md
   - src/xibalba_cortex/hermes_worker.py
   - src/xibalba_cortex/providers.py
   - src/xibalba_cortex/store.py
@@ -40,7 +41,7 @@ source_files:
 
 The dedicated `xibalba-cortex-worker` profile provides an isolated Hermes worker path from inference-task claim through structured extraction validation and claim-token completion. The profile disables persistent memory and limits the Cortex Model Context Protocol (MCP) surface to the four task/evidence tools needed by the worker.
 
-A live, unmocked round trip against a throwaway store completed an extraction task and produced three entities. The server validated the input snapshot hash, output schema, and evidence-quote containment before inserting reviewable `extraction_proposals`. Extraction remains proposal-only: acceptance is explicit, source memories are not mutated, and stale source hashes become `stale` rather than being promoted. The earlier diagnostic that returned unrelated recalled-context quotes remains documented as a fail-closed isolation finding in `spec/latest-hybrid-extraction.md`.
+A live, unmocked round trip against a throwaway store completed an extraction task and produced three entities. The server validated the input snapshot hash, output schema, and evidence-quote containment before inserting reviewable `extraction_proposals`. Extraction remains proposal-only: acceptance is explicit, source memories are not mutated, and stale source hashes become `stale` rather than being promoted. The earlier diagnostic that returned unrelated recalled-context quotes remains a fail-closed isolation finding recorded in the dated audit trail.
 
 ## Hybrid retrieval and traces
 
@@ -60,7 +61,7 @@ Domain-separated roots use explicit domains and leaf positions so projection and
 
 ## Verification evidence
 
-The session evidence recorded a full Cortex test result of `273 passed, 1 skipped, 1 warning`, plus focused extraction, worker-isolation, retrieval-trace, projection-checkpoint, and Merkle-domain coverage. These are local test results from the session and do not establish a released build, multi-replica delivery guarantee, or live external Model Context Protocol provider round trip beyond the bounded worker test described above.
+The current feature-branch verification recorded `347 passed, 1 skipped`, plus focused extraction, worker-isolation, retrieval-trace, projection-checkpoint, and Merkle-domain coverage. These are local test results and do not establish a released build, multi-replica delivery guarantee, or live external-model provider round trip beyond the bounded worker test described above.
 
 ## Related pages
 

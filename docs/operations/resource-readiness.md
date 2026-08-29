@@ -3,9 +3,8 @@
 Status: 2026-08-05. Records the machine-state history behind the database decision
 (`docs/architecture/advanced-memory.md`) and the honest capability gaps this system currently
 has — per the dogfooding mandate, gaps are recorded, not routed around with a stub that fakes
-success. The Integrity-DAG section below was corrected twice in one day; the full narrative of
-why, including the still-open "one coherent system" question, is in
-`docs/session-log/2026-08-05-integrity-coupling-session.md`.
+success. The Integrity-DAG section below was corrected twice in one day; the current normative
+boundary is recorded in `spec/xibalba-cortex-v1.md` and `docs/operations/store-contract.md`.
 
 ## Disk/memory history (this session)
 
