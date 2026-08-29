@@ -28,12 +28,15 @@ async def test_all_tools_are_advertised(store):
     tools = await server.server.list_tools()
     names = {tool.name for tool in tools}
     assert names == {
+        "memory_ingest_connector_event",
         "memory_remember",
         "memory_recall",
         "memory_context_assemble",
+        "memory_export_provenance",
         "memory_hybrid_retrieve",
         "memory_retrieval_trace",
         "memory_embed",
+        "memory_embedding_coverage",
         "memory_embedding_models",
         "memory_attach",
         "memory_list_attachments",

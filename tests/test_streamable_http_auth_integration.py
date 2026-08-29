@@ -28,7 +28,7 @@ def running_server(tmp_path, monkeypatch):
     graph_store = GraphStore(tmp_path / "graph")
     server_module.set_store_for_testing(graph_store)
 
-    token = issue_token(tmp_path / "tokens", "test-harness")
+    token = issue_token(tmp_path / "tokens", "test-harness", scopes=("memory:read", "memory:write"))
 
     port = next(_next_test_port)
     app = server_module.server.streamable_http_app(streamable_http_path="/mcp", host="127.0.0.1")

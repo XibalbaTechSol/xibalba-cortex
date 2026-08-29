@@ -15,12 +15,14 @@ from __future__ import annotations
 
 import asyncio
 import os
+from functools import wraps
 from pathlib import Path
 
 from mcp.server import MCPServer
 
 from xibalba_cortex.agy_adapter import AgyWrapperShim
 from xibalba_cortex.config import load_config
+from xibalba_cortex.auth_middleware import current_principal
 from xibalba_cortex.claude_adapter import ClaudeAdapter
 from xibalba_cortex.codex_probe import CodexAdapter, CodexLauncher, CodexLauncherProbe
 from xibalba_cortex.cursor_adapter import CursorAdapter
@@ -87,9 +89,11 @@ def get_store() -> GraphStore:
     global _store, _config
     if _store is None:
         _config = load_config(home=_default_home())
+        if _config.storage.backend != "sqlite":
+            raise RuntimeError(f"storage backend {_config.storage.backend!r} is configured but no production adapter is installed; refusing SQLite fallback")
         feature_flags = _config.features.as_dict()
         feature_flags.update({"lexical": _config.retrieval.lexical, "vector": _config.retrieval.vector, "graph": _config.retrieval.graph})
-        _store = GraphStore(_default_home(), identity_mode=_identity_mode(), features=feature_flags)
+        _store = GraphStore(_default_home(), profile_id=_config.profile_id, identity_mode=_identity_mode(), features=feature_flags)
     return _store
 
 
@@ -113,6 +117,17 @@ def set_store_for_testing(store: GraphStore) -> None:
     _store = store
     _controller = None
 
+def _requires_scope(scope_name: str):
+    def decorator(function):
+        @wraps(function)
+        def wrapped(*args, **kwargs):
+            principal = current_principal()
+            if principal is not None and scope_name not in principal["scopes"]:
+                raise PermissionError(f"credential lacks required scope: {scope_name}")
+            return function(*args, **kwargs)
+        return wrapped
+    return decorator
+
 
 server = MCPServer(
     name="xibalba-cortex",
@@ -124,7 +139,23 @@ server = MCPServer(
 
 
 @server.tool()
+@_requires_scope("memory:write")
+def memory_ingest_connector_event(
+    connector: str, event_id: str, content: str, source: dict[str, object] | None = None,
+    status: str = "candidate", evidence_class: str = "observed_event",
+    metadata: dict[str, object] | None = None,
+) -> dict[str, object]:
+    """Ingest one idempotent external connector event with canonical provenance."""
+    return get_store().ingest_connector_event(
+        connector, event_id, content, source=source, status=status,
+        evidence_class=evidence_class, metadata=metadata,
+    )
+
+
+@server.tool()
+@_requires_scope("memory:write")
 def memory_remember(
+
     content: str,
     source: dict[str, object],
     status: str = "candidate",
@@ -211,6 +242,7 @@ def memory_list_extraction_proposals(
 
 
 @server.tool()
+@_requires_scope("memory:write")
 def memory_decide_extraction_proposal(
     proposal_id: str, decision: str, decided_by: str | None = None, note: str | None = None
 ) -> dict[str, object]:
@@ -250,7 +282,15 @@ def memory_similar(memory_id: str, limit: int = 10) -> list[dict[str, object]]:
 
 
 @server.tool()
+def memory_embedding_coverage() -> dict[str, object]:
+    """Report current, missing, and stale embedding coverage."""
+    return get_store().embedding_coverage()
+
+
+@server.tool()
+@_requires_scope("memory:write")
 def memory_embed(
+
     memory_id: str, vector: list[float], model_id: str = EMBEDDING_MODEL_ID
 ) -> dict[str, object]:
     f"""Attach a caller-computed embedding to a memory ({EMBEDDING_MODEL_ID}, {EMBEDDING_DIM}-dim).
@@ -270,6 +310,7 @@ def memory_embedding_models() -> list[dict[str, object]]:
 
 
 @server.tool()
+@_requires_scope("memory:write")
 def memory_attach(
     memory_id: str, file_path: str, media_type: str | None = None
 ) -> dict[str, object]:
@@ -290,6 +331,7 @@ def memory_list_attachments(memory_id: str) -> list[dict[str, object]]:
 
 
 @server.tool()
+@_requires_scope("memory:write")
 def memory_session_start(
     external_session_id: str, retention_tier: str | None = None
 ) -> dict[str, object]:
@@ -311,6 +353,7 @@ def memory_session_start(
 
 
 @server.tool()
+@_requires_scope("memory:write")
 def memory_session_end(
     external_session_id: str,
     summary_content: str | None = None,
@@ -335,6 +378,7 @@ def memory_session_memories(external_session_id: str) -> list[dict[str, object]]
 
 
 @server.tool()
+@_requires_scope("memory:write")
 def memory_record_otel_batch(
     external_session_id: str, events: list[dict[str, object]]
 ) -> dict[str, object]:
@@ -386,6 +430,7 @@ def memory_get(memory_id: str) -> dict[str, object]:
 
 
 @server.tool()
+@_requires_scope("memory:write")
 def memory_supersede(
     old_id: str,
     new_content: str,
@@ -406,6 +451,7 @@ def memory_supersede(
 
 
 @server.tool()
+@_requires_scope("memory:write")
 def memory_contradict(memory_id_a: str, memory_id_b: str, reason: str) -> dict[str, object]:
     """Record that two memories conflict, without resolving or deleting either."""
     return get_store().mark_contradiction(memory_id_a, memory_id_b, reason)
@@ -418,12 +464,24 @@ def memory_contradictions(memory_id: str) -> list[dict[str, object]]:
 
 
 @server.tool()
+def memory_export_provenance(
+    memory_ids: list[str] | None = None, include_forgotten: bool = False, limit: int = 500,
+) -> dict[str, object]:
+    """Export a bounded provenance bundle with a verifiable Merkle commitment."""
+    return get_store().export_memory_bundle(
+        memory_ids=memory_ids, include_forgotten=include_forgotten, limit=limit,
+    )
+
+
+@server.tool()
+@_requires_scope("memory:write")
 def memory_forget(memory_id: str) -> dict[str, object]:
     """Mark a memory forgotten: excluded from recall, content hash retained (not erased)."""
     return get_store().forget_memory(memory_id)
 
 
 @server.tool()
+@_requires_scope("memory:write")
 def memory_link_entities(
     subject: str,
     predicate: str,
@@ -492,6 +550,7 @@ def memory_status() -> dict[str, object]:
 
 
 @server.tool()
+@_requires_scope("memory:write")
 def memory_backup(destination: str) -> dict[str, object]:
     """Write a verified online backup to `destination`. Safe -- never modifies the live store.
 
@@ -509,6 +568,7 @@ def memory_backup(destination: str) -> dict[str, object]:
 
 
 @server.tool()
+@_requires_scope("memory:write")
 def memory_backup_reconcile(destination: str) -> dict[str, object]:
     """Independently re-verify an existing backup file against the live store's current state.
 
@@ -542,6 +602,7 @@ def memory_vault_inspect(leaf_hash: str, vault_dir: str) -> dict[str, object]:
 
 
 @server.tool()
+@_requires_scope("memory:write")
 def memory_build_session_exchanges(external_session_id: str) -> dict[str, object]:
     """Build a session's Merkle-chained exchange sequence from whatever memories/otel_events
     already exist for it (from any combination of memory_remember calls, memory_record_otel_batch,
@@ -585,6 +646,7 @@ def memory_session_merkle_root(external_session_id: str) -> dict[str, object]:
 
 
 @server.tool()
+@_requires_scope("memory:write")
 def memory_anchor_session_root(external_session_id: str) -> dict[str, object]:
     """Push the session root to the configured anchor consumer (e.g. XIBALBA_ANCHOR_URL).
     """
@@ -592,6 +654,7 @@ def memory_anchor_session_root(external_session_id: str) -> dict[str, object]:
 
 
 @server.tool()
+@_requires_scope("memory:write")
 def memory_record_model_exchange(
     external_session_id: str,
     user_prompt: str,
@@ -628,6 +691,7 @@ def memory_record_model_exchange(
 
 
 @server.tool()
+@_requires_scope("memory:write")
 def memory_ingest_agent_turn(
     external_session_id: str,
     runtime: str,
@@ -684,6 +748,7 @@ def memory_inference_subagent_manifest() -> dict[str, object]:
 
 
 @server.tool()
+@_requires_scope("memory:write")
 def memory_request_inference(
     task_type: str,
     subject_type: str,
@@ -710,12 +775,14 @@ def memory_inference_tasks(status: str = "pending", limit: int = 50) -> list[dic
 
 
 @server.tool()
+@_requires_scope("memory:write")
 def memory_claim_inference_task(task_id: str, claimed_by: str | None = None) -> dict[str, object]:
     """Mark a pending inference task as claimed by a local harness worker."""
     return get_store().claim_inference_task(task_id, claimed_by=claimed_by)
 
 
 @server.tool()
+@_requires_scope("memory:write")
 def memory_start_self_extraction(
     task_type: str,
     subject_type: str,
@@ -744,6 +811,7 @@ def memory_start_self_extraction(
 
 
 @server.tool()
+@_requires_scope("memory:write")
 def memory_extract_structural_entities(subject_id: str, claimed_by: str = "structural-extractor") -> dict[str, object]:
     """Deterministic, regex-based entity extraction (URLs, file paths, UUIDs, git commit
     hashes, code-fence languages) over a memory's content -- no model, no inference. Runs
@@ -769,6 +837,7 @@ def memory_evidence_bundle(task_id: str) -> dict[str, object]:
 
 
 @server.tool()
+@_requires_scope("memory:write")
 def memory_complete_inference_task(
     task_id: str,
     output_payload: dict[str, object] | None = None,
@@ -1296,7 +1365,10 @@ def main() -> None:
 
     home = _default_home()
     app = server.streamable_http_app(streamable_http_path=args.path, host=args.host)
-    authed_app = BearerTokenAuth(app, home=home)
+    profile_id = os.environ.get("XIBALBA_CORTEX_PROFILE_ID", "default")
+    rate_limit_raw = os.environ.get("XIBALBA_CORTEX_RATE_LIMIT_PER_MINUTE")
+    rate_limit = int(rate_limit_raw) if rate_limit_raw else None
+    authed_app = BearerTokenAuth(app, home=home, profile_id=profile_id, required_scopes=("memory:read",), rate_limit_per_minute=rate_limit)
 
     import uvicorn
 

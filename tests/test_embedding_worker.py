@@ -67,3 +67,8 @@ def test_embed_memories_rejects_zero_vector_before_store_write(tmp_path: Path):
 
     assert result == {"processed": 1, "embedded": 0, "failed": 1, "remaining": 1}
     assert memory["id"] in {row["id"] for row in eligible_memories(store)}
+    coverage = store.embedding_coverage()
+    assert coverage["failed"] == 1
+    failure = store._connection.execute("SELECT attempts, last_error FROM embedding_failures WHERE memory_id = ?", (memory["id"],)).fetchone()
+    assert failure["attempts"] == 1
+    assert "zero" in failure["last_error"].lower()

@@ -171,6 +171,12 @@ CREATE TABLE IF NOT EXISTS schema_migrations (
     applied_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE IF NOT EXISTS deployment_profile (
+    id INTEGER PRIMARY KEY CHECK (id = 1),
+    profile_id TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
 CREATE TABLE IF NOT EXISTS sources (
     id TEXT PRIMARY KEY,
     kind TEXT NOT NULL,
@@ -450,6 +456,16 @@ CREATE TABLE IF NOT EXISTS embeddings_meta (
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE IF NOT EXISTS embedding_failures (
+    memory_id TEXT NOT NULL REFERENCES memories(id) ON DELETE CASCADE,
+    model_key TEXT NOT NULL,
+    content_hash TEXT NOT NULL,
+    attempts INTEGER NOT NULL DEFAULT 1,
+    last_error TEXT NOT NULL,
+    last_failed_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (memory_id, model_key, content_hash)
+);
+
 CREATE TABLE IF NOT EXISTS embedding_models (
     model_key TEXT PRIMARY KEY,
     model_id TEXT NOT NULL,
@@ -570,12 +586,15 @@ ON backup_reconciliations(created_at DESC);
 class GraphStore:
     """Profile-local SQLite authority for Xibalba graph memory."""
 
-    def __init__(self, home: str | Path, *, identity_mode: str = _DEFAULT_IDENTITY_MODE,
+    def __init__(self, home: str | Path, *, profile_id: str = "default", identity_mode: str = _DEFAULT_IDENTITY_MODE,
                  features: dict[str, bool] | None = None):
+        if not profile_id or not profile_id.strip():
+            raise ValueError("profile_id must be a non-empty string")
         if identity_mode not in _IDENTITY_MODES:
             raise ValueError(
                 f"invalid identity_mode: {identity_mode!r}, must be one of {_IDENTITY_MODES}"
             )
+        self.profile_id = profile_id.strip()
         self.identity_mode = identity_mode
         self.features = {
             "provenance": True, "lexical": True, "vector": True, "inference": True, "embeddings": True, "graph": True,
@@ -694,6 +713,11 @@ class GraphStore:
     def _migrate(self) -> None:
         with self._lock:
             self._connection.executescript(_SCHEMA)
+            profile = self._connection.execute("SELECT profile_id FROM deployment_profile WHERE id = 1").fetchone()
+            if profile is None:
+                self._connection.execute("INSERT INTO deployment_profile(id, profile_id) VALUES (1, ?)", (self.profile_id,))
+            elif profile["profile_id"] != self.profile_id:
+                raise RuntimeError(f"store profile mismatch: database belongs to {profile['profile_id']!r}, requested {self.profile_id!r}")
             current_version = self._connection.execute(
                 "SELECT COALESCE(MAX(version), 0) FROM schema_migrations"
             ).fetchone()[0]
@@ -925,6 +949,7 @@ class GraphStore:
             if meta_columns_v11 and "model_key" not in meta_columns_v11:
                 self._connection.execute("ALTER TABLE embeddings_meta ADD COLUMN model_key TEXT")
                 self._connection.execute("ALTER TABLE embeddings_meta ADD COLUMN revision TEXT")
+            self._connection.execute("""CREATE TABLE IF NOT EXISTS embedding_failures (memory_id TEXT NOT NULL REFERENCES memories(id) ON DELETE CASCADE, model_key TEXT NOT NULL, content_hash TEXT NOT NULL, attempts INTEGER NOT NULL DEFAULT 1, last_error TEXT NOT NULL, last_failed_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, PRIMARY KEY (memory_id, model_key, content_hash))""")
             pinned_key = f"{EMBEDDING_MODEL_ID}@{EMBEDDING_MODEL_REVISION}"
             existing_pinned = self._connection.execute(
                 "SELECT 1 FROM embedding_models WHERE model_key = ?", (pinned_key,)
@@ -981,6 +1006,7 @@ class GraphStore:
             "foreign_keys": foreign_keys,
             "fts5": fts5,
             "integrity_check": integrity_check,
+            "profile_id": self.profile_id,
             "identity_mode": self.identity_mode,
             "db_path": str(self.db_path),
             "memory_count": memory_count,
@@ -1450,7 +1476,31 @@ class GraphStore:
             "head_node_id": rows[-1]["node_id"] if rows else None,
         }
 
+    def ingest_connector_event(
+        self, connector: str, event_id: str, content: str, *,
+        source: dict[str, object] | None = None, status: str = "candidate",
+        evidence_class: str = "observed_event", metadata: dict[str, object] | None = None,
+    ) -> dict[str, object]:
+        """Ingest one idempotent external connector event through the canonical memory path."""
+        if not self.features["connectors"]:
+            raise RuntimeError("connectors are disabled by feature policy")
+        connector_name = connector.strip()
+        external_id = event_id.strip()
+        if not connector_name or not external_id:
+            raise ValueError("connector and event_id must be non-empty")
+        source_payload = dict(source or {})
+        source_payload.setdefault("kind", "connector_event")
+        source_payload.setdefault("locator", f"connector://{connector_name}/{external_id}")
+        source_payload["connector"] = connector_name
+        source_payload["event_id"] = external_id
+        source_payload["metadata"] = {**dict(source_payload.get("metadata") or {}), **dict(metadata or {})}
+        return self.store_memory(
+            content, source=source_payload, status=status, evidence_class=evidence_class,
+            idempotency_key=f"connector:{connector_name}:{external_id}",
+        )
+
     def store_memory(
+
         self,
         content: str,
         *,
@@ -1722,16 +1772,18 @@ class GraphStore:
         0, orthogonal -> 1, opposite -> 2) -- so similarity is recovered with a plain subtraction,
         no separate normalization step needed.
         """
-        if len(query_vector) != EMBEDDING_DIM:
-            raise ValueError(
-                f"query_vector must have dimension {EMBEDDING_DIM} (model {EMBEDDING_MODEL_ID}), "
-                f"got {len(query_vector)}"
-            )
+        active_model = self.get_active_embedding_model()
+        expected_dim = int(active_model["dimension"])
+        vector_table = str(active_model["vector_table"])
+        if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", vector_table):
+            raise ValueError("active embedding vector table name is invalid")
+        if len(query_vector) != expected_dim:
+            raise ValueError(f"query_vector must have dimension {expected_dim} (model {active_model["model_id"]}), got {len(query_vector)}")
         with self._lock:
             rows = self._connection.execute(
-                """
+                f"""
                 SELECT v.memory_id, v.distance
-                FROM memory_vectors v
+                FROM {vector_table} v
                 JOIN memories m ON m.id = v.memory_id
                 WHERE v.embedding MATCH ? AND k = ?
                   AND m.status IN ('active', 'confirmed')
@@ -2202,7 +2254,35 @@ class GraphStore:
                 raise
         return self.get_embedding_model(model_key)
 
+    def embedding_coverage(self) -> dict[str, object]:
+        """Report current, missing, and stale embedding coverage."""
+        active_model = self.get_active_embedding_model()
+        with self._lock:
+            total = self._connection.execute("SELECT COUNT(*) FROM memories WHERE status IN (?, ?)", ("active", "confirmed")).fetchone()[0]
+            current = self._connection.execute(
+                "SELECT COUNT(*) FROM memories m JOIN embeddings_meta e ON e.memory_id = m.id WHERE m.status IN (?, ?) AND e.model_id = ? AND e.dim = ? AND e.generated_from_hash = m.content_hash",
+                ("active", "confirmed", active_model["model_id"], active_model["dimension"]),
+            ).fetchone()[0]
+            stale = self._connection.execute(
+                "SELECT COUNT(*) FROM memories m JOIN embeddings_meta e ON e.memory_id = m.id WHERE m.status IN (?, ?) AND NOT (e.model_id = ? AND e.dim = ? AND e.generated_from_hash = m.content_hash)",
+                ("active", "confirmed", active_model["model_id"], active_model["dimension"]),
+            ).fetchone()[0]
+            failed = self._connection.execute("SELECT COUNT(*) FROM memories m JOIN embedding_failures f ON f.memory_id = m.id WHERE m.status IN (?, ?) AND f.model_key = ? AND f.content_hash = m.content_hash", ("active", "confirmed", active_model["model_key"])).fetchone()[0]
+        missing = max(0, int(total) - int(current) - int(stale))
+        return {"model": active_model, "eligible": int(total), "current": int(current), "missing": missing, "stale": int(stale), "failed": int(failed), "coverage_ratio": float(current) / float(total) if total else 1.0}
+
+    def record_embedding_failure(self, memory_id: str, error: str) -> None:
+        """Persist the latest embedding failure for the active model and content hash."""
+        active_model = self.get_active_embedding_model()
+        with self._lock:
+            row = self._connection.execute("SELECT content_hash FROM memories WHERE id = ?", (memory_id,)).fetchone()
+            if row is None:
+                return
+            self._connection.execute("INSERT INTO embedding_failures(memory_id, model_key, content_hash, attempts, last_error) VALUES (?, ?, ?, 1, ?) ON CONFLICT(memory_id, model_key, content_hash) DO UPDATE SET attempts = embedding_failures.attempts + 1, last_error = excluded.last_error, last_failed_at = CURRENT_TIMESTAMP", (memory_id, active_model["model_key"], row["content_hash"], str(error)[:2000]))
+            self._connection.commit()
+
     def store_embedding(
+
         self,
         memory_id: str,
         vector: list[float],
@@ -2268,6 +2348,7 @@ class GraphStore:
                     "INSERT OR REPLACE INTO embeddings_meta(memory_id, model_id, dim, generated_from_hash, model_key, revision) VALUES (?, ?, ?, ?, ?, ?)",
                     (memory_id, model_id, expected_dim, current_hash, active_model["model_key"], active_model["revision"]),
                 )
+                self._connection.execute("DELETE FROM embedding_failures WHERE memory_id = ?", (memory_id,))
                 self._connection.execute("COMMIT")
             except Exception:
                 self._connection.execute("ROLLBACK")
@@ -2285,16 +2366,20 @@ class GraphStore:
         """
         self.get_memory(memory_id)  # raises KeyError if missing
         bounded_limit = max(1, min(int(limit), 100))
+        active_model = self.get_active_embedding_model()
+        vector_table = str(active_model["vector_table"])
+        if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", vector_table):
+            raise ValueError("active embedding vector table name is invalid")
         with self._lock:
             own_row = self._connection.execute(
-                "SELECT embedding FROM memory_vectors WHERE memory_id = ?", (memory_id,)
+                f"SELECT embedding FROM {vector_table} WHERE memory_id = ?", (memory_id,)
             ).fetchone()
             if own_row is None:
                 raise ValueError(f"memory {memory_id!r} has no embedding stored")
             rows = self._connection.execute(
-                """
+                f"""
                 SELECT v.memory_id, v.distance
-                FROM memory_vectors v
+                FROM {vector_table} v
                 JOIN memories m ON m.id = v.memory_id
                 WHERE v.embedding MATCH ? AND k = ?
                   AND m.status IN ('active', 'confirmed')
@@ -4343,6 +4428,68 @@ class GraphStore:
             others.append(self.get_memory(other_id))
         return others
 
+    def export_memory_bundle(
+        self, *, memory_ids: list[str] | tuple[str, ...] | None = None,
+        include_forgotten: bool = False, limit: int = 500,
+    ) -> dict[str, object]:
+        """Export a bounded provenance bundle with a domain-separated Merkle commitment."""
+        bounded = max(1, min(int(limit), 5000))
+        if memory_ids is None:
+            with self._lock:
+                rows = self._connection.execute(
+                    "SELECT id FROM memories WHERE status != ? OR ? ORDER BY created_at, id LIMIT ?",
+                    ("forgotten", int(include_forgotten), bounded),
+                ).fetchall()
+            selected = [str(row["id"]) for row in rows]
+        else:
+            selected = list(dict.fromkeys(str(item) for item in memory_ids))[:bounded]
+        memories = []
+        for memory_id in selected:
+            memory = self.get_memory(memory_id)
+            if not include_forgotten and memory["status"] == "forgotten":
+                continue
+            memories.append(memory)
+        leaves = ["sha256:" + hashlib.sha256(self._canonical_json(item).encode()).hexdigest() for item in memories]
+        root_hash = domain_merkle_root(leaves, domain="provenance_export") or "sha256:" + hashlib.sha256(b"xibalba.provenance_export.v1").hexdigest()
+        return {
+            "schema_version": "xibalba.provenance_export.v1",
+            "count": len(memories), "memory_ids": [item["id"] for item in memories],
+            "memories": memories, "leaf_hashes": leaves, "root_hash": root_hash,
+            "include_forgotten": include_forgotten,
+            "disclaimer": "Commitment proves bundle inclusion under this construction, not truth, authorization, or external finality.",
+        }
+
+    def retention_sweep(self, *, max_age_days: dict[str, int], apply: bool = False, limit: int = 500) -> dict[str, object]:
+        """Plan or apply bounded forgetting for ended sessions by declared retention tier."""
+        if not isinstance(max_age_days, dict) or not max_age_days:
+            raise ValueError("max_age_days must map at least one retention tier to a non-negative day count")
+        if any(tier not in _RETENTION_TIERS for tier in max_age_days):
+            raise ValueError(f"unknown retention tier; expected one of {_RETENTION_TIERS}")
+        if any(not isinstance(days, int) or days < 0 for days in max_age_days.values()):
+            raise ValueError("retention ages must be non-negative integers")
+        bounded = max(1, min(int(limit), 5000))
+        candidates: list[dict[str, object]] = []
+        with self._lock:
+            for tier, days in max_age_days.items():
+                rows = self._connection.execute(
+                    """SELECT m.id, m.content_hash, s.external_session_id, s.retention_tier, s.ended_at
+                       FROM memories m JOIN sources src ON src.id = m.source_id
+                       JOIN sessions s ON s.external_session_id = src.session_id
+                       WHERE m.status != 'forgotten' AND s.ended_at IS NOT NULL
+                         AND s.retention_tier = ? AND datetime(s.ended_at) <= datetime('now', ?)
+                       ORDER BY s.ended_at, m.created_at, m.id LIMIT ?""",
+                    (tier, f"-{days} days", bounded),
+                ).fetchall()
+                candidates.extend({"memory_id": row["id"], "content_hash": row["content_hash"], "session_id": row["external_session_id"], "retention_tier": row["retention_tier"], "ended_at": row["ended_at"]} for row in rows)
+                if len(candidates) >= bounded:
+                    candidates = candidates[:bounded]
+                    break
+        receipts = []
+        if apply:
+            for candidate in candidates:
+                receipts.append(self.forget_memory(str(candidate["memory_id"]))["deletion_receipt"])
+        return {"schema_version": "xibalba.retention_sweep.v1", "apply": apply, "candidate_count": len(candidates), "candidates": candidates, "deletion_receipts": receipts, "disclaimer": "Retention sweep uses declared session tiers and ended_at timestamps; it is not legal compliance certification."}
+
     def forget_memory(self, memory_id: str) -> dict[str, object]:
         with self._lock:
             self._connection.execute("BEGIN IMMEDIATE")
@@ -4358,7 +4505,12 @@ class GraphStore:
                 self._connection.execute("ROLLBACK")
                 raise
         record = self.get_memory(memory_id)
+        events = self.memory_events(memory_id)
+        event = events[-1]
+        receipt_payload = {"memory_id": memory_id, "content_hash": record["content_hash"], "event_node_id": event["node_id"], "event_type": event["event_type"]}
+        receipt_hash = "sha256:" + hashlib.sha256(self._canonical_json(receipt_payload).encode()).hexdigest()
         record["content_hash_retained"] = True
+        record["deletion_receipt"] = {"schema_version": "xibalba.deletion_receipt.v1", **receipt_payload, "receipt_hash": receipt_hash}
         return record
 
     @staticmethod

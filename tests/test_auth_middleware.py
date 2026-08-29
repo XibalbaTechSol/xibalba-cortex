@@ -71,3 +71,31 @@ def test_non_http_scopes_pass_through_without_auth_check():
 
     asyncio.run(go())
     assert calls == ["lifespan"]
+
+
+async def _run_with_app(app, headers):
+    events = []
+    async def receive():
+        return {"type": "http.request"}
+    async def send(message):
+        events.append(message)
+    await app({"type": "http", "headers": headers}, receive, send)
+    return events
+
+
+def test_profile_binding_rejects_other_tenant(tmp_path):
+    token = issue_token(tmp_path, "tenant-a", profile_id="tenant-a")
+    async def run():
+        app = BearerTokenAuth(_inner_app, home=tmp_path, profile_id="tenant-b")
+        return await _run_with_app(app, [(b"authorization", f"Bearer {token}".encode())])
+    events = asyncio.run(run())
+    assert events[0]["status"] == 403
+
+
+def test_required_scope_is_enforced(tmp_path):
+    token = issue_token(tmp_path, "reader", scopes=("memory:read",))
+    async def run():
+        app = BearerTokenAuth(_inner_app, home=tmp_path, required_scopes=("memory:write",))
+        return await _run_with_app(app, [(b"authorization", f"Bearer {token}".encode())])
+    events = asyncio.run(run())
+    assert events[0]["status"] == 403

@@ -34,6 +34,7 @@ def test_bootstrap_creates_secure_healthy_sqlite_store(tmp_path):
     assert status["fts5"] is True
     assert status["integrity_check"] == "ok"
     assert status["identity_mode"] == "pseudonymous"
+    assert status["profile_id"] == "default"
     assert status["db_path"] == str(store.db_path)
     assert status["memory_count"] == 0
     assert status["backup_ready"] is True
@@ -61,6 +62,11 @@ def test_bootstrap_creates_secure_healthy_sqlite_store(tmp_path):
 
     store.close()
 
+
+def test_store_rejects_opening_a_profile_database_under_another_profile(tmp_path):
+    GraphStore(tmp_path, profile_id="tenant-a").close()
+    with pytest.raises(RuntimeError, match="store profile mismatch"):
+        GraphStore(tmp_path, profile_id="tenant-b")
 
 def test_integrity_links_status_reports_unlinked_and_explicit_states(tmp_path):
     store = GraphStore(tmp_path / "graph")
@@ -1381,4 +1387,46 @@ def test_context_bundle_evidence_scope_reads_all_server_scoped_memories(tmp_path
     claimed = store.claim_inference_task(task["id"], claimed_by="worker")
     evidence = store.fetch_bounded_evidence_for_task(claimed)
     assert [item["id"] for item in evidence["items"]] == [first["id"], second["id"]]
+    store.close()
+
+
+def test_provenance_export_is_bounded_and_committed(tmp_path):
+    store = GraphStore(tmp_path / "graph")
+    memory = store.store_memory("export me", source={"kind": "test"})
+    bundle = store.export_memory_bundle(memory_ids=[memory["id"]])
+    assert bundle["schema_version"] == "xibalba.provenance_export.v1"
+    assert bundle["count"] == 1
+    assert bundle["root_hash"].startswith("sha256:")
+    assert bundle["memories"][0]["content_hash"] == memory["content_hash"]
+    store.close()
+
+
+def test_connector_event_is_idempotent_and_feature_gated(tmp_path):
+    store = GraphStore(tmp_path / "graph")
+    first = store.ingest_connector_event("webhook", "evt-1", "external event")
+    second = store.ingest_connector_event("webhook", "evt-1", "external event")
+    assert first["id"] == second["id"]
+    assert second["source"]["metadata"]["connector"] == "webhook"
+    disabled = GraphStore(tmp_path / "disabled", features={"connectors": False})
+    with pytest.raises(RuntimeError, match="connectors are disabled"):
+        disabled.ingest_connector_event("webhook", "evt-2", "blocked")
+    store.close()
+    disabled.close()
+
+
+def test_forget_returns_hash_bound_deletion_receipt(tmp_path):
+    store = GraphStore(tmp_path / "graph")
+    memory = store.store_memory("forget with receipt", source={"kind": "test"})
+    forgotten = store.forget_memory(memory["id"])
+    receipt = forgotten["deletion_receipt"]
+    assert receipt["schema_version"] == "xibalba.deletion_receipt.v1"
+    assert receipt["content_hash"] == memory["content_hash"]
+    assert receipt["event_type"] == "forget"
+    assert receipt["receipt_hash"].startswith("sha256:")
+    store.close()
+
+
+def test_store_status_reports_explicit_profile_id(tmp_path):
+    store = GraphStore(tmp_path / "graph", profile_id="tenant-a")
+    assert store.status(fast=True)["profile_id"] == "tenant-a"
     store.close()

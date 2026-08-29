@@ -10,6 +10,8 @@ Every route is a thin wrapper around one public GraphStore method -- all the act
 independent of HTTP, the same division server.py already uses for its MCP tools.
 
 Routes:
+  GET /healthz                         -> process/store liveness
+  GET /readyz                         -> full integrity and backup readiness (503 when not ready)
   GET /api/stats                          -> GraphStore.counts()
   GET /api/status                         -> GraphStore.status()
   GET /api/integrity-links?limit=          -> GraphStore.integrity_links_status()
@@ -220,7 +222,13 @@ def _make_handler(store: GraphStore, *, allowed_origin: str):
             parts = [p for p in parsed.path.split("/") if p]
 
             try:
-                if parts == ["api", "stats"]:
+                if parts == ["healthz"]:
+                    self._send_json(200, {"schema_version": "xibalba.health.v1", "status": "ok", "profile_id": store.profile_id})
+                elif parts == ["readyz"]:
+                    status = store.status()
+                    ready = status["integrity_check"] == "ok" and status["foreign_keys"] is True and status["fts5"] is True and status["backup_ready"] is True
+                    self._send_json(200 if ready else 503, {"schema_version": "xibalba.readiness.v1", "ready": ready, "profile_id": store.profile_id, "checks": {"integrity_check": status["integrity_check"], "foreign_keys": status["foreign_keys"], "fts5": status["fts5"], "backup_ready": status["backup_ready"]}})
+                elif parts == ["api", "stats"]:
                     self._send_json(200, store.counts())
                 elif parts == ["api", "status"]:
                     self._send_json(200, store.status(fast=True))

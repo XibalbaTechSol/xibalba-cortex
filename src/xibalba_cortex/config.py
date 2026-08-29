@@ -70,6 +70,7 @@ class FeatureConfig:
 
 @dataclass(frozen=True)
 class CortexConfig:
+    profile_id: str = "default"
     mode: str = "local"
     storage: StorageConfig = field(default_factory=StorageConfig)
     inference: InferenceConfig = field(default_factory=InferenceConfig)
@@ -112,6 +113,9 @@ def load_config(*, home: Path | str | None = None, environ: dict[str, str] | Non
         raw = _mapping(loaded, "config")
 
     env = os.environ if environ is None else environ
+    profile_id = str(env.get("XIBALBA_CORTEX_PROFILE_ID", raw.get("profile_id", "default"))).strip()
+    if not profile_id:
+        raise ValueError("profile_id must be a non-empty string")
     mode = str(env.get("XIBALBA_CORTEX_MODE", raw.get("mode", "local")))
     if mode not in _MODES:
         raise ValueError(f"unsupported mode: {mode!r}; expected one of {sorted(_MODES)}")
@@ -170,6 +174,7 @@ def load_config(*, home: Path | str | None = None, environ: dict[str, str] | Non
 
     features = FeatureConfig(**{name: feature_value(name) for name in defaults.__dataclass_fields__})
     return CortexConfig(
+        profile_id=profile_id,
         mode=mode,
         storage=storage,
         inference=inference,

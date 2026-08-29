@@ -166,7 +166,7 @@ uv sync --extra drive
 uv run pytest -q
 ```
 
-Full suite: `273 passed, 1 skipped, 1 warning` as of 2026-08-13 (the skip and warning are pre-existing and unrelated to recent work). Viewer build is separate: `cd viewer && npm install && npm run build`. Local operator commands: `uv run xibalba-cortex-operator [readiness|status|backup|restore|verify-memory|verify-integrity-link|verify-session|integrity-links]`.
+Full suite is validated in CI and locally; run `uv run pytest -q` for the current result. (the skip and warning are pre-existing and unrelated to recent work). Viewer build is separate: `cd viewer && npm install && npm run build`. Local operator commands: `uv run xibalba-cortex-operator [readiness|status|backup|restore|verify-memory|verify-integrity-link|verify-session|integrity-links|production-readiness|evaluation-smoke|retention-sweep]`.
 
 **Not yet installable standalone.** `pyproject.toml` pins `integrity-sdk` as a local path
 dependency on `../integrity-core/integrity-sdk` (`[tool.uv.sources]`) — `uv sync` only resolves

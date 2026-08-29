@@ -1,4 +1,4 @@
-from xibalba_cortex.ingest_tokens import issue_token, list_tokens, revoke_token, verify_token
+from xibalba_cortex.ingest_tokens import verify_token_record, issue_token, list_tokens, revoke_token, verify_token
 
 
 def test_issued_token_verifies_and_returns_its_label(tmp_path):
@@ -76,3 +76,26 @@ def test_issue_rejects_an_empty_label(tmp_path):
         issue_token(tmp_path, "")
     with pytest.raises(ValueError):
         issue_token(tmp_path, "   ")
+
+
+def test_scoped_token_record_contains_profile_roles_and_scopes(tmp_path):
+    token = issue_token(
+        tmp_path,
+        "operator",
+        profile_id="tenant-a",
+        roles=("operator", "reviewer"),
+        scopes=("memory:read", "memory:write", "proposal:decide"),
+    )
+    record = verify_token_record(tmp_path, token)
+    assert record["profile_id"] == "tenant-a"
+    assert record["roles"] == ["operator", "reviewer"]
+    assert record["scopes"][-1] == "proposal:decide"
+
+
+def test_list_tokens_exposes_scope_metadata_without_secret_material(tmp_path):
+    issue_token(tmp_path, "operator", profile_id="tenant-a", roles=("operator",), scopes=("memory:read", "proposal:decide"))
+    [row] = list_tokens(tmp_path)
+    assert row["profile_id"] == "tenant-a"
+    assert row["roles"] == ["operator"]
+    assert row["scopes"] == ["memory:read", "proposal:decide"]
+    assert "token_hash" not in row

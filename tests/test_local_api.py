@@ -1,6 +1,6 @@
-import itertools
 import json
 import sqlite3
+import socket
 import threading
 import time
 import urllib.error
@@ -42,15 +42,23 @@ def _post(port: int, path: str, payload: dict[str, object]) -> tuple[int, object
         return exc.code, json.loads(exc.read())
 
 
-_next_test_port = itertools.count(18420)  # each test gets its own port: serve() never shuts
-# down between tests (matches test_otlp_receiver.py's own daemon-thread pattern), so reusing one
-# fixed port across tests would collide with the still-bound previous test's listener.
+def _free_test_port() -> int:
+    """Ask the OS for a currently free loopback port.
+
+    The API server intentionally runs in a daemon thread without a shutdown hook;
+    fixed test-port ranges therefore collide across repeated pytest invocations.
+    An OS-selected port keeps each fixture isolated without killing unrelated local
+    processes.
+    """
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as probe:
+        probe.bind(("localhost", 0))
+        return probe.getsockname()[1]
 
 
 @pytest.fixture
 def running_store(tmp_path):
     store = GraphStore(tmp_path / "graph")
-    port = next(_next_test_port)
+    port = _free_test_port()
     thread = threading.Thread(target=serve, kwargs={"store": store, "port": port}, daemon=True)
     thread.start()
     time.sleep(0.3)  # let the server bind
