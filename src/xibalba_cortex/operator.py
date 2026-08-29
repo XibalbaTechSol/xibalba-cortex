@@ -11,7 +11,7 @@ import tempfile
 from typing import Any
 
 from .config import load_config
-from .providers import provider_manifest
+from .providers import connector_manifest, provider_manifest
 from .ingest_tokens import list_tokens
 from .server import _default_home, _identity_mode
 from .store import GraphStore
@@ -59,7 +59,7 @@ def _open_store(home: Path) -> GraphStore:
         raise RuntimeError(
             f"storage backend {config.storage.backend!r} is configured but no production adapter is installed; refusing SQLite fallback"
         )
-    return GraphStore(home, profile_id=config.profile_id, identity_mode=_identity_mode(), features=config.features.as_dict())
+    return GraphStore(home, profile_id=config.profile_id, identity_mode=_identity_mode(), features=config.features.as_dict(), quotas=config.quotas.as_dict())
 
 
 def evaluation_smoke() -> dict[str, Any]:
@@ -86,6 +86,18 @@ def evaluation_smoke() -> dict[str, Any]:
             "contradiction_preserved": conflict["id"] in {item["id"] for item in store.contradictions(current["id"])},
             "deletion_receipt": forgotten["status"] == "forgotten" and forgotten["deletion_receipt"]["receipt_hash"].startswith("sha256:"),
         }
+        lease_task = store.request_inference_task("extract_memory_metadata", subject_type="memory", subject_id=first["id"], input_payload={}, idempotency_key="evaluation-lease")
+        claimed_lease = store.claim_inference_task(lease_task["id"], claimed_by="evaluation-worker-a")
+        with store._lock:
+            store._connection.execute("UPDATE memory_inference_tasks SET lease_expires_at = ? WHERE id = ?", ("2000-01-01", lease_task["id"]))
+        reclaimed_counts = store.requeue_expired_inference_tasks(max_attempts=2)
+        reclaimed_lease = store.claim_inference_task(lease_task["id"], claimed_by="evaluation-worker-b")
+        with store._lock:
+            store._connection.execute("UPDATE memory_inference_tasks SET lease_expires_at = ?, attempt_count = 2 WHERE id = ?", ("2000-01-01", lease_task["id"]))
+        dead_letter_counts = store.requeue_expired_inference_tasks(max_attempts=2)
+        checks["lease_recovery"] = reclaimed_counts["requeued"] == 1 and reclaimed_lease["status"] == "claimed" and reclaimed_lease["claim_owner"] == "evaluation-worker-b"
+        checks["dead_letter_recovery"] = dead_letter_counts["dead_lettered"] == 1 and store.get_inference_task(lease_task["id"])["status"] == "failed"
+
         store.close()
     return {"schema_version": "xibalba.evaluation_smoke.v1", "dataset": "synthetic-contract-smoke-v1", "checks": checks, "passed": all(checks.values()), "pilot_ready": False, "disclaimer": "Synthetic local contract smoke only; not a memory-quality benchmark or production pilot evidence."}
 
@@ -93,14 +105,26 @@ def production_readiness(home: Path) -> dict[str, Any]:
     config = load_config(home=home)
     tokens = list_tokens(home)
     active_tokens = sum(1 for row in tokens if not row["revoked_at"])
+    store_status = None
+    store_error = None
+    if config.storage.backend == "sqlite":
+        try:
+            store = _open_store(home)
+            try:
+                store_status = store.status(fast=True)
+            finally:
+                store.close()
+        except Exception as exc:
+            store_error = f"{type(exc).__name__}: {exc}"
+    storage_ready = bool(config.storage.backend == "sqlite" and store_status and store_status.get("integrity_check") == "skipped (fast mode)" and store_status.get("foreign_keys") is True and store_status.get("fts5") is True)
     checks = {
-        "inference_reliability": {"state": "local_only", "evidence": "queue leases, retries, dead-letter metadata, and scoped evidence tests"},
-        "storage_boundary": {"state": "ready" if config.storage.backend == "sqlite" else "blocked", "backend": config.storage.backend},
-        "authorization_tenancy": {"state": "local_only" if active_tokens else "blocked", "active_tokens": active_tokens},
-        "semantic_retrieval": {"state": "local_only", "provider": config.embeddings.provider, "vector_enabled": config.retrieval.vector},
-        "connectors": {"state": "local_only", "enabled": config.features.connectors},
-        "governance": {"state": "local_only", "enabled": config.features.governance, "provenance_export": True},
-        "operations": {"state": "local_only", "backup_ready": False, "evidence": "operator backup and restore verification exists; HA/PITR is not demonstrated"},
+        "inference_reliability": {"state": "local_only" if config.features.inference else "disabled", "evidence": "queue leases, retries, dead-letter metadata, and scoped evidence tests"},
+        "storage_boundary": {"state": "ready" if storage_ready else "blocked", "backend": config.storage.backend, "status": store_status, "error": store_error},
+        "authorization_tenancy": {"state": "local_only" if active_tokens else "blocked", "active_tokens": active_tokens, "quota": config.quotas.as_dict()},
+        "semantic_retrieval": {"state": "local_only" if config.features.embeddings and config.features.vector else "disabled", "provider": config.embeddings.provider, "vector_enabled": config.retrieval.vector and config.features.vector and config.features.embeddings},
+        "connectors": {"state": "local_only", "enabled": config.features.connectors, "manifest": connector_manifest()},
+        "governance": {"state": "local_only", "enabled": config.features.governance, "provenance_export": config.features.governance and config.features.provenance},
+        "operations": {"state": "local_only", "backup_ready": bool(store_status and store_status.get("backup_ready")), "evidence": "operator backup and restore verification exists; HA/PITR is not demonstrated"},
         "evaluation": {"state": "blocked", "evidence": "benchmark datasets and failure-injection thresholds are not complete"},
     }
     return {"schema_version": "xibalba.production_readiness.v1", "ready": all(item["state"] == "ready" for item in checks.values()), "home": str(home), "checks": checks, "disclaimer": "Local readiness only; not deployment, SLA, or external compliance evidence."}
@@ -122,7 +146,9 @@ def run_command(args: argparse.Namespace) -> dict[str, Any]:
             "embedding_provider": config.embeddings.provider,
             "retrieval_provider": manifest["retrieval"],
             "remote_projections": manifest["remote_projections"],
+            "connectors": connector_manifest(),
             "features": config.features.as_dict(),
+            "quotas": config.quotas.as_dict(),
             "retrieval_channels": {
                 "lexical": config.retrieval.lexical,
                 "vector": config.retrieval.vector,
@@ -163,6 +189,8 @@ def run_command(args: argparse.Namespace) -> dict[str, Any]:
             return store.integrity_links_status(limit=args.limit)
         if args.command == "requeue-expired":
             return store.requeue_expired_inference_tasks(limit=args.limit, max_attempts=args.max_attempts)
+        if args.command == "audit":
+            return store.audit_report(limit=args.limit)
         if args.command == "retention-sweep":
             try:
                 policy = json.loads(args.max_age_days)
@@ -219,6 +247,9 @@ def build_parser() -> argparse.ArgumentParser:
     recovery_parser = subparsers.add_parser("requeue-expired", help="Recover expired inference-task leases.")
     recovery_parser.add_argument("--limit", type=int, default=50)
     recovery_parser.add_argument("--max-attempts", type=int, default=3)
+    audit_parser = subparsers.add_parser("audit", help="Show a bounded local evidence audit report.")
+    audit_parser.add_argument("--limit", type=int, default=100)
+
     retention_parser = subparsers.add_parser("retention-sweep", help="Plan or apply bounded session retention expiry.")
     retention_parser.add_argument("--max-age-days", required=True, help="JSON policy, e.g. {\"digest\":30,\"synopsis\":90}")
     retention_parser.add_argument("--apply", action="store_true", help="Apply forgetting; default is a dry run.")

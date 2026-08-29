@@ -587,7 +587,7 @@ class GraphStore:
     """Profile-local SQLite authority for Xibalba graph memory."""
 
     def __init__(self, home: str | Path, *, profile_id: str = "default", identity_mode: str = _DEFAULT_IDENTITY_MODE,
-                 features: dict[str, bool] | None = None):
+                 features: dict[str, bool] | None = None, quotas: dict[str, int | None] | None = None):
         if not profile_id or not profile_id.strip():
             raise ValueError("profile_id must be a non-empty string")
         if identity_mode not in _IDENTITY_MODES:
@@ -606,6 +606,14 @@ class GraphStore:
             if unknown:
                 raise ValueError(f"unknown feature flags: {sorted(unknown)}")
             self.features.update({name: bool(value) for name, value in features.items()})
+        self.quotas = {"max_memories": None}
+        if quotas:
+            unknown_quotas = set(quotas) - set(self.quotas)
+            if unknown_quotas:
+                raise ValueError(f"unknown quotas: {sorted(unknown_quotas)}")
+            self.quotas.update(quotas)
+        if self.quotas["max_memories"] is not None and int(self.quotas["max_memories"]) < 1:
+            raise ValueError("max_memories quota must be positive or None")
         self.home = Path(home).expanduser().resolve()
         self.home.mkdir(parents=True, exist_ok=True, mode=0o700)
         os.chmod(self.home, 0o700)
@@ -1013,6 +1021,7 @@ class GraphStore:
             "backup_ready": backup_ready,
             "backup_method": "sqlite_online_backup",
             "features": dict(self.features),
+            "quotas": dict(self.quotas),
         }
 
     def integrity_links_status(self, *, limit: int = 50) -> dict[str, object]:
@@ -1063,6 +1072,8 @@ class GraphStore:
         dag_home: str | Path | None = None,
         agent_id: str | None = None,
     ) -> dict[str, object]:
+        if not self.features["provenance"]:
+            raise RuntimeError("provenance is disabled by feature policy")
         """Verify a memory against the Integrity Memory DAG by local byte lineage only.
 
         This checks whether a cited DAG node exists and whether that node's Keccak content_hash
@@ -1441,6 +1452,8 @@ class GraphStore:
         return node_id
 
     def verify_chain(self, memory_id: str) -> dict[str, object]:
+        if not self.features["provenance"]:
+            raise RuntimeError("provenance is disabled by feature policy")
         """Recompute every event's node_id and check parent linkage — pure local computation,
         no external dependency. This is chain integrity, not Integrity DAG anchoring: it proves
         this memory's own history is internally consistent, not that it's anchored on-chain.
@@ -1550,6 +1563,11 @@ class GraphStore:
                 ).fetchone()
                 if existing:
                     return self.get_memory(existing["id"])
+            max_memories = self.quotas["max_memories"]
+            if max_memories is not None:
+                count = self._connection.execute("SELECT COUNT(*) FROM memories").fetchone()[0]
+                if count >= int(max_memories):
+                    raise RuntimeError(f"memory quota exceeded: max_memories={max_memories}")
 
             self._connection.execute("BEGIN IMMEDIATE")
             try:
@@ -4432,6 +4450,10 @@ class GraphStore:
         self, *, memory_ids: list[str] | tuple[str, ...] | None = None,
         include_forgotten: bool = False, limit: int = 500,
     ) -> dict[str, object]:
+        if not self.features["provenance"]:
+            raise RuntimeError("provenance is disabled by feature policy")
+        if not self.features["governance"]:
+            raise RuntimeError("governance is disabled by feature policy")
         """Export a bounded provenance bundle with a domain-separated Merkle commitment."""
         bounded = max(1, min(int(limit), 5000))
         if memory_ids is None:
@@ -4459,7 +4481,23 @@ class GraphStore:
             "disclaimer": "Commitment proves bundle inclusion under this construction, not truth, authorization, or external finality.",
         }
 
+    def audit_report(self, *, limit: int = 100) -> dict[str, object]:
+        """Return a bounded operator audit view over canonical local evidence."""
+        if not self.features["audit"]:
+            raise RuntimeError("audit reporting is disabled by feature policy")
+        bounded = max(1, min(int(limit), 1000))
+        with self._lock:
+            event_counts = {row["event_type"]: int(row["count"]) for row in self._connection.execute("SELECT event_type, COUNT(*) AS count FROM memory_events GROUP BY event_type ORDER BY event_type")}
+            task_states = {row["status"]: int(row["count"]) for row in self._connection.execute("SELECT status, COUNT(*) AS count FROM memory_inference_tasks GROUP BY status ORDER BY status")}
+            proposal_states = {row["status"]: int(row["count"]) for row in self._connection.execute("SELECT status, COUNT(*) AS count FROM extraction_proposals GROUP BY status ORDER BY status")}
+            session_count = int(self._connection.execute("SELECT COUNT(*) FROM sessions").fetchone()[0])
+            forgotten_count = int(self._connection.execute("SELECT COUNT(*) FROM memories WHERE status = ?", ("forgotten",)).fetchone()[0])
+            recent_events = [dict(row) for row in self._connection.execute("SELECT memory_id, event_type, node_id, parent_event_id, created_at FROM memory_events ORDER BY created_at DESC, rowid DESC LIMIT ?", (bounded,)).fetchall()]
+        return {"schema_version": "xibalba.audit_report.v1", "profile_id": self.profile_id, "memory_event_counts": event_counts, "inference_task_states": task_states, "proposal_states": proposal_states, "session_count": session_count, "forgotten_memory_count": forgotten_count, "integrity_links": self.integrity_links_status(limit=min(bounded, 100)), "embedding_coverage": self.embedding_coverage(), "recent_events": recent_events, "disclaimer": "Local canonical audit evidence; not a legal compliance certification or proof of truth."}
+
     def retention_sweep(self, *, max_age_days: dict[str, int], apply: bool = False, limit: int = 500) -> dict[str, object]:
+        if not self.features["governance"]:
+            raise RuntimeError("governance is disabled by feature policy")
         """Plan or apply bounded forgetting for ended sessions by declared retention tier."""
         if not isinstance(max_age_days, dict) or not max_age_days:
             raise ValueError("max_age_days must map at least one retention tier to a non-negative day count")
@@ -4491,6 +4529,8 @@ class GraphStore:
         return {"schema_version": "xibalba.retention_sweep.v1", "apply": apply, "candidate_count": len(candidates), "candidates": candidates, "deletion_receipts": receipts, "disclaimer": "Retention sweep uses declared session tiers and ended_at timestamps; it is not legal compliance certification."}
 
     def forget_memory(self, memory_id: str) -> dict[str, object]:
+        if not self.features["governance"]:
+            raise RuntimeError("governance is disabled by feature policy")
         with self._lock:
             self._connection.execute("BEGIN IMMEDIATE")
             try:

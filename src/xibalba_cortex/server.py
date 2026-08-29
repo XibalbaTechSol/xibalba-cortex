@@ -93,7 +93,7 @@ def get_store() -> GraphStore:
             raise RuntimeError(f"storage backend {_config.storage.backend!r} is configured but no production adapter is installed; refusing SQLite fallback")
         feature_flags = _config.features.as_dict()
         feature_flags.update({"lexical": _config.retrieval.lexical, "vector": _config.retrieval.vector, "graph": _config.retrieval.graph})
-        _store = GraphStore(_default_home(), profile_id=_config.profile_id, identity_mode=_identity_mode(), features=feature_flags)
+        _store = GraphStore(_default_home(), profile_id=_config.profile_id, identity_mode=_identity_mode(), features=feature_flags, quotas=_config.quotas.as_dict())
     return _store
 
 
@@ -243,6 +243,7 @@ def memory_list_extraction_proposals(
 
 @server.tool()
 @_requires_scope("memory:write")
+@_requires_scope("proposal:decide")
 def memory_decide_extraction_proposal(
     proposal_id: str, decision: str, decided_by: str | None = None, note: str | None = None
 ) -> dict[str, object]:
@@ -475,6 +476,7 @@ def memory_export_provenance(
 
 @server.tool()
 @_requires_scope("memory:write")
+@_requires_scope("memory:delete")
 def memory_forget(memory_id: str) -> dict[str, object]:
     """Mark a memory forgotten: excluded from recall, content hash retained (not erased)."""
     return get_store().forget_memory(memory_id)

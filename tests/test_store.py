@@ -1401,6 +1401,20 @@ def test_provenance_export_is_bounded_and_committed(tmp_path):
     store.close()
 
 
+def test_provenance_and_governance_flags_fail_closed(tmp_path):
+    store = GraphStore(tmp_path / "disabled", features={"provenance": False, "governance": False})
+    memory = store.store_memory("flagged operation", source={"kind": "test"})
+    with pytest.raises(RuntimeError, match="provenance is disabled"):
+        store.verify_chain(memory["id"])
+    with pytest.raises(RuntimeError, match="provenance is disabled"):
+        store.export_memory_bundle(memory_ids=[memory["id"]])
+    with pytest.raises(RuntimeError, match="governance is disabled"):
+        store.retention_sweep(max_age_days={"standard": 30})
+    with pytest.raises(RuntimeError, match="governance is disabled"):
+        store.forget_memory(memory["id"])
+    store.close()
+
+
 def test_connector_event_is_idempotent_and_feature_gated(tmp_path):
     store = GraphStore(tmp_path / "graph")
     first = store.ingest_connector_event("webhook", "evt-1", "external event")
@@ -1429,4 +1443,14 @@ def test_forget_returns_hash_bound_deletion_receipt(tmp_path):
 def test_store_status_reports_explicit_profile_id(tmp_path):
     store = GraphStore(tmp_path / "graph", profile_id="tenant-a")
     assert store.status(fast=True)["profile_id"] == "tenant-a"
+    store.close()
+
+
+def test_memory_quota_is_profile_scoped_and_fail_closed_before_mutation(tmp_path):
+    store = GraphStore(tmp_path / "quota", profile_id="tenant-a", quotas={"max_memories": 1})
+    first = store.store_memory("within quota", source={"kind": "test"})
+    with pytest.raises(RuntimeError, match="memory quota exceeded"):
+        store.store_memory("over quota", source={"kind": "test"})
+    assert store.status(fast=True)["memory_count"] == 1
+    assert store.get_memory(first["id"])["content"] == "within quota"
     store.close()

@@ -1,4 +1,5 @@
 import json
+import socket
 import threading
 import urllib.request
 
@@ -13,6 +14,12 @@ from xibalba_cortex.otlp_receiver import (
     serve,
 )
 from xibalba_cortex.store import GraphStore
+
+
+def _free_test_port():
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as probe:
+        probe.bind(("localhost", 0))
+        return probe.getsockname()[1]
 
 
 def _sval(v):
@@ -174,7 +181,7 @@ def test_serve_accepts_a_real_http_post_end_to_end(tmp_path):
     parsing functions in isolation -- confirms the server wiring itself works.
     """
     store = GraphStore(tmp_path / "graph")
-    port = 14318  # fixed test port; not 4318, to avoid colliding with a real deployment
+    port = _free_test_port()
     thread = threading.Thread(target=serve, kwargs={"store": store, "port": port}, daemon=True)
     thread.start()
     import time
@@ -205,7 +212,7 @@ def test_serve_accepts_a_real_http_post_end_to_end(tmp_path):
 
 def test_serve_returns_404_for_unconfigured_path(tmp_path):
     store = GraphStore(tmp_path / "graph")
-    port = 14319
+    port = _free_test_port()
     thread = threading.Thread(target=serve, kwargs={"store": store, "port": port}, daemon=True)
     thread.start()
     import time
@@ -408,7 +415,7 @@ def test_ingest_gen_ai_spans_handles_json_string_fallback_for_messages(tmp_path)
 
 def test_traces_endpoint_accepts_a_real_http_post_end_to_end(tmp_path):
     store = GraphStore(tmp_path / "graph")
-    port = 14320
+    port = _free_test_port()
     thread = threading.Thread(target=serve, kwargs={"store": store, "port": port}, daemon=True)
     thread.start()
     import time

@@ -14,6 +14,7 @@ import {
   type Memory,
   type MemoryEvent,
   type MerkleRoot,
+  type OperationsSnapshot,
   type OtelEvent,
   type ParaClassification,
   type Session,
@@ -26,7 +27,7 @@ import { Graph3DView, type DemoEdge, type DemoGraph, type DemoNode, type DemoNod
 import { ExtractionProposalsPanel, ProjectionHealthPanel, RetrievalTraceInspector } from './ProvenancePanels'
 import './index.css'
 
-type Tab = 'timeline' | 'graph' | 'recall' | 'inference' | 'provenance' | 'integrity'
+type Tab = 'timeline' | 'graph' | 'recall' | 'inference' | 'provenance' | 'integrity' | 'operations'
 type GraphFilterIntent = { nonce: number; status?: string; evidence?: string }
 
 const tabs: Array<{ id: Tab; label: string }> = [
@@ -36,6 +37,7 @@ const tabs: Array<{ id: Tab; label: string }> = [
   { id: 'inference', label: 'Inference' },
   { id: 'provenance', label: 'Provenance' },
   { id: 'integrity', label: 'Integrity' },
+  { id: 'operations', label: 'Operations' },
 ]
 
 export function Badge({ children }: { children: ReactNode }) {
@@ -706,6 +708,7 @@ function formatSessionLabel(session: Session) {
 export default function App() {
   const [stats, setStats] = useState<Stats | null>(null)
   const [storeStatus, setStoreStatus] = useState<StoreStatus | null>(null)
+  const [operations, setOperations] = useState<OperationsSnapshot | null>(null)
   const [integrityLinks, setIntegrityLinks] = useState<IntegrityLinksStatus | null>(null)
   const [sessions, setSessions] = useState<Session[]>([])
   const [selectedSessionId, setSelectedSessionId] = useState('')
@@ -735,6 +738,7 @@ export default function App() {
   const refreshOverview = () => {
     api.stats().then(setStats).catch((e) => setError(String(e)))
     api.status().then(setStoreStatus).catch((e) => setError(String(e)))
+    api.operations().then(setOperations).catch((e) => setError(String(e)))
     api.integrityLinks().then(setIntegrityLinks).catch(() => setIntegrityLinks(null))
     api.sessions().then((items) => {
       setSessions(items)
@@ -1162,6 +1166,9 @@ export default function App() {
               <RetrievalTraceInspector onSelectMemory={selectMemory} />
               <ProjectionHealthPanel />
             </>
+          )}
+          {activeTab === 'operations' && (
+            <OperationsTab operations={operations} onRefresh={() => api.operations().then(setOperations).catch((e) => setError(String(e)))} />
           )}
           {activeTab === 'integrity' && (
             <IntegrityTab
@@ -2151,6 +2158,25 @@ function WriteBackActions({
       </div>
     </section>
   )
+}
+
+function OperationsTab({ operations, onRefresh }: { operations: OperationsSnapshot | null; onRefresh: () => void }) {
+  if (!operations) return <section className="tab-panel"><h2>Operations</h2><p className="muted">Loading operational evidence...</p></section>
+  const status = operations.health.status
+  const coverage = operations.embedding_coverage as Record<string, unknown>
+  const audit = operations.audit as Record<string, unknown>
+  const taskStates = (audit.inference_task_states as Record<string, number> | undefined) || {}
+  const proposalStates = (audit.proposal_states as Record<string, number> | undefined) || {}
+  return <section className="tab-panel">
+    <div className="panel-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}><div><h2>Operations</h2><p className="muted">Profile <code>{operations.profile_id}</code> · local control-plane evidence</p></div><button className="small-button" onClick={onRefresh} type="button">Refresh</button></div>
+    <div className="card-grid">
+      <section className="panel-card"><h3>Deployment health</h3><div className="badges"><Badge>{operations.health.state}</Badge><Badge>{operations.readiness.state}</Badge><Badge>{status.journal_mode}</Badge></div><dl className="detail-list"><dt>Schema</dt><dd>{status.schema_version}</dd><dt>Integrity</dt><dd>{status.integrity_check}</dd><dt>Foreign keys</dt><dd>{String(status.foreign_keys)}</dd><dt>FTS5</dt><dd>{String(status.fts5)}</dd><dt>Backup</dt><dd>{status.backup_ready ? "ready" : "pending"}</dd></dl></section>
+      <section className="panel-card"><h3>Resources</h3><div className="badges"><Badge>{"memories: " + status.memory_count}</Badge><Badge>{"quota: " + (operations.quotas.max_memories === null ? "unlimited" : operations.quotas.max_memories)}</Badge></div><dl className="detail-list"><dt>Embedded</dt><dd>{String(coverage.current || 0)} / {String(coverage.eligible || 0)}</dd><dt>Missing</dt><dd>{String(coverage.missing || 0)}</dd><dt>Stale</dt><dd>{String(coverage.stale || 0)}</dd><dt>Failed</dt><dd>{String(coverage.failed || 0)}</dd></dl></section>
+      <section className="panel-card"><h3>Inference governance</h3><dl className="detail-list">{Object.entries(taskStates).map(([key, value]) => <><dt key={key + "-label"}>{key}</dt><dd key={key + "-value"}>{value}</dd></>)}{Object.entries(proposalStates).map(([key, value]) => <><dt key={"proposal-" + key + "-label"}>proposal {key}</dt><dd key={"proposal-" + key + "-value"}>{value}</dd></>)}</dl>{Object.keys(taskStates).length === 0 && <p className="muted">No inference tasks recorded.</p>}</section>
+    </div>
+    <section className="panel-card"><h3>Connectors</h3><div className="connector-grid">{Object.entries(operations.connectors).map(([name, connector]) => <div className="connector-row" key={name}><div><strong>{name}</strong><div className="small muted">{connector.entrypoint}</div></div><Badge>{connector.state}</Badge></div>)}</div></section>
+    <p className="small muted">{operations.disclaimer}</p>
+  </section>
 }
 
 function IntegrityTab({
