@@ -3497,7 +3497,7 @@ class GraphStore:
         if not 1 <= max_items <= 100 or not 256 <= max_bytes <= 1_000_000 or not 0 <= max_depth <= 3:
             raise ValueError("invalid evidence bounds")
         allowed = list(dict.fromkeys(allowed_subject_ids or [subject_id]))
-        if subject_id not in allowed:
+        if subject_type != "context_bundle" and subject_id not in allowed:
             raise ValueError("subject_id is outside evidence scope")
         records: list[dict[str, object]] = []
         if subject_type == "memory":
@@ -3506,6 +3506,10 @@ class GraphStore:
                 records.append({"kind": "memory", "id": memory["id"], "content": memory["content"], "content_hash": memory["content_hash"], "status": memory["status"]})
         elif subject_type == "session":
             records = [{"kind": "exchange", "id": item["exchange"]["id"], "sequence_number": item["exchange"]["sequence_number"], "exchange": item["exchange"]} for item in self.session_exchanges(subject_id, limit=max_items)]
+        elif subject_type == "context_bundle":
+            for item_id in list(allowed)[:max_items]:
+                memory = self.get_memory(item_id)
+                records.append({"kind": "memory", "id": memory["id"], "content": memory["content"], "content_hash": memory["content_hash"], "status": memory["status"], "scope": "context_bundle"})
         else:
             records.append({"kind": subject_type, "id": subject_id, "task_subject": True})
         bounded: list[dict[str, object]] = []

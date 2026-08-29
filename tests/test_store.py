@@ -1367,3 +1367,18 @@ def test_expired_inference_claim_is_requeued_and_bounded(tmp_path):
     with store._lock:
         store._connection.execute("UPDATE memory_inference_tasks SET lease_expires_at = '2000-01-01 00:00:00', attempt_count = 3 WHERE id = ?", (task["id"],))
     assert store.requeue_expired_inference_tasks(max_attempts=3) == {"expired": 1, "requeued": 0, "failed": 1, "dead_lettered": 1}
+
+
+def test_context_bundle_evidence_scope_reads_all_server_scoped_memories(tmp_path):
+    store = GraphStore(tmp_path / "graph")
+    first = store.store_memory("first scoped memory", source={"kind": "test"})
+    second = store.store_memory("second scoped memory", source={"kind": "test"})
+    task = store.request_inference_task(
+        "extract_propositions", subject_type="context_bundle", subject_id="bundle-1",
+        input_payload={},
+        contract=InferenceTaskContract(evidence_scope=(first["id"], second["id"])),
+    )
+    claimed = store.claim_inference_task(task["id"], claimed_by="worker")
+    evidence = store.fetch_bounded_evidence_for_task(claimed)
+    assert [item["id"] for item in evidence["items"]] == [first["id"], second["id"]]
+    store.close()
