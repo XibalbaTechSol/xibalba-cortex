@@ -161,6 +161,7 @@ def verify_merkle_proof(proof: Mapping[str, Any]) -> bool:
 MERKLE_DOMAINS: dict[str, bytes] = {
     "projection_checkpoint": b"xibalba.projection_checkpoint.v1",
     "retrieval_trace": b"xibalba.retrieval_trace.v1",
+    "provenance_export": b"xibalba.provenance_export.v1",
     "exchange_batch": b"xibalba.exchange_batch.v2",
     # docs/plans/2026-08-18-phase-h5-backup-reconciliation-proposal.md: same canonical
     # (table, columns) sources projection_checkpoint already uses, but a DISTINCT domain

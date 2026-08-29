@@ -84,3 +84,10 @@ def test_postgresql_storage_requires_dsn_and_preserves_pool_policy(tmp_path):
     assert config.storage.dsn.endswith("/cortex")
     assert config.storage.pool_size == 9
     assert config.storage.ssl_mode == "require"
+
+
+def test_profile_id_is_configurable_and_required(tmp_path):
+    config = load_config(home=tmp_path, environ={"XIBALBA_CORTEX_PROFILE_ID": "tenant-a"})
+    assert config.profile_id == "tenant-a"
+    with pytest.raises(ValueError, match="profile_id"):
+        load_config(home=tmp_path, environ={"XIBALBA_CORTEX_PROFILE_ID": "   "})

@@ -60,14 +60,18 @@ def embed_memories(
         try:
             vectors = model.encode(texts, batch_size=len(batch), normalize_embeddings=True)
             vectors = vectors.tolist() if hasattr(vectors, "tolist") else vectors
-        except Exception:
+        except Exception as exc:
             logger.exception("embedding batch failed at offset %d", start)
+            for row in batch:
+                store.record_embedding_failure(row["id"], str(exc))
             failed += len(batch)
             processed += len(batch)
             continue
 
         if len(vectors) != len(batch):
             logger.error("model returned %d vectors for %d memories", len(vectors), len(batch))
+            for row in batch:
+                store.record_embedding_failure(row["id"], f"model returned {len(vectors)} vectors for batch of {len(batch)}")
             failed += len(batch)
             processed += len(batch)
             continue
@@ -80,8 +84,9 @@ def embed_memories(
                 numeric_vector = [float(value) for value in vector]
                 store.store_embedding(row["id"], numeric_vector, expected_content_hash=row["content_hash"])
                 embedded += 1
-            except Exception:
+            except Exception as exc:
                 logger.exception("failed to store embedding for memory %s", row["id"])
+                store.record_embedding_failure(row["id"], str(exc))
                 failed += 1
 
     return {

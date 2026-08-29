@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-import itertools
 import json
+import socket
 import threading
 import time
 import urllib.error
@@ -12,7 +12,10 @@ import pytest
 from xibalba_cortex.local_api import serve
 from xibalba_cortex.store import GraphStore
 
-_next_test_port = itertools.count(18520)
+def _free_test_port() -> int:
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as probe:
+        probe.bind(("localhost", 0))
+        return probe.getsockname()[1]
 
 
 def _get(port: int, path: str) -> tuple[int, object]:
@@ -39,7 +42,7 @@ def _post(port: int, path: str, payload: dict[str, object]) -> tuple[int, object
 @pytest.fixture
 def running_store(tmp_path):
     store = GraphStore(tmp_path / "graph")
-    port = next(_next_test_port)
+    port = _free_test_port()
     thread = threading.Thread(target=serve, kwargs={"store": store, "port": port}, daemon=True)
     thread.start()
     time.sleep(0.3)
