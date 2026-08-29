@@ -23,6 +23,11 @@ The store bootstraps source provenance, memory, graph, lifecycle, telemetry, inf
 - `otel_events`, `attachments`, `embeddings_meta`, `memory_vectors`
 - `memory_inference_tasks`, `integrity_links`, `schema_migrations`
 
+Inference proposals are linked to `memory_inference_tasks` by the live schema. The
+2026-08-28 migration repair removes the obsolete `memory_inference_tasks_v8` foreign-key
+target from `extraction_proposals`; fresh stores and upgraded profiles therefore use the
+same task table, and proposal persistence is tested through the real migration path.
+
 Derived indexes are rebuildable. Source, memory, relation, event, and exchange-chain rows are the durable authority.
 
 ## Lifecycle And Event Chains

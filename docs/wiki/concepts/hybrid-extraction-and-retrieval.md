@@ -19,24 +19,22 @@ source_files:
   - tests/test_projection_checkpoints.py
   - tests/test_merkle_domains.py
 ---
+
 ## Table of contents
 
 - [Overview](#overview)
-
-## Overview
-
-# Hybrid Retrieval, Hermes Extraction, and Projection Reconciliation
-
-**Status:** Implemented vertical slices; locally verified. This page records repository evidence, not a claim of production deployment or external anchoring.
-
-## Table of contents
-
 - [Hermes extraction](#hermes-extraction)
 - [Hybrid retrieval and traces](#hybrid-retrieval-and-traces)
 - [Projection checkpoints](#projection-checkpoints)
 - [Merkle evidence boundary](#merkle-evidence-boundary)
 - [Verification evidence](#verification-evidence)
 - [Related pages](#related-pages)
+
+## Overview
+
+# Hybrid Retrieval, Hermes Extraction, and Projection Reconciliation
+
+**Status:** Implemented vertical slices; locally verified. This page records repository evidence, not a claim of production deployment or external anchoring.
 
 ## Hermes extraction
 
