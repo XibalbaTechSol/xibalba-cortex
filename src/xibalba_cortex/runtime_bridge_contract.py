@@ -18,11 +18,12 @@ TransportMode = Literal["hooks", "wrapper", "launcher"]
 AdapterStatus = Literal["implemented", "partial", "unknown"]
 ToolOutcome = Literal["success", "error", "blocked", "unknown"]
 
-CONTROLLER_EVENT_SCHEMA_VERSION = "xibalba.runtime.bridge.v1"
+CONTROLLER_EVENT_SCHEMA_VERSION = "xibalba.runtime.bridge.v2"
 CONTROLLER_REQUIRED_EVENT_FIELDS = (
     "schema_version",
     "runtime",
     "session_id",
+    "invocation_id",
     "turn_id",
     "traceparent",
     "agent_id",
@@ -61,6 +62,7 @@ class RuntimeEvent:
 
     runtime: RuntimeName
     session_id: str
+    invocation_id: str | None = None
     turn_id: str | None = None
     traceparent: str | None = None
     agent_id: str | None = None

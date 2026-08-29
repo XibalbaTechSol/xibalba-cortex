@@ -1,5 +1,15 @@
 # Xibalba Cortex Wiki — Log
 
+## [2026-08-28] update | Runtime invocation correlation v2
+
+- Upgraded normalized runtime events to `xibalba.runtime.bridge.v2` with first-class canonical
+  UUID `invocation_id`.
+- Claude pre/post hooks preserve a supplied ID or derive stable UUIDv5 correlation from the
+  session-scoped native tool-call ID.
+- Kernel intent investigation prefers invocation IDs and labels the old tool-call join as legacy.
+- Added the operator-facing `GET /api/invocations` projection and Integrity dashboard
+  Correlation route, with responsive evidence-stage rendering and explicit offline/partial states.
+
 > Chronological record of wiki actions. Append-only — never edit past entries.
 > Actions: ingest, create, update, lint, query, archive
 
@@ -95,3 +105,9 @@
 - Covered entities (sessions/exchanges, entities/relations, ingest tokens) and a schema-level architecture tour of every table in `graph-memory.sqlite3`.
 - Opened one query page, `queries/compliance-evidence-trail.md`, cross-linked (by URL, pending both sides existing) to xibalba-shield's page of the same name/topic.
 - Ran `python3 scripts/wiki_toc.py` to generate every page's `## Table of contents` block, then `python3 scripts/wiki_toc.py --check` to confirm all pages current.
+
+## [2026-08-19] update | Hybrid extraction and retrieval
+- Updated `docs/wiki/concepts/hybrid-extraction-and-retrieval.md` from the finalized session evidence.
+- Recorded the isolated Hermes extraction round trip, reviewable extraction proposals, retrieval-trace version 2 fields, projection checkpoint reconciliation, domain-separated Merkle evidence, and the measured `273 passed, 1 skipped, 1 warning` full-suite result.
+- Preserved residual boundaries: local evidence only, proposal-only promotion, at-least-once processing, and no claim of external anchoring or production deployment.
+- Updated `WIKI_INDEX.md` date; canonical authoring tree is `xibalba-cortex/docs/wiki` because the configured `/home/xibalba/Projects/INTEGRITY-LATEST/docs/wiki` path was absent during compilation.

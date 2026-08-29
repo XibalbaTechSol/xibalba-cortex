@@ -4,7 +4,7 @@
 > now — see the schema's "no aspirational content" rule. This is a focused core set covering
 > Cortex's actual architecture, not an exhaustive catalog — contributions adding more pages are
 > welcome.
-> Last updated: 2026-08-13 | Total pages: 18 (10 concepts, 5 architecture, 3 entities, 1 query)
+> Last updated: 2026-08-28 | Total pages: 18 (10 concepts, 5 architecture, 3 entities, 1 query)
 
 ## Acronym glossary
 - [MCP](concepts/mcp-tool-surface.md) — Model Context Protocol

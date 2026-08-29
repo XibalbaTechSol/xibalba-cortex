@@ -888,14 +888,23 @@ class GraphStore:
                 (_SCHEMA_VERSION,),
             )
 
-    def status(self) -> dict[str, object]:
+    def status(self, *, fast: bool = False) -> dict[str, object]:
+        # `fast=True` skips PRAGMA integrity_check -- a full B-tree scan of the whole
+        # database file, ~1.6-2.2s against a real ~600MB store. That's fine for an
+        # on-demand operator/MCP status call, but local_api's /api/status is polled by
+        # the dashboard's health check on a 2.5s client timeout, so it needs a cheap
+        # liveness signal, not a corruption audit every few seconds.
         with self._lock:
             schema_version = self._connection.execute(
                 "SELECT COALESCE(MAX(version), 0) FROM schema_migrations"
             ).fetchone()[0]
             journal_mode = self._connection.execute("PRAGMA journal_mode").fetchone()[0]
             foreign_keys = bool(self._connection.execute("PRAGMA foreign_keys").fetchone()[0])
-            integrity_check = self._connection.execute("PRAGMA integrity_check").fetchone()[0]
+            integrity_check = (
+                "skipped (fast mode)"
+                if fast
+                else self._connection.execute("PRAGMA integrity_check").fetchone()[0]
+            )
             fts5 = bool(
                 self._connection.execute(
                     "SELECT 1 FROM sqlite_master WHERE name = 'memory_fts'"
@@ -2576,30 +2585,33 @@ class GraphStore:
         (~/.claude/plans/iridescent-stirring-kettle.md, Phase C). Joins each `pre_tool_call`
         otel event that carried a `kernel_decision` (opt-in, see claude_adapter.py's
         `XIBALBA_KERNEL_BRIDGE_ENABLED`) with its corresponding `post_tool_call` event by
-        `tool_call_id` -- the same correlation id both hooks already share, no new id scheme.
+        signed/propagated `invocation_id`. Legacy events without it fall back to
+        `tool_call_id` and are explicitly marked `legacy_tool_call_id`.
         """
         events = self.session_otel_events(external_session_id)
-        pre_by_tool_call_id: dict[str, dict[str, object]] = {}
-        post_by_tool_call_id: dict[str, dict[str, object]] = {}
+        pre_by_correlation_id: dict[str, dict[str, object]] = {}
+        post_by_correlation_id: dict[str, dict[str, object]] = {}
         for event in events:
             attrs = event["attributes"]
             metadata = attrs.get("metadata") or {}
-            tool_call_id = metadata.get("tool_call_id")
-            if not tool_call_id:
+            correlation_id = attrs.get("invocation_id") or metadata.get("tool_call_id")
+            if not correlation_id:
                 continue
             if metadata.get("hook") == "pre_tool_call":
-                pre_by_tool_call_id[tool_call_id] = attrs
+                pre_by_correlation_id[correlation_id] = attrs
             elif metadata.get("hook") == "post_tool_call":
-                post_by_tool_call_id[tool_call_id] = attrs
+                post_by_correlation_id[correlation_id] = attrs
 
         triples = []
-        for tool_call_id, pre in pre_by_tool_call_id.items():
+        for correlation_id, pre in pre_by_correlation_id.items():
             kernel_decision = pre["metadata"].get("kernel_decision")
             if kernel_decision is None:
                 continue
-            post = post_by_tool_call_id.get(tool_call_id)
+            post = post_by_correlation_id.get(correlation_id)
             triples.append({
-                "tool_call_id": tool_call_id,
+                "invocation_id": pre.get("invocation_id"),
+                "tool_call_id": (pre.get("metadata") or {}).get("tool_call_id"),
+                "correlation_mode": "invocation_id" if pre.get("invocation_id") else "legacy_tool_call_id",
                 "tool_name": pre.get("tool_name"),
                 "declared_intent": {
                     "intent_rationale": pre.get("intent_rationale"),
@@ -2617,6 +2629,68 @@ class GraphStore:
                 ),
             })
         return triples
+
+    def invocation_correlations(self, limit: int = 100) -> list[dict[str, object]]:
+        """Recent runtime invocations grouped by the protocol correlation key.
+
+        This is the Cortex operator projection: it keeps the raw pre/post evidence and makes
+        missing stages explicit. Events without ``invocation_id`` are excluded because a
+        runtime-local tool_call_id cannot safely drive the cross-repository UI.
+        """
+        if limit < 1 or limit > 1000:
+            raise ValueError("limit must be between 1 and 1000")
+        with self._lock:
+            rows = self._connection.execute(
+                "SELECT * FROM otel_events ORDER BY rowid DESC LIMIT ?",
+                (limit * 4,),
+            ).fetchall()
+
+        grouped: dict[str, dict[str, object]] = {}
+        for row in reversed(rows):
+            attributes = json.loads(row["attributes_json"])
+            invocation_id = attributes.get("invocation_id")
+            if not invocation_id:
+                continue
+            metadata = attributes.get("metadata") or {}
+            hook = metadata.get("hook")
+            item = grouped.setdefault(
+                invocation_id,
+                {
+                    "invocation_id": invocation_id,
+                    "session_id": row["session_id"],
+                    "runtime": attributes.get("runtime"),
+                    "tool_name": attributes.get("tool_name"),
+                    "tool_call_id": metadata.get("tool_call_id"),
+                    "first_seen_at": row["created_at"],
+                    "last_seen_at": row["created_at"],
+                    "pre_tool": None,
+                    "post_tool": None,
+                },
+            )
+            item["last_seen_at"] = row["created_at"]
+            if hook == "pre_tool_call":
+                item["pre_tool"] = {
+                    "intent_rationale": attributes.get("intent_rationale"),
+                    "tool_input_hash": attributes.get("tool_input_hash"),
+                    "policy_reason": metadata.get("policy_reason"),
+                    "kernel_decision": metadata.get("kernel_decision"),
+                }
+            elif hook == "post_tool_call":
+                item["post_tool"] = {
+                    "outcome": attributes.get("tool_outcome"),
+                    "result": metadata.get("result"),
+                    "duration_ms": metadata.get("duration_ms"),
+                }
+
+        results = list(grouped.values())
+        for item in results:
+            if item["pre_tool"] and item["post_tool"]:
+                item["runtime_status"] = "complete"
+            elif item["pre_tool"]:
+                item["runtime_status"] = "awaiting_outcome"
+            else:
+                item["runtime_status"] = "orphan_outcome"
+        return list(reversed(results[-limit:]))
 
     def record_exchange(
         self,

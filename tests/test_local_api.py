@@ -111,6 +111,27 @@ def test_search_returns_matching_memory(running_store):
     assert body[0]["content"] == "Xibalba Shield local API test content."
 
 
+def test_invocations_route_returns_protocol_correlations(running_store):
+    store, port = running_store
+    invocation_id = "d32c93ca-7c8e-49fb-8071-0941572cecf6"
+    store.start_session("correlation-api", retention_tier="verbatim")
+    store.record_otel_batch("correlation-api", [{
+        "kind": "log",
+        "name": "xibalba.runtime.event",
+        "attributes": {
+            "invocation_id": invocation_id,
+            "tool_name": "shell",
+            "metadata": {"hook": "pre_tool_call", "tool_call_id": "call-1"},
+        },
+    }])
+
+    status, body = _get(port, "/api/invocations?limit=20")
+
+    assert status == 200
+    assert body[0]["invocation_id"] == invocation_id
+    assert body[0]["runtime_status"] == "awaiting_outcome"
+
+
 def test_memory_detail_and_404(running_store):
     store, port = running_store
     memory = store.store_memory(

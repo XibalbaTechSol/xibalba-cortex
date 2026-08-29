@@ -145,7 +145,11 @@ def submit_kernel_intent(
     deployments_path = deployments_path or Path(
         os.environ.get(
             "XIBALBA_KERNEL_BRIDGE_DEPLOYMENTS",
-            Path(__file__).resolve().parents[4] / "integrity-core" / "deployments.local.kernel-bridge.json",
+            # xibalba-cortex/src/xibalba_cortex/kernel_bridge.py -> parents[3] is the directory
+            # that holds both xibalba-cortex and integrity-core as siblings (e.g. ~/Projects).
+            # This was off by one (parents[4]) and silently resolved to a nonexistent path one
+            # level too high -- caught because it now 404s instead of finding a real file.
+            Path(__file__).resolve().parents[3] / "integrity-core" / "deployments.local.kernel-bridge.json",
         )
     )
     deployments = _load_deployments(deployments_path)

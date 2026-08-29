@@ -27,6 +27,7 @@ Routes:
   GET /api/entity/{name}/neighbors?max_depth= -> GraphStore.neighbors()
   GET /api/entity/path?from=&to=&max_depth=   -> GraphStore.find_path()
   GET /api/session/{id}/exchanges          -> GraphStore.session_exchanges()
+  GET /api/session/{id}/otel               -> GraphStore.session_otel_events()
   GET /api/session/{id}/merkle-root        -> GraphStore.session_merkle_root()
   GET /api/session/{id}/merkle-proof?index= -> GraphStore.session_merkle_evidence()
   GET /api/inference/manifest              -> MEMORY_INFERENCE_SUBAGENT_MANIFEST
@@ -52,6 +53,13 @@ Routes:
   POST /api/projections/{id}/rebuild       -> GraphStore.rebuild_projection_checkpoint()
   GET /api/graph?limit=&similarity_threshold= -> GraphStore.graph_payload()
   GET /api/session/{id}/kernel-intents     -> GraphStore.kernel_bridge_intents()
+  GET /api/invocations?limit=              -> GraphStore.invocation_correlations()
+  POST /api/kernel-bridge/self-test        -> _run_kernel_bridge_self_test() (Guided System Test;
+                                               optional {"session_id": ...} also records both cases
+                                               as real pre/post_tool_call otel events so
+                                               GraphStore.kernel_bridge_intents() -- and the
+                                               dashboard's Kernel Intent page -- has real data to show)
+  POST /api/otel/batch                     -> GraphStore.record_otel_batch() (browser-reachable write path)
 """
 from __future__ import annotations
 
@@ -66,6 +74,107 @@ from .store import MEMORY_INFERENCE_SUBAGENT_MANIFEST, GraphStore
 
 logger = logging.getLogger("xibalba_cortex.local_api")
 _MAX_JSON_BODY_BYTES = 512 * 1024
+
+# Guided System Test wizard (integrity-dashboard's Developer page): a one-click kernel-bridge
+# check that doesn't require a live Claude session with XIBALBA_KERNEL_BRIDGE_ENABLED=1 set.
+# Same test recipient/values as claude_adapter.py's opt-in pre_tool_call path and
+# contracts/script/SubmitKernelBridgeUserOp.s.sol's own case selection -- a matched case
+# (well within both the kernel's and adapter's budgets) and a kernel-exceeding case (proves
+# real denial, since the registered adapter itself has a known gap -- see kernel_bridge.py's
+# module docstring -- and would otherwise always ALLOW).
+_SELF_TEST_RECIPIENT = "0x" + "0" * 38 + "ff"
+_SELF_TEST_MATCHED_VALUE_WEI = int(0.1 * 10**18)
+_SELF_TEST_KERNEL_EXCEEDING_VALUE_WEI = int(1.5 * 10**18)
+
+
+def _record_kernel_bridge_intent(
+    store: GraphStore, *, session_id: str, tool_call_id: str, tool_name: str, decision: dict[str, object]
+) -> None:
+    # Same (pre_tool_call, post_tool_call) otel-event shape claude_adapter.py's real,
+    # opt-in XIBALBA_KERNEL_BRIDGE_ENABLED hook path writes -- see runtime_bridge_contract.py's
+    # RuntimeEvent.to_record() and GraphStore.kernel_bridge_intents(), which joins the two by
+    # metadata.tool_call_id. Without this, the self-test route (unlike the real hook path) never
+    # gave the Kernel Intent page (/kernel-intent) anything to show -- the wizard's "Kernel /
+    # adapter bridge" step and the intent-vs-outcome page looked related but were entirely
+    # disconnected. This makes the wizard's real, already-verified on-chain result the page's
+    # data source too, instead of requiring a live hook-driven session to ever populate it.
+    store.start_session(session_id, retention_tier="verbatim")
+    success = bool(decision.get("success"))
+    store.record_otel_batch(
+        session_id,
+        [
+            {
+                "kind": "log",
+                "name": "xibalba.runtime.event",
+                "span_id": tool_name,
+                "attributes": {
+                    "tool_name": tool_name,
+                    "tool_input_hash": None,
+                    "intent_rationale": f"Guided System Test self-test: {tool_name}",
+                    "tool_outcome": "success" if success else "blocked",
+                    "metadata": {
+                        "hook": "pre_tool_call",
+                        "tool_call_id": tool_call_id,
+                        "policy_reason": "kernel-bridge self-test",
+                        "kernel_decision": decision,
+                    },
+                },
+            },
+            {
+                "kind": "log",
+                "name": "xibalba.runtime.event",
+                "span_id": tool_name,
+                "attributes": {
+                    "tool_name": tool_name,
+                    "tool_outcome": "success" if success else "blocked",
+                    "metadata": {
+                        "hook": "post_tool_call",
+                        "tool_call_id": tool_call_id,
+                        "result": decision.get("user_op_hash"),
+                        "duration_ms": None,
+                    },
+                },
+            },
+        ],
+    )
+
+
+def _run_kernel_bridge_self_test(store: GraphStore, *, session_id: str | None) -> dict[str, object]:
+    from .kernel_bridge import submit_kernel_intent
+
+    try:
+        matched = submit_kernel_intent(recipient=_SELF_TEST_RECIPIENT, value_wei=_SELF_TEST_MATCHED_VALUE_WEI)
+        kernel_exceeding = submit_kernel_intent(
+            recipient=_SELF_TEST_RECIPIENT, value_wei=_SELF_TEST_KERNEL_EXCEEDING_VALUE_WEI
+        )
+    except Exception as exc:  # noqa: BLE001 -- surfaced as a clean test-failure result, not a 500
+        return {"ok": False, "error": str(exc)}
+
+    matched_dict = matched.to_dict()
+    kernel_exceeding_dict = kernel_exceeding.to_dict()
+
+    if session_id:
+        _record_kernel_bridge_intent(
+            store,
+            session_id=session_id,
+            tool_call_id=f"kernel-bridge-self-test-matched-{matched_dict['user_op_hash']}",
+            tool_name="kernel_bridge_self_test_matched",
+            decision=matched_dict,
+        )
+        _record_kernel_bridge_intent(
+            store,
+            session_id=session_id,
+            tool_call_id=f"kernel-bridge-self-test-kernel-exceeding-{kernel_exceeding_dict['user_op_hash']}",
+            tool_name="kernel_bridge_self_test_kernel_exceeding",
+            decision=kernel_exceeding_dict,
+        )
+
+    return {
+        "ok": True,
+        "matched": matched_dict,
+        "kernel_exceeding": kernel_exceeding_dict,
+        "passed": matched.success is True and kernel_exceeding.success is False,
+    }
 
 
 def _make_handler(store: GraphStore, *, allowed_origin: str):
@@ -114,13 +223,16 @@ def _make_handler(store: GraphStore, *, allowed_origin: str):
                 if parts == ["api", "stats"]:
                     self._send_json(200, store.counts())
                 elif parts == ["api", "status"]:
-                    self._send_json(200, store.status())
+                    self._send_json(200, store.status(fast=True))
                 elif parts == ["api", "integrity-links"]:
                     limit = int(params.get("limit", 50))
                     self._send_json(200, store.integrity_links_status(limit=limit))
                 elif parts == ["api", "sessions"]:
                     limit = int(params.get("limit", 100))
                     self._send_json(200, store.list_sessions(limit=limit))
+                elif parts == ["api", "invocations"]:
+                    limit = int(params.get("limit", 100))
+                    self._send_json(200, store.invocation_correlations(limit=limit))
                 elif parts == ["api", "search"]:
                     query = params.get("q", "")
                     limit = int(params.get("limit", 10))
@@ -137,6 +249,8 @@ def _make_handler(store: GraphStore, *, allowed_origin: str):
                     self._send_json(200, store.find_path(params.get("from", ""), params.get("to", ""), max_depth=max_depth))
                 elif len(parts) == 4 and parts[0] == "api" and parts[1] == "session" and parts[3] == "exchanges":
                     self._send_json(200, store.session_exchanges(parts[2]))
+                elif len(parts) == 4 and parts[0] == "api" and parts[1] == "session" and parts[3] == "otel":
+                    self._send_json(200, store.session_otel_events(parts[2]))
                 elif len(parts) == 4 and parts[0] == "api" and parts[1] == "session" and parts[3] == "merkle-root":
                     self._send_json(200, store.session_merkle_root(parts[2]))
                 elif len(parts) == 4 and parts[0] == "api" and parts[1] == "session" and parts[3] == "merkle-proof":
@@ -226,6 +340,21 @@ def _make_handler(store: GraphStore, *, allowed_origin: str):
                 if len(parts) == 5 and parts[0] == "api" and parts[1] == "session" and parts[3] == "exchanges" and parts[4] == "build":
                     from .exchange_builder import build_session_exchanges
                     self._send_json(200, build_session_exchanges(store, parts[2]))
+                elif parts == ["api", "otel", "batch"]:
+                    # Browser-reachable write path for record_otel_batch (~/.claude/plans/
+                    # velvet-giggling-quill.md's cross-system test log) -- previously only
+                    # callable in-process via runtime_controller.ingest_event; the dashboard
+                    # needs its own POST route since it isn't an MCP client. Same
+                    # idempotent start_session-then-insert pattern ingest_event already uses,
+                    # since otel_events.session_id has a NOT NULL FK to sessions.
+                    session_id = str(payload.get("session_id") or "")
+                    events = payload.get("events")
+                    if not session_id:
+                        raise ValueError("session_id is required")
+                    if not isinstance(events, list):
+                        raise ValueError("events must be a list")
+                    store.start_session(session_id, retention_tier="digest")
+                    self._send_json(200, store.record_otel_batch(session_id, events))
                 elif parts == ["api", "exchanges", "model"]:
                     self._send_json(
                         200,
@@ -380,6 +509,14 @@ def _make_handler(store: GraphStore, *, allowed_origin: str):
                             claimed_by=payload.get("claimed_by")
                             if isinstance(payload.get("claimed_by"), str)
                             else None,
+                        ),
+                    )
+                elif parts == ["api", "kernel-bridge", "self-test"]:
+                    session_id = payload.get("session_id")
+                    self._send_json(
+                        200,
+                        _run_kernel_bridge_self_test(
+                            store, session_id=session_id if isinstance(session_id, str) and session_id else None
                         ),
                     )
                 elif len(parts) == 5 and parts[:3] == ["api", "inference", "tasks"] and parts[4] == "complete":

@@ -1,6 +1,6 @@
 # Xibalba Cortex Repository Specification
 
-**Updated:** 2026-08-13
+**Updated:** 2026-08-28
 **Status:** Local provenance-aware MCP memory prototype; not production-certified.
 
 ## 0. Architecture Status: v1 (frozen)
@@ -79,6 +79,13 @@ The detailed normative model is `spec/xibalba-cortex-v1.md`. This root specifica
 ## 5. MCP And Runtime Contract
 
 The MCP/controller surface should expose store, recall, full model-exchange capture, local session Merkle-root inspection, harness inference-task delegation, link, neighbors, path, contradict, forget, verify, status, and backup operations. Claude, agy, and Codex adapters must report their actual hook capabilities honestly. Missing pre-tool, post-tool, or lifecycle hooks are capability gaps, not hidden parity.
+
+Normalized runtime bridge schema `xibalba.runtime.bridge.v2` carries a first-class canonical UUID
+`invocation_id` for each protected tool attempt. Pre- and post-tool records for the same attempt
+must preserve the exact ID. A supplied upstream ID is authoritative for correlation; the Claude
+adapter may derive a stable UUIDv5 from `(runtime, session_id, tool_call_id)` when the harness
+cannot supply one. `tool_call_id` fallback remains legacy/local-only. The identifier follows
+`integrity-core/spec/invocation-id-v1.md` and does not itself prove execution or authorization.
 
 The server must support two transports: stdio (default, for a locally-spawned harness) and a
 network-reachable streamable-HTTP transport (for a harness with no local filesystem/subprocess

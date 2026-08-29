@@ -2,7 +2,7 @@
 title: Runtime Adapters
 acronyms: []
 created: 2026-08-12
-updated: 2026-08-12
+updated: 2026-08-28
 type: concept
 tags: [identity, mcp, infrastructure]
 confidence: high
@@ -18,12 +18,19 @@ source_files:
   - src/xibalba_cortex/server.py
 ---
 
+Runtime bridge schema v2 adds first-class `invocation_id` correlation. Claude pre- and post-tool
+events preserve a supplied canonical UUID or deterministically derive the same UUIDv5 from the
+runtime, session, and native `tool_call_id`. Investigation joins prefer `invocation_id`; fallback
+to provider `tool_call_id` is visibly labeled `legacy_tool_call_id` and is not a cross-system
+correlation claim.
+
 ## Table of contents
 
 - [Overview](#overview)
-- [The three adapters](#the-three-adapters)
+- [The six adapters](#the-six-adapters)
 - [Enforcement boundary is looser than the type](#enforcement-boundary-is-looser-than-the-type)
 - [Controller interface](#controller-interface)
+- [Operator correlation view](#operator-correlation-view)
 
 ## Overview
 
@@ -75,3 +82,12 @@ nulls, never invented values.
 
 See [MCP Tool Surface](mcp-tool-surface.md) for where these are exposed as tools, and
 [Graph Store](graph-store.md) for the underlying store the controller writes into.
+
+## Operator correlation view
+
+`GraphStore.invocation_correlations()` groups recent runtime events by the protocol
+`invocation_id` and explicitly reports `complete`, `awaiting_outcome`, or `orphan_outcome`.
+The local API exposes this as `GET /api/invocations?limit=`. The Integrity dashboard's primary
+**Correlation** route merges this Cortex projection with Shield decisions and the Oracle's
+`/v1/agent/{id}/reconciliation` response. It is an evidence ledger, not an authorization or
+truth oracle: missing, legacy, duplicate, and conflicting states remain visible for review.

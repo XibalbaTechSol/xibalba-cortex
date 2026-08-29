@@ -6,6 +6,7 @@ hook callbacks into normalized controller events and canonical memory writes.
 from __future__ import annotations
 
 import os
+import uuid
 from dataclasses import dataclass, field
 from typing import Any, Literal
 
@@ -19,6 +20,20 @@ from .runtime_controller import XibalbaRuntimeController
 _KERNEL_BRIDGE_ENV = "XIBALBA_KERNEL_BRIDGE_ENABLED"
 _KERNEL_BRIDGE_TEST_VALUE_WEI = int(0.01 * 10**18)
 _KERNEL_BRIDGE_TEST_RECIPIENT = "0x" + "0" * 38 + "ff"
+_INVOCATION_NAMESPACE = uuid.UUID("9f7df4b9-8538-4c58-9044-b34d56454f13")
+
+
+def _invocation_id(session_id: str, tool_call_id: str | None, supplied: str | None) -> str:
+    """Use a caller-supplied UUID, or derive a stable UUIDv5 from the runtime hook scope."""
+    if supplied is not None:
+        parsed = uuid.UUID(supplied)
+        canonical = str(parsed)
+        if supplied != canonical or parsed.int == 0:
+            raise ValueError("invocation_id must be a non-nil lowercase canonical UUID")
+        return canonical
+    if tool_call_id:
+        return str(uuid.uuid5(_INVOCATION_NAMESPACE, f"claude:{session_id}:{tool_call_id}"))
+    return str(uuid.uuid4())
 
 
 def _kernel_bridge_enabled() -> bool:
@@ -156,6 +171,7 @@ class ClaudeAdapter:
         session_id: str | None = None,
         tool_name: str | None = None,
         tool_call_id: str | None = None,
+        invocation_id: str | None = None,
         turn_id: str | None = None,
         result: Any = None,
         duration_ms: float | None = None,
@@ -169,6 +185,7 @@ class ClaudeAdapter:
     ) -> dict[str, Any]:
         if not session_id:
             return {"recorded": 0, "reason": "missing session_id"}
+        invocation_id = _invocation_id(session_id, tool_call_id, invocation_id)
         outcome = "unknown"
         if status:
             status_lower = status.lower()
@@ -181,6 +198,7 @@ class ClaudeAdapter:
         event = RuntimeEvent(
             runtime=self.runtime,
             session_id=session_id,
+            invocation_id=invocation_id,
             turn_id=turn_id,
             traceparent=traceparent,
             agent_id=agent_id,
@@ -199,7 +217,7 @@ class ClaudeAdapter:
             },
         )
         self.controller.ingest_event(event)
-        return {"recorded": 1, "session_id": session_id, "tool_name": tool_name}
+        return {"recorded": 1, "session_id": session_id, "tool_name": tool_name, "invocation_id": invocation_id}
 
     def pre_tool_call(
         self,
@@ -207,6 +225,7 @@ class ClaudeAdapter:
         session_id: str | None = None,
         tool_name: str | None = None,
         tool_call_id: str | None = None,
+        invocation_id: str | None = None,
         turn_id: str | None = None,
         tool_input_hash: str | None = None,
         intent_rationale: str | None = None,
@@ -216,6 +235,7 @@ class ClaudeAdapter:
     ) -> dict[str, Any]:
         if not session_id:
             return {"allowed": False, "reason": "missing session_id"}
+        invocation_id = _invocation_id(session_id, tool_call_id, invocation_id)
         decision = self.controller.evaluate_policy(
             runtime=self.runtime,
             session_id=session_id,
@@ -235,6 +255,7 @@ class ClaudeAdapter:
             RuntimeEvent(
                 runtime=self.runtime,
                 session_id=session_id,
+                invocation_id=invocation_id,
                 turn_id=turn_id,
                 traceparent=traceparent,
                 agent_id=agent_id,
@@ -247,6 +268,7 @@ class ClaudeAdapter:
             )
         )
         result = dict(decision)
+        result["invocation_id"] = invocation_id
         if kernel_decision is not None:
             result["kernel_decision"] = kernel_decision
         return result
