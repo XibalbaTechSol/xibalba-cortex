@@ -19,6 +19,11 @@ source_files:
   - tests/test_projection_checkpoints.py
   - tests/test_merkle_domains.py
 ---
+## Table of contents
+
+- [Overview](#overview)
+
+## Overview
 
 # Hybrid Retrieval, Hermes Extraction, and Projection Reconciliation
 

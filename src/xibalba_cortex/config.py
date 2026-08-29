@@ -20,6 +20,9 @@ _SECRET_KEYS = {"api_key", "token", "password", "secret", "bearer_token", "conne
 class StorageConfig:
     backend: str = "sqlite"
     home: Path = Path.home() / ".hermes" / "xibalba-cortex"
+    dsn: str | None = None
+    pool_size: int = 5
+    ssl_mode: str | None = None
 
 
 @dataclass(frozen=True)
@@ -117,9 +120,16 @@ def load_config(*, home: Path | str | None = None, environ: dict[str, str] | Non
     storage = StorageConfig(
         backend=str(storage_raw.get("backend", "sqlite")),
         home=Path(storage_raw.get("home", profile_home)).expanduser(),
+        dsn=str(storage_raw["dsn"]) if storage_raw.get("dsn") is not None else None,
+        pool_size=int(storage_raw.get("pool_size", 5)),
+        ssl_mode=str(storage_raw["ssl_mode"]) if storage_raw.get("ssl_mode") is not None else None,
     )
-    if storage.backend != "sqlite":
+    if storage.backend not in {"sqlite", "postgresql"}:
         raise ValueError(f"unsupported storage backend: {storage.backend!r}")
+    if storage.pool_size < 1:
+        raise ValueError("storage pool_size must be positive")
+    if storage.backend == "postgresql" and not storage.dsn:
+        raise ValueError("storage.dsn is required for postgresql backend")
 
     inference_raw = _mapping(raw.get("inference"), "inference")
     inference = InferenceConfig(

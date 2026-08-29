@@ -20,7 +20,7 @@ import logging
 from pathlib import Path
 from typing import Any, Awaitable, Callable
 
-from .ingest_tokens import verify_token
+from .ingest_tokens import verify_token_record
 
 logger = logging.getLogger("xibalba_cortex.auth_middleware")
 
@@ -68,15 +68,16 @@ class BearerTokenAuth:
             await _reject(send, status=401, message="missing or malformed Authorization: Bearer <token> header")
             return
 
-        label = verify_token(self._home, token)
-        if label is None:
+        principal = verify_token_record(self._home, token)
+        if principal is None:
             await _reject(send, status=401, message="invalid or revoked token")
             return
 
-        logger.debug("authenticated request from harness %r", label)
+        logger.debug("authenticated request from harness %r", principal["label"])
         # Stash the resolved harness label on the ASGI scope so downstream tool calls could,
         # in principle, read `scope["state"]["harness_label"]` for attribution -- not consumed
         # by anything yet, but cheap to provide now rather than needing another auth-layer
         # change later if a tool wants to know which harness sent a given call.
-        scope.setdefault("state", {})["harness_label"] = label
+        scope.setdefault("state", {})["principal"] = principal
+        scope["state"]["harness_label"] = principal["label"]
         await self._app(scope, receive, send)
