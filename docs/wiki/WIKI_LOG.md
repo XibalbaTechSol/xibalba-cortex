@@ -1,5 +1,12 @@
 # Xibalba Cortex Wiki — Log
 
+## [2026-08-29] update | Operations hardening and documentation reconciliation
+
+- Replaced fixed ports in the local API and OTLP receiver tests with ephemeral socket-selected ports to prevent collisions with live local services and parallel test workers.
+- Repaired the extraction-proposal foreign-key migration so it targets the live `memory_inference_tasks` table rather than the obsolete `_v8` name.
+- Documented the feature-branch status and the migration boundary; no claim of default-branch release or external-model execution is made.
+- Verification: full Cortex suite passed with 347 tests and 1 skip; local API focused coverage passed 22 tests.
+
 ## [2026-08-28] update | Runtime invocation correlation v2
 
 - Upgraded normalized runtime events to `xibalba.runtime.bridge.v2` with first-class canonical

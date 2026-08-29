@@ -2,7 +2,7 @@
 title: Inference Queue and Recovery
 acronyms: [PARA]
 created: 2026-08-13
-updated: 2026-08-13
+updated: 2026-08-29
 type: architecture
 tags: [storage, provenance, infrastructure, compliance]
 confidence: high
@@ -19,7 +19,9 @@ source_files:
 
 # Inference Queue and Recovery
 
-The implementation described on this page exists in the current uncommitted worktree and has passed the cited tests. It is not a released or default-branch capability until the worktree changes are reviewed and committed.
+The implementation described on this page exists on the current feature branch and has
+passed the cited tests. It is not a default-branch capability until the branch changes
+are reviewed and merged.
 
 Inference work is stored in SQLite as durable, idempotent tasks. Claim metadata provides ownership checks and lease-based at-least-once processing for workers such as the PARA classifier.
 
