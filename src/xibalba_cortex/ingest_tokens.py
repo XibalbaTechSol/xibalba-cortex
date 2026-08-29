@@ -39,9 +39,9 @@ CREATE TABLE IF NOT EXISTS ingest_tokens (
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
     last_used_at TEXT,
     revoked_at TEXT,
-    profile_id TEXT NOT NULL DEFAULT "default",
-    roles_json TEXT NOT NULL DEFAULT "[\"reader\"]",
-    scopes_json TEXT NOT NULL DEFAULT "[\"memory:read\"]"
+    profile_id TEXT NOT NULL DEFAULT 'default',
+    roles_json TEXT NOT NULL DEFAULT '["reader"]',
+    scopes_json TEXT NOT NULL DEFAULT '["memory:read"]'
 );
 """
 
@@ -57,7 +57,7 @@ def _connect(home: str | Path) -> sqlite3.Connection:
     conn.row_factory = sqlite3.Row
     conn.execute(_SCHEMA)
     columns = {row["name"] for row in conn.execute("PRAGMA table_info(ingest_tokens)")}
-    for name, definition in (("profile_id", "TEXT NOT NULL DEFAULT \"default\""), ("roles_json", "TEXT NOT NULL DEFAULT \"[\\\"reader\\\"]\""), ("scopes_json", "TEXT NOT NULL DEFAULT \"[\\\"memory:read\\\"]\"")):
+    for name, definition in (("profile_id", "TEXT NOT NULL DEFAULT 'default'"), ("roles_json", "TEXT NOT NULL DEFAULT '[\"reader\"]'"), ("scopes_json", "TEXT NOT NULL DEFAULT '[\"memory:read\"]'")):
         if name not in columns:
             conn.execute(f"ALTER TABLE ingest_tokens ADD COLUMN {name} {definition}")
     return conn

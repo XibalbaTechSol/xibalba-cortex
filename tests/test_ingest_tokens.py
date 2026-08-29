@@ -1,3 +1,5 @@
+import sqlite3
+
 from xibalba_cortex.ingest_tokens import issue_token, list_tokens, revoke_token, verify_token
 
 
@@ -67,6 +69,37 @@ def test_verify_updates_last_used_at(tmp_path):
 
     [after] = list_tokens(tmp_path)
     assert after["last_used_at"] is not None
+
+
+def test_legacy_token_table_gets_least_privilege_defaults(tmp_path):
+    database = tmp_path / "ingest_tokens.sqlite3"
+    with sqlite3.connect(database) as conn:
+        conn.execute(
+            """CREATE TABLE ingest_tokens (
+                id TEXT PRIMARY KEY,
+                label TEXT NOT NULL,
+                token_hash TEXT NOT NULL,
+                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                last_used_at TEXT,
+                revoked_at TEXT
+            )"""
+        )
+
+    issue_token(tmp_path, "migration-trigger")
+
+    with sqlite3.connect(database) as conn:
+        conn.execute(
+            "INSERT INTO ingest_tokens(id, label, token_hash) VALUES (?, ?, ?)",
+            ("legacy-default-check", "legacy", "not-a-real-hash"),
+        )
+        profile_id, roles_json, scopes_json = conn.execute(
+            "SELECT profile_id, roles_json, scopes_json FROM ingest_tokens WHERE id = ?",
+            ("legacy-default-check",),
+        ).fetchone()
+
+    assert profile_id == "default"
+    assert roles_json == '["reader"]'
+    assert scopes_json == '["memory:read"]'
 
 
 def test_issue_rejects_an_empty_label(tmp_path):
