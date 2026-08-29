@@ -20,12 +20,19 @@ from pathlib import Path
 from mcp.server import MCPServer
 
 from xibalba_cortex.agy_adapter import AgyWrapperShim
+from xibalba_cortex.config import load_config
 from xibalba_cortex.claude_adapter import ClaudeAdapter
-from xibalba_cortex.codex_probe import CodexLauncher, CodexLauncherProbe
+from xibalba_cortex.codex_probe import CodexAdapter, CodexLauncher, CodexLauncherProbe
+from xibalba_cortex.cursor_adapter import CursorAdapter
+from xibalba_cortex.gemini_adapter import GeminiCliAdapter
+from xibalba_cortex.openai_compatible_adapter import OpenAICompatibleAdapter
 from xibalba_cortex.runtime_bridge_contract import (
     AGY_ADAPTER,
     CLAUDE_ADAPTER,
     CODEX_ADAPTER,
+    CURSOR_ADAPTER,
+    GEMINI_ADAPTER,
+    OPENAI_COMPATIBLE_ADAPTER,
     RuntimeEvent,
 )
 from xibalba_cortex.runtime_controller import XibalbaRuntimeController
@@ -73,12 +80,16 @@ def _identity_mode() -> str:
 
 _store: GraphStore | None = None
 _controller: XibalbaRuntimeController | None = None
+_config = None
 
 
 def get_store() -> GraphStore:
-    global _store
+    global _store, _config
     if _store is None:
-        _store = GraphStore(_default_home(), identity_mode=_identity_mode())
+        _config = load_config(home=_default_home())
+        feature_flags = _config.features.as_dict()
+        feature_flags.update({"lexical": _config.retrieval.lexical, "vector": _config.retrieval.vector, "graph": _config.retrieval.graph})
+        _store = GraphStore(_default_home(), identity_mode=_identity_mode(), features=feature_flags)
     return _store
 
 
@@ -90,6 +101,9 @@ def get_controller() -> XibalbaRuntimeController:
         _controller.register_runtime(CLAUDE_ADAPTER, provenance={"source": "mcp_server"})
         _controller.register_runtime(AGY_ADAPTER, provenance={"source": "mcp_server"})
         _controller.register_runtime(CODEX_ADAPTER, provenance={"source": "mcp_server"})
+        _controller.register_runtime(GEMINI_ADAPTER, provenance={"source": "mcp_server"})
+        _controller.register_runtime(CURSOR_ADAPTER, provenance={"source": "mcp_server"})
+        _controller.register_runtime(OPENAI_COMPATIBLE_ADAPTER, provenance={"source": "mcp_server"})
     return _controller
 
 
@@ -134,16 +148,79 @@ def memory_remember(
 
 @server.tool()
 def memory_hybrid_retrieve(
-    query: str, query_vector: list[float] | None = None, limit: int = 10, temporal_at: str | None = None
+    query: str,
+    query_vector: list[float] | None = None,
+    limit: int = 10,
+    temporal_at: str | None = None,
+    filters: dict[str, object] | None = None,
+    max_per_source: int | None = None,
+    max_total_chars: int | None = None,
 ) -> dict[str, object]:
-    f"""Fuse lexical, vector, graph, and temporal candidates with persisted provenance trace. {_UNTRUSTED_EVIDENCE_NOTE}"""
-    return get_store().hybrid_retrieve(query, query_vector=query_vector, limit=limit, temporal_at=temporal_at)
+    f"""Fuse lexical, vector, graph, temporal, and exact-identifier candidates with a persisted
+    provenance trace. filters narrows by status/evidence_class; max_per_source/max_total_chars
+    cap diversity and result size, recording any drops in the trace rather than silently
+    omitting them. {_UNTRUSTED_EVIDENCE_NOTE}"""
+    return get_store().hybrid_retrieve(
+        query, query_vector=query_vector, limit=limit, temporal_at=temporal_at,
+        filters=filters, max_per_source=max_per_source, max_total_chars=max_total_chars,
+    )
+
+
+@server.tool()
+def memory_context_assemble(
+    query: str, query_vector: list[float] | None = None, limit: int = 12,
+    temporal_at: str | None = None, max_total_chars: int = 12000,
+    filters: dict[str, object] | None = None,
+) -> dict[str, object]:
+    """Return a bounded context block with facts, history, summaries, observations, and
+    provenance. This convenience projection is optional and can be disabled per profile."""
+    return get_store().assemble_context(
+        query, query_vector=query_vector, limit=limit, temporal_at=temporal_at,
+        max_total_chars=max_total_chars, filters=filters,
+    )
 
 
 @server.tool()
 def memory_retrieval_trace(trace_id: str) -> dict[str, object]:
     """Read a persisted retrieval trace and its root commitment."""
     return get_store().get_retrieval_trace(trace_id)
+
+
+@server.tool()
+def memory_retrieval_trace_evidence(trace_id: str, rank: int) -> dict[str, object]:
+    """Merkle inclusion proof for one ranked result within a retrieval trace -- lets a caller
+    verify a single candidate was really part of the traced fusion without trusting the whole
+    trace record. Previously HTTP-only (`GET /api/retrieval/trace/{id}/evidence`)."""
+    return get_store().retrieval_trace_evidence(trace_id, rank=rank)
+
+
+@server.tool()
+def memory_list_extraction_proposals(
+    status: str = "proposed",
+    task_id: str | None = None,
+    source_memory_id: str | None = None,
+    limit: int = 50,
+) -> list[dict[str, object]]:
+    """List extraction proposals awaiting (or already given) a review decision -- entity/
+    relation/contradiction candidates the extraction pipeline found but never auto-committed to
+    the graph. status defaults to "proposed"; see memory_decide_extraction_proposal to act on
+    one. Previously HTTP-only (`GET /api/extraction-proposals`)."""
+    return get_store().list_extraction_proposals(
+        status=status, task_id=task_id, source_memory_id=source_memory_id, limit=limit
+    )
+
+
+@server.tool()
+def memory_decide_extraction_proposal(
+    proposal_id: str, decision: str, decided_by: str | None = None, note: str | None = None
+) -> dict[str, object]:
+    """Accept or dismiss an extraction proposal. decision must be "accept" or "dismiss" --
+    accepting writes the derived entity/relation/contradiction record; the proposal is rejected
+    as stale if its source memory changed since extraction rather than applied blindly.
+    Previously HTTP-only (`POST /api/extraction-proposals/{id}/decision`)."""
+    return get_store().decide_extraction_proposal(
+        proposal_id, decision=decision, decided_by=decided_by, note=note
+    )
 
 
 @server.tool()
@@ -183,6 +260,13 @@ def memory_embed(
     the vector in the calling agent's own process and pass it here.
     """
     return get_store().store_embedding(memory_id, vector, model_id=model_id)
+
+
+@server.tool()
+def memory_embedding_models() -> list[dict[str, object]]:
+    """List registered embedding models -- id, revision, dimension, distance metric, and which
+    one is currently active. store_embedding validates against whichever model is active."""
+    return get_store().list_embedding_models()
 
 
 @server.tool()
@@ -411,12 +495,37 @@ def memory_status() -> dict[str, object]:
 def memory_backup(destination: str) -> dict[str, object]:
     """Write a verified online backup to `destination`. Safe -- never modifies the live store.
 
+    Includes a `reconciliation` result (GraphStore.backup's `reconcile=True` default):
+    canonical leaf/root comparison between the live store and the fresh copy, catching a
+    corrupted/incomplete backup that `PRAGMA integrity_check` alone would miss -- see
+    `memory_backup_reconcile`'s docstring for the full design.
+
     There is no matching `memory_restore` tool. Restoring overwrites the live database and this
     server has no approval-gating mechanism yet to guard a destructive tool call -- see
     spec/xibalba-cortex-v1.md section 10. GraphStore.restore() exists and is tested; it is
     deliberately not exposed over MCP in v1.
     """
     return get_store().backup(destination)
+
+
+@server.tool()
+def memory_backup_reconcile(destination: str) -> dict[str, object]:
+    """Independently re-verify an existing backup file against the live store's current state.
+
+    Recomputes canonical leaf hashes/roots for the memories/entities/relations domains from
+    BOTH the live store and the SQLite file at `destination`, and compares them -- proving the
+    file's content is byte-identical to the live store right now, not merely that it's a
+    structurally valid SQLite file. Useful for re-checking a backup pulled from cold storage,
+    independent of `memory_backup`'s own automatic reconciliation at creation time.
+
+    Real, disclosed scope limitation (docs/plans/2026-08-18-phase-h5-backup-reconciliation-
+    proposal.md): this compares against the live store's CURRENT state, not a root recorded at
+    the original backup time -- it cannot by itself prove `destination` matches what the live
+    store looked like when the backup was actually taken, only that it does or doesn't match
+    right now. Persisting a backup-time sidecar root for that comparison is separable,
+    unattempted follow-on work.
+    """
+    return get_store().reconcile_backup(destination)
 
 
 @server.tool()
@@ -607,6 +716,45 @@ def memory_claim_inference_task(task_id: str, claimed_by: str | None = None) -> 
 
 
 @server.tool()
+def memory_start_self_extraction(
+    task_type: str,
+    subject_type: str,
+    subject_id: str,
+    input_payload: dict[str, object],
+    claimed_by: str,
+) -> dict[str, object]:
+    """Request + claim + fetch bounded evidence in one call, for the CALLING agent to do its
+    own extraction inline instead of the isolated NativeHarnessInferenceProvider subprocess.
+
+    Only extract_entities/extract_relations/detect_contradictions are accepted -- the task
+    types with a real server-side output validator. After extracting from the returned
+    `evidence`, call memory_complete_inference_task(task_id, output_payload, claimed_by,
+    claim_token) with your own structured result -- it goes through the exact same
+    server-side validation (schema, snapshot-hash match, evidence_quote containment) a
+    worker-produced output would. See docs/wiki/architecture/inference-queue.md for the
+    trust tradeoff versus the isolated worker path.
+    """
+    return get_store().start_self_extraction(
+        task_type,
+        subject_type=subject_type,
+        subject_id=subject_id,
+        input_payload=input_payload,
+        claimed_by=claimed_by,
+    )
+
+
+@server.tool()
+def memory_extract_structural_entities(subject_id: str, claimed_by: str = "structural-extractor") -> dict[str, object]:
+    """Deterministic, regex-based entity extraction (URLs, file paths, UUIDs, git commit
+    hashes, code-fence languages) over a memory's content -- no model, no inference. Runs
+    the full request+claim+extract+complete cycle in one call and returns the completed
+    task. Every match gets confidence 1.0: a regex match is unambiguous by construction, so
+    there's nothing to hedge against. See docs/wiki/architecture/inference-queue.md.
+    """
+    return get_store().run_structural_extraction(subject_id, claimed_by=claimed_by)
+
+
+@server.tool()
 def memory_evidence_bundle(task_id: str) -> dict[str, object]:
     """Return only the bounded evidence a claimed task's contract permits.
 
@@ -617,17 +765,7 @@ def memory_evidence_bundle(task_id: str) -> dict[str, object]:
     """
     store = get_store()
     task = store.get_inference_task(task_id)
-    contract = (task.get("input") or {}).get("_contract") or {}
-    limits = contract.get("evidence_limits") or {}
-    allowed_subject_ids = contract.get("evidence_scope") or None
-    return store.fetch_bounded_evidence(
-        subject_type=str(task["subject_type"]),
-        subject_id=str(task["subject_id"]),
-        allowed_subject_ids=allowed_subject_ids,
-        max_items=int(limits.get("max_items", 20)),
-        max_bytes=int(limits.get("max_bytes", 32_000)),
-        max_depth=int(limits.get("max_depth", 1)),
-    )
+    return store.fetch_bounded_evidence_for_task(task)
 
 
 @server.tool()
@@ -821,6 +959,7 @@ def runtime_claude_pre_tool_call(
     session_id: str,
     tool_name: str | None = None,
     tool_call_id: str | None = None,
+    invocation_id: str | None = None,
     turn_id: str | None = None,
     tool_input_hash: str | None = None,
     intent_rationale: str | None = None,
@@ -833,6 +972,7 @@ def runtime_claude_pre_tool_call(
         session_id=session_id,
         tool_name=tool_name,
         tool_call_id=tool_call_id,
+        invocation_id=invocation_id,
         turn_id=turn_id,
         tool_input_hash=tool_input_hash,
         intent_rationale=intent_rationale,
@@ -846,6 +986,7 @@ def runtime_claude_post_tool_call(
     session_id: str,
     tool_name: str | None = None,
     tool_call_id: str | None = None,
+    invocation_id: str | None = None,
     turn_id: str | None = None,
     result: dict[str, object] | str | None = None,
     duration_ms: float | None = None,
@@ -862,6 +1003,7 @@ def runtime_claude_post_tool_call(
         session_id=session_id,
         tool_name=tool_name,
         tool_call_id=tool_call_id,
+        invocation_id=invocation_id,
         turn_id=turn_id,
         result=result,
         duration_ms=duration_ms,
@@ -946,6 +1088,178 @@ def runtime_codex_launch(
         traceparent=traceparent,
         env=env,
         timeout_seconds=timeout_seconds,
+    )
+
+
+@server.tool()
+def runtime_codex_adapter_start(
+    session_id: str,
+    traceparent: str | None = None,
+    agent_id: str | None = None,
+    provenance: dict[str, object] | None = None,
+) -> dict[str, object]:
+    """Codex lifecycle-only entry hook (identity binding without spawning a process)."""
+    return CodexAdapter(get_controller(), provenance=dict(provenance or {})).start(
+        session_id=session_id,
+        traceparent=traceparent,
+        agent_id=agent_id,
+    )
+
+
+@server.tool()
+def runtime_codex_adapter_end(
+    session_id: str,
+    summary: str | None = None,
+    provenance: dict[str, object] | None = None,
+) -> dict[str, object]:
+    """Codex lifecycle-only exit hook."""
+    return CodexAdapter(get_controller(), provenance=dict(provenance or {})).end(
+        session_id=session_id,
+        summary=summary,
+    )
+
+
+@server.tool()
+def runtime_codex_adapter_observation(
+    session_id: str,
+    note: str,
+    provenance: dict[str, object] | None = None,
+) -> dict[str, object]:
+    """Codex best-effort observation. This is not a per-tool hook."""
+    return CodexAdapter(get_controller(), provenance=dict(provenance or {})).record_observation(
+        session_id=session_id,
+        note=note,
+    )
+
+
+@server.tool()
+def runtime_gemini_start(
+    session_id: str,
+    traceparent: str | None = None,
+    agent_id: str | None = None,
+    command: str | None = None,
+    cwd: str | None = None,
+    provenance: dict[str, object] | None = None,
+) -> dict[str, object]:
+    """Gemini CLI wrapper entry hook: lifecycle-only start event."""
+    return GeminiCliAdapter(get_controller(), provenance=dict(provenance or {})).start(
+        session_id=session_id,
+        traceparent=traceparent,
+        agent_id=agent_id,
+        command=command,
+        cwd=cwd,
+    )
+
+
+@server.tool()
+def runtime_gemini_end(
+    session_id: str,
+    exit_code: int | None = None,
+    summary: str | None = None,
+    provenance: dict[str, object] | None = None,
+) -> dict[str, object]:
+    """Gemini CLI wrapper exit hook: lifecycle-only end event."""
+    return GeminiCliAdapter(get_controller(), provenance=dict(provenance or {})).end(
+        session_id=session_id,
+        exit_code=exit_code,
+        summary=summary,
+    )
+
+
+@server.tool()
+def runtime_gemini_observation(
+    session_id: str,
+    note: str,
+    provenance: dict[str, object] | None = None,
+) -> dict[str, object]:
+    """Gemini CLI wrapper best-effort observation. This is not a per-tool hook."""
+    return GeminiCliAdapter(get_controller(), provenance=dict(provenance or {})).record_observation(
+        session_id=session_id,
+        note=note,
+    )
+
+
+@server.tool()
+def runtime_cursor_start(
+    session_id: str,
+    traceparent: str | None = None,
+    agent_id: str | None = None,
+    workspace: str | None = None,
+    provenance: dict[str, object] | None = None,
+) -> dict[str, object]:
+    """Cursor wrapper entry hook: lifecycle-only start event."""
+    return CursorAdapter(get_controller(), provenance=dict(provenance or {})).start(
+        session_id=session_id,
+        traceparent=traceparent,
+        agent_id=agent_id,
+        workspace=workspace,
+    )
+
+
+@server.tool()
+def runtime_cursor_end(
+    session_id: str,
+    summary: str | None = None,
+    provenance: dict[str, object] | None = None,
+) -> dict[str, object]:
+    """Cursor wrapper exit hook: lifecycle-only end event."""
+    return CursorAdapter(get_controller(), provenance=dict(provenance or {})).end(
+        session_id=session_id,
+        summary=summary,
+    )
+
+
+@server.tool()
+def runtime_cursor_observation(
+    session_id: str,
+    note: str,
+    provenance: dict[str, object] | None = None,
+) -> dict[str, object]:
+    """Cursor wrapper best-effort observation. This is not a per-tool hook."""
+    return CursorAdapter(get_controller(), provenance=dict(provenance or {})).record_observation(
+        session_id=session_id,
+        note=note,
+    )
+
+
+@server.tool()
+def runtime_openai_compatible_start(
+    session_id: str,
+    traceparent: str | None = None,
+    agent_id: str | None = None,
+    provenance: dict[str, object] | None = None,
+) -> dict[str, object]:
+    """Reference wrapper entry hook for any OpenAI-compatible harness with no dedicated adapter."""
+    return OpenAICompatibleAdapter(get_controller(), provenance=dict(provenance or {})).start(
+        session_id=session_id,
+        traceparent=traceparent,
+        agent_id=agent_id,
+    )
+
+
+@server.tool()
+def runtime_openai_compatible_end(
+    session_id: str,
+    summary: str | None = None,
+    provenance: dict[str, object] | None = None,
+) -> dict[str, object]:
+    """Reference wrapper exit hook for any OpenAI-compatible harness with no dedicated adapter."""
+    return OpenAICompatibleAdapter(get_controller(), provenance=dict(provenance or {})).end(
+        session_id=session_id,
+        summary=summary,
+    )
+
+
+@server.tool()
+def runtime_openai_compatible_observation(
+    session_id: str,
+    note: str,
+    provenance: dict[str, object] | None = None,
+) -> dict[str, object]:
+    """Reference wrapper best-effort observation. This is not a per-tool hook."""
+    return OpenAICompatibleAdapter(get_controller(), provenance=dict(provenance or {})).record_observation(
+        session_id=session_id,
+        note=note,
     )
 
 

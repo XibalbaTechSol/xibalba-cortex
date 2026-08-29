@@ -13,16 +13,17 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass, field
 from typing import Any, Literal, Protocol
 
-RuntimeName = Literal["claude", "agy", "codex"]
+RuntimeName = Literal["claude", "agy", "codex", "gemini", "cursor", "openai_compatible"]
 TransportMode = Literal["hooks", "wrapper", "launcher"]
 AdapterStatus = Literal["implemented", "partial", "unknown"]
 ToolOutcome = Literal["success", "error", "blocked", "unknown"]
 
-CONTROLLER_EVENT_SCHEMA_VERSION = "xibalba.runtime.bridge.v1"
+CONTROLLER_EVENT_SCHEMA_VERSION = "xibalba.runtime.bridge.v2"
 CONTROLLER_REQUIRED_EVENT_FIELDS = (
     "schema_version",
     "runtime",
     "session_id",
+    "invocation_id",
     "turn_id",
     "traceparent",
     "agent_id",
@@ -61,6 +62,7 @@ class RuntimeEvent:
 
     runtime: RuntimeName
     session_id: str
+    invocation_id: str | None = None
     turn_id: str | None = None
     traceparent: str | None = None
     agent_id: str | None = None
@@ -143,22 +145,110 @@ AGY_ADAPTER = RuntimeAdapterResponsibilities(
 CODEX_ADAPTER = RuntimeAdapterResponsibilities(
     runtime="codex",
     transport="launcher",
-    status="unknown",
+    status="partial",
     responsibilities=(
         "bind_identity",
         "launcher_session_context",
+        "wrapper_session_start",
+        "wrapper_session_end",
         "memory_bus_access",
         "telemetry_normalization",
+        "best_effort_telemetry",
     ),
     guarantees=(
         "shared_identity_binding",
         "shared_memory_access",
+        "lifecycle_telemetry",
     ),
     limitations=(
         "hook_surface_must_be_discovered",
         "tool_level_parity_is_unverified",
+        "no_native_pre_tool_or_post_tool_hooks",
     ),
-    notes="Codex integration surface must be measured in the live environment before stronger claims are made.",
+    notes=(
+        "Codex now has a lifecycle-only adapter (CodexAdapter) plus the CodexLauncher subprocess "
+        "wrapper, so identity binding and session telemetry are real. Pre-tool/post-tool hook "
+        "parity with Claude is still unverified and must be measured in the live environment "
+        "before a stronger claim is made."
+    ),
+)
+
+GEMINI_ADAPTER = RuntimeAdapterResponsibilities(
+    runtime="gemini",
+    transport="wrapper",
+    status="partial",
+    responsibilities=(
+        "bind_identity",
+        "wrapper_session_start",
+        "wrapper_session_end",
+        "memory_bus_access",
+        "best_effort_telemetry",
+    ),
+    guarantees=(
+        "shared_identity_binding",
+        "lifecycle_telemetry",
+    ),
+    limitations=(
+        "no_native_hook_surface",
+        "no_pre_tool_or_post_tool_hooks",
+        "trace_continuity_is_best_effort_only",
+    ),
+    notes="Gemini CLI is wrapper-only today; it must not claim Claude-equivalent tool-level parity.",
+)
+
+CURSOR_ADAPTER = RuntimeAdapterResponsibilities(
+    runtime="cursor",
+    transport="wrapper",
+    status="partial",
+    responsibilities=(
+        "bind_identity",
+        "wrapper_session_start",
+        "wrapper_session_end",
+        "memory_bus_access",
+        "best_effort_telemetry",
+    ),
+    guarantees=(
+        "shared_identity_binding",
+        "lifecycle_telemetry",
+    ),
+    limitations=(
+        "no_native_hook_surface",
+        "no_pre_tool_or_post_tool_hooks",
+        "trace_continuity_is_best_effort_only",
+        "editor_embedded_lifecycle_boundaries_are_approximate",
+    ),
+    notes=(
+        "Cursor is editor-embedded and wrapper-only today; session start/end boundaries are "
+        "approximated from the wrapper invocation, not a native Cursor lifecycle hook."
+    ),
+)
+
+OPENAI_COMPATIBLE_ADAPTER = RuntimeAdapterResponsibilities(
+    runtime="openai_compatible",
+    transport="wrapper",
+    status="partial",
+    responsibilities=(
+        "bind_identity",
+        "wrapper_session_start",
+        "wrapper_session_end",
+        "memory_bus_access",
+        "best_effort_telemetry",
+    ),
+    guarantees=(
+        "shared_identity_binding",
+        "lifecycle_telemetry",
+    ),
+    limitations=(
+        "no_native_hook_surface",
+        "no_pre_tool_or_post_tool_hooks",
+        "trace_continuity_is_best_effort_only",
+        "no_vendor_specific_guarantees",
+    ),
+    notes=(
+        "Reference/template adapter for any harness that speaks an OpenAI-compatible tool-call "
+        "shape but has no dedicated adapter yet. Intentionally the thinnest adapter in the "
+        "layer -- copy this one when wiring up a new runtime."
+    ),
 )
 
 

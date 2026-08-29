@@ -235,7 +235,13 @@ native agent harness, and generating embeddings with local model workers by defa
 - [x] Define versioned leaf and tree profiles for memory events, exchange batches, retrieval traces,
   and projection checkpoints.
 - [x] Add recomputation and inclusion-proof APIs for committed local batches.
-- [ ] Add root comparison and reconciliation APIs for backups and hybrid projections.
+- [x] Add root comparison and reconciliation APIs for backups and hybrid projections.
+  Hybrid-projection reconciliation (`reconcile_projection_checkpoint`) already existed.
+  Backup reconciliation added 2026-08-18: `GraphStore.reconcile_backup()`, wired into
+  `backup(reconcile=True)` by default, new `backup_reconciliations` table, new MCP tool
+  `memory_backup_reconcile` — see docs/plans/2026-08-18-phase-h5-backup-reconciliation-
+  proposal.md. Real, disclosed limitation: compares live-vs-file at call time only, not
+  a backup-time root persisted for later restore-time comparison — separable follow-on.
 - [ ] Record root/leaf citations on derived proposals and retrieval traces.
 - [x] Add adversarial tests for reordering, omission, mutation, duplicate leaves, and profile
   mismatch.

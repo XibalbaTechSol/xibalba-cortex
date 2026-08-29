@@ -11,7 +11,7 @@ import os
 from pathlib import Path
 import shutil
 import subprocess
-from typing import Any
+from typing import Any, Literal
 
 from .runtime_bridge_contract import RuntimeEvent
 from .runtime_controller import XibalbaRuntimeController
@@ -79,6 +79,99 @@ class CodexLauncherProbe:
             return None
         text = (completed.stdout or completed.stderr or "").strip()
         return text or None
+
+
+@dataclass(slots=True)
+class CodexAdapter:
+    """Lifecycle-only Codex adapter for callers that bind identity without spawning a process.
+
+    Mirrors AgyWrapperShim's shape: session start/end plus best-effort observations. Unlike the
+    Agy shim, it attaches CodexLauncherProbe's discovery result to provenance so callers can see
+    what hook surface (if any) was detected, rather than silently assuming parity with Claude.
+    """
+
+    controller: XibalbaRuntimeController
+    runtime: Literal["codex"] = "codex"
+    provenance: dict[str, Any] = field(default_factory=dict)
+    probe: CodexLauncherProbe = field(default_factory=CodexLauncherProbe)
+
+    def start(
+        self,
+        *,
+        session_id: str | None = None,
+        traceparent: str | None = None,
+        agent_id: str | None = None,
+        **kwargs: Any,
+    ) -> dict[str, Any]:
+        if not session_id:
+            return {"opened": False, "reason": "missing session_id"}
+        discovered = self.probe.discover()
+        opened = self.controller.open_session(
+            self.runtime,
+            session_id=session_id,
+            traceparent=traceparent,
+            agent_id=agent_id,
+            provenance={**self.provenance, **kwargs, "hook_surface": discovered.hook_surface},
+        )
+        self.controller.ingest_event(
+            RuntimeEvent(
+                runtime=self.runtime,
+                session_id=session_id,
+                traceparent=traceparent,
+                agent_id=agent_id,
+                tool_name="codex.adapter.start",
+                tool_outcome="success",
+                provenance={**self.provenance, **kwargs},
+                metadata={"hook": "start", "probe": discovered.to_record()},
+            )
+        )
+        return {"opened": True, **opened}
+
+    def end(
+        self,
+        *,
+        session_id: str | None = None,
+        summary: str | None = None,
+        **kwargs: Any,
+    ) -> dict[str, Any]:
+        if not session_id:
+            return {"closed": False, "reason": "missing session_id"}
+        self.controller.ingest_event(
+            RuntimeEvent(
+                runtime=self.runtime,
+                session_id=session_id,
+                tool_name="codex.adapter.end",
+                tool_outcome="success",
+                provenance={**self.provenance, **kwargs},
+                metadata={"hook": "end"},
+            )
+        )
+        closed = self.controller.close_session(
+            self.runtime,
+            session_id=session_id,
+            summary=summary,
+            provenance={**self.provenance, **kwargs},
+        )
+        return {"closed": True, **closed}
+
+    def record_observation(self, *, session_id: str | None = None, note: str | None = None, **kwargs: Any) -> dict[str, Any]:
+        """Optional best-effort helper; not a native Codex tool hook."""
+        if not session_id:
+            return {"recorded": 0, "reason": "missing session_id"}
+        if not note:
+            return {"recorded": 0, "reason": "missing note"}
+        self.controller.ingest_event(
+            RuntimeEvent(
+                runtime=self.runtime,
+                session_id=session_id,
+                tool_name="codex.adapter.observation",
+                tool_outcome="unknown",
+                provenance={**self.provenance, **kwargs},
+                assistant_response=note,
+                metadata={"hook": "observation"},
+            )
+        )
+        return {"recorded": 1, "session_id": session_id}
 
 
 class CodexLauncher:
@@ -199,4 +292,4 @@ class CodexLauncher:
         return result
 
 
-__all__ = ["CodexLauncher", "CodexLauncherProbe", "CodexProbeResult"]
+__all__ = ["CodexAdapter", "CodexLauncher", "CodexLauncherProbe", "CodexProbeResult"]

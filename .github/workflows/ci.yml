@@ -1,0 +1,43 @@
+name: CI
+
+# Mirrors integrity-core's own ci.yml sdk/cli jobs (same uv-based Python toolchain), the one
+# other CI workflow in this ecosystem. `uv sync` needs integrity-sdk, which pyproject.toml/
+# uv.lock pin via a local sibling-repo path (`../integrity-core/integrity-sdk`) rather than a
+# published package — see PACKAGING.md / the packaging note in README.md for why. The second
+# checkout below reproduces that exact sibling layout (`path: ../integrity-core` lands next to
+# this repo's own checkout, matching local development under ~/Projects/) so `uv sync` resolves
+# the same way here as it does on a real dev machine, without vendoring or publishing anything.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch: {}
+
+env:
+  PYTHON_VERSION: "3.12"
+  UV_VERSION: "0.11.x"
+
+jobs:
+  test:
+    name: xibalba-cortex (pytest)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Checkout integrity-core (sibling repo, integrity-sdk path dependency)
+        uses: actions/checkout@v4
+        with:
+          repository: XibalbaTechSol/integrity-core
+          path: ../integrity-core
+      - uses: astral-sh/setup-uv@v3
+        with:
+          version: ${{ env.UV_VERSION }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      # --extra drive: tests/test_drive_ingest.py's missing-token-file test only reaches its
+      # real assertion once the optional Drive deps are installed -- a plain `uv sync` leaves
+      # `_require_drive_extra()` raising first, failing the test for an unrelated reason.
+      - run: uv sync --extra drive
+      - run: uv run pytest -q

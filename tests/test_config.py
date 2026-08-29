@@ -58,3 +58,29 @@ def test_effective_config_redacts_secret_like_values(tmp_path):
 
     assert rendered["remote"]["api_key"] == "[REDACTED]"
     assert "should-not-be-shown" not in str(rendered)
+
+
+def test_feature_flags_support_yaml_and_environment_overrides(tmp_path):
+    (tmp_path / "config.yaml").write_text(
+        "features:\n"
+        "  context_assembly: false\n"
+        "  connectors: false\n"
+        "retrieval:\n"
+        "  vector: false\n"
+    )
+    config = load_config(home=tmp_path, environ={"XIBALBA_CORTEX_FEATURE_CONNECTORS": "true"})
+
+    assert config.features.context_assembly is False
+    assert config.features.connectors is True
+    assert config.retrieval.vector is False
+
+
+def test_postgresql_storage_requires_dsn_and_preserves_pool_policy(tmp_path):
+    (tmp_path / "config.yaml").write_text(
+        "storage:\n  backend: postgresql\n  dsn: postgresql://cortex@db/cortex\n  pool_size: 9\n  ssl_mode: require\n"
+    )
+    config = load_config(home=tmp_path)
+    assert config.storage.backend == "postgresql"
+    assert config.storage.dsn.endswith("/cortex")
+    assert config.storage.pool_size == 9
+    assert config.storage.ssl_mode == "require"

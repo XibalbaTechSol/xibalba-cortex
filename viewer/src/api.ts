@@ -230,6 +230,115 @@ export interface ParaClassification {
   decided_at: string | null
 }
 
+export interface ExtractionProposal {
+  id: string
+  task_id: string
+  task_type: string
+  item_index: number
+  source_memory_id: string
+  source_content_hash: string
+  payload: Record<string, unknown>
+  evidence_quote: string | null
+  status: 'proposed' | 'accepted' | 'dismissed' | 'stale'
+  decision_note: string | null
+  decided_by: string | null
+  created_at: string
+  decided_at: string | null
+}
+
+export interface RetrievalTraceChannelResult {
+  rank: number
+  raw_score: number | null
+}
+
+export interface RetrievalTraceResultRecord {
+  rank: number
+  memory_id: string
+  score: number
+  signals: string[]
+  channels: Record<string, RetrievalTraceChannelResult>
+  cosine_similarity: number | null
+  provenance: { content_hash: string; source_id: string; evidence_class: string; status: string }
+}
+
+export interface RetrievalTrace {
+  id: string
+  query: string
+  signals: string[]
+  results: RetrievalTraceResultRecord[]
+  root_hash: string
+  profile_domain: string
+  query_vector_hash: string | null
+  embedding_model_id: string | null
+  embedding_model_revision: string | null
+  filters: Record<string, unknown>
+  candidate_pool_sizes: Record<string, number>
+  rrf_params: { method: string; k: number; weights: Record<string, number> }
+  graph_evidence: Array<Record<string, unknown>>
+  leaf_hashes: string[]
+  degraded: Array<Record<string, unknown>>
+  checkpoint_id: string | null
+  linked_task_id: string | null
+  linked_session_id: string | null
+  created_at: string
+}
+
+export interface MerkleInclusionProof {
+  domain: string
+  index: number
+  payload_hash: string
+  siblings: Array<{ hash: string }>
+  root: string
+}
+
+export interface HybridRetrieveResult {
+  trace_id: string
+  root_hash: string
+  signals: string[]
+  channel_status: Record<string, string>
+  degraded: Array<Record<string, unknown>>
+  results: Memory[]
+}
+
+export interface ProjectionCheckpoint {
+  id: string
+  projection_id: string
+  root_hash: string
+  leaf_count: number
+  leaf_hashes: string[]
+  metadata: Record<string, unknown>
+  status: 'active' | 'degraded' | 'unavailable'
+  created_at: string
+}
+
+export interface ProjectionReconciliation {
+  id: string
+  projection_id: string
+  checkpoint_id: string
+  canonical_root_hash: string
+  observed_root_hash: string
+  equal: boolean
+  reordered: boolean
+  missing: string[]
+  extra: string[]
+  action: 'noop' | 'rebuild_projection' | 'mark_degraded' | 'manual_review'
+}
+
+export interface EmbeddingModel {
+  model_key: string
+  model_id: string
+  revision: string
+  dimension: number
+  distance_metric: string
+  normalize: boolean
+  vector_table: string
+  state: 'active' | 'shadow' | 'deprecated' | 'failed'
+  availability: string
+  availability_detail: string | null
+  registered_at: string
+  checked_at: string | null
+}
+
 export interface RecordModelExchangePayload {
   external_session_id: string
   user_prompt: string
@@ -328,4 +437,38 @@ export const api = {
       decision,
       ...(note ? { note } : {}),
     }),
+  extractionProposals: (status = 'proposed', limit = 50, taskId?: string, sourceMemoryId?: string) =>
+    getJson<ExtractionProposal[]>(
+      `/api/extraction-proposals?status=${encodeURIComponent(status)}&limit=${limit}` +
+        (taskId ? `&task_id=${encodeURIComponent(taskId)}` : '') +
+        (sourceMemoryId ? `&source_memory_id=${encodeURIComponent(sourceMemoryId)}` : ''),
+    ),
+  decideExtractionProposal: (proposalId: string, decision: 'accept' | 'dismiss', decidedBy?: string, note?: string) =>
+    postJson<ExtractionProposal>(`/api/extraction-proposals/${encodeURIComponent(proposalId)}/decision`, {
+      decision,
+      ...(decidedBy ? { decided_by: decidedBy } : {}),
+      ...(note ? { note } : {}),
+    }),
+  hybridRetrieve: (payload: {
+    query: string
+    limit?: number
+    temporal_at?: string
+    filters?: Record<string, unknown>
+    max_per_source?: number
+    max_total_chars?: number
+  }) => postJson<HybridRetrieveResult>('/api/retrieval/hybrid', payload),
+  retrievalTrace: (id: string) => getJson<RetrievalTrace>(`/api/retrieval/trace/${encodeURIComponent(id)}`),
+  retrievalTraceEvidence: (id: string, rank: number) =>
+    getJson<MerkleInclusionProof>(`/api/retrieval/trace/${encodeURIComponent(id)}/evidence?rank=${rank}`),
+  projectionCheckpoints: (projectionId: string, limit = 50) =>
+    getJson<ProjectionCheckpoint[]>(`/api/projections/${encodeURIComponent(projectionId)}/checkpoints?limit=${limit}`),
+  latestProjectionCheckpoint: (projectionId: string) =>
+    getJson<ProjectionCheckpoint>(`/api/projections/${encodeURIComponent(projectionId)}/checkpoints/latest`),
+  createProjectionCheckpoint: (projectionId: string) =>
+    postJson<ProjectionCheckpoint>(`/api/projections/${encodeURIComponent(projectionId)}/checkpoint`, {}),
+  reconcileProjectionCheckpoint: (projectionId: string) =>
+    postJson<ProjectionReconciliation>(`/api/projections/${encodeURIComponent(projectionId)}/reconcile`, {}),
+  rebuildProjectionCheckpoint: (projectionId: string) =>
+    postJson<ProjectionCheckpoint & { verified: boolean }>(`/api/projections/${encodeURIComponent(projectionId)}/rebuild`, {}),
+  embeddingModels: () => getJson<EmbeddingModel[]>('/api/embedding/models'),
 }

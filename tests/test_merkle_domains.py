@@ -60,6 +60,37 @@ def test_domain_merkle_proof_fails_on_tampered_leaf():
     assert not verify_domain_merkle_proof(proof)
 
 
+def test_exchange_batch_proofs_cover_odd_widths_and_promoted_final_leaf():
+    for width in (1, 3, 5, 7):
+        leaves = [_h(f"{index + 1:02x}") for index in range(width)]
+        root = domain_merkle_root(leaves, domain="exchange_batch")
+        for index in range(width):
+            proof = domain_merkle_proof(leaves, index, domain="exchange_batch")
+            assert proof["root"] == root
+            assert verify_domain_merkle_proof(proof)
+
+
+def test_exchange_batch_root_commits_to_sequence_position():
+    forward = domain_merkle_root(LEAVES, domain="exchange_batch")
+    reordered = domain_merkle_root(list(reversed(LEAVES)), domain="exchange_batch")
+    assert forward != reordered
+
+
+def test_domain_merkle_verifier_fails_closed_on_malformed_proofs():
+    valid = domain_merkle_proof(LEAVES, 1, domain="exchange_batch")
+    malformed = (
+        {},
+        {**valid, "index": -1},
+        {**valid, "index": "not-an-index"},
+        {**valid, "payload_hash": "not-hex"},
+        {**valid, "siblings": "not-a-list"},
+        {**valid, "siblings": [None]},
+        {**valid, "root": "sha256:00"},
+    )
+    for proof in malformed:
+        assert verify_domain_merkle_proof(proof) is False
+
+
 def test_unknown_domain_is_rejected():
     import pytest
 

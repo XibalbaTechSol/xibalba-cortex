@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import json
 import hmac
 import secrets
 import sqlite3
@@ -37,7 +38,10 @@ CREATE TABLE IF NOT EXISTS ingest_tokens (
     token_hash TEXT NOT NULL,
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
     last_used_at TEXT,
-    revoked_at TEXT
+    revoked_at TEXT,
+    profile_id TEXT NOT NULL DEFAULT "default",
+    roles_json TEXT NOT NULL DEFAULT "[\"reader\"]",
+    scopes_json TEXT NOT NULL DEFAULT "[\"memory:read\"]"
 );
 """
 
@@ -52,6 +56,10 @@ def _connect(home: str | Path) -> sqlite3.Connection:
     conn = sqlite3.connect(_db_path(home))
     conn.row_factory = sqlite3.Row
     conn.execute(_SCHEMA)
+    columns = {row["name"] for row in conn.execute("PRAGMA table_info(ingest_tokens)")}
+    for name, definition in (("profile_id", "TEXT NOT NULL DEFAULT \"default\""), ("roles_json", "TEXT NOT NULL DEFAULT \"[\\\"reader\\\"]\""), ("scopes_json", "TEXT NOT NULL DEFAULT \"[\\\"memory:read\\\"]\"")):
+        if name not in columns:
+            conn.execute(f"ALTER TABLE ingest_tokens ADD COLUMN {name} {definition}")
     return conn
 
 
@@ -59,18 +67,24 @@ def _hash(raw_token: str) -> str:
     return hashlib.sha256(raw_token.encode("utf-8")).hexdigest()
 
 
-def issue_token(home: str | Path, label: str) -> str:
+def issue_token(home: str | Path, label: str, *, profile_id: str = "default", roles: tuple[str, ...] = ("reader",), scopes: tuple[str, ...] = ("memory:read",)) -> str:
     """Generate a new random token for `label`, store only its hash, and return the raw
     token. This is the only moment the raw value exists outside the caller's own hands --
     it is never logged, never stored, and cannot be recovered later."""
     if not label or not label.strip():
         raise ValueError("label must be a non-empty string")
+    if not profile_id or not profile_id.strip():
+        raise ValueError("profile_id must be a non-empty string")
+    if not roles or any(not item.strip() for item in roles):
+        raise ValueError("roles must contain non-empty strings")
+    if not scopes or any(not item.strip() for item in scopes):
+        raise ValueError("scopes must contain non-empty strings")
     raw_token = secrets.token_urlsafe(32)
     conn = _connect(home)
     try:
         conn.execute(
-            "INSERT INTO ingest_tokens(id, label, token_hash) VALUES (?, ?, ?)",
-            (str(uuid.uuid4()), label.strip(), _hash(raw_token)),
+            "INSERT INTO ingest_tokens(id, label, token_hash, profile_id, roles_json, scopes_json) VALUES (?, ?, ?, ?, ?, ?)",
+            (str(uuid.uuid4()), label.strip(), _hash(raw_token), profile_id.strip(), json.dumps(list(roles)), json.dumps(list(scopes))),
         )
         conn.commit()
     finally:
@@ -78,7 +92,7 @@ def issue_token(home: str | Path, label: str) -> str:
     return raw_token
 
 
-def verify_token(home: str | Path, raw_token: str) -> str | None:
+def verify_token_record(home: str | Path, raw_token: str) -> dict[str, object] | None:
     """Return the matching label if `raw_token` is valid and not revoked, else None.
     Updates `last_used_at` on success. Hash comparison uses `hmac.compare_digest` (constant
     time) so response timing can't be used to guess a valid hash byte-by-byte."""
@@ -88,7 +102,7 @@ def verify_token(home: str | Path, raw_token: str) -> str | None:
     conn = _connect(home)
     try:
         rows = conn.execute(
-            "SELECT id, label, token_hash FROM ingest_tokens WHERE revoked_at IS NULL"
+            "SELECT id, label, token_hash, profile_id, roles_json, scopes_json FROM ingest_tokens WHERE revoked_at IS NULL"
         ).fetchall()
         for row in rows:
             if hmac.compare_digest(row["token_hash"], candidate_hash):
@@ -97,10 +111,15 @@ def verify_token(home: str | Path, raw_token: str) -> str | None:
                     (row["id"],),
                 )
                 conn.commit()
-                return row["label"]
+                return {"id": row["id"], "label": row["label"], "profile_id": row["profile_id"], "roles": json.loads(row["roles_json"]), "scopes": json.loads(row["scopes_json"])}
         return None
     finally:
         conn.close()
+
+
+def verify_token(home: str | Path, raw_token: str) -> str | None:
+    record = verify_token_record(home, raw_token)
+    return str(record["label"]) if record else None
 
 
 def revoke_token(home: str | Path, token_id: str) -> bool:

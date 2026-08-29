@@ -161,6 +161,14 @@ def verify_merkle_proof(proof: Mapping[str, Any]) -> bool:
 MERKLE_DOMAINS: dict[str, bytes] = {
     "projection_checkpoint": b"xibalba.projection_checkpoint.v1",
     "retrieval_trace": b"xibalba.retrieval_trace.v1",
+    "exchange_batch": b"xibalba.exchange_batch.v2",
+    # docs/plans/2026-08-18-phase-h5-backup-reconciliation-proposal.md: same canonical
+    # (table, columns) sources projection_checkpoint already uses, but a DISTINCT domain
+    # tag -- a live-vs-backup-file root must never collide with a live-vs-projection root
+    # even when the underlying leaves happen to be identical, or domain separation is void.
+    "backup.memories": b"xibalba.backup.memories.v1",
+    "backup.entities": b"xibalba.backup.entities.v1",
+    "backup.relations": b"xibalba.backup.relations.v1",
 }
 
 
@@ -207,9 +215,21 @@ def domain_merkle_proof(payload_hashes: list[str], index: int, *, domain: str) -
 
 
 def verify_domain_merkle_proof(proof: Mapping[str, Any]) -> bool:
-    domain = str(proof["domain"])
-    leaf = domain_leaf(domain, int(proof["index"]), str(proof["payload_hash"]))
-    current = leaf.removeprefix("sha256:")
-    for sibling in proof["siblings"]:
-        current = merkle_parent(current, sibling["hash"])
-    return _wrap_domain_root(domain, "sha256:" + current) == proof["root"]
+    """Return whether a domain proof is valid; malformed untrusted proofs fail closed."""
+    try:
+        domain = str(proof["domain"])
+        index = int(proof["index"])
+        if index < 0:
+            return False
+        leaf = domain_leaf(domain, index, str(proof["payload_hash"]))
+        current = leaf.removeprefix("sha256:")
+        siblings = proof["siblings"]
+        if not isinstance(siblings, list):
+            return False
+        for sibling in siblings:
+            if not isinstance(sibling, Mapping):
+                return False
+            current = merkle_parent(current, str(sibling["hash"]))
+        return _wrap_domain_root(domain, "sha256:" + current) == proof["root"]
+    except (KeyError, TypeError, ValueError, OverflowError, IndexError):
+        return False

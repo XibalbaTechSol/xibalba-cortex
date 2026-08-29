@@ -81,6 +81,35 @@ def validate_extraction_result(output: dict[str, Any], *, expected_hash: str, ki
     return validated
 
 
+def validate_contradiction_result(output: dict[str, Any], *, expected_hash: str) -> dict[str, Any]:
+    """Validate a detect_contradictions worker output: a list of candidate memories the
+    subject memory conflicts with, each with a stated reason and confidence. Unlike
+    extract_entities/extract_relations there's no single verbatim evidence_quote -- a
+    contradiction is a claim about a *pair* of memories, not a span within one."""
+    if output.get("schema_version") != "xibalba.contradictions.v1":
+        raise ValueError("output schema_version must be xibalba.contradictions.v1")
+    if output.get("input_snapshot_hash") != expected_hash:
+        raise ValueError("input_snapshot_hash does not match task evidence snapshot")
+    items = output.get("contradictions")
+    if not isinstance(items, list) or len(items) > 20:
+        raise ValueError("contradictions must be a list with at most 20 items")
+    validated: list[dict[str, Any]] = []
+    for item in items:
+        if not isinstance(item, dict):
+            raise ValueError("contradictions items must be objects")
+        memory_id = item.get("contradicting_memory_id")
+        reason = item.get("reason")
+        confidence = item.get("confidence")
+        if not isinstance(memory_id, str) or not memory_id.strip():
+            raise ValueError("contradicting_memory_id is required")
+        if not isinstance(reason, str) or not reason.strip():
+            raise ValueError("reason is required")
+        if not isinstance(confidence, (int, float)) or not 0 <= confidence <= 1:
+            raise ValueError("confidence must be between 0 and 1")
+        validated.append({"contradicting_memory_id": memory_id, "reason": reason.strip(), "confidence": float(confidence)})
+    return {"schema_version": output["schema_version"], "input_snapshot_hash": expected_hash, "contradictions": validated}
+
+
 def validate_extraction_output(output: dict[str, Any], *, kind: str) -> dict[str, Any]:
     """Validate bounded, reviewable entity/relation extraction output."""
     if output.get("schema_version") != f"xibalba.{kind}.v1":
@@ -198,6 +227,39 @@ class NativeHarnessInferenceProvider:
 
 
 @dataclass(frozen=True)
+class InSessionInferenceProvider:
+    """The calling agent's own in-process inference, via `memory_start_self_extraction` +
+    `memory_complete_inference_task` -- no subprocess, no isolated harness profile.
+
+    Trades `NativeHarnessInferenceProvider`'s isolation guarantee (a subprocess literally
+    cannot see anything outside its evidence scope) for speed and simplicity: the calling
+    agent CAN see more than its evidence scope (the rest of its own session), so there's no
+    mechanical proof its extraction wasn't influenced by things outside that scope, even
+    though `complete_inference_task` still validates every output the same way regardless
+    of who produced it (schema, snapshot-hash match, evidence_quote containment -- see that
+    method's own comment on why this is safe to allow from any caller holding a valid claim
+    token). Use this when speed matters more than that isolation guarantee; use
+    NativeHarnessInferenceProvider when it doesn't.
+    """
+
+    def capabilities(self) -> dict[str, Any]:
+        return {"queue": True, "direct_model": True, "harness": None, "isolated": False}
+
+
+@dataclass(frozen=True)
+class StructuralExtractionProvider:
+    """Deterministic, regex-based extraction (structural_extraction.py) -- no model, no
+    subprocess, no queue latency. Every match gets confidence 1.0 by construction: a regex
+    match against the source content IS the evidence, nothing to hedge against the way a
+    model's confidence score would need to. Narrower than the other two providers -- covers
+    only pattern-shaped entities (URLs, paths, UUIDs, git hashes), not semantic extraction.
+    """
+
+    def capabilities(self) -> dict[str, Any]:
+        return {"queue": False, "direct_model": False, "deterministic": True}
+
+
+@dataclass(frozen=True)
 class LocalEmbeddingProvider:
     """Metadata-only local embedding boundary used by the external worker."""
 
@@ -217,7 +279,7 @@ class SqliteRetrievalProvider:
 
 def provider_manifest() -> dict[str, Any]:
     return {
-        "inference": "native_harness",
+        "inference": ["native_harness", "in_session", "structural"],
         "embeddings": "local",
         "retrieval": "sqlite",
         "canonical_store": "sqlite",

@@ -20,6 +20,9 @@ _SECRET_KEYS = {"api_key", "token", "password", "secret", "bearer_token", "conne
 class StorageConfig:
     backend: str = "sqlite"
     home: Path = Path.home() / ".hermes" / "xibalba-cortex"
+    dsn: str | None = None
+    pool_size: int = 5
+    ssl_mode: str | None = None
 
 
 @dataclass(frozen=True)
@@ -46,12 +49,33 @@ class RetrievalConfig:
 
 
 @dataclass(frozen=True)
+class FeatureConfig:
+    """Deployment policy for optional Cortex capabilities."""
+
+    provenance: bool = True
+    lexical: bool = True
+    vector: bool = True
+    inference: bool = True
+    embeddings: bool = True
+    graph: bool = True
+    context_assembly: bool = True
+    connectors: bool = True
+    governance: bool = True
+    telemetry: bool = True
+    audit: bool = True
+
+    def as_dict(self) -> dict[str, bool]:
+        return asdict(self)
+
+
+@dataclass(frozen=True)
 class CortexConfig:
     mode: str = "local"
     storage: StorageConfig = field(default_factory=StorageConfig)
     inference: InferenceConfig = field(default_factory=InferenceConfig)
     embeddings: EmbeddingConfig = field(default_factory=EmbeddingConfig)
     retrieval: RetrievalConfig = field(default_factory=RetrievalConfig)
+    features: FeatureConfig = field(default_factory=FeatureConfig)
     remote: dict[str, Any] = field(default_factory=dict)
 
     def redacted_dict(self) -> dict[str, Any]:
@@ -96,9 +120,16 @@ def load_config(*, home: Path | str | None = None, environ: dict[str, str] | Non
     storage = StorageConfig(
         backend=str(storage_raw.get("backend", "sqlite")),
         home=Path(storage_raw.get("home", profile_home)).expanduser(),
+        dsn=str(storage_raw["dsn"]) if storage_raw.get("dsn") is not None else None,
+        pool_size=int(storage_raw.get("pool_size", 5)),
+        ssl_mode=str(storage_raw["ssl_mode"]) if storage_raw.get("ssl_mode") is not None else None,
     )
-    if storage.backend != "sqlite":
+    if storage.backend not in {"sqlite", "postgresql"}:
         raise ValueError(f"unsupported storage backend: {storage.backend!r}")
+    if storage.pool_size < 1:
+        raise ValueError("storage pool_size must be positive")
+    if storage.backend == "postgresql" and not storage.dsn:
+        raise ValueError("storage.dsn is required for postgresql backend")
 
     inference_raw = _mapping(raw.get("inference"), "inference")
     inference = InferenceConfig(
@@ -123,11 +154,27 @@ def load_config(*, home: Path | str | None = None, environ: dict[str, str] | Non
         vector=bool(retrieval_raw.get("vector", True)),
         graph=bool(retrieval_raw.get("graph", True)),
     )
+    feature_raw = _mapping(raw.get("features"), "features")
+    defaults = FeatureConfig()
+
+    def feature_value(name: str) -> bool:
+        env_name = f"XIBALBA_CORTEX_FEATURE_{name.upper()}"
+        raw_value = env.get(env_name, feature_raw.get(name, getattr(defaults, name)))
+        if isinstance(raw_value, bool):
+            return raw_value
+        if str(raw_value).lower() in {"1", "true", "yes", "on", "enabled"}:
+            return True
+        if str(raw_value).lower() in {"0", "false", "no", "off", "disabled"}:
+            return False
+        raise ValueError(f"{name} feature flag must be boolean")
+
+    features = FeatureConfig(**{name: feature_value(name) for name in defaults.__dataclass_fields__})
     return CortexConfig(
         mode=mode,
         storage=storage,
         inference=inference,
         embeddings=embeddings,
         retrieval=retrieval,
+        features=features,
         remote=_mapping(raw.get("remote"), "remote"),
     )

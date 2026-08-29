@@ -2,7 +2,7 @@
 title: Hash Chain and Merkle Roots
 acronyms: []
 created: 2026-08-12
-updated: 2026-08-12
+updated: 2026-08-17
 type: concept
 tags: [provenance, cryptography, storage]
 confidence: high
@@ -49,8 +49,23 @@ sequence. `GraphStore.session_merkle_root(external_session_id)` returns the late
 `node_id` as the session's root — labeled `root_kind:
 "xibalba.exchange_chain.local_merkle_root.v1"` in the returned payload, an explicit reminder that
 this is a local Merkle-style root over this session's own exchanges, not a proof anchored to
-anything external. See [Sessions and Exchanges](../entities/sessions-and-exchanges.md) for how
-an exchange gets built out of a prompt, response, and tool calls.
+anything external. `GraphStore.session_merkle_evidence()` exposes a separately versioned,
+domain-separated and position-committing inclusion proof (`tree_kind:
+"xibalba.exchange_batch.merkle.v2"`); the legacy unordered v1 construction is not used for new
+responses. The proof remains inclusion evidence only, not proof of truth, authorization,
+completeness, ownership, or external finality. See [Sessions and Exchanges](../entities/sessions-and-exchanges.md)
+for how an exchange gets built out of a prompt, response, and tool calls.
+
+**Known, reviewed, deliberately-unfixed residual (2026-08-17):** the underlying tree-combination
+step (`merkle_parent`) has no domain tag or level marker on internal nodes, and an odd-width
+level's unpaired node is promoted upward unhashed — the same *shape* as Bitcoin's CVE-2012-2459
+padding ambiguity. An adversarial review found this isn't practically exploitable today (each
+leaf is forced through `domain_leaf`'s own tag before ever entering the tree, so an attacker
+can't place a chosen value into leaf position for free the way Satoshi's original bug allowed),
+and that patching it in place would force a breaking wire-format change plus a migration of two
+other domains' persisted roots (`projection_checkpoint`, `retrieval_trace`) — bigger than the
+gap justifies today. Full reasoning in `spec/xibalba-cortex-v1.md`'s residual-construction note
+next to the v2 profile description above.
 
 ## Verification vs. anchoring
 

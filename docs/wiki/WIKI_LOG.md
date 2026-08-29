@@ -1,7 +1,66 @@
 # Xibalba Cortex Wiki — Log
 
+## [2026-08-28] update | Runtime invocation correlation v2
+
+- Upgraded normalized runtime events to `xibalba.runtime.bridge.v2` with first-class canonical
+  UUID `invocation_id`.
+- Claude pre/post hooks preserve a supplied ID or derive stable UUIDv5 correlation from the
+  session-scoped native tool-call ID.
+- Kernel intent investigation prefers invocation IDs and labels the old tool-call join as legacy.
+- Added the operator-facing `GET /api/invocations` projection and Integrity dashboard
+  Correlation route, with responsive evidence-stage rendering and explicit offline/partial states.
+
 > Chronological record of wiki actions. Append-only — never edit past entries.
 > Actions: ingest, create, update, lint, query, archive
+
+## [2026-08-17] update | Merkle promotion-ambiguity residual reviewed, left unfixed
+
+- An adversarial review (independent agent, no prior context) evaluated a proposed fix for
+  `merkle_parent`'s internal-node combination lacking a domain/level tag and odd-width nodes
+  being promoted unchanged (CVE-2012-2459 shape). Verdict: not practically exploitable today
+  given `domain_leaf`'s existing leaf-position tagging and recompute-leaf-first verification;
+  the proposed fix's own rationale (level separation) didn't hold up under review; a
+  leaf-count-in-root alternative would force a breaking wire-format bump plus migration of
+  `projection_checkpoint`/`retrieval_trace`'s persisted roots.
+- Decision: documented as a known, reviewed, deliberately-unfixed residual rather than patched.
+  See `spec/xibalba-cortex-v1.md`'s residual-construction note and
+  [Hash Chain and Merkle Roots](concepts/hash-chain-and-merkle-roots.md).
+- If ever revisited: do it as a deliberate versioned profile bump (e.g. RFC 6962-style, no
+  padding/promotion step) with an explicit migration plan for both persisted root columns, not
+  an in-place patch.
+
+## [2026-08-17] update | Session exchange-batch Merkle evidence v2
+
+- Replaced new `session_merkle_evidence()` responses' legacy unordered,
+  undomain-separated batch proof with the versioned `exchange_batch` domain profile and
+  `xibalba.exchange_batch.merkle.v2` discriminator.
+- The v2 leaf commits to its sequence index, so permutations change the root. Odd-width trees
+  retain explicit promote-unchanged behavior; malformed proof objects fail closed.
+- The nested v2 proof omits unauthenticated legacy aliases. Outer `session_id`,
+  `exchange_count`, `leaf`, and `leaf_index` remain descriptive response metadata and are not
+  represented as authenticated completeness or chronology claims.
+- Verification evidence is recorded in the associated source/tests and the normative profile in
+  `spec/xibalba-cortex-v1.md`; residual boundary: no compatibility endpoint emits historical v1
+  proofs, and no external consumer inventory can prove that undiscovered clients do not depend
+  on v1.
+
+## [2026-08-13] update | Strict contradiction evidence scope
+
+- Replaced worker-side unrestricted similarity candidate retrieval with explicit task-contract `evidence_scope` retrieval.
+- Tasks without explicit scope fail closed; out-of-scope candidates are excluded; evidence order is deterministic.
+- Candidate discovery remains a trusted task-creation responsibility and must bind candidate IDs and observed hashes before queueing.
+- Verification: focused contradiction/evidence suite passed 27 tests.
+- Residual limits: no live MCP/external-model proof; full-suite fixed-port and daemon-thread contamination remains separate.
+
+
+- Added `concepts/contradiction-worker.md`, covering the bounded worker, source-hash checks,
+  candidate-memory hash binding, reviewable proposal lifecycle, and actionable-status guard.
+- Added the page to `index.md` and `WIKI_INDEX.md`.
+- Focused verification recorded: 25 tests passed for contradiction worker, stale-hash proposal handling,
+  task-contract migration, extraction proposals, and provider validation.
+- Preserved the boundary that local focused tests do not prove live Model Context Protocol (MCP)
+  integration or external-model execution. Fixed-port and daemon-thread test contamination remains
+  open separately.
 
 ## [2026-08-13] create | Hybrid local-first provider boundary
 
@@ -46,3 +105,9 @@
 - Covered entities (sessions/exchanges, entities/relations, ingest tokens) and a schema-level architecture tour of every table in `graph-memory.sqlite3`.
 - Opened one query page, `queries/compliance-evidence-trail.md`, cross-linked (by URL, pending both sides existing) to xibalba-shield's page of the same name/topic.
 - Ran `python3 scripts/wiki_toc.py` to generate every page's `## Table of contents` block, then `python3 scripts/wiki_toc.py --check` to confirm all pages current.
+
+## [2026-08-19] update | Hybrid extraction and retrieval
+- Updated `docs/wiki/concepts/hybrid-extraction-and-retrieval.md` from the finalized session evidence.
+- Recorded the isolated Hermes extraction round trip, reviewable extraction proposals, retrieval-trace version 2 fields, projection checkpoint reconciliation, domain-separated Merkle evidence, and the measured `273 passed, 1 skipped, 1 warning` full-suite result.
+- Preserved residual boundaries: local evidence only, proposal-only promotion, at-least-once processing, and no claim of external anchoring or production deployment.
+- Updated `WIKI_INDEX.md` date; canonical authoring tree is `xibalba-cortex/docs/wiki` because the configured `/home/xibalba/Projects/INTEGRITY-LATEST/docs/wiki` path was absent during compilation.

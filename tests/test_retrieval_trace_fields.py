@@ -20,8 +20,8 @@ def test_trace_persists_rrf_params_and_candidate_pool_sizes(tmp_path: Path):
 
     assert trace["rrf_params"]["method"] == "rrf"
     assert trace["rrf_params"]["k"] == 60
-    assert set(trace["rrf_params"]["weights"]) == {"lexical", "vector", "graph", "temporal"}
-    assert set(trace["candidate_pool_sizes"]) == {"lexical", "vector", "graph", "temporal"}
+    assert set(trace["rrf_params"]["weights"]) == {"lexical", "vector", "graph", "temporal", "exact"}
+    assert set(trace["candidate_pool_sizes"]) == {"lexical", "vector", "graph", "temporal", "exact"}
     assert trace["profile_domain"] == "xibalba.retrieval_trace.v1"
 
 

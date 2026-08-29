@@ -7,17 +7,18 @@ from __future__ import annotations
 
 import argparse
 import logging
-import math
 from collections.abc import Iterable
 from typing import Any
 
-from .store import EMBEDDING_DIM, EMBEDDING_MODEL_ID, GraphStore
+from .store import EMBEDDING_MODEL_ID, GraphStore
 
 logger = logging.getLogger("xibalba_cortex.embedding_worker")
 
 
 def eligible_memories(store: GraphStore) -> list[dict[str, Any]]:
-    """Return active/confirmed memories missing or stale for the pinned model."""
+    """Return active/confirmed memories missing or stale for the currently active registered
+    embedding model (not a bare hardcoded constant -- see store.get_active_embedding_model)."""
+    active_model = store.get_active_embedding_model()
     with store._lock:  # one connection is already serialized by GraphStore's lock
         rows = store._connection.execute(
             """
@@ -31,7 +32,7 @@ def eligible_memories(store: GraphStore) -> list[dict[str, Any]]:
                    OR e.generated_from_hash != m.content_hash)
             ORDER BY m.created_at, m.id
             """,
-            (EMBEDDING_MODEL_ID, EMBEDDING_DIM),
+            (active_model["model_id"], active_model["dimension"]),
         ).fetchall()
     return [dict(row) for row in rows]
 
@@ -74,13 +75,9 @@ def embed_memories(
         for row, vector in zip(batch, vectors, strict=True):
             processed += 1
             try:
-                if len(vector) != EMBEDDING_DIM:
-                    raise ValueError(f"expected {EMBEDDING_DIM} dimensions, got {len(vector)}")
+                # store_embedding is the authoritative validator (dimension/finite/zero-norm,
+                # against the active registered model) -- no need to duplicate those checks here.
                 numeric_vector = [float(value) for value in vector]
-                if any(not math.isfinite(value) for value in numeric_vector):
-                    raise ValueError("embedding values must be finite")
-                if not any(value != 0.0 for value in numeric_vector):
-                    raise ValueError("embedding vector must have non-zero norm")
                 store.store_embedding(row["id"], numeric_vector, expected_content_hash=row["content_hash"])
                 embedded += 1
             except Exception:

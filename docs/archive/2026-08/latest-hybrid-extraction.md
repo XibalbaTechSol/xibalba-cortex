@@ -17,12 +17,22 @@ The live process invocation is evidence that the installed Hermes command can pr
 
 The response included unrelated recalled context in its evidence quotes. The quote-containment validator rejected the response, leaving the task failed and the canonical store integrity check `ok`. This is the intended fail-closed behavior and exposes an isolation gap that must be fixed before claiming full end-to-end extraction.
 
-## Remaining gaps (Phase C — not yet started)
+## Remaining gaps (Phase C — status reconciled 2026-08-13)
 
-- Retrieval completeness: exact-identifier candidate channel, entity alias resolution, lifecycle/trust/sensitivity/namespace filters, diversity/token-budget controls, REST routes for hybrid retrieval and trace/projection inspection.
-- Embedding model registry: model id/revision/dimension/distance-metric table, re-embedding/migration/rollback jobs, CPU/GPU worker selection.
-- Viewer workflow: proposal review UI generalized from the existing PARA pattern, task lifecycle display, retrieval-trace and projection-checkpoint inspectors, browser tests.
-- Remaining task-contract families: `extract_propositions`, `find_duplicates` (schema doesn't allow these yet), `detect_contradictions` worker (schema allows it, no worker exists), shared `failure_class` taxonomy, legacy-claimed-task reconciliation audit.
+The previously listed Phase C items are no longer uniformly unstarted. The current implementation
+and evidence are:
+
+- **Implemented and focused-tested:** task-contract cleanup, `extract_propositions` and
+  `find_duplicates` task types, failure-class taxonomy, legacy claimed-task reconciliation,
+  `detect_contradictions` worker, reviewable contradiction proposals, retrieval trace fields,
+  projection checkpoints, and proposal status/stale-hash guards.
+- **Still open:** retrieval completeness and REST inspection routes; embedding model registry;
+  viewer proposal/retrieval/checkpoint workflow; strict task-scoped evidence-bundle use by the
+  contradiction worker; fixed-port/daemon-thread test isolation; and a complete live Model Context
+  Protocol (MCP) external-model round trip.
+
+Focused contradiction/task-contract/provider verification on 2026-08-13 passed 25 tests. This is
+local evidence only and does not establish full-suite isolation or production deployment.
 
 See `docs/plans/2026-08-13-hybrid-extraction-handoff.md` for the full handoff.
 

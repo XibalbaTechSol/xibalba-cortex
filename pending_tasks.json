@@ -1,0 +1,65 @@
+[
+  {
+    "id": "viewer:consolidate_memories:memory:c98f72a4-1ae2-4dbc-994a-19e86454dda8:1786071504899",
+    "task_type": "consolidate_memories",
+    "subject_type": "memory",
+    "subject_id": "c98f72a4-1ae2-4dbc-994a-19e86454dda8",
+    "input_json": "{\"subject_id\":\"c98f72a4-1ae2-4dbc-994a-19e86454dda8\",\"subject_type\":\"memory\"}"
+  },
+  {
+    "id": "viewer:summarize_session:session:d867446b-1643-457f-be19-f0efee4d033a:1786071508097",
+    "task_type": "summarize_session",
+    "subject_type": "session",
+    "subject_id": "d867446b-1643-457f-be19-f0efee4d033a",
+    "input_json": "{\"subject_id\":\"d867446b-1643-457f-be19-f0efee4d033a\",\"subject_type\":\"session\"}"
+  },
+  {
+    "id": "viewer:summarize_session:session:53b0f59b-54bd-4878-8e00-2dafe5a02cc2:1786075062883",
+    "task_type": "summarize_session",
+    "subject_type": "session",
+    "subject_id": "53b0f59b-54bd-4878-8e00-2dafe5a02cc2",
+    "input_json": "{\"subject_id\":\"53b0f59b-54bd-4878-8e00-2dafe5a02cc2\",\"subject_type\":\"session\"}"
+  },
+  {
+    "id": "viewer:consolidate_memories:memory:89034f46-c22e-46a9-90ad-59eb3eb76f84:1786075554978",
+    "task_type": "consolidate_memories",
+    "subject_type": "memory",
+    "subject_id": "89034f46-c22e-46a9-90ad-59eb3eb76f84",
+    "input_json": "{\"subject_id\":\"89034f46-c22e-46a9-90ad-59eb3eb76f84\",\"subject_type\":\"memory\"}"
+  },
+  {
+    "id": "viewer:summarize_session:session:8a38497c-3819-48e4-a695-18c65f57814e:1786075555731",
+    "task_type": "summarize_session",
+    "subject_type": "session",
+    "subject_id": "8a38497c-3819-48e4-a695-18c65f57814e",
+    "input_json": "{\"subject_id\":\"8a38497c-3819-48e4-a695-18c65f57814e\",\"subject_type\":\"session\"}"
+  },
+  {
+    "id": "viewer:summarize_session:session:d1641766-094c-4a35-9e35-b3abaafebb69:1786076285248",
+    "task_type": "summarize_session",
+    "subject_type": "session",
+    "subject_id": "d1641766-094c-4a35-9e35-b3abaafebb69",
+    "input_json": "{\"subject_id\":\"d1641766-094c-4a35-9e35-b3abaafebb69\",\"subject_type\":\"session\"}"
+  },
+  {
+    "id": "viewer:summarize_session:session:d1641766-094c-4a35-9e35-b3abaafebb69:1786076295674",
+    "task_type": "summarize_session",
+    "subject_type": "session",
+    "subject_id": "d1641766-094c-4a35-9e35-b3abaafebb69",
+    "input_json": "{\"subject_id\":\"d1641766-094c-4a35-9e35-b3abaafebb69\",\"subject_type\":\"session\"}"
+  },
+  {
+    "id": "viewer:summarize_session:session:7edfdd3f-5be1-4619-9bb4-a80dc293aac7:1786079539188",
+    "task_type": "summarize_session",
+    "subject_type": "session",
+    "subject_id": "7edfdd3f-5be1-4619-9bb4-a80dc293aac7",
+    "input_json": "{\"subject_id\":\"7edfdd3f-5be1-4619-9bb4-a80dc293aac7\",\"subject_type\":\"session\"}"
+  },
+  {
+    "id": "viewer:summarize_session:session:7edfdd3f-5be1-4619-9bb4-a80dc293aac7:1786081530819",
+    "task_type": "summarize_session",
+    "subject_type": "session",
+    "subject_id": "7edfdd3f-5be1-4619-9bb4-a80dc293aac7",
+    "input_json": "{\"subject_id\":\"7edfdd3f-5be1-4619-9bb4-a80dc293aac7\",\"subject_type\":\"session\"}"
+  }
+]

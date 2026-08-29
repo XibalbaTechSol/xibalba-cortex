@@ -20,10 +20,10 @@ from integrity_sdk.crypto.merkle import compute_node_hash
 
 from .events import domain_merkle_proof, domain_merkle_root, merkle_proof, merkle_root
 from . import projection_reconcile
-from .providers import InferenceTaskContract, validate_extraction_result
+from .providers import InferenceTaskContract, validate_contradiction_result, validate_extraction_result
 from .redaction import redact
 
-_SCHEMA_VERSION = 8
+_SCHEMA_VERSION = 12
 
 # Generous default cap on a single attachment -- not a policy decision, just a guard against
 # accidentally ingesting something absurd (e.g. a whole video library) into the blob store.
@@ -61,6 +61,17 @@ _VALID_STATUSES = {
 }
 _EVENT_SCHEMA = "xibalba.memory.event.v1"
 _TRUSTED_SOURCE_KINDS = {"direct_user", "direct_model_response", "explicit_memory"}
+# Relative source-credibility weights for contradiction adjudication -- informs the
+# auto_recommendation surfaced to a human reviewer, never used to auto-resolve a conflict.
+# Exact weights are a product/policy call; this is a starting point consistent with
+# _TRUSTED_SOURCE_KINDS above. Unknown kinds default to 0.5 (see _source_credibility).
+_SOURCE_CREDIBILITY = {
+    "direct_user": 1.0,
+    "explicit_memory": 0.9,
+    "direct_model_response": 0.8,
+    "imported_document": 0.6,
+    "web": 0.3,
+}
 _EVIDENCE_CLASSES = {
     "declared_intent",
     "observed_event",
@@ -82,12 +93,33 @@ _INFERENCE_TASK_TYPES = {
     "detect_contradictions",
     "consolidate_memories",
     "classify_para",
+    "extract_propositions",
+    "find_duplicates",
 }
 _INFERENCE_SUBJECT_TYPES = {"memory", "exchange", "session", "context_bundle"}
+# Shared failure-class taxonomy for memory_inference_tasks. Retryable classes get a
+# retry_after computed automatically on completion; non-retryable ones don't.
+_FAILURE_CLASSES = {"transient", "timeout", "unavailable", "validation", "policy", "permanent"}
+_RETRYABLE_FAILURE_CLASSES = {"transient", "timeout", "unavailable"}
 # Task types whose completion validates through validate_extraction_result and produces rows in
 # extraction_proposals (as opposed to classify_para, which has its own dedicated table/pipeline).
 _EXTRACTION_PROPOSAL_TASK_TYPES = {"extract_entities", "extract_relations"}
 _EXTRACTION_PROPOSAL_STATUSES = {"proposed", "accepted", "dismissed", "stale"}
+def _compute_leaves(connection: sqlite3.Connection, table: str, columns: tuple[str, ...], order_column: str) -> list[str]:
+    """Recompute canonical leaf hashes for one (table, columns) source against an explicit
+    connection, rather than `self._connection` -- so the same computation can run against a
+    backup/restored SQLite file (docs/plans/2026-08-18-phase-h5-backup-reconciliation-
+    proposal.md's `GraphStore.reconcile_backup`) as well as the live store
+    (`compute_projection_leaves`). `GraphStore._canonical_json` is a `@staticmethod`, callable
+    without an instance."""
+    column_list = ", ".join(columns)
+    rows = connection.execute(f"SELECT {column_list} FROM {table} ORDER BY {order_column}").fetchall()
+    return [
+        "sha256:" + hashlib.sha256(GraphStore._canonical_json({col: row[col] for col in columns}).encode()).hexdigest()
+        for row in rows
+    ]
+
+
 # Projections this store can checkpoint and reconcile. Each entry names the canonical table
 # and the columns whose canonical-JSON form (not the whole row) becomes the leaf payload --
 # keep this narrow and stable so re-running compute_projection_leaves against unchanged data
@@ -353,7 +385,8 @@ CREATE TABLE IF NOT EXISTS memory_inference_tasks (
     id TEXT PRIMARY KEY,
     task_type TEXT NOT NULL CHECK (task_type IN (
         'summarize_session', 'extract_memory_metadata', 'extract_entities',
-        'extract_relations', 'detect_contradictions', 'consolidate_memories', 'classify_para'
+        'extract_relations', 'detect_contradictions', 'consolidate_memories', 'classify_para',
+        'extract_propositions', 'find_duplicates'
     )),
     status TEXT NOT NULL CHECK (status IN ('pending', 'claimed', 'completed', 'failed', 'cancelled')),
     subject_type TEXT NOT NULL CHECK (subject_type IN ('memory', 'exchange', 'session', 'context_bundle')),
@@ -366,7 +399,9 @@ CREATE TABLE IF NOT EXISTS memory_inference_tasks (
     lease_expires_at TEXT,
     attempt_count INTEGER NOT NULL DEFAULT 0,
     retry_after TEXT,
-    failure_class TEXT,
+    failure_class TEXT CHECK (failure_class IS NULL OR failure_class IN (
+        'transient', 'timeout', 'unavailable', 'validation', 'policy', 'permanent'
+    )),
     dead_letter_reason TEXT,
     error TEXT,
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -410,7 +445,25 @@ CREATE TABLE IF NOT EXISTS embeddings_meta (
     model_id TEXT NOT NULL,
     dim INTEGER NOT NULL,
     generated_from_hash TEXT NOT NULL,
+    model_key TEXT,
+    revision TEXT,
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS embedding_models (
+    model_key TEXT PRIMARY KEY,
+    model_id TEXT NOT NULL,
+    revision TEXT NOT NULL,
+    dimension INTEGER NOT NULL,
+    distance_metric TEXT NOT NULL DEFAULT 'cosine' CHECK (distance_metric IN ('cosine', 'l2', 'l1')),
+    normalize INTEGER NOT NULL DEFAULT 1,
+    vector_table TEXT NOT NULL,
+    state TEXT NOT NULL DEFAULT 'active' CHECK (state IN ('active', 'shadow', 'deprecated', 'failed')),
+    availability TEXT NOT NULL DEFAULT 'unknown' CHECK (availability IN ('unknown', 'present', 'missing', 'error')),
+    availability_detail TEXT,
+    registered_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    checked_at TEXT,
+    UNIQUE(model_id, revision)
 );
 
 CREATE TABLE IF NOT EXISTS integrity_links (
@@ -443,6 +496,7 @@ CREATE TABLE IF NOT EXISTS retrieval_traces (
     checkpoint_id TEXT REFERENCES projection_checkpoints(id) ON DELETE SET NULL,
     linked_task_id TEXT,
     linked_session_id TEXT,
+    degraded_json TEXT NOT NULL DEFAULT '[]',
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -496,18 +550,43 @@ CREATE TABLE IF NOT EXISTS projection_reconciliations (
 
 CREATE INDEX IF NOT EXISTS idx_projection_reconciliations_projection
 ON projection_reconciliations(projection_id, created_at DESC);
+
+-- docs/plans/2026-08-18-phase-h5-backup-reconciliation-proposal.md: backup()/restore()
+-- previously verified only PRAGMA integrity_check (structural SQLite validity), never
+-- that a backup's canonical content actually matches the live store it was taken from.
+CREATE TABLE IF NOT EXISTS backup_reconciliations (
+    id TEXT PRIMARY KEY,
+    destination TEXT NOT NULL,
+    equal INTEGER NOT NULL,
+    per_domain_json TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_backup_reconciliations_created
+ON backup_reconciliations(created_at DESC);
 """
 
 
 class GraphStore:
     """Profile-local SQLite authority for Xibalba graph memory."""
 
-    def __init__(self, home: str | Path, *, identity_mode: str = _DEFAULT_IDENTITY_MODE):
+    def __init__(self, home: str | Path, *, identity_mode: str = _DEFAULT_IDENTITY_MODE,
+                 features: dict[str, bool] | None = None):
         if identity_mode not in _IDENTITY_MODES:
             raise ValueError(
                 f"invalid identity_mode: {identity_mode!r}, must be one of {_IDENTITY_MODES}"
             )
         self.identity_mode = identity_mode
+        self.features = {
+            "provenance": True, "lexical": True, "vector": True, "inference": True, "embeddings": True, "graph": True,
+            "context_assembly": True, "connectors": True, "governance": True,
+            "telemetry": True, "audit": True,
+        }
+        if features:
+            unknown = set(features) - set(self.features)
+            if unknown:
+                raise ValueError(f"unknown feature flags: {sorted(unknown)}")
+            self.features.update({name: bool(value) for name, value in features.items()})
         self.home = Path(home).expanduser().resolve()
         self.home.mkdir(parents=True, exist_ok=True, mode=0o700)
         os.chmod(self.home, 0o700)
@@ -562,6 +641,55 @@ class GraphStore:
         self._connection.enable_load_extension(True)
         sqlite_vec.load(self._connection)
         self._connection.enable_load_extension(False)
+
+    def _repair_extraction_proposals_foreign_key_locked(self) -> None:
+        """Repair the FK rewritten by SQLite during the v8 task-table migration."""
+        table = self._connection.execute(
+            "SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'extraction_proposals'"
+        ).fetchone()
+        if table is None:
+            return
+        foreign_keys = self._connection.execute("PRAGMA foreign_key_list(extraction_proposals)").fetchall()
+        task_fk = next((row for row in foreign_keys if row[3] == "task_id"), None)
+        if task_fk is None or task_fk[2] == "memory_inference_tasks":
+            return
+        if self._connection.execute(
+            "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'memory_inference_tasks'"
+        ).fetchone() is None:
+            raise RuntimeError("cannot repair extraction_proposals: memory_inference_tasks is missing")
+
+        self._connection.execute("ALTER TABLE extraction_proposals RENAME TO extraction_proposals_v11")
+        self._connection.execute(
+            """
+            CREATE TABLE extraction_proposals (
+                id TEXT PRIMARY KEY,
+                task_id TEXT NOT NULL REFERENCES memory_inference_tasks(id) ON DELETE CASCADE,
+                task_type TEXT NOT NULL,
+                item_index INTEGER NOT NULL,
+                source_memory_id TEXT NOT NULL REFERENCES memories(id) ON DELETE CASCADE,
+                source_content_hash TEXT NOT NULL,
+                payload_json TEXT NOT NULL,
+                evidence_quote TEXT,
+                status TEXT NOT NULL CHECK (status IN ('proposed', 'accepted', 'dismissed', 'stale')),
+                decision_note TEXT,
+                decided_by TEXT,
+                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                decided_at TEXT,
+                UNIQUE(task_id, item_index)
+            )
+            """
+        )
+        self._connection.execute(
+            """INSERT INTO extraction_proposals
+            (id, task_id, task_type, item_index, source_memory_id, source_content_hash,
+             payload_json, evidence_quote, status, decision_note, decided_by, created_at, decided_at)
+            SELECT id, task_id, task_type, item_index, source_memory_id, source_content_hash,
+                   payload_json, evidence_quote, status, decision_note, decided_by, created_at, decided_at
+            FROM extraction_proposals_v11"""
+        )
+        self._connection.execute("DROP TABLE extraction_proposals_v11")
+        self._connection.execute("CREATE INDEX IF NOT EXISTS idx_extraction_proposals_source ON extraction_proposals(source_memory_id, status)")
+        self._connection.execute("CREATE INDEX IF NOT EXISTS idx_extraction_proposals_task ON extraction_proposals(task_id)")
 
     def _migrate(self) -> None:
         with self._lock:
@@ -651,9 +779,7 @@ class GraphStore:
                             (row["memory_id"], row["embedding"]),
                         )
             task_columns = {row["name"] for row in self._connection.execute("PRAGMA table_info(memory_inference_tasks)")}
-            if current_version < 6 or "attempt_count" not in task_columns or "claim_token" not in task_columns:
-                columns = task_columns
-                for name, definition in (
+            lease_failure_columns = (
                     ("claim_owner", "TEXT"),
                     ("claim_token", "TEXT"),
                     ("lease_expires_at", "TEXT"),
@@ -661,7 +787,10 @@ class GraphStore:
                     ("retry_after", "TEXT"),
                     ("failure_class", "TEXT"),
                     ("dead_letter_reason", "TEXT"),
-                ):
+            )
+            if current_version < 6 or any(name not in task_columns for name, _definition in lease_failure_columns):
+                columns = task_columns
+                for name, definition in lease_failure_columns:
                     if name not in columns:
                         self._connection.execute(f"ALTER TABLE memory_inference_tasks ADD COLUMN {name} {definition}")
                 self._connection.execute("CREATE INDEX IF NOT EXISTS idx_inference_claimable ON memory_inference_tasks(status, lease_expires_at, created_at)")
@@ -733,6 +862,87 @@ class GraphStore:
                 ):
                     if name not in trace_columns:
                         self._connection.execute(f"ALTER TABLE retrieval_traces ADD COLUMN {name} {definition}")
+            task_table_sql_v9 = self._connection.execute(
+                "SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'memory_inference_tasks'"
+            ).fetchone()
+            if task_table_sql_v9 and "extract_propositions" not in (task_table_sql_v9[0] or ""):
+                # Normalize any failure_class value outside the new taxonomy BEFORE the copy --
+                # the target table's CHECK constraint would otherwise reject the row outright.
+                self._connection.execute(
+                    "UPDATE memory_inference_tasks SET failure_class = 'permanent' "
+                    "WHERE failure_class IS NOT NULL AND failure_class NOT IN "
+                    "('transient', 'timeout', 'unavailable', 'validation', 'policy', 'permanent')"
+                )
+                self._connection.execute("ALTER TABLE memory_inference_tasks RENAME TO memory_inference_tasks_v8")
+                self._connection.execute(
+                    """
+                    CREATE TABLE memory_inference_tasks (
+                        id TEXT PRIMARY KEY,
+                        task_type TEXT NOT NULL CHECK (task_type IN (
+                            'summarize_session', 'extract_memory_metadata', 'extract_entities',
+                            'extract_relations', 'detect_contradictions', 'consolidate_memories', 'classify_para',
+                            'extract_propositions', 'find_duplicates'
+                        )),
+                        status TEXT NOT NULL CHECK (status IN ('pending', 'claimed', 'completed', 'failed', 'cancelled')),
+                        subject_type TEXT NOT NULL CHECK (subject_type IN ('memory', 'exchange', 'session', 'context_bundle')),
+                        subject_id TEXT NOT NULL,
+                        input_json TEXT NOT NULL,
+                        output_json TEXT,
+                        requested_by TEXT,
+                        claim_owner TEXT,
+                        claim_token TEXT,
+                        lease_expires_at TEXT,
+                        attempt_count INTEGER NOT NULL DEFAULT 0,
+                        retry_after TEXT,
+                        failure_class TEXT CHECK (failure_class IS NULL OR failure_class IN (
+                            'transient', 'timeout', 'unavailable', 'validation', 'policy', 'permanent'
+                        )),
+                        dead_letter_reason TEXT,
+                        error TEXT,
+                        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                        updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+                    )
+                    """
+                )
+                self._connection.execute(
+                    """INSERT INTO memory_inference_tasks
+                    (id, task_type, status, subject_type, subject_id, input_json, output_json,
+                     requested_by, claim_owner, claim_token, lease_expires_at, attempt_count,
+                     retry_after, failure_class, dead_letter_reason, error, created_at, updated_at)
+                    SELECT id, task_type, status, subject_type, subject_id, input_json, output_json,
+                           requested_by, claim_owner, claim_token, lease_expires_at, attempt_count,
+                           retry_after, failure_class, dead_letter_reason, error, created_at, updated_at
+                    FROM memory_inference_tasks_v8"""
+                )
+                self._connection.execute("DROP TABLE memory_inference_tasks_v8")
+                self._connection.execute("CREATE INDEX IF NOT EXISTS idx_memory_inference_tasks_status ON memory_inference_tasks(status, created_at)")
+                self._connection.execute("CREATE INDEX IF NOT EXISTS idx_inference_claimable ON memory_inference_tasks(status, lease_expires_at, created_at)")
+                self._reconcile_legacy_claimed_tasks_locked()
+            trace_columns_v10 = {row["name"] for row in self._connection.execute("PRAGMA table_info(retrieval_traces)")}
+            if trace_columns_v10 and "degraded_json" not in trace_columns_v10:
+                self._connection.execute("ALTER TABLE retrieval_traces ADD COLUMN degraded_json TEXT NOT NULL DEFAULT '[]'")
+            meta_columns_v11 = {row["name"] for row in self._connection.execute("PRAGMA table_info(embeddings_meta)")}
+            if meta_columns_v11 and "model_key" not in meta_columns_v11:
+                self._connection.execute("ALTER TABLE embeddings_meta ADD COLUMN model_key TEXT")
+                self._connection.execute("ALTER TABLE embeddings_meta ADD COLUMN revision TEXT")
+            pinned_key = f"{EMBEDDING_MODEL_ID}@{EMBEDDING_MODEL_REVISION}"
+            existing_pinned = self._connection.execute(
+                "SELECT 1 FROM embedding_models WHERE model_key = ?", (pinned_key,)
+            ).fetchone()
+            if existing_pinned is None:
+                self._connection.execute(
+                    """INSERT INTO embedding_models
+                    (model_key, model_id, revision, dimension, distance_metric, normalize, vector_table, state, availability)
+                    VALUES (?, ?, ?, ?, 'cosine', 1, 'memory_vectors', 'active', 'present')""",
+                    (pinned_key, EMBEDDING_MODEL_ID, EMBEDDING_MODEL_REVISION, EMBEDDING_DIM),
+                )
+                self._connection.execute(
+                    "UPDATE embeddings_meta SET model_key = ?, revision = ? WHERE model_key IS NULL",
+                    (pinned_key, EMBEDDING_MODEL_REVISION),
+                )
+            # Run the detector on every open so a database that already recorded an older
+            # schema version is repaired too; healthy stores return immediately.
+            self._repair_extraction_proposals_foreign_key_locked()
             self._connection.execute(
                 "INSERT OR IGNORE INTO schema_migrations(version) VALUES (?)", (1,)
             )
@@ -741,14 +951,23 @@ class GraphStore:
                 (_SCHEMA_VERSION,),
             )
 
-    def status(self) -> dict[str, object]:
+    def status(self, *, fast: bool = False) -> dict[str, object]:
+        # `fast=True` skips PRAGMA integrity_check -- a full B-tree scan of the whole
+        # database file, ~1.6-2.2s against a real ~600MB store. That's fine for an
+        # on-demand operator/MCP status call, but local_api's /api/status is polled by
+        # the dashboard's health check on a 2.5s client timeout, so it needs a cheap
+        # liveness signal, not a corruption audit every few seconds.
         with self._lock:
             schema_version = self._connection.execute(
                 "SELECT COALESCE(MAX(version), 0) FROM schema_migrations"
             ).fetchone()[0]
             journal_mode = self._connection.execute("PRAGMA journal_mode").fetchone()[0]
             foreign_keys = bool(self._connection.execute("PRAGMA foreign_keys").fetchone()[0])
-            integrity_check = self._connection.execute("PRAGMA integrity_check").fetchone()[0]
+            integrity_check = (
+                "skipped (fast mode)"
+                if fast
+                else self._connection.execute("PRAGMA integrity_check").fetchone()[0]
+            )
             fts5 = bool(
                 self._connection.execute(
                     "SELECT 1 FROM sqlite_master WHERE name = 'memory_fts'"
@@ -767,6 +986,7 @@ class GraphStore:
             "memory_count": memory_count,
             "backup_ready": backup_ready,
             "backup_method": "sqlite_online_backup",
+            "features": dict(self.features),
         }
 
     def integrity_links_status(self, *, limit: int = 50) -> dict[str, object]:
@@ -954,10 +1174,17 @@ class GraphStore:
                 ),
             )
 
-    def backup(self, destination: str | Path) -> dict[str, object]:
+    def backup(self, destination: str | Path, *, reconcile: bool = True) -> dict[str, object]:
         """Online backup via SQLite's own backup API -- safe under WAL with concurrent readers,
         unlike copying the file directly. Verifies the copy before returning, not just that the
         API call succeeded.
+
+        `PRAGMA integrity_check` only proves `destination` is a structurally uncorrupted SQLite
+        file -- it does NOT prove the backup's canonical content actually matches the live store
+        it was taken from (docs/plans/2026-08-18-phase-h5-backup-reconciliation-proposal.md).
+        `reconcile=True` (default) additionally calls `reconcile_backup` and includes its result
+        under the `reconciliation` key; pass `reconcile=False` to skip it (e.g. for a very large
+        store where the extra pass isn't wanted on every backup call).
         """
         destination = Path(destination).expanduser().resolve()
         destination.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
@@ -977,10 +1204,81 @@ class GraphStore:
             ).fetchone()[0]
         finally:
             verify_connection.close()
-        return {
+        result: dict[str, object] = {
             "destination": str(destination),
             "integrity_check": integrity_check,
             "schema_version": schema_version,
+        }
+        if reconcile:
+            result["reconciliation"] = self.reconcile_backup(destination)
+        return result
+
+    def reconcile_backup(self, destination: str | Path, *, domains: tuple[str, ...] | None = None) -> dict[str, object]:
+        """Recompute canonical leaf hashes/roots for each named domain from BOTH this live
+        store and the SQLite file at `destination`, and compare -- proving the backup's
+        content is byte-identical to the live store at the moment this runs, not merely that
+        `destination` is a structurally valid SQLite file (which `PRAGMA integrity_check`
+        already covers in `backup()`/`restore()`). Domains default to every entry in
+        `_PROJECTION_LEAF_SOURCES` (memories, entities, relations) -- the same canonical
+        sources `compute_projection_leaves`/`reconcile_projection_checkpoint` already use for
+        hybrid-projection reconciliation; this reuses that exact pattern for a whole-database
+        snapshot instead of one projection.
+
+        Real, disclosed scope limitation: this compares LIVE-vs-`destination` at call time. It
+        does not itself persist a root recorded at backup time for later comparison against a
+        `restore()`-time state (a "sidecar" record surviving the file traveling to a different
+        machine) -- that's real, separable follow-on work, not attempted here. Calling this
+        right after `backup()` (the default) catches a corrupted/incomplete copy; calling it
+        with an independently-obtained `destination` (e.g. a backup fetched from another host)
+        still proves it matches THIS store's current state, just not the state at whatever time
+        that backup was actually taken.
+        """
+        domain_names = domains if domains is not None else tuple(_PROJECTION_LEAF_SOURCES)
+        destination_path = Path(destination).expanduser().resolve()
+        dest_connection = sqlite3.connect(destination_path)
+        dest_connection.row_factory = sqlite3.Row
+        try:
+            per_domain: dict[str, object] = {}
+            all_equal = True
+            for name in domain_names:
+                if name not in _PROJECTION_LEAF_SOURCES:
+                    raise ValueError(f"unknown domain: {name!r}")
+                table, columns, order_column = _PROJECTION_LEAF_SOURCES[name]
+                with self._lock:
+                    live_leaves = _compute_leaves(self._connection, table, columns, order_column)
+                dest_leaves = _compute_leaves(dest_connection, table, columns, order_column)
+                live_root = domain_merkle_root(live_leaves, domain=f"backup.{name}")
+                dest_root = domain_merkle_root(dest_leaves, domain=f"backup.{name}")
+                equal = live_root == dest_root and live_leaves == dest_leaves
+                all_equal = all_equal and equal
+                per_domain[name] = {
+                    "equal": equal,
+                    "live_root": live_root,
+                    "destination_root": dest_root,
+                    "live_leaf_count": len(live_leaves),
+                    "destination_leaf_count": len(dest_leaves),
+                }
+        finally:
+            dest_connection.close()
+
+        reconciliation_id = str(uuid.uuid4())
+        with self._lock:
+            self._connection.execute("BEGIN IMMEDIATE")
+            try:
+                self._connection.execute(
+                    """INSERT INTO backup_reconciliations (id, destination, equal, per_domain_json)
+                    VALUES (?, ?, ?, ?)""",
+                    (reconciliation_id, str(destination_path), int(all_equal), self._canonical_json(per_domain)),
+                )
+                self._connection.execute("COMMIT")
+            except Exception:
+                self._connection.execute("ROLLBACK")
+                raise
+        return {
+            "id": reconciliation_id,
+            "destination": str(destination_path),
+            "equal": all_equal,
+            "domains": per_domain,
         }
 
     def restore(self, source: str | Path) -> dict[str, object]:
@@ -1493,21 +1791,36 @@ class GraphStore:
         query_vector: list[float] | None = None,
         limit: int = 10,
         temporal_at: str | None = None,
+        filters: dict[str, object] | None = None,
+        max_per_source: int | None = None,
+        max_total_chars: int | None = None,
     ) -> dict[str, object]:
-        """Fuse available lexical, vector, graph, and temporal signals and persist a trace.
+        """Fuse available lexical, vector, graph, temporal, and exact-identifier signals and
+        persist a trace.
 
         Missing vector or graph evidence is represented explicitly; lexical retrieval remains
         available in degraded mode. Scores are rank-fusion scores, not truth or confidence.
+
+        filters (optional) narrows candidates before scoring: {"status": [...], "evidence_class":
+        [...]} -- both allow-lists over the fields memories actually carry (this store has no
+        "trust"/"sensitivity"/"namespace" columns to filter on; don't pass keys that don't map to
+        a real field). max_per_source and max_total_chars are post-fusion diversity/budget caps;
+        anything they drop is recorded in the trace's degraded list, not silently omitted.
         """
         bounded = max(1, min(int(limit), 100))
-        lexical_ids = self._lexical_ranked_ids(query, max(20, bounded * 4))
+        effective_filters = dict(filters or {})
+        allowed_statuses = set(effective_filters.get("status") or []) or None
+        allowed_evidence_classes = set(effective_filters.get("evidence_class") or []) or None
+        lexical_ids = self._lexical_ranked_ids(query, max(20, bounded * 4)) if self.features["lexical"] else []
+        if not self.features["embeddings"] or not self.features["vector"]:
+            query_vector = None
         vector_hits = self._vector_ranked_ids(query_vector, max(20, bounded * 4)) if query_vector is not None else []
         vector_ids = [item[0] for item in vector_hits]
         similarity = dict(vector_hits)
         graph_ids: list[str] = []
         graph_evidence: list[dict[str, object]] = []
         terms = [term for term in re.findall(r"[\\w-]+", query) if len(term) > 2]
-        for term in terms[:3]:
+        for term in terms[:3] if self.features["graph"] else []:
             try:
                 graph = self.neighbors(term, max_depth=1, node_limit=20, edge_limit=40)
             except (KeyError, ValueError):
@@ -1523,6 +1836,23 @@ class GraphStore:
                         "object": edge.get("object"),
                         "evidence_memory_id": str(evidence),
                     })
+
+        # Exact-identifier channel: a query that's literally a memory id or content_hash bypasses
+        # RRF entirely -- an exact match shouldn't compete on rank with a fuzzy lexical/vector hit.
+        exact_ids: list[str] = []
+        stripped_query = query.strip()
+        with self._lock:
+            if re.fullmatch(r"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}", stripped_query):
+                row = self._connection.execute("SELECT id FROM memories WHERE id = ?", (stripped_query,)).fetchone()
+                if row is not None:
+                    exact_ids = [row["id"]]
+            elif re.fullmatch(r"sha256:[0-9a-fA-F]{64}", stripped_query):
+                row = self._connection.execute(
+                    "SELECT id FROM memories WHERE content_hash = ? ORDER BY created_at LIMIT 1", (stripped_query,)
+                ).fetchone()
+                if row is not None:
+                    exact_ids = [row["id"]]
+
         with self._lock:
             if temporal_at:
                 temporal_rows = self._connection.execute(
@@ -1545,8 +1875,44 @@ class GraphStore:
             lexical_ids = [memory_id for memory_id in lexical_ids if memory_id in eligible]
             vector_ids = [memory_id for memory_id in vector_ids if memory_id in eligible]
             graph_ids = [memory_id for memory_id in graph_ids if memory_id in eligible]
-        channels = {"lexical": lexical_ids, "vector": vector_ids, "graph": graph_ids, "temporal": temporal_ids}
-        channel_status = {"lexical": "available", "vector": "available" if query_vector is not None else "unavailable", "graph": "available" if graph_ids else "no_candidates", "temporal": "available"}
+
+        # Build one memory cache for every candidate across all channels, reused for filtering
+        # here and for result assembly below -- avoids fetching the same memory twice.
+        memory_cache: dict[str, dict[str, object]] = {}
+        for candidate_id in {*lexical_ids, *vector_ids, *graph_ids, *temporal_ids, *exact_ids}:
+            try:
+                memory_cache[candidate_id] = self.get_memory(candidate_id)
+            except KeyError:
+                continue
+
+        def _passes_filters(memory_id: str) -> bool:
+            memory = memory_cache.get(memory_id)
+            if memory is None:
+                return False
+            if allowed_statuses is not None and memory["status"] not in allowed_statuses:
+                return False
+            if allowed_evidence_classes is not None and memory["evidence_class"] not in allowed_evidence_classes:
+                return False
+            return True
+
+        if allowed_statuses is not None or allowed_evidence_classes is not None:
+            lexical_ids = [m for m in lexical_ids if _passes_filters(m)]
+            vector_ids = [m for m in vector_ids if _passes_filters(m)]
+            graph_ids = [m for m in graph_ids if _passes_filters(m)]
+            temporal_ids = [m for m in temporal_ids if _passes_filters(m)]
+            exact_ids = [m for m in exact_ids if _passes_filters(m)]
+
+        if not self.features["lexical"]:
+            temporal_ids = []
+            exact_ids = []
+        channels = {"lexical": lexical_ids, "vector": vector_ids, "graph": graph_ids, "temporal": temporal_ids, "exact": exact_ids}
+        channel_status = {
+            "lexical": "available" if self.features["lexical"] else "disabled",
+            "vector": "available" if query_vector is not None else ("disabled" if not self.features["embeddings"] or not self.features["vector"] else "unavailable"),
+            "graph": "disabled" if not self.features["graph"] else ("available" if graph_ids else "no_candidates"),
+            "temporal": "available",
+            "exact": "matched" if exact_ids else "no_match",
+        }
         # Pre-fusion candidate pool sizes, per channel -- discarded after fusion until now.
         candidate_pool_sizes = {name: len(ids) for name, ids in channels.items()}
         # Per-channel rank (position within that channel's own ranking), not just membership.
@@ -1559,9 +1925,41 @@ class GraphStore:
             for rank, memory_id in enumerate(ids, 1):
                 scores[memory_id] = scores.get(memory_id, 0.0) + weights[name] / (_RRF_K + rank)
         ranked = sorted(scores, key=lambda item: (-scores[item], item))[:bounded]
+        # Exact matches bypass RRF: forced to the front regardless of their fused score, since
+        # an exact id/hash match shouldn't have to compete on rank with a fuzzy hit.
+        if exact_ids:
+            exact_in_ranked = [m for m in exact_ids if m in scores]
+            ranked = exact_in_ranked + [m for m in ranked if m not in exact_in_ranked]
+            ranked = ranked[:bounded]
+
+        degraded: list[dict[str, object]] = []
+        if max_per_source is not None or max_total_chars is not None:
+            filtered_ranked: list[str] = []
+            per_source_counts: dict[str, int] = {}
+            total_chars = 0
+            for memory_id in ranked:
+                memory = memory_cache.get(memory_id) or self.get_memory(memory_id)
+                memory_cache[memory_id] = memory
+                # Group by locator (falling back to kind) rather than the source row's own id --
+                # source rows are content-hash-bound (see store_memory), so nearly every memory
+                # gets its own unique source_id even from the same origin. locator/kind is what
+                # actually distinguishes "too many results from the same place" in practice.
+                source_group = str(memory["source"].get("locator") or memory["source"]["kind"])
+                if max_per_source is not None and per_source_counts.get(source_group, 0) >= max_per_source:
+                    degraded.append({"memory_id": memory_id, "reason": "diversity", "source_group": source_group})
+                    continue
+                content_len = len(memory["content"])
+                if max_total_chars is not None and total_chars + content_len > max_total_chars:
+                    degraded.append({"memory_id": memory_id, "reason": "token_budget"})
+                    continue
+                filtered_ranked.append(memory_id)
+                per_source_counts[source_group] = per_source_counts.get(source_group, 0) + 1
+                total_chars += content_len
+            ranked = filtered_ranked
+
         records = []
         for rank, memory_id in enumerate(ranked, 1):
-            memory = self.get_memory(memory_id)
+            memory = memory_cache.get(memory_id) or self.get_memory(memory_id)
             record_channels = {
                 name: {"rank": channel_ranks[name][memory_id], "raw_score": similarity.get(memory_id) if name == "vector" else None}
                 for name in channels
@@ -1596,18 +1994,80 @@ class GraphStore:
                     id, query, signals_json, results_json, root_hash, profile_domain,
                     query_vector_hash, embedding_model_id, embedding_model_revision,
                     filters_json, candidate_pool_sizes_json, rrf_params_json,
-                    graph_evidence_json, leaf_hashes_json, checkpoint_id
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                    graph_evidence_json, leaf_hashes_json, checkpoint_id, degraded_json
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                 (
                     trace_id, query, self._canonical_json(list(channels)), self._canonical_json(records), root_hash,
                     "xibalba.retrieval_trace.v1", query_vector_hash,
                     EMBEDDING_MODEL_ID if query_vector is not None else None,
                     EMBEDDING_MODEL_REVISION if query_vector is not None else None,
-                    self._canonical_json({}), self._canonical_json(candidate_pool_sizes), self._canonical_json(rrf_params),
+                    self._canonical_json(effective_filters), self._canonical_json(candidate_pool_sizes), self._canonical_json(rrf_params),
                     self._canonical_json(graph_evidence), self._canonical_json(leaf_payload_hashes), checkpoint_id,
+                    self._canonical_json(degraded),
                 ),
             )
-        return {"trace_id": trace_id, "root_hash": root_hash, "signals": list(channels), "channel_status": channel_status, "results": [self.get_memory(item["memory_id"]) | {"retrieval": item} for item in records]}
+        return {
+            "trace_id": trace_id, "root_hash": root_hash, "signals": list(channels), "channel_status": channel_status,
+            "degraded": degraded,
+            "results": [(memory_cache.get(item["memory_id"]) or self.get_memory(item["memory_id"])) | {"retrieval": item} for item in records],
+        }
+
+    def assemble_context(
+        self, query: str, *, query_vector: list[float] | None = None, limit: int = 12,
+        temporal_at: str | None = None, max_total_chars: int = 12000,
+        filters: dict[str, object] | None = None,
+    ) -> dict[str, object]:
+        """Assemble a bounded, provenance-bearing context block from hybrid retrieval.
+
+        This is an optional convenience projection: canonical memories and retrieval traces
+        remain authoritative, and every item keeps its source hash and channel attribution.
+        """
+        if not self.features["context_assembly"]:
+            raise RuntimeError("context assembly is disabled by feature policy")
+        if max_total_chars < 1:
+            raise ValueError("max_total_chars must be positive")
+        retrieval = self.hybrid_retrieve(
+            query, query_vector=query_vector, limit=limit, temporal_at=temporal_at,
+            filters=filters, max_total_chars=max_total_chars,
+        )
+        current_facts: list[dict[str, object]] = []
+        historical_facts: list[dict[str, object]] = []
+        summaries: list[dict[str, object]] = []
+        observations: list[dict[str, object]] = []
+        used_chars = 0
+        for memory in retrieval["results"]:
+            content = str(memory["content"])
+            if used_chars + len(content) > max_total_chars:
+                continue
+            used_chars += len(content)
+            item = {
+                "memory_id": memory["id"], "content": content,
+                "valid_from": memory.get("valid_from"), "valid_to": memory.get("valid_to"),
+                "provenance": {
+                    "content_hash": memory["content_hash"],
+                    "source": memory["source"],
+                    "evidence_class": memory["evidence_class"],
+                    "status": memory["status"],
+                },
+                "retrieval": memory.get("retrieval", {}),
+            }
+            evidence_class = memory["evidence_class"]
+            if evidence_class == "summary":
+                summaries.append(item)
+            elif memory.get("valid_to") or memory["status"] == "superseded":
+                historical_facts.append(item)
+            elif evidence_class in {"extracted_proposition", "policy", "declared_intent"}:
+                current_facts.append(item)
+            else:
+                observations.append(item)
+        return {
+            "schema_version": "xibalba.context_block.v1",
+            "query": query, "trace_id": retrieval["trace_id"],
+            "budget": {"max_total_chars": max_total_chars, "used_chars": used_chars},
+            "current_facts": current_facts, "historical_facts": historical_facts,
+            "summaries": summaries, "observations": observations,
+            "degraded": retrieval["degraded"], "channel_status": retrieval["channel_status"],
+        }
 
     def get_retrieval_trace(self, trace_id: str) -> dict[str, object]:
         with self._lock:
@@ -1629,6 +2089,7 @@ class GraphStore:
             "rrf_params": json.loads(row["rrf_params_json"]),
             "graph_evidence": json.loads(row["graph_evidence_json"]),
             "leaf_hashes": json.loads(row["leaf_hashes_json"]),
+            "degraded": json.loads(row["degraded_json"]),
             "checkpoint_id": row["checkpoint_id"],
             "linked_task_id": row["linked_task_id"],
             "linked_session_id": row["linked_session_id"],
@@ -1645,6 +2106,102 @@ class GraphStore:
             raise IndexError(f"rank {rank} is out of range for trace {trace_id!r} with {len(leaves)} results")
         return domain_merkle_proof(leaves, index, domain="retrieval_trace")
 
+    @staticmethod
+    def _row_to_embedding_model(row: sqlite3.Row) -> dict[str, object]:
+        return {
+            "model_key": row["model_key"],
+            "model_id": row["model_id"],
+            "revision": row["revision"],
+            "dimension": row["dimension"],
+            "distance_metric": row["distance_metric"],
+            "normalize": bool(row["normalize"]),
+            "vector_table": row["vector_table"],
+            "state": row["state"],
+            "availability": row["availability"],
+            "availability_detail": row["availability_detail"],
+            "registered_at": row["registered_at"],
+            "checked_at": row["checked_at"],
+        }
+
+    def register_embedding_model(
+        self,
+        model_id: str,
+        revision: str,
+        *,
+        dimension: int,
+        distance_metric: str = "cosine",
+        normalize: bool = True,
+        state: str = "shadow",
+    ) -> dict[str, object]:
+        """Register an embedding model. Creates a dedicated vec0 vector table for it if one
+        doesn't already exist -- dimension is baked into a vec0 table at CREATE time (sqlite-vec's
+        own constraint), so a genuinely different model needs its own table, not just a registry
+        row. state defaults to 'shadow' (registered but not the default target for new writes);
+        call promote_embedding_model to make it 'active'."""
+        model_key = f"{model_id}@{revision}"
+        table_suffix = re.sub(r"[^a-zA-Z0-9_]", "_", model_key)
+        vector_table = "memory_vectors" if model_key == f"{EMBEDDING_MODEL_ID}@{EMBEDDING_MODEL_REVISION}" else f"memory_vectors_{table_suffix}"
+        with self._lock:
+            self._connection.execute("BEGIN IMMEDIATE")
+            try:
+                table_exists = self._connection.execute(
+                    "SELECT 1 FROM sqlite_master WHERE name = ?", (vector_table,)
+                ).fetchone()
+                if table_exists is None:
+                    self._connection.execute(
+                        f"CREATE VIRTUAL TABLE {vector_table} USING vec0(memory_id TEXT PRIMARY KEY, embedding FLOAT[{int(dimension)}] distance_metric={distance_metric})"
+                    )
+                self._connection.execute(
+                    """INSERT INTO embedding_models
+                    (model_key, model_id, revision, dimension, distance_metric, normalize, vector_table, state, availability)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'unknown')
+                    ON CONFLICT(model_id, revision) DO UPDATE SET
+                        dimension = excluded.dimension, distance_metric = excluded.distance_metric,
+                        normalize = excluded.normalize, state = excluded.state""",
+                    (model_key, model_id, revision, int(dimension), distance_metric, int(normalize), vector_table, state),
+                )
+                self._connection.execute("COMMIT")
+            except Exception:
+                self._connection.execute("ROLLBACK")
+                raise
+        return self.get_embedding_model(model_key)
+
+    def get_embedding_model(self, model_key: str) -> dict[str, object]:
+        with self._lock:
+            row = self._connection.execute("SELECT * FROM embedding_models WHERE model_key = ?", (model_key,)).fetchone()
+        if row is None:
+            raise KeyError(model_key)
+        return self._row_to_embedding_model(row)
+
+    def list_embedding_models(self) -> list[dict[str, object]]:
+        with self._lock:
+            rows = self._connection.execute("SELECT * FROM embedding_models ORDER BY registered_at").fetchall()
+        return [self._row_to_embedding_model(row) for row in rows]
+
+    def get_active_embedding_model(self) -> dict[str, object]:
+        with self._lock:
+            row = self._connection.execute("SELECT * FROM embedding_models WHERE state = 'active' ORDER BY registered_at DESC LIMIT 1").fetchone()
+        if row is None:
+            raise ValueError("no active embedding model is registered")
+        return self._row_to_embedding_model(row)
+
+    def promote_embedding_model(self, model_key: str) -> dict[str, object]:
+        """Make model_key the active model, demoting any currently-active model to deprecated.
+        Neither table is dropped -- rollback is just promoting the previous key again."""
+        with self._lock:
+            self._connection.execute("BEGIN IMMEDIATE")
+            try:
+                target = self._connection.execute("SELECT model_key FROM embedding_models WHERE model_key = ?", (model_key,)).fetchone()
+                if target is None:
+                    raise KeyError(model_key)
+                self._connection.execute("UPDATE embedding_models SET state = 'deprecated' WHERE state = 'active' AND model_key != ?", (model_key,))
+                self._connection.execute("UPDATE embedding_models SET state = 'active' WHERE model_key = ?", (model_key,))
+                self._connection.execute("COMMIT")
+            except Exception:
+                self._connection.execute("ROLLBACK")
+                raise
+        return self.get_embedding_model(model_key)
+
     def store_embedding(
         self,
         memory_id: str,
@@ -1653,11 +2210,28 @@ class GraphStore:
         model_id: str = EMBEDDING_MODEL_ID,
         expected_content_hash: str | None = None,
     ) -> dict[str, object]:
-        """Attach a validated caller-computed embedding, conditionally on source content."""
-        if model_id != EMBEDDING_MODEL_ID:
-            raise ValueError(f"unsupported embedding model_id: {model_id!r} (this store only accepts {EMBEDDING_MODEL_ID!r} vectors in v1)")
-        if len(vector) != EMBEDDING_DIM:
-            raise ValueError(f"vector must have dimension {EMBEDDING_DIM}, got {len(vector)}")
+        if not self.features["embeddings"]:
+            raise RuntimeError("embeddings are disabled by feature policy")
+        """Attach a validated caller-computed embedding, conditionally on source content.
+
+        Validates against the currently *active* embedding_models registry entry, not a bare
+        module constant -- centralizes the dimension/finite/zero-norm checks that used to live
+        only in embedding_worker.py (the wrong side of the trust boundary: a store method should
+        enforce its own invariants, not rely on every caller's worker to have done so).
+
+        Read-path note: hybrid_retrieve/similar_memories still only query the literal
+        memory_vectors table by name -- promoting a different active model changes which table
+        new writes land in, but does not yet change where retrieval reads from. Wiring the read
+        path to the active model's vector_table is a documented remaining gap, not silently
+        assumed to work.
+        """
+        active_model = self.get_active_embedding_model()
+        if model_id != active_model["model_id"]:
+            raise ValueError(f"unsupported embedding model_id: {model_id!r} (active model is {active_model['model_id']!r})")
+        expected_dim = active_model["dimension"]
+        vector_table = active_model["vector_table"]
+        if len(vector) != expected_dim:
+            raise ValueError(f"vector must have dimension {expected_dim}, got {len(vector)}")
         normalized: list[float] = []
         for value in vector:
             try:
@@ -1667,6 +2241,8 @@ class GraphStore:
             if not math.isfinite(number):
                 raise ValueError("embedding values must be finite")
             normalized.append(number)
+        if not any(value != 0.0 for value in normalized):
+            raise ValueError("embedding vector must have non-zero norm")
         with self._lock:
             memory_row = self._connection.execute("SELECT status, content_hash FROM memories WHERE id = ?", (memory_id,)).fetchone()
             if memory_row is None:
@@ -1677,8 +2253,8 @@ class GraphStore:
             if expected_content_hash is not None and current_hash != expected_content_hash:
                 raise ValueError("memory content changed before embedding write")
             existing = self._connection.execute("SELECT model_id, dim, generated_from_hash FROM embeddings_meta WHERE memory_id = ?", (memory_id,)).fetchone()
-            if existing and existing["model_id"] == model_id and existing["dim"] == EMBEDDING_DIM and existing["generated_from_hash"] == current_hash:
-                return {"memory_id": memory_id, "model_id": model_id, "dim": EMBEDDING_DIM}
+            if existing and existing["model_id"] == model_id and existing["dim"] == expected_dim and existing["generated_from_hash"] == current_hash:
+                return {"memory_id": memory_id, "model_id": model_id, "dim": expected_dim}
             self._connection.execute("BEGIN IMMEDIATE")
             try:
                 latest = self._connection.execute("SELECT status, content_hash FROM memories WHERE id = ?", (memory_id,)).fetchone()
@@ -1686,14 +2262,17 @@ class GraphStore:
                     raise ValueError(f"memory {memory_id!r} is no longer eligible for embedding")
                 if latest["content_hash"] != current_hash:
                     raise ValueError("memory content changed during embedding write")
-                self._connection.execute("DELETE FROM memory_vectors WHERE memory_id = ?", (memory_id,))
-                self._connection.execute("INSERT INTO memory_vectors(memory_id, embedding) VALUES (?, ?)", (memory_id, sqlite_vec.serialize_float32(normalized)))
-                self._connection.execute("INSERT OR REPLACE INTO embeddings_meta(memory_id, model_id, dim, generated_from_hash) VALUES (?, ?, ?, ?)", (memory_id, model_id, EMBEDDING_DIM, current_hash))
+                self._connection.execute(f"DELETE FROM {vector_table} WHERE memory_id = ?", (memory_id,))
+                self._connection.execute(f"INSERT INTO {vector_table}(memory_id, embedding) VALUES (?, ?)", (memory_id, sqlite_vec.serialize_float32(normalized)))
+                self._connection.execute(
+                    "INSERT OR REPLACE INTO embeddings_meta(memory_id, model_id, dim, generated_from_hash, model_key, revision) VALUES (?, ?, ?, ?, ?, ?)",
+                    (memory_id, model_id, expected_dim, current_hash, active_model["model_key"], active_model["revision"]),
+                )
                 self._connection.execute("COMMIT")
             except Exception:
                 self._connection.execute("ROLLBACK")
                 raise
-        return {"memory_id": memory_id, "model_id": model_id, "dim": EMBEDDING_DIM}
+        return {"memory_id": memory_id, "model_id": model_id, "dim": expected_dim}
 
     def similar_memories(self, memory_id: str, *, limit: int = 10) -> list[dict[str, object]]:
         """Cosine-nearest other memories to memory_id's own stored embedding, excluding itself.
@@ -1989,6 +2568,8 @@ class GraphStore:
     def record_otel_batch(
         self, external_session_id: str, events: list[dict[str, object]]
     ) -> dict[str, object]:
+        if not self.features["telemetry"]:
+            raise RuntimeError("telemetry is disabled by feature policy")
         """Ingest a batch of OTel spans/metrics/logs against a session -- the plug-and-play
         path: an SDK buffers its own export and flushes here periodically, same shape as the
         Integrity Oracle's own OTLP receiver (otel_spans/otel_metrics/otel_logs), so no
@@ -2127,6 +2708,119 @@ class GraphStore:
                 "attributes": json.loads(e["attributes_json"]), "created_at": e["created_at"],
             })
         return events
+
+    def kernel_bridge_intents(self, external_session_id: str) -> list[dict[str, object]]:
+        """Correlated (declared intent, kernel/adapter decision, actual outcome) triples for a
+        session -- the dashboard's read path for the kernel-first intent-vs-outcome bridge
+        (~/.claude/plans/iridescent-stirring-kettle.md, Phase C). Joins each `pre_tool_call`
+        otel event that carried a `kernel_decision` (opt-in, see claude_adapter.py's
+        `XIBALBA_KERNEL_BRIDGE_ENABLED`) with its corresponding `post_tool_call` event by
+        signed/propagated `invocation_id`. Legacy events without it fall back to
+        `tool_call_id` and are explicitly marked `legacy_tool_call_id`.
+        """
+        events = self.session_otel_events(external_session_id)
+        pre_by_correlation_id: dict[str, dict[str, object]] = {}
+        post_by_correlation_id: dict[str, dict[str, object]] = {}
+        for event in events:
+            attrs = event["attributes"]
+            metadata = attrs.get("metadata") or {}
+            correlation_id = attrs.get("invocation_id") or metadata.get("tool_call_id")
+            if not correlation_id:
+                continue
+            if metadata.get("hook") == "pre_tool_call":
+                pre_by_correlation_id[correlation_id] = attrs
+            elif metadata.get("hook") == "post_tool_call":
+                post_by_correlation_id[correlation_id] = attrs
+
+        triples = []
+        for correlation_id, pre in pre_by_correlation_id.items():
+            kernel_decision = pre["metadata"].get("kernel_decision")
+            if kernel_decision is None:
+                continue
+            post = post_by_correlation_id.get(correlation_id)
+            triples.append({
+                "invocation_id": pre.get("invocation_id"),
+                "tool_call_id": (pre.get("metadata") or {}).get("tool_call_id"),
+                "correlation_mode": "invocation_id" if pre.get("invocation_id") else "legacy_tool_call_id",
+                "tool_name": pre.get("tool_name"),
+                "declared_intent": {
+                    "intent_rationale": pre.get("intent_rationale"),
+                    "tool_input_hash": pre.get("tool_input_hash"),
+                },
+                "kernel_decision": kernel_decision,
+                "actual_outcome": {
+                    "outcome": post.get("tool_outcome") if post else None,
+                    "result": (post.get("metadata") or {}).get("result") if post else None,
+                    "duration_ms": (post.get("metadata") or {}).get("duration_ms") if post else None,
+                } if post else None,
+                "diverges": bool(post) and (
+                    (kernel_decision.get("success") is True and post.get("tool_outcome") != "success")
+                    or (kernel_decision.get("success") is False and post.get("tool_outcome") == "success")
+                ),
+            })
+        return triples
+
+    def invocation_correlations(self, limit: int = 100) -> list[dict[str, object]]:
+        """Recent runtime invocations grouped by the protocol correlation key.
+
+        This is the Cortex operator projection: it keeps the raw pre/post evidence and makes
+        missing stages explicit. Events without ``invocation_id`` are excluded because a
+        runtime-local tool_call_id cannot safely drive the cross-repository UI.
+        """
+        if limit < 1 or limit > 1000:
+            raise ValueError("limit must be between 1 and 1000")
+        with self._lock:
+            rows = self._connection.execute(
+                "SELECT * FROM otel_events ORDER BY rowid DESC LIMIT ?",
+                (limit * 4,),
+            ).fetchall()
+
+        grouped: dict[str, dict[str, object]] = {}
+        for row in reversed(rows):
+            attributes = json.loads(row["attributes_json"])
+            invocation_id = attributes.get("invocation_id")
+            if not invocation_id:
+                continue
+            metadata = attributes.get("metadata") or {}
+            hook = metadata.get("hook")
+            item = grouped.setdefault(
+                invocation_id,
+                {
+                    "invocation_id": invocation_id,
+                    "session_id": row["session_id"],
+                    "runtime": attributes.get("runtime"),
+                    "tool_name": attributes.get("tool_name"),
+                    "tool_call_id": metadata.get("tool_call_id"),
+                    "first_seen_at": row["created_at"],
+                    "last_seen_at": row["created_at"],
+                    "pre_tool": None,
+                    "post_tool": None,
+                },
+            )
+            item["last_seen_at"] = row["created_at"]
+            if hook == "pre_tool_call":
+                item["pre_tool"] = {
+                    "intent_rationale": attributes.get("intent_rationale"),
+                    "tool_input_hash": attributes.get("tool_input_hash"),
+                    "policy_reason": metadata.get("policy_reason"),
+                    "kernel_decision": metadata.get("kernel_decision"),
+                }
+            elif hook == "post_tool_call":
+                item["post_tool"] = {
+                    "outcome": attributes.get("tool_outcome"),
+                    "result": metadata.get("result"),
+                    "duration_ms": metadata.get("duration_ms"),
+                }
+
+        results = list(grouped.values())
+        for item in results:
+            if item["pre_tool"] and item["post_tool"]:
+                item["runtime_status"] = "complete"
+            elif item["pre_tool"]:
+                item["runtime_status"] = "awaiting_outcome"
+            else:
+                item["runtime_status"] = "orphan_outcome"
+        return list(reversed(results[-limit:]))
 
     def record_exchange(
         self,
@@ -2387,10 +3081,10 @@ class GraphStore:
         """
         exchanges = self.session_exchanges(external_session_id)
         leaves = [str(exchange["node_id"]) for exchange in exchanges]
-        proof = merkle_proof(leaves, exchange_index)
+        proof = domain_merkle_proof(leaves, exchange_index, domain="exchange_batch")
         return {
             "session_id": external_session_id,
-            "tree_kind": "xibalba.exchange_batch.merkle.v1",
+            "tree_kind": "xibalba.exchange_batch.merkle.v2",
             "leaf": leaves[exchange_index],
             "leaf_index": exchange_index,
             "exchange_count": len(leaves),
@@ -2802,8 +3496,8 @@ class GraphStore:
             raise ValueError(f"invalid evidence subject_type: {subject_type!r}")
         if not 1 <= max_items <= 100 or not 256 <= max_bytes <= 1_000_000 or not 0 <= max_depth <= 3:
             raise ValueError("invalid evidence bounds")
-        allowed = set(allowed_subject_ids or [subject_id])
-        if subject_id not in allowed:
+        allowed = list(dict.fromkeys(allowed_subject_ids or [subject_id]))
+        if subject_type != "context_bundle" and subject_id not in allowed:
             raise ValueError("subject_id is outside evidence scope")
         records: list[dict[str, object]] = []
         if subject_type == "memory":
@@ -2812,6 +3506,10 @@ class GraphStore:
                 records.append({"kind": "memory", "id": memory["id"], "content": memory["content"], "content_hash": memory["content_hash"], "status": memory["status"]})
         elif subject_type == "session":
             records = [{"kind": "exchange", "id": item["exchange"]["id"], "sequence_number": item["exchange"]["sequence_number"], "exchange": item["exchange"]} for item in self.session_exchanges(subject_id, limit=max_items)]
+        elif subject_type == "context_bundle":
+            for item_id in list(allowed)[:max_items]:
+                memory = self.get_memory(item_id)
+                records.append({"kind": "memory", "id": memory["id"], "content": memory["content"], "content_hash": memory["content_hash"], "status": memory["status"], "scope": "context_bundle"})
         else:
             records.append({"kind": subject_type, "id": subject_id, "task_subject": True})
         bounded: list[dict[str, object]] = []
@@ -2824,6 +3522,23 @@ class GraphStore:
             used += len(encoded.encode("utf-8"))
         return {"subject_type": subject_type, "subject_id": subject_id, "items": bounded, "item_count": len(bounded), "bytes": used, "max_items": max_items, "max_bytes": max_bytes, "max_depth": max_depth, "truncated": len(bounded) < len(records)}
 
+    def fetch_bounded_evidence_for_task(self, task: dict[str, object]) -> dict[str, object]:
+        """Resolve a claimed task's own contract (evidence_limits/evidence_scope) and fetch
+        exactly the evidence it permits -- the shared logic behind `memory_evidence_bundle`
+        (server.py) and `start_self_extraction` below, so both go through one code path
+        rather than two copies of the same contract parsing."""
+        contract = (task.get("input") or {}).get("_contract") or {}
+        limits = contract.get("evidence_limits") or {}
+        allowed_subject_ids = contract.get("evidence_scope") or None
+        return self.fetch_bounded_evidence(
+            subject_type=str(task["subject_type"]),
+            subject_id=str(task["subject_id"]),
+            allowed_subject_ids=allowed_subject_ids,
+            max_items=int(limits.get("max_items", 20)),
+            max_bytes=int(limits.get("max_bytes", 32_000)),
+            max_depth=int(limits.get("max_depth", 1)),
+        )
+
     def request_inference_task(
         self,
         task_type: str,
@@ -2835,6 +3550,8 @@ class GraphStore:
         idempotency_key: str | None = None,
         contract: InferenceTaskContract | None = None,
     ) -> dict[str, object]:
+        if not self.features["inference"]:
+            raise RuntimeError("inference is disabled by feature policy")
         if task_type not in _INFERENCE_TASK_TYPES:
             raise ValueError(f"invalid inference task_type: {task_type!r}")
         if subject_type not in _INFERENCE_SUBJECT_TYPES:
@@ -2942,6 +3659,76 @@ class GraphStore:
                 raise
         return self.get_inference_task(task_id)
 
+    def start_self_extraction(
+        self,
+        task_type: str,
+        *,
+        subject_type: str,
+        subject_id: str,
+        input_payload: dict[str, object],
+        claimed_by: str,
+        contract: InferenceTaskContract | None = None,
+    ) -> dict[str, object]:
+        """One round trip instead of three: request + claim + bounded-evidence fetch, for a
+        caller (e.g. this very MCP session) doing its own extraction inline rather than
+        through the isolated NativeHarnessInferenceProvider subprocess. Deliberately narrower
+        than `request_inference_task` -- only the task types with a real server-side output
+        validator (see `complete_inference_task`'s handling of `_EXTRACTION_PROPOSAL_TASK_TYPES`
+        and `detect_contradictions`) are accepted, so an in-session caller can't silently
+        produce an unvalidated task type. Completion still goes through the existing
+        `complete_inference_task` -- this only replaces the request+claim+evidence dance, not
+        the validation that makes the output trustworthy regardless of who produced it (see
+        `complete_inference_task`'s own comment on that point).
+        """
+        allowed_types = _EXTRACTION_PROPOSAL_TASK_TYPES | {"detect_contradictions"}
+        if task_type not in allowed_types:
+            raise ValueError(
+                f"start_self_extraction only supports {sorted(allowed_types)}, not {task_type!r} "
+                "-- other task types have no server-side output validator to make an in-session "
+                "result trustworthy; use request_inference_task for those."
+            )
+        task = self.request_inference_task(
+            task_type,
+            subject_type=subject_type,
+            subject_id=subject_id,
+            input_payload=input_payload,
+            requested_by=claimed_by,
+            contract=contract,
+        )
+        claimed = self.claim_inference_task(task["id"], claimed_by=claimed_by)
+        evidence = self.fetch_bounded_evidence_for_task(claimed)
+        return {"task_id": claimed["id"], "claim_token": claimed["claim_token"], "evidence": evidence}
+
+    def run_structural_extraction(self, subject_id: str, *, claimed_by: str = "structural-extractor") -> dict[str, object]:
+        """Deterministic, regex-based extract_entities -- request+claim+extract+complete in
+        one call, since there's no "agent does inference in between" step the way
+        start_self_extraction has (structural_extraction.py's extractors are synchronous and
+        instant). Still goes through the exact same complete_inference_task validation gate
+        as every other extraction path -- see that method's handling of
+        _EXTRACTION_PROPOSAL_TASK_TYPES. Scoped to subject_type="memory" only; regex
+        extraction over a full session/exchange has no single content string to match against.
+        """
+        from .structural_extraction import extract_structural_entities
+
+        memory = self.get_memory(subject_id)
+        task = self.request_inference_task(
+            "extract_entities",
+            subject_type="memory",
+            subject_id=subject_id,
+            input_payload={"source_content_hash": memory["content_hash"]},
+            requested_by=claimed_by,
+        )
+        claimed = self.claim_inference_task(task["id"], claimed_by=claimed_by)
+        entities = extract_structural_entities(str(memory["content"]))
+        output = {
+            "schema_version": "xibalba.entities.v1",
+            "input_snapshot_hash": memory["content_hash"],
+            "entities": entities,
+        }
+        return self.complete_inference_task(
+            claimed["id"], output_payload=output, claimed_by=claimed_by, claim_token=claimed["claim_token"]
+        )
+
     def requeue_expired_inference_tasks(self, *, limit: int = 50, max_attempts: int = 3) -> dict[str, int]:
         """Recover expired claims with a bounded retry count."""
         if limit < 1 or max_attempts < 1:
@@ -2974,6 +3761,36 @@ class GraphStore:
                 raise
         return {"expired": len(rows), "requeued": requeued, "failed": failed, "dead_lettered": failed}
 
+    def _reconcile_legacy_claimed_tasks_locked(self) -> dict[str, int]:
+        """Dead-letter claimed rows with no claim metadata -- these predate the claim-token
+        mechanism and can never satisfy complete_inference_task's ownership check, so they'd
+        otherwise sit claimed forever. Caller must already hold self._lock and a transaction."""
+        rows = self._connection.execute(
+            "SELECT id FROM memory_inference_tasks WHERE status = 'claimed' "
+            "AND (claim_owner IS NULL OR claim_token IS NULL)"
+        ).fetchall()
+        for row in rows:
+            self._connection.execute(
+                "UPDATE memory_inference_tasks SET status = 'failed', failure_class = 'permanent', "
+                "dead_letter_reason = 'legacy_claim_without_metadata', error = ?, updated_at = CURRENT_TIMESTAMP "
+                "WHERE id = ?",
+                ("claimed row predates claim-token metadata; cannot be completed", row["id"]),
+            )
+        return {"dead_lettered": len(rows)}
+
+    def reconcile_legacy_claimed_tasks(self) -> dict[str, int]:
+        """Public entry point for reconcile_legacy_claimed_tasks -- manual re-run outside the
+        v9 migration (e.g. an operator invoking it after restoring an older backup)."""
+        with self._lock:
+            self._connection.execute("BEGIN IMMEDIATE")
+            try:
+                result = self._reconcile_legacy_claimed_tasks_locked()
+                self._connection.execute("COMMIT")
+            except Exception:
+                self._connection.execute("ROLLBACK")
+                raise
+        return result
+
     def complete_inference_task(
         self,
         task_id: str,
@@ -2986,6 +3803,8 @@ class GraphStore:
         claimed_by: str | None = None,
         claim_token: str | None = None,
     ) -> dict[str, object]:
+        if failure_class is not None and failure_class not in _FAILURE_CLASSES:
+            raise ValueError(f"invalid failure_class: {failure_class!r}")
         task = self.get_inference_task(task_id)
         if task["status"] != "claimed" or task["claim_owner"] != claimed_by or task["claim_token"] != claim_token:
             raise ValueError(f"inference task {task_id!r} claim is invalid")
@@ -3012,10 +3831,44 @@ class GraphStore:
                 # raising and requiring the caller to make a second call to record failure --
                 # an external MCP-connected worker may have no such retry loop.
                 error = str(exc)
-                failure_class = failure_class or "permanent"
+                failure_class = failure_class or "validation"
                 dead_letter_reason = dead_letter_reason or "extraction_validation_failed"
             else:
                 extraction_items = validated[kind]
+                extraction_source_hash = expected_hash
+        elif error is None and task["task_type"] == "detect_contradictions":
+            try:
+                memory = self.get_memory(str(task["subject_id"]))
+                expected_hash = str(task["input"].get("source_content_hash") or memory["content_hash"])
+                if expected_hash != memory["content_hash"]:
+                    raise ValueError("task source_content_hash does not match current memory")
+                validated = validate_contradiction_result(output_payload or {}, expected_hash=expected_hash)
+                # Attach source-credibility signals for the human reviewer -- informs the
+                # proposal's auto_recommendation, never used to auto-resolve the conflict.
+                subject_credibility = self._source_credibility(memory)
+                enriched_items = []
+                for item in validated["contradictions"]:
+                    other = self.get_memory(item["contradicting_memory_id"])
+                    other_credibility = self._source_credibility(other)
+                    enriched_items.append({
+                        **item,
+                        "subject_source_kind": memory["source"]["kind"],
+                        "subject_credibility": subject_credibility,
+                        "contradicting_source_kind": other["source"]["kind"],
+                        "contradicting_content_hash": other["content_hash"],
+                        "contradicting_credibility": other_credibility,
+                        "auto_recommendation": (
+                            "prefer_subject" if subject_credibility > other_credibility
+                            else "prefer_contradicting" if other_credibility > subject_credibility
+                            else "credibility_tied"
+                        ),
+                    })
+            except Exception as exc:
+                error = str(exc)
+                failure_class = failure_class or "validation"
+                dead_letter_reason = dead_letter_reason or "contradiction_validation_failed"
+            else:
+                extraction_items = enriched_items
                 extraction_source_hash = expected_hash
         elif task["task_type"] == "classify_para" and error is None:
             self._validate_para_output(task, output_payload or {})
@@ -3027,7 +3880,7 @@ class GraphStore:
         effective_failure_class = failure_class or ("transient" if error else None)
         effective_retry_after = retry_after or (
             (datetime.now(timezone.utc) + timedelta(seconds=60)).replace(microsecond=0).isoformat()
-            if error and effective_failure_class == "transient"
+            if error and effective_failure_class in _RETRYABLE_FAILURE_CLASSES
             else None
         )
         with self._lock:
@@ -3219,6 +4072,10 @@ class GraphStore:
                 (relation_id, subject["id"], str(payload["predicate"]), obj["id"], memory_id, float(payload.get("confidence") or 1.0)),
             )
             return {"kind": "relation", "relation_id": relation_id}
+        if proposal["task_type"] == "detect_contradictions":
+            other_id = str(payload["contradicting_memory_id"])
+            self._mark_contradiction_locked(memory_id, other_id, str(payload["reason"]))
+            return {"kind": "contradiction", "memory_id_a": memory_id, "memory_id_b": other_id}
         raise ValueError(f"no applier for extraction proposal task_type {proposal['task_type']!r}")
 
     def decide_extraction_proposal(
@@ -3227,6 +4084,8 @@ class GraphStore:
         if decision not in {"accept", "dismiss"}:
             raise ValueError("decision must be accept or dismiss")
         proposal = self.get_extraction_proposal(proposal_id)
+        if proposal["status"] != "proposed":
+            raise ValueError(f"extraction proposal is not actionable: status={proposal['status']!r}")
         memory = self.get_memory(str(proposal["source_memory_id"]))
 
         # Reject acceptance if the source memory has diverged since the proposal was generated --
@@ -3238,6 +4097,18 @@ class GraphStore:
                     (note or "Source memory changed before operator decision.", decided_by, proposal_id),
                 )
             raise ValueError("extraction proposal is stale because the source memory changed")
+
+        if proposal["task_type"] == "detect_contradictions":
+            payload = proposal["payload"]
+            candidate = self.get_memory(str(payload["contradicting_memory_id"]))
+            expected_candidate_hash = payload.get("contradicting_content_hash")
+            if expected_candidate_hash and candidate["content_hash"] != expected_candidate_hash:
+                with self._lock:
+                    self._connection.execute(
+                        "UPDATE extraction_proposals SET status = 'stale', decision_note = ?, decided_by = ?, decided_at = CURRENT_TIMESTAMP WHERE id = ?",
+                        (note or "Contradicting memory changed before operator decision.", decided_by, proposal_id),
+                    )
+                raise ValueError("extraction proposal is stale because the contradicting memory changed")
 
         if decision == "dismiss":
             with self._lock:
@@ -3273,15 +4144,8 @@ class GraphStore:
         if projection_id not in _PROJECTION_LEAF_SOURCES:
             raise ValueError(f"unknown projection_id: {projection_id!r}")
         table, columns, order_column = _PROJECTION_LEAF_SOURCES[projection_id]
-        column_list = ", ".join(columns)
         with self._lock:
-            rows = self._connection.execute(
-                f"SELECT {column_list} FROM {table} ORDER BY {order_column}"
-            ).fetchall()
-        return [
-            "sha256:" + hashlib.sha256(self._canonical_json({col: row[col] for col in columns}).encode()).hexdigest()
-            for row in rows
-        ]
+            return _compute_leaves(self._connection, table, columns, order_column)
 
     def create_projection_checkpoint(
         self, projection_id: str, *, metadata: dict[str, object] | None = None
@@ -3440,6 +4304,17 @@ class GraphStore:
                 raise
         return self.get_memory(new["id"])
 
+    def _mark_contradiction_locked(self, memory_id_a: str, memory_id_b: str, reason: str) -> None:
+        """Raw write, no transaction management -- caller must already hold self._lock and an
+        open transaction (used by mark_contradiction directly, and by _apply_extraction_proposal
+        for accepted detect_contradictions proposals, which are already inside one)."""
+        self._connection.execute(
+            "INSERT INTO contradictions(memory_id_a, memory_id_b, reason) VALUES (?, ?, ?)",
+            (memory_id_a, memory_id_b, reason),
+        )
+        for memory_id, other_id in ((memory_id_a, memory_id_b), (memory_id_b, memory_id_a)):
+            self._append_event(memory_id, "contradict", {"contradicts": other_id, "reason": reason})
+
     def mark_contradiction(
         self, memory_id_a: str, memory_id_b: str, reason: str
     ) -> dict[str, object]:
@@ -3448,14 +4323,7 @@ class GraphStore:
         with self._lock:
             self._connection.execute("BEGIN IMMEDIATE")
             try:
-                self._connection.execute(
-                    "INSERT INTO contradictions(memory_id_a, memory_id_b, reason) VALUES (?, ?, ?)",
-                    (memory_id_a, memory_id_b, reason),
-                )
-                for memory_id, other_id in ((memory_id_a, memory_id_b), (memory_id_b, memory_id_a)):
-                    self._append_event(
-                        memory_id, "contradict", {"contradicts": other_id, "reason": reason}
-                    )
+                self._mark_contradiction_locked(memory_id_a, memory_id_b, reason)
                 self._connection.execute("COMMIT")
             except Exception:
                 self._connection.execute("ROLLBACK")
@@ -3494,17 +4362,71 @@ class GraphStore:
         return record
 
     @staticmethod
+    def _source_credibility(memory: dict[str, object]) -> float:
+        source = memory.get("source") or {}
+        kind = str(source.get("kind")) if isinstance(source, dict) else None
+        return _SOURCE_CREDIBILITY.get(kind or "", 0.5)
+
+    @staticmethod
     def _normalize_name(name: str) -> str:
         return " ".join(name.strip().lower().split())
 
     def _find_entity(self, name: str) -> sqlite3.Row | None:
         normalized = self._normalize_name(name)
+        by_alias = self._resolve_entity_alias_locked(normalized)
+        if by_alias is not None:
+            return self._connection.execute("SELECT * FROM entities WHERE id = ?", (by_alias,)).fetchone()
         return self._connection.execute(
             "SELECT * FROM entities WHERE normalized_name = ? LIMIT 1", (normalized,)
         ).fetchone()
 
+    def _resolve_entity_alias_locked(self, normalized_name: str) -> str | None:
+        """Look up a pre-normalized name against entity_aliases. Caller must already hold
+        self._lock. normalized_name is expected to already be run through _normalize_name."""
+        row = self._connection.execute(
+            "SELECT entity_id FROM entity_aliases WHERE normalized_alias = ? LIMIT 1", (normalized_name,)
+        ).fetchone()
+        return row["entity_id"] if row is not None else None
+
+    def resolve_entity_alias(self, name: str) -> str | None:
+        """Public entry point: resolve a name to an entity id via a known alias, or None."""
+        with self._lock:
+            return self._resolve_entity_alias_locked(self._normalize_name(name))
+
+    def add_entity_alias(
+        self, entity_id: str, alias: str, *, evidence_memory_id: str | None = None, confidence: float = 1.0
+    ) -> dict[str, object]:
+        normalized = self._normalize_name(alias)
+        with self._lock:
+            self._connection.execute("BEGIN IMMEDIATE")
+            try:
+                existing = self._connection.execute("SELECT id FROM entities WHERE id = ?", (entity_id,)).fetchone()
+                if existing is None:
+                    raise KeyError(entity_id)
+                alias_id = str(uuid.uuid4())
+                self._connection.execute(
+                    """INSERT INTO entity_aliases(id, entity_id, alias, normalized_alias, evidence_memory_id, confidence)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                    ON CONFLICT(entity_id, normalized_alias) DO UPDATE SET
+                        evidence_memory_id = excluded.evidence_memory_id, confidence = excluded.confidence""",
+                    (alias_id, entity_id, alias.strip(), normalized, evidence_memory_id, confidence),
+                )
+                self._connection.execute("COMMIT")
+            except Exception:
+                self._connection.execute("ROLLBACK")
+                raise
+        return {"entity_id": entity_id, "alias": alias.strip(), "normalized_alias": normalized}
+
     def _get_or_create_entity(self, name: str, entity_type: str = "unknown") -> sqlite3.Row:
         normalized = self._normalize_name(name)
+        # Alias resolution takes precedence over the exact normalized_name+entity_type match:
+        # a known alias means this string already refers to an existing entity, regardless of
+        # what entity_type label this particular mention would otherwise have been filed under.
+        aliased_entity_id = self._resolve_entity_alias_locked(normalized)
+        if aliased_entity_id is not None:
+            row = self._connection.execute("SELECT * FROM entities WHERE id = ?", (aliased_entity_id,)).fetchone()
+            if row is not None:
+                return row
         row = self._connection.execute(
             "SELECT * FROM entities WHERE normalized_name = ? AND entity_type = ?",
             (normalized, entity_type),

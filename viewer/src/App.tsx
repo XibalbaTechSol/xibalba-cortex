@@ -5,6 +5,7 @@ import {
   type Attachment,
   type EntityRelation,
   type Exchange,
+  type ExtractionProposal,
   type GraphNode,
   type GraphPayload,
   type IntegrityLinksStatus,
@@ -22,9 +23,10 @@ import {
   type TraversalResult,
 } from './api'
 import { Graph3DView, type DemoEdge, type DemoGraph, type DemoNode, type DemoNodeType, type GraphBackground, type GraphViewOptions } from './Graph3DView'
+import { ExtractionProposalsPanel, ProjectionHealthPanel, RetrievalTraceInspector } from './ProvenancePanels'
 import './index.css'
 
-type Tab = 'timeline' | 'graph' | 'recall' | 'inference' | 'integrity'
+type Tab = 'timeline' | 'graph' | 'recall' | 'inference' | 'provenance' | 'integrity'
 type GraphFilterIntent = { nonce: number; status?: string; evidence?: string }
 
 const tabs: Array<{ id: Tab; label: string }> = [
@@ -32,15 +34,16 @@ const tabs: Array<{ id: Tab; label: string }> = [
   { id: 'graph', label: 'Graph' },
   { id: 'recall', label: 'Recall' },
   { id: 'inference', label: 'Inference' },
+  { id: 'provenance', label: 'Provenance' },
   { id: 'integrity', label: 'Integrity' },
 ]
 
-function Badge({ children }: { children: ReactNode }) {
+export function Badge({ children }: { children: ReactNode }) {
   if (children === null || children === undefined || children === '') return null
   return <span className="badge">{children}</span>
 }
 
-function Hash({ value }: { value: string | null | undefined }) {
+export function Hash({ value }: { value: string | null | undefined }) {
   if (!value) return <span className="muted">none</span>
   return <code title={value}>{value.slice(0, 18)}...</code>
 }
@@ -722,6 +725,8 @@ export default function App() {
   const [manifest, setManifest] = useState<InferenceManifest | null>(null)
   const [tasks, setTasks] = useState<InferenceTask[]>([])
   const [paraClassifications, setParaClassifications] = useState<ParaClassification[]>([])
+  const [extractionProposals, setExtractionProposals] = useState<ExtractionProposal[]>([])
+  const [extractionProposalStatus, setExtractionProposalStatus] = useState('proposed')
   const [taskStatus, setTaskStatus] = useState('pending')
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
@@ -798,6 +803,10 @@ export default function App() {
   useEffect(() => {
     api.paraClassifications().then(setParaClassifications).catch(() => setParaClassifications([]))
   }, [tasks])
+
+  useEffect(() => {
+    api.extractionProposals(extractionProposalStatus).then(setExtractionProposals).catch(() => setExtractionProposals([]))
+  }, [extractionProposalStatus, tasks])
 
 
   const demoGraph = useMemo(
@@ -1131,6 +1140,27 @@ export default function App() {
                 }}
                 onSelectMemory={selectMemory}
               />
+            </>
+          )}
+          {activeTab === 'provenance' && (
+            <>
+              <ExtractionProposalsPanel
+                proposals={extractionProposals}
+                status={extractionProposalStatus}
+                onStatusChange={setExtractionProposalStatus}
+                onDecision={async (proposalId, decision) => {
+                  try {
+                    await api.decideExtractionProposal(proposalId, decision, 'viewer')
+                    setExtractionProposals(await api.extractionProposals(extractionProposalStatus))
+                    setNotice(`Extraction proposal ${decision === 'accept' ? 'accepted' : 'dismissed'}.`)
+                  } catch (e) {
+                    setError(String(e))
+                  }
+                }}
+                onSelectMemory={selectMemory}
+              />
+              <RetrievalTraceInspector onSelectMemory={selectMemory} />
+              <ProjectionHealthPanel />
             </>
           )}
           {activeTab === 'integrity' && (

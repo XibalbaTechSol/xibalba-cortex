@@ -66,11 +66,18 @@ def run_command(args: argparse.Namespace) -> dict[str, Any]:
         return {
             "home": str(home),
             "mode": config.mode,
+            "storage_backend": config.storage.backend,
             "canonical_store": manifest["canonical_store"],
             "inference_provider": config.inference.provider,
             "embedding_provider": config.embeddings.provider,
             "retrieval_provider": manifest["retrieval"],
             "remote_projections": manifest["remote_projections"],
+            "features": config.features.as_dict(),
+            "retrieval_channels": {
+                "lexical": config.retrieval.lexical,
+                "vector": config.retrieval.vector,
+                "graph": config.retrieval.graph,
+            },
         }
     if args.command == "readiness":
         return readiness(

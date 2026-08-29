@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 import sqlite_vec
 
-from xibalba_cortex.events import verify_merkle_proof
+from xibalba_cortex.events import verify_domain_merkle_proof
 from xibalba_cortex.providers import InferenceTaskContract
 from xibalba_cortex.store import EMBEDDING_DIM, EMBEDDING_MODEL_ID, GraphStore
 
@@ -28,7 +28,7 @@ def test_bootstrap_creates_secure_healthy_sqlite_store(tmp_path):
     assert os.stat(home).st_mode & 0o777 == 0o700
     assert store.db_path.is_file()
     assert os.stat(store.db_path).st_mode & 0o777 == 0o600
-    assert status["schema_version"] == 8
+    assert status["schema_version"] == 12
     assert status["journal_mode"] == "wal"
     assert status["foreign_keys"] is True
     assert status["fts5"] is True
@@ -562,7 +562,7 @@ def test_memory_vectors_migrates_existing_l2_table_to_cosine_preserving_data(tmp
     raw.close()
 
     reopened = GraphStore(home)
-    assert reopened.status()["schema_version"] == 8
+    assert reopened.status()["schema_version"] == 12
     results = reopened.search("nomatchingterm-xyz", query_vector=_unit_vector(0), limit=5)
     assert results[0]["id"] == memory["id"]
     assert results[0]["cosine_similarity"] == pytest.approx(1.0)
@@ -580,7 +580,7 @@ def test_backup_produces_verified_restorable_snapshot(tmp_path):
     backup_path = tmp_path / "backups" / "snapshot.sqlite3"
     result = store.backup(backup_path)
     assert result["integrity_check"] == "ok"
-    assert result["schema_version"] == 8
+    assert result["schema_version"] == 12
     assert backup_path.is_file()
     assert os.stat(backup_path).st_mode & 0o777 == 0o600
 
@@ -620,6 +620,67 @@ def test_restore_refuses_corrupt_backup(tmp_path):
 
     # Store must still be fully functional -- restore failed before touching the live connection.
     assert len(store.search("Untouched if restore is refused")) == 1
+    store.close()
+
+
+def test_reconcile_backup_catches_a_mutated_copy(tmp_path):
+    """PRAGMA integrity_check alone would accept this file -- it's a structurally valid
+    SQLite database, just not a byte-identical copy of the live store anymore."""
+    store = GraphStore(tmp_path / "graph")
+    store.store_memory(
+        "Original content, present in the live store.",
+        source={"kind": "direct_user", "locator": "hermes://session/reconcile"},
+        status="confirmed",
+    )
+
+    backup_path = tmp_path / "backups" / "snapshot.sqlite3"
+    result = store.backup(backup_path)
+    assert result["reconciliation"]["equal"] is True
+    assert result["reconciliation"]["domains"]["memories"]["equal"] is True
+
+    # Mutate the BACKUP FILE directly (not the live store) -- simulates corruption/tampering
+    # between backup time and a later reconciliation check.
+    tamper_conn = sqlite3.connect(backup_path)
+    tamper_conn.execute("UPDATE memories SET content_hash = 'sha256:' || substr(content_hash, 8) || 'ff' WHERE 1=1")
+    tamper_conn.commit()
+    tamper_conn.close()
+
+    # Still a valid SQLite file -- PRAGMA integrity_check alone would not catch this.
+    check_conn = sqlite3.connect(backup_path)
+    assert check_conn.execute("PRAGMA integrity_check").fetchone()[0] == "ok"
+    check_conn.close()
+
+    reconciliation = store.reconcile_backup(backup_path)
+    assert reconciliation["equal"] is False
+    assert reconciliation["domains"]["memories"]["equal"] is False
+    assert reconciliation["domains"]["memories"]["live_root"] != reconciliation["domains"]["memories"]["destination_root"]
+    # Domains untouched by the tamper (entities/relations, empty in this test) still agree.
+    assert reconciliation["domains"]["entities"]["equal"] is True
+
+    # Persisted, not just returned.
+    row = store._connection.execute(
+        "SELECT equal FROM backup_reconciliations WHERE id = ?", (reconciliation["id"],)
+    ).fetchone()
+    assert row["equal"] == 0
+    store.close()
+
+
+def test_reconcile_backup_domain_separation_from_projection_checkpoint(tmp_path):
+    """Same (table, columns) source as compute_projection_leaves("memories"), but the
+    backup.* Merkle domain must produce a DIFFERENT root -- domain separation would be void
+    if a live-vs-backup root could collide with a live-vs-projection root."""
+    store = GraphStore(tmp_path / "graph")
+    store.store_memory(
+        "Content used to compare domain-separated roots.",
+        source={"kind": "direct_user", "locator": "hermes://session/domain-sep"},
+        status="confirmed",
+    )
+    backup_path = tmp_path / "backups" / "snapshot.sqlite3"
+    result = store.backup(backup_path, reconcile=False)
+    reconciliation = store.reconcile_backup(backup_path, domains=("memories",))
+
+    projection_root = store.create_projection_checkpoint("memories")["root_hash"]
+    assert reconciliation["domains"]["memories"]["live_root"] != projection_root
     store.close()
 
 
@@ -1051,12 +1112,17 @@ def test_session_merkle_evidence_proves_exchange_inclusion(tmp_path):
 
     evidence = store.session_merkle_evidence("proof-session", exchange_index=1)
 
-    assert evidence["tree_kind"] == "xibalba.exchange_batch.merkle.v1"
+    assert evidence["tree_kind"] == "xibalba.exchange_batch.merkle.v2"
     assert evidence["leaf"] == second["exchange"]["node_id"]
     assert evidence["leaf_index"] == 1
     assert evidence["exchange_count"] == 2
-    assert verify_merkle_proof(evidence["proof"]) is True
+    assert verify_domain_merkle_proof(evidence["proof"]) is True
     assert evidence["root"] == evidence["proof"]["root"]
+    assert evidence["proof"]["domain"] == "exchange_batch"
+    assert evidence["proof"]["payload_hash"] == evidence["leaf"]
+    assert evidence["proof"]["index"] == evidence["leaf_index"]
+    assert "leaf" not in evidence["proof"]
+    assert "leaf_index" not in evidence["proof"]
     assert first["exchange"]["node_id"] != second["exchange"]["node_id"]
     store.close()
 
@@ -1301,3 +1367,18 @@ def test_expired_inference_claim_is_requeued_and_bounded(tmp_path):
     with store._lock:
         store._connection.execute("UPDATE memory_inference_tasks SET lease_expires_at = '2000-01-01 00:00:00', attempt_count = 3 WHERE id = ?", (task["id"],))
     assert store.requeue_expired_inference_tasks(max_attempts=3) == {"expired": 1, "requeued": 0, "failed": 1, "dead_lettered": 1}
+
+
+def test_context_bundle_evidence_scope_reads_all_server_scoped_memories(tmp_path):
+    store = GraphStore(tmp_path / "graph")
+    first = store.store_memory("first scoped memory", source={"kind": "test"})
+    second = store.store_memory("second scoped memory", source={"kind": "test"})
+    task = store.request_inference_task(
+        "extract_propositions", subject_type="context_bundle", subject_id="bundle-1",
+        input_payload={},
+        contract=InferenceTaskContract(evidence_scope=(first["id"], second["id"])),
+    )
+    claimed = store.claim_inference_task(task["id"], claimed_by="worker")
+    evidence = store.fetch_bounded_evidence_for_task(claimed)
+    assert [item["id"] for item in evidence["items"]] == [first["id"], second["id"]]
+    store.close()

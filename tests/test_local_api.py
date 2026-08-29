@@ -89,7 +89,7 @@ def test_status_and_integrity_links_routes(running_store):
 
     status, body = _get(port, "/api/status")
     assert status == 200
-    assert body["schema_version"] == 8
+    assert body["schema_version"] == 12
     assert body["journal_mode"] == "wal"
     assert body["backup_ready"] is True
 
@@ -109,6 +109,27 @@ def test_search_returns_matching_memory(running_store):
     status, body = _get(port, "/api/search?q=Shield")
     assert status == 200
     assert body[0]["content"] == "Xibalba Shield local API test content."
+
+
+def test_invocations_route_returns_protocol_correlations(running_store):
+    store, port = running_store
+    invocation_id = "d32c93ca-7c8e-49fb-8071-0941572cecf6"
+    store.start_session("correlation-api", retention_tier="verbatim")
+    store.record_otel_batch("correlation-api", [{
+        "kind": "log",
+        "name": "xibalba.runtime.event",
+        "attributes": {
+            "invocation_id": invocation_id,
+            "tool_name": "shell",
+            "metadata": {"hook": "pre_tool_call", "tool_call_id": "call-1"},
+        },
+    }])
+
+    status, body = _get(port, "/api/invocations?limit=20")
+
+    assert status == 200
+    assert body[0]["invocation_id"] == invocation_id
+    assert body[0]["runtime_status"] == "awaiting_outcome"
 
 
 def test_memory_detail_and_404(running_store):
@@ -252,7 +273,7 @@ def test_model_exchange_session_and_merkle_routes(running_store):
 
     status, proof = _get(port, "/api/session/ui-session/merkle-proof?index=0")
     assert status == 200
-    assert proof["tree_kind"] == "xibalba.exchange_batch.merkle.v1"
+    assert proof["tree_kind"] == "xibalba.exchange_batch.merkle.v2"
     assert proof["leaf"] == body["exchange"]["node_id"]
     assert proof["proof"]["root"].startswith("sha256:")
 

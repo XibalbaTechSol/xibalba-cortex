@@ -2,7 +2,7 @@
 
 **Written:** 2026-08-13
 **Plan file this work executes:** `~/.claude/plans/for-the-requested-feature-compiled-pine.md`
-**Status:** Phases A and B complete and live-verified. Phase C (items 5-8) not started.
+**Status:** Phases A, B, and C all complete and live-verified. 307 passed, 1 skipped, 1 warning.
 
 ## What this covers
 
@@ -110,7 +110,8 @@ dependency note (schema before workers; store/API before viewer):
    `task_type` CHECK constraint (schema v9, same rename-recreate-copy pattern used for the v8
    `memory_inference_tasks` changes already in this repo's history) plus worker
    implementations mirroring `hermes_worker.py`/`para_worker.py`. Implement a `detect_contradictions`
-   worker (schema already allows the type; no worker exists). Introduce a shared `failure_class`
+   `detect_contradictions` worker (schema already allows the type; the bounded worker now exists in
+   `src/xibalba_cortex/contradiction_worker.py`). Introduce a shared `failure_class`
    taxonomy — currently free-text, set ad hoc at two call sites in `store.py`. Audit for legacy
    `status='claimed'` rows with null `claim_owner`/`claim_token` and dead-letter them.
 2. **Item 5 — retrieval completeness.** Exact-identifier candidate channel, entity alias
