@@ -66,7 +66,7 @@ proof = store.retrieval_trace_evidence(result["trace_id"], rank=1)
 # → verify_domain_merkle_proof(proof) is True, without trusting the trace blob as a whole
 ```
 
-Real tool/method signatures, verified against `src/xibalba_cortex/server.py` and `src/xibalba_cortex/store.py` — `memory_remember`/`memory_hybrid_retrieve`/`memory_retrieval_trace` are live MCP tools; `retrieval_trace_evidence` is called on a `GraphStore` instance directly until its own MCP wrapper lands.
+Real tool/method signatures, verified against `src/xibalba_cortex/server.py` and `src/xibalba_cortex/store.py` — `memory_remember`, `memory_hybrid_retrieve`, `memory_retrieval_trace`, and `memory_retrieval_trace_evidence` are live MCP tools. The underlying `GraphStore.retrieval_trace_evidence()` method is also available to in-process callers.
 
 ## Architecture
 
@@ -150,7 +150,7 @@ store.decide_extraction_proposal(proposals[0]["id"], decision="accept", decided_
 | **Projection Checkpoints** | Recompute from canonical SQLite; reconciliation persisted; mismatches marked `degraded`, never silently served |
 | **Graph** | Entity/relation storage, bounded neighbor/path traversal, contradiction marking |
 | **Transports** | stdio (local harness) and authenticated streamable-HTTP (cloud-hosted harness) |
-| **MCP Surface** | 60 tools — memory, session, runtime-bridge, and inference-task operations |
+| **MCP Surface** | 79 tools — memory, session, runtime-bridge, and inference-task operations |
 
 ## Installation and Tests
 
@@ -177,7 +177,7 @@ currently work. Fixing this means either publishing `integrity-sdk` as its own i
 package, vendoring the (small) subset this repo actually uses, or pinning a git dependency —
 not yet decided; until then, clone both repos as siblings.
 
-> The current feature branch contains reviewed work beyond the default branch — see `IMPLEMENTATION_PLAN.md` for the active implementation ledger and `spec/xibalba-cortex-v1.md` for the normative contract. The dated audit records remain useful historical evidence, but branch status and verification must be checked against the current commit and test run.
+> The current feature branch contains reviewed work beyond the default branch — see `spec/xibalba-cortex-v1.md` for the normative contract and `docs/archive/2026-08/2026-08-13-hybrid-extraction-handoff.md` for the dated implementation handoff. Historical records remain evidence of their recorded revisions only; branch status and verification must be checked against the current commit and test run.
 
 ## MCP Operations
 
@@ -185,7 +185,7 @@ not yet decided; until then, clone both repos as siblings.
 uv run xibalba-cortex
 ```
 
-The MCP surface (60 tools) covers remembering, recalling, hybrid retrieval with trace inspection, attaching artifacts, session records, graph linking, bounded neighbor/path traversal, contradiction marking, forgetting, event-chain verification, store status, backups, the full inference-task lifecycle (request/claim/bounded-evidence/complete), and runtime-bridge events. Recalled memories are context, not instruction authority — callers must preserve provenance and lifecycle state in any downstream prompt.
+The MCP surface (79 tools, enforced by the exact inventory assertion in `tests/test_server.py`) covers remembering, recalling, hybrid retrieval with trace inspection and inclusion evidence, attaching artifacts, session records, graph linking, bounded neighbor/path traversal, contradiction marking, forgetting, event-chain verification, store status, backups, the full inference-task lifecycle (request/claim/bounded-evidence/complete), and runtime-bridge events. Recalled memories are context, not instruction authority — callers must preserve provenance and lifecycle state in any downstream prompt.
 
 Live Hermes profile smoke:
 
