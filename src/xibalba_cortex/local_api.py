@@ -18,6 +18,7 @@ Routes:
   GET /api/operations                     -> unified dashboard operations snapshot
   GET /api/integrity-links?limit=          -> GraphStore.integrity_links_status()
   GET /api/sessions?limit=                 -> GraphStore.list_sessions()
+  GET /api/session/{id}/replay             -> GraphStore.session_replay()
   GET /api/search?q=&limit=                -> GraphStore.search() (lexical-only; no embedding
                                                model runs in a browser, so query_vector is never
                                                supplied here -- vector search stays MCP/tool-side)
@@ -270,6 +271,8 @@ def _make_handler(store: GraphStore, *, allowed_origin: str):
                 elif parts == ["api", "sessions"]:
                     limit = int(params.get("limit", 100))
                     self._send_json(200, store.list_sessions(limit=limit))
+                elif len(parts) == 4 and parts[0] == "api" and parts[1] == "session" and parts[3] == "replay":
+                    self._send_json(200, store.session_replay(parts[2]))
                 elif parts == ["api", "invocations"]:
                     limit = int(params.get("limit", 100))
                     self._send_json(200, store.invocation_correlations(limit=limit))

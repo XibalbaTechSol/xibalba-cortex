@@ -18,6 +18,7 @@ import {
   type OtelEvent,
   type ParaClassification,
   type Session,
+  type SessionReplay,
   type SimilarHit,
   type Stats,
   type StoreStatus,
@@ -714,6 +715,7 @@ export default function App() {
   const [selectedSessionId, setSelectedSessionId] = useState('')
   const [root, setRoot] = useState<MerkleRoot | null>(null)
   const [exchanges, setExchanges] = useState<Exchange[]>([])
+  const [sessionReplay, setSessionReplay] = useState<SessionReplay | null>(null)
   const [graph, setGraph] = useState<GraphPayload | null>(null)
   const [similarityThreshold, setSimilarityThreshold] = useState(0.75)
   const [graphFilterIntent, setGraphFilterIntent] = useState<GraphFilterIntent>({ nonce: 0 })
@@ -766,6 +768,7 @@ export default function App() {
   useEffect(() => {
     // Clear stale state and inspector panels when session changes
     setExchanges([])
+    setSessionReplay(null)
     setRoot(null)
     setSelectedGraphNode((prev) => {
       if (prev && prev.type === 'session' && (prev.payload as Session)?.external_session_id === selectedSessionId) {
@@ -779,6 +782,7 @@ export default function App() {
       return
     }
     api.sessionExchanges(selectedSessionId).then(setExchanges).catch(() => setExchanges([]))
+    api.sessionReplay(selectedSessionId).then(setSessionReplay).catch(() => setSessionReplay(null))
     api.sessionMerkleRoot(selectedSessionId).then(setRoot).catch(() => setRoot(null))
   }, [selectedSessionId])
 
@@ -1078,6 +1082,7 @@ export default function App() {
           {activeTab === 'timeline' && (
             <TimelineTab
               exchanges={exchanges}
+              sessionReplay={sessionReplay}
               contextBundle={contextBundle}
               selectedSessionId={selectedSessionId}
               onRecord={handleRecordExchange}
@@ -1205,6 +1210,8 @@ export default function App() {
 function TimelineTab({
   exchanges,
   contextBundle,
+  sessionReplay,
+
   selectedSessionId,
   onRecord,
   onSelectMemory,
@@ -1212,6 +1219,7 @@ function TimelineTab({
   setSelectedSessionId,
 }: {
   exchanges: Exchange[]
+  sessionReplay: SessionReplay | null
   contextBundle: Memory[]
   selectedSessionId: string
   onRecord: (event: FormEvent<HTMLFormElement>) => void
@@ -1258,6 +1266,31 @@ function TimelineTab({
         </div>
       </form>
 
+      {sessionReplay && (
+        <section className="replay-panel" aria-label="Session replay">
+          <div className="panel-header">
+            <h3>Replay transcript</h3>
+            <span className={`status-pill `}>
+              {sessionReplay.replayable ? "complete" : `incomplete:  gap(s)`}
+            </span>
+          </div>
+          <p className="small muted">Ordered prompts, responses, tool calls, results, and recorded timestamps. {sessionReplay.disclaimer}</p>
+          <div className="replay-events">
+            {sessionReplay.events.map((event) => (
+              <div className="replay-event" key={`-`}>
+                <span className="replay-index">{event.replay_index + 1}</span>
+                <strong>{event.event_type}</strong>
+                <time>{event.timestamp ?? "timestamp unavailable"}</time>
+                {event.event_type === "prompt" || event.event_type === "response" ? (
+                  <span>{event.content}</span>
+                ) : (
+                  <span>{event.tool_name}: {JSON.stringify(event.event_type === "tool_call" ? event.tool_input : event.tool_output)}</span>
+                )}
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
       <div className="timeline">
         {exchanges.length === 0 ? (
           <div className="empty-state">
@@ -2172,6 +2205,7 @@ function OperationsTab({ operations, onRefresh }: { operations: OperationsSnapsh
     <div className="card-grid">
       <section className="panel-card"><h3>Deployment health</h3><div className="badges"><Badge>{operations.health.state}</Badge><Badge>{operations.readiness.state}</Badge><Badge>{status.journal_mode}</Badge></div><dl className="detail-list"><dt>Schema</dt><dd>{status.schema_version}</dd><dt>Integrity</dt><dd>{status.integrity_check}</dd><dt>Foreign keys</dt><dd>{String(status.foreign_keys)}</dd><dt>FTS5</dt><dd>{String(status.fts5)}</dd><dt>Backup</dt><dd>{status.backup_ready ? "ready" : "pending"}</dd></dl></section>
       <section className="panel-card"><h3>Resources</h3><div className="badges"><Badge>{"memories: " + status.memory_count}</Badge><Badge>{"quota: " + (operations.quotas.max_memories === null ? "unlimited" : operations.quotas.max_memories)}</Badge></div><dl className="detail-list"><dt>Embedded</dt><dd>{String(coverage.current || 0)} / {String(coverage.eligible || 0)}</dd><dt>Missing</dt><dd>{String(coverage.missing || 0)}</dd><dt>Stale</dt><dd>{String(coverage.stale || 0)}</dd><dt>Failed</dt><dd>{String(coverage.failed || 0)}</dd></dl></section>
+      <section className="panel-card"><h3>Feature policy</h3><div className="connector-grid">{Object.entries(operations.features).map(([name, enabled]) => <div className="connector-row" key={name}><strong>{name}</strong><Badge>{enabled ? "enabled" : "disabled"}</Badge></div>)}</div><p className="small muted">Configured per profile; disabled capabilities fail closed at their API boundary.</p></section>
       <section className="panel-card"><h3>Inference governance</h3><dl className="detail-list">{Object.entries(taskStates).map(([key, value]) => <><dt key={key + "-label"}>{key}</dt><dd key={key + "-value"}>{value}</dd></>)}{Object.entries(proposalStates).map(([key, value]) => <><dt key={"proposal-" + key + "-label"}>proposal {key}</dt><dd key={"proposal-" + key + "-value"}>{value}</dd></>)}</dl>{Object.keys(taskStates).length === 0 && <p className="muted">No inference tasks recorded.</p>}</section>
     </div>
     <section className="panel-card"><h3>Connectors</h3><div className="connector-grid">{Object.entries(operations.connectors).map(([name, connector]) => <div className="connector-row" key={name}><div><strong>{name}</strong><div className="small muted">{connector.entrypoint}</div></div><Badge>{connector.state}</Badge></div>)}</div></section>

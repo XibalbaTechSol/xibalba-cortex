@@ -93,7 +93,7 @@ def get_store() -> GraphStore:
             raise RuntimeError(f"storage backend {_config.storage.backend!r} is configured but no production adapter is installed; refusing SQLite fallback")
         feature_flags = _config.features.as_dict()
         feature_flags.update({"lexical": _config.retrieval.lexical, "vector": _config.retrieval.vector, "graph": _config.retrieval.graph})
-        _store = GraphStore(_default_home(), profile_id=_config.profile_id, identity_mode=_identity_mode(), features=feature_flags, quotas=_config.quotas.as_dict())
+        _store = GraphStore(_config.storage.home, profile_id=_config.profile_id, identity_mode=_identity_mode(), features=feature_flags, quotas=_config.quotas.as_dict())
     return _store
 
 
@@ -625,6 +625,11 @@ def memory_session_exchanges(external_session_id: str) -> list[dict[str, object]
     """
     return get_store().session_exchanges(external_session_id)
 
+@server.tool()
+def memory_session_replay(external_session_id: str) -> dict[str, object]:
+    """Return an ordered, replay-ready session transcript with completeness diagnostics."""
+    return get_store().session_replay(external_session_id)
+
 
 @server.tool()
 def memory_verify_exchange_chain(external_session_id: str) -> dict[str, object]:
@@ -869,6 +874,7 @@ def runtime_controller_status() -> dict[str, object]:
 
 
 @server.tool()
+@_requires_scope("memory:write")
 def runtime_open_session(
     runtime: str,
     session_id: str,
@@ -894,6 +900,7 @@ def runtime_open_session(
 
 
 @server.tool()
+@_requires_scope("memory:write")
 def runtime_close_session(
     runtime: str,
     session_id: str,
@@ -915,6 +922,7 @@ def runtime_close_session(
 
 
 @server.tool()
+@_requires_scope("memory:write")
 def runtime_bind_identity(
     runtime: str,
     session_id: str,
@@ -936,6 +944,7 @@ def runtime_bind_identity(
 
 
 @server.tool()
+@_requires_scope("memory:write")
 def runtime_ingest_event(
     runtime: str,
     session_id: str,
@@ -980,6 +989,7 @@ def runtime_ingest_event(
 
 
 @server.tool()
+@_requires_scope("memory:write")
 def runtime_evaluate_policy(
     runtime: str,
     session_id: str,
@@ -1003,6 +1013,7 @@ def runtime_evaluate_policy(
 
 
 @server.tool()
+@_requires_scope("memory:write")
 def runtime_claude_post_llm_call(
     session_id: str,
     turn_id: str | None = None,
@@ -1026,6 +1037,7 @@ def runtime_claude_post_llm_call(
 
 
 @server.tool()
+@_requires_scope("memory:write")
 def runtime_claude_pre_tool_call(
     session_id: str,
     tool_name: str | None = None,
@@ -1053,6 +1065,7 @@ def runtime_claude_pre_tool_call(
 
 
 @server.tool()
+@_requires_scope("memory:write")
 def runtime_claude_post_tool_call(
     session_id: str,
     tool_name: str | None = None,
@@ -1088,6 +1101,7 @@ def runtime_claude_post_tool_call(
 
 
 @server.tool()
+@_requires_scope("memory:write")
 def runtime_agy_start(
     session_id: str,
     traceparent: str | None = None,
@@ -1107,6 +1121,7 @@ def runtime_agy_start(
 
 
 @server.tool()
+@_requires_scope("memory:write")
 def runtime_agy_end(
     session_id: str,
     exit_code: int | None = None,
@@ -1122,6 +1137,7 @@ def runtime_agy_end(
 
 
 @server.tool()
+@_requires_scope("memory:write")
 def runtime_agy_observation(
     session_id: str,
     note: str,
@@ -1141,6 +1157,7 @@ def runtime_codex_probe() -> dict[str, object]:
 
 
 @server.tool()
+@_requires_scope("memory:write")
 def runtime_codex_launch(
     session_id: str,
     args: list[str] | None = None,
@@ -1163,6 +1180,7 @@ def runtime_codex_launch(
 
 
 @server.tool()
+@_requires_scope("memory:write")
 def runtime_codex_adapter_start(
     session_id: str,
     traceparent: str | None = None,
@@ -1178,6 +1196,7 @@ def runtime_codex_adapter_start(
 
 
 @server.tool()
+@_requires_scope("memory:write")
 def runtime_codex_adapter_end(
     session_id: str,
     summary: str | None = None,
@@ -1191,6 +1210,7 @@ def runtime_codex_adapter_end(
 
 
 @server.tool()
+@_requires_scope("memory:write")
 def runtime_codex_adapter_observation(
     session_id: str,
     note: str,
@@ -1204,6 +1224,7 @@ def runtime_codex_adapter_observation(
 
 
 @server.tool()
+@_requires_scope("memory:write")
 def runtime_gemini_start(
     session_id: str,
     traceparent: str | None = None,
@@ -1223,6 +1244,7 @@ def runtime_gemini_start(
 
 
 @server.tool()
+@_requires_scope("memory:write")
 def runtime_gemini_end(
     session_id: str,
     exit_code: int | None = None,
@@ -1238,6 +1260,7 @@ def runtime_gemini_end(
 
 
 @server.tool()
+@_requires_scope("memory:write")
 def runtime_gemini_observation(
     session_id: str,
     note: str,
@@ -1251,6 +1274,7 @@ def runtime_gemini_observation(
 
 
 @server.tool()
+@_requires_scope("memory:write")
 def runtime_cursor_start(
     session_id: str,
     traceparent: str | None = None,
@@ -1268,6 +1292,7 @@ def runtime_cursor_start(
 
 
 @server.tool()
+@_requires_scope("memory:write")
 def runtime_cursor_end(
     session_id: str,
     summary: str | None = None,
@@ -1281,6 +1306,7 @@ def runtime_cursor_end(
 
 
 @server.tool()
+@_requires_scope("memory:write")
 def runtime_cursor_observation(
     session_id: str,
     note: str,
@@ -1294,6 +1320,7 @@ def runtime_cursor_observation(
 
 
 @server.tool()
+@_requires_scope("memory:write")
 def runtime_openai_compatible_start(
     session_id: str,
     traceparent: str | None = None,
@@ -1309,6 +1336,7 @@ def runtime_openai_compatible_start(
 
 
 @server.tool()
+@_requires_scope("memory:write")
 def runtime_openai_compatible_end(
     session_id: str,
     summary: str | None = None,
@@ -1322,6 +1350,7 @@ def runtime_openai_compatible_end(
 
 
 @server.tool()
+@_requires_scope("memory:write")
 def runtime_openai_compatible_observation(
     session_id: str,
     note: str,
@@ -1368,8 +1397,9 @@ def main() -> None:
     home = _default_home()
     app = server.streamable_http_app(streamable_http_path=args.path, host=args.host)
     profile_id = os.environ.get("XIBALBA_CORTEX_PROFILE_ID", "default")
-    rate_limit_raw = os.environ.get("XIBALBA_CORTEX_RATE_LIMIT_PER_MINUTE")
-    rate_limit = int(rate_limit_raw) if rate_limit_raw else None
+    config = load_config(home=home)
+    profile_id = config.profile_id
+    rate_limit = config.auth.rate_limit_per_minute
     authed_app = BearerTokenAuth(app, home=home, profile_id=profile_id, required_scopes=("memory:read",), rate_limit_per_minute=rate_limit)
 
     import uvicorn

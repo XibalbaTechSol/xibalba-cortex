@@ -180,6 +180,30 @@ export interface Exchange {
   tool_calls: OtelEvent[]
 }
 
+export interface SessionReplayEvent {
+  replay_index: number
+  event_type: "prompt" | "tool_call" | "tool_result" | "response"
+  role: string
+  content?: string
+  tool_name?: string
+  tool_input?: unknown
+  tool_output?: unknown
+  timestamp: string | null
+  end_timestamp?: string | null
+  timestamp_source: string
+  prompt_id: string | null
+}
+
+export interface SessionReplay {
+  schema_version: string
+  exchange_count: number
+  event_count: number
+  events: SessionReplayEvent[]
+  replayable: boolean
+  completeness: { status: string; missing: Array<Record<string, unknown>>; exchange_chain: Record<string, unknown> }
+  disclaimer: string
+}
+
 export interface MerkleRoot {
   session_id: string
   root_node_id: string | null
@@ -418,6 +442,7 @@ export const api = {
     getJson<TraversalResult>(`/api/entity/${encodeURIComponent(name)}/neighbors?max_depth=${maxDepth}`),
   entityPath: (from: string, to: string, maxDepth = 3) =>
     getJson<TraversalResult>(`/api/entity/path?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}&max_depth=${maxDepth}`),
+  sessionReplay: (id: string) => getJson<SessionReplay>(`/api/session/${encodeURIComponent(id)}/replay`),
   sessionExchanges: (id: string) => getJson<Exchange[]>(`/api/session/${encodeURIComponent(id)}/exchanges`),
   sessionMerkleRoot: (id: string) => getJson<MerkleRoot>(`/api/session/${encodeURIComponent(id)}/merkle-root`),
   inferenceManifest: () => getJson<InferenceManifest>('/api/inference/manifest'),

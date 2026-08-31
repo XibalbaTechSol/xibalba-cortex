@@ -398,6 +398,12 @@ code {
   border-radius: 8px;
 }
 
+.replay-panel { margin: 20px 0; padding: 16px; border: 1px solid rgba(148, 163, 184, 0.22); border-radius: 10px; background: rgba(15, 23, 42, 0.35); }
+.replay-events { display: grid; gap: 8px; margin-top: 12px; }
+.replay-event { display: grid; grid-template-columns: 28px 90px 190px minmax(0, 1fr); gap: 10px; align-items: baseline; padding: 8px; border-radius: 6px; background: rgba(255,255,255,0.035); font-size: 12px; }
+.replay-event time { color: var(--muted); font-family: monospace; }
+.replay-index { color: var(--muted); }
+
 .exchange-form input,
 .exchange-form textarea,
 .wide-input {

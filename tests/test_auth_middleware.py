@@ -99,3 +99,12 @@ def test_required_scope_is_enforced(tmp_path):
         return await _run_with_app(app, [(b"authorization", f"Bearer {token}".encode())])
     events = asyncio.run(run())
     assert events[0]["status"] == 403
+
+
+def test_role_grant_prevents_scope_escalation(tmp_path):
+    token = issue_token(tmp_path, "reader-escalation", roles=("reader",), scopes=("memory:read", "memory:write"))
+    async def run():
+        app = BearerTokenAuth(_inner_app, home=tmp_path, required_scopes=("memory:write",))
+        return await _run_with_app(app, [(b"authorization", f"Bearer {token}".encode())])
+    events = asyncio.run(run())
+    assert events[0]["status"] == 403
