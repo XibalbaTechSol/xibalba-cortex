@@ -108,3 +108,16 @@ def test_operator_verify_integrity_link(tmp_path):
     )
     assert result["verification_state"] == "hash_match_local"
     assert result["truth_authorization_completeness"] is False
+
+
+
+def test_operator_evaluation_benchmark_covers_eight_production_dimensions():
+    result = run_command(_args("evaluation-benchmark", None))
+    assert result["schema_version"] == "xibalba.evaluation_benchmark.v1"
+    assert set(result["checks"]) == {
+        "temporal_updates", "contradictions", "multi_hop_relations",
+        "retrieval_provenance", "poisoning_boundary", "profile_isolation",
+        "deletion_correctness", "recovery_replay",
+    }
+    assert result["passed"] is True
+    assert result["pilot_ready"] is False

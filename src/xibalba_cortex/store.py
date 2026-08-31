@@ -984,6 +984,10 @@ class GraphStore:
                 (_SCHEMA_VERSION,),
             )
 
+    def _require_feature(self, name: str) -> None:
+        if not self.features.get(name, False):
+            raise RuntimeError(f"{name} is disabled by feature policy")
+
     def status(self, *, fast: bool = False) -> dict[str, object]:
         # `fast=True` skips PRAGMA integrity_check -- a full B-tree scan of the whole
         # database file, ~1.6-2.2s against a real ~600MB store. That's fine for an
@@ -1828,13 +1832,18 @@ class GraphStore:
         memories that matched the vector channel) so a caller can see the real score behind the
         fused rank, not just the rank itself.
         """
+        if query_vector is None:
+            self._require_feature("lexical")
+        else:
+            if not self.features["lexical"] and not self.features["vector"]:
+                raise RuntimeError("lexical and vector retrieval are disabled by feature policy")
         bounded_limit = max(1, min(int(limit), 100))
         if query_vector is None:
             return [self.get_memory(memory_id) for memory_id in self._lexical_ranked_ids(query, bounded_limit)]
 
         candidate_pool = max(bounded_limit * 4, 20)
-        lexical_ids = self._lexical_ranked_ids(query, candidate_pool)
-        vector_hits = self._vector_ranked_ids(query_vector, candidate_pool)
+        lexical_ids = self._lexical_ranked_ids(query, candidate_pool) if self.features["lexical"] else []
+        vector_hits = self._vector_ranked_ids(query_vector, candidate_pool) if self.features["vector"] and self.features["embeddings"] else []
         vector_ids = [memory_id for memory_id, _ in vector_hits]
         similarity_by_id = dict(vector_hits)
 
@@ -2374,6 +2383,7 @@ class GraphStore:
         return {"memory_id": memory_id, "model_id": model_id, "dim": expected_dim}
 
     def similar_memories(self, memory_id: str, *, limit: int = 10) -> list[dict[str, object]]:
+        self._require_feature("embeddings")
         """Cosine-nearest other memories to memory_id's own stored embedding, excluding itself.
 
         Reads the embedding back out of memory_vectors -- embeddings were write-only until now
@@ -2947,6 +2957,7 @@ class GraphStore:
         response_memory_ids = list(response_memory_ids)
         context_contributions = [dict(item) for item in context_contributions]
         tool_call_otel_event_ids = list(tool_call_otel_event_ids)
+        tool_call_event_hashes = [self._sha256(self._canonical_json(self.get_otel_event(oid))) for oid in sorted(tool_call_otel_event_ids)]
 
         prompt_hashes = sorted(self.get_memory(mid)["content_hash"] for mid in prompt_memory_ids)
         response_hashes = sorted(self.get_memory(mid)["content_hash"] for mid in response_memory_ids)
@@ -3003,6 +3014,7 @@ class GraphStore:
                     "response_memory_ids": sorted(response_memory_ids),
                     "response_content_hashes": response_hashes,
                     "tool_call_otel_event_ids": sorted(tool_call_otel_event_ids),
+                    "tool_call_event_hashes": tool_call_event_hashes,
                     "parent_node_id": parent_node_id,
                 }
                 if normalized_contexts:
@@ -3158,6 +3170,91 @@ class GraphStore:
             ).fetchall()
         return [self.get_exchange(row["id"]) for row in rows]
 
+    def session_replay(self, external_session_id: str) -> dict[str, object]:
+        """Return an ordered, replay-ready transcript for one session.
+
+        This is a read projection over canonical memories, exchanges, and OTel events. It never
+        executes tools. replayable is true only when every prompt/response and tool event has
+        source timestamps and tool-result payloads are present; storage created_at fallback is
+        reported as incomplete rather than being presented as the original event time.
+        """
+        session = self.get_session(external_session_id)
+        exchanges = self.session_exchanges(external_session_id)
+        timeline: list[dict[str, object]] = []
+        missing: list[dict[str, object]] = []
+
+        def add_message(exchange: dict[str, object], memory: dict[str, object], role: str) -> None:
+            source = dict(memory.get("source") or {})
+            observed_at = source.get("observed_at")
+            timestamp = observed_at or memory.get("created_at")
+            if not observed_at:
+                missing.append({"exchange": exchange["sequence_number"], "kind": role, "memory_id": memory["id"], "reason": "missing_source_timestamp"})
+            timeline.append({
+                "sequence_number": exchange["sequence_number"],
+                "event_type": role,
+                "role": "user" if role == "prompt" else "assistant",
+                "content": memory["content"],
+                "memory_id": memory["id"],
+                "timestamp": timestamp,
+                "timestamp_source": "source.observed_at" if observed_at else "storage.created_at",
+                "prompt_id": exchange["prompt_id"],
+                "source": source,
+            })
+
+        for exchange in exchanges:
+            for memory in exchange["prompt_memories"]:
+                add_message(exchange, memory, "prompt")
+            for event in exchange["tool_calls"]:
+                attributes = dict(event.get("attributes") or {})
+                start_time = event.get("start_time")
+                end_time = event.get("end_time")
+                if not start_time or not end_time:
+                    missing.append({"exchange": exchange["sequence_number"], "kind": "tool", "event_id": event["id"], "reason": "missing_tool_timestamp"})
+                is_result = event["name"] == "tool_result"
+                result_payload = attributes.get("content", attributes.get("result"))
+                if is_result and result_payload in (None, ""):
+                    missing.append({"exchange": exchange["sequence_number"], "kind": "tool_result", "event_id": event["id"], "reason": "missing_tool_result_payload"})
+                tool_name = attributes.get("tool_name") or event["name"].removeprefix("tool_call.")
+                timeline.append({
+                    "sequence_number": exchange["sequence_number"],
+                    "event_type": "tool_result" if is_result else "tool_call",
+                    "role": "tool",
+                    "tool_name": tool_name,
+                    "tool_input": attributes.get("input", attributes.get("tool_input")),
+                    "tool_output": result_payload,
+                    "event": event,
+                    "timestamp": start_time or event.get("created_at"),
+                    "end_timestamp": end_time or event.get("created_at"),
+                    "timestamp_source": "event.start_time/end_time" if start_time and end_time else "storage.created_at",
+                    "prompt_id": exchange["prompt_id"],
+                })
+            for memory in exchange["response_memories"]:
+                add_message(exchange, memory, "response")
+
+        order = {"prompt": 0, "tool_call": 1, "tool_result": 2, "response": 3}
+        timeline.sort(key=lambda item: (str(item.get("timestamp") or ""), int(item["sequence_number"]), order.get(str(item["event_type"]), 9)))
+        for index, item in enumerate(timeline):
+            item["replay_index"] = index
+        tool_call_span_ids = {str(item["event"].get("span_id")) for item in timeline if item.get("event_type") == "tool_call" and item.get("event", {}).get("span_id")}
+        tool_result_parent_ids = {str(item["event"].get("parent_span_id")) for item in timeline if item.get("event_type") == "tool_result" and item.get("event", {}).get("parent_span_id")}
+        for span_id in sorted(tool_call_span_ids - tool_result_parent_ids):
+            missing.append({"kind": "tool_call", "span_id": span_id, "reason": "missing_tool_result_pair"})
+        verification = self.verify_exchange_chain(external_session_id)
+        return {
+            "schema_version": "xibalba.session_replay.v1",
+            "session": session,
+            "exchange_count": len(exchanges),
+            "event_count": len(timeline),
+            "events": timeline,
+            "replayable": bool(exchanges) and verification["valid"] and not missing,
+            "completeness": {
+                "status": "complete" if not missing and exchanges else "incomplete",
+                "missing": missing,
+                "exchange_chain": verification,
+            },
+            "disclaimer": "Replay reproduces the recorded conversation and tool-event timeline; it does not execute tools or prove that external side effects occurred.",
+        }
+
     def session_merkle_root(self, external_session_id: str) -> dict[str, object]:
         """Return the current session exchange-chain root.
 
@@ -3311,6 +3408,7 @@ class GraphStore:
                 (external_session_id,),
             ).fetchall()
         expected_parent = None
+        legacy_commitment_seen = False
         for row in rows:
             exchange = self.get_exchange(row["id"])
             node = {
@@ -3322,6 +3420,7 @@ class GraphStore:
                 "response_memory_ids": sorted(m["id"] for m in exchange["response_memories"]),
                 "response_content_hashes": sorted(m["content_hash"] for m in exchange["response_memories"]),
                 "tool_call_otel_event_ids": sorted(t["id"] for t in exchange["tool_calls"]),
+                "tool_call_event_hashes": [self._sha256(self._canonical_json(t)) for t in exchange["tool_calls"]],
                 "parent_node_id": expected_parent,
             }
             if exchange["context_contributions"]:
@@ -3339,12 +3438,17 @@ class GraphStore:
                     key=lambda item: (str(item["contribution_id"]), str(item["memory_id"])),
                 )
             recomputed = compute_node_hash(node)
-            if row["parent_node_id"] != expected_parent or recomputed != row["node_id"]:
+            legacy_node = dict(node)
+            legacy_node.pop("tool_call_event_hashes", None)
+            legacy_commitment = recomputed != row["node_id"] and compute_node_hash(legacy_node) == row["node_id"]
+            legacy_commitment_seen = legacy_commitment_seen or legacy_commitment
+            if row["parent_node_id"] != expected_parent or (recomputed != row["node_id"] and not legacy_commitment):
                 return {
                     "valid": False,
                     "length": len(rows),
                     "broken_at_sequence_number": row["sequence_number"],
                     "head_node_id": rows[-1]["node_id"] if rows else None,
+                    "legacy_commitment": legacy_commitment,
                 }
             expected_parent = row["node_id"]
         return {
@@ -4673,6 +4777,7 @@ class GraphStore:
     def neighbors(
         self, subject_name: str, *, max_depth: int = 1, node_limit: int = 50, edge_limit: int = 200
     ) -> dict[str, object]:
+        self._require_feature("graph")
         if not isinstance(max_depth, int) or not (1 <= max_depth <= 3):
             raise ValueError("max_depth must be an integer between 1 and 3")
         with self._lock:
@@ -4723,6 +4828,7 @@ class GraphStore:
     def find_path(
         self, from_name: str, to_name: str, *, max_depth: int = 3
     ) -> dict[str, object]:
+        self._require_feature("graph")
         if not isinstance(max_depth, int) or not (1 <= max_depth <= 5):
             raise ValueError("max_depth must be an integer between 1 and 5")
         with self._lock:
@@ -4789,6 +4895,7 @@ class GraphStore:
     def graph_payload(
         self, *, limit: int = 500, similarity_threshold: float = 0.75
     ) -> dict[str, object]:
+        self._require_feature("graph")
         """Bulk nodes+edges payload for a graph-visualization client: memories and entities as
         nodes, typed relations and above-threshold cosine-similarity pairs as edges. O(n^2) over
         embedded memories to build similarity edges via similar_memories() -- fine at

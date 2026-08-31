@@ -31,6 +31,22 @@ from pathlib import Path
 
 _DB_FILENAME = "ingest_tokens.sqlite3"
 
+ROLE_SCOPES: dict[str, frozenset[str]] = {
+    "reader": frozenset({"memory:read"}),
+    "writer": frozenset({"memory:read", "memory:write"}),
+    "operator": frozenset({"memory:read", "memory:write", "memory:delete", "proposal:decide"}),
+    "reviewer": frozenset({"memory:read", "proposal:decide"}),
+    "admin": frozenset({"*" }),
+}
+
+def effective_scopes(roles: list[str], requested: list[str]) -> list[str]:
+    grants = set()
+    for role in roles:
+        grants.update(ROLE_SCOPES.get(role, ()))
+    if "*" in grants:
+        return sorted(set(requested))
+    return sorted(set(requested) & grants)
+
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS ingest_tokens (
     id TEXT PRIMARY KEY,
@@ -67,7 +83,7 @@ def _hash(raw_token: str) -> str:
     return hashlib.sha256(raw_token.encode("utf-8")).hexdigest()
 
 
-def issue_token(home: str | Path, label: str, *, profile_id: str = "default", roles: tuple[str, ...] = ("reader",), scopes: tuple[str, ...] = ("memory:read",)) -> str:
+def issue_token(home: str | Path, label: str, *, profile_id: str = "default", roles: tuple[str, ...] = ("writer",), scopes: tuple[str, ...] = ("memory:read",)) -> str:
     """Generate a new random token for `label`, store only its hash, and return the raw
     token. This is the only moment the raw value exists outside the caller's own hands --
     it is never logged, never stored, and cannot be recovered later."""
@@ -111,7 +127,9 @@ def verify_token_record(home: str | Path, raw_token: str) -> dict[str, object] |
                     (row["id"],),
                 )
                 conn.commit()
-                return {"id": row["id"], "label": row["label"], "profile_id": row["profile_id"], "roles": json.loads(row["roles_json"]), "scopes": json.loads(row["scopes_json"])}
+                roles = json.loads(row["roles_json"])
+                scopes = json.loads(row["scopes_json"])
+                return {"id": row["id"], "label": row["label"], "profile_id": row["profile_id"], "roles": roles, "scopes": effective_scopes(roles, scopes)}
         return None
     finally:
         conn.close()
@@ -151,7 +169,7 @@ def list_tokens(home: str | Path) -> list[dict[str, object]]:
         for row in rows:
             item = dict(row)
             item["roles"] = json.loads(item.pop("roles_json"))
-            item["scopes"] = json.loads(item.pop("scopes_json"))
+            item["scopes"] = effective_scopes(item["roles"], json.loads(item.pop("scopes_json")))
             result.append(item)
         return result
     finally:

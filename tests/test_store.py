@@ -1454,3 +1454,46 @@ def test_memory_quota_is_profile_scoped_and_fail_closed_before_mutation(tmp_path
     assert store.status(fast=True)["memory_count"] == 1
     assert store.get_memory(first["id"])["content"] == "within quota"
     store.close()
+
+
+
+def test_disabled_optional_retrieval_and_graph_features_fail_closed(tmp_path):
+    store = GraphStore(tmp_path / "disabled", features={"lexical": False, "embeddings": False, "graph": False})
+    memory = store.store_memory("feature policy test", source={"kind": "test"})
+    with pytest.raises(RuntimeError, match="lexical"):
+        store.search("feature policy")
+    with pytest.raises(RuntimeError, match="embeddings"):
+        store.similar_memories(memory["id"])
+    with pytest.raises(RuntimeError, match="graph"):
+        store.neighbors("missing")
+    with pytest.raises(RuntimeError, match="graph"):
+        store.find_path("a", "b")
+    with pytest.raises(RuntimeError, match="graph"):
+        store.graph_payload()
+    store.close()
+
+
+def test_session_replay_reconstructs_messages_tools_timestamps_and_detects_completeness(tmp_path):
+    store = GraphStore(tmp_path / "graph")
+    store.start_session("replay", retention_tier="verbatim")
+    prompt = store.store_memory("Read the config file.", source={"kind": "direct_user", "session_id": "replay", "role": "user", "observed_at": "2026-08-29T10:00:00Z"}, status="confirmed")
+    response = store.store_memory("The config contains the production settings.", source={"kind": "direct_model_response", "session_id": "replay", "role": "assistant", "observed_at": "2026-08-29T10:00:03Z"}, status="confirmed")
+    store.record_otel_batch("replay", [
+        {"kind": "span", "name": "tool_call.read", "trace_id": "trace", "span_id": "call-1", "start_time": "2026-08-29T10:00:01Z", "end_time": "2026-08-29T10:00:02Z", "prompt_id": "p1", "attributes": {"tool_name": "read", "input": {"path": "config.toml"}}},
+        {"kind": "span", "name": "tool_result", "trace_id": "trace", "span_id": "result-1", "parent_span_id": "call-1", "start_time": "2026-08-29T10:00:02Z", "end_time": "2026-08-29T10:00:02Z", "prompt_id": "p1", "attributes": {"content": "production settings", "is_error": False}},
+    ])
+    tool_ids = [event["id"] for event in store.session_otel_events("replay")]
+    store.record_exchange("replay", prompt_memory_ids=[prompt["id"]], response_memory_ids=[response["id"]], tool_call_otel_event_ids=tool_ids, prompt_id="p1", prompt_time="2026-08-29T10:00:00Z", response_time="2026-08-29T10:00:03Z")
+    replay = store.session_replay("replay")
+    assert replay["replayable"] is True
+    assert [event["event_type"] for event in replay["events"]] == ["prompt", "tool_call", "tool_result", "response"]
+    assert [event["timestamp"] for event in replay["events"]] == ["2026-08-29T10:00:00Z", "2026-08-29T10:00:01Z", "2026-08-29T10:00:02Z", "2026-08-29T10:00:03Z"]
+    assert replay["events"][1]["tool_input"] == {"path": "config.toml"}
+    assert replay["events"][2]["tool_output"] == "production settings"
+    assert replay["completeness"]["status"] == "complete"
+    assert replay["completeness"]["exchange_chain"]["valid"] is True
+    with store._lock:
+        store._connection.execute("UPDATE otel_events SET attributes_json = ? WHERE id = ?", (json.dumps({"content": "tampered"}), tool_ids[1]))
+        store._connection.commit()
+    assert store.verify_exchange_chain("replay")["valid"] is False
+    store.close()

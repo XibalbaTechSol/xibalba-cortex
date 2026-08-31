@@ -31,6 +31,12 @@ class InferenceConfig:
     harness: str = "hermes"
     allow_fallback: bool = False
 
+@dataclass(frozen=True)
+class AuthConfig:
+    """Network transport policy; stdio remains local and does not need bearer auth."""
+
+    rate_limit_per_minute: int | None = None
+
 
 @dataclass(frozen=True)
 class EmbeddingConfig:
@@ -83,6 +89,7 @@ class CortexConfig:
     mode: str = "local"
     storage: StorageConfig = field(default_factory=StorageConfig)
     inference: InferenceConfig = field(default_factory=InferenceConfig)
+    auth: AuthConfig = field(default_factory=AuthConfig)
     embeddings: EmbeddingConfig = field(default_factory=EmbeddingConfig)
     retrieval: RetrievalConfig = field(default_factory=RetrievalConfig)
     features: FeatureConfig = field(default_factory=FeatureConfig)
@@ -151,6 +158,11 @@ def load_config(*, home: Path | str | None = None, environ: dict[str, str] | Non
         harness=str(inference_raw.get("harness", "hermes")),
         allow_fallback=bool(inference_raw.get("allow_fallback", False)),
     )
+    auth_raw = _mapping(raw.get("auth"), "auth")
+    rate_limit_value = env.get("XIBALBA_CORTEX_RATE_LIMIT_PER_MINUTE", auth_raw.get("rate_limit_per_minute"))
+    rate_limit = None if rate_limit_value in (None, "", "none", "null") else int(rate_limit_value)
+    if rate_limit is not None and rate_limit < 1:
+        raise ValueError("auth.rate_limit_per_minute must be positive or null")
     embeddings_raw = _mapping(raw.get("embeddings"), "embeddings")
     embeddings = EmbeddingConfig(
         provider=str(embeddings_raw.get("provider", "local")),
@@ -193,6 +205,7 @@ def load_config(*, home: Path | str | None = None, environ: dict[str, str] | Non
         mode=mode,
         storage=storage,
         inference=inference,
+        auth=AuthConfig(rate_limit_per_minute=rate_limit),
         embeddings=embeddings,
         retrieval=retrieval,
         features=features,

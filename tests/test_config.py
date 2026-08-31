@@ -98,3 +98,16 @@ def test_profile_id_is_configurable_and_required(tmp_path):
     assert config.profile_id == "tenant-a"
     with pytest.raises(ValueError, match="profile_id"):
         load_config(home=tmp_path, environ={"XIBALBA_CORTEX_PROFILE_ID": "   "})
+
+
+
+def test_auth_rate_limit_supports_yaml_and_environment_overrides(tmp_path):
+    (tmp_path / "config.yaml").write_text("auth:\n  rate_limit_per_minute: 12\n")
+    config = load_config(home=tmp_path, environ={"XIBALBA_CORTEX_RATE_LIMIT_PER_MINUTE": "24"})
+    assert config.auth.rate_limit_per_minute == 24
+
+
+def test_invalid_auth_rate_limit_is_rejected(tmp_path):
+    (tmp_path / "config.yaml").write_text("auth:\n  rate_limit_per_minute: 0\n")
+    with pytest.raises(ValueError, match="rate_limit_per_minute"):
+        load_config(home=tmp_path)
