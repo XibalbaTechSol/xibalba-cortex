@@ -49,6 +49,15 @@ class RetrievalConfig:
 
 
 @dataclass(frozen=True)
+class QuotaConfig:
+    """Hard per-profile resource limits; None means unlimited."""
+
+    max_memories: int | None = None
+
+    def as_dict(self) -> dict[str, int | None]:
+        return {"max_memories": self.max_memories}
+
+@dataclass(frozen=True)
 class FeatureConfig:
     """Deployment policy for optional Cortex capabilities."""
 
@@ -70,12 +79,14 @@ class FeatureConfig:
 
 @dataclass(frozen=True)
 class CortexConfig:
+    profile_id: str = "default"
     mode: str = "local"
     storage: StorageConfig = field(default_factory=StorageConfig)
     inference: InferenceConfig = field(default_factory=InferenceConfig)
     embeddings: EmbeddingConfig = field(default_factory=EmbeddingConfig)
     retrieval: RetrievalConfig = field(default_factory=RetrievalConfig)
     features: FeatureConfig = field(default_factory=FeatureConfig)
+    quotas: QuotaConfig = field(default_factory=QuotaConfig)
     remote: dict[str, Any] = field(default_factory=dict)
 
     def redacted_dict(self) -> dict[str, Any]:
@@ -112,6 +123,9 @@ def load_config(*, home: Path | str | None = None, environ: dict[str, str] | Non
         raw = _mapping(loaded, "config")
 
     env = os.environ if environ is None else environ
+    profile_id = str(env.get("XIBALBA_CORTEX_PROFILE_ID", raw.get("profile_id", "default"))).strip()
+    if not profile_id:
+        raise ValueError("profile_id must be a non-empty string")
     mode = str(env.get("XIBALBA_CORTEX_MODE", raw.get("mode", "local")))
     if mode not in _MODES:
         raise ValueError(f"unsupported mode: {mode!r}; expected one of {sorted(_MODES)}")
@@ -169,12 +183,19 @@ def load_config(*, home: Path | str | None = None, environ: dict[str, str] | Non
         raise ValueError(f"{name} feature flag must be boolean")
 
     features = FeatureConfig(**{name: feature_value(name) for name in defaults.__dataclass_fields__})
+    quota_raw = _mapping(raw.get("quotas"), "quotas")
+    quota_value = env.get("XIBALBA_CORTEX_QUOTA_MAX_MEMORIES", quota_raw.get("max_memories"))
+    max_memories = None if quota_value in (None, "", "none", "null") else int(quota_value)
+    if max_memories is not None and max_memories < 1:
+        raise ValueError("quotas.max_memories must be positive or null")
     return CortexConfig(
+        profile_id=profile_id,
         mode=mode,
         storage=storage,
         inference=inference,
         embeddings=embeddings,
         retrieval=retrieval,
         features=features,
+        quotas=QuotaConfig(max_memories=max_memories),
         remote=_mapping(raw.get("remote"), "remote"),
     )

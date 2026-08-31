@@ -144,10 +144,16 @@ def list_tokens(home: str | Path) -> list[dict[str, object]]:
     conn = _connect(home)
     try:
         rows = conn.execute(
-            "SELECT id, label, created_at, last_used_at, revoked_at FROM ingest_tokens "
+            "SELECT id, label, profile_id, roles_json, scopes_json, created_at, last_used_at, revoked_at FROM ingest_tokens "
             "ORDER BY created_at"
         ).fetchall()
-        return [dict(row) for row in rows]
+        result = []
+        for row in rows:
+            item = dict(row)
+            item["roles"] = json.loads(item.pop("roles_json"))
+            item["scopes"] = json.loads(item.pop("scopes_json"))
+            result.append(item)
+        return result
     finally:
         conn.close()
 
@@ -159,6 +165,9 @@ def main() -> None:
 
     p_issue = sub.add_parser("issue", help="issue a new token for a harness/label")
     p_issue.add_argument("--label", required=True, help='e.g. "perplexity-personal"')
+    p_issue.add_argument("--profile-id", default="default")
+    p_issue.add_argument("--role", action="append", dest="roles", default=None)
+    p_issue.add_argument("--scope", action="append", dest="scopes", default=None)
 
     p_revoke = sub.add_parser("revoke", help="revoke a token by its id")
     p_revoke.add_argument("--id", required=True, dest="token_id")
@@ -168,7 +177,7 @@ def main() -> None:
     args = parser.parse_args()
 
     if args.command == "issue":
-        raw_token = issue_token(args.home, args.label)
+        raw_token = issue_token(args.home, args.label, profile_id=args.profile_id, roles=tuple(args.roles or ("reader",)), scopes=tuple(args.scopes or ("memory:read",)))
         print(f"Issued token for {args.label!r}. Shown once, save it now:")
         print(raw_token)
     elif args.command == "revoke":
@@ -179,7 +188,7 @@ def main() -> None:
             status = "revoked" if row["revoked_at"] else "active"
             print(
                 f"{row['id']}  {row['label']:24}  {status:8}  "
-                f"created={row['created_at']}  last_used={row['last_used_at'] or '(never)'}"
+                f"profile={row['profile_id']} roles={','.join(row['roles'])} scopes={','.join(row['scopes'])} created={row['created_at']} last_used={row['last_used_at'] or '(never)'}"
             )
 
 

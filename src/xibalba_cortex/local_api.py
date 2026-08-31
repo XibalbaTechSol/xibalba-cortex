@@ -10,8 +10,12 @@ Every route is a thin wrapper around one public GraphStore method -- all the act
 independent of HTTP, the same division server.py already uses for its MCP tools.
 
 Routes:
+  GET /metrics                        -> Prometheus-compatible request/status counters
+  GET /healthz                         -> process/store liveness
+  GET /readyz                         -> full integrity and backup readiness (503 when not ready)
   GET /api/stats                          -> GraphStore.counts()
   GET /api/status                         -> GraphStore.status()
+  GET /api/operations                     -> unified dashboard operations snapshot
   GET /api/integrity-links?limit=          -> GraphStore.integrity_links_status()
   GET /api/sessions?limit=                 -> GraphStore.list_sessions()
   GET /api/search?q=&limit=                -> GraphStore.search() (lexical-only; no embedding
@@ -66,14 +70,18 @@ from __future__ import annotations
 import json
 import logging
 import sqlite3
+from collections import Counter
+import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, unquote, urlparse
 
-from .providers import InferenceTaskContract
+from .providers import InferenceTaskContract, connector_manifest
 from .store import MEMORY_INFERENCE_SUBAGENT_MANIFEST, GraphStore
 
 logger = logging.getLogger("xibalba_cortex.local_api")
 _MAX_JSON_BODY_BYTES = 512 * 1024
+_REQUEST_METRICS: Counter[str] = Counter()
+_REQUEST_METRICS_LOCK = threading.Lock()
 
 # Guided System Test wizard (integrity-dashboard's Developer page): a one-click kernel-bridge
 # check that doesn't require a live Claude session with XIBALBA_KERNEL_BRIDGE_ENABLED=1 set.
@@ -181,10 +189,27 @@ def _make_handler(store: GraphStore, *, allowed_origin: str):
     class Handler(BaseHTTPRequestHandler):
         def _send_json(self, status: int, payload: object) -> None:
             body = json.dumps(payload).encode()
+            with _REQUEST_METRICS_LOCK:
+                _REQUEST_METRICS["requests_total"] += 1
+                _REQUEST_METRICS[f"responses_{status}"] += 1
             self.send_response(status)
             self.send_header("Content-Type", "application/json")
             self.send_header("Access-Control-Allow-Origin", allowed_origin)
             self.send_header("Access-Control-Allow-Headers", "Content-Type")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+
+        def _send_metrics(self) -> None:
+            with _REQUEST_METRICS_LOCK:
+                snapshot = dict(_REQUEST_METRICS)
+            lines = ["# HELP xibalba_cortex_requests_total Total local API responses.", "# TYPE xibalba_cortex_requests_total counter", f"xibalba_cortex_requests_total {snapshot.get("requests_total", 0)}"]
+            for key, value in sorted(snapshot.items()):
+                if key.startswith("responses_"):
+                    lines.append(f"xibalba_cortex_responses_total{{status=\"{key.removeprefix("responses_")}\"}} {value}")
+            body = ("\n".join(lines) + "\n").encode()
+            self.send_response(200)
+            self.send_header("Content-Type", "text/plain; version=0.0.4")
             self.send_header("Content-Length", str(len(body)))
             self.end_headers()
             self.wfile.write(body)
@@ -220,10 +245,25 @@ def _make_handler(store: GraphStore, *, allowed_origin: str):
             parts = [p for p in parsed.path.split("/") if p]
 
             try:
-                if parts == ["api", "stats"]:
+                if parts == ["metrics"]:
+                    self._send_metrics()
+                elif parts == ["healthz"]:
+                    self._send_json(200, {"schema_version": "xibalba.health.v1", "status": "ok", "profile_id": store.profile_id})
+                elif parts == ["readyz"]:
+                    status = store.status()
+                    ready = status["integrity_check"] == "ok" and status["foreign_keys"] is True and status["fts5"] is True and status["backup_ready"] is True
+                    self._send_json(200 if ready else 503, {"schema_version": "xibalba.readiness.v1", "ready": ready, "profile_id": store.profile_id, "checks": {"integrity_check": status["integrity_check"], "foreign_keys": status["foreign_keys"], "fts5": status["fts5"], "backup_ready": status["backup_ready"]}})
+                elif parts == ["api", "stats"]:
                     self._send_json(200, store.counts())
                 elif parts == ["api", "status"]:
                     self._send_json(200, store.status(fast=True))
+                elif parts == ["api", "operations"]:
+                    status = store.status(fast=True)
+                    try:
+                        audit = store.audit_report(limit=25)
+                    except RuntimeError as exc:
+                        audit = {"disabled": True, "error": str(exc)}
+                    self._send_json(200, {"schema_version": "xibalba.dashboard_operations.v1", "profile_id": store.profile_id, "health": {"state": "healthy", "status": status}, "readiness": {"state": "healthy" if status["integrity_check"] == "skipped (fast mode)" and status["foreign_keys"] and status["fts5"] and status["backup_ready"] else "degraded", "checks": {"foreign_keys": status["foreign_keys"], "fts5": status["fts5"], "backup_ready": status["backup_ready"]}}, "features": status.get("features", {}), "quotas": status.get("quotas", {}), "embedding_coverage": store.embedding_coverage(), "audit": audit, "connectors": connector_manifest(), "disclaimer": "Local dashboard operations evidence; not deployment, SLA, compliance, or pilot-readiness evidence."})
                 elif parts == ["api", "integrity-links"]:
                     limit = int(params.get("limit", 50))
                     self._send_json(200, store.integrity_links_status(limit=limit))

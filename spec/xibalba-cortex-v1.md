@@ -3,14 +3,13 @@
 Status: normative v1 plus additive hybrid extensions, 2026-08-13. This is the authoritative reference for this project — where
 this document and any other doc under `docs/` disagree, this document wins, and the other
 document should be corrected. Supersedes scattered decisions across
-`docs/archive/2026-08-06/2026-08-05-xibalba-cortex.md`, `docs/plans/2026-08-05-xibalba-advanced-memory.md`,
+`docs/archive/2026-08-06/2026-08-05-xibalba-cortex.md`,
 `docs/architecture/advanced-memory.md`, `docs/architecture/event-hash-chain.md`, and
 `docs/integrity/xibalba-cortex-crypto-profile-v1.md`, which remain as historical design records.
-For the narrative of how the Integrity Protocol coupling decisions in section 6 were reached —
-including two corrected mistakes worth reading before extending that section — see
-`docs/session-log/2026-08-05-integrity-coupling-session.md`.
+The coupling decisions in section 6 are summarized here and in the current operations and
+audit documents; the former session-log path is no longer present in this checkout.
 
-> **Audit status — 2026-08-06:** Current implementation and verification are tracked in [`docs/audits/2026-08-06-status.md`](../docs/audits/2026-08-06-status.md). The normative model remains authoritative for intended behavior; the audit ledger distinguishes implemented, partial, planned, blocked, and unverified work. The active local worktree contains uncommitted runtime/controller/viewer changes that require separate review before they become a default-branch capability claim.
+> **Audit status — 2026-08-29:** Current implementation and verification are tracked in the repository's audit records and the owning feature branch's commits. The normative model remains authoritative for intended behavior; the audit ledger distinguishes implemented, partial, planned, blocked, and unverified work. Runtime/controller/viewer and operations changes on the current feature branch are committed but are not a default-branch capability claim until merged and revalidated there.
 
 ## 1. Purpose and scope
 
@@ -29,7 +28,7 @@ chain), one-way citation into the Integrity Protocol's Memory DAG when it exists
 
 ## 2. Non-negotiable design rules
 
-Inherited from `docs/plans/2026-08-05-xibalba-advanced-memory.md` §0, restated here as binding:
+These rules supersede the historical Phase 0 design record and are restated here as binding:
 
 1. A raw source episode is never replaced by an extracted fact, profile, summary, or reflection.
 2. Valid time (when a proposition applies to the world) and transaction time (when this system

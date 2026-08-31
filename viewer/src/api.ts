@@ -361,6 +361,19 @@ export interface RecordModelExchangeResult {
   context_memory_ids: string[]
 }
 
+export interface OperationsSnapshot {
+  schema_version: string
+  profile_id: string
+  health: { state: string; status: StoreStatus }
+  readiness: { state: string; checks: Record<string, boolean> }
+  features: Record<string, boolean>
+  quotas: Record<string, number | null>
+  embedding_coverage: Record<string, unknown>
+  audit: Record<string, unknown>
+  connectors: Record<string, { entrypoint: string; state: string; idempotency?: string; requirement?: string }>
+  disclaimer: string
+}
+
 async function getJson<T>(path: string): Promise<T> {
   const response = await fetch(`${BASE_URL}${path}`)
   if (!response.ok) {
@@ -386,6 +399,7 @@ async function postJson<T>(path: string, payload: Record<string, unknown>): Prom
 export const api = {
   stats: () => getJson<Stats>('/api/stats'),
   status: () => getJson<StoreStatus>('/api/status'),
+  operations: () => getJson<OperationsSnapshot>('/api/operations'),
   integrityLinks: (limit = 50) => getJson<IntegrityLinksStatus>(`/api/integrity-links?limit=${limit}`),
   sessions: (limit = 100) => getJson<Session[]>(`/api/sessions?limit=${limit}`),
   graph: (limit = 500, similarityThreshold = 0.75) =>

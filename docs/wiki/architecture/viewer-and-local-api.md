@@ -2,7 +2,7 @@
 title: Viewer and Local API
 acronyms: [MCP, FTS5, WAL]
 created: 2026-08-13
-updated: 2026-08-13
+updated: 2026-08-29
 type: architecture
 tags: [infrastructure, storage, provenance]
 confidence: high
@@ -16,7 +16,9 @@ source_files:
 
 # Viewer and Local API
 
-The implementation described on this page exists in the current uncommitted worktree and has passed the cited tests. It is not a released or default-branch capability until the worktree changes are reviewed and committed.
+The implementation described on this page exists on the current feature branch and has
+passed the cited tests. It is not a default-branch capability until the branch changes
+are reviewed and merged.
 
 The local API exposes read and operator-oriented surfaces over the canonical `GraphStore`. It is a local operator API, not a read-only API: bounded `POST` routes can record exchanges, create propositions, link entities, apply lifecycle changes, manage inference tasks, and record PARA decisions. The React viewer presents the graph, timeline, recall, inference, PARA review, and integrity state without treating the viewer as the source of truth.
 

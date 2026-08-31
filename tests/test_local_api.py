@@ -1,6 +1,6 @@
-import itertools
 import json
 import sqlite3
+import socket
 import threading
 import time
 import urllib.error
@@ -42,15 +42,23 @@ def _post(port: int, path: str, payload: dict[str, object]) -> tuple[int, object
         return exc.code, json.loads(exc.read())
 
 
-_next_test_port = itertools.count(18420)  # each test gets its own port: serve() never shuts
-# down between tests (matches test_otlp_receiver.py's own daemon-thread pattern), so reusing one
-# fixed port across tests would collide with the still-bound previous test's listener.
+def _free_test_port() -> int:
+    """Ask the OS for a currently free loopback port.
+
+    The API server intentionally runs in a daemon thread without a shutdown hook;
+    fixed test-port ranges therefore collide across repeated pytest invocations.
+    An OS-selected port keeps each fixture isolated without killing unrelated local
+    processes.
+    """
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as probe:
+        probe.bind(("localhost", 0))
+        return probe.getsockname()[1]
 
 
 @pytest.fixture
 def running_store(tmp_path):
     store = GraphStore(tmp_path / "graph")
-    port = next(_next_test_port)
+    port = _free_test_port()
     thread = threading.Thread(target=serve, kwargs={"store": store, "port": port}, daemon=True)
     thread.start()
     time.sleep(0.3)  # let the server bind
@@ -97,6 +105,20 @@ def test_status_and_integrity_links_routes(running_store):
     assert status == 200
     assert body["states"]["content_unavailable"] == 1
     assert body["sample"][0]["memory_id"] == memory["id"]
+
+
+def test_operations_snapshot_exposes_control_plane_evidence(running_store):
+    store, port = running_store
+    store.store_memory("Operations evidence", source={"kind": "test"}, status="confirmed")
+    status, body = _get(port, "/api/operations")
+    assert status == 200
+    assert body["schema_version"] == "xibalba.dashboard_operations.v1"
+    assert body["profile_id"] == "default"
+    assert body["health"]["status"]["memory_count"] == 1
+    assert body["features"]["context_assembly"] is True
+    assert "max_memories" in body["quotas"]
+    assert body["connectors"]["webhook"]["state"] == "implemented"
+    assert body["audit"]["memory_event_counts"]["create"] == 1
 
 
 def test_search_returns_matching_memory(running_store):

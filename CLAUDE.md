@@ -8,7 +8,7 @@ repository.
 xibalba-cortex — the graph-memory MCP server for the Xibalba ecosystem. It is the "brain": the
 persistent, hash-chained memory layer that `xibalba-shield` (local enforcement/detection) and
 `integrity-core` (on-chain identity/reputation protocol) both read from and write into via MCP
-tool calls. Python 3.12, `uv`-managed, exposes 60 MCP tools (`memory_remember`,
+tool calls. Python 3.12, `uv`-managed, exposes 79 MCP tools (`memory_remember`,
 `memory_hybrid_retrieve`, `memory_recall`, `memory_verify_chain`, `runtime_*` bridge tools, etc.)
 over stdio or streamable-HTTP.
 
@@ -16,14 +16,14 @@ Normative spec: `spec/xibalba-cortex-v1.md` — highest authority in this repo (
 `SPECIFICATION.md` §2's authority table). `SPECIFICATION.md` itself declares the store schema,
 hash-chain format, and MCP core tool contract **frozen for v1** as of 2026-08-12; new tools and
 runtime strings are additive/extensible, but do not change the frozen surface without updating
-the spec in the same change. `IMPLEMENTATION_PLAN.md` is the running closed/planned/todo ledger —
-check it before assuming a feature is unimplemented.
+the spec in the same change. Use the canonical wiki, dated records under `docs/archive/`, and
+current Git history to distinguish implemented, historical, and planned work.
 
 ## Repository layout
 
 ```
 src/xibalba_cortex/
-├── server.py              # MCP server entry — @server.tool() decorators, all 60 tools
+├── server.py              # MCP server entry — @server.tool() decorators, all 79 tools
 ├── store.py                # GraphStore — canonical SQLite persistence, hash-chained events,
 │                             domain-separated Merkle roots
 ├── config.py                # CortexConfig — mode local/hybrid/remote-inference, YAML/env driven
@@ -64,7 +64,7 @@ sync` will fail if that path doesn't resolve.
 ```bash
 uv sync                       # install deps
 uv sync --extra drive         # + Google Drive ingestion extras (pypdf, Google API client)
-uv run pytest -q              # tests/ — last known clean run: 273 passed, 1 skipped
+uv run pytest -q              # tests/ — canonical full Python suite
 uv run xibalba-cortex          # MCP server, stdio by default
 uv run xibalba-cortex --transport streamable-http
 
@@ -83,8 +83,9 @@ npm run lint         # oxlint
 npm run preview
 ```
 
-There is no root Makefile, CONTRIBUTING.md, or test/lint CI workflow beyond the wiki-sync
-Action — `uv run pytest -q` is the enforcement mechanism, run it before calling a change done.
+There is no root Makefile or CONTRIBUTING.md. The `.github/workflows/ci.yml` workflow runs the
+Python suite against the required sibling `integrity-core` checkout; run `uv run pytest -q`
+locally before calling a change done.
 
 To run a single test: `uv run pytest tests/test_file.py::test_name`. Some tests are env-gated,
 e.g. Hermes MCP smoke tests need `XIBALBA_RUN_HERMES_MCP_SMOKE=1` to run rather than skip.
@@ -136,5 +137,5 @@ to those vectors as a spec-surface change, not a routine test update.
 
 This repo is under active development (current work centers on hybrid extraction/retrieval and
 viewer graph panels) — treat this file as a snapshot, not a frozen contract. When in doubt about
-what's actually implemented vs. planned, check `IMPLEMENTATION_PLAN.md` and `git log` over
-re-trusting prose here.
+what's actually implemented versus planned, check `spec/xibalba-cortex-v1.md`, the canonical
+wiki, and current Git history rather than re-trusting prose here.

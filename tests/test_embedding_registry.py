@@ -90,3 +90,17 @@ def test_embeddings_meta_records_model_key_and_revision(tmp_path: Path):
     ).fetchone()
     assert row["model_key"] == f"{EMBEDDING_MODEL_ID}@{EMBEDDING_MODEL_REVISION}"
     assert row["revision"] == EMBEDDING_MODEL_REVISION
+
+
+def test_promoted_embedding_model_drives_vector_reads(tmp_path: Path):
+    store = GraphStore(tmp_path)
+    memory = store.store_memory("model-specific vector", source={"kind": "test"}, status="active")
+    registered = store.register_embedding_model("small-model", "r2", dimension=8)
+    store.promote_embedding_model(registered["model_key"])
+    store.store_embedding(memory["id"], _unit_vector(8, 0), model_id="small-model")
+
+    results = store.hybrid_retrieve("model-specific", query_vector=_unit_vector(8, 0), limit=5)
+
+    assert results["channel_status"]["vector"] == "available"
+    assert results["results"][0]["id"] == memory["id"]
+    store.close()

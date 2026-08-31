@@ -1,5 +1,19 @@
 # Xibalba Cortex Wiki — Log
 
+## [2026-08-29] update | Operations hardening and documentation reconciliation
+
+- Replaced fixed ports in the local API and OTLP receiver tests with ephemeral socket-selected ports to prevent collisions with live local services and parallel test workers.
+- Repaired the extraction-proposal foreign-key migration so it targets the live `memory_inference_tasks` table rather than the obsolete `_v8` name.
+- Documented the feature-branch status and the migration boundary; no claim of default-branch release or external-model execution is made.
+- Verification: full Cortex suite passed with 347 tests and 1 skip; local API focused coverage passed 22 tests.
+
+## [2026-08-29] audit | Living documentation fact check
+
+- Corrected living pages that described committed feature-branch work as uncommitted.
+- Removed references to deleted `spec/latest-hybrid-extraction.md`, `docs/plans/`, and the former session-log path; replaced them with current normative or dated audit sources.
+- Corrected the hybrid extraction verification count to the current feature-branch result of 347 passed and 1 skipped.
+- Confirmed historical audit entries remain unchanged and are treated as historical evidence rather than current-state claims.
+
 ## [2026-08-28] update | Runtime invocation correlation v2
 
 - Upgraded normalized runtime events to `xibalba.runtime.bridge.v2` with first-class canonical
@@ -111,3 +125,9 @@
 - Recorded the isolated Hermes extraction round trip, reviewable extraction proposals, retrieval-trace version 2 fields, projection checkpoint reconciliation, domain-separated Merkle evidence, and the measured `273 passed, 1 skipped, 1 warning` full-suite result.
 - Preserved residual boundaries: local evidence only, proposal-only promotion, at-least-once processing, and no claim of external anchoring or production deployment.
 - Updated `WIKI_INDEX.md` date; canonical authoring tree is `xibalba-cortex/docs/wiki` because the configured `/home/xibalba/Projects/INTEGRITY-LATEST/docs/wiki` path was absent during compilation.
+
+## [2026-08-30] correction | MCP inventory and validation guidance
+- Reconciled `README.md` and `CLAUDE.md` with the current `server.py` surface: 79 advertised Model Context Protocol tools, including the live `memory_retrieval_trace_evidence` wrapper.
+- Removed a broken `IMPLEMENTATION_PLAN.md` reference and the stale claim that this repository had no test Continuous Integration workflow.
+- Verification on pull request 6 head: `uv sync --extra drive && uv run pytest -q` exited 0 with one skip; `uv run pytest -q tests/test_server.py::test_all_tools_are_advertised` passed; `npm ci && npm run build && npm run lint` exited 0 with two pre-existing lint warnings and an npm audit report of one high-severity dependency vulnerability.
+- This is documentation and validation evidence only. It does not establish live deployment, external anchoring, or production readiness; the npm dependency finding remains open.

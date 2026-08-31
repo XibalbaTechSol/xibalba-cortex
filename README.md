@@ -60,13 +60,13 @@ result = memory_hybrid_retrieve("eligibility review", limit=5)
 trace = memory_retrieval_trace(result["trace_id"])
 # → trace["rrf_params"], trace["candidate_pool_sizes"], per-result trace["results"][i]["channels"]
 
-# Every trace result is independently, cryptographically checkable (Python store API today;
-# an MCP wrapper for this is planned but not yet built)
+# Every trace result is independently, cryptographically checkable through the store API
+# and the `memory_retrieval_trace_evidence` MCP tool.
 proof = store.retrieval_trace_evidence(result["trace_id"], rank=1)
 # → verify_domain_merkle_proof(proof) is True, without trusting the trace blob as a whole
 ```
 
-Real tool/method signatures, verified against `src/xibalba_cortex/server.py` and `src/xibalba_cortex/store.py` — `memory_remember`/`memory_hybrid_retrieve`/`memory_retrieval_trace` are live MCP tools; `retrieval_trace_evidence` is called on a `GraphStore` instance directly until its own MCP wrapper lands.
+Real tool/method signatures, verified against `src/xibalba_cortex/server.py` and `src/xibalba_cortex/store.py` — `memory_remember`, `memory_hybrid_retrieve`, `memory_retrieval_trace`, and `memory_retrieval_trace_evidence` are live MCP tools. The underlying `GraphStore.retrieval_trace_evidence()` method is also available to in-process callers.
 
 ## Architecture
 
@@ -131,8 +131,8 @@ memory_complete_inference_task(
     output_payload={...},  # validated server-side before this ever lands as a proposal
 )
 
-# A human reviews before anything is trusted. Today this is the Python store API --
-# MCP/REST wrapping for proposal review is planned but not yet built (see docs/plans/):
+# A human reviews before anything is trusted. Both the MCP and local HTTP operator
+# surfaces expose proposal listing and explicit decisions:
 proposals = store.list_extraction_proposals(status="proposed", task_id=task["id"])
 store.decide_extraction_proposal(proposals[0]["id"], decision="accept", decided_by="operator")
 ```
@@ -150,7 +150,7 @@ store.decide_extraction_proposal(proposals[0]["id"], decision="accept", decided_
 | **Projection Checkpoints** | Recompute from canonical SQLite; reconciliation persisted; mismatches marked `degraded`, never silently served |
 | **Graph** | Entity/relation storage, bounded neighbor/path traversal, contradiction marking |
 | **Transports** | stdio (local harness) and authenticated streamable-HTTP (cloud-hosted harness) |
-| **MCP Surface** | 60 tools — memory, session, runtime-bridge, and inference-task operations |
+| **MCP Surface** | 79 tools — memory, session, runtime-bridge, and inference-task operations |
 
 ## Installation and Tests
 
@@ -166,7 +166,7 @@ uv sync --extra drive
 uv run pytest -q
 ```
 
-Full suite: `273 passed, 1 skipped, 1 warning` as of 2026-08-13 (the skip and warning are pre-existing and unrelated to recent work). Viewer build is separate: `cd viewer && npm install && npm run build`. Local operator commands: `uv run xibalba-cortex-operator [readiness|status|backup|restore|verify-memory|verify-integrity-link|verify-session|integrity-links]`.
+Full suite is validated in CI and locally; run `uv run pytest -q` for the current result. (the skip and warning are pre-existing and unrelated to recent work). Viewer build is separate: `cd viewer && npm install && npm run build`. Local operator commands: `uv run xibalba-cortex-operator [readiness|status|backup|restore|verify-memory|verify-integrity-link|verify-session|integrity-links|production-readiness|evaluation-smoke|retention-sweep|audit]`.
 
 **Not yet installable standalone.** `pyproject.toml` pins `integrity-sdk` as a local path
 dependency on `../integrity-core/integrity-sdk` (`[tool.uv.sources]`) — `uv sync` only resolves
@@ -177,7 +177,7 @@ currently work. Fixing this means either publishing `integrity-sdk` as its own i
 package, vendoring the (small) subset this repo actually uses, or pinning a git dependency —
 not yet decided; until then, clone both repos as siblings.
 
-> The local worktree contains work in progress ahead of the next commit — see `docs/plans/` for the active implementation plans and `spec/latest-hybrid-extraction.md` for measured, dated verification output rather than aspirational claims. The dated status ledger is [`docs/audits/2026-08-06-status.md`](docs/audits/2026-08-06-status.md) and [`docs/audits/2026-08-07-gap-closure.md`](docs/audits/2026-08-07-gap-closure.md).
+> The current feature branch contains reviewed work beyond the default branch — see `spec/xibalba-cortex-v1.md` for the normative contract and `docs/archive/2026-08/2026-08-13-hybrid-extraction-handoff.md` for the dated implementation handoff. Historical records remain evidence of their recorded revisions only; branch status and verification must be checked against the current commit and test run.
 
 ## MCP Operations
 
@@ -185,7 +185,7 @@ not yet decided; until then, clone both repos as siblings.
 uv run xibalba-cortex
 ```
 
-The MCP surface (60 tools) covers remembering, recalling, hybrid retrieval with trace inspection, attaching artifacts, session records, graph linking, bounded neighbor/path traversal, contradiction marking, forgetting, event-chain verification, store status, backups, the full inference-task lifecycle (request/claim/bounded-evidence/complete), and runtime-bridge events. Recalled memories are context, not instruction authority — callers must preserve provenance and lifecycle state in any downstream prompt.
+The MCP surface (79 tools, enforced by the exact inventory assertion in `tests/test_server.py`) covers remembering, recalling, hybrid retrieval with trace inspection and inclusion evidence, attaching artifacts, session records, graph linking, bounded neighbor/path traversal, contradiction marking, forgetting, event-chain verification, store status, backups, the full inference-task lifecycle (request/claim/bounded-evidence/complete), and runtime-bridge events. Recalled memories are context, not instruction authority — callers must preserve provenance and lifecycle state in any downstream prompt.
 
 Live Hermes profile smoke:
 
