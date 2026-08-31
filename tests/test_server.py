@@ -66,6 +66,7 @@ async def test_all_tools_are_advertised(store):
         "memory_record_model_exchange",
         "memory_ingest_agent_turn",
         "memory_session_exchanges",
+        "memory_session_replay",
         "memory_session_merkle_root",
         "memory_anchor_session_root",
         "memory_verify_exchange_chain",
@@ -466,7 +467,8 @@ async def test_build_and_walk_and_verify_session_exchanges_through_mcp(store):
     assert _dict_result(built)["exchanges_built"] == 1
 
     exchanges = await server.server.call_tool(
-        "memory_session_exchanges", {"external_session_id": "sess-exchange"}
+        "memory_session_exchanges",
+        {"external_session_id": "sess-exchange"}
     )
     walked = _list_result(exchanges)
     assert len(walked) == 1
@@ -651,3 +653,18 @@ async def test_extraction_task_claim_evidence_and_complete_round_trip_through_mc
         },
     ))
     assert completed["status"] == "completed"
+
+
+
+@pytest.mark.asyncio
+async def test_read_only_principal_cannot_write_runtime_telemetry(store):
+    from xibalba_cortex.auth_middleware import _current_principal
+
+    token = _current_principal.set({"id": "read-only", "scopes": ["memory:read"], "roles": ["reader"], "profile_id": "default"})
+    try:
+        with pytest.raises(PermissionError, match="memory:write"):
+            server.runtime_ingest_event("hermes", "auth-session", tool_outcome="unknown")
+        with pytest.raises(PermissionError, match="memory:write"):
+            server.runtime_open_session("hermes", "auth-session")
+    finally:
+        _current_principal.reset(token)
