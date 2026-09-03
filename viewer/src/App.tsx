@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import type { FormEvent, ReactNode } from 'react'
 import {
   api,
+  authHeaders,
   type Attachment,
   type EntityRelation,
   type Exchange,
@@ -378,7 +379,7 @@ function ContextContributionItem({
 
   useEffect(() => {
     if (!item.memory?.id) return;
-    fetch(`/api/memory/${encodeURIComponent(item.memory.id)}/attachments`)
+    fetch(`/api/memory/${encodeURIComponent(item.memory.id)}/attachments`, { headers: authHeaders() })
       .then((res) => res.json())
       .then((data) => {
         if (Array.isArray(data)) {
@@ -1249,7 +1250,7 @@ function TimelineTab({
           <p>{exchanges.length} exchanges</p>
           {exchanges.length === 0 && selectedSessionId && (
             <button type="button" onClick={() => {
-              fetch(`/api/session/${encodeURIComponent(selectedSessionId)}/exchanges/build`, { method: 'POST' })
+              fetch(`/api/session/${encodeURIComponent(selectedSessionId)}/exchanges/build`, { method: 'POST', headers: authHeaders() })
                 .then(() => window.location.reload())
             }}>Build Exchanges</button>
           )}
@@ -1298,7 +1299,7 @@ function TimelineTab({
             <p>This session has no recorded conversational history. To populate this timeline, either run a connected agent harness or manually record an exchange.</p>
             {selectedSessionId && (
               <button type="button" onClick={() => {
-                fetch(`/api/session/${encodeURIComponent(selectedSessionId)}/exchanges/build`, { method: 'POST' })
+                fetch(`/api/session/${encodeURIComponent(selectedSessionId)}/exchanges/build`, { method: 'POST', headers: authHeaders() })
                   .then(() => window.location.reload())
               }}>Build Unstructured Exchanges</button>
             )}

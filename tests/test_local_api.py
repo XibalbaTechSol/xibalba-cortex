@@ -8,8 +8,11 @@ import urllib.request
 
 import pytest
 
+from xibalba_cortex.ingest_tokens import issue_token
 from xibalba_cortex.local_api import serve
 from xibalba_cortex.store import EMBEDDING_DIM, GraphStore
+
+_CURRENT_TOKEN: str | None = None
 
 
 def _unit_vector(hot_index: int) -> list[float]:
@@ -18,8 +21,12 @@ def _unit_vector(hot_index: int) -> list[float]:
     return vector
 
 
+def _auth_headers() -> dict[str, str]:
+    return {"Authorization": f"Bearer {_CURRENT_TOKEN}"} if _CURRENT_TOKEN else {}
+
+
 def _get(port: int, path: str) -> tuple[int, object]:
-    request = urllib.request.Request(f"http://localhost:{port}{path}", method="GET")
+    request = urllib.request.Request(f"http://localhost:{port}{path}", method="GET", headers=_auth_headers())
     try:
         with urllib.request.urlopen(request, timeout=5) as response:
             return response.status, json.loads(response.read())
@@ -33,7 +40,7 @@ def _post(port: int, path: str, payload: dict[str, object]) -> tuple[int, object
         f"http://localhost:{port}{path}",
         data=body,
         method="POST",
-        headers={"Content-Type": "application/json"},
+        headers={"Content-Type": "application/json", **_auth_headers()},
     )
     try:
         with urllib.request.urlopen(request, timeout=5) as response:
@@ -57,13 +64,66 @@ def _free_test_port() -> int:
 
 @pytest.fixture
 def running_store(tmp_path):
+    global _CURRENT_TOKEN
     store = GraphStore(tmp_path / "graph")
+    _CURRENT_TOKEN = issue_token(
+        store.home,
+        "test-harness",
+        roles=("admin",),
+        scopes=("memory:read", "memory:write", "memory:delete", "proposal:decide"),
+    )
     port = _free_test_port()
     thread = threading.Thread(target=serve, kwargs={"store": store, "port": port}, daemon=True)
     thread.start()
     time.sleep(0.3)  # let the server bind
     yield store, port
     store.close()
+    _CURRENT_TOKEN = None
+
+
+def test_get_without_token_is_rejected(running_store):
+    _, port = running_store
+    request = urllib.request.Request(f"http://localhost:{port}/api/stats", method="GET")
+    with pytest.raises(urllib.error.HTTPError) as excinfo:
+        urllib.request.urlopen(request, timeout=5)
+    assert excinfo.value.code == 401
+
+
+def test_post_without_token_is_rejected(running_store):
+    _, port = running_store
+    body = json.dumps({}).encode()
+    request = urllib.request.Request(
+        f"http://localhost:{port}/api/memory/propositions",
+        data=body,
+        method="POST",
+        headers={"Content-Type": "application/json"},
+    )
+    with pytest.raises(urllib.error.HTTPError) as excinfo:
+        urllib.request.urlopen(request, timeout=5)
+    assert excinfo.value.code == 401
+
+
+def test_read_only_token_cannot_write(running_store):
+    store, port = running_store
+    reader_token = issue_token(store.home, "reader-only", roles=("reader",), scopes=("memory:read",))
+    body = json.dumps({}).encode()
+    request = urllib.request.Request(
+        f"http://localhost:{port}/api/memory/propositions",
+        data=body,
+        method="POST",
+        headers={"Content-Type": "application/json", "Authorization": f"Bearer {reader_token}"},
+    )
+    with pytest.raises(urllib.error.HTTPError) as excinfo:
+        urllib.request.urlopen(request, timeout=5)
+    assert excinfo.value.code == 403
+
+
+@pytest.mark.parametrize("path", ["/healthz", "/readyz", "/metrics"])
+def test_liveness_routes_exempt_from_auth(running_store, path):
+    _, port = running_store
+    request = urllib.request.Request(f"http://localhost:{port}{path}", method="GET")
+    with urllib.request.urlopen(request, timeout=5) as response:
+        assert response.status == 200
 
 
 def test_stats_reports_real_counts(running_store):

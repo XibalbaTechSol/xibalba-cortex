@@ -195,7 +195,13 @@ def main() -> None:
     args = parser.parse_args()
 
     if args.command == "issue":
-        raw_token = issue_token(args.home, args.label, profile_id=args.profile_id, roles=tuple(args.roles or ("reader",)), scopes=tuple(args.scopes or ("memory:read",)))
+        # `effective_scopes` intersects requested scopes against what the roles actually grant --
+        # it never expands beyond an explicit --scope. So when the caller omits --scope, request
+        # every known scope here rather than defaulting to "memory:read": the role does the real
+        # narrowing, and a `--role writer` issuance ends up with `memory:write` as intended instead
+        # of silently downgrading to read-only.
+        all_known_scopes = tuple(sorted({scope for grants in ROLE_SCOPES.values() for scope in grants if scope != "*"}))
+        raw_token = issue_token(args.home, args.label, profile_id=args.profile_id, roles=tuple(args.roles or ("reader",)), scopes=tuple(args.scopes or all_known_scopes))
         print(f"Issued token for {args.label!r}. Shown once, save it now:")
         print(raw_token)
     elif args.command == "revoke":

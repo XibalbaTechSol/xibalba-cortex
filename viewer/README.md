@@ -2,19 +2,26 @@
 
 Standalone graph visualization and local operator surface for `xibalba-cortex`. The viewer exposes graph, timeline, lexical Recall, inference task, PARA review, and Integrity views. It is a local prototype and is not a production deployment.
 
-The local API includes both read routes and bounded mutating `POST` routes for recording exchanges, creating propositions, linking entities, lifecycle changes, inference claims/completions, and PARA decisions. Bind it to loopback and set an explicit allowed origin when running the viewer; it has no built-in authentication.
+The local API includes both read routes and bounded mutating `POST` routes for recording exchanges, creating propositions, linking entities, lifecycle changes, inference claims/completions, and PARA decisions. Bind it to loopback and set an explicit allowed origin when running the viewer. Every route except `/healthz`, `/readyz`, and `/metrics` requires the same bearer-token auth as the streamable-HTTP MCP transport -- there is no unauthenticated fallback.
 
 ## Run
 
-1. Start the local operator API from the `xibalba-cortex` project root:
+1. Issue a token for the viewer (once per profile home):
+   ```bash
+   uv run xibalba-cortex-ingest-tokens --home ~/.hermes/xibalba-cortex issue --label viewer --role reader
+   ```
+   Use `--role writer` instead if you'll use the viewer's write actions (e.g. "Build Exchanges").
+   Save the printed token -- it's shown once.
+2. Start the local operator API from the `xibalba-cortex` project root:
    ```bash
    uv run python -m xibalba_cortex.local_api \
      --home ~/.hermes/xibalba-cortex \
      --host 127.0.0.1 \
      --allowed-origin http://localhost:5190
    ```
-2. In this directory:
+3. In this directory, copy `.env.example` to `.env` and set `VITE_LOCAL_API_TOKEN` to the token from step 1:
    ```bash
+   cp .env.example .env
    npm install
    npm run dev
    ```

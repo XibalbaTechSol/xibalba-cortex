@@ -2,8 +2,16 @@
 
 MCP is stdio-only -- a browser can't call it directly. This mirrors otlp_receiver.py's stdlib
 http.server.ThreadingHTTPServer pattern (no new framework dependency) rather than introducing
-Flask/FastAPI for a small local operator UI. It is localhost-bound and intentionally omits
-destructive operations such as restore or hard purge.
+Flask/FastAPI for a small local operator UI. It intentionally omits destructive operations such
+as restore or hard purge.
+
+Despite the module's original "localhost-bound" framing, the shipped Dockerfile binds this to
+0.0.0.0 -- so every route except the liveness probes (/healthz, /readyz, /metrics) requires the
+same bearer-token auth as the streamable-HTTP MCP transport (auth_middleware.py /
+ingest_tokens.py): a `memory:read`-scoped token for GET, `memory:write` for most POST routes, and
+`proposal:decide` for the two decision endpoints. Issue tokens with
+`xibalba-cortex-ingest-tokens issue`. There is no unauthenticated fallback -- a deployment with
+no tokens issued simply has no working API, which is the fail-closed default.
 
 Every route is a thin wrapper around one public GraphStore method -- all the actual query logic
 (graph_payload, memory_entity_relations, counts, etc.) lives in store.py where it's unit-tested
@@ -76,6 +84,7 @@ import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, unquote, urlparse
 
+from .ingest_tokens import verify_token_record
 from .providers import InferenceTaskContract, connector_manifest
 from .store import MEMORY_INFERENCE_SUBAGENT_MANIFEST, GraphStore
 
@@ -215,6 +224,21 @@ def _make_handler(store: GraphStore, *, allowed_origin: str):
             self.end_headers()
             self.wfile.write(body)
 
+        def _authenticate(self, *, required_scope: str) -> dict[str, object] | None:
+            auth = self.headers.get("Authorization", "")
+            token = auth[len("Bearer "):].strip() if auth.startswith("Bearer ") else ""
+            if not token:
+                self._send_json(401, {"error": "missing or malformed Authorization: Bearer <token> header"})
+                return None
+            principal = verify_token_record(store.home, token)
+            if principal is None:
+                self._send_json(401, {"error": "invalid or revoked token"})
+                return None
+            if required_scope not in principal["scopes"]:
+                self._send_json(403, {"error": f"credential lacks required scope: {required_scope}"})
+                return None
+            return principal
+
         def do_OPTIONS(self) -> None:  # noqa: N802 -- CORS preflight
             self.send_response(204)
             self.send_header("Access-Control-Allow-Origin", allowed_origin)
@@ -244,6 +268,10 @@ def _make_handler(store: GraphStore, *, allowed_origin: str):
             parsed = urlparse(self.path)
             params = {k: v[0] for k, v in parse_qs(parsed.query).items()}
             parts = [p for p in parsed.path.split("/") if p]
+
+            if parts not in (["metrics"], ["healthz"], ["readyz"]):
+                if self._authenticate(required_scope="memory:read") is None:
+                    return
 
             try:
                 if parts == ["metrics"]:
@@ -377,6 +405,14 @@ def _make_handler(store: GraphStore, *, allowed_origin: str):
         def do_POST(self) -> None:  # noqa: N802 -- BaseHTTPRequestHandler's naming convention
             parsed = urlparse(self.path)
             parts = [p for p in parsed.path.split("/") if p]
+
+            is_decision_route = (
+                (len(parts) == 5 and parts[:3] == ["api", "para", "classifications"] and parts[4] == "decision")
+                or (len(parts) == 4 and parts[:2] == ["api", "extraction-proposals"] and parts[3] == "decision")
+            )
+            required_scope = "proposal:decide" if is_decision_route else "memory:write"
+            if self._authenticate(required_scope=required_scope) is None:
+                return
 
             try:
                 payload = self._read_json_body()

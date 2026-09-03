@@ -1,8 +1,18 @@
-// Thin client for xibalba_cortex.local_api (stdlib http.server, read-only, localhost:8420 by
-// default). No auth, no framework response envelope -- every route just returns the JSON body
-// GraphStore's own method returned, so these types mirror store.py's returned dicts directly.
+// Thin client for xibalba_cortex.local_api (stdlib http.server, localhost:8420 by default). No
+// framework response envelope -- every route just returns the JSON body GraphStore's own method
+// returned, so these types mirror store.py's returned dicts directly.
+//
+// local_api.py requires a bearer token (the same ingest-token store the streamable-HTTP MCP
+// transport uses -- see auth_middleware.py / ingest_tokens.py). Set VITE_LOCAL_API_TOKEN to a
+// token issued with `xibalba-cortex-ingest-tokens issue --role reader` (or `writer` if you use
+// the viewer's write actions, e.g. building session exchanges).
 
 const BASE_URL = import.meta.env.VITE_LOCAL_API_URL ?? 'http://localhost:8420'
+const API_TOKEN = import.meta.env.VITE_LOCAL_API_TOKEN ?? ''
+
+export function authHeaders(): Record<string, string> {
+  return API_TOKEN ? { Authorization: `Bearer ${API_TOKEN}` } : {}
+}
 
 export interface GraphNode {
   id: string
@@ -399,7 +409,7 @@ export interface OperationsSnapshot {
 }
 
 async function getJson<T>(path: string): Promise<T> {
-  const response = await fetch(`${BASE_URL}${path}`)
+  const response = await fetch(`${BASE_URL}${path}`, { headers: authHeaders() })
   if (!response.ok) {
     const body = await response.json().catch(() => ({ error: response.statusText }))
     throw new Error(body.error ?? `request failed: ${response.status}`)
@@ -410,7 +420,7 @@ async function getJson<T>(path: string): Promise<T> {
 async function postJson<T>(path: string, payload: Record<string, unknown>): Promise<T> {
   const response = await fetch(`${BASE_URL}${path}`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...authHeaders() },
     body: JSON.stringify(payload),
   })
   if (!response.ok) {
