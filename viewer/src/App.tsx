@@ -2,7 +2,8 @@ import { useEffect, useMemo, useState } from 'react'
 import type { FormEvent, ReactNode } from 'react'
 import {
   api,
-  authHeaders,
+  getApiToken,
+  setApiToken,
   type Attachment,
   type EntityRelation,
   type Exchange,
@@ -379,8 +380,7 @@ function ContextContributionItem({
 
   useEffect(() => {
     if (!item.memory?.id) return;
-    fetch(`/api/memory/${encodeURIComponent(item.memory.id)}/attachments`, { headers: authHeaders() })
-      .then((res) => res.json())
+    api.attachments(item.memory.id)
       .then((data) => {
         if (Array.isArray(data)) {
           setAttachments(data)
@@ -413,7 +413,6 @@ function ContextContributionItem({
         <div className="attachments-grid" style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginTop: '8px' }}>
           {attachments.map((att) => {
             const isImage = att.media_type && att.media_type.startsWith('image/')
-            const fileUrl = `/api/attachment/${encodeURIComponent(att.id)}/file`
             return (
               <div key={att.id} className="attachment-item" style={{
                 background: 'rgba(0,0,0,0.2)',
@@ -426,17 +425,7 @@ function ContextContributionItem({
               }}>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                   <span className="badge" style={{ fontSize: '9px', alignSelf: 'flex-start' }}>{att.media_type}</span>
-                  {isImage ? (
-                    <img 
-                      src={fileUrl} 
-                      alt="Attachment Preview" 
-                      style={{ maxWidth: '100%', maxHeight: '120px', borderRadius: '4px', marginTop: '4px', objectFit: 'contain' }}
-                    />
-                  ) : (
-                    <a href={fileUrl} target="_blank" rel="noreferrer" style={{ color: 'var(--brand)', textDecoration: 'underline', marginTop: '4px', wordBreak: 'break-all' }}>
-                      Download File ({att.byte_size} bytes)
-                    </a>
-                  )}
+                  {isImage ? <AttachmentImage attachment={att} /> : <AttachmentDownload attachment={att} />}
                 </div>
               </div>
             )
@@ -445,6 +434,35 @@ function ContextContributionItem({
       )}
     </div>
   )
+}
+
+function useAttachmentUrl(attachmentId: string) {
+  const [url, setUrl] = useState('')
+  useEffect(() => {
+    let objectUrl = ''
+    api.attachmentFile(attachmentId).then((blob) => {
+      objectUrl = URL.createObjectURL(blob)
+      setUrl(objectUrl)
+    }).catch(() => setUrl(''))
+    return () => {
+      if (objectUrl) URL.revokeObjectURL(objectUrl)
+    }
+  }, [attachmentId])
+  return url
+}
+
+function AttachmentImage({ attachment }: { attachment: Attachment }) {
+  const url = useAttachmentUrl(attachment.id)
+  return url
+    ? <img src={url} alt="Attachment preview" style={{ maxWidth: '100%', maxHeight: '120px', borderRadius: '4px', marginTop: '4px', objectFit: 'contain' }} />
+    : <span className="muted">Loading preview…</span>
+}
+
+function AttachmentDownload({ attachment }: { attachment: Attachment }) {
+  const url = useAttachmentUrl(attachment.id)
+  return url
+    ? <a href={url} download style={{ color: 'var(--brand)', textDecoration: 'underline', marginTop: '4px', wordBreak: 'break-all' }}>Download file ({attachment.byte_size} bytes)</a>
+    : <span className="muted">Preparing download…</span>
 }
 
 function OtelTreeNode({
@@ -708,6 +726,34 @@ function formatSessionLabel(session: Session) {
 }
 
 export default function App() {
+  const [token, setToken] = useState(getApiToken)
+  if (token) return <AuthenticatedApp />
+
+  const submitToken = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    const value = String(new FormData(event.currentTarget).get('token') || '').trim()
+    if (!value) return
+    setApiToken(value)
+    setToken(value)
+  }
+
+  return (
+    <main className="app" style={{ minHeight: '100vh', display: 'grid', placeItems: 'center', padding: '24px' }}>
+      <form className="panel" onSubmit={submitToken} style={{ width: 'min(480px, 100%)' }}>
+        <p className="eyebrow">Protected local operator surface</p>
+        <h1>Connect to xibalba-cortex</h1>
+        <p className="muted">Enter a bearer token issued for this Cortex profile. The token remains only in this browser tab and is removed when the tab closes.</p>
+        <label>
+          Bearer token
+          <input name="token" type="password" autoComplete="off" required autoFocus />
+        </label>
+        <button type="submit">Connect</button>
+      </form>
+    </main>
+  )
+}
+
+function AuthenticatedApp() {
   const [stats, setStats] = useState<Stats | null>(null)
   const [storeStatus, setStoreStatus] = useState<StoreStatus | null>(null)
   const [operations, setOperations] = useState<OperationsSnapshot | null>(null)
@@ -1250,7 +1296,7 @@ function TimelineTab({
           <p>{exchanges.length} exchanges</p>
           {exchanges.length === 0 && selectedSessionId && (
             <button type="button" onClick={() => {
-              fetch(`/api/session/${encodeURIComponent(selectedSessionId)}/exchanges/build`, { method: 'POST', headers: authHeaders() })
+              api.buildSessionExchanges(selectedSessionId)
                 .then(() => window.location.reload())
             }}>Build Exchanges</button>
           )}
@@ -1299,7 +1345,7 @@ function TimelineTab({
             <p>This session has no recorded conversational history. To populate this timeline, either run a connected agent harness or manually record an exchange.</p>
             {selectedSessionId && (
               <button type="button" onClick={() => {
-                fetch(`/api/session/${encodeURIComponent(selectedSessionId)}/exchanges/build`, { method: 'POST', headers: authHeaders() })
+                api.buildSessionExchanges(selectedSessionId)
                   .then(() => window.location.reload())
               }}>Build Unstructured Exchanges</button>
             )}

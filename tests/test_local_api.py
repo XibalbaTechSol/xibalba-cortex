@@ -118,6 +118,54 @@ def test_read_only_token_cannot_write(running_store):
     assert excinfo.value.code == 403
 
 
+def test_token_cannot_access_a_different_profile(running_store):
+    store, port = running_store
+    wrong_profile_token = issue_token(
+        store.home,
+        "other-profile-reader",
+        profile_id="other-profile",
+        roles=("reader",),
+        scopes=("memory:read",),
+    )
+    request = urllib.request.Request(
+        f"http://localhost:{port}/api/stats",
+        method="GET",
+        headers={"Authorization": f"Bearer {wrong_profile_token}"},
+    )
+    with pytest.raises(urllib.error.HTTPError) as excinfo:
+        urllib.request.urlopen(request, timeout=5)
+    assert excinfo.value.code == 403
+    assert "not authorized for this profile" in excinfo.value.read().decode()
+
+
+def test_bearer_scheme_is_case_insensitive(running_store):
+    _, port = running_store
+    request = urllib.request.Request(
+        f"http://localhost:{port}/api/stats",
+        method="GET",
+        headers={"Authorization": f"bearer {_CURRENT_TOKEN}"},
+    )
+    with urllib.request.urlopen(request, timeout=5) as response:
+        assert response.status == 200
+
+
+def test_cors_preflight_allows_authorization_header(running_store):
+    _, port = running_store
+    request = urllib.request.Request(
+        f"http://localhost:{port}/api/stats",
+        method="OPTIONS",
+        headers={
+            "Origin": "http://localhost:5190",
+            "Access-Control-Request-Method": "GET",
+            "Access-Control-Request-Headers": "authorization",
+        },
+    )
+    with urllib.request.urlopen(request, timeout=5) as response:
+        assert response.status == 204
+        allowed = response.headers["Access-Control-Allow-Headers"].lower()
+        assert "authorization" in allowed
+
+
 @pytest.mark.parametrize("path", ["/healthz", "/readyz", "/metrics"])
 def test_liveness_routes_exempt_from_auth(running_store, path):
     _, port = running_store

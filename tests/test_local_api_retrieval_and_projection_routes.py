@@ -83,6 +83,22 @@ def test_hybrid_retrieval_route_returns_trace_and_results(running_store):
     assert trace["root_hash"] == body["root_hash"]
 
 
+def test_hybrid_retrieval_accepts_read_only_token(running_store):
+    store, port = running_store
+    store.store_memory("Reader-scoped retrieval content.", source={"kind": "test"}, status="active")
+    reader_token = issue_token(store.home, "retrieval-reader", roles=("reader",), scopes=("memory:read",))
+    body = json.dumps({"query": "retrieval content", "limit": 5}).encode()
+    request = urllib.request.Request(
+        f"http://localhost:{port}/api/retrieval/hybrid",
+        data=body,
+        method="POST",
+        headers={"Content-Type": "application/json", "Authorization": f"Bearer {reader_token}"},
+    )
+    with urllib.request.urlopen(request, timeout=5) as response:
+        assert response.status == 200
+        assert json.loads(response.read())["results"]
+
+
 def test_retrieval_trace_evidence_route_returns_verifiable_proof(running_store):
     store, port = running_store
     store.store_memory("Provable via REST.", source={"kind": "test"}, status="active")
@@ -165,3 +181,4 @@ def test_extraction_proposals_routes(running_store):
     status, decided = _post(port, f"/api/extraction-proposals/{proposals[0]['id']}/decision", {"decision": "accept", "decided_by": "operator"})
     assert status == 200
     assert decided["status"] == "accepted"
+    assert decided["decided_by"] == "test-harness"

@@ -19,12 +19,15 @@ The local API includes both read routes and bounded mutating `POST` routes for r
      --host 127.0.0.1 \
      --allowed-origin http://localhost:5190
    ```
-3. In this directory, copy `.env.example` to `.env` and set `VITE_LOCAL_API_TOKEN` to the token from step 1:
+3. In this directory, start the viewer:
    ```bash
-   cp .env.example .env
    npm install
    npm run dev
    ```
+4. Open the viewer and enter the token from step 1. The token is stored only in the current
+   browser tab's `sessionStorage`; it is not embedded into the Vite bundle or persisted after
+   the tab closes. `VITE_LOCAL_API_URL` may still be set when the API is not at
+   `http://localhost:8420`.
    Opens on `http://localhost:5190` (fixed, non-default port -- avoids the Dockerized
    `integrity-dashboard` instances on 5173/5174).
 

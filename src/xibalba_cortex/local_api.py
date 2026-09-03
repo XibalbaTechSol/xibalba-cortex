@@ -205,7 +205,7 @@ def _make_handler(store: GraphStore, *, allowed_origin: str):
             self.send_response(status)
             self.send_header("Content-Type", "application/json")
             self.send_header("Access-Control-Allow-Origin", allowed_origin)
-            self.send_header("Access-Control-Allow-Headers", "Content-Type")
+            self.send_header("Access-Control-Allow-Headers", "Authorization, Content-Type")
             self.send_header("Content-Length", str(len(body)))
             self.end_headers()
             self.wfile.write(body)
@@ -226,13 +226,17 @@ def _make_handler(store: GraphStore, *, allowed_origin: str):
 
         def _authenticate(self, *, required_scope: str) -> dict[str, object] | None:
             auth = self.headers.get("Authorization", "")
-            token = auth[len("Bearer "):].strip() if auth.startswith("Bearer ") else ""
+            scheme, _, credentials = auth.partition(" ")
+            token = credentials.strip() if scheme.lower() == "bearer" else ""
             if not token:
                 self._send_json(401, {"error": "missing or malformed Authorization: Bearer <token> header"})
                 return None
             principal = verify_token_record(store.home, token)
             if principal is None:
                 self._send_json(401, {"error": "invalid or revoked token"})
+                return None
+            if principal["profile_id"] != store.profile_id:
+                self._send_json(403, {"error": "credential is not authorized for this profile"})
                 return None
             if required_scope not in principal["scopes"]:
                 self._send_json(403, {"error": f"credential lacks required scope: {required_scope}"})
@@ -243,7 +247,7 @@ def _make_handler(store: GraphStore, *, allowed_origin: str):
             self.send_response(204)
             self.send_header("Access-Control-Allow-Origin", allowed_origin)
             self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-            self.send_header("Access-Control-Allow-Headers", "Content-Type")
+            self.send_header("Access-Control-Allow-Headers", "Authorization, Content-Type")
             self.end_headers()
 
         def _read_json_body(self) -> dict[str, object]:
@@ -386,6 +390,8 @@ def _make_handler(store: GraphStore, *, allowed_origin: str):
                         else:
                             self.send_response(200)
                             self.send_header("Content-Type", attachment.get("media_type") or "application/octet-stream")
+                            self.send_header("Access-Control-Allow-Origin", allowed_origin)
+                            self.send_header("Access-Control-Allow-Headers", "Authorization, Content-Type")
                             self.send_header("Content-Length", str(os.path.getsize(file_path)))
                             self.end_headers()
                             with open(file_path, "rb") as f:
@@ -410,8 +416,10 @@ def _make_handler(store: GraphStore, *, allowed_origin: str):
                 (len(parts) == 5 and parts[:3] == ["api", "para", "classifications"] and parts[4] == "decision")
                 or (len(parts) == 4 and parts[:2] == ["api", "extraction-proposals"] and parts[3] == "decision")
             )
-            required_scope = "proposal:decide" if is_decision_route else "memory:write"
-            if self._authenticate(required_scope=required_scope) is None:
+            is_read_route = parts == ["api", "retrieval", "hybrid"]
+            required_scope = "proposal:decide" if is_decision_route else "memory:read" if is_read_route else "memory:write"
+            principal = self._authenticate(required_scope=required_scope)
+            if principal is None:
                 return
 
             try:
@@ -550,7 +558,7 @@ def _make_handler(store: GraphStore, *, allowed_origin: str):
                 elif len(parts) == 4 and parts[:2] == ["api", "extraction-proposals"] and parts[3] == "decision":
                     decision = str(payload.get("decision") or "")
                     note = payload.get("note") if isinstance(payload.get("note"), str) else None
-                    decided_by = payload.get("decided_by") if isinstance(payload.get("decided_by"), str) else None
+                    decided_by = str(principal["label"])
                     self._send_json(200, store.decide_extraction_proposal(parts[2], decision=decision, decided_by=decided_by, note=note))
                 elif parts == ["api", "retrieval", "hybrid"]:
                     query_vector = payload.get("query_vector")

@@ -23,7 +23,6 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
-import hmac
 import secrets
 import sqlite3
 import uuid
@@ -59,6 +58,7 @@ CREATE TABLE IF NOT EXISTS ingest_tokens (
     roles_json TEXT NOT NULL DEFAULT '["reader"]',
     scopes_json TEXT NOT NULL DEFAULT '["memory:read"]'
 );
+CREATE UNIQUE INDEX IF NOT EXISTS idx_ingest_tokens_token_hash ON ingest_tokens(token_hash);
 """
 
 
@@ -71,7 +71,7 @@ def _db_path(home: str | Path) -> Path:
 def _connect(home: str | Path) -> sqlite3.Connection:
     conn = sqlite3.connect(_db_path(home))
     conn.row_factory = sqlite3.Row
-    conn.execute(_SCHEMA)
+    conn.executescript(_SCHEMA)
     columns = {row["name"] for row in conn.execute("PRAGMA table_info(ingest_tokens)")}
     for name, definition in (("profile_id", "TEXT NOT NULL DEFAULT 'default'"), ("roles_json", "TEXT NOT NULL DEFAULT '[\"reader\"]'"), ("scopes_json", "TEXT NOT NULL DEFAULT '[\"memory:read\"]'")):
         if name not in columns:
@@ -110,27 +110,28 @@ def issue_token(home: str | Path, label: str, *, profile_id: str = "default", ro
 
 def verify_token_record(home: str | Path, raw_token: str) -> dict[str, object] | None:
     """Return the matching label if `raw_token` is valid and not revoked, else None.
-    Updates `last_used_at` on success. Hash comparison uses `hmac.compare_digest` (constant
-    time) so response timing can't be used to guess a valid hash byte-by-byte."""
+    Updates `last_used_at` on success. Lookup uses the indexed SHA-256 token hash, so invalid
+    requests do not scan and compare every active credential."""
     if not raw_token:
         return None
     candidate_hash = _hash(raw_token)
     conn = _connect(home)
     try:
-        rows = conn.execute(
-            "SELECT id, label, token_hash, profile_id, roles_json, scopes_json FROM ingest_tokens WHERE revoked_at IS NULL"
-        ).fetchall()
-        for row in rows:
-            if hmac.compare_digest(row["token_hash"], candidate_hash):
-                conn.execute(
-                    "UPDATE ingest_tokens SET last_used_at = CURRENT_TIMESTAMP WHERE id = ?",
-                    (row["id"],),
-                )
-                conn.commit()
-                roles = json.loads(row["roles_json"])
-                scopes = json.loads(row["scopes_json"])
-                return {"id": row["id"], "label": row["label"], "profile_id": row["profile_id"], "roles": roles, "scopes": effective_scopes(roles, scopes)}
-        return None
+        row = conn.execute(
+            "SELECT id, label, profile_id, roles_json, scopes_json FROM ingest_tokens "
+            "WHERE token_hash = ? AND revoked_at IS NULL",
+            (candidate_hash,),
+        ).fetchone()
+        if row is None:
+            return None
+        conn.execute(
+            "UPDATE ingest_tokens SET last_used_at = CURRENT_TIMESTAMP WHERE id = ?",
+            (row["id"],),
+        )
+        conn.commit()
+        roles = json.loads(row["roles_json"])
+        scopes = json.loads(row["scopes_json"])
+        return {"id": row["id"], "label": row["label"], "profile_id": row["profile_id"], "roles": roles, "scopes": effective_scopes(roles, scopes)}
     finally:
         conn.close()
 
