@@ -9,8 +9,12 @@ import urllib.request
 
 import pytest
 
+from xibalba_cortex.ingest_tokens import issue_token
 from xibalba_cortex.local_api import serve
 from xibalba_cortex.store import GraphStore
+
+_CURRENT_TOKEN: str | None = None
+
 
 def _free_test_port() -> int:
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as probe:
@@ -18,8 +22,12 @@ def _free_test_port() -> int:
         return probe.getsockname()[1]
 
 
+def _auth_headers() -> dict[str, str]:
+    return {"Authorization": f"Bearer {_CURRENT_TOKEN}"} if _CURRENT_TOKEN else {}
+
+
 def _get(port: int, path: str) -> tuple[int, object]:
-    request = urllib.request.Request(f"http://localhost:{port}{path}", method="GET")
+    request = urllib.request.Request(f"http://localhost:{port}{path}", method="GET", headers=_auth_headers())
     try:
         with urllib.request.urlopen(request, timeout=5) as response:
             return response.status, json.loads(response.read())
@@ -30,7 +38,10 @@ def _get(port: int, path: str) -> tuple[int, object]:
 def _post(port: int, path: str, payload: dict[str, object]) -> tuple[int, object]:
     body = json.dumps(payload).encode()
     request = urllib.request.Request(
-        f"http://localhost:{port}{path}", data=body, method="POST", headers={"Content-Type": "application/json"},
+        f"http://localhost:{port}{path}",
+        data=body,
+        method="POST",
+        headers={"Content-Type": "application/json", **_auth_headers()},
     )
     try:
         with urllib.request.urlopen(request, timeout=5) as response:
@@ -41,13 +52,21 @@ def _post(port: int, path: str, payload: dict[str, object]) -> tuple[int, object
 
 @pytest.fixture
 def running_store(tmp_path):
+    global _CURRENT_TOKEN
     store = GraphStore(tmp_path / "graph")
+    _CURRENT_TOKEN = issue_token(
+        store.home,
+        "test-harness",
+        roles=("admin",),
+        scopes=("memory:read", "memory:write", "memory:delete", "proposal:decide"),
+    )
     port = _free_test_port()
     thread = threading.Thread(target=serve, kwargs={"store": store, "port": port}, daemon=True)
     thread.start()
     time.sleep(0.3)
     yield store, port
     store.close()
+    _CURRENT_TOKEN = None
 
 
 def test_hybrid_retrieval_route_returns_trace_and_results(running_store):
@@ -62,6 +81,22 @@ def test_hybrid_retrieval_route_returns_trace_and_results(running_store):
     status, trace = _get(port, f"/api/retrieval/trace/{body['trace_id']}")
     assert status == 200
     assert trace["root_hash"] == body["root_hash"]
+
+
+def test_hybrid_retrieval_accepts_read_only_token(running_store):
+    store, port = running_store
+    store.store_memory("Reader-scoped retrieval content.", source={"kind": "test"}, status="active")
+    reader_token = issue_token(store.home, "retrieval-reader", roles=("reader",), scopes=("memory:read",))
+    body = json.dumps({"query": "retrieval content", "limit": 5}).encode()
+    request = urllib.request.Request(
+        f"http://localhost:{port}/api/retrieval/hybrid",
+        data=body,
+        method="POST",
+        headers={"Content-Type": "application/json", "Authorization": f"Bearer {reader_token}"},
+    )
+    with urllib.request.urlopen(request, timeout=5) as response:
+        assert response.status == 200
+        assert json.loads(response.read())["results"]
 
 
 def test_retrieval_trace_evidence_route_returns_verifiable_proof(running_store):
@@ -146,3 +181,4 @@ def test_extraction_proposals_routes(running_store):
     status, decided = _post(port, f"/api/extraction-proposals/{proposals[0]['id']}/decision", {"decision": "accept", "decided_by": "operator"})
     assert status == 200
     assert decided["status"] == "accepted"
+    assert decided["decided_by"] == "test-harness"

@@ -1,8 +1,11 @@
 import sqlite3
 
+import pytest
+
 from xibalba_cortex.ingest_tokens import (
     issue_token,
     list_tokens,
+    main,
     revoke_token,
     verify_token,
     verify_token_record,
@@ -129,6 +132,25 @@ def test_scoped_token_record_contains_profile_roles_and_scopes(tmp_path):
     assert record["profile_id"] == "tenant-a"
     assert record["roles"] == ["operator", "reviewer"]
     assert record["scopes"][-1] == "proposal:decide"
+
+
+@pytest.mark.parametrize(
+    "role,expected_scopes",
+    [
+        ("reader", ["memory:read"]),
+        ("writer", ["memory:read", "memory:write"]),
+        ("admin", ["memory:delete", "memory:read", "memory:write", "proposal:decide"]),
+    ],
+)
+def test_cli_issue_without_explicit_scope_grants_the_full_role_ceiling(tmp_path, monkeypatch, capsys, role, expected_scopes):
+    monkeypatch.setattr(
+        "sys.argv",
+        ["xibalba-cortex-ingest-tokens", "--home", str(tmp_path), "issue", "--label", "t", "--role", role],
+    )
+    main()
+    token = capsys.readouterr().out.strip().splitlines()[-1]
+    record = verify_token_record(tmp_path, token)
+    assert record["scopes"] == expected_scopes
 
 
 def test_list_tokens_exposes_scope_metadata_without_secret_material(tmp_path):

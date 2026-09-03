@@ -131,3 +131,9 @@
 - Removed a broken `IMPLEMENTATION_PLAN.md` reference and the stale claim that this repository had no test Continuous Integration workflow.
 - Verification on pull request 6 head: `uv sync --extra drive && uv run pytest -q` exited 0 with one skip; `uv run pytest -q tests/test_server.py::test_all_tools_are_advertised` passed; `npm ci && npm run build && npm run lint` exited 0 with two pre-existing lint warnings and an npm audit report of one high-severity dependency vulnerability.
 - This is documentation and validation evidence only. It does not establish live deployment, external anchoring, or production readiness; the npm dependency finding remains open.
+
+## [2026-09-03] update | Profile-bound local API authentication
+- Required bearer-token authentication on every local API route except `/healthz`, `/readyz`, and `/metrics`, with explicit `memory:read`, `memory:write`, and `proposal:decide` scope boundaries.
+- Added profile binding, case-insensitive bearer parsing, authenticated CORS preflights, indexed token-hash lookup, credential-derived decision attribution, and reader-scoped hybrid retrieval.
+- Removed build-time viewer credentials: the browser now accepts the token at runtime, retains it only in tab-scoped `sessionStorage`, and fetches attachment bytes through authenticated client methods.
+- Verification: focused authentication/local API suite passed; full `uv sync --extra drive && uv run pytest -q` exited 0 with one skip; viewer `npm run build && npm run lint` exited 0 with two warnings; wiki table-of-contents check and `git diff --check` passed. This is local and hosted-testable evidence, not Transport Layer Security, rate-limit, production-deployment, or external-access proof.

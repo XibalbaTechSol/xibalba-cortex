@@ -1,8 +1,28 @@
-// Thin client for xibalba_cortex.local_api (stdlib http.server, read-only, localhost:8420 by
-// default). No auth, no framework response envelope -- every route just returns the JSON body
-// GraphStore's own method returned, so these types mirror store.py's returned dicts directly.
+// Thin client for xibalba_cortex.local_api (stdlib http.server, localhost:8420 by default). No
+// framework response envelope -- every route just returns the JSON body GraphStore's own method
+// returned, so these types mirror store.py's returned dicts directly.
+//
+// local_api.py requires a bearer token (the same ingest-token store the streamable-HTTP MCP
+// transport uses -- see auth_middleware.py / ingest_tokens.py). The operator enters it at
+// runtime; it is kept only in this tab's sessionStorage, never embedded in the Vite bundle.
 
 const BASE_URL = import.meta.env.VITE_LOCAL_API_URL ?? 'http://localhost:8420'
+const TOKEN_STORAGE_KEY = 'xibalba-cortex.local-api-token'
+let apiToken = sessionStorage.getItem(TOKEN_STORAGE_KEY) ?? ''
+
+export function getApiToken(): string {
+  return apiToken
+}
+
+export function setApiToken(token: string): void {
+  apiToken = token.trim()
+  if (apiToken) sessionStorage.setItem(TOKEN_STORAGE_KEY, apiToken)
+  else sessionStorage.removeItem(TOKEN_STORAGE_KEY)
+}
+
+export function authHeaders(): Record<string, string> {
+  return apiToken ? { Authorization: `Bearer ${apiToken}` } : {}
+}
 
 export interface GraphNode {
   id: string
@@ -399,7 +419,7 @@ export interface OperationsSnapshot {
 }
 
 async function getJson<T>(path: string): Promise<T> {
-  const response = await fetch(`${BASE_URL}${path}`)
+  const response = await fetch(`${BASE_URL}${path}`, { headers: authHeaders() })
   if (!response.ok) {
     const body = await response.json().catch(() => ({ error: response.statusText }))
     throw new Error(body.error ?? `request failed: ${response.status}`)
@@ -410,7 +430,7 @@ async function getJson<T>(path: string): Promise<T> {
 async function postJson<T>(path: string, payload: Record<string, unknown>): Promise<T> {
   const response = await fetch(`${BASE_URL}${path}`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...authHeaders() },
     body: JSON.stringify(payload),
   })
   if (!response.ok) {
@@ -418,6 +438,12 @@ async function postJson<T>(path: string, payload: Record<string, unknown>): Prom
     throw new Error(body.error ?? `request failed: ${response.status}`)
   }
   return response.json() as Promise<T>
+}
+
+async function getBlob(path: string): Promise<Blob> {
+  const response = await fetch(`${BASE_URL}${path}`, { headers: authHeaders() })
+  if (!response.ok) throw new Error(`request failed: ${response.status}`)
+  return response.blob()
 }
 
 export const api = {
@@ -437,6 +463,7 @@ export const api = {
   memoryEvents: (id: string) => getJson<MemoryEvent[]>(`/api/memory/${encodeURIComponent(id)}/events`),
   memoryOtel: (id: string) => getJson<OtelEvent[]>(`/api/memory/${encodeURIComponent(id)}/otel`),
   attachments: (id: string) => getJson<Attachment[]>(`/api/memory/${encodeURIComponent(id)}/attachments`),
+  attachmentFile: (id: string) => getBlob(`/api/attachment/${encodeURIComponent(id)}/file`),
   contradictions: (id: string) => getJson<Memory[]>(`/api/memory/${encodeURIComponent(id)}/contradictions`),
   entityNeighbors: (name: string, maxDepth = 1) =>
     getJson<TraversalResult>(`/api/entity/${encodeURIComponent(name)}/neighbors?max_depth=${maxDepth}`),
@@ -444,6 +471,7 @@ export const api = {
     getJson<TraversalResult>(`/api/entity/path?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}&max_depth=${maxDepth}`),
   sessionReplay: (id: string) => getJson<SessionReplay>(`/api/session/${encodeURIComponent(id)}/replay`),
   sessionExchanges: (id: string) => getJson<Exchange[]>(`/api/session/${encodeURIComponent(id)}/exchanges`),
+  buildSessionExchanges: (id: string) => postJson(`/api/session/${encodeURIComponent(id)}/exchanges/build`, {}),
   sessionMerkleRoot: (id: string) => getJson<MerkleRoot>(`/api/session/${encodeURIComponent(id)}/merkle-root`),
   inferenceManifest: () => getJson<InferenceManifest>('/api/inference/manifest'),
   inferenceTasks: (status = 'pending', limit = 50) =>

@@ -57,7 +57,7 @@ The evidence set is generated locally under `/tmp/xibalba-cortex-playwright/`; i
 
 ## Design boundaries
 
-The local API defaults to a loopback-oriented host posture, but it has no built-in authentication and its default CORS setting is permissive. Bind it to `127.0.0.1` for local use and pass an explicit `--allowed-origin` for the viewer. Passing a non-loopback host changes the exposure boundary and requires external network controls.
+The local API's default Cross-Origin Resource Sharing (CORS) setting is permissive, so pass an explicit `--allowed-origin` for the viewer. Every route except `/healthz`, `/readyz`, and `/metrics` requires the same profile-bound bearer-token authentication as the streamable-HTTP Model Context Protocol transport (`auth_middleware.py` / `ingest_tokens.py`) — a `memory:read`-scoped token for GET and hybrid retrieval, `memory:write` for mutating POST routes, and `proposal:decide` for the two decision endpoints. Issue tokens with `xibalba-cortex-ingest-tokens issue`. There is no unauthenticated fallback; a deployment with no tokens issued has no working API. The viewer accepts the token at runtime and retains it only in tab-scoped `sessionStorage`, rather than compiling it into public JavaScript. Bind to `127.0.0.1` for local use; a non-loopback host still requires a valid token per request and external Transport Layer Security (TLS).
 
 The viewer can be unavailable while the MCP server and local store remain operational. Conversely, a successful page render does not prove that a write operation was authorized or completed. Validate mutations through API readback and database evidence.
 
