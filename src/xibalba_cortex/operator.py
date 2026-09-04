@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+from datetime import datetime, timezone
 import json
 import os
 from pathlib import Path
@@ -183,7 +184,8 @@ def production_readiness(home: Path) -> dict[str, Any]:
     benchmark = evaluation_benchmark()
     config = load_config(home=home)
     tokens = list_tokens(home)
-    active_tokens = sum(1 for row in tokens if not row["revoked_at"])
+    now = datetime.now(timezone.utc).isoformat()
+    active_tokens = sum(1 for row in tokens if not row["revoked_at"] and (not row["expires_at"] or row["expires_at"] > now))
     store_status = None
     store_error = None
     if config.storage.backend == "sqlite":
@@ -199,7 +201,7 @@ def production_readiness(home: Path) -> dict[str, Any]:
     checks = {
         "inference_reliability": {"state": "local_only" if config.features.inference else "disabled", "evidence": "queue leases, retries, dead-letter metadata, and scoped evidence tests"},
         "storage_boundary": {"state": "ready" if storage_ready else "blocked", "backend": config.storage.backend, "status": store_status, "error": store_error},
-        "authorization_tenancy": {"state": "local_only" if active_tokens else "blocked", "active_tokens": active_tokens, "quota": config.quotas.as_dict()},
+        "authorization_tenancy": {"state": "local_only" if active_tokens else "blocked", "active_tokens": active_tokens, "token_lifecycle": "implemented", "onboarding_cli": "xibalba-cortex-tenant-onboard", "isolation_model": "one profile home and SQLite store per tenant", "quota": config.quotas.as_dict()},
         "semantic_retrieval": {"state": "local_only" if config.features.embeddings and config.features.vector else "disabled", "provider": config.embeddings.provider, "vector_enabled": config.retrieval.vector and config.features.vector and config.features.embeddings},
         "connectors": {"state": "local_only", "enabled": config.features.connectors, "manifest": connector_manifest()},
         "governance": {"state": "local_only", "enabled": config.features.governance, "provenance_export": config.features.governance and config.features.provenance},

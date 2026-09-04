@@ -415,6 +415,7 @@ export interface OperationsSnapshot {
   embedding_coverage: Record<string, unknown>
   audit: Record<string, unknown>
   connectors: Record<string, { entrypoint: string; state: string; idempotency?: string; requirement?: string }>
+  production: { state: string; active_tokens: number; token_lifecycle: string; tenant_onboarding: string; isolation_model: string; open_gates: string[] }
   disclaimer: string
 }
 

@@ -21,6 +21,7 @@ A single shared-token deployment is just one row (e.g. `label="default"`) -- the
 from __future__ import annotations
 
 import argparse
+from datetime import datetime, timedelta, timezone
 import hashlib
 import json
 import secrets
@@ -54,6 +55,7 @@ CREATE TABLE IF NOT EXISTS ingest_tokens (
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
     last_used_at TEXT,
     revoked_at TEXT,
+    expires_at TEXT,
     profile_id TEXT NOT NULL DEFAULT 'default',
     roles_json TEXT NOT NULL DEFAULT '["reader"]',
     scopes_json TEXT NOT NULL DEFAULT '["memory:read"]'
@@ -73,7 +75,7 @@ def _connect(home: str | Path) -> sqlite3.Connection:
     conn.row_factory = sqlite3.Row
     conn.executescript(_SCHEMA)
     columns = {row["name"] for row in conn.execute("PRAGMA table_info(ingest_tokens)")}
-    for name, definition in (("profile_id", "TEXT NOT NULL DEFAULT 'default'"), ("roles_json", "TEXT NOT NULL DEFAULT '[\"reader\"]'"), ("scopes_json", "TEXT NOT NULL DEFAULT '[\"memory:read\"]'")):
+    for name, definition in (("profile_id", "TEXT NOT NULL DEFAULT 'default'"), ("roles_json", "TEXT NOT NULL DEFAULT '[\"reader\"]'"), ("scopes_json", "TEXT NOT NULL DEFAULT '[\"memory:read\"]'"), ("expires_at", "TEXT")):
         if name not in columns:
             conn.execute(f"ALTER TABLE ingest_tokens ADD COLUMN {name} {definition}")
     return conn
@@ -83,7 +85,7 @@ def _hash(raw_token: str) -> str:
     return hashlib.sha256(raw_token.encode("utf-8")).hexdigest()
 
 
-def issue_token(home: str | Path, label: str, *, profile_id: str = "default", roles: tuple[str, ...] = ("writer",), scopes: tuple[str, ...] = ("memory:read",)) -> str:
+def issue_token(home: str | Path, label: str, *, profile_id: str = "default", roles: tuple[str, ...] = ("writer",), scopes: tuple[str, ...] = ("memory:read",), ttl_hours: int | None = None) -> str:
     """Generate a new random token for `label`, store only its hash, and return the raw
     token. This is the only moment the raw value exists outside the caller's own hands --
     it is never logged, never stored, and cannot be recovered later."""
@@ -95,12 +97,15 @@ def issue_token(home: str | Path, label: str, *, profile_id: str = "default", ro
         raise ValueError("roles must contain non-empty strings")
     if not scopes or any(not item.strip() for item in scopes):
         raise ValueError("scopes must contain non-empty strings")
+    if ttl_hours is not None and ttl_hours < 1:
+        raise ValueError("ttl_hours must be positive or None")
+    expires_at = None if ttl_hours is None else (datetime.now(timezone.utc) + timedelta(hours=ttl_hours)).isoformat()
     raw_token = secrets.token_urlsafe(32)
     conn = _connect(home)
     try:
         conn.execute(
-            "INSERT INTO ingest_tokens(id, label, token_hash, profile_id, roles_json, scopes_json) VALUES (?, ?, ?, ?, ?, ?)",
-            (str(uuid.uuid4()), label.strip(), _hash(raw_token), profile_id.strip(), json.dumps(list(roles)), json.dumps(list(scopes))),
+            "INSERT INTO ingest_tokens(id, label, token_hash, profile_id, roles_json, scopes_json, expires_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (str(uuid.uuid4()), label.strip(), _hash(raw_token), profile_id.strip(), json.dumps(list(roles)), json.dumps(list(scopes)), expires_at),
         )
         conn.commit()
     finally:
@@ -118,9 +123,9 @@ def verify_token_record(home: str | Path, raw_token: str) -> dict[str, object] |
     conn = _connect(home)
     try:
         row = conn.execute(
-            "SELECT id, label, profile_id, roles_json, scopes_json FROM ingest_tokens "
-            "WHERE token_hash = ? AND revoked_at IS NULL",
-            (candidate_hash,),
+            "SELECT id, label, profile_id, roles_json, scopes_json, expires_at FROM ingest_tokens "
+            "WHERE token_hash = ? AND revoked_at IS NULL AND (expires_at IS NULL OR expires_at > ?)",
+            (candidate_hash, datetime.now(timezone.utc).isoformat()),
         ).fetchone()
         if row is None:
             return None
@@ -131,7 +136,7 @@ def verify_token_record(home: str | Path, raw_token: str) -> dict[str, object] |
         conn.commit()
         roles = json.loads(row["roles_json"])
         scopes = json.loads(row["scopes_json"])
-        return {"id": row["id"], "label": row["label"], "profile_id": row["profile_id"], "roles": roles, "scopes": effective_scopes(roles, scopes)}
+        return {"id": row["id"], "label": row["label"], "profile_id": row["profile_id"], "roles": roles, "scopes": effective_scopes(roles, scopes), "expires_at": row["expires_at"]}
     finally:
         conn.close()
 
@@ -163,7 +168,7 @@ def list_tokens(home: str | Path) -> list[dict[str, object]]:
     conn = _connect(home)
     try:
         rows = conn.execute(
-            "SELECT id, label, profile_id, roles_json, scopes_json, created_at, last_used_at, revoked_at FROM ingest_tokens "
+            "SELECT id, label, profile_id, roles_json, scopes_json, created_at, last_used_at, revoked_at, expires_at FROM ingest_tokens "
             "ORDER BY created_at"
         ).fetchall()
         result = []
@@ -187,6 +192,7 @@ def main() -> None:
     p_issue.add_argument("--profile-id", default="default")
     p_issue.add_argument("--role", action="append", dest="roles", default=None)
     p_issue.add_argument("--scope", action="append", dest="scopes", default=None)
+    p_issue.add_argument("--ttl-hours", type=int, default=None, help="expire the token after this many hours")
 
     p_revoke = sub.add_parser("revoke", help="revoke a token by its id")
     p_revoke.add_argument("--id", required=True, dest="token_id")
@@ -202,7 +208,7 @@ def main() -> None:
         # narrowing, and a `--role writer` issuance ends up with `memory:write` as intended instead
         # of silently downgrading to read-only.
         all_known_scopes = tuple(sorted({scope for grants in ROLE_SCOPES.values() for scope in grants if scope != "*"}))
-        raw_token = issue_token(args.home, args.label, profile_id=args.profile_id, roles=tuple(args.roles or ("reader",)), scopes=tuple(args.scopes or all_known_scopes))
+        raw_token = issue_token(args.home, args.label, profile_id=args.profile_id, roles=tuple(args.roles or ("reader",)), scopes=tuple(args.scopes or all_known_scopes), ttl_hours=args.ttl_hours)
         print(f"Issued token for {args.label!r}. Shown once, save it now:")
         print(raw_token)
     elif args.command == "revoke":
@@ -210,10 +216,11 @@ def main() -> None:
         print("OK   revoked" if revoked else "FAIL no matching unrevoked token id")
     elif args.command == "list":
         for row in list_tokens(args.home):
-            status = "revoked" if row["revoked_at"] else "active"
+            expired = bool(row["expires_at"] and row["expires_at"] <= datetime.now(timezone.utc).isoformat())
+            status = "revoked" if row["revoked_at"] else "expired" if expired else "active"
             print(
                 f"{row['id']}  {row['label']:24}  {status:8}  "
-                f"profile={row['profile_id']} roles={','.join(row['roles'])} scopes={','.join(row['scopes'])} created={row['created_at']} last_used={row['last_used_at'] or '(never)'}"
+                f"profile={row['profile_id']} roles={','.join(row['roles'])} scopes={','.join(row['scopes'])} created={row['created_at']} expires={row['expires_at'] or '(never)'} last_used={row['last_used_at'] or '(never)'}"
             )
 
 

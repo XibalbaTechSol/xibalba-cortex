@@ -621,7 +621,7 @@ class GraphStore:
         self._lock = threading.RLock()
         self._connection = sqlite3.connect(
             self.db_path,
-            timeout=5.0,
+            timeout=30.0,
             isolation_level=None,
             check_same_thread=False,
         )
@@ -661,7 +661,7 @@ class GraphStore:
         return "pseudonym:" + digest, self.identity_mode
 
     def _configure(self) -> None:
-        self._connection.execute("PRAGMA busy_timeout = 5000")
+        self._connection.execute("PRAGMA busy_timeout = 30000")
         self._connection.execute("PRAGMA foreign_keys = ON")
         self._connection.execute("PRAGMA journal_mode = WAL")
         self._connection.execute("PRAGMA synchronous = FULL")

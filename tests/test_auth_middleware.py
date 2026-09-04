@@ -1,4 +1,6 @@
 import asyncio
+import sqlite3
+from datetime import datetime, timedelta, timezone
 
 from xibalba_cortex.auth_middleware import BearerTokenAuth
 from xibalba_cortex.ingest_tokens import issue_token, revoke_token, list_tokens
@@ -53,6 +55,14 @@ def test_revoked_token_is_rejected(tmp_path):
     token = issue_token(tmp_path, "test-harness")
     [row] = list_tokens(tmp_path)
     revoke_token(tmp_path, row["id"])
+    events = asyncio.run(_run(tmp_path, [(b"authorization", f"Bearer {token}".encode())]))
+    assert events[0]["status"] == 401
+
+
+def test_expired_token_is_rejected(tmp_path):
+    token = issue_token(tmp_path, "test-harness", ttl_hours=1)
+    with sqlite3.connect(tmp_path / "ingest_tokens.sqlite3") as conn:
+        conn.execute("UPDATE ingest_tokens SET expires_at = ?", ((datetime.now(timezone.utc) - timedelta(seconds=1)).isoformat(),))
     events = asyncio.run(_run(tmp_path, [(b"authorization", f"Bearer {token}".encode())]))
     assert events[0]["status"] == 401
 
