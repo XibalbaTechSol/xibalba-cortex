@@ -50,7 +50,7 @@ reproduced problem, not a flaky test.
 | G1 | Tenancy foundation | **LOCAL PASS** | Token lifecycle, onboarding, profile isolation, and concurrent validation are implemented and tested. |
 | G2 | Standalone deployability | **BLOCKED EXTERNALLY** | `integrity-sdk` is a local `../integrity-core` dependency; a published package or approved git dependency is required. |
 | G3 | Storage and durability | **LOCAL PILOT PASS** | SQLite per-tenant decision and two-profile backup/restore drill; see `docs/architecture/2026-09-04-storage-architecture-decision.md` and `~/Documents/CORTEX_STORAGE_DRILL_2026-09-04.json`. This is not HA/PITR proof. |
-| G4 | Connector hardening | **IN PROGRESS** | Shared retry/rate-limit/credential-boundary primitives, Drive wiring, and OTLP/local-API ingress throttling are implemented and tested. Policy matrix: `docs/operations/connector-hardening.md`. Next: end-to-end connector custody and retry/throttle drills. |
+| G4 | Connector hardening | **IN PROGRESS** | Shared retry/rate-limit/credential-boundary primitives, Drive wiring, and OTLP/local-API ingress throttling are implemented and tested. Policy matrix: `docs/operations/connector-hardening.md`; executable drill: `docs/operations/connector-drill-runbook.md`. Next: dated real-transport drill evidence. |
 | G5 | Real-data evaluation | **OPEN / EXTERNAL** | Requires a real pilot tenant's traffic; synthetic benchmark is not pilot proof. |
 | G6 | Governance and audit | **OPEN** | Define and independently run provenance-export verification. |
 | G7 | Pilot burn-in | **OPEN / EXTERNAL** | Requires concurrent real tenants and an agreed burn-in period. |
