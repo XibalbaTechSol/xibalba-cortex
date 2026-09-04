@@ -86,6 +86,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, unquote, urlparse
 
 from .config import load_config
+from .connector_policy import ConnectorRateLimiter
 from .ingest_tokens import list_tokens, verify_token_record
 from .providers import InferenceTaskContract, connector_manifest
 from .store import MEMORY_INFERENCE_SUBAGENT_MANIFEST, GraphStore
@@ -198,6 +199,10 @@ def _run_kernel_bridge_self_test(store: GraphStore, *, session_id: str | None) -
 
 
 def _make_handler(store: GraphStore, *, allowed_origin: str):
+    # The authenticated webhook/operator surface is profile-local. Keep a bounded
+    # per-profile request budget so one connector or tenant cannot starve the store.
+    request_limiter = ConnectorRateLimiter(rate_per_second=20.0, burst=40)
+
     class Handler(BaseHTTPRequestHandler):
         def _send_json(self, status: int, payload: object) -> None:
             body = json.dumps(payload).encode()
@@ -271,6 +276,7 @@ def _make_handler(store: GraphStore, *, allowed_origin: str):
             return payload
 
         def do_GET(self) -> None:  # noqa: N802 -- BaseHTTPRequestHandler's naming convention
+            request_limiter.wait()
             parsed = urlparse(self.path)
             params = {k: v[0] for k, v in parse_qs(parsed.query).items()}
             parts = [p for p in parsed.path.split("/") if p]
@@ -411,6 +417,7 @@ def _make_handler(store: GraphStore, *, allowed_origin: str):
                 self._send_json(500, {"error": "internal error"})
 
         def do_POST(self) -> None:  # noqa: N802 -- BaseHTTPRequestHandler's naming convention
+            request_limiter.wait()
             parsed = urlparse(self.path)
             parts = [p for p in parsed.path.split("/") if p]
 
