@@ -39,6 +39,7 @@ import logging
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any
 
+from .config import load_config
 from .connector_policy import ConnectorRateLimiter
 from .store import GraphStore
 
@@ -425,7 +426,8 @@ def main() -> None:
     args = parser.parse_args()
 
     logging.basicConfig(level=logging.INFO)
-    store = GraphStore(args.home)
+    config = load_config(home=args.home)
+    store = GraphStore(config.storage.home, profile_id=config.profile_id, quotas=config.quotas.as_dict())
     try:
         serve(store, host=args.host, port=args.port)
     finally:

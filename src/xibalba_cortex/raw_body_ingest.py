@@ -41,6 +41,7 @@ import time
 from pathlib import Path
 from typing import Any
 
+from .config import load_config
 from .store import GraphStore
 
 UNATTRIBUTED_SESSION_ID = "raw-capture-unattributed"
@@ -182,7 +183,8 @@ def main() -> None:
     parser.add_argument("--poll-interval", type=float, default=2.0)
     args = parser.parse_args()
 
-    store = GraphStore(args.home)
+    config = load_config(home=args.home)
+    store = GraphStore(config.storage.home, profile_id=config.profile_id, quotas=config.quotas.as_dict())
     try:
         if args.once:
             for result in scan_once(store, args.dir):

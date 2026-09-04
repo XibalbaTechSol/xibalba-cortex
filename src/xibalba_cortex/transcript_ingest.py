@@ -40,6 +40,7 @@ import json
 from pathlib import Path
 from typing import Any
 
+from .config import load_config
 from .raw_body_ingest import _extract_text
 from .redaction import redact as _redact
 from .store import GraphStore
@@ -300,7 +301,8 @@ def main() -> None:
     parser.add_argument("--home", required=True, type=Path, help="xibalba-cortex profile home")
     args = parser.parse_args()
 
-    store = GraphStore(args.home)
+    config = load_config(home=args.home)
+    store = GraphStore(config.storage.home, profile_id=config.profile_id, quotas=config.quotas.as_dict())
     try:
         result = run(store, args.home, args.transcript)
         print(json.dumps(result, indent=2))
