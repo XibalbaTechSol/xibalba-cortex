@@ -276,12 +276,15 @@ holding under that load (Workstream G).
 ## 7. Immediate implementation sequence
 
 1. Close `authorization_tenancy: blocked` — local onboarding, bearer enforcement,
-   revocation, expiry, quota configuration, and adversarial two-profile tests are implemented;
-   next deploy two pilot profiles and record a live issue/verify/rotate/revoke drill.
-2. Extend concurrency validation to separate OS processes and sustained inference workers.
-   The 2026-09-04 live-local drill passed with two profiles, four concurrent writer threads per
-   profile, 100 writes per profile, clean SQLite integrity checks, and zero cross-profile matches.
-   Evidence: `~/Documents/CORTEX_PILOT_VALIDATION_DRILL_2026-09-04.json`.
+   revocation, expiry, quota configuration, adversarial two-profile tests, and a local
+   issue/verify/rotate/revoke drill are complete; next deploy real pilot profiles.
+2. Extend concurrency validation to sustained real inference workers. The 2026-09-04
+   live-local drill passed with two profiles, four writer threads and four spawned inference
+   processes per profile, 100 writes and 100 completed inference tasks per profile, clean SQLite
+   integrity checks, zero starvation, and zero cross-profile matches or task visibility. The first
+   process run exposed a five-second startup-lock failure; the 30-second SQLite busy-timeout fix
+   passed the identical eight-process rerun. Evidence:
+   `~/Documents/CORTEX_PILOT_VALIDATION_DRILL_2026-09-04.json`.
 3. Track `integrity-core`'s SDK publishing work (external dependency, Gate 2 here) and
    re-test standalone `uv sync` once a published version exists.
 4. Record the storage architecture decision (§ Workstream C) explicitly rather than

@@ -198,13 +198,39 @@ XIBALBA_RUN_HERMES_MCP_SMOKE=1 uv run pytest tests/test_hermes_mcp_smoke.py -q
 
 Every other ingestion path (transcript files, Hermes hook subprocess dispatch, localhost-only OTLP/API servers) assumes a caller on the same machine. `memory_ingest_agent_turn` plus a network-reachable, authenticated MCP transport is the path for a harness that can't spawn a local subprocess or read local files — e.g. a cloud-hosted agent.
 
-**1. Issue a token per harness:**
+**1. Provision an isolated pilot tenant or issue a token for an existing profile:**
 
 ```bash
-uv run xibalba-cortex-ingest-tokens --home ~/.hermes/xibalba-cortex issue --label "perplexity-personal"
+uv run xibalba-cortex-tenant-onboard --root ~/.hermes/xibalba-cortex-tenants --tenant-id pilot-a --ttl-hours 720 --max-memories 10000
+```
+
+The onboarding command creates a profile-bound store, configuration, and one-time operator
+credential. It rejects duplicate and path-traversal tenant ids; each tenant has an independent
+SQLite and credential boundary. This is controlled-pilot provisioning, not hosted SaaS tenancy.
+
+Validate concurrent isolation after provisioning at least two profiles:
+
+```bash
+uv run xibalba-cortex-tenant-validate \
+  --home ~/.hermes/xibalba-cortex-tenants/pilot-a \
+  --home ~/.hermes/xibalba-cortex-tenants/pilot-b \
+  --workers-per-profile 4 --writes-per-worker 25
+```
+
+The report includes per-profile write completeness, cross-profile search isolation, and full
+SQLite integrity checks. It remains local evidence and does not establish an SLA or HA behavior.
+
+For an existing profile:
+
+```bash
+uv run xibalba-cortex-ingest-tokens --home ~/.hermes/xibalba-cortex issue --label "perplexity-personal" --ttl-hours 720
 uv run xibalba-cortex-ingest-tokens --home ~/.hermes/xibalba-cortex list
 uv run xibalba-cortex-ingest-tokens --home ~/.hermes/xibalba-cortex revoke --id <token-id>
 ```
+
+Production-facing credentials should use a finite `--ttl-hours`; omitted expiry remains
+available for explicitly managed local deployments. Rotate without an outage by issuing
+and verifying a replacement before revoking the old token by id.
 
 **2. Start the server in streamable-HTTP mode** (stdio remains the default for locally-spawned harnesses):
 

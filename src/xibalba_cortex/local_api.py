@@ -80,11 +80,12 @@ import json
 import logging
 import sqlite3
 from collections import Counter
+from datetime import datetime, timezone
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, unquote, urlparse
 
-from .ingest_tokens import verify_token_record
+from .ingest_tokens import list_tokens, verify_token_record
 from .providers import InferenceTaskContract, connector_manifest
 from .store import MEMORY_INFERENCE_SUBAGENT_MANIFEST, GraphStore
 
@@ -296,7 +297,7 @@ def _make_handler(store: GraphStore, *, allowed_origin: str):
                         audit = store.audit_report(limit=25)
                     except RuntimeError as exc:
                         audit = {"disabled": True, "error": str(exc)}
-                    self._send_json(200, {"schema_version": "xibalba.dashboard_operations.v1", "profile_id": store.profile_id, "health": {"state": "healthy", "status": status}, "readiness": {"state": "healthy" if status["integrity_check"] == "skipped (fast mode)" and status["foreign_keys"] and status["fts5"] and status["backup_ready"] else "degraded", "checks": {"foreign_keys": status["foreign_keys"], "fts5": status["fts5"], "backup_ready": status["backup_ready"]}}, "features": status.get("features", {}), "quotas": status.get("quotas", {}), "embedding_coverage": store.embedding_coverage(), "audit": audit, "connectors": connector_manifest(), "disclaimer": "Local dashboard operations evidence; not deployment, SLA, compliance, or pilot-readiness evidence."})
+                    self._send_json(200, {"schema_version": "xibalba.dashboard_operations.v1", "profile_id": store.profile_id, "health": {"state": "healthy", "status": status}, "readiness": {"state": "healthy" if status["integrity_check"] == "skipped (fast mode)" and status["foreign_keys"] and status["fts5"] and status["backup_ready"] else "degraded", "checks": {"foreign_keys": status["foreign_keys"], "fts5": status["fts5"], "backup_ready": status["backup_ready"]}}, "features": status.get("features", {}), "quotas": status.get("quotas", {}), "embedding_coverage": store.embedding_coverage(), "audit": audit, "connectors": connector_manifest(), "production": {"state": "local_only", "active_tokens": sum(1 for row in list_tokens(store.home) if not row["revoked_at"] and (not row["expires_at"] or row["expires_at"] > datetime.now(timezone.utc).isoformat())), "token_lifecycle": "implemented", "tenant_onboarding": "implemented", "isolation_model": "one profile home and SQLite store per tenant", "open_gates": ["external pilot deployment", "published integrity-sdk", "HA/PITR", "real-tenant evaluation", "burn-in SLA"]}, "disclaimer": "Local dashboard operations evidence; not deployment, SLA, compliance, or pilot-readiness evidence."})
                 elif parts == ["api", "integrity-links"]:
                     limit = int(params.get("limit", 50))
                     self._send_json(200, store.integrity_links_status(limit=limit))

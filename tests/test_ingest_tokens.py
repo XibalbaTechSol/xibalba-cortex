@@ -1,4 +1,5 @@
 import sqlite3
+from datetime import datetime, timedelta, timezone
 
 import pytest
 
@@ -32,6 +33,25 @@ def test_revoked_token_no_longer_verifies(tmp_path):
     [row] = list_tokens(tmp_path)
     assert revoke_token(tmp_path, row["id"]) is True
     assert verify_token(tmp_path, token) is None
+
+
+def test_expired_token_no_longer_verifies(tmp_path):
+    token = issue_token(tmp_path, "short-lived", ttl_hours=1)
+    with sqlite3.connect(tmp_path / "ingest_tokens.sqlite3") as conn:
+        conn.execute("UPDATE ingest_tokens SET expires_at = ?", ((datetime.now(timezone.utc) - timedelta(seconds=1)).isoformat(),))
+    assert verify_token(tmp_path, token) is None
+
+
+def test_issued_token_reports_expiry_without_secret_material(tmp_path):
+    raw_token = issue_token(tmp_path, "short-lived", ttl_hours=24)
+    [row] = list_tokens(tmp_path)
+    assert row["expires_at"] is not None
+    assert raw_token not in str(row)
+
+
+def test_issue_rejects_non_positive_ttl(tmp_path):
+    with pytest.raises(ValueError):
+        issue_token(tmp_path, "invalid", ttl_hours=0)
 
 
 def test_revoking_an_unknown_or_already_revoked_id_reports_false(tmp_path):

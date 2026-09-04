@@ -25,6 +25,14 @@ def _crash_mid_write(db_path: str, memory_id: str) -> None:
     os._exit(1)
 
 
+def test_store_uses_production_startup_busy_timeout(tmp_path):
+    store = GraphStore(tmp_path / "timeout")
+    try:
+        assert store._connection.execute("PRAGMA busy_timeout").fetchone()[0] == 30000
+    finally:
+        store.close()
+
+
 def test_concurrent_writes_from_two_separate_connections_do_not_corrupt(tmp_path):
     """Two independent GraphStore instances (two real SQLite connections, not one connection
     shared across threads) writing to the same database concurrently -- the actual scenario a

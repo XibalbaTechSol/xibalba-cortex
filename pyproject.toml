@@ -37,6 +37,9 @@ xibalba-cortex-para-worker = "xibalba_cortex.para_worker:main"
 xibalba-cortex-contradiction-worker = "xibalba_cortex.contradiction_worker:main"
 xibalba-cortex-operator = "xibalba_cortex.operator:main"
 xibalba-cortex-ingest-tokens = "xibalba_cortex.ingest_tokens:main"
+xibalba-cortex-tenant-onboard = "xibalba_cortex.tenant_onboarding:main"
+xibalba-cortex-tenant-validate = "xibalba_cortex.tenant_validation:main"
+xibalba-cortex-tenant-inference-validate = "xibalba_cortex.tenant_inference_validation:main"
 
 [dependency-groups]
 dev = [
