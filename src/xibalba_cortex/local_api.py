@@ -85,6 +85,7 @@ import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, unquote, urlparse
 
+from .config import load_config
 from .ingest_tokens import list_tokens, verify_token_record
 from .providers import InferenceTaskContract, connector_manifest
 from .store import MEMORY_INFERENCE_SUBAGENT_MANIFEST, GraphStore
@@ -657,7 +658,12 @@ def main() -> None:
     args = parser.parse_args()
 
     logging.basicConfig(level=logging.INFO)
-    store = GraphStore(args.home)
+    config = load_config(home=args.home)
+    store = GraphStore(
+        config.storage.home,
+        profile_id=config.profile_id,
+        quotas=config.quotas.as_dict(),
+    )
     try:
         serve(store, host=args.host, port=args.port, allowed_origin=args.allowed_origin)
     finally:
