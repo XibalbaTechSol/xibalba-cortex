@@ -154,6 +154,69 @@ store.decide_extraction_proposal(proposals[0]["id"], decision="accept", decided_
 
 ## Installation and Tests
 
+## Production status (2026-09-04)
+
+**Current level: L1 controlled-pilot foundation, locally verified.** This checkout is
+ready for you to test on this computer with isolated Cortex profiles. The following
+are real local/CI results, not a production deployment claim:
+
+- 79-tool MCP surface, authenticated local HTTP API, token expiry/revocation, tenant
+  onboarding, profile-bound isolation, and review-gated inference are implemented.
+- Two-profile, eight-process inference validation passed with 200 total tasks,
+  zero cross-profile visibility, no starvation, and clean SQLite integrity checks.
+- Two-profile backup/restore drill passed `PRAGMA integrity_check` and canonical
+  Merkle reconciliation. Evidence is at
+  `/home/xibalba/Documents/CORTEX_STORAGE_DRILL_2026-09-04.json`.
+- Full backend tests pass with the Drive extra installed (`uv sync --extra drive`)
+  and the viewer build passes. The authenticated Operations view visibly shows the
+  Production readiness card.
+
+### Test Cortex locally on this computer
+
+```bash
+# Baseline suite and viewer build
+# The full test suite includes Google Drive import tests.
+uv sync --extra drive
+uv run pytest -q
+npm --prefix viewer install
+npm --prefix viewer run build
+
+# Provision two isolated local profiles and validate isolation/load
+uv run xibalba-cortex-tenant-onboard --root ~/.hermes/xibalba-cortex-tenants --tenant-id pilot-a
+uv run xibalba-cortex-tenant-onboard --root ~/.hermes/xibalba-cortex-tenants --tenant-id pilot-b
+uv run xibalba-cortex-tenant-validate --home ~/.hermes/xibalba-cortex-tenants/pilot-a \
+  --home ~/.hermes/xibalba-cortex-tenants/pilot-b --workers-per-profile 4 --writes-per-worker 25
+uv run xibalba-cortex-tenant-inference-validate --home ~/.hermes/xibalba-cortex-tenants/pilot-a \
+  --home ~/.hermes/xibalba-cortex-tenants/pilot-b --processes-per-profile 4 \
+  --tasks-per-process 25 --timeout-seconds 60
+```
+
+For the human UI, issue a finite-lived token, start `local_api.py` on loopback, run
+the viewer, and enter the token in the browser; the exact procedure is in
+[`viewer/README.md`](viewer/README.md). The UI is local operator evidence only.
+
+### What remains before production
+
+The following gates are still open and must not be inferred from the local checks:
+
+1. **Standalone installability:** `integrity-sdk` is still a local sibling dependency;
+   `uv sync` fails from a clean checkout without `../integrity-core`. A published
+   package or approved git dependency is required.
+2. **Connector hardening:** rate limits, retry/backoff, and per-tenant credential
+   custody for every production-tier connector.
+3. **Real pilot evidence:** evaluation against a real tenant's traffic and a
+   multi-tenant burn-in with no isolation incidents.
+4. **Hardened storage:** HA/PITR, off-host encrypted backup retention, and an
+   explicit production backend decision beyond the current SQLite single-instance
+   pilot architecture.
+5. **Governance/SLA:** independently runnable provenance-export verification,
+   operational access controls, and measured support/latency/durability commitments.
+
+`xibalba-shield` is a separate repository and must be tested separately for its
+privileged eBPF/kernel gates; Cortex tests do not prove Shield production readiness.
+See [`docs/PRODUCTION_READINESS_PLAN.md`](docs/PRODUCTION_READINESS_PLAN.md) for the
+authoritative gate definitions and evidence boundaries.
+
 ```bash
 uv sync
 uv run pytest -q
@@ -166,7 +229,7 @@ uv sync --extra drive
 uv run pytest -q
 ```
 
-Full suite is validated in CI and locally; run `uv run pytest -q` for the current result. (the skip and warning are pre-existing and unrelated to recent work). Viewer build is separate: `cd viewer && npm install && npm run build`. Local operator commands: `uv run xibalba-cortex-operator [readiness|status|backup|restore|verify-memory|verify-integrity-link|verify-session|integrity-links|production-readiness|evaluation-smoke|retention-sweep|audit]`.
+Full suite is validated in CI and locally; run `uv run pytest -q` for the current result. (The one skip and warnings are pre-existing and unrelated to recent work.) Viewer build is separate: `cd viewer && npm install && npm run build`. Local operator commands: `uv run xibalba-cortex-operator [readiness|status|backup|restore|verify-memory|verify-integrity-link|verify-session|integrity-links|production-readiness|evaluation-smoke|retention-sweep|audit]`.
 
 **Not yet installable standalone.** `pyproject.toml` pins `integrity-sdk` as a local path
 dependency on `../integrity-core/integrity-sdk` (`[tool.uv.sources]`) — `uv sync` only resolves
