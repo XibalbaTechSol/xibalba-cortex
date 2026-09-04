@@ -8,7 +8,7 @@ material; its gate IDs map to this state.
 **Last verified:** 2026-09-04  
 **Repository:** `/home/xibalba/Projects/xibalba-cortex`  
 **Branch:** `main`  
-**Commit:** `05eeeca` (storage ADR/drill merged)  
+**Commit:** `0b96635` (canonical state/resume workflow merged)  
 **Local-only residue:** pre-existing untracked `LICENSE` (preserve; do not stage)
 
 ## Resume in one sentence
