@@ -43,6 +43,7 @@ except ImportError:  # pragma: no cover - exercised through _require_drive_extra
     def build(*_args: Any, **_kwargs: Any) -> Any:  # type: ignore[no-redef]
         _require_drive_extra()
 
+from .connector_policy import ConnectorRateLimiter, profile_credential_path, retry_call
 from .store import GraphStore
 
 _DEFAULT_TOKEN_PATH = Path.home() / ".hermes" / "google_token.json"
@@ -98,16 +99,19 @@ def _extract_pdf_text(data: bytes) -> str:
     return "\n".join(page.extract_text() or "" for page in reader.pages)
 
 
-def _search_files(drive_service, query: str) -> list[dict[str, Any]]:
+def _search_files(drive_service, query: str, *, limiter: ConnectorRateLimiter) -> list[dict[str, Any]]:
     files: list[dict[str, Any]] = []
     page_token = None
     while True:
-        response = drive_service.files().list(
-            q=query,
-            pageSize=100,
-            pageToken=page_token,
-            fields="nextPageToken, files(id, name, mimeType, modifiedTime, owners(emailAddress), webViewLink)",
-        ).execute()
+        response = retry_call(
+            lambda: drive_service.files().list(
+                q=query,
+                pageSize=100,
+                pageToken=page_token,
+                fields="nextPageToken, files(id, name, mimeType, modifiedTime, owners(emailAddress), webViewLink)",
+            ).execute(),
+            limiter=limiter,
+        )
         files.extend(response.get("files", []))
         page_token = response.get("nextPageToken")
         if not page_token:
@@ -116,13 +120,20 @@ def _search_files(drive_service, query: str) -> list[dict[str, Any]]:
 
 
 def ingest_drive(
-    store: GraphStore, *, token_path: Path = _DEFAULT_TOKEN_PATH, query: str = _DEFAULT_QUERY
+    store: GraphStore, *, token_path: Path | None = None, query: str = _DEFAULT_QUERY
 ) -> dict[str, object]:
+    if token_path is None:
+        token_path = profile_credential_path(store.home, store.home / "credentials" / "google_token.json")
+    else:
+        # Explicit paths remain available for controlled tests/migrations; normal CLI
+        # operation always uses the profile-confined default above.
+        token_path = Path(token_path).expanduser().resolve()
+    limiter = ConnectorRateLimiter(rate_per_second=2.0, burst=2)
     creds = _get_credentials(token_path)
     drive_service = build("drive", "v3", credentials=creds)
     docs_service = build("docs", "v1", credentials=creds)
 
-    files = _search_files(drive_service, query)
+    files = _search_files(drive_service, query, limiter=limiter)
 
     stored_memories: list[str] = []
     resynced_memories: list[str] = []
@@ -143,12 +154,12 @@ def ingest_drive(
                 continue
 
         if mime_type == _GOOGLE_DOC_MIME:
-            text = _extract_doc_text(docs_service.documents().get(documentId=file_id).execute())
+            text = _extract_doc_text(retry_call(lambda: docs_service.documents().get(documentId=file_id).execute(), limiter=limiter))
         elif mime_type == _PDF_MIME:
-            data = drive_service.files().get_media(fileId=file_id).execute()
+            data = retry_call(lambda: drive_service.files().get_media(fileId=file_id).execute(), limiter=limiter)
             text = _extract_pdf_text(data)
         elif mime_type in _PLAIN_TEXT_MIMES:
-            data = drive_service.files().get_media(fileId=file_id).execute()
+            data = retry_call(lambda: drive_service.files().get_media(fileId=file_id).execute(), limiter=limiter)
             text = data.decode("utf-8", errors="replace") if isinstance(data, bytes) else str(data)
         else:
             unsupported_skipped.append({"id": file_id, "name": file.get("name", ""), "mimeType": mime_type})
@@ -192,12 +203,12 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--home", required=True, help="xibalba-cortex profile home")
     parser.add_argument("--query", default=_DEFAULT_QUERY, help="Drive fullText search query")
-    parser.add_argument("--token-path", default=str(_DEFAULT_TOKEN_PATH))
+    parser.add_argument("--token-path", default=None, help="profile-local OAuth token path (defaults to <home>/credentials/google_token.json)")
     args = parser.parse_args()
 
     store = GraphStore(args.home)
     try:
-        result = ingest_drive(store, token_path=Path(args.token_path), query=args.query)
+        result = ingest_drive(store, token_path=Path(args.token_path) if args.token_path else None, query=args.query)
         print(
             f"files_found={result['files_found']} "
             f"stored={len(result['stored_memories'])} "

@@ -217,6 +217,21 @@ privileged eBPF/kernel gates; Cortex tests do not prove Shield production readin
 See [`docs/PRODUCTION_READINESS_PLAN.md`](docs/PRODUCTION_READINESS_PLAN.md) for the
 authoritative gate definitions and evidence boundaries.
 
+### Context continuity after a reboot
+
+Chat history is not the project control plane. The single active execution ledger is
+[`docs/PROJECT_STATE.md`](docs/PROJECT_STATE.md); do not create parallel plans. After
+the computer restarts, run:
+
+```bash
+./scripts/cortex-resume.sh
+```
+
+It prints the committed gate ledger, live Git state, and local readiness result. At
+the end of each session, update the current commit, exact verification results,
+evidence paths, next action, and blockers in that file, commit/push it, and store the
+same checkpoint as a Cortex `summary` memory.
+
 ```bash
 uv sync
 uv run pytest -q
