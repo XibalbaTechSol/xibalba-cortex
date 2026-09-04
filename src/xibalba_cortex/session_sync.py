@@ -177,7 +177,15 @@ def finalize(*, session_id: str, runtime: str, transcript_path: Path | None = No
             hermes_result = {"existing": True, "messages_seen": len(messages)}
         else:
             messages = _parse_jsonl(transcript_path, runtime) if transcript_path else []
-            hermes_result = _hermes_session_upsert(session_id, runtime, messages)
+            try:
+                hermes_result = _hermes_session_upsert(session_id, runtime, messages)
+            except Exception:
+                # Graph-memory finalization remains authoritative (see _hermes_end's
+                # identical posture just below): a system with no local Hermes
+                # install -- any standalone Cortex deployment, not just this dev
+                # machine -- must not fail finalize() outright over a best-effort
+                # cross-index. Record the gap honestly rather than fabricate success.
+                hermes_result = {"created": False, "messages_appended": 0, "messages_seen": len(messages), "unavailable": True}
         _hermes_end(session_id, reason)
 
         if runtime == "claude" and transcript_path and transcript_path.is_file():
