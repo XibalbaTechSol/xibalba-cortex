@@ -39,6 +39,7 @@ import logging
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any
 
+from .connector_policy import ConnectorRateLimiter
 from .store import GraphStore
 
 logger = logging.getLogger("xibalba_cortex.otlp_receiver")
@@ -362,8 +363,11 @@ _TRACES_PATH = "/v1/traces"
 
 
 def _make_handler(store: GraphStore):
+    request_limiter = ConnectorRateLimiter(rate_per_second=20.0, burst=40)
+
     class Handler(BaseHTTPRequestHandler):
         def do_POST(self) -> None:  # noqa: N802 -- BaseHTTPRequestHandler's naming convention
+            request_limiter.wait()
             if self.path == _LOGS_PATH:
                 parse_fn, ingest_fn, label = parse_otlp_logs_json, ingest_log_records, "log"
             elif self.path == _TRACES_PATH:

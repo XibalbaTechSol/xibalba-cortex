@@ -124,3 +124,17 @@ def test_ingest_drive_extracts_plain_text_and_markdown(mock_build, _mock_creds, 
 def test_ingest_drive_raises_when_token_missing(store, tmp_path):
     with pytest.raises(FileNotFoundError, match="no Google OAuth token"):
         ingest_drive(store, token_path=tmp_path / "no-such-token.json")
+
+
+@patch("xibalba_cortex.drive_ingest._get_credentials", return_value=MagicMock())
+@patch("xibalba_cortex.drive_ingest.build")
+def test_drive_default_credential_path_is_profile_confined(mock_build, _mock_creds, store):
+    drive_service = MagicMock()
+    drive_service.files.return_value.list.return_value.execute.return_value = _files_list_response([])
+    mock_build.side_effect = lambda name, version, credentials: drive_service
+
+    ingest_drive(store)
+
+    supplied_path = _mock_creds.call_args.args[0]
+    assert supplied_path == store.home / "credentials" / "google_token.json"
+    assert supplied_path.is_relative_to(store.home)

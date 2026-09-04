@@ -294,8 +294,12 @@ holding under that load (Workstream G).
    reconciliation for both profiles. Evidence:
    `~/Documents/CORTEX_STORAGE_DRILL_2026-09-04.json` and
    `docs/architecture/2026-09-04-storage-architecture-decision.md`.
-5. Harden the five `implemented` connectors with rate limiting, retry/backoff, and
-   per-tenant credential storage.
+5. Harden the six `implemented` connectors with rate limiting, retry/backoff, and
+   per-tenant credential storage. **In progress:** `connector_policy.py` now provides
+   bounded retry/backoff, per-profile token-bucket limiting, and credential-path
+   confinement; Google Drive uses it and defaults OAuth storage to the tenant profile.
+   Remaining work is inbound OTLP/webhook throttling and equivalent evidence for the
+   local-file connectors.
 6. Run the evaluation harness against a first real pilot tenant and record a real
    `pilot_ready` result.
 7. Load-test inference reliability under concurrent multi-tenant extraction before

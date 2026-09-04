@@ -13,9 +13,11 @@ material; its gate IDs map to this state.
 
 ## Resume in one sentence
 
-A real, reproducible sustained-load hang was found under the inference-task
-harness (see "Open finding" below) — investigate that before extending Gate 4
-connector hardening; Gate 2 and real-tenant gates still require external work.
+Gate 4's ingress throttle and retry/backoff now have real-transport drill
+evidence (not just unit tests) — next is runbook §1's local-file connector
+isolation drills, then the external Google Drive OAuth evidence (§3). The
+sustained-load inference hang (see "Open finding" below) is still unresolved
+and separate from Gate 4.
 
 ## Open finding: sustained-load worker hang (not yet root-caused)
 
@@ -50,7 +52,7 @@ reproduced problem, not a flaky test.
 | G1 | Tenancy foundation | **LOCAL PASS** | Token lifecycle, onboarding, profile isolation, and concurrent validation are implemented and tested. |
 | G2 | Standalone deployability | **BLOCKED EXTERNALLY** | `integrity-sdk` is a local `../integrity-core` dependency; a published package or approved git dependency is required. |
 | G3 | Storage and durability | **LOCAL PILOT PASS** | SQLite per-tenant decision and two-profile backup/restore drill; see `docs/architecture/2026-09-04-storage-architecture-decision.md` and `~/Documents/CORTEX_STORAGE_DRILL_2026-09-04.json`. This is not HA/PITR proof. |
-| G4 | Connector hardening | **NEXT** | Add rate limits, retry/backoff, and per-tenant credential custody for production-tier connectors. |
+| G4 | Connector hardening | **IN PROGRESS** | Shared retry/rate-limit/credential-boundary primitives, Drive wiring, and OTLP/local-API ingress throttling are implemented and tested. Policy matrix: `docs/operations/connector-hardening.md`; executable drill: `docs/operations/connector-drill-runbook.md`. Real-transport drill (runbook §2) passed for ingress throttle and retry/backoff — see `docs/audits/2026-09-04-connector-throttle-retry-drill.md`. Next: runbook §1 (four local-file connector isolation drills) and §3 (real Google Drive OAuth evidence, external). |
 | G5 | Real-data evaluation | **OPEN / EXTERNAL** | Requires a real pilot tenant's traffic; synthetic benchmark is not pilot proof. |
 | G6 | Governance and audit | **OPEN** | Define and independently run provenance-export verification. |
 | G7 | Pilot burn-in | **OPEN / EXTERNAL** | Requires concurrent real tenants and an agreed burn-in period. |
@@ -84,6 +86,28 @@ commands and outcomes, evidence paths, next action, and blockers. Commit this fi
 with the code/docs change and push it. Also store the same summary in Cortex as a
 `summary` memory. After a power loss, read this file first; do not infer status from
 old chat context or start a new plan.
+
+## Context continuity contract
+
+This repository uses one active execution ledger because chat history is not a
+durable control plane. `PROJECT_STATE.md` is the contract between the operator,
+Codex, and future sessions:
+
+- No new roadmap or numbered plan may be created for work already represented by
+  G1–G7. Add detail to the relevant gate row or link a dated evidence artifact.
+- Every session ends with one checkpoint containing the current commit, verified
+  commands/results, evidence paths, next action, and blockers. The checkpoint is
+  committed and pushed, and a matching `summary` memory is stored in Cortex.
+- A reboot is a normal event, not a reset: run `scripts/cortex-resume.sh`, inspect
+  the gate ledger and live Git state, then continue the single `NEXT` item.
+- Local, synthetic, CI, external-pilot, deployment, SLA, and compliance evidence
+  must remain labeled separately. Passing tests never upgrades a weaker evidence
+  class into production proof.
+- When a gate is blocked by an external dependency, record the exact owner and
+  unblock condition once; do not create duplicate plans around it.
+
+The desired operator experience is therefore: **one ledger, one next action, one
+checkpoint, one source of truth.**
 
 ## Canonical references
 
