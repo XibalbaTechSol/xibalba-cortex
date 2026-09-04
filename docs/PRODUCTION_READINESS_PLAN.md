@@ -288,7 +288,12 @@ holding under that load (Workstream G).
 3. Track `integrity-core`'s SDK publishing work (external dependency, Gate 2 here) and
    re-test standalone `uv sync` once a published version exists.
 4. Record the storage architecture decision (§ Workstream C) explicitly rather than
-   deferring it indefinitely.
+   deferring it indefinitely. **Completed for the controlled pilot:** SQLite remains
+   the per-tenant, single-instance backend with explicit L2 migration triggers; a
+   two-profile backup/restore drill passed integrity and canonical Merkle
+   reconciliation for both profiles. Evidence:
+   `~/Documents/CORTEX_STORAGE_DRILL_2026-09-04.json` and
+   `docs/architecture/2026-09-04-storage-architecture-decision.md`.
 5. Harden the five `implemented` connectors with rate limiting, retry/backoff, and
    per-tenant credential storage.
 6. Run the evaluation harness against a first real pilot tenant and record a real
