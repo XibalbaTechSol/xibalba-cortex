@@ -48,3 +48,23 @@ def test_retry_call_does_not_retry_non_transport_errors():
     with pytest.raises(ValueError, match="bad request"):
         retry_call(invalid, limiter=ConnectorRateLimiter(rate_per_second=1000), attempts=3, initial_delay=0)
     assert attempts == 1
+
+
+def test_retry_call_retries_google_style_rate_limit_response():
+    class RateLimited:
+        def __init__(self):
+            self.status = 429
+
+    attempts = 0
+
+    def flaky():
+        nonlocal attempts
+        attempts += 1
+        if attempts == 1:
+            error = RuntimeError("rate limited")
+            error.resp = RateLimited()
+            raise error
+        return "ok"
+
+    assert retry_call(flaky, limiter=ConnectorRateLimiter(rate_per_second=1000), initial_delay=0) == "ok"
+    assert attempts == 2
