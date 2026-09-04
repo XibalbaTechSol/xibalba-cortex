@@ -8,13 +8,40 @@ material; its gate IDs map to this state.
 **Last verified:** 2026-09-04  
 **Repository:** `/home/xibalba/Projects/xibalba-cortex`  
 **Branch:** `main`  
-**Commit:** `0b96635` (canonical state/resume workflow merged)  
+**Commit:** `880e383` (state-checkpoint refresh merged)  
 **Local-only residue:** pre-existing untracked `LICENSE` (preserve; do not stage)
 
 ## Resume in one sentence
 
-Run the Drive-enabled test suite, then begin Gate 4 connector hardening; Gate 2
-and real-tenant gates require external work.
+A real, reproducible sustained-load hang was found under the inference-task
+harness (see "Open finding" below) — investigate that before extending Gate 4
+connector hardening; Gate 2 and real-tenant gates still require external work.
+
+## Open finding: sustained-load worker hang (not yet root-caused)
+
+`xibalba_cortex.tenant_inference_validation` (2 profiles, 4 processes/profile)
+completed cleanly and quickly at 50/100/150 tasks-per-process (13.5s at 150,
+linear scaling, repeatable). At 200 tasks-per-process it hung three separate
+times, each run killed only by an external `timeout`. Process inspection during
+one hang showed 6 of 8 workers had already exited (zombie/defunct) while 2 were
+still alive in `futex_do_wait`; the harness's `process.join(timeout_seconds)`
+loop joins workers **sequentially, each with its own full timeout**, so one slow
+worker blocks the loop from ever reaching its already-finished siblings — this
+masks completion and burns the whole time budget on one process. Both SQLite's
+`PRAGMA busy_timeout` and the Python driver's own `timeout=` are set to a
+consistent 30s (`store.py`), so a hang past 100s+ is not explained by the known
+busy-timeout fix alone. The test profiles were also never reset between
+calibration attempts, so cumulative row count (not just per-run task count) is
+a live suspect and not yet ruled out.
+
+**Not yet done:** isolating whether the hang is task-count-per-run or
+cumulative-table-size driven (rerun against fresh profiles at each size);
+instrumenting the specific stuck worker (which query, which lock) rather than
+inferring from `ps` state; and fixing the harness's sequential-timeout join
+loop regardless of root cause, since it hides exactly the failure mode a
+sustained-load test exists to catch. Do not mark Workstream A/G "sustained
+workload" verification complete until this is resolved — this is a real,
+reproduced problem, not a flaky test.
 
 ## Gate ledger
 
