@@ -16,6 +16,7 @@ import sys
 from pathlib import Path
 from typing import Any
 
+from .config import load_config
 from .redaction import redact
 from .store import GraphStore
 from .transcript_ingest import run as ingest_claude
@@ -167,7 +168,8 @@ def _hermes_end(session_id: str, reason: str) -> None:
 def finalize(*, session_id: str, runtime: str, transcript_path: Path | None = None,
               reason: str = "explicit_end", source_home: Path = DEFAULT_HOME) -> dict[str, Any]:
     source_home.mkdir(parents=True, exist_ok=True)
-    store = GraphStore(source_home)
+    config = load_config(home=source_home)
+    store = GraphStore(config.storage.home, profile_id=config.profile_id, quotas=config.quotas.as_dict())
     try:
         store.start_session(session_id, retention_tier="verbatim")
         if runtime == "hermes":

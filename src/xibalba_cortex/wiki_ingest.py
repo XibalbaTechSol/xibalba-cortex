@@ -30,6 +30,7 @@ from typing import Any
 
 import yaml
 
+from .config import load_config
 from .store import GraphStore
 
 _FRONTMATTER_RE = re.compile(r"\A---\n(.*?\n)---\n", re.DOTALL)
@@ -159,7 +160,8 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    store = GraphStore(args.home)
+    config = load_config(home=args.home)
+    store = GraphStore(config.storage.home, profile_id=config.profile_id, quotas=config.quotas.as_dict())
     try:
         result = ingest_wiki(store, args.wiki_dir)
         print(

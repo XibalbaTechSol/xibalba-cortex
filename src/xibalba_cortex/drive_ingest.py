@@ -44,6 +44,7 @@ except ImportError:  # pragma: no cover - exercised through _require_drive_extra
         _require_drive_extra()
 
 from .connector_policy import ConnectorRateLimiter, profile_credential_path, retry_call
+from .config import load_config
 from .store import GraphStore
 
 _DEFAULT_TOKEN_PATH = Path.home() / ".hermes" / "google_token.json"
@@ -206,7 +207,8 @@ def main() -> None:
     parser.add_argument("--token-path", default=None, help="profile-local OAuth token path (defaults to <home>/credentials/google_token.json)")
     args = parser.parse_args()
 
-    store = GraphStore(args.home)
+    config = load_config(home=args.home)
+    store = GraphStore(config.storage.home, profile_id=config.profile_id, quotas=config.quotas.as_dict())
     try:
         result = ingest_drive(store, token_path=Path(args.token_path) if args.token_path else None, query=args.query)
         print(
