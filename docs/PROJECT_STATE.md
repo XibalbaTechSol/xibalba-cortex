@@ -13,9 +13,11 @@ material; its gate IDs map to this state.
 
 ## Resume in one sentence
 
-A real, reproducible sustained-load hang was found under the inference-task
-harness (see "Open finding" below) — investigate that before extending Gate 4
-connector hardening; Gate 2 and real-tenant gates still require external work.
+Gate 4's ingress throttle and retry/backoff now have real-transport drill
+evidence (not just unit tests) — next is runbook §1's local-file connector
+isolation drills, then the external Google Drive OAuth evidence (§3). The
+sustained-load inference hang (see "Open finding" below) is still unresolved
+and separate from Gate 4.
 
 ## Open finding: sustained-load worker hang (not yet root-caused)
 
@@ -50,7 +52,7 @@ reproduced problem, not a flaky test.
 | G1 | Tenancy foundation | **LOCAL PASS** | Token lifecycle, onboarding, profile isolation, and concurrent validation are implemented and tested. |
 | G2 | Standalone deployability | **BLOCKED EXTERNALLY** | `integrity-sdk` is a local `../integrity-core` dependency; a published package or approved git dependency is required. |
 | G3 | Storage and durability | **LOCAL PILOT PASS** | SQLite per-tenant decision and two-profile backup/restore drill; see `docs/architecture/2026-09-04-storage-architecture-decision.md` and `~/Documents/CORTEX_STORAGE_DRILL_2026-09-04.json`. This is not HA/PITR proof. |
-| G4 | Connector hardening | **IN PROGRESS** | Shared retry/rate-limit/credential-boundary primitives, Drive wiring, and OTLP/local-API ingress throttling are implemented and tested. Policy matrix: `docs/operations/connector-hardening.md`; executable drill: `docs/operations/connector-drill-runbook.md`. Next: dated real-transport drill evidence. |
+| G4 | Connector hardening | **IN PROGRESS** | Shared retry/rate-limit/credential-boundary primitives, Drive wiring, and OTLP/local-API ingress throttling are implemented and tested. Policy matrix: `docs/operations/connector-hardening.md`; executable drill: `docs/operations/connector-drill-runbook.md`. Real-transport drill (runbook §2) passed for ingress throttle and retry/backoff — see `docs/audits/2026-09-04-connector-throttle-retry-drill.md`. Next: runbook §1 (four local-file connector isolation drills) and §3 (real Google Drive OAuth evidence, external). |
 | G5 | Real-data evaluation | **OPEN / EXTERNAL** | Requires a real pilot tenant's traffic; synthetic benchmark is not pilot proof. |
 | G6 | Governance and audit | **OPEN** | Define and independently run provenance-export verification. |
 | G7 | Pilot burn-in | **OPEN / EXTERNAL** | Requires concurrent real tenants and an agreed burn-in period. |
