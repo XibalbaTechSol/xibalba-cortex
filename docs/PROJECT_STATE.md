@@ -8,24 +8,26 @@ material; its gate IDs map to this state.
 **Last verified:** 2026-09-04  
 **Repository:** `/home/xibalba/Projects/xibalba-cortex`  
 **Branch:** `main`  
-**Commit:** `c17dc7a` (connector tenant-scoping fix + Hermes fail-soft fix merged)  
+**Commit:** `750bb64` (Gate 4 LOCAL PASS checkpoint merged) + Gate 6 work on top, about to push  
 **Local-only residue:** pre-existing untracked `LICENSE` (preserve; do not stage)
 
 ## Resume in one sentence
 
-Gate 4 is closed for everything locally closable: shared throttle/retry
-primitives have real-transport drill evidence, all four local-file connectors
-now actually work against a real tenant profile (a real bug — they always
-opened the store as `profile_id="default"` — found and fixed, with permanent
-regression tests), and `session_sync.finalize()` no longer crashes outright
-on any system without a local Hermes install (a second real bug found via CI
-itself failing, now fixed and verified against the exact failure condition).
-Remaining Gate 4 items are both external/out of scope for a local session:
-real Google Drive OAuth evidence, and Hermes hook-watermark verification (the
-latter needs new instrumentation in `hermes_observer.py`/`hermes_bridge.py`
-that doesn't exist yet — a real design task, not a quick check; flag to the
-user before starting it). The sustained-load inference hang (see "Open
-finding" below) is still unresolved and separate from Gate 4.
+Gates 4 and 6 are both closed for everything locally closable. Gate 4: shared
+throttle/retry primitives have real-transport drill evidence, all four
+local-file connectors now actually work against a real tenant profile (a real
+bug — they always opened the store as `profile_id="default"` — found and
+fixed, with permanent regression tests), and `session_sync.finalize()` no
+longer crashes outright on any system without a local Hermes install (a
+second real bug found via CI itself failing). Gate 6: provenance-export
+verification is documented and independently runnable via a genuinely
+standalone (stdlib-only) script, verified against a real bundle including two
+tamper cases. Remaining items across both gates are external or need new
+design work: real Google Drive OAuth evidence, Hermes hook-watermark
+verification (needs new instrumentation, not yet designed), and
+`memory_export_provenance`'s missing scope/auth check (disclosed, not fixed).
+The sustained-load inference hang (see "Open finding" below) is still
+unresolved and separate from both gates.
 
 ## Open finding: sustained-load worker hang (not yet root-caused)
 
@@ -62,7 +64,7 @@ reproduced problem, not a flaky test.
 | G3 | Storage and durability | **LOCAL PILOT PASS** | SQLite per-tenant decision and two-profile backup/restore drill; see `docs/architecture/2026-09-04-storage-architecture-decision.md` and `~/Documents/CORTEX_STORAGE_DRILL_2026-09-04.json`. This is not HA/PITR proof. |
 | G4 | Connector hardening | **LOCAL PASS** | Shared retry/rate-limit/credential-boundary primitives, Drive wiring, OTLP/local-API throttling, and profile-aware connector CLIs are implemented and tested. Real ingress throttle/retry drill passed (`docs/audits/2026-09-04-connector-throttle-retry-drill.md`). All four local-file connectors verified against a real tenant profile with permanent regression coverage (`tests/test_connector_tenant_profile_scoping.py`, `docs/audits/2026-09-04-local-connector-tenant-scoping-fix.md`) after finding and fixing a real bug: they always opened the store as `profile_id="default"`, never the tenant's own profile. `session_sync.finalize()` no longer crashes on a system with no local Hermes install (a second real bug, caught by CI itself, not local testing). Remaining, both out of scope for a local session: real Google Drive OAuth evidence (external) and Hermes hook-watermark verification (needs new instrumentation, not yet designed). |
 | G5 | Real-data evaluation | **OPEN / EXTERNAL** | Requires a real pilot tenant's traffic; synthetic benchmark is not pilot proof. |
-| G6 | Governance and audit | **OPEN** | Define and independently run provenance-export verification. |
+| G6 | Governance and audit | **LOCAL PASS** | Provenance-export verification is documented (`docs/operations/provenance-export-verification.md`) and independently runnable: `scripts/verify_provenance_export.py` has zero dependency on this package (stdlib only), verified as a real subprocess against a real exported bundle (`tests/test_verify_provenance_export.py`), including two tamper cases (memory content, root_hash). Known gap disclosed, not fixed here: `memory_export_provenance` has no scope/authorization check, unlike neighboring write-path tools. Retention-period policy and export-path access control (Workstream F's other named items) remain open. |
 | G7 | Pilot burn-in | **OPEN / EXTERNAL** | Requires concurrent real tenants and an agreed burn-in period. |
 
 ## Verified local capabilities
