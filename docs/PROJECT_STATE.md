@@ -8,18 +8,19 @@ material; its gate IDs map to this state.
 **Last verified:** 2026-09-05  
 **Repository:** `/home/xibalba/Projects/xibalba-cortex`  
 **Branch:** `main`  
-**Commit:** `9425f08` (Gate 6 provenance-export verification merged) + sustained-load deadlock fix on top, about to push  
+**Commit:** `39cad95` (Gate 6 provenance-export authz correction merged) + Hermes hook-watermark verification on top, about to push  
 **Local-only residue:** pre-existing untracked `LICENSE` (preserve; do not stage)
 
 ## Resume in one sentence
 
-Gates 4 and 6 are closed for everything locally closable, and the previously
-open sustained-load worker deadlock is now root-caused and fixed (see "Closed
-finding" below) — sustained-load verification for Workstream A/G may now be
-considered locally passed. Remaining items across G4/G6 are external or need
-new design work: real Google Drive OAuth evidence, Hermes hook-watermark
-verification (needs new instrumentation, not yet designed), and
-`memory_export_provenance`'s missing scope/auth check (disclosed, not fixed).
+Gates 4 and 6 are now closed for everything locally closable — the previously
+open sustained-load worker deadlock was root-caused and fixed, and Hermes
+hook-watermark verification (previously "needs new instrumentation, not yet
+designed") is now designed, built, and tested (see "Closed finding" below).
+`memory_export_provenance`'s scope/auth check was independently re-checked
+and found to be a non-issue, not a real gap (see G6 row — corrected, not
+fixed). The one remaining item across G4/G6 is genuinely external: real
+Google Drive OAuth evidence.
 
 ## Closed finding: sustained-load worker deadlock (was open, now fixed)
 
@@ -47,6 +48,47 @@ in ~75s, both `passed: true`, zero timeouts. Full details:
 regression test at the exact reproducing scale:
 `XIBALBA_RUN_SUSTAINED_INFERENCE_DRILL=1 uv run pytest tests/test_tenant_inference_validation.py`.
 
+## Closed finding: Hermes hook-watermark verification (was undesigned, now built)
+
+Previously: `hermes_bridge.py` is spawned fire-and-forget, per hook call, by a
+Hermes agent process this repo does not control. Before this, a crash inside
+that subprocess (a bug in an observer handler, a corrupted/unreachable
+store) left only a traceback on the subprocess's own stderr — nothing on the
+Hermes side ever reads it, so a hook could silently stop being delivered, or
+start silently failing every time, and this project would never know.
+
+Closed with a new module, `src/xibalba_cortex/hermes_watermark.py`: a small,
+separate local SQLite file (deliberately NOT a table in `store.py`'s own
+frozen-for-v1 schema) recording, per hook name, the last-seen timestamp,
+session id, running invocation/failure counts, consecutive-failure streak,
+and most recent error. `hermes_bridge.py`'s `main()` now wraps store
+construction and the handler dispatch in `try`/`except`, recording the
+outcome before re-raising — the external contract (fails open, nonzero exit,
+traceback on stderr, Hermes never blocks) is unchanged; what's new is that
+the fact of failure is durable and queryable. New console script
+`xibalba-cortex-hermes-watermark-status [max_age_seconds]` prints a JSON
+report (per-hook watermark rows + a staleness check against every hook
+`HermesObserverAdapter` implements) — the actual verification surface an
+operator or a resuming session now has, where none existed before.
+
+Verified: `tests/test_hermes_watermark.py` (6 unit tests: record/status,
+failure-streak tracking, streak reset on a later success, staleness
+distinguishing "never seen" from "seen but stale"). `tests/test_hermes_bridge.py`
+extended with real subprocess-level coverage (not mocked): a successful hook
+call is recorded with `last_success=True`; the existing unknown-hook-name
+failure path is now also recorded as a watermark failure; and a genuinely
+real crash (the store's own db path pre-created as a directory, so
+`sqlite3.connect()` really fails with "unable to open database file", not a
+fabricated exception) is recorded with `last_success=False` and the real
+error message. Manually exercised end-to-end via the real console script
+against a scratch home directory — confirmed the JSON status/staleness
+report reads correctly for both a hook that fired and hooks that never have.
+Full `uv run pytest -q`: 408 passed, 2 skipped (env-gated), zero regressions.
+
+Disclosed scope limitation, same class as `bcc_middleware/app/spool.py` in
+the sibling `integrity-core` repo: single SQLite file, no alerting wired up
+yet — this is a pull (status/staleness-report) surface, not a push one.
+
 ## Gate ledger
 
 | ID | Gate | State | Evidence / blocker |
@@ -54,7 +96,7 @@ regression test at the exact reproducing scale:
 | G1 | Tenancy foundation | **LOCAL PASS** | Token lifecycle, onboarding, profile isolation, and concurrent validation are implemented and tested. |
 | G2 | Standalone deployability | **BLOCKED EXTERNALLY** | `integrity-sdk` is a local `../integrity-core` dependency; a published package or approved git dependency is required. |
 | G3 | Storage and durability | **LOCAL PILOT PASS** | SQLite per-tenant decision and two-profile backup/restore drill; see `docs/architecture/2026-09-04-storage-architecture-decision.md` and `~/Documents/CORTEX_STORAGE_DRILL_2026-09-04.json`. This is not HA/PITR proof. |
-| G4 | Connector hardening | **LOCAL PASS** | Shared retry/rate-limit/credential-boundary primitives, Drive wiring, OTLP/local-API throttling, and profile-aware connector CLIs are implemented and tested. Real ingress throttle/retry drill passed (`docs/audits/2026-09-04-connector-throttle-retry-drill.md`). All four local-file connectors verified against a real tenant profile with permanent regression coverage (`tests/test_connector_tenant_profile_scoping.py`, `docs/audits/2026-09-04-local-connector-tenant-scoping-fix.md`) after finding and fixing a real bug: they always opened the store as `profile_id="default"`, never the tenant's own profile. `session_sync.finalize()` no longer crashes on a system with no local Hermes install (a second real bug, caught by CI itself, not local testing). Remaining, both out of scope for a local session: real Google Drive OAuth evidence (external) and Hermes hook-watermark verification (needs new instrumentation, not yet designed). |
+| G4 | Connector hardening | **LOCAL PASS** | Shared retry/rate-limit/credential-boundary primitives, Drive wiring, OTLP/local-API throttling, and profile-aware connector CLIs are implemented and tested. Real ingress throttle/retry drill passed (`docs/audits/2026-09-04-connector-throttle-retry-drill.md`). All four local-file connectors verified against a real tenant profile with permanent regression coverage (`tests/test_connector_tenant_profile_scoping.py`, `docs/audits/2026-09-04-local-connector-tenant-scoping-fix.md`) after finding and fixing a real bug: they always opened the store as `profile_id="default"`, never the tenant's own profile. `session_sync.finalize()` no longer crashes on a system with no local Hermes install (a second real bug, caught by CI itself, not local testing). Hermes hook-watermark verification is now designed and built (`hermes_watermark.py`, see "Closed finding" above) — a fire-and-forget hook crash is durably recorded and queryable, not only a stderr traceback nothing reads. Remaining, out of scope for a local session: real Google Drive OAuth evidence (external). |
 | G5 | Real-data evaluation | **OPEN / EXTERNAL** | Requires a real pilot tenant's traffic; synthetic benchmark is not pilot proof. |
 | G6 | Governance and audit | **LOCAL PASS** | Provenance-export verification is documented (`docs/operations/provenance-export-verification.md`) and independently runnable: `scripts/verify_provenance_export.py` has zero dependency on this package (stdlib only), verified as a real subprocess against a real exported bundle (`tests/test_verify_provenance_export.py`), including two tamper cases (memory content, root_hash). Correction: an earlier entry here claimed `memory_export_provenance` had no scope/auth check; that was checked against `server.py`'s per-tool decorators only and missed `BearerTokenAuth`'s transport-level `memory:read` baseline (`server.py`'s streamable-http `main()`, `auth_middleware.py`) that every tool call, including exports, already goes through — verified per-request, not just a connection handshake. No gap; corrected, not fixed. Retention-period policy (Workstream F's other named item) remains open. |
 | G7 | Pilot burn-in | **OPEN / EXTERNAL** | Requires concurrent real tenants and an agreed burn-in period. |

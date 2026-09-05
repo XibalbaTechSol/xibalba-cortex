@@ -40,6 +40,7 @@ xibalba-cortex-ingest-tokens = "xibalba_cortex.ingest_tokens:main"
 xibalba-cortex-tenant-onboard = "xibalba_cortex.tenant_onboarding:main"
 xibalba-cortex-tenant-validate = "xibalba_cortex.tenant_validation:main"
 xibalba-cortex-tenant-inference-validate = "xibalba_cortex.tenant_inference_validation:main"
+xibalba-cortex-hermes-watermark-status = "xibalba_cortex.hermes_watermark:main"
 
 [dependency-groups]
 dev = [
