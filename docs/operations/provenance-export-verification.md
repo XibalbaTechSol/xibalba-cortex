@@ -140,13 +140,27 @@ bundle = store.export_memory_bundle(memory_ids=["<id-1>", "<id-2>"])
 or, over MCP, call the `memory_export_provenance` tool with the same
 arguments. Either path returns the identical bundle shape documented above.
 
-## Known limitation, disclosed rather than fixed here
+## Authorization (correction to an earlier version of this document)
 
-`memory_export_provenance` currently has no scope/authorization check,
-unlike neighboring write-path MCP tools (compare `memory_forget`, which
-requires `memory:write`/`memory:delete`). Any caller holding a valid bearer
-token for a profile can export that profile's provenance bundle. This is a
-real access-control gap for a production deployment; it is out of scope for
-this document (which only covers *verifying* a bundle once produced) and is
-recorded separately in `docs/PROJECT_STATE.md` rather than silently fixed as
-a side effect here.
+An earlier version of this document claimed `memory_export_provenance` had
+"no scope/authorization check, unlike neighboring write-path tools." That
+claim was checked against `server.py`'s in-process `@_requires_scope`
+decorators only and missed the transport-level auth wrapper — it was wrong,
+not just imprecise. In the actual multi-tenant deployment mode
+(`--transport streamable-http`), `main()` wraps the whole MCP app in
+`BearerTokenAuth` with `required_scopes=("memory:read",)`
+(`server.py`'s `main()`), and that middleware rejects every individual HTTP
+request — one per tool call, including `memory_export_provenance` — with a
+missing, malformed, unknown, or under-scoped token before it ever reaches
+tool logic (`auth_middleware.py`'s `BearerTokenAuth.__call__`). Read-path
+tools like `memory_export_provenance` correctly inherit that `memory:read`
+baseline rather than needing their own redundant per-tool decorator, the
+same as `memory_recall`/`memory_get`/`memory_hybrid_retrieve` — none of
+which are unscoped either. Write/delete/decide tools additionally require
+their own scope on top of that baseline via `@_requires_scope`.
+
+Over `stdio` transport (the local, single-user default), there is
+deliberately no bearer-token concept at all — the calling process itself is
+the trust boundary, matching how a local Claude Desktop/Cursor MCP
+integration works elsewhere. This is the intended, disclosed design, not a
+gap.
