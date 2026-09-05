@@ -5,55 +5,47 @@ when a verification command produces new evidence, or when a blocker is resolved
 Do not create another numbered roadmap. The detailed production plan is reference
 material; its gate IDs map to this state.
 
-**Last verified:** 2026-09-04  
+**Last verified:** 2026-09-05  
 **Repository:** `/home/xibalba/Projects/xibalba-cortex`  
 **Branch:** `main`  
-**Commit:** `750bb64` (Gate 4 LOCAL PASS checkpoint merged) + Gate 6 work on top, about to push  
+**Commit:** `9425f08` (Gate 6 provenance-export verification merged) + sustained-load deadlock fix on top, about to push  
 **Local-only residue:** pre-existing untracked `LICENSE` (preserve; do not stage)
 
 ## Resume in one sentence
 
-Gates 4 and 6 are both closed for everything locally closable. Gate 4: shared
-throttle/retry primitives have real-transport drill evidence, all four
-local-file connectors now actually work against a real tenant profile (a real
-bug — they always opened the store as `profile_id="default"` — found and
-fixed, with permanent regression tests), and `session_sync.finalize()` no
-longer crashes outright on any system without a local Hermes install (a
-second real bug found via CI itself failing). Gate 6: provenance-export
-verification is documented and independently runnable via a genuinely
-standalone (stdlib-only) script, verified against a real bundle including two
-tamper cases. Remaining items across both gates are external or need new
-design work: real Google Drive OAuth evidence, Hermes hook-watermark
+Gates 4 and 6 are closed for everything locally closable, and the previously
+open sustained-load worker deadlock is now root-caused and fixed (see "Closed
+finding" below) — sustained-load verification for Workstream A/G may now be
+considered locally passed. Remaining items across G4/G6 are external or need
+new design work: real Google Drive OAuth evidence, Hermes hook-watermark
 verification (needs new instrumentation, not yet designed), and
 `memory_export_provenance`'s missing scope/auth check (disclosed, not fixed).
-The sustained-load inference hang (see "Open finding" below) is still
-unresolved and separate from both gates.
 
-## Open finding: sustained-load worker hang (not yet root-caused)
+## Closed finding: sustained-load worker deadlock (was open, now fixed)
 
-`xibalba_cortex.tenant_inference_validation` (2 profiles, 4 processes/profile)
-completed cleanly and quickly at 50/100/150 tasks-per-process (13.5s at 150,
-linear scaling, repeatable). At 200 tasks-per-process it hung three separate
-times, each run killed only by an external `timeout`. Process inspection during
-one hang showed 6 of 8 workers had already exited (zombie/defunct) while 2 were
-still alive in `futex_do_wait`; the harness's `process.join(timeout_seconds)`
-loop joins workers **sequentially, each with its own full timeout**, so one slow
-worker blocks the loop from ever reaching its already-finished siblings — this
-masks completion and burns the whole time budget on one process. Both SQLite's
-`PRAGMA busy_timeout` and the Python driver's own `timeout=` are set to a
-consistent 30s (`store.py`), so a hang past 100s+ is not explained by the known
-busy-timeout fix alone. The test profiles were also never reset between
-calibration attempts, so cumulative row count (not just per-run task count) is
-a live suspect and not yet ruled out.
+Previously: `xibalba_cortex.tenant_inference_validation` hung reproducibly
+(three separate runs) at 200 tasks/process while 50-150 completed cleanly.
 
-**Not yet done:** isolating whether the hang is task-count-per-run or
-cumulative-table-size driven (rerun against fresh profiles at each size);
-instrumenting the specific stuck worker (which query, which lock) rather than
-inferring from `ps` state; and fixing the harness's sequential-timeout join
-loop regardless of root cause, since it hides exactly the failure mode a
-sustained-load test exists to catch. Do not mark Workstream A/G "sustained
-workload" verification complete until this is resolved — this is a real,
-reproduced problem, not a flaky test.
+Root cause, found via heartbeat instrumentation (not guessed): the harness
+joined every worker process **before** draining `result_queue`.
+`multiprocessing.Queue` writes through a background feeder thread into a
+bounded OS pipe — the Python docs explicitly warn that a child which has
+`put()` enough data will not finish exiting until it's flushed, so joining
+first can deadlock exactly this way. Every worker's heartbeats showed all
+real application work (including the queue put and `store.close()`) had
+already succeeded; one stuck process was caught with a live
+`QueueFeederThread` mid-exit — proving the hang was in Python's own
+queue/subprocess-exit machinery, not application logic, the previously-fixed
+`busy_timeout` path, or cumulative test-database growth (all three were
+suspected and ruled out).
+
+Fixed by draining the queue before joining processes. Verified: 200
+tasks/process (previously hung every time) now completes in ~16s; 1,000
+tasks/process (8,000 total tasks, 40x the original 25-task burst) completes
+in ~75s, both `passed: true`, zero timeouts. Full details:
+`docs/audits/2026-09-05-sustained-inference-deadlock-fix.md`. Opt-in
+regression test at the exact reproducing scale:
+`XIBALBA_RUN_SUSTAINED_INFERENCE_DRILL=1 uv run pytest tests/test_tenant_inference_validation.py`.
 
 ## Gate ledger
 
