@@ -32,3 +32,18 @@ The local API includes both read routes and bounded mutating `POST` routes for r
    `integrity-dashboard` instances on 5173/5174).
 
 Set `VITE_LOCAL_API_URL` to point at a non-default `local_api.py` host/port.
+
+## Graph rendering behavior
+
+The 3D Graph view is an interactive overview, not a full-store renderer. To keep session selection and navigation responsive, the canvas requests one sampled memory page and renders the 20 newest sessions, always including the selected session. Recall, memory inspection, session Timeline, Replay, and Integrity views continue to query the complete API projections.
+
+When a session changes, the viewer loads exchanges, replay, and the Merkle root together before replacing the graph's session overlay. This avoids rebuilding the large Three.js scene against partially loaded state.
+
+For a quick local verification:
+
+```bash
+npm run build
+npm run lint
+```
+
+The build must pass and lint must report zero errors. The repository may still report non-blocking bundle-size or pre-existing warning diagnostics.

@@ -32,6 +32,11 @@ import './index.css'
 
 type Tab = 'timeline' | 'graph' | 'recall' | 'inference' | 'provenance' | 'integrity' | 'operations'
 type GraphFilterIntent = { nonce: number; status?: string; evidence?: string }
+// The API returns a bounded memory sample plus relation endpoints. Keep the canvas projection
+// intentionally small enough that session changes remain interactive; Recall remains the path
+// for searching the complete memory store.
+const GRAPH_RENDER_LIMIT = 1
+const GRAPH_SESSION_LIMIT = 20
 
 const tabs: Array<{ id: Tab; label: string }> = [
   { id: 'timeline', label: 'Timeline' },
@@ -109,7 +114,8 @@ function buildDemoGraph(
     }),
   )
 
-  sessions.forEach((session) => {
+  const visibleSessions = sessions.filter((session) => session.external_session_id === selectedSessionId || sessions.indexOf(session) < GRAPH_SESSION_LIMIT)
+  visibleSessions.forEach((session) => {
     const id = `session:${session.external_session_id}`
     addNode({
       id,
@@ -760,6 +766,7 @@ function AuthenticatedApp() {
   const [integrityLinks, setIntegrityLinks] = useState<IntegrityLinksStatus | null>(null)
   const [sessions, setSessions] = useState<Session[]>([])
   const [selectedSessionId, setSelectedSessionId] = useState('')
+  const [loadedSessionId, setLoadedSessionId] = useState('')
   const [root, setRoot] = useState<MerkleRoot | null>(null)
   const [exchanges, setExchanges] = useState<Exchange[]>([])
   const [sessionReplay, setSessionReplay] = useState<SessionReplay | null>(null)
@@ -793,7 +800,7 @@ function AuthenticatedApp() {
       setSessions(items)
       setSelectedSessionId((current) => current || items[0]?.external_session_id || '')
     }).catch((e) => setError(String(e)))
-    api.graph(500, similarityThreshold).then(setGraph).catch((e) => setError(String(e)))
+    api.graph(GRAPH_RENDER_LIMIT, similarityThreshold).then(setGraph).catch((e) => setError(String(e)))
   }
 
   useEffect(() => {
@@ -809,14 +816,12 @@ function AuthenticatedApp() {
   }, [isNavOpen, selectedMemoryId])
 
   useEffect(() => {
-    api.graph(500, similarityThreshold).then(setGraph).catch((e) => setError(String(e)))
+    api.graph(GRAPH_RENDER_LIMIT, similarityThreshold).then(setGraph).catch((e) => setError(String(e)))
   }, [similarityThreshold])
 
   useEffect(() => {
-    // Clear stale state and inspector panels when session changes
-    setExchanges([])
-    setSessionReplay(null)
-    setRoot(null)
+    // Keep the rendered graph stable while the three session projections load. Replacing
+    // these independently makes the large Three.js graph tear down and rebuild repeatedly.
     setSelectedGraphNode((prev) => {
       if (prev && prev.type === 'session' && (prev.payload as Session)?.external_session_id === selectedSessionId) {
         return prev
@@ -826,11 +831,28 @@ function AuthenticatedApp() {
     setSelectedMemoryId(null)
     
     if (!selectedSessionId) {
+      setLoadedSessionId('')
+      setExchanges([])
+      setSessionReplay(null)
+      setRoot(null)
       return
     }
-    api.sessionExchanges(selectedSessionId).then(setExchanges).catch(() => setExchanges([]))
-    api.sessionReplay(selectedSessionId).then(setSessionReplay).catch(() => setSessionReplay(null))
-    api.sessionMerkleRoot(selectedSessionId).then(setRoot).catch(() => setRoot(null))
+
+    let cancelled = false
+    Promise.all([
+      api.sessionExchanges(selectedSessionId).catch(() => [] as Exchange[]),
+      api.sessionReplay(selectedSessionId).catch(() => null),
+      api.sessionMerkleRoot(selectedSessionId).catch(() => null),
+    ]).then(([nextExchanges, nextReplay, nextRoot]) => {
+      if (cancelled) return
+      setExchanges(nextExchanges)
+      setSessionReplay(nextReplay)
+      setRoot(nextRoot)
+      setLoadedSessionId(selectedSessionId)
+    })
+    return () => {
+      cancelled = true
+    }
   }, [selectedSessionId])
 
   useEffect(() => {
@@ -865,8 +887,8 @@ function AuthenticatedApp() {
 
 
   const demoGraph = useMemo(
-    () => buildDemoGraph(graph, sessions, selectedSessionId, exchanges, root),
-    [graph, sessions, selectedSessionId, exchanges, root],
+    () => buildDemoGraph(graph, sessions, loadedSessionId, exchanges, root),
+    [graph, sessions, loadedSessionId, exchanges, root],
   )
   const railStatusCounts = useMemo(() => {
     const counts = new Map<string, number>()
