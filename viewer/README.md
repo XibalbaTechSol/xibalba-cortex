@@ -1,6 +1,6 @@
 # xibalba-cortex viewer
 
-Standalone graph visualization and local operator surface for `xibalba-cortex`. The viewer exposes graph, timeline, lexical Recall, inference task, PARA review, and Integrity views. It is a local prototype and is not a production deployment.
+Standalone graph visualization and local operator surface for `xibalba-cortex`. The viewer opens on an authenticated operations overview and exposes graph, timeline, lexical Recall, inference task, provenance, PARA review, Integrity, and connector views. It is a local prototype and is not a production deployment.
 
 The local API includes both read routes and bounded mutating `POST` routes for recording exchanges, creating propositions, linking entities, lifecycle changes, inference claims/completions, and PARA decisions. Bind it to loopback and set an explicit allowed origin when running the viewer. Every route except `/healthz`, `/readyz`, and `/metrics` requires the same bearer-token auth as the streamable-HTTP MCP transport -- there is no unauthenticated fallback.
 
@@ -24,14 +24,13 @@ The local API includes both read routes and bounded mutating `POST` routes for r
    npm install
    npm run dev
    ```
-4. Open the viewer and enter the token from step 1. The token is stored only in the current
-   browser tab's `sessionStorage`; it is not embedded into the Vite bundle or persisted after
-   the tab closes. `VITE_LOCAL_API_URL` may still be set when the API is not at
-   `http://localhost:8420`.
-   Opens on `http://localhost:5190` (fixed, non-default port -- avoids the Dockerized
-   `integrity-dashboard` instances on 5173/5174).
+4. Open the viewer, enter the local API endpoint and token from step 1, and connect. The viewer
+   validates both against `/api/status` before opening the workspace. The endpoint and token
+   stay in the current browser tab via `sessionStorage`; neither is embedded in the bundle.
+   The viewer opens on `http://localhost:5190` (a fixed, non-default port that avoids the
+   Dockerized `integrity-dashboard` instances on 5173/5174).
 
-Set `VITE_LOCAL_API_URL` to point at a non-default `local_api.py` host/port.
+`VITE_LOCAL_API_URL` sets the initial endpoint value. Operators may change it on the sign-in screen without rebuilding the viewer.
 
 ## Graph rendering behavior
 
@@ -47,3 +46,7 @@ npm run lint
 ```
 
 The build must pass and lint must report zero errors. The repository may still report non-blocking bundle-size or pre-existing warning diagnostics.
+
+### Browser auth smoke test
+
+With Cortex and Shield Vite servers running, execute `CORTEX_UI_URL=http://127.0.0.1:4180 SHIELD_UI_URL=http://127.0.0.1:4176 npm run test:ui` to validate landing-to-auth navigation, mobile layout, unavailable-backend UX, and (when credentials are supplied) refresh, Settings, avatar, sign-out, and session recovery for both products. The script uses Playwright and does not create accounts by default. To validate real account login, provide `CORTEX_API_URL`, `CORTEX_EMAIL`, `CORTEX_PASSWORD` and/or the corresponding `SHIELD_*` variables. Opt into sign-up coverage with `CORTEX_SIGNUP_EMAIL`, `CORTEX_SIGNUP_PASSWORD` (and `SHIELD_SIGNUP_TENANT` for Shield).

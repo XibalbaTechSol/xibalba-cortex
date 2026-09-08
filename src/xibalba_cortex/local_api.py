@@ -82,12 +82,14 @@ import sqlite3
 from collections import Counter
 from datetime import datetime, timezone
 import threading
+import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, unquote, urlparse
 
 from .config import load_config
 from .connector_policy import ConnectorRateLimiter
-from .ingest_tokens import list_tokens, verify_token_record
+from .ingest_tokens import _connect, list_tokens, verify_token_record
+from .accounts import account_for_token, approve_account, change_account_password, create_account, issue_account_session, request_password_reset, reset_password, revoke_account_session, revoke_account_session_by_id
 from .providers import InferenceTaskContract, connector_manifest
 from .store import MEMORY_INFERENCE_SUBAGENT_MANIFEST, GraphStore
 
@@ -202,6 +204,19 @@ def _make_handler(store: GraphStore, *, allowed_origin: str):
     # The authenticated webhook/operator surface is profile-local. Keep a bounded
     # per-profile request budget so one connector or tenant cannot starve the store.
     request_limiter = ConnectorRateLimiter(rate_per_second=20.0, burst=40)
+    auth_attempts: dict[str, list[float]] = {}
+    auth_attempt_lock = threading.Lock()
+
+    def auth_allowed(identity: str) -> bool:
+        now = time.monotonic()
+        with auth_attempt_lock:
+            recent = [stamp for stamp in auth_attempts.get(identity, []) if now - stamp < 60.0]
+            if len(recent) >= 8:
+                auth_attempts[identity] = recent
+                return False
+            recent.append(now)
+            auth_attempts[identity] = recent
+            return True
 
     class Handler(BaseHTTPRequestHandler):
         def _send_json(self, status: int, payload: object) -> None:
@@ -281,6 +296,40 @@ def _make_handler(store: GraphStore, *, allowed_origin: str):
             params = {k: v[0] for k, v in parse_qs(parsed.query).items()}
             parts = [p for p in parsed.path.split("/") if p]
 
+            if parts == ["api", "auth", "me"]:
+                principal = self._authenticate(required_scope="memory:read")
+                if principal is None:
+                    return
+                auth = self.headers.get("Authorization", "")
+                token = auth.split(" ", 1)[-1] if " " in auth else ""
+                account = account_for_token(store.home, token)
+                self._send_json(200, {"account": account, "session_expires_at": principal.get("expires_at")} if account else {"error": "account session not found"})
+                return
+            if parts == ["api", "auth", "sessions"]:
+                principal = self._authenticate(required_scope="memory:read")
+                if principal is None:
+                    return
+                auth = self.headers.get("Authorization", "")
+                token = auth.split(" ", 1)[-1] if " " in auth else ""
+                account = account_for_token(store.home, token)
+                email = str(account.get("email")) if account else ""
+                sessions = [item for item in list_tokens(store.home) if item["label"] == f"account:{email}"]
+                self._send_json(200, {"sessions": sessions})
+                return
+            if parts == ["api", "auth", "events"]:
+                principal = self._authenticate(required_scope="memory:read")
+                if principal is None:
+                    return
+                auth = self.headers.get("Authorization", "")
+                token = auth.split(" ", 1)[-1] if " " in auth else ""
+                account = account_for_token(store.home, token)
+                conn = _connect(store.home)
+                try:
+                    rows = conn.execute("SELECT event_type,detail,created_at FROM auth_events WHERE email=? ORDER BY id DESC LIMIT 100", (account["email"] if account else "",)).fetchall()
+                    self._send_json(200, {"events": [dict(row) for row in rows]})
+                finally:
+                    conn.close()
+                return
             if parts not in (["metrics"], ["healthz"], ["readyz"]):
                 if self._authenticate(required_scope="memory:read") is None:
                     return
@@ -427,6 +476,57 @@ def _make_handler(store: GraphStore, *, allowed_origin: str):
             )
             is_read_route = parts == ["api", "retrieval", "hybrid"]
             required_scope = "proposal:decide" if is_decision_route else "memory:read" if is_read_route else "memory:write"
+            if parts in (["api", "auth", "signup"], ["api", "auth", "login"], ["api", "auth", "logout"], ["api", "auth", "password"], ["api", "auth", "sessions", "revoke"], ["api", "auth", "password-reset", "request"], ["api", "auth", "password-reset", "confirm"], ["api", "auth", "admin", "approve"]):
+                try:
+                    payload = self._read_json_body()
+                    if parts[-1] in ("signup", "login", "request"):
+                        identity = f"{parts[-1]}:{str(payload.get('email') or '').strip().lower()}:{self.client_address[0]}"
+                        if not auth_allowed(identity):
+                            self._send_json(429, {"error": "too many authentication attempts; try again later"})
+                            return
+                    if parts[-2:] == ["admin", "approve"]:
+                        principal = self._authenticate(required_scope="*")
+                        if principal is None:
+                            return
+                        approved = approve_account(store.home, email=str(payload.get("email") or ""), verified=bool(payload.get("verified", True)))
+                        self._send_json(200 if approved else 404, {"ok": approved} if approved else {"error": "account not found"})
+                    elif parts[-2:] == ["password-reset", "request"]:
+                        email = str(payload.get("email") or "")
+                        token = request_password_reset(store.home, email=email)
+                        self._send_json(200, {"ok": True, "reset_token": token, "delivery": "local_only"})
+                    elif parts[-2:] == ["password-reset", "confirm"]:
+                        changed = reset_password(store.home, reset_token=str(payload.get("reset_token") or ""), new_password=str(payload.get("new_password") or ""))
+                        self._send_json(200 if changed else 400, {"ok": changed} if changed else {"error": "reset token is invalid or expired"})
+                    elif parts[-2:] == ["sessions", "revoke"]:
+                        auth = self.headers.get("Authorization", "")
+                        token = auth.split(" ", 1)[-1] if " " in auth else ""
+                        principal = self._authenticate(required_scope="memory:read")
+                        if principal is None:
+                            return
+                        revoked = revoke_account_session_by_id(store.home, current_token=token, session_id=str(payload.get("session_id") or ""))
+                        self._send_json(200 if revoked else 404, {"ok": revoked} if revoked else {"error": "session not found"})
+                    elif parts[-1] == "password":
+                        auth = self.headers.get("Authorization", "")
+                        token = auth.split(" ", 1)[-1] if " " in auth else ""
+                        principal = self._authenticate(required_scope="memory:read")
+                        if principal is None:
+                            return
+                        changed = change_account_password(store.home, token=token, current_password=str(payload.get("current_password") or ""), new_password=str(payload.get("new_password") or ""))
+                        self._send_json(200 if changed else 401, {"ok": changed} if changed else {"error": "current password is incorrect"})
+                    elif parts[-1] == "signup":
+                        create_account(store.home, email=str(payload.get("email") or ""), password=str(payload.get("password") or ""), display_name=str(payload.get("display_name") or ""), profile_id=store.profile_id)
+                        token, account = issue_account_session(store.home, email=str(payload.get("email") or ""), password=str(payload.get("password") or ""))
+                        self._send_json(201, {"token": token, "account": account})
+                    elif parts[-1] == "login":
+                        token, account = issue_account_session(store.home, email=str(payload.get("email") or ""), password=str(payload.get("password") or ""))
+                        self._send_json(200, {"token": token, "account": account})
+                    else:
+                        auth = self.headers.get("Authorization", "")
+                        token = auth.split(" ", 1)[-1] if " " in auth else ""
+                        self._send_json(200, {"ok": revoke_account_session(store.home, token)})
+                except ValueError as exc:
+                    self._send_json(400, {"error": str(exc)})
+                return
             principal = self._authenticate(required_scope=required_scope)
             if principal is None:
                 return

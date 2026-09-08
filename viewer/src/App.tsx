@@ -1,8 +1,16 @@
 import { useEffect, useMemo, useState } from 'react'
-import type { FormEvent, ReactNode } from 'react'
+import type { ChangeEvent, FormEvent, ReactNode } from 'react'
 import {
   api,
+  accountAuth,
+  accountMe,
+  accountChangePassword,
+  accountSessions,
+  accountRevokeSession,
+  accountEvents,
   getApiToken,
+  getApiBaseUrl,
+  setApiBaseUrl,
   setApiToken,
   type Attachment,
   type EntityRelation,
@@ -30,7 +38,7 @@ import { Graph3DView, type DemoEdge, type DemoGraph, type DemoNode, type DemoNod
 import { ExtractionProposalsPanel, ProjectionHealthPanel, RetrievalTraceInspector } from './ProvenancePanels'
 import './index.css'
 
-type Tab = 'timeline' | 'graph' | 'recall' | 'inference' | 'provenance' | 'integrity' | 'operations'
+type Tab = 'overview' | 'timeline' | 'graph' | 'recall' | 'inference' | 'provenance' | 'integrity' | 'operations' | 'settings'
 type GraphFilterIntent = { nonce: number; status?: string; evidence?: string }
 // The API returns a bounded memory sample plus relation endpoints. Keep the canvas projection
 // intentionally small enough that session changes remain interactive; Recall remains the path
@@ -39,6 +47,7 @@ const GRAPH_RENDER_LIMIT = 1
 const GRAPH_SESSION_LIMIT = 20
 
 const tabs: Array<{ id: Tab; label: string }> = [
+  { id: 'overview', label: 'Overview' },
   { id: 'timeline', label: 'Timeline' },
   { id: 'graph', label: 'Graph' },
   { id: 'recall', label: 'Recall' },
@@ -46,6 +55,7 @@ const tabs: Array<{ id: Tab; label: string }> = [
   { id: 'provenance', label: 'Provenance' },
   { id: 'integrity', label: 'Integrity' },
   { id: 'operations', label: 'Operations' },
+  { id: 'settings', label: 'Settings' },
 ]
 
 export function Badge({ children }: { children: ReactNode }) {
@@ -733,30 +743,105 @@ function formatSessionLabel(session: Session) {
 
 export default function App() {
   const [token, setToken] = useState(getApiToken)
+  const [entry, setEntry] = useState<'landing' | 'signin'>('landing')
+  const [mode, setMode] = useState<'login' | 'signup' | 'token'>('login')
+  const [authError, setAuthError] = useState(()=>sessionStorage.getItem('xibalba-cortex.auth-notice') || '')
+  const [authenticating, setAuthenticating] = useState(false)
   if (token) return <AuthenticatedApp />
-
-  const submitToken = (event: FormEvent<HTMLFormElement>) => {
+  const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
-    const value = String(new FormData(event.currentTarget).get('token') || '').trim()
-    if (!value) return
-    setApiToken(value)
-    setToken(value)
+    const form = new FormData(event.currentTarget)
+    const endpoint = String(form.get('endpoint') || '').trim()
+    setAuthenticating(true); setAuthError(''); setApiBaseUrl(endpoint)
+    try {
+      if (mode === 'token') {
+        setApiToken(String(form.get('token') || '').trim())
+        await api.status()
+      } else {
+        const payload = await accountAuth(mode, { email: String(form.get('email') || ''), password: String(form.get('password') || ''), display_name: String(form.get('displayName') || '') })
+        const me = await accountMe()
+        sessionStorage.setItem('xibalba-cortex.account', JSON.stringify({ ...(me.account ?? payload.account), session_expires_at: me.session_expires_at }))
+        await api.status()
+      }
+      setToken(getApiToken())
+    } catch (error) { setApiToken(''); setAuthError(error instanceof Error ? error.message : String(error)) }
+    finally { setAuthenticating(false) }
   }
+  if (entry === 'landing') return <CortexLanding connect={() => { sessionStorage.removeItem('xibalba-cortex.auth-notice'); setEntry('signin') }} />
+  return <main className="cortex-auth"><button className="cortex-auth-back" onClick={()=>setEntry('landing')}>← Back to Cortex</button><section className="cortex-auth-story"><CortexBrand/><div><p className="cortex-kicker">PRIVATE BY ARCHITECTURE</p><h1>Your agents' memory.<br/>Under your control.</h1><p>Connect to a local Cortex profile and inspect the provenance behind every remembered fact.</p></div><aside><span>⌁</span><div><b>Session-scoped access</b><small>Your endpoint and credentials stay in this tab.</small></div></aside></section><section className="cortex-auth-form"><form onSubmit={submit}><span className="cortex-lock">⌘</span><div className="auth-tabs"><button type="button" className={mode==='login'?'active':''} onClick={()=>setMode('login')}>Sign in</button><button type="button" className={mode==='signup'?'active':''} onClick={()=>setMode('signup')}>Create account</button></div><h2>{mode==='signup'?'Create your Cortex account':mode==='token'?'Connect with bearer token':'Connect to Cortex'}</h2><p>{mode==='signup'?'Create a local operator account for this Cortex profile.':'Use your account credentials or an existing bearer token.'}</p><label>Profile endpoint<input name="endpoint" type="url" defaultValue={getApiBaseUrl()} required/></label>{mode !== 'token' ? <><label>Email<input name="email" type="email" autoFocus required/></label>{mode==='signup'&&<label>Display name<input name="displayName" required/></label>}<label>Password<input name="password" type="password" minLength={10} required/></label><button type="button" className="advanced" onClick={()=>setMode('token')}>Use bearer token instead</button></> : <><label>Bearer token<input name="token" type="password" autoFocus required/></label><button type="button" className="advanced" onClick={()=>setMode('login')}>Use account sign in</button></>}{authError&&<div className="auth-error">{authError}</div>}<button className="cortex-cta auth-submit" type="submit" disabled={authenticating}>{authenticating?'Connecting…':mode==='signup'?'Create account':'Enter workspace'} <span>→</span></button><small className="auth-security">◇ Session-only credentials · <button type="button" className="link-button" onClick={()=>setAuthError('Password reset is not configured for this local deployment yet.')}>Forgot password?</button></small></form></section></main>
+}
+function CortexLanding({ connect }: { connect: () => void }) {
+  return <main className="cortex-landing"><nav className="cortex-site-nav"><CortexBrand/><div className="cortex-links"><a href="#capabilities">Capabilities</a><a href="#provenance">Provenance</a><a href="#architecture">Architecture</a></div><div><button className="ghost-cta" onClick={connect}>Sign in</button><button className="cortex-cta" onClick={connect}>Open workspace <span>→</span></button></div></nav><section className="cortex-hero"><div className="cortex-hero-copy"><p className="cortex-kicker"><span/> PROVENANCE-FIRST AGENT MEMORY</p><h1>Memory you can<br/><em>trace and trust.</em></h1><p>Xibalba Cortex turns every agent exchange into inspectable, retrieval-ready knowledge—without losing its source, context, or chain of evidence.</p><div className="cortex-actions"><button className="cortex-cta large" onClick={connect}>Explore your memory graph <span>→</span></button><a href="#capabilities">See the architecture</a></div><div className="cortex-trust"><span>✓ Local-first storage</span><span>✓ Merkle-linked history</span><span>✓ Bounded retrieval</span></div></div><div className="memory-visual"><div className="grid-plane"/><div className="memory-node node-core"><i>C</i><b>Active context</b><small>12 memories</small></div><div className="memory-node node-a"><i>01</i><b>User intent</b><small>confirmed</small></div><div className="memory-node node-b"><i>02</i><b>Source fact</b><small>verified</small></div><div className="memory-node node-c"><i>03</i><b>Agent response</b><small>linked</small></div><svg viewBox="0 0 600 430"><path d="M118 112 C240 90 250 200 310 215"/><path d="M310 215 C400 165 430 95 520 110"/><path d="M310 215 C390 275 400 350 495 350"/></svg></div></section><section className="cortex-proof"><div><b>Append-only</b><span>evidence journal</span></div><div><b>Source-aware</b><span>memory lifecycle</span></div><div><b>Replayable</b><span>agent sessions</span></div><div><b>Inspectable</b><span>retrieval context</span></div></section><section className="cortex-features" id="capabilities"><header><p className="cortex-kicker">A COGNITIVE CONTROL PLANE</p><h2>Know what your agents know.</h2><p>See how knowledge entered the system, where it was used, and whether it can still be trusted.</p></header><div>{[['01','Capture the full exchange','Prompts, responses, tool calls, and contributed context stay together.'],['02','Navigate the graph','Explore sessions, entities, contradictions, and semantic relationships.'],['03','Audit every retrieval','Inspect why a memory was selected and what it influenced.']].map(([n,title,copy])=><article key={n}><span>{n}</span><h3>{title}</h3><p>{copy}</p><button onClick={connect}>Open workspace →</button></article>)}</div></section><section className="cortex-banner" id="provenance"><div><p className="cortex-kicker">MEMORY WITH A RECEIPT</p><h2>Build agents that can explain what they remember.</h2></div><button onClick={connect}>Connect to Cortex →</button></section><footer className="cortex-footer"><CortexBrand/><span>Trusted memory for autonomous systems.</span><small>© 2026 Xibalba</small></footer></main>
+}
+function CortexBrand(){return <div className="cortex-brand"><img src="/CortexBWLogo.png" alt="Xibalba Cortex"/><b>Xibalba <i>Cortex</i></b></div>}
 
-  return (
-    <main className="app" style={{ minHeight: '100vh', display: 'grid', placeItems: 'center', padding: '24px' }}>
-      <form className="panel" onSubmit={submitToken} style={{ width: 'min(480px, 100%)' }}>
-        <p className="eyebrow">Protected local operator surface</p>
-        <h1>Connect to xibalba-cortex</h1>
-        <p className="muted">Enter a bearer token issued for this Cortex profile. The token remains only in this browser tab and is removed when the tab closes.</p>
-        <label>
-          Bearer token
-          <input name="token" type="password" autoComplete="off" required autoFocus />
-        </label>
-        <button type="submit">Connect</button>
-      </form>
-    </main>
-  )
+function CortexOverview({ stats, status, operations, sessions, onOpen }: { stats: Stats | null; status: StoreStatus | null; operations: OperationsSnapshot | null; sessions: Session[]; onOpen: (tab: Tab) => void }) {
+  const [profileFilter, setProfileFilter] = useState(operations?.profile_id ?? '')
+  const [sessionFilter, setSessionFilter] = useState('all')
+  const [evidenceFilter, setEvidenceFilter] = useState('all')
+  const [statusFilter, setStatusFilter] = useState('all')
+  const readiness = operations?.readiness.checks ?? {}
+  const readyCount = Object.values(readiness).filter(Boolean).length
+  const connectorRows = Object.entries(operations?.connectors ?? {})
+  const filteredSessions = sessions.filter(session => sessionFilter === 'all' || (sessionFilter === 'active' ? !session.ended_at : Boolean(session.ended_at)))
+  return <section className="cortex-overview-panel">
+    <header className="overview-welcome"><div><p className="cortex-kicker">COGNITIVE OPERATIONS</p><h2>Memory control center.</h2><p>Authenticated status for profile <b>{operations?.profile_id ?? 'loading'}</b> at <code>{getApiBaseUrl()}</code>.</p></div><button onClick={() => onOpen('graph')}>Open memory graph →</button></header>
+    <div className="overview-filters" aria-label="Cortex dashboard filters"><label>Profile<input value={profileFilter} onChange={event=>setProfileFilter(event.target.value)} placeholder="profile id"/></label><label>Session<select value={sessionFilter} onChange={event=>setSessionFilter(event.target.value)}><option value="all">All sessions</option><option value="active">Active only</option><option value="closed">Closed only</option></select></label><label>Evidence class<select value={evidenceFilter} onChange={event=>setEvidenceFilter(event.target.value)}><option value="all">All evidence</option><option value="observed_event">Observed event</option><option value="derived">Derived</option><option value="synthetic">Synthetic</option></select></label><label>Status<select value={statusFilter} onChange={event=>setStatusFilter(event.target.value)}><option value="all">All statuses</option><option value="healthy">Healthy</option><option value="degraded">Degraded</option><option value="stale">Stale</option></select></label></div>
+    <div className="overview-metrics"><article><span>Memories</span><b>{stats?.memories ?? '—'}</b><small>{stats?.embedded_memories ?? 0} embedded</small></article><article><span>Sessions</span><b>{sessionFilter === 'all' ? (stats?.sessions ?? sessions.length) : filteredSessions.length}</b><small>{sessions.filter(s=>!s.ended_at).length} active</small></article><article><span>Graph relations</span><b>{stats?.relations ?? '—'}</b><small>{stats?.entities ?? 0} entities</small></article><article><span>Readiness</span><b>{readyCount}/{Object.keys(readiness).length || '—'}</b><small>{operations?.readiness.state ?? 'loading'}</small></article></div>
+    <div className="overview-grid"><article className="overview-card"><header><div><h3>Store integrity</h3><p>Canonical SQLite profile</p></div><span className={status?.integrity_check==='ok'?'good':'warn'}>{status?.integrity_check ?? 'unknown'}</span></header><dl><dt>Schema</dt><dd>{status?.schema_version ?? '—'}</dd><dt>Journal mode</dt><dd>{status?.journal_mode ?? '—'}</dd><dt>Foreign keys</dt><dd>{status?.foreign_keys ? 'enabled':'unverified'}</dd><dt>Backup</dt><dd>{status?.backup_ready ? 'ready':'pending'}</dd></dl><button onClick={()=>onOpen('integrity')}>Inspect integrity →</button></article><article className="overview-card"><header><div><h3>Capability policy</h3><p>Explicit feature gates</p></div><span className="good">configured</span></header><div className="feature-status">{Object.entries(operations?.features ?? {}).map(([name,enabled])=><div key={name}><span>{name.replaceAll('_',' ')}</span><b className={enabled?'on':'off'}>{enabled?'enabled':'disabled'}</b></div>)}</div><button onClick={()=>onOpen('operations')}>Open operations →</button></article></div>
+    <div className="overview-links"><button onClick={()=>onOpen('graph')}>Graph</button><button onClick={()=>onOpen('timeline')}>Replay timeline</button><button onClick={()=>onOpen('provenance')}>Provenance</button><button onClick={()=>onOpen('integrity')}>Integrity</button></div>
+    <article className="overview-card connectors-card"><header><div><h3>Connector estate</h3><p>Configured ingestion and retrieval channels</p></div><span>{connectorRows.length} connectors</span></header><div className="connector-overview">{connectorRows.length?connectorRows.map(([name,item])=><div key={name}><span className={`connector-dot ${item.state}`}/><div><b>{name}</b><small>{item.entrypoint}</small></div><em>{item.state}</em></div>):<p className="muted">No connector status returned.</p>}</div></article>
+    {stats?.memories === 0 && <article className="overview-empty"><h3>Your Cortex profile is ready.</h3><p>Record an exchange or connect an agent harness to start building a provenance-backed memory graph.</p><button onClick={()=>onOpen('timeline')}>Record first exchange →</button></article>}
+    {operations?.disclaimer&&<p className="overview-disclaimer">{operations.disclaimer}</p>}
+  </section>
+}
+
+type OperatorProfile = { displayName: string; email: string; role: string; avatar: string; compactMode: boolean }
+const PROFILE_KEY = 'xibalba-cortex.operator-profile'
+function loadOperatorProfile(): OperatorProfile {
+  const fallback = { displayName: 'Cortex Operator', email: '', role: 'Operator', avatar: '', compactMode: false }
+  try {
+    const account = JSON.parse(sessionStorage.getItem('xibalba-cortex.account') || '{}')
+    const preferences = JSON.parse(localStorage.getItem(PROFILE_KEY) || '{}')
+    return { ...fallback, displayName: account.display_name || fallback.displayName, email: account.email || '', role: account.role || fallback.role, ...preferences }
+  } catch { return fallback }
+}
+function saveOperatorProfile(profile: OperatorProfile) {
+  try { localStorage.setItem(PROFILE_KEY, JSON.stringify(profile)) } catch { /* storage may be disabled in isolated previews */ }
+}
+function ProfileAvatar({ profile }: { profile: OperatorProfile }) {
+  const initials = profile.displayName.split(/\s+/).filter(Boolean).slice(0,2).map(part => part[0]).join('').toUpperCase() || 'CO'
+  return profile.avatar ? <img className="profile-avatar-image" src={profile.avatar} alt={`${profile.displayName} profile`} /> : <span className="profile-avatar-fallback">{initials}</span>
+}
+function SessionSecurityPanel() {
+  const [sessions, setSessions] = useState<Array<Record<string, unknown>>>([])
+  const [message, setMessage] = useState('')
+  const [events, setEvents] = useState<Array<Record<string, unknown>>>([])
+  const load = () => accountSessions().then(result => setSessions(result.sessions || [])).catch(error => setMessage(error instanceof Error ? error.message : String(error)))
+  useEffect(() => { load(); accountEvents().then(result => setEvents(result.events || [])).catch(error => setMessage(error instanceof Error ? error.message : String(error))) }, [])
+  const revoke = async (id: string) => { try { await accountRevokeSession(id); setMessage('Session revoked.'); load() } catch (error) { setMessage(error instanceof Error ? error.message : String(error)) } }
+  return <section className="settings-card session-details"><h3>Active sessions</h3><p>Revoke individual Cortex account sessions without changing browser preferences.</p><div className="session-list">{sessions.length ? sessions.map(session => <div key={String(session.id)}><span><b>{String(session.label || 'Account session')}</b><small>Created {String(session.created_at || 'unknown')} · Last used {String(session.last_used_at || 'never')}</small></span>{session.revoked_at ? <em>Revoked</em> : <button type="button" onClick={() => revoke(String(session.id))}>Revoke</button>}</div>) : <small>No account sessions returned.</small>}</div><h3>Security audit</h3><div className="session-list">{events.slice(0,8).map((event,index)=><div key={`${String(event.created_at)}-${index}`}><span><b>{String(event.event_type)}</b><small>{String(event.detail || '')}</small></span><em>{String(event.created_at || '')}</em></div>)}</div>{message && <p>{message}</p>}</section>
+}
+
+function SettingsPanel({ profile, setProfile, profileId }: { profile: OperatorProfile; setProfile: (value: OperatorProfile) => void; profileId: string }) {
+  const [draft, setDraft] = useState(profile)
+  const [message, setMessage] = useState('')
+  const [passwordMessage, setPasswordMessage] = useState('')
+  const [sessions, setSessions] = useState<Array<Record<string, unknown>>>([])
+  useEffect(() => { if (sessionStorage.getItem('xibalba-cortex.account')) accountSessions().then(result => setSessions(result.sessions || [])).catch(() => setSessions([])) }, [])
+  const update = (key: keyof OperatorProfile, value: string | boolean) => setDraft(current => ({ ...current, [key]: value }))
+  const chooseAvatar = (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    if (!file) return
+    if (!file.type.startsWith('image/')) { setMessage('Choose an image file.'); return }
+    if (file.size > 2_000_000) { setMessage('Profile image must be smaller than 2 MB.'); return }
+    const reader = new FileReader()
+    reader.onload = () => update('avatar', String(reader.result || ''))
+    reader.readAsDataURL(file)
+  }
+  const submit = (event: FormEvent<HTMLFormElement>) => { event.preventDefault(); saveOperatorProfile(draft); setProfile(draft); setMessage('Profile settings saved in this browser.') }
+  const changePassword = async (event: FormEvent<HTMLFormElement>) => { event.preventDefault(); const form = new FormData(event.currentTarget); setPasswordMessage('Updating…'); try { await accountChangePassword(String(form.get('currentPassword') || ''), String(form.get('newPassword') || '')); event.currentTarget.reset(); setPasswordMessage('Password updated.'); } catch (error) { setPasswordMessage(error instanceof Error ? error.message : String(error)) } }
+  return <section className="settings-page"><header><p className="cortex-kicker">OPERATOR SETTINGS</p><h2>Profile & workspace</h2><p>Server identity comes from the authenticated Cortex account. Browser-only preferences remain local to this tab and device.</p></header><div className="settings-layout"><form className="settings-card" onSubmit={submit}><div className="avatar-editor"><ProfileAvatar profile={draft}/><div><b>Profile picture</b><p>PNG, JPEG, GIF, or WebP. Stored only in this browser.</p><label className="upload-button">Choose image<input type="file" accept="image/png,image/jpeg,image/gif,image/webp" onChange={chooseAvatar}/></label>{draft.avatar&&<button type="button" className="remove-avatar" onClick={()=>update('avatar','')}>Remove</button>}</div></div><div className="settings-fields"><label>Display name<input value={draft.displayName} onChange={e=>update('displayName',e.target.value)} required/></label><label>Email address<input type="email" value={draft.email} readOnly placeholder="operator@example.com"/><small>Managed by the authenticated Cortex account.</small></label><label>Role<select value={draft.role} onChange={e=>update('role',e.target.value)}><option>Operator</option><option>Administrator</option><option>Auditor</option><option>Developer</option></select></label><label className="toggle-setting"><span><b>Compact workspace</b><small>Reduce spacing in operational views.</small></span><input type="checkbox" checked={draft.compactMode} onChange={e=>update('compactMode',e.target.checked)}/></label></div><div className="settings-actions"><button type="submit">Save changes</button>{message&&<span>{message}</span>}</div></form><aside className="settings-card session-details"><h3>Authenticated session</h3><dl><dt>Cortex profile</dt><dd>{profileId || 'default'}</dd><dt>API endpoint</dt><dd><code>{getApiBaseUrl()}</code></dd><dt>Authorization</dt><dd>{sessionStorage.getItem('xibalba-cortex.account') ? 'Account session' : 'Bearer token'}</dd><dt>Session expires</dt><dd>{(() => { try { return JSON.parse(sessionStorage.getItem('xibalba-cortex.account') || '{}').session_expires_at || 'Until revoked' } catch { return 'Until revoked' } })()}</dd><dt>Active sessions</dt><dd>{sessions.filter(session => !session.revoked_at).length || '—'}</dd><dt>Token storage</dt><dd>Current browser tab</dd></dl><p>The operator name and image are presentation preferences. They do not change server authorization, token scopes, or provenance attribution.</p>{sessionStorage.getItem('xibalba-cortex.account')&&<form className="password-form" onSubmit={changePassword}><h3>Change password</h3><label>Current password<input name="currentPassword" type="password" required/></label><label>New password<input name="newPassword" type="password" minLength={10} required/></label><button type="submit">Update password</button>{passwordMessage&&<span>{passwordMessage}</span>}</form>}<button onClick={()=>{setApiToken('');window.location.reload()}}>Sign out of Cortex</button></aside></div></section>
 }
 
 function AuthenticatedApp() {
@@ -779,7 +864,7 @@ function AuthenticatedApp() {
   const [searchError, setSearchError] = useState<string | null>(null)
   const [selectedMemoryId, setSelectedMemoryId] = useState<string | null>(null)
   const [selectedGraphNode, setSelectedGraphNode] = useState<DemoNode | null>(null)
-  const [activeTab, setActiveTab] = useState<Tab>('graph')
+  const [activeTab, setActiveTab] = useState<Tab>('overview')
   const [contextBundle, setContextBundle] = useState<Memory[]>([])
   const [manifest, setManifest] = useState<InferenceManifest | null>(null)
   const [tasks, setTasks] = useState<InferenceTask[]>([])
@@ -790,8 +875,12 @@ function AuthenticatedApp() {
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
   const [isNavOpen, setIsNavOpen] = useState(false)
+  const [operatorProfile, setOperatorProfile] = useState<OperatorProfile>(loadOperatorProfile)
+  const [lastRefreshed, setLastRefreshed] = useState<Date | null>(null)
+  const [refreshing, setRefreshing] = useState(false)
 
   const refreshOverview = () => {
+    setRefreshing(true)
     api.stats().then(setStats).catch((e) => setError(String(e)))
     api.status().then(setStoreStatus).catch((e) => setError(String(e)))
     api.operations().then(setOperations).catch((e) => setError(String(e)))
@@ -801,9 +890,22 @@ function AuthenticatedApp() {
       setSelectedSessionId((current) => current || items[0]?.external_session_id || '')
     }).catch((e) => setError(String(e)))
     api.graph(GRAPH_RENDER_LIMIT, similarityThreshold).then(setGraph).catch((e) => setError(String(e)))
+    setLastRefreshed(new Date())
+    window.setTimeout(() => setRefreshing(false), 350)
   }
 
   useEffect(() => {
+    const accountSession = sessionStorage.getItem('xibalba-cortex.account')
+    if (accountSession) {
+      accountMe().catch((authError) => {
+        const message = String(authError)
+        if (/401|invalid|expired|unauthorized/i.test(message)) {
+          sessionStorage.setItem('xibalba-cortex.auth-notice', 'Session expired. Sign in again to reconnect to this Cortex profile.')
+          setApiToken('')
+          window.location.reload()
+        }
+      })
+    }
     refreshOverview()
     api.inferenceManifest().then(setManifest).catch(() => setManifest(null))
   }, [])
@@ -817,6 +919,7 @@ function AuthenticatedApp() {
 
   useEffect(() => {
     api.graph(GRAPH_RENDER_LIMIT, similarityThreshold).then(setGraph).catch((e) => setError(String(e)))
+    setLastRefreshed(new Date())
   }, [similarityThreshold])
 
   useEffect(() => {
@@ -1055,7 +1158,7 @@ function AuthenticatedApp() {
   }
 
   return (
-    <div className="app">
+    <div className={operatorProfile.compactMode ? "app compact-mode" : "app"}>
       <header className="topbar">
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
           <button className="menu-button" onClick={() => setIsNavOpen((open) => !open)} type="button" style={{ background: 'none', border: 'none', color: 'inherit', fontSize: '1.4rem', cursor: 'pointer', padding: '4px 8px' }}>☰</button>
@@ -1070,6 +1173,8 @@ function AuthenticatedApp() {
             {stats.sessions} sessions · {stats.embedded_memories} embedded
           </span>
         )}
+        <button className="session-button refresh-button" onClick={refreshOverview} disabled={refreshing} type="button">{refreshing ? 'Refreshing…' : 'Refresh'}</button>
+        {lastRefreshed && <span className={`last-refreshed ${Date.now() - lastRefreshed.getTime() > 60000 ? 'stale' : ''}`}>Updated {lastRefreshed.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}{Date.now() - lastRefreshed.getTime() > 60000 ? ' · stale' : ''}</span>}
         <div className="health-strip" title={storeStatus?.db_path ?? 'No store path loaded'}>
           <Badge>{storeStatus?.integrity_check ?? 'unknown'}</Badge>
           <Badge>{storeStatus ? `schema ${storeStatus.schema_version}` : 'schema unknown'}</Badge>
@@ -1077,6 +1182,8 @@ function AuthenticatedApp() {
           <Badge>{storeStatus?.backup_ready ? 'backup ready' : 'backup pending'}</Badge>
           <Badge>{root?.valid ? 'root valid' : 'root unverified'}</Badge>
         </div>
+        <button className="profile-menu-button" onClick={() => setActiveTab('settings')} title="Open profile settings" type="button"><ProfileAvatar profile={operatorProfile}/><span><b>{operatorProfile.displayName}</b><small>{operatorProfile.role}</small></span></button>
+        <button className="session-button" onClick={() => { setApiToken(''); window.location.reload() }} type="button">Sign out</button>
       </header>
 
       {error && (
@@ -1148,6 +1255,7 @@ function AuthenticatedApp() {
         </nav>
 
         <main className="workspace">
+          {activeTab === 'overview' && <CortexOverview stats={stats} status={storeStatus} operations={operations} sessions={sessions} onOpen={setActiveTab}/>}
           {activeTab === 'timeline' && (
             <TimelineTab
               exchanges={exchanges}
@@ -1244,6 +1352,7 @@ function AuthenticatedApp() {
           {activeTab === 'operations' && (
             <OperationsTab operations={operations} onRefresh={() => api.operations().then(setOperations).catch((e) => setError(String(e)))} />
           )}
+          {activeTab === 'settings' && <><SettingsPanel profile={operatorProfile} setProfile={setOperatorProfile} profileId={operations?.profile_id ?? 'default'}/><SessionSecurityPanel/></>}
           {activeTab === 'integrity' && (
             <IntegrityTab
               root={root}

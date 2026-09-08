@@ -6,12 +6,24 @@
 // transport uses -- see auth_middleware.py / ingest_tokens.py). The operator enters it at
 // runtime; it is kept only in this tab's sessionStorage, never embedded in the Vite bundle.
 
-const BASE_URL = import.meta.env.VITE_LOCAL_API_URL ?? 'http://localhost:8420'
+const DEFAULT_BASE_URL = import.meta.env.VITE_LOCAL_API_URL ?? 'http://localhost:8420'
 const TOKEN_STORAGE_KEY = 'xibalba-cortex.local-api-token'
+const URL_STORAGE_KEY = 'xibalba-cortex.local-api-url'
 let apiToken = sessionStorage.getItem(TOKEN_STORAGE_KEY) ?? ''
+let apiBaseUrl = sessionStorage.getItem(URL_STORAGE_KEY) ?? DEFAULT_BASE_URL
 
 export function getApiToken(): string {
   return apiToken
+}
+
+export function getApiBaseUrl(): string {
+  return apiBaseUrl
+}
+
+export function setApiBaseUrl(value: string): void {
+  const normalized = value.trim().replace(/\/+$/, '') || DEFAULT_BASE_URL
+  apiBaseUrl = normalized
+  sessionStorage.setItem(URL_STORAGE_KEY, normalized)
 }
 
 export function setApiToken(token: string): void {
@@ -22,6 +34,53 @@ export function setApiToken(token: string): void {
 
 export function authHeaders(): Record<string, string> {
   return apiToken ? { Authorization: `Bearer ${apiToken}` } : {}
+}
+
+export async function accountAuth(path: "signup" | "login", input: Record<string, string>): Promise<{token: string; account: Record<string, unknown>}> {
+  const response = await fetch(getApiBaseUrl() + "/api/auth/" + path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(input) })
+  const payload = await response.json().catch(() => ({}))
+  if (!response.ok) throw new Error(payload.error || response.status + " " + response.statusText)
+  setApiToken(String(payload.token || ""))
+  return payload
+}
+
+export async function accountMe(): Promise<{account: Record<string, unknown>; session_expires_at?: string | null}> {
+  const response = await fetch(getApiBaseUrl() + "/api/auth/me", { headers: authHeaders() })
+  const payload = await response.json().catch(() => ({}))
+  if (!response.ok) throw new Error(payload.error || response.status + " " + response.statusText)
+  return payload
+}
+
+export async function accountSessions(): Promise<{sessions: Array<Record<string, unknown>>}> {
+  const response = await fetch(getApiBaseUrl() + "/api/auth/sessions", { headers: authHeaders() })
+  const payload = await response.json().catch(() => ({}))
+  if (!response.ok) throw new Error(payload.error || response.status + " " + response.statusText)
+  return payload
+}
+
+export async function accountRevokeSession(sessionId: string): Promise<void> {
+  const response = await fetch(getApiBaseUrl() + "/api/auth/sessions/revoke", { method: "POST", headers: { "Content-Type": "application/json", ...authHeaders() }, body: JSON.stringify({ session_id: sessionId }) })
+  const payload = await response.json().catch(() => ({}))
+  if (!response.ok) throw new Error(payload.error || response.status + " " + response.statusText)
+}
+
+export async function accountEvents(): Promise<{events: Array<Record<string, unknown>>}> {
+  const response = await fetch(getApiBaseUrl() + "/api/auth/events", { headers: authHeaders() })
+  const payload = await response.json().catch(() => ({}))
+  if (!response.ok) throw new Error(payload.error || response.status + " " + response.statusText)
+  return payload
+}
+
+export async function accountLogout(): Promise<void> {
+  if (!apiToken) return
+  await fetch(getApiBaseUrl() + "/api/auth/logout", { method: "POST", headers: authHeaders() })
+  setApiToken("")
+}
+
+export async function accountChangePassword(currentPassword: string, newPassword: string): Promise<void> {
+  const response = await fetch(getApiBaseUrl() + "/api/auth/password", { method: "POST", headers: { "Content-Type": "application/json", ...authHeaders() }, body: JSON.stringify({ current_password: currentPassword, new_password: newPassword }) })
+  const payload = await response.json().catch(() => ({}))
+  if (!response.ok) throw new Error(payload.error || response.status + " " + response.statusText)
 }
 
 export interface GraphNode {
@@ -420,7 +479,7 @@ export interface OperationsSnapshot {
 }
 
 async function getJson<T>(path: string): Promise<T> {
-  const response = await fetch(`${BASE_URL}${path}`, { headers: authHeaders() })
+  const response = await fetch(`${getApiBaseUrl()}${path}`, { headers: authHeaders() })
   if (!response.ok) {
     const body = await response.json().catch(() => ({ error: response.statusText }))
     throw new Error(body.error ?? `request failed: ${response.status}`)
@@ -429,7 +488,7 @@ async function getJson<T>(path: string): Promise<T> {
 }
 
 async function postJson<T>(path: string, payload: Record<string, unknown>): Promise<T> {
-  const response = await fetch(`${BASE_URL}${path}`, {
+  const response = await fetch(`${getApiBaseUrl()}${path}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...authHeaders() },
     body: JSON.stringify(payload),
@@ -442,7 +501,7 @@ async function postJson<T>(path: string, payload: Record<string, unknown>): Prom
 }
 
 async function getBlob(path: string): Promise<Blob> {
-  const response = await fetch(`${BASE_URL}${path}`, { headers: authHeaders() })
+  const response = await fetch(`${getApiBaseUrl()}${path}`, { headers: authHeaders() })
   if (!response.ok) throw new Error(`request failed: ${response.status}`)
   return response.blob()
 }

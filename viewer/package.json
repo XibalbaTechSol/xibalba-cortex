@@ -7,7 +7,8 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "oxlint",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test:ui": "node e2e/ui-auth-smoke.mjs"
   },
   "dependencies": {
     "@types/three": "^0.185.4",

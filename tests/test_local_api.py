@@ -547,3 +547,64 @@ def test_inference_task_route_rejects_invalid_type(running_store):
     )
     assert status == 400
     assert "task_type" in body["error"]
+
+def test_account_signup_me_and_logout(running_store):
+    store, port = running_store
+    global _CURRENT_TOKEN
+    status, signup = _post(port, "/api/auth/signup", {"email": "operator@example.com", "password": "correct horse battery staple", "display_name": "Account Operator"})
+    assert status == 201
+    assert signup["account"]["email"] == "operator@example.com"
+    _CURRENT_TOKEN = signup["token"]
+    status, me = _get(port, "/api/auth/me")
+    assert status == 200 and me["account"]["email"] == "operator@example.com" and me["session_expires_at"]
+    status, audit = _get(port, "/api/auth/events")
+    assert status == 200 and any(event["event_type"] == "login_succeeded" for event in audit["events"])
+    status, second = _post(port, "/api/auth/login", {"email": "operator@example.com", "password": "correct horse battery staple"})
+    assert status == 200
+    status, sessions = _get(port, "/api/auth/sessions")
+    assert status == 200 and len(sessions["sessions"]) >= 2
+    status, revoked = _post(port, "/api/auth/sessions/revoke", {"session_id": second["token"] and next(item["id"] for item in sessions["sessions"] if item["revoked_at"] is None and item["id"] != sessions["sessions"][0]["id"])})
+    assert status == 200 and revoked["ok"] is True
+    status, changed = _post(port, "/api/auth/password", {"current_password": "correct horse battery staple", "new_password": "new correct horse battery"})
+    assert status == 200 and changed["ok"] is True
+    status, reset = _post(port, "/api/auth/password-reset/request", {"email": "operator@example.com"})
+    assert status == 200 and reset["reset_token"]
+    status, confirmed = _post(port, "/api/auth/password-reset/confirm", {"reset_token": reset["reset_token"], "new_password": "reset correct horse battery"})
+    assert status == 200 and confirmed["ok"] is True
+    status, login = _post(port, "/api/auth/login", {"email": "operator@example.com", "password": "reset correct horse battery"})
+    assert status == 200
+    _CURRENT_TOKEN = login["token"]
+    status, logged_out = _post(port, "/api/auth/logout", {})
+    assert status == 200 and logged_out["ok"] is True
+    status, _ = _get(port, "/api/auth/me")
+    assert status == 401
+
+def test_account_auth_rate_limits_repeated_attempts(running_store):
+    store, port = running_store
+    global _CURRENT_TOKEN
+    statuses = []
+    for _ in range(9):
+        status, _ = _post(port, "/api/auth/login", {"email": "rate@example.com", "password": "wrong password"})
+        statuses.append(status)
+    assert statuses[-1] == 429
+
+def test_account_failed_logins_lock_account_and_record_audit(running_store):
+    store, _port = running_store
+    from xibalba_cortex.accounts import create_account, issue_account_session
+    create_account(store.home, email="lock@example.com", password="correct horse battery staple", display_name="Lock User", profile_id=store.profile_id)
+    for _ in range(5):
+        try:
+            issue_account_session(store.home, email="lock@example.com", password="wrong password")
+        except ValueError:
+            pass
+    try:
+        issue_account_session(store.home, email="lock@example.com", password="correct horse battery staple")
+    except ValueError as exc:
+        assert "temporarily locked" in str(exc)
+    else:
+        raise AssertionError("locked account accepted a password")
+    rows = store.home.joinpath("ingest_tokens.sqlite3")
+    import sqlite3
+    with sqlite3.connect(rows) as conn:
+        events = conn.execute("SELECT event_type, detail FROM auth_events WHERE email=? ORDER BY id", ("lock@example.com",)).fetchall()
+    assert events[-1][0] == "login_blocked"
