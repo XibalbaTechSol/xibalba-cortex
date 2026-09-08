@@ -1587,3 +1587,81 @@ dl.graph-reference.compact dd {
 .last-refreshed{font-size:.72rem;color:#798493;white-space:nowrap}.overview-empty{padding:22px;border:1px dashed #31483e;background:#0d1712;border-radius:12px;margin-top:16px}.overview-empty h3{margin:0 0 6px}.overview-empty p{color:#8b978f}.overview-empty button{color:#9ce6d0;background:transparent;padding:0}
 .overview-filters{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin:0 0 14px;padding:12px;border:1px solid var(--border);border-radius:9px;background:rgba(0,0,0,.14)}.overview-filters label{display:flex;flex-direction:column;gap:5px;color:var(--text-muted);font-size:10px}.overview-filters input,.overview-filters select{padding:8px;border:1px solid var(--border);border-radius:6px;background:var(--surface);color:var(--text);font-size:11px}.overview-links{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0}.overview-links button{padding:8px 11px;border:1px solid var(--border);background:var(--surface);color:var(--text-muted)}@media(max-width:700px){.overview-filters{grid-template-columns:1fr 1fr}}@media(max-width:420px){.overview-filters{grid-template-columns:1fr}}
 .last-refreshed.stale{color:#e8ae68}.refresh-button:disabled{opacity:.6;cursor:wait}
+
+.timeline-newsfeed {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 16px 0;
+}
+.timeline-card {
+  background: #111111;
+  border: 1px solid #333;
+  border-radius: 8px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  transition: border-color 0.2s ease;
+}
+.timeline-card:hover {
+  border-color: #555;
+}
+.timeline-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 13px;
+  color: #888;
+}
+.timeline-card-role {
+  font-weight: 600;
+  color: #fff;
+  text-transform: capitalize;
+}
+.timeline-card-status {
+  font-size: 11px;
+  padding: 2px 6px;
+  border-radius: 12px;
+  background: #222;
+  border: 1px solid #444;
+}
+.timeline-card-status.archived {
+  color: #e6b300;
+  border-color: #665000;
+  background: #1a1400;
+}
+.timeline-card-content {
+  font-size: 15px;
+  line-height: 1.5;
+  color: #ccc;
+}
+.timeline-card-raw {
+  margin-top: 8px;
+  padding: 12px;
+  background: #000;
+  border-radius: 6px;
+  font-family: monospace;
+  font-size: 12px;
+  color: #888;
+  white-space: pre-wrap;
+  overflow-x: auto;
+}
+.timeline-card-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+.timeline-card-actions button {
+  background: transparent;
+  border: 1px solid #333;
+  color: #888;
+  font-size: 12px;
+  padding: 4px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+.timeline-card-actions button:hover {
+  background: #222;
+  color: #ccc;
+}

@@ -219,6 +219,22 @@ authoritative gate definitions and evidence boundaries.
 
 ### Context continuity after a reboot
 
+### Local accounts, password reset, and CORS
+
+The local API includes profile-scoped account signup/login, session revocation,
+password change, and password-reset endpoints used by the viewer. Password-reset
+requests currently return the raw token in the JSON response with
+`delivery: local_only`. The in-progress SMTP helper also makes a best-effort send to
+`SMTP_HOST`/`SMTP_PORT` (defaults `127.0.0.1:1025`) from
+`noreply@xibalba.local`, but delivery failures are swallowed. This is development
+behavior, not production account recovery: do not expose it publicly or claim that
+email delivery succeeded.
+
+The local API's CORS origin defaults from `CORTEX_ALLOWED_ORIGIN`, falling back to
+`*`; `--allowed-origin` overrides it. Set one exact viewer origin for any deployment.
+The container no longer bakes in a localhost origin, so production operators must
+provide `CORTEX_ALLOWED_ORIGIN` explicitly.
+
 Chat history is not the project control plane. The single active execution ledger is
 [`docs/PROJECT_STATE.md`](docs/PROJECT_STATE.md); do not create parallel plans. After
 the computer restarts, run:
@@ -255,7 +271,7 @@ currently work. Fixing this means either publishing `integrity-sdk` as its own i
 package, vendoring the (small) subset this repo actually uses, or pinning a git dependency —
 not yet decided; until then, clone both repos as siblings.
 
-> The current feature branch contains reviewed work beyond the default branch — see `spec/xibalba-cortex-v1.md` for the normative contract and `docs/archive/2026-08/2026-08-13-hybrid-extraction-handoff.md` for the dated implementation handoff. Historical records remain evidence of their recorded revisions only; branch status and verification must be checked against the current commit and test run.
+> The reviewed hybrid extraction, retrieval, and operator surfaces are now on `main`; see `spec/xibalba-cortex-v1.md` for the normative contract. Historical handoffs remain evidence of their recorded revisions only, and current behavior must still be checked against the live commit and test run.
 
 ## MCP Operations
 
@@ -374,7 +390,7 @@ Cortex works standalone as a generic MCP memory server with any MCP-speaking age
 | `xibalba-shield` | 🛡️ The Immune System | Endpoint enforcement, kernel sensing, policy gating, semantic guardrails |
 | `integrity-core` | 🦴 The Backbone + 👁️ Control Center | On-chain identity, BCC, Oracle scoring, smart contracts, plus the operator dashboard |
 
-`integrity-core`'s [Whitepaper v3.2 §3.2.4](../integrity-core/spec/integrity-protocol-v3.2.md)
+`integrity-core`'s [current explanatory whitepaper](../integrity-core/docs/WHITEPAPER.md)
 names `xibalba-cortex` explicitly as **the reference implementation** of the protocol's memory
 primitive — a hash-chained, domain-separated memory store exposing verification
 (`memory_verify_chain`), per-session roots (`memory_session_merkle_root`), and anchoring to
@@ -385,7 +401,7 @@ to — v3.2 revised the spec to match the real, working construction instead.
 
 ```mermaid
 flowchart LR
-    Agent["🤖 Agent"] <-->|"MCP tools<br/>(60 operations)"| Brain["🧠 xibalba-cortex<br/>(This repo)"]
+    Agent["🤖 Agent"] <-->|"MCP tools<br/>(79 operations)"| Brain["🧠 xibalba-cortex<br/>(This repo)"]
     Brain -->|"Session Merkle roots<br/>(XIBALBA_ANCHOR_URL)"| Backbone["🦴 integrity-core<br/>(BCC → StateAnchor)"]
     Brain -.->|"Local API"| Eyes["👁️ integrity-core/integrity-dashboard<br/>(Memory page)"]
     Immune["🛡️ xibalba-shield"] -->|"Signed telemetry"| Backbone

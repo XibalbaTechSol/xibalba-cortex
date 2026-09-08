@@ -19,7 +19,7 @@ source_files:
 
 # Hybrid Local-First Providers
 
-The current feature branch adds an additive provider boundary to Xibalba Cortex. SQLite remains the canonical evidence store. The default deployment is local: a native agent harness performs language-model inference through the queue, while a short-lived local worker produces versioned embeddings. Hybrid mode can add rebuildable remote projections or explicitly configured fallbacks without making those systems authoritative.
+The current implementation provides an additive provider boundary for Xibalba Cortex. SQLite remains the canonical evidence store. The default deployment is local: a native agent harness performs language-model inference through the queue, while a short-lived local worker produces versioned embeddings. Hybrid mode can add rebuildable remote projections or explicitly configured fallbacks without making those systems authoritative.
 
 ## Table of contents
 
@@ -64,7 +64,7 @@ The current default model is `BAAI/bge-small-en-v1.5` with 384 dimensions. A fut
 - Implemented and tested: PARA worker routing through the native-harness provider boundary.
 - Implemented and tested: bounded local embedding worker and vector validation.
 - Planned: full task-schema registry, richer extraction task families, and model registry. Hybrid retrieval fusion, projection reconciliation, and retrieval/projection Merkle inclusion-proof APIs are implemented vertical slices; broader remote-provider coverage and production operations remain separate work.
-- Status boundary: this page documents the current feature branch, not a default-branch or production-certified capability.
+- Status boundary: this page documents current main behavior supported by local evidence, not a deployed or production-certified capability.
 
 ## Related pages
 

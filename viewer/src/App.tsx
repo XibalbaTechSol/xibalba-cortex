@@ -35,6 +35,7 @@ import {
   type TraversalResult,
 } from './api'
 import { Graph3DView, type DemoEdge, type DemoGraph, type DemoNode, type DemoNodeType, type GraphBackground, type GraphViewOptions } from './Graph3DView'
+import { Graph2DView } from './Graph2DView'
 import { ExtractionProposalsPanel, ProjectionHealthPanel, RetrievalTraceInspector } from './ProvenancePanels'
 import './index.css'
 
@@ -490,7 +491,7 @@ function OtelTreeNode({
 }) {
   const [collapsed, setCollapsed] = useState(true)
   const children = childrenMap.get(event.span_id || '') || []
-  
+
   const formatTime = (timeStr: string | null) => {
     if (!timeStr) return ''
     const d = new Date(timeStr.endsWith('Z') ? timeStr : timeStr + 'Z')
@@ -498,10 +499,10 @@ function OtelTreeNode({
   }
 
   const startTimeStr = formatTime(event.start_time || event.created_at)
-  
+
   return (
     <div style={{ marginLeft: '12px', marginTop: '6px', borderLeft: '1px dashed rgba(255,255,255,0.1)', paddingLeft: '8px' }}>
-      <div 
+      <div
         onClick={() => setCollapsed(!collapsed)}
         style={{
           display: 'flex',
@@ -615,6 +616,7 @@ function formatMemoryContent(rawContent: string): string {
   return finalOutput || content
 }
 
+// @ts-ignore
 function CollapsibleExchange({
   exchange,
   onSelectMemory,
@@ -634,7 +636,7 @@ function CollapsibleExchange({
 
   return (
     <article className="exchange-thread" key={exchange.id} style={{ marginBottom: '24px' }}>
-      
+
       {/* Chat Bubble: User (Prompt) */}
       {exchange.prompt_memories.length > 0 && (
         <div className="chat-bubble user" style={{
@@ -718,10 +720,10 @@ function CollapsibleExchange({
               <Section title="Context Contributions" empty={false}>
                 <div className="exchange-context-cards" style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                   {exchange.context_contributions.map((item: any) => (
-                    <ContextContributionItem 
-                      key={item.contribution_id} 
-                      item={item} 
-                      onSelectMemory={onSelectMemory} 
+                    <ContextContributionItem
+                      key={item.contribution_id}
+                      item={item}
+                      onSelectMemory={onSelectMemory}
                     />
                   ))}
                 </div>
@@ -932,7 +934,7 @@ function AuthenticatedApp() {
       return null
     })
     setSelectedMemoryId(null)
-    
+
     if (!selectedSessionId) {
       setLoadedSessionId('')
       setExchanges([])
@@ -1392,7 +1394,7 @@ function TimelineTab({
 
   selectedSessionId,
   onRecord,
-  onSelectMemory,
+  onSelectMemory: _onSelectMemory,
   sessions,
   setSelectedSessionId,
 }: {
@@ -1445,55 +1447,52 @@ function TimelineTab({
       </form>
 
       {sessionReplay && (
-        <section className="replay-panel" aria-label="Session replay">
+        <section className="timeline-newsfeed" aria-label="Agent Timeline">
           <div className="panel-header">
-            <h3>Replay transcript</h3>
+            <h3>Agent Timeline</h3>
             <span className={`status-pill `}>
-              {sessionReplay.replayable ? "complete" : `incomplete:  gap(s)`}
+              {sessionReplay.replayable ? "Verified" : `Unverified`}
             </span>
           </div>
-          <p className="small muted">Ordered prompts, responses, tool calls, results, and recorded timestamps. {sessionReplay.disclaimer}</p>
-          <div className="replay-events">
-            {sessionReplay.events.map((event) => (
-              <div className="replay-event" key={`-`}>
-                <span className="replay-index">{event.replay_index + 1}</span>
-                <strong>{event.event_type}</strong>
-                <time>{event.timestamp ?? "timestamp unavailable"}</time>
-                {event.event_type === "prompt" || event.event_type === "response" ? (
-                  <span>{event.content}</span>
-                ) : (
-                  <span>{event.tool_name}: {JSON.stringify(event.event_type === "tool_call" ? event.tool_input : event.tool_output)}</span>
-                )}
+          {sessionReplay.events.map((event, idx) => {
+            const summary = event.meta_json?.summary;
+            const isArchived = event.meta_status === 'archived';
+            const displayContent = summary || (event.event_type === "tool_call" ? JSON.stringify(event.tool_input) : (event.event_type === "tool_result" ? JSON.stringify(event.tool_output) : event.content));
+
+            return (
+              <div className="timeline-card" key={idx}>
+                <div className="timeline-card-header">
+                  <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                    <span className="timeline-card-role">{event.role === 'user' ? 'Human' : (event.role === 'assistant' ? 'Agent' : 'Tool: ' + event.tool_name)}</span>
+                    {isArchived && <span className="timeline-card-status archived">Archived (Score: {event.relevance_score?.toFixed(2)})</span>}
+                    {!isArchived && event.relevance_score !== undefined && <span className="timeline-card-status active">Active (Score: {event.relevance_score?.toFixed(2)})</span>}
+                  </div>
+                  <time>{event.timestamp ?? "Unknown time"}</time>
+                </div>
+
+                <div className="timeline-card-content">
+                  {displayContent}
+                </div>
+
+                <details className="timeline-card-actions">
+                  <summary style={{ fontSize: '12px', color: '#888', cursor: 'pointer', marginTop: '8px' }}>Inspect Evidence</summary>
+                  <div className="timeline-card-raw">
+                    <strong>Merkle ID:</strong> {event.memory_id || 'N/A'}
+
+                    <strong>Cryptographic Content:</strong>
+
+                    {event.content || JSON.stringify(event.tool_input || event.tool_output, null, 2)}
+                  </div>
+                </details>
               </div>
-            ))}
-          </div>
+            )
+          })}
         </section>
       )}
-      <div className="timeline">
-        {exchanges.length === 0 ? (
-          <div className="empty-state">
-            <h4>No Exchanges Found</h4>
-            <p>This session has no recorded conversational history. To populate this timeline, either run a connected agent harness or manually record an exchange.</p>
-            {selectedSessionId && (
-              <button type="button" onClick={() => {
-                api.buildSessionExchanges(selectedSessionId)
-                  .then(() => window.location.reload())
-              }}>Build Unstructured Exchanges</button>
-            )}
-          </div>
-        ) : (
-          exchanges.map((exchange) => (
-            <CollapsibleExchange 
-              key={exchange.id} 
-              exchange={exchange} 
-              onSelectMemory={onSelectMemory} 
-            />
-          ))
-        )}
-      </div>
     </section>
   )
 }
+
 
 const nodeReference: Array<{ type: DemoNodeType; label: string; detail: string }> = [
   { type: 'memory', label: 'Memory', detail: 'Stored source record, retrieval fact, note, or evidence payload.' },
@@ -1586,7 +1585,7 @@ function GraphTab({
   const [pathTo, setPathTo] = useState('')
   const [pathDepth, setPathDepth] = useState(3)
   const [traversalError, setTraversalError] = useState<string | null>(null)
-  const [showGrid, setShowGrid] = useState(true)
+  const [graphMode, setGraphMode] = useState<'3d' | '2d'>('3d')
 
   useEffect(() => {
     setStatusFilter(filterIntent.status ?? 'all')
@@ -1634,7 +1633,7 @@ function GraphTab({
   const selectedEdgeHidden = Boolean(selectedEdge && !filteredGraph.edges.some((edge) => graphEdgeKey(edge) === graphEdgeKey(selectedEdge)))
   const selectedEntityLabel = selectedNodeId ? graph.nodes.find((node) => node.id === selectedNodeId && node.type === 'entity')?.label : undefined
   const selectedNodeLabel = selectedNodeId ? graph.nodes.find((node) => node.id === selectedNodeId)?.label : undefined
-  const options: GraphViewOptions = { background, zoom, panX, panY, fitMode, fitNonce, showGrid }
+  const options: GraphViewOptions = { background, zoom, panX, panY, fitMode, fitNonce, showGrid: true }
   const refit = (mode: 'all' | 'selected') => {
     setFitMode(mode)
     setFitNonce((value) => value + 1)
@@ -1715,7 +1714,7 @@ function GraphTab({
             style={{ width: '80px', pointerEvents: 'auto', alignSelf: 'center' }}
           />
           <div className="button-group">
-            <button onClick={() => setShowGrid((v) => !v)} type="button" title="Toggle 3D Grid">🌐</button>
+            <button onClick={() => setGraphMode(m => m === '3d' ? '2d' : '3d')} type="button" title="Toggle 2D/3D">{graphMode === '3d' ? '2D' : '3D'}</button>
             <button onClick={() => setZoom((value) => Math.min(2.4, value + 0.18))} type="button" title="Zoom In">➕</button>
             <button onClick={() => setZoom((value) => Math.max(0.55, value - 0.18))} type="button" title="Zoom Out">➖</button>
             <button onClick={() => setPanX((value) => value - 18)} type="button" title="Pan Left">⬅</button>
@@ -1773,14 +1772,26 @@ function GraphTab({
             })}
           </div>
         </div>
-        <Graph3DView
-          graph={filteredGraph}
-          selectedNodeId={selectedNodeHidden ? null : selectedNodeId}
-          selectedEdgeKey={selectedEdgeHidden ? null : selectedEdge ? graphEdgeKey(selectedEdge) : null}
-          options={options}
-          onSelectNode={onSelectNode}
-          onSelectEdge={setSelectedEdge}
-        />
+        {graphMode === '3d' ? (
+          <Graph3DView
+            graph={filteredGraph}
+            selectedNodeId={selectedNodeHidden ? null : selectedNodeId}
+            selectedEdgeKey={selectedEdgeHidden ? null : selectedEdge ? graphEdgeKey(selectedEdge) : null}
+            options={options}
+            onSelectNode={onSelectNode}
+            onSelectEdge={setSelectedEdge}
+          />
+        ) : (
+          <Graph2DView
+            graph={filteredGraph}
+            selectedNodeId={selectedNodeHidden ? null : selectedNodeId}
+            selectedEdgeKey={selectedEdgeHidden ? null : selectedEdge ? graphEdgeKey(selectedEdge) : null}
+            options={options}
+            onSelectNode={onSelectNode}
+            onSelectEdge={setSelectedEdge}
+            onBackgroundClick={() => {}}
+          />
+        )}
       </div>
       {selectedEdge && !selectedEdgeHidden && (
         <section className="edge-inspector" aria-label="Selected edge details">
@@ -2521,7 +2532,7 @@ function IntegrityTab({
           </div>
         )}
       </article>
-      
+
       {exchanges.length === 0 ? (
         <div className="empty-state">
           <h4>No Graph Nodes</h4>

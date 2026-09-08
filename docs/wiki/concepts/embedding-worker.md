@@ -15,9 +15,8 @@ source_files:
 
 # Embedding Worker
 
-The implementation described on this page exists on the current feature branch and has
-passed the cited tests. It is not a default-branch capability until the branch changes
-are reviewed and merged.
+The reviewed implementation described on this page exists on main and has passed the
+cited local tests. That is not hosted or production evidence.
 
 The embedding worker is a short-lived sidecar process that projects eligible memory content into the versioned vector index. The always-on Model Context Protocol server does not load the embedding model.
 

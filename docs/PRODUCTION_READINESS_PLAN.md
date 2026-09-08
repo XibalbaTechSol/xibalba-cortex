@@ -1,7 +1,7 @@
 # Xibalba Cortex Production-Readiness Plan
 
 **Status:** Active implementation baseline; profile-bound bearer authorization is locally implemented, no SaaS tenant lifecycle
-**Updated:** 2026-09-03
+**Updated:** 2026-09-08
 **Target:** Multi-tenant AI-memory SaaS built on the existing hash-chained MCP server
 
 ## 1. Executive decision
@@ -14,9 +14,9 @@ The current implementation is close to a pilot in several areas: the 79-tool MCP
 surface (server.py), hash-chained event storage with domain-separated Merkle roots
 (store.py), hybrid (lexical + vector + graph + temporal) retrieval with trace
 inspection, proposal-gated extraction, and five of seven ingestion connectors. It is not
-yet production-ready because multi-tenant authorization is unimplemented, the storage
-layer has no verified multi-tenant isolation or HA story, standalone installability is
-blocked on a dependency this repo does not control, and no adversarial or real-customer
+yet production-ready because authorization and tenant isolation are only locally verified,
+the storage layer has no HA/PITR story, standalone installability is blocked on a dependency
+this repo does not control, password recovery is development-only, and no real-customer
 evaluation has been run.
 
 Production readiness is an evidence threshold, not a code-complete claim. This plan
@@ -26,17 +26,16 @@ finalized (see §9).
 
 ## 2. Readiness levels
 
-### L0 — Research / pre-alpha (current baseline)
+### L0 — Research / pre-alpha (surpassed locally)
 
 - Local, single-operator MCP server (stdio or streamable-HTTP), SQLite storage,
   `~/.hermes/xibalba-cortex`, no containerization.
 - 79-tool MCP surface, frozen core schema/hash-chain/tool contract per
   `spec/xibalba-cortex-v1.md` (v1, frozen 2026-08-12).
 - Hybrid retrieval and proposal-gated extraction both real and tested.
-- `authorization_tenancy` reports **blocked** (0 active, unexpired bearer tokens issued) in the
-  live operator readiness gate. Profile binding, role/scope enforcement, revocation, expiry,
-  and rate limiting are implemented and locally tested; a real onboarding path and a second
-  isolated tenant store are not yet deployed.
+- Profile binding, role/scope enforcement, revocation, expiry, quotas, onboarding, and
+  adversarial two-profile isolation are implemented and locally tested. Real hosted pilot
+  deployment and external-tenant evidence remain open.
 - Not installable standalone: `pyproject.toml` pins `integrity-sdk` as a local path
   dependency on a sibling `integrity-core` checkout; `uv sync` fails outside that
   layout. This is an external dependency on `integrity-core`'s own production plan
@@ -275,9 +274,10 @@ holding under that load (Workstream G).
 
 ## 7. Immediate implementation sequence
 
-1. Close `authorization_tenancy: blocked` — local onboarding, bearer enforcement,
-   revocation, expiry, quota configuration, adversarial two-profile tests, and a local
-   issue/verify/rotate/revoke drill are complete; next deploy real pilot profiles.
+1. ~~Close the local authorization-tenancy implementation gap~~ — local onboarding, bearer
+   enforcement, revocation, expiry, quota configuration, adversarial two-profile tests, and
+   an issue/verify/rotate/revoke drill are complete. Next deploy real pilot profiles; local
+   completion is not hosted isolation evidence.
 2. Extend concurrency validation to sustained real inference workers. The 2026-09-04
    live-local drill passed with two profiles, four writer threads and four spawned inference
    processes per profile, 100 writes and 100 completed inference tasks per profile, clean SQLite
@@ -314,9 +314,9 @@ holding under that load (Workstream G).
 - Real pilot tenants and their actual traffic, required to close Gates 5 and 7 — no
   synthetic substitute closes these.
 
-Until these are supplied, the honest status is **local single-tenant server
-functionally complete; multi-tenant authorization primitives implemented, but tenant
-onboarding, deployed isolation, and real pilot evidence remain open**.
+Until these are supplied, the honest status is **local controlled-pilot foundation with
+multi-profile authorization/onboarding and isolation tests; hosted isolation, production
+account recovery, and real pilot evidence remain open**.
 
 ## 9. Definition of done for the first pilot
 

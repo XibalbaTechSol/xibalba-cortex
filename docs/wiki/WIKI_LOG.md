@@ -137,3 +137,20 @@
 - Added profile binding, case-insensitive bearer parsing, authenticated CORS preflights, indexed token-hash lookup, credential-derived decision attribution, and reader-scoped hybrid retrieval.
 - Removed build-time viewer credentials: the browser now accepts the token at runtime, retains it only in tab-scoped `sessionStorage`, and fetches attachment bytes through authenticated client methods.
 - Verification: focused authentication/local API suite passed; full `uv sync --extra drive && uv run pytest -q` exited 0 with one skip; viewer `npm run build && npm run lint` exited 0 with two warnings; wiki table-of-contents check and `git diff --check` passed. This is local and hosted-testable evidence, not Transport Layer Security, rate-limit, production-deployment, or external-access proof.
+
+## [2026-09-08] update | README, account recovery, CORS, and readiness boundaries
+
+- Reconciled `README.md`, `SPECIFICATION.md`, `docs/PRODUCTION_READINESS_PLAN.md`, and the
+  canonical wiki with the current source and test contract.
+- Corrected stale feature-branch language for reviewed capabilities already on `main`, the
+  protocol whitepaper link, and the MCP inventory from approximately 40 or 60 operations to the
+  current 79-tool advertised contract.
+- Documented the current account and password-reset boundary: the local API returns the raw reset
+  token with `delivery: local_only`; optional SMTP is best-effort with development defaults and
+  suppressed delivery failures. This is not a production recovery flow.
+- Documented `CORTEX_ALLOWED_ORIGIN`, its permissive fallback, the container's lack of an
+  injected safe origin, and the need for an exact deployment origin plus external TLS.
+- Reframed production readiness around what is locally verified versus still open: hosted
+  multi-profile isolation, durable recovery, dependency closure, deployment, and a real pilot.
+- Refreshed source-reviewed wiki dates and evidence wording. Current test and table-of-contents
+  results are recorded after validation below.

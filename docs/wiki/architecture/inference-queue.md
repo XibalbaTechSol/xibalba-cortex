@@ -19,9 +19,8 @@ source_files:
 
 # Inference Queue and Recovery
 
-The implementation described on this page exists on the current feature branch and has
-passed the cited tests. It is not a default-branch capability until the branch changes
-are reviewed and merged.
+The reviewed implementation described on this page exists on main and has passed the
+cited local tests. That is not hosted or production evidence.
 
 Inference work is stored in SQLite as durable, idempotent tasks. Claim metadata provides ownership checks and lease-based at-least-once processing for workers such as the PARA classifier.
 

@@ -2,7 +2,7 @@
 title: MCP Tool Surface
 acronyms: [MCP]
 created: 2026-08-12
-updated: 2026-08-12
+updated: 2026-09-08
 type: concept
 tags: [mcp, infrastructure]
 confidence: high
@@ -26,7 +26,7 @@ from the agent's own memory, never an instruction to follow.
 
 ## Tool groups
 
-The surface groups into (~40+ tools total):
+The server advertises 79 tools in the current contract inventory:
 
 - **Store/recall**: `memory_remember`, `memory_recall`, `memory_similar`, `memory_embed`,
   `memory_get`.

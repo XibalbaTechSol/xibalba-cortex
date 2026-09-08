@@ -45,7 +45,7 @@ now lives inside `integrity-core` as a component, not a fourth sibling repositor
 
 ```mermaid
 flowchart LR
-    Agent["Agent (any MCP-speaking harness)"] <-->|"MCP tools (40+ operations)"| Brain["Xibalba Cortex (this repo)"]
+    Agent["Agent (any MCP-speaking harness)"] <-->|"MCP tools (79 operations)"| Brain["Xibalba Cortex (this repo)"]
     Brain -->|"Session Merkle roots (XIBALBA_ANCHOR_URL)"| Backbone["integrity-core (BCC to StateAnchor)"]
     Brain -.->|"Local API"| Eyes["integrity-core/integrity-dashboard (Memory page)"]
     Immune["xibalba-shield"] -->|"Signed telemetry"| Backbone

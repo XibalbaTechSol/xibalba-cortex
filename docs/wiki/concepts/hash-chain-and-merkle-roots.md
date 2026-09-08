@@ -2,7 +2,7 @@
 title: Hash Chain and Merkle Roots
 acronyms: []
 created: 2026-08-12
-updated: 2026-08-17
+updated: 2026-09-08
 type: concept
 tags: [provenance, cryptography, storage]
 confidence: high

@@ -236,6 +236,10 @@ def request_password_reset(home: str | Path, *, email: str, ttl_minutes: int = 3
     finally:
         conn.close()
     record_auth_event(home, event_type="password_reset_requested", email=row["email"], profile_id=row["profile_id"])
+    try:
+        from .email_delivery import send_email
+        send_email(row["email"], "Password Reset", f"Your password reset token is: {raw}")
+    except Exception: pass
     return raw
 
 def reset_password(home: str | Path, *, reset_token: str, new_password: str) -> bool:

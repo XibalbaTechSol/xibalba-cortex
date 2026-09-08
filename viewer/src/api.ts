@@ -263,7 +263,11 @@ export interface SessionReplayEvent {
   replay_index: number
   event_type: "prompt" | "tool_call" | "tool_result" | "response"
   role: string
+  memory_id?: string
   content?: string
+  meta_json?: { summary?: string; [key: string]: any }
+  meta_status?: string
+  relevance_score?: number
   tool_name?: string
   tool_input?: unknown
   tool_output?: unknown
@@ -598,4 +602,5 @@ export const api = {
   rebuildProjectionCheckpoint: (projectionId: string) =>
     postJson<ProjectionCheckpoint & { verified: boolean }>(`/api/projections/${encodeURIComponent(projectionId)}/rebuild`, {}),
   embeddingModels: () => getJson<EmbeddingModel[]>('/api/embedding/models'),
+  updateInferenceSettings: (apiKey: string, modelId: string) => postJson('/api/settings/inference', { api_key: apiKey, model_id: modelId }),
 }

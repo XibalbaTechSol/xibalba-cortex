@@ -2,7 +2,7 @@
 title: Graph Store
 acronyms: []
 created: 2026-08-12
-updated: 2026-08-12
+updated: 2026-09-08
 type: concept
 tags: [storage, provenance]
 confidence: high

@@ -17,4 +17,4 @@ RUN pip install --no-cache-dir . --no-deps
 ENV XIBALBA_CORTEX_HOME=/data/cortex
 VOLUME ["/data/cortex"]
 EXPOSE 8420
-CMD ["python", "-m", "xibalba_cortex.local_api", "--home", "/data/cortex", "--host", "0.0.0.0", "--port", "8420", "--allowed-origin", "http://localhost:5173"]
+CMD ["python", "-m", "xibalba_cortex.local_api", "--home", "/data/cortex", "--host", "0.0.0.0", "--port", "8420"]

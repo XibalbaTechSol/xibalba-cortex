@@ -23,7 +23,7 @@ from . import projection_reconcile
 from .providers import InferenceTaskContract, validate_contradiction_result, validate_extraction_result
 from .redaction import redact
 
-_SCHEMA_VERSION = 12
+_SCHEMA_VERSION = 13
 
 # Generous default cap on a single attachment -- not a policy decision, just a guard against
 # accidentally ingesting something absurd (e.g. a whole video library) into the blob store.
@@ -580,6 +580,26 @@ CREATE TABLE IF NOT EXISTS backup_reconciliations (
 
 CREATE INDEX IF NOT EXISTS idx_backup_reconciliations_created
 ON backup_reconciliations(created_at DESC);
+
+CREATE TABLE IF NOT EXISTS meta_nodes (
+    id TEXT PRIMARY KEY,
+    memory_id TEXT NOT NULL REFERENCES memories(id) ON DELETE CASCADE,
+    type TEXT NOT NULL,
+    relevance_score REAL DEFAULT 1.0,
+    status TEXT DEFAULT 'active',
+    metadata_json TEXT DEFAULT '{}',
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+    updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS meta_edges (
+    source_id TEXT NOT NULL REFERENCES entities(id) ON DELETE CASCADE,
+    target_id TEXT NOT NULL REFERENCES entities(id) ON DELETE CASCADE,
+    relation_type TEXT NOT NULL,
+    weight REAL DEFAULT 1.0,
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (source_id, target_id, relation_type)
+);
 """
 
 
@@ -1633,8 +1653,11 @@ class GraphStore:
                 """
                 SELECT m.*, s.kind AS source_kind, s.locator, s.role, s.session_id,
                        s.message_id, s.tool_name, s.observed_at, s.agent_id,
-                       s.identity_mode, s.prompt_id, s.metadata_json
-                FROM memories m JOIN sources s ON s.id = m.source_id
+                       s.identity_mode, s.prompt_id, s.metadata_json,
+                       mn.relevance_score, mn.status AS meta_status, mn.metadata_json AS meta_json, mn.type AS meta_type
+                FROM memories m
+                JOIN sources s ON s.id = m.source_id
+                LEFT JOIN meta_nodes mn ON m.id = mn.memory_id
                 WHERE m.id = ?
                 """,
                 (memory_id,),
@@ -1665,6 +1688,10 @@ class GraphStore:
             "content": row["content"],
             "content_hash": row["content_hash"],
             "status": row["status"],
+            "meta_status": row["meta_status"],
+            "relevance_score": row["relevance_score"],
+            "meta_type": row["meta_type"],
+            "meta_json": json.loads(row["meta_json"]) if row["meta_json"] else {},
             "source": source,
             "quarantine_reasons": details.get("quarantine_reasons", []),
             "supersedes_id": row["supersedes_id"],
@@ -3195,6 +3222,9 @@ class GraphStore:
                 "role": "user" if role == "prompt" else "assistant",
                 "content": memory["content"],
                 "memory_id": memory["id"],
+                "meta_json": memory.get("meta_json"),
+                "meta_status": memory.get("meta_status"),
+                "relevance_score": memory.get("relevance_score"),
                 "timestamp": timestamp,
                 "timestamp_source": "source.observed_at" if observed_at else "storage.created_at",
                 "prompt_id": exchange["prompt_id"],

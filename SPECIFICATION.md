@@ -1,6 +1,6 @@
 # Xibalba Cortex Repository Specification
 
-**Updated:** 2026-08-28
+**Updated:** 2026-09-08
 **Status:** Local provenance-aware MCP memory prototype; not production-certified.
 
 ## 0. Architecture Status: v1 (frozen)
@@ -108,6 +108,12 @@ The viewer should expose recall, graph traversal, provenance, contradiction, for
 - MCP discovery should be verified through an isolated Hermes profile before operational use.
 - Only a bearer token's hash is ever stored (`ingest_tokens.py`); the raw value is shown once at
   issuance and cannot be recovered later — rotation, not recovery, is the intended path.
+- Viewer accounts are profile-scoped and reuse hash-only session tokens. The current password-
+  reset route is development-only: it returns the raw token to the caller and labels delivery
+  `local_only`. SMTP is best-effort and failure is not surfaced, so it is not a production
+  account-recovery guarantee.
+- Browser CORS defaults to `CORTEX_ALLOWED_ORIGIN` and otherwise `*`; non-local deployments
+  must configure one exact trusted origin and external TLS.
 
 ## 8. Ecosystem Role: 🧠 The Brain & Intelligence Layer
 
@@ -157,7 +163,7 @@ verticals this matters most for (finance, healthcare):
 Milestones (v1 vs. explicitly deferred):
 
 **Covered by v1 (frozen, §0):** local SQLite store with hash-chain/Merkle provenance; generic
-MCP tool surface (40+ tools) with a free-string `runtime`; two transports (stdio, authenticated
+MCP tool surface (79 tools) with a free-string `runtime`; two transports (stdio, authenticated
 streamable-HTTP); redaction on all ingestion paths; per-harness bearer-token auth with hash-only
 storage; optional richer adapters for claude/agy/codex on top of the generic primitives.
 

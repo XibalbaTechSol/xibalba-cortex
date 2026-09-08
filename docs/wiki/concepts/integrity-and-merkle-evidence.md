@@ -2,7 +2,7 @@
 title: Integrity and Merkle Evidence
 acronyms: [MCP]
 created: 2026-08-13
-updated: 2026-08-13
+updated: 2026-09-08
 type: concept
 tags: [provenance, compliance]
 confidence: high

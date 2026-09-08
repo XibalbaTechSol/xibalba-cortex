@@ -16,9 +16,8 @@ source_files:
 
 # PARA Classification Worker
 
-The implementation described on this page exists on the current feature branch and has
-passed the cited tests. It is not a default-branch capability until the branch changes
-are reviewed and merged.
+The reviewed implementation described on this page exists on main and has passed the
+cited local tests. That is not hosted or production evidence.
 
 The PARA worker classifies a selected memory into **Project**, **Area**, **Resource**, or **Archive**. It produces a reviewable proposal; it does not move or mutate a memory automatically.
 

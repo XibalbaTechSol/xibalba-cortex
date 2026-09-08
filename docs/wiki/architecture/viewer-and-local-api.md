@@ -2,12 +2,14 @@
 title: Viewer and Local API
 acronyms: [MCP, FTS5, WAL]
 created: 2026-08-13
-updated: 2026-08-29
+updated: 2026-09-08
 type: architecture
 tags: [infrastructure, storage, provenance]
 confidence: high
 source_files:
   - src/xibalba_cortex/local_api.py
+  - src/xibalba_cortex/accounts.py
+  - src/xibalba_cortex/email_delivery.py
   - viewer/src/App.tsx
   - viewer/src/api.ts
   - viewer/src/index.css
@@ -16,9 +18,9 @@ source_files:
 
 # Viewer and Local API
 
-The implementation described on this page exists on the current feature branch and has
-passed the cited tests. It is not a default-branch capability until the branch changes
-are reviewed and merged.
+The reviewed viewer and local-API implementation described on this page exists on main.
+Account/email changes that are still uncommitted in a working tree are not promoted to
+released capability by this documentation.
 
 The local API exposes read and operator-oriented surfaces over the canonical `GraphStore`. It is a local operator API, not a read-only API: bounded `POST` routes can record exchanges, create propositions, link entities, apply lifecycle changes, manage inference tasks, and record PARA decisions. The React viewer presents the graph, timeline, recall, inference, PARA review, and integrity state without treating the viewer as the source of truth.
 
@@ -58,6 +60,16 @@ The evidence set is generated locally under `/tmp/xibalba-cortex-playwright/`; i
 ## Design boundaries
 
 The local API's default Cross-Origin Resource Sharing (CORS) setting is permissive, so pass an explicit `--allowed-origin` for the viewer. Every route except `/healthz`, `/readyz`, and `/metrics` requires the same profile-bound bearer-token authentication as the streamable-HTTP Model Context Protocol transport (`auth_middleware.py` / `ingest_tokens.py`) — a `memory:read`-scoped token for GET and hybrid retrieval, `memory:write` for mutating POST routes, and `proposal:decide` for the two decision endpoints. Issue tokens with `xibalba-cortex-ingest-tokens issue`. There is no unauthenticated fallback; a deployment with no tokens issued has no working API. The viewer accepts the token at runtime and retains it only in tab-scoped `sessionStorage`, rather than compiling it into public JavaScript. Bind to `127.0.0.1` for local use; a non-loopback host still requires a valid token per request and external Transport Layer Security (TLS).
+
+The API reads its default allowed origin from `CORTEX_ALLOWED_ORIGIN`, falling back to `*`;
+`--allowed-origin` overrides it. The container image does not inject a safe deployment value,
+so operators must configure an exact origin and external TLS before exposing the service.
+
+Profile accounts include signup, login/logout, password change, session revocation, reset
+request/confirmation, and administrative approval routes. Password reset remains a development
+surface: the API returns the raw token with `delivery: local_only`. The optional SMTP helper is
+best-effort, uses local development defaults, and suppresses delivery failures, so it is not
+evidence that mail was delivered and is not a production recovery flow.
 
 The viewer can be unavailable while the MCP server and local store remain operational. Conversely, a successful page render does not prove that a write operation was authorized or completed. Validate mutations through API readback and database evidence.
 

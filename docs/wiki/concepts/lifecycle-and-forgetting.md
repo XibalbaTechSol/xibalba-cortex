@@ -2,7 +2,7 @@
 title: Lifecycle and Forgetting
 acronyms: []
 created: 2026-08-12
-updated: 2026-08-12
+updated: 2026-09-08
 type: concept
 tags: [storage, provenance, compliance]
 confidence: high

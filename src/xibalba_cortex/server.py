@@ -1403,6 +1403,23 @@ def main() -> None:
     authed_app = BearerTokenAuth(app, home=home, profile_id=profile_id, required_scopes=("memory:read",), rate_limit_per_minute=rate_limit)
 
     import uvicorn
+    import threading
+    import time
+    from .hermes_worker import process_extraction_tasks
+    from .store import GraphStore
+
+    def _inference_daemon():
+        time.sleep(2)
+        print("Cortex background inference daemon started.")
+        store = GraphStore(home=home, profile_id=profile_id)
+        while True:
+            try:
+                process_extraction_tasks(store, limit=5)
+            except Exception as e:
+                print(f"Inference daemon error: {e}")
+            time.sleep(5)
+
+    threading.Thread(target=_inference_daemon, daemon=True).start()
 
     uvicorn.run(authed_app, host=args.host, port=args.port, log_level="info")
 

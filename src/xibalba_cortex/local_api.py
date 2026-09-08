@@ -476,6 +476,29 @@ def _make_handler(store: GraphStore, *, allowed_origin: str):
             )
             is_read_route = parts == ["api", "retrieval", "hybrid"]
             required_scope = "proposal:decide" if is_decision_route else "memory:read" if is_read_route else "memory:write"
+            if parts == ["api", "settings", "inference"]:
+                try:
+                    body = self._read_json()
+                    api_key = str(body.get("api_key", "")).strip()
+                    model_id = str(body.get("model_id", "claude-3-5-sonnet")).strip()
+                    config_dir = Path.home() / ".hermes" / "profiles" / "xibalba-cortex-worker"
+                    config_dir.mkdir(parents=True, exist_ok=True)
+                    config_path = config_dir / "config.json"
+                    profile_config = {}
+                    if config_path.exists():
+                        with open(config_path) as f:
+                            profile_config = json.load(f)
+                    profile_config["inference_provider"] = "openai_compatible"
+                    profile_config["api_key"] = api_key
+                    profile_config["model_id"] = model_id
+                    with open(config_path, "w") as f:
+                        json.dump(profile_config, f, indent=2)
+                    self._send_json({"ok": True, "message": "Inference profile updated successfully."})
+                    return
+                except Exception as e:
+                    self._send_error(HTTPStatus.INTERNAL_SERVER_ERROR, str(e))
+                    return
+
             if parts in (["api", "auth", "signup"], ["api", "auth", "login"], ["api", "auth", "logout"], ["api", "auth", "password"], ["api", "auth", "sessions", "revoke"], ["api", "auth", "password-reset", "request"], ["api", "auth", "password-reset", "confirm"], ["api", "auth", "admin", "approve"]):
                 try:
                     payload = self._read_json_body()

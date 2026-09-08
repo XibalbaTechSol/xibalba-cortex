@@ -2,7 +2,7 @@
 title: Compliance Evidence Trail
 acronyms: []
 created: 2026-08-12
-updated: 2026-08-12
+updated: 2026-09-08
 type: query
 tags: [compliance, provenance]
 confidence: medium
@@ -40,7 +40,7 @@ investigation notes, not finished answers.
   timestamps (`start_time`/`end_time`), queryable per session (`memory_session_otel_summary`,
   `memory_otel_events`) and linked into the exchange that produced them
   (`exchange_tool_calls`). See [Store Schema Overview](../architecture/store-schema-overview.md).
-- **MCP surface + local viewer** — all of the above is queryable through the ~40+ tool MCP
+- **MCP surface + local viewer** — all of the above is queryable through the 79-tool MCP
   surface (see [MCP Tool Surface](../concepts/mcp-tool-surface.md)) and through the local
   viewer's provenance/graph/lifecycle rendering.
 
