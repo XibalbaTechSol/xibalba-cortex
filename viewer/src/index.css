@@ -1665,3 +1665,15 @@ dl.graph-reference.compact dd {
   background: #222;
   color: #ccc;
 }
+.cortex-hero-logo {
+  width: 96px;
+  height: 96px;
+  border-radius: 20px;
+  object-fit: cover;
+  margin-bottom: 24px;
+  display: block;
+}
+.cortex-brand img {
+  width: 48px !important;
+  height: 48px !important;
+}
