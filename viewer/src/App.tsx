@@ -1407,6 +1407,7 @@ function TimelineTab({
   sessions: Session[]
   setSelectedSessionId: (id: string) => void
 }) {
+  const [minScore, setMinScore] = useState(0.0)
   return (
     <section className="tab-panel">
       <div className="panel-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
