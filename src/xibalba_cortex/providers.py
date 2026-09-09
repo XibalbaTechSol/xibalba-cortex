@@ -81,6 +81,47 @@ def validate_extraction_result(output: dict[str, Any], *, expected_hash: str, ki
     return validated
 
 
+_METADATA_FIELDS = {"title", "topics", "language", "time_horizon", "keywords"}
+_TIME_HORIZONS = {"immediate", "short_term", "long_term", "evergreen", "unknown"}
+
+
+def validate_metadata_result(output: dict[str, Any], *, expected_hash: str) -> dict[str, Any]:
+    """Validate the small, mergeable metadata contract used by the background worker."""
+    if not isinstance(output, dict) or output.get("schema_version") != "xibalba.memory.metadata.v1":
+        raise ValueError("metadata schema_version mismatch")
+    if output.get("source_content_hash") != expected_hash:
+        raise ValueError("metadata source_content_hash mismatch")
+    metadata = output.get("metadata")
+    if not isinstance(metadata, dict):
+        raise ValueError("metadata must be an object")
+    unknown = set(metadata) - _METADATA_FIELDS
+    if unknown:
+        raise ValueError(f"unsupported metadata fields: {sorted(unknown)}")
+    clean: dict[str, Any] = {}
+    if "title" in metadata:
+        value = metadata["title"]
+        if not isinstance(value, str) or not value.strip() or len(value.strip()) > 200:
+            raise ValueError("metadata title must be a non-empty string of at most 200 characters")
+        clean["title"] = value.strip()
+    for field in ("topics", "keywords"):
+        if field in metadata:
+            value = metadata[field]
+            if not isinstance(value, list) or len(value) > 20 or any(not isinstance(item, str) or not item.strip() or len(item.strip()) > 80 for item in value):
+                raise ValueError(f"metadata {field} must contain at most 20 short strings")
+            clean[field] = list(dict.fromkeys(item.strip() for item in value))
+    if "language" in metadata:
+        value = metadata["language"]
+        if not isinstance(value, str) or not 2 <= len(value.strip()) <= 16:
+            raise ValueError("metadata language must be a short string")
+        clean["language"] = value.strip().lower()
+    if "time_horizon" in metadata:
+        value = metadata["time_horizon"]
+        if value not in _TIME_HORIZONS:
+            raise ValueError(f"metadata time_horizon must be one of {sorted(_TIME_HORIZONS)}")
+        clean["time_horizon"] = value
+    return {"schema_version": "xibalba.memory.metadata.v1", "source_content_hash": expected_hash, "metadata": clean}
+
+
 def validate_contradiction_result(output: dict[str, Any], *, expected_hash: str) -> dict[str, Any]:
     """Validate a detect_contradictions worker output: a list of candidate memories the
     subject memory conflicts with, each with a stated reason and confidence. Unlike
@@ -149,6 +190,7 @@ class InferenceTaskContract:
     output_schema: str = "xibalba.inference.output.v1"
     promotion_policy: str = "review_required"
     worker_runtime: str | None = None
+    provider_id: str | None = None
     evidence_limits: EvidenceScope | None = None
 
     def validate(self) -> None:
@@ -160,6 +202,8 @@ class InferenceTaskContract:
             raise ValueError("input_snapshot_hash must use sha256: prefix")
         if not self.output_schema:
             raise ValueError("output_schema is required")
+        if self.provider_id is not None and not self.provider_id.strip():
+            raise ValueError("provider_id must be non-empty")
         if self.promotion_policy not in {"review_required", "derived_only", "operator_allowed"}:
             raise ValueError("invalid promotion_policy")
         if any(not item for item in self.evidence_scope):
@@ -175,6 +219,8 @@ class InferenceTaskContract:
             "promotion_policy": self.promotion_policy,
             "worker_runtime": self.worker_runtime,
         }
+        if self.provider_id is not None:
+            payload["provider_id"] = self.provider_id
         if self.evidence_limits is not None:
             payload["evidence_limits"] = self.evidence_limits.as_dict()
         return payload
@@ -292,6 +338,7 @@ def connector_manifest() -> dict[str, Any]:
 def provider_manifest() -> dict[str, Any]:
     return {
         "inference": ["native_harness", "in_session", "structural"],
+        "inference_provider_selection": {"mode": "open_identifier", "contract_field": "provider_id", "built_ins": ["hermes", "in_session", "structural"]},
         "embeddings": "local",
         "retrieval": "sqlite",
         "canonical_store": "sqlite",

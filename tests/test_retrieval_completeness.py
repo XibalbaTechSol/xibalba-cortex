@@ -106,3 +106,14 @@ def test_context_block_is_bounded_and_provenance_bearing(tmp_path):
     assert block["budget"]["used_chars"] <= 100
     assert block["trace_id"]
     store.close()
+
+
+def test_retrieval_score_semantics_are_not_truth_confidence(tmp_path):
+    store = GraphStore(tmp_path / "score-semantics")
+    store.store_memory("Semantic score evidence.", source={"kind": "test"}, status="confirmed")
+    result = store.hybrid_retrieve("Semantic score evidence")
+    assert "ordering retrieval candidates" in result["score_semantics"]
+    assert "not model confidence" in result["score_semantics"]
+    context = store.assemble_context("Semantic score evidence")
+    assert context["score_semantics"] == result["score_semantics"]
+    store.close()

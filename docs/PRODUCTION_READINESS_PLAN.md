@@ -10,7 +10,7 @@ Cortex should be advanced as a **multi-tenant AI-memory SaaS**, not just a local
 server. The near-term target is a controlled pilot with a small number of real external
 tenants, not a claim of finished enterprise-scale infrastructure.
 
-The current implementation is close to a pilot in several areas: the 79-tool MCP
+The current implementation is close to a pilot in several areas: the 80-tool MCP
 surface (server.py), hash-chained event storage with domain-separated Merkle roots
 (store.py), hybrid (lexical + vector + graph + temporal) retrieval with trace
 inspection, proposal-gated extraction, and five of seven ingestion connectors. It is not
@@ -30,7 +30,7 @@ finalized (see §9).
 
 - Local, single-operator MCP server (stdio or streamable-HTTP), SQLite storage,
   `~/.hermes/xibalba-cortex`, no containerization.
-- 79-tool MCP surface, frozen core schema/hash-chain/tool contract per
+- 80-tool MCP surface, frozen core schema/hash-chain/tool contract per
   `spec/xibalba-cortex-v1.md` (v1, frozen 2026-08-12).
 - Hybrid retrieval and proposal-gated extraction both real and tested.
 - Profile binding, role/scope enforcement, revocation, expiry, quotas, onboarding, and

@@ -39,7 +39,7 @@ def _inference_worker(home_value: str, process_index: int, task_count: int, resu
     worker_id = f"process-{process_index}"
     try:
         for item in range(task_count):
-            started = time.perf_counter()
+            started_at = time.perf_counter()
             _write_heartbeat(hb, item=item, op="store_memory:start")
             memory = store.store_memory(
                 f"process inference validation profile={config.profile_id} process={process_index} item={item}",
@@ -47,25 +47,30 @@ def _inference_worker(home_value: str, process_index: int, task_count: int, resu
                 status="confirmed",
             )
             _write_heartbeat(hb, item=item, op="request_inference_task:start")
-            task = store.request_inference_task(
+            extraction = store.start_self_extraction(
                 "summarize_session",
                 subject_type="memory",
                 subject_id=memory["id"],
                 input_payload={"validation": True},
-                requested_by=worker_id,
+                claimed_by=worker_id,
             )
-            _write_heartbeat(hb, item=item, op="claim_inference_task:start")
-            claimed = store.claim_inference_task(task["id"], claimed_by=worker_id)
             _write_heartbeat(hb, item=item, op="complete_inference_task:start")
             finished = store.complete_inference_task(
-                task["id"],
-                output_payload={"summary": "deterministic validation output"},
+                extraction["task_id"],
+                output_payload={
+                    "schema_version": "xibalba.session_summary.v1",
+                    "input_snapshot_hash": extraction["input_snapshot_hash"],
+                    "summary": "deterministic validation output",
+                    "confidence": 1.0,
+                    "evidence_ids": [item["id"] for item in extraction["evidence"]["items"]],
+                },
                 claimed_by=worker_id,
-                claim_token=claimed["claim_token"],
+                claim_token=extraction["claim_token"],
             )
+            task_id = extraction["task_id"]
             if finished["status"] == "completed":
-                completed.append(task["id"])
-            latencies.append(time.perf_counter() - started)
+                completed.append(task_id)
+            latencies.append(time.perf_counter() - started_at)
             _write_heartbeat(hb, item=item, op="item:done")
         _write_heartbeat(hb, item=task_count - 1, op="queue_put:start")
         result_queue.put({"profile_id": config.profile_id, "process_index": process_index, "completed": completed, "latencies": latencies, "error": None})

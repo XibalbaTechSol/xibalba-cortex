@@ -5,10 +5,10 @@ when a verification command produces new evidence, or when a blocker is resolved
 Do not create another numbered roadmap. The detailed production plan is reference
 material; its gate IDs map to this state.
 
-**Last verified:** 2026-09-05  
-**Repository:** `/home/xibalba/Projects/xibalba-cortex`  
-**Branch:** `main`  
-**Commit:** `39cad95` (Gate 6 provenance-export authz correction merged) + Hermes hook-watermark verification on top, about to push  
+**Last verified:** 2026-09-08
+**Repository:** `/home/xibalba/Projects/xibalba-cortex`
+**Branch:** `main`
+**Commit:** `d61d1c9` plus existing dirty inference/provider/session changes; not committed
 **Local-only residue:** pre-existing untracked `LICENSE` (preserve; do not stage)
 
 ## Resume in one sentence
@@ -111,6 +111,45 @@ yet — this is a pull (status/staleness-report) surface, not a push one.
 - Authenticated Operations UI visibly renders the Production readiness card; verification was local-only and the temporary credential was revoked.
 
 ## Exact resume commands
+
+## Inference handoff — 2026-09-08
+
+The active dirty inference work is not committed. It adds provider-routed task
+contracts, in-session and structural inference paths, stricter server-side output
+validation, and an untracked bounded orchestration cycle in
+`src/xibalba_cortex/inference_loop.py`, wired into the streamable-HTTP server's
+background daemon. Preserve all existing dirty files.
+
+This session found and repaired an unclosed
+`store.complete_inference_task(...)` call in `hermes_worker.py`; before the repair,
+three focused test modules failed during collection with `SyntaxError: '(' was never
+closed`. After the repair, the focused inference/server suite passed:
+
+```text
+uv run pytest -q tests/test_inference_loop.py tests/test_server.py \
+  tests/test_hermes_worker_isolation.py tests/test_contradiction_worker.py \
+  tests/test_para_worker.py
+34 passed
+```
+
+**NEXT:** eliminate provider backlog starvation at the query boundary. The Hermes,
+PARA, and contradiction workers currently call `list_inference_tasks(...)` for the
+oldest 100–500 pending rows and filter task type/provider in Python. More than that
+many tasks routed to another provider can indefinitely hide eligible Hermes work.
+Extend `GraphStore.list_inference_tasks` with optional parameterized `task_types`
+and `provider_ids` filters (including `NULL` for legacy unrouted tasks), update all
+three workers to use them, and add a regression test with a foreign-provider backlog
+larger than the old scan window followed by one eligible task. A patch for this was
+attempted but the patch utility rejected its wrapper format; no part of that
+starvation fix was applied.
+
+Then harden the new cycle's error reporting: a failure from
+`reconcile_legacy_claimed_tasks()` is currently converted to a local `legacy`
+dictionary but its error string is discarded from the returned cycle result. Add
+failure-path tests and ensure the server's degraded-cycle detection sees nested
+recovery errors. Finally run `python3 -m py_compile` on touched modules, the focused
+suite above, the full backend suite, and `git diff --check`. The latter currently
+reports two pre-existing trailing-space lines in this file's header.
 
 ```bash
 cd /home/xibalba/Projects/xibalba-cortex

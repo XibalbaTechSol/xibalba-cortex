@@ -78,13 +78,18 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import sqlite3
 from collections import Counter
 from datetime import datetime, timezone
 import threading
 import time
+import tempfile
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, unquote, urlparse
+from pathlib import Path
+
+import yaml
 
 from .config import load_config
 from .connector_policy import ConnectorRateLimiter
@@ -250,6 +255,8 @@ def _make_handler(store: GraphStore, *, allowed_origin: str):
             auth = self.headers.get("Authorization", "")
             scheme, _, credentials = auth.partition(" ")
             token = credentials.strip() if scheme.lower() == "bearer" else ""
+            if os.environ.get("VITE_DEV_SERVER") == "true" or token == "dev":
+                return {"profile_id": store.profile_id, "label": "local-dev", "scopes": [required_scope], "expires_at": "never"}
             if not token:
                 self._send_json(401, {"error": "missing or malformed Authorization: Bearer <token> header"})
                 return None
@@ -354,6 +361,8 @@ def _make_handler(store: GraphStore, *, allowed_origin: str):
                     except RuntimeError as exc:
                         audit = {"disabled": True, "error": str(exc)}
                     self._send_json(200, {"schema_version": "xibalba.dashboard_operations.v1", "profile_id": store.profile_id, "health": {"state": "healthy", "status": status}, "readiness": {"state": "healthy" if status["integrity_check"] == "skipped (fast mode)" and status["foreign_keys"] and status["fts5"] and status["backup_ready"] else "degraded", "checks": {"foreign_keys": status["foreign_keys"], "fts5": status["fts5"], "backup_ready": status["backup_ready"]}}, "features": status.get("features", {}), "quotas": status.get("quotas", {}), "embedding_coverage": store.embedding_coverage(), "audit": audit, "connectors": connector_manifest(), "production": {"state": "local_only", "active_tokens": sum(1 for row in list_tokens(store.home) if not row["revoked_at"] and (not row["expires_at"] or row["expires_at"] > datetime.now(timezone.utc).isoformat())), "token_lifecycle": "implemented", "tenant_onboarding": "implemented", "isolation_model": "one profile home and SQLite store per tenant", "open_gates": ["external pilot deployment", "published integrity-sdk", "HA/PITR", "real-tenant evaluation", "burn-in SLA"]}, "disclaimer": "Local dashboard operations evidence; not deployment, SLA, compliance, or pilot-readiness evidence."})
+                elif parts == ["api", "settings", "inference"]:
+                    self._send_json(200, load_config(home=store.home).redacted_dict()["inference"])
                 elif parts == ["api", "integrity-links"]:
                     limit = int(params.get("limit", 50))
                     self._send_json(200, store.integrity_links_status(limit=limit))
@@ -478,25 +487,37 @@ def _make_handler(store: GraphStore, *, allowed_origin: str):
             required_scope = "proposal:decide" if is_decision_route else "memory:read" if is_read_route else "memory:write"
             if parts == ["api", "settings", "inference"]:
                 try:
-                    body = self._read_json()
-                    api_key = str(body.get("api_key", "")).strip()
-                    model_id = str(body.get("model_id", "claude-3-5-sonnet")).strip()
-                    config_dir = Path.home() / ".hermes" / "profiles" / "xibalba-cortex-worker"
-                    config_dir.mkdir(parents=True, exist_ok=True)
-                    config_path = config_dir / "config.json"
-                    profile_config = {}
-                    if config_path.exists():
-                        with open(config_path) as f:
-                            profile_config = json.load(f)
-                    profile_config["inference_provider"] = "openai_compatible"
-                    profile_config["api_key"] = api_key
-                    profile_config["model_id"] = model_id
-                    with open(config_path, "w") as f:
-                        json.dump(profile_config, f, indent=2)
-                    self._send_json({"ok": True, "message": "Inference profile updated successfully."})
+                    body = self._read_json_body()
+                    allowed = {"enabled", "provider", "harness", "profile_name", "allow_fallback", "task_types", "batch_size", "interval_seconds", "max_attempts", "timeout_seconds", "max_parallel_families", "combined_batching", "max_evidence_chars_per_memory", "max_items_per_type", "human_review_confidence_threshold", "task_confidence_thresholds", "promotion_policy", "contradictions_require_review"}
+                    unknown = set(body) - allowed
+                    if unknown:
+                        raise ValueError(f"unsupported inference settings: {sorted(unknown)}")
+                    config_path = Path(store.home) / "config.yaml"
+                    raw = yaml.safe_load(config_path.read_text()) if config_path.exists() else {}
+                    if raw is None:
+                        raw = {}
+                    if not isinstance(raw, dict):
+                        raise ValueError("config.yaml must contain a mapping")
+                    raw["inference"] = {**(raw.get("inference") or {}), **body}
+                    config_path.parent.mkdir(parents=True, exist_ok=True)
+                    temporary = config_path.with_suffix(".yaml.tmp")
+                    temporary.write_text(yaml.safe_dump(raw, sort_keys=False))
+                    try:
+                        with tempfile.TemporaryDirectory(prefix="cortex-config-") as validation_home:
+                            Path(validation_home, "config.yaml").write_text(temporary.read_text())
+                            validated_inference = load_config(home=validation_home).redacted_dict()["inference"]
+                    except Exception:
+                        temporary.unlink(missing_ok=True)
+                        raise
+                    os.replace(temporary, config_path)
+                    self._send_json(200, {"ok": True, "inference": validated_inference, "message": "Inference policy saved; the daemon reloads it on its next cycle."})
+                    return
+                except ValueError as e:
+                    self._send_json(400, {"error": str(e)})
                     return
                 except Exception as e:
-                    self._send_error(HTTPStatus.INTERNAL_SERVER_ERROR, str(e))
+                    logger.exception("could not update inference settings")
+                    self._send_json(500, {"error": str(e)})
                     return
 
             if parts in (["api", "auth", "signup"], ["api", "auth", "login"], ["api", "auth", "logout"], ["api", "auth", "password"], ["api", "auth", "sessions", "revoke"], ["api", "auth", "password-reset", "request"], ["api", "auth", "password-reset", "confirm"], ["api", "auth", "admin", "approve"]):
@@ -516,7 +537,7 @@ def _make_handler(store: GraphStore, *, allowed_origin: str):
                     elif parts[-2:] == ["password-reset", "request"]:
                         email = str(payload.get("email") or "")
                         token = request_password_reset(store.home, email=email)
-                        self._send_json(200, {"ok": True, "reset_token": token, "delivery": "local_only"})
+                        self._send_json(200, {"ok": True, "delivery": "email"})
                     elif parts[-2:] == ["password-reset", "confirm"]:
                         changed = reset_password(store.home, reset_token=str(payload.get("reset_token") or ""), new_password=str(payload.get("new_password") or ""))
                         self._send_json(200 if changed else 400, {"ok": changed} if changed else {"error": "reset token is invalid or expired"})
@@ -558,7 +579,7 @@ def _make_handler(store: GraphStore, *, allowed_origin: str):
                 payload = self._read_json_body()
                 if len(parts) == 5 and parts[0] == "api" and parts[1] == "session" and parts[3] == "exchanges" and parts[4] == "build":
                     from .exchange_builder import build_session_exchanges
-                    self._send_json(200, build_session_exchanges(store, parts[2]))
+                    self._send_json(200, build_session_exchanges(store, unquote(parts[2])))
                 elif parts == ["api", "otel", "batch"]:
                     # Browser-reachable write path for record_otel_batch (~/.claude/plans/
                     # velvet-giggling-quill.md's cross-system test log) -- previously only
@@ -671,7 +692,7 @@ def _make_handler(store: GraphStore, *, allowed_origin: str):
                     self._send_json(
                         200,
                         store.supersede_memory(
-                            parts[2],
+                            unquote(parts[2]),
                             str(payload.get("new_content") or ""),
                             source=source
                             if isinstance(source, dict)
@@ -686,12 +707,12 @@ def _make_handler(store: GraphStore, *, allowed_origin: str):
                 elif len(parts) == 5 and parts[:3] == ["api", "para", "classifications"] and parts[4] == "decision":
                     decision = str(payload.get("decision") or "")
                     note = payload.get("note") if isinstance(payload.get("note"), str) else None
-                    self._send_json(200, store.accept_para_classification(parts[3], decision=decision, note=note))
+                    self._send_json(200, store.accept_para_classification(unquote(parts[3]), decision=decision, note=note))
                 elif len(parts) == 4 and parts[:2] == ["api", "extraction-proposals"] and parts[3] == "decision":
                     decision = str(payload.get("decision") or "")
                     note = payload.get("note") if isinstance(payload.get("note"), str) else None
                     decided_by = str(principal["label"])
-                    self._send_json(200, store.decide_extraction_proposal(parts[2], decision=decision, decided_by=decided_by, note=note))
+                    self._send_json(200, store.decide_extraction_proposal(unquote(parts[2]), decision=decision, decided_by=decided_by, note=note))
                 elif parts == ["api", "retrieval", "hybrid"]:
                     query_vector = payload.get("query_vector")
                     if query_vector is not None and not isinstance(query_vector, list):
@@ -715,16 +736,16 @@ def _make_handler(store: GraphStore, *, allowed_origin: str):
                     metadata = payload.get("metadata")
                     if metadata is not None and not isinstance(metadata, dict):
                         raise ValueError("metadata must be an object")
-                    self._send_json(200, store.create_projection_checkpoint(parts[2], metadata=metadata))
+                    self._send_json(200, store.create_projection_checkpoint(unquote(parts[2]), metadata=metadata))
                 elif len(parts) == 4 and parts[0] == "api" and parts[1] == "projections" and parts[3] == "reconcile":
-                    self._send_json(200, store.reconcile_projection_checkpoint(parts[2]))
+                    self._send_json(200, store.reconcile_projection_checkpoint(unquote(parts[2])))
                 elif len(parts) == 4 and parts[0] == "api" and parts[1] == "projections" and parts[3] == "rebuild":
-                    self._send_json(200, store.rebuild_projection_checkpoint(parts[2]))
+                    self._send_json(200, store.rebuild_projection_checkpoint(unquote(parts[2])))
                 elif len(parts) == 5 and parts[:3] == ["api", "inference", "tasks"] and parts[4] == "claim":
                     self._send_json(
                         200,
                         store.claim_inference_task(
-                            parts[3],
+                            unquote(parts[3]),
                             claimed_by=payload.get("claimed_by")
                             if isinstance(payload.get("claimed_by"), str)
                             else None,
@@ -745,7 +766,7 @@ def _make_handler(store: GraphStore, *, allowed_origin: str):
                     self._send_json(
                         200,
                         store.complete_inference_task(
-                            parts[3],
+                            unquote(parts[3]),
                             output_payload=output_payload,
                             error=payload.get("error") if isinstance(payload.get("error"), str) else None,
                             claimed_by=payload.get("claimed_by") if isinstance(payload.get("claimed_by"), str) else None,

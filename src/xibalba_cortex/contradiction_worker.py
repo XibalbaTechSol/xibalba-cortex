@@ -52,14 +52,14 @@ def process_contradiction_tasks(
     tasks = [
         task
         for task in store.list_inference_tasks(status="pending", limit=max(limit, 100))
-        if task["task_type"] == "detect_contradictions"
+        if task["task_type"] == "detect_contradictions" and (task.get("input") or {}).get("_contract", {}).get("provider_id") in {None, "hermes", "native_harness"}
     ][:limit]
     processed = completed = failed = 0
     for task in tasks:
         processed += 1
         claimed = None
         try:
-            claimed = store.claim_inference_task(str(task["id"]), claimed_by=worker_id)
+            claimed = store.claim_inference_task(str(task["id"]), claimed_by=worker_id, provider_id="hermes")
             memory = store.get_memory(str(claimed["subject_id"]))
             expected_hash = str(claimed["input"].get("source_content_hash") or memory["content_hash"])
             if expected_hash != memory["content_hash"]:

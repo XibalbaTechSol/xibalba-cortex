@@ -163,7 +163,7 @@ verticals this matters most for (finance, healthcare):
 Milestones (v1 vs. explicitly deferred):
 
 **Covered by v1 (frozen, §0):** local SQLite store with hash-chain/Merkle provenance; generic
-MCP tool surface (79 tools) with a free-string `runtime`; two transports (stdio, authenticated
+MCP tool surface (80 tools) with a free-string `runtime`; two transports (stdio, authenticated
 streamable-HTTP); redaction on all ingestion paths; per-harness bearer-token auth with hash-only
 storage; optional richer adapters for claude/agy/codex on top of the generic primitives.
 

@@ -17,25 +17,33 @@ from .store import GraphStore
 
 
 def build_session_exchanges(store: GraphStore, external_session_id: str) -> dict[str, object]:
-    """Idempotent-ish, not idempotent: calling this twice on a session that hasn't grown
-    duplicates every exchange, because exchanges are a derived VIEW over memories/otel_events
-    at call time, not tracked incrementally like transcript_ingest's line offset. Call once
-    after a session's memories/telemetry are fully ingested (e.g. at end_session), not on a
-    poll loop -- a future incremental version is possible but not built here.
-    """
-    store.get_session(external_session_id)  # raises KeyError if unknown
+    """Build the derived exchange view once and return explicit duplicate or empty outcomes."""
+    session = store.get_session(external_session_id)
+    external_session_id = str(session["external_session_id"])
     existing_exchanges = store.session_exchanges(external_session_id)
     if existing_exchanges:
         return {
             "session_id": external_session_id,
             "exchanges_built": 0,
             "exchange_ids": [],
+            "status": "unchanged",
+            "deduplicated": True,
+            "reason": "session_exchanges_already_exist",
         }
     memories = [
         m for m in store.session_memories(external_session_id)
         if m["evidence_class"] != "summary"
     ]
     otel_events = store.session_otel_events(external_session_id)
+    if not memories and not otel_events:
+        return {
+            "session_id": external_session_id,
+            "exchanges_built": 0,
+            "exchange_ids": [],
+            "status": "empty",
+            "deduplicated": False,
+            "reason": "no_non_summary_memories_or_otel_events",
+        }
 
     # Group otel_events for fast lookup: by prompt_id (weak link) and by memory_id (strong link).
     events_by_prompt_id: dict[str, list[dict]] = {}
@@ -121,4 +129,7 @@ def build_session_exchanges(store: GraphStore, external_session_id: str) -> dict
         "session_id": external_session_id,
         "exchanges_built": len(exchanges_built),
         "exchange_ids": exchanges_built,
+        "status": "built",
+        "deduplicated": False,
+        "reason": None,
     }

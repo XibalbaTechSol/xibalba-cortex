@@ -15,6 +15,7 @@ source_files:
 - [Overview](#overview)
 - [Tables](#tables)
 - [How one exchange gets built](#how-one-exchange-gets-built)
+- [Identifiers, empty sessions, and summaries](#identifiers-empty-sessions-and-summaries)
 
 ## Overview
 
@@ -51,6 +52,12 @@ its tool-call identifiers, plus the previous exchange's `node_id` — so the who
 turn sequence is tamper-evident, verified with `verify_exchange_chain()` /
 `session_merkle_root()`. See [Hash Chain and Merkle Roots](../concepts/hash-chain-and-merkle-roots.md)
 for the chaining mechanics.
+
+## Identifiers, empty sessions, and summaries
+
+Session APIs accept either the caller-supplied `external_session_id` or the internal `sessions.id` UUID and always normalize results back to the external id. Legacy source rows linked with the internal UUID remain visible. Empty or whitespace-only identifiers are rejected.
+
+An exchange build now returns `status="built"`, `status="unchanged"` with `deduplicated=true`, or `status="empty"` with the reason `no_non_summary_memories_or_otel_events`. A zero count is therefore no longer ambiguous. A closing summary created by `end_session()` defaults to `candidate`; only a caller that has independently verified it should explicitly request `summary_status="confirmed"`. Summary evidence remains in the context block `summaries` bucket and is never promoted to `current_facts`.
 
 `memory_build_session_exchanges` / `memory_session_exchanges` (MCP tools) expose building and
 reading this structure; see [MCP Tool Surface](../concepts/mcp-tool-surface.md).

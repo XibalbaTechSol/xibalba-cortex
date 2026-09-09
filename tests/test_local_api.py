@@ -186,6 +186,36 @@ def test_stats_reports_real_counts(running_store):
     assert body["memories"] == 1
 
 
+def test_inference_settings_round_trip_through_profile_config(running_store):
+    store, port = running_store
+    status, initial = _get(port, "/api/settings/inference")
+    assert status == 200
+    assert initial["enabled"] is True
+
+    updated = {
+        **initial,
+        "task_types": ["classify_para", "extract_entities"],
+        "batch_size": 12,
+        "interval_seconds": 1.25,
+    }
+    status, result = _post(port, "/api/settings/inference", updated)
+    assert status == 200
+    assert result["inference"]["batch_size"] == 12
+    assert (store.home / "config.yaml").exists()
+
+    status, effective = _get(port, "/api/settings/inference")
+    assert status == 200
+    assert effective["task_types"] == ["classify_para", "extract_entities"]
+
+
+def test_inference_settings_reject_unknown_task_without_replacing_config(running_store):
+    store, port = running_store
+    status, body = _post(port, "/api/settings/inference", {"task_types": ["invent_facts"]})
+    assert status == 400
+    assert "unsupported inference task types" in body["error"]
+    assert not (store.home / "config.yaml").exists()
+
+
 def test_status_and_integrity_links_routes(running_store):
     store, port = running_store
     memory = store.store_memory(
@@ -567,12 +597,21 @@ def test_account_signup_me_and_logout(running_store):
     assert status == 200 and revoked["ok"] is True
     status, changed = _post(port, "/api/auth/password", {"current_password": "correct horse battery staple", "new_password": "new correct horse battery"})
     assert status == 200 and changed["ok"] is True
+
+    # Request password reset (via API, but we can't extract the token)
     status, reset = _post(port, "/api/auth/password-reset/request", {"email": "operator@example.com"})
-    assert status == 200 and reset["reset_token"]
-    status, confirmed = _post(port, "/api/auth/password-reset/confirm", {"reset_token": reset["reset_token"], "new_password": "reset correct horse battery"})
+    assert status == 200 and reset.get("delivery") == "email"
+
+    # Generate a fresh token via backend bypass to test the confirm endpoint
+    from xibalba_cortex.accounts import request_password_reset
+    raw_token = request_password_reset(store.home, email="operator@example.com")
+
+    status, confirmed = _post(port, "/api/auth/password-reset/confirm", {"reset_token": raw_token, "new_password": "reset correct horse battery"})
     assert status == 200 and confirmed["ok"] is True
+
     status, login = _post(port, "/api/auth/login", {"email": "operator@example.com", "password": "reset correct horse battery"})
     assert status == 200
+
     _CURRENT_TOKEN = login["token"]
     status, logged_out = _post(port, "/api/auth/logout", {})
     assert status == 200 and logged_out["ok"] is True

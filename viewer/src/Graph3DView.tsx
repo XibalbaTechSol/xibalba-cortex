@@ -42,29 +42,29 @@ export interface GraphViewOptions {
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js'
 
 const BACKGROUNDS: Record<GraphBackground, { color: number; fog: number | null; label: string }> = {
-  midnight: { color: 0x0f172a, fog: 0x0f172a, label: '#f8fafc' },
-  paper: { color: 0xf8fafc, fog: null, label: '#111827' },
-  matrix: { color: 0x001b12, fog: 0x001b12, label: '#d1fae5' },
-  contrast: { color: 0x050505, fog: null, label: '#ffffff' },
+  midnight: { color: 0x090d12, fog: 0x090d12, label: '#8b9bb4' },
+  paper: { color: 0xf5f7f9, fog: null, label: '#1e293b' },
+  matrix: { color: 0x0a1012, fog: 0x0a1012, label: '#52e096' },
+  contrast: { color: 0x000000, fog: null, label: '#ffffff' },
 }
 
 const COLORS: Record<DemoNodeType, number> = {
-  memory: 0x2f80ed,
-  entity: 0xd19a2a,
-  session: 0x16a085,
-  exchange: 0x7c3aed,
-  merkle: 0xe11d48,
+  memory: 0x3b82f6,
+  entity: 0xfacc15,
+  session: 0x52e096,
+  exchange: 0x8b5cf6,
+  merkle: 0xf87171,
 }
 
 const EDGE_COLORS: Record<string, number> = {
-  relation: 0x8b93a7,
-  similarity: 0x30b981,
-  contains: 0x2563eb,
-  merkle_root: 0xe11d48,
+  relation: 0x475569,
+  similarity: 0x52e096,
+  contains: 0x3b82f6,
+  merkle_root: 0xf87171,
   context: 0x8b5cf6,
-  prompt: 0x16a085,
-  response: 0xf97316,
-  contradiction: 0xdc2626,
+  prompt: 0x52e096,
+  response: 0xfacc15,
+  contradiction: 0xf87171,
 }
 
 function stableHash(value: string): number {
@@ -202,13 +202,13 @@ export function Graph3DView({
       }
 
       for (let y = -SIZE/2; y <= SIZE/2; y += GRID) {
-        const grid = new THREE.GridHelper(SIZE, DIVISIONS, 0x475569, 0x1e293b)
+        const grid = new THREE.GridHelper(SIZE, DIVISIONS, 0x1e293b, 0x0f172a)
         grid.position.y = y
         addGrid(grid)
       }
       
       for (let z = -SIZE/2; z <= SIZE/2; z += GRID) {
-        const grid = new THREE.GridHelper(SIZE, DIVISIONS, 0x475569, 0x1e293b)
+        const grid = new THREE.GridHelper(SIZE, DIVISIONS, 0x1e293b, 0x0f172a)
         grid.rotation.x = Math.PI / 2
         grid.position.z = z
         addGrid(grid)
@@ -240,9 +240,9 @@ export function Graph3DView({
       const selected = selectedEdgeKey === edgeKey
       const geometry = new THREE.BufferGeometry().setFromPoints([source, target])
       const material = new THREE.LineBasicMaterial({
-        color: EDGE_COLORS[edge.type] ?? 0x64748b,
+        color: EDGE_COLORS[edge.type] ?? 0x475569,
         transparent: true,
-        opacity: selected ? 1.0 : edge.type === 'similarity' ? 0.5 : 0.8,
+        opacity: selected ? 1.0 : edge.type === 'similarity' ? 0.6 : 0.4,
         blending: THREE.AdditiveBlending,
       })
       const line = new THREE.Line(geometry, material)
@@ -258,10 +258,10 @@ export function Graph3DView({
       const geometry = new THREE.SphereGeometry(radius, 28, 20)
       const material = new THREE.MeshStandardMaterial({
         color: COLORS[node.type],
-        roughness: 0.48,
-        metalness: node.type === 'merkle' ? 0.42 : 0.18,
+        roughness: 0.2,
+        metalness: 0.8,
         emissive: COLORS[node.type],
-        emissiveIntensity: selectedNodeId === node.id ? 0.45 : 0.11,
+        emissiveIntensity: selectedNodeId === node.id ? 0.8 : 0.3,
       })
       const mesh = new THREE.Mesh(geometry, material)
       mesh.position.copy(position)

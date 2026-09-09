@@ -27,9 +27,24 @@ class StorageConfig:
 
 @dataclass(frozen=True)
 class InferenceConfig:
+    enabled: bool = True
     provider: str = "native_harness"
     harness: str = "hermes"
+    profile_name: str = "xibalba-cortex-worker"
     allow_fallback: bool = False
+    task_types: tuple[str, ...] = ("extract_entities", "extract_relations", "classify_para", "detect_contradictions")
+    batch_size: int = 5
+    interval_seconds: float = 5.0
+    max_attempts: int = 3
+    timeout_seconds: int = 120
+    max_parallel_families: int = 2
+    combined_batching: bool = True
+    max_evidence_chars_per_memory: int = 12_000
+    max_items_per_type: int = 20
+    human_review_confidence_threshold: float = 0.75
+    task_confidence_thresholds: dict[str, float] = field(default_factory=dict)
+    promotion_policy: str = "confidence_gated"
+    contradictions_require_review: bool = True
 
 @dataclass(frozen=True)
 class AuthConfig:
@@ -153,11 +168,46 @@ def load_config(*, home: Path | str | None = None, environ: dict[str, str] | Non
         raise ValueError("storage.dsn is required for postgresql backend")
 
     inference_raw = _mapping(raw.get("inference"), "inference")
+    task_types_raw = inference_raw.get("task_types", InferenceConfig().task_types)
+    if not isinstance(task_types_raw, (list, tuple)) or not all(isinstance(item, str) and item.strip() for item in task_types_raw):
+        raise ValueError("inference.task_types must be a list of non-empty strings")
     inference = InferenceConfig(
+        enabled=bool(inference_raw.get("enabled", True)),
         provider=str(inference_raw.get("provider", "native_harness")),
         harness=str(inference_raw.get("harness", "hermes")),
+        profile_name=str(inference_raw.get("profile_name", "xibalba-cortex-worker")),
         allow_fallback=bool(inference_raw.get("allow_fallback", False)),
+        task_types=tuple(dict.fromkeys(item.strip() for item in task_types_raw)),
+        batch_size=int(inference_raw.get("batch_size", 5)),
+        interval_seconds=float(inference_raw.get("interval_seconds", 5.0)),
+        max_attempts=int(inference_raw.get("max_attempts", 3)),
+        timeout_seconds=int(inference_raw.get("timeout_seconds", 120)),
+        max_parallel_families=int(inference_raw.get("max_parallel_families", 2)),
+        combined_batching=bool(inference_raw.get("combined_batching", True)),
+        max_evidence_chars_per_memory=int(inference_raw.get("max_evidence_chars_per_memory", 12_000)),
+        max_items_per_type=int(inference_raw.get("max_items_per_type", 20)),
+        human_review_confidence_threshold=float(inference_raw.get("human_review_confidence_threshold", 0.75)),
+        task_confidence_thresholds={str(k): float(v) for k, v in _mapping(inference_raw.get("task_confidence_thresholds"), "inference.task_confidence_thresholds").items()},
+        promotion_policy=str(inference_raw.get("promotion_policy", "confidence_gated")),
+        contradictions_require_review=bool(inference_raw.get("contradictions_require_review", True)),
     )
+    supported_inference_tasks = {"extract_memory_metadata", "extract_entities", "extract_relations", "classify_para", "detect_contradictions"}
+    unknown_tasks = set(inference.task_types) - supported_inference_tasks
+    if inference.provider != "native_harness":
+        raise ValueError("inference.provider must currently be native_harness")
+    if not inference.harness.strip() or not inference.profile_name.strip():
+        raise ValueError("inference harness and profile_name must be non-empty")
+    if unknown_tasks:
+        raise ValueError(f"unsupported inference task types: {sorted(unknown_tasks)}")
+    if inference.batch_size < 1 or inference.interval_seconds < 0.25 or inference.max_attempts < 1 or inference.timeout_seconds < 1 or not 1 <= inference.max_parallel_families <= 3 or inference.max_evidence_chars_per_memory < 256 or not 1 <= inference.max_items_per_type <= 100 or not 0 <= inference.human_review_confidence_threshold <= 1:
+        raise ValueError("inference batch_size/max_attempts/timeout must be positive and interval_seconds must be at least 0.25")
+    if inference.promotion_policy not in {"confidence_gated", "review_required"}:
+        raise ValueError("inference.promotion_policy must be confidence_gated or review_required")
+    supported_threshold_tasks = {"classify_para", "extract_entities", "extract_relations", "detect_contradictions"}
+    if set(inference.task_confidence_thresholds) - supported_threshold_tasks:
+        raise ValueError("inference.task_confidence_thresholds contains an unsupported task type")
+    if any(not 0 <= value <= 1 for value in inference.task_confidence_thresholds.values()):
+        raise ValueError("task confidence thresholds must be between 0 and 1")
     auth_raw = _mapping(raw.get("auth"), "auth")
     rate_limit_value = env.get("XIBALBA_CORTEX_RATE_LIMIT_PER_MINUTE", auth_raw.get("rate_limit_per_minute"))
     rate_limit = None if rate_limit_value in (None, "", "none", "null") else int(rate_limit_value)

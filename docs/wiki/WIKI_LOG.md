@@ -1,5 +1,14 @@
 # Xibalba Cortex Wiki — Log
 
+## [2026-09-08] update | Inference/provider compatibility repair and validation
+
+- Repaired unknown-session observer reads so blank or non-string Hermes messages remain a safe no-op instead of raising `KeyError`.
+- Preserved the v1 inference-task serialization boundary by omitting optional `provider_id` when unset, while retaining provider routing when declared.
+- Reconciled the tenant inference drill with snapshot-bound `summarize_session` validation so completed tasks emit the required schema, snapshot hash, confidence, and bounded evidence identifiers.
+- Reconciled current MCP documentation from 79 to 80 tools; historical log entries remain unchanged.
+- Verification: targeted regression tests passed; full Cortex backend suite passed with 422 tests and 2 skips; viewer production build passed; `python3 scripts/wiki_toc.py --check` and `git diff --check` passed. Viewer lint passed with 3 warnings and 0 errors.
+- Remaining boundaries: the worktree is still dirty and uncommitted; the SDK remains a sibling local dependency for clean installation; viewer lint warnings remain; no production or external-tenant claim is made.
+
 ## [2026-08-29] update | Operations hardening and documentation reconciliation
 
 - Replaced fixed ports in the local API and OTLP receiver tests with ephemeral socket-selected ports to prevent collisions with live local services and parallel test workers.
@@ -154,3 +163,17 @@
   multi-profile isolation, durable recovery, dependency closure, deployment, and a real pilot.
 - Refreshed source-reviewed wiki dates and evidence wording. Current test and table-of-contents
   results are recorded after validation below.
+
+## [2026-09-08] update | Professional Cortex product journey and local access
+
+- Rebuilt the public landing journey around Cortex knowledge memory: canonical exchanges,
+  source-linked graph projections, configurable inference, timeline replay, PARA organization,
+  correlation, bounded recall, MCP policy, and reviewable causal investigation.
+- Added accessible Mermaid architecture diagrams and a source-linked descriptive comparison of
+  Cortex with Mem0, Zep/Graphiti, Letta, and LangGraph. The page makes no benchmark or automatic
+  causality claim.
+- Standardized the public header, responsive sections, account surface, and comprehensive footer;
+  retained the workspace sidebar and top bar as the authenticated application shell.
+- Added development-only bearer automation. Vite creates a dedicated local operator token once,
+  stores it mode `0600` outside the repository, and injects it through a loopback proxy without
+  exposing the secret to browser JavaScript. Production authentication remains explicit.

@@ -20,7 +20,7 @@ from integrity_sdk.crypto.merkle import compute_node_hash
 
 from .events import domain_merkle_proof, domain_merkle_root, merkle_proof, merkle_root
 from . import projection_reconcile
-from .providers import InferenceTaskContract, validate_contradiction_result, validate_extraction_result
+from .providers import InferenceTaskContract, validate_contradiction_result, validate_extraction_result, validate_metadata_result
 from .redaction import redact
 
 _SCHEMA_VERSION = 13
@@ -105,6 +105,14 @@ _RETRYABLE_FAILURE_CLASSES = {"transient", "timeout", "unavailable"}
 # extraction_proposals (as opposed to classify_para, which has its own dedicated table/pipeline).
 _EXTRACTION_PROPOSAL_TASK_TYPES = {"extract_entities", "extract_relations"}
 _EXTRACTION_PROPOSAL_STATUSES = {"proposed", "accepted", "dismissed", "stale"}
+_MODEL_CONFIDENCE_SEMANTICS = (
+    "Model-assessed support for this proposed classification or extraction, bounded to 0..1. "
+    "It is not probability of truth, source trust, retrieval relevance, or operator approval."
+)
+_RETRIEVAL_SCORE_SEMANTICS = (
+    "Reciprocal-rank-fusion relevance used only for ordering retrieval candidates. "
+    "It is not model confidence, source trust, or probability of truth."
+)
 def _compute_leaves(connection: sqlite3.Connection, table: str, columns: tuple[str, ...], order_column: str) -> list[str]:
     """Recompute canonical leaf hashes for one (table, columns) source against an explicit
     connection, rather than `self._connection` -- so the same computation can run against a
@@ -689,6 +697,19 @@ class GraphStore:
         sqlite_vec.load(self._connection)
         self._connection.enable_load_extension(False)
 
+    def _repair_para_classifications_foreign_key_locked(self) -> None:
+        """Repair the PARA FK rewritten by SQLite during the v8 task-table migration."""
+        foreign_keys = self._connection.execute("PRAGMA foreign_key_list(para_classifications)").fetchall()
+        task_fk = next((row for row in foreign_keys if row[3] == "task_id"), None)
+        if task_fk is None or task_fk[2] == "memory_inference_tasks":
+            return
+        self._connection.execute("ALTER TABLE para_classifications RENAME TO para_classifications_v12")
+        self._connection.executescript(_SCHEMA)
+        columns = [row["name"] for row in self._connection.execute("PRAGMA table_info(para_classifications_v12)")]
+        column_sql = ", ".join(columns)
+        self._connection.execute(f"INSERT INTO para_classifications ({column_sql}) SELECT {column_sql} FROM para_classifications_v12")
+        self._connection.execute("DROP TABLE para_classifications_v12")
+
     def _repair_extraction_proposals_foreign_key_locked(self) -> None:
         """Repair the FK rewritten by SQLite during the v8 task-table migration."""
         table = self._connection.execute(
@@ -995,6 +1016,7 @@ class GraphStore:
                 )
             # Run the detector on every open so a database that already recorded an older
             # schema version is repaired too; healthy stores return immediately.
+            self._repair_para_classifications_foreign_key_locked()
             self._repair_extraction_proposals_foreign_key_locked()
             self._connection.execute(
                 "INSERT OR IGNORE INTO schema_migrations(version) VALUES (?)", (1,)
@@ -2114,6 +2136,7 @@ class GraphStore:
             )
         return {
             "trace_id": trace_id, "root_hash": root_hash, "signals": list(channels), "channel_status": channel_status,
+            "score_semantics": _RETRIEVAL_SCORE_SEMANTICS,
             "degraded": degraded,
             "results": [(memory_cache.get(item["memory_id"]) or self.get_memory(item["memory_id"])) | {"retrieval": item} for item in records],
         }
@@ -2173,6 +2196,7 @@ class GraphStore:
             "current_facts": current_facts, "historical_facts": historical_facts,
             "summaries": summaries, "observations": observations,
             "degraded": retrieval["degraded"], "channel_status": retrieval["channel_status"],
+            "score_semantics": retrieval["score_semantics"],
         }
 
     def get_retrieval_trace(self, trace_id: str) -> dict[str, object]:
@@ -2556,6 +2580,9 @@ class GraphStore:
         Tier is a declared contract, not enforced content: this store has no way to judge
         whether an agent's writes are actually "verbatim." See spec section 4.8.
         """
+        external_session_id = str(external_session_id).strip()
+        if not external_session_id:
+            raise ValueError("external_session_id must be non-empty")
         tier = retention_tier or _DEFAULT_RETENTION_TIER
         if tier not in _RETENTION_TIERS:
             raise ValueError(f"invalid retention_tier: {tier!r}, must be one of {_RETENTION_TIERS}")
@@ -2580,12 +2607,17 @@ class GraphStore:
         return self.get_session(external_session_id)
 
     def get_session(self, external_session_id: str) -> dict[str, object]:
+        """Resolve either the public external session id or the store internal UUID."""
+        session_identifier = str(external_session_id).strip()
+        if not session_identifier:
+            raise ValueError("session identifier must be non-empty")
         with self._lock:
             row = self._connection.execute(
-                "SELECT * FROM sessions WHERE external_session_id = ?", (external_session_id,)
+                "SELECT * FROM sessions WHERE external_session_id = ? OR id = ?",
+                (session_identifier, session_identifier),
             ).fetchone()
         if row is None:
-            raise KeyError(external_session_id)
+            raise KeyError(session_identifier)
         return {
             "id": row["id"],
             "external_session_id": row["external_session_id"],
@@ -2615,14 +2647,14 @@ class GraphStore:
         summary_content: str | None = None,
         source: dict[str, object] | None = None,
         idempotency_key: str | None = None,
-        summary_status: str = "confirmed",
+        summary_status: str = "candidate",
     ) -> dict[str, object]:
         """Close a session, optionally storing a final summary memory as its record of record.
 
         For a `digest`-tier session, `summary_content` is typically the whole point of the
         session's stored footprint -- intent, documents produced, observed outcomes.
         """
-        self.get_session(external_session_id)  # raises KeyError if never started
+        external_session_id = str(self.get_session(external_session_id)["external_session_id"])
 
         summary_memory_id = None
         if summary_content is not None:
@@ -2665,16 +2697,22 @@ class GraphStore:
         """All memories whose source cites this session, oldest first -- reuses the existing
         sources.session_id column rather than duplicating session linkage on every memory row.
         """
+        try:
+            session = self.get_session(external_session_id)
+        except KeyError:
+            return []
+        external_session_id = str(session["external_session_id"])
+        internal_session_id = str(session["id"])
         with self._lock:
             rows = self._connection.execute(
                 """
                 SELECT m.id
                 FROM memories m JOIN sources s ON s.id = m.source_id
-                WHERE s.session_id = ?
+                WHERE s.session_id IN (?, ?)
                 ORDER BY m.rowid
                 LIMIT ?
                 """,
-                (external_session_id, max(1, min(int(limit), 10000))),
+                (external_session_id, internal_session_id, max(1, min(int(limit), 10000))),
             ).fetchall()
         return [self.get_memory(row["id"]) for row in rows]
 
@@ -3189,11 +3227,12 @@ class GraphStore:
         """A session's complete memory, walked in order -- the point of this whole mechanism:
         not a flat bag of memories filtered by session_id, but its actual turn-by-turn shape.
         """
-        self.get_session(external_session_id)
+        session = self.get_session(external_session_id)
+        normalized_session_id = str(session["external_session_id"])
         with self._lock:
             rows = self._connection.execute(
                 "SELECT id FROM exchanges WHERE session_id = ? ORDER BY sequence_number",
-                (external_session_id,),
+                (normalized_session_id,),
             ).fetchall()
         return [self.get_exchange(row["id"]) for row in rows]
 
@@ -3742,7 +3781,7 @@ class GraphStore:
                 memory = self.get_memory(item_id)
                 records.append({"kind": "memory", "id": memory["id"], "content": memory["content"], "content_hash": memory["content_hash"], "status": memory["status"]})
         elif subject_type == "session":
-            records = [{"kind": "exchange", "id": item["exchange"]["id"], "sequence_number": item["exchange"]["sequence_number"], "exchange": item["exchange"]} for item in self.session_exchanges(subject_id, limit=max_items)]
+            records = [{"kind": "exchange", "id": item["id"], "sequence_number": item["sequence_number"], "exchange": item} for item in self.session_exchanges(subject_id)[:max_items]]
         elif subject_type == "context_bundle":
             for item_id in list(allowed)[:max_items]:
                 memory = self.get_memory(item_id)
@@ -3786,6 +3825,7 @@ class GraphStore:
         requested_by: str | None = None,
         idempotency_key: str | None = None,
         contract: InferenceTaskContract | None = None,
+        provider_id: str | None = None,
     ) -> dict[str, object]:
         if not self.features["inference"]:
             raise RuntimeError("inference is disabled by feature policy")
@@ -3797,13 +3837,25 @@ class GraphStore:
             raise ValueError("input_payload must be an object")
         effective_contract = contract or InferenceTaskContract()
         contract_payload = effective_contract.as_dict()
+        if provider_id is not None:
+            provider_id = str(provider_id).strip()
+            if not provider_id:
+                raise ValueError("provider_id must be non-empty")
+            contract_payload["provider_id"] = provider_id
         task_input = dict(input_payload)
-        task_input.setdefault("_contract", contract_payload)
+        supplied_contract = task_input.get("_contract")
+        if supplied_contract is not None and not isinstance(supplied_contract, dict):
+            raise ValueError("input_payload._contract must be an object")
+        merged_contract = dict(contract_payload)
+        merged_contract.update(supplied_contract or {})
+        if provider_id is not None:
+            merged_contract["provider_id"] = provider_id
+        task_input["_contract"] = merged_contract
         task_id = idempotency_key or str(uuid.uuid4())
         with self._lock:
             self._connection.execute("BEGIN IMMEDIATE")
             try:
-                self._connection.execute(
+                cursor = self._connection.execute(
                     """
                     INSERT OR IGNORE INTO memory_inference_tasks(
                         id, task_type, status, subject_type, subject_id, input_json, requested_by
@@ -3818,11 +3870,20 @@ class GraphStore:
                         requested_by,
                     ),
                 )
+                created = cursor.rowcount == 1
                 self._connection.execute("COMMIT")
             except Exception:
                 self._connection.execute("ROLLBACK")
                 raise
-        return self.get_inference_task(task_id)
+        result = self.get_inference_task(task_id)
+        if not created and (result["task_type"] != task_type or result["subject_type"] != subject_type or result["subject_id"] != subject_id):
+            raise ValueError("idempotency_key already belongs to a different inference task identity")
+        return result | {
+            "created": created,
+            "deduplicated": not created,
+            "input_reused": not created and result["input"] != task_input,
+            "idempotency_key": idempotency_key,
+        }
 
     def get_inference_task(self, task_id: str) -> dict[str, object]:
         with self._lock:
@@ -3840,6 +3901,8 @@ class GraphStore:
             "input": json.loads(row["input_json"]),
             "output": json.loads(row["output_json"]) if row["output_json"] else None,
             "requested_by": row["requested_by"],
+            "requested_provider_id": (json.loads(row["input_json"]).get("_contract") or {}).get("provider_id"),
+            "executing_provider_id": (json.loads(row["input_json"]).get("_contract") or {}).get("executing_provider_id"),
             "claim_owner": row["claim_owner"],
             "claim_token": row["claim_token"],
             "lease_expires_at": row["lease_expires_at"],
@@ -3853,35 +3916,45 @@ class GraphStore:
         }
 
     def list_inference_tasks(
-        self, *, status: str = "pending", limit: int = 50
+        self, *, status: str = "pending", limit: int = 50, task_type: str | None = None
     ) -> list[dict[str, object]]:
         bounded_limit = max(1, min(int(limit), 500))
         with self._lock:
-            rows = self._connection.execute(
-                """
-                SELECT id FROM memory_inference_tasks
-                WHERE status = ? AND (retry_after IS NULL OR retry_after <= CURRENT_TIMESTAMP)
-                ORDER BY created_at LIMIT ?
-                """,
-                (status, bounded_limit),
-            ).fetchall()
+            if task_type is None:
+                rows = self._connection.execute(
+                    "SELECT id FROM memory_inference_tasks WHERE status = ? AND (retry_after IS NULL OR retry_after <= CURRENT_TIMESTAMP) ORDER BY created_at LIMIT ?",
+                    (status, bounded_limit),
+                ).fetchall()
+            else:
+                rows = self._connection.execute(
+                    "SELECT id FROM memory_inference_tasks WHERE status = ? AND task_type = ? AND (retry_after IS NULL OR retry_after <= CURRENT_TIMESTAMP) ORDER BY created_at LIMIT ?",
+                    (status, task_type, bounded_limit),
+                ).fetchall()
         return [self.get_inference_task(row["id"]) for row in rows]
 
-    def claim_inference_task(self, task_id: str, *, claimed_by: str | None = None) -> dict[str, object]:
+    def claim_inference_task(self, task_id: str, *, claimed_by: str | None = None, provider_id: str | None = None) -> dict[str, object]:
+        task = self.get_inference_task(task_id)
+        requested_provider = (task.get("input") or {}).get("_contract", {}).get("provider_id")
+        if requested_provider is not None and provider_id != requested_provider:
+            raise ValueError(f"inference task requires provider {requested_provider!r}, not {provider_id!r}")
+        task_input = dict(task.get("input") or {})
+        task_contract = dict(task_input.get("_contract") or {})
+        task_contract["executing_provider_id"] = provider_id or "unspecified"
+        task_input["_contract"] = task_contract
         with self._lock:
             self._connection.execute("BEGIN IMMEDIATE")
             try:
                 cursor = self._connection.execute(
                     """
                     UPDATE memory_inference_tasks
-                    SET status = 'claimed', requested_by = requested_by,
+                    SET status = 'claimed', requested_by = requested_by, input_json = ?,
                         claim_owner = ?, claim_token = ?,
                         lease_expires_at = datetime('now', '+' || ? || ' seconds'),
                         attempt_count = attempt_count + 1,
                         updated_at = CURRENT_TIMESTAMP
                     WHERE id = ? AND (status = 'pending' OR (status = 'claimed' AND lease_expires_at <= CURRENT_TIMESTAMP))
                     """,
-                    (claimed_by or "anonymous-worker", str(uuid.uuid4()), 900, task_id),
+                    (self._canonical_json(task_input), claimed_by or "anonymous-worker", str(uuid.uuid4()), 900, task_id),
                 )
                 if cursor.rowcount == 0:
                     existing = self._connection.execute(
@@ -3917,7 +3990,7 @@ class GraphStore:
         the validation that makes the output trustworthy regardless of who produced it (see
         `complete_inference_task`'s own comment on that point).
         """
-        allowed_types = _EXTRACTION_PROPOSAL_TASK_TYPES | {"detect_contradictions"}
+        allowed_types = _EXTRACTION_PROPOSAL_TASK_TYPES | {"detect_contradictions", "classify_para", "summarize_session"}
         if task_type not in allowed_types:
             raise ValueError(
                 f"start_self_extraction only supports {sorted(allowed_types)}, not {task_type!r} "
@@ -3931,10 +4004,32 @@ class GraphStore:
             input_payload=input_payload,
             requested_by=claimed_by,
             contract=contract,
+            provider_id="in_session",
         )
-        claimed = self.claim_inference_task(task["id"], claimed_by=claimed_by)
+        claimed = self.claim_inference_task(task["id"], claimed_by=claimed_by, provider_id="in_session")
         evidence = self.fetch_bounded_evidence_for_task(claimed)
-        return {"task_id": claimed["id"], "claim_token": claimed["claim_token"], "evidence": evidence}
+        evidence_snapshot_hash = "sha256:" + hashlib.sha256(self._canonical_json(evidence["items"]).encode()).hexdigest()
+        if task_type == "summarize_session":
+            task_input = dict(claimed["input"])
+            task_contract = dict(task_input.get("_contract") or {})
+            declared_hash = task_contract.get("input_snapshot_hash")
+            if declared_hash is not None and declared_hash != evidence_snapshot_hash:
+                self.complete_inference_task(
+                    claimed["id"], error="declared input snapshot does not match bounded evidence",
+                    failure_class="validation", dead_letter_reason="summary_snapshot_mismatch",
+                    claimed_by=claimed_by, claim_token=claimed["claim_token"],
+                )
+                raise ValueError("declared input snapshot does not match bounded evidence")
+            task_contract["input_snapshot_hash"] = evidence_snapshot_hash
+            task_contract["evidence_item_ids"] = [str(item["id"]) for item in evidence["items"]]
+            task_input["_contract"] = task_contract
+            with self._lock:
+                self._connection.execute(
+                    "UPDATE memory_inference_tasks SET input_json = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND status = ? AND claim_token = ?",
+                    (self._canonical_json(task_input), claimed["id"], "claimed", claimed["claim_token"]),
+                )
+            claimed = self.get_inference_task(str(claimed["id"]))
+        return {"task_id": claimed["id"], "claim_token": claimed["claim_token"], "evidence": evidence, "input_snapshot_hash": evidence_snapshot_hash}
 
     def run_structural_extraction(self, subject_id: str, *, claimed_by: str = "structural-extractor") -> dict[str, object]:
         """Deterministic, regex-based extract_entities -- request+claim+extract+complete in
@@ -3954,8 +4049,9 @@ class GraphStore:
             subject_id=subject_id,
             input_payload={"source_content_hash": memory["content_hash"]},
             requested_by=claimed_by,
+            provider_id="structural",
         )
-        claimed = self.claim_inference_task(task["id"], claimed_by=claimed_by)
+        claimed = self.claim_inference_task(task["id"], claimed_by=claimed_by, provider_id="structural")
         entities = extract_structural_entities(str(memory["content"]))
         output = {
             "schema_version": "xibalba.entities.v1",
@@ -4107,11 +4203,42 @@ class GraphStore:
             else:
                 extraction_items = enriched_items
                 extraction_source_hash = expected_hash
+        elif task["task_type"] == "summarize_session" and error is None:
+            try:
+                self._validate_session_summary_output(task, output_payload or {})
+            except Exception as exc:
+                error = str(exc)
+                failure_class = failure_class or "validation"
+                dead_letter_reason = dead_letter_reason or "summary_validation_failed"
+        elif task["task_type"] == "extract_memory_metadata" and error is None:
+            try:
+                memory = self.get_memory(str(task["subject_id"]))
+                expected_hash = str(task["input"].get("source_content_hash") or memory["content_hash"])
+                if expected_hash != memory["content_hash"]:
+                    raise ValueError("metadata source_content_hash does not match current memory")
+                # Preserve the legacy harness contract (arbitrary metadata objects) while
+                # enforcing the strict schema for the isolated background worker.
+                if "schema_version" in (output_payload or {}) or "source_content_hash" in (output_payload or {}):
+                    output_payload = validate_metadata_result(output_payload or {}, expected_hash=expected_hash)
+                else:
+                    legacy_metadata = (output_payload or {}).get("metadata", {})
+                    if not isinstance(legacy_metadata, dict):
+                        raise ValueError("metadata must be an object")
+                    output_payload = {"metadata": legacy_metadata, "source_content_hash": expected_hash}
+            except Exception as exc:
+                error = str(exc)
+                failure_class = failure_class or "validation"
+                dead_letter_reason = dead_letter_reason or "metadata_validation_failed"
         elif task["task_type"] == "classify_para" and error is None:
-            self._validate_para_output(task, output_payload or {})
-            memory = self.get_memory(str(task["subject_id"]))
-            if output_payload["source_content_hash"] != memory["content_hash"]:
-                raise ValueError("PARA source_content_hash does not match current memory")
+            try:
+                self._validate_para_output(task, output_payload or {})
+                memory = self.get_memory(str(task["subject_id"]))
+                if output_payload["source_content_hash"] != memory["content_hash"]:
+                    raise ValueError("PARA source_content_hash does not match current memory")
+            except Exception as exc:
+                error = str(exc)
+                failure_class = failure_class or "validation"
+                dead_letter_reason = dead_letter_reason or "para_validation_failed"
 
         status = "failed" if error else "completed"
         effective_failure_class = failure_class or ("transient" if error else None)
@@ -4146,6 +4273,8 @@ class GraphStore:
                     raise KeyError(task_id)
                 if task["task_type"] == "classify_para" and error is None:
                     self._insert_para_proposal(task, output_payload or {})
+                elif task["task_type"] == "extract_memory_metadata" and error is None:
+                    self._merge_inferred_metadata(task, output_payload or {})
                 elif extraction_items is not None:
                     self._insert_extraction_proposals(task, extraction_items, source_content_hash=str(extraction_source_hash))
                 self._connection.execute("COMMIT")
@@ -4153,6 +4282,56 @@ class GraphStore:
                 self._connection.execute("ROLLBACK")
                 raise
         return self.get_inference_task(task_id)
+
+    def _merge_inferred_metadata(self, task: dict[str, object], output: dict[str, object]) -> None:
+        """Merge validated metadata into the derived memory metadata node with provenance."""
+        memory_id = str(task["subject_id"])
+        metadata = dict(output.get("metadata") or {})
+        source_hash = str(output["source_content_hash"])
+        row = self._connection.execute(
+            "SELECT id, metadata_json FROM meta_nodes WHERE memory_id = ? ORDER BY created_at LIMIT 1",
+            (memory_id,),
+        ).fetchone()
+        current = json.loads(row["metadata_json"]) if row and row["metadata_json"] else {}
+        inferred = dict(current.get("inferred") or {})
+        inferred.update(metadata)
+        current["inferred"] = inferred
+        current["inference_provenance"] = {
+            "task_id": str(task["id"]),
+            "source_content_hash": source_hash,
+            "policy": "automatic_merge",
+        }
+        if row:
+            self._connection.execute(
+                "UPDATE meta_nodes SET metadata_json = ?, type = ?, status = 'active', updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+                (self._canonical_json(current), "inferred_metadata", row["id"]),
+            )
+        else:
+            self._connection.execute(
+                "INSERT INTO meta_nodes(id, memory_id, type, relevance_score, status, metadata_json) VALUES (?, ?, ?, 1.0, 'active', ?)",
+                (str(uuid.uuid4()), memory_id, "inferred_metadata", self._canonical_json(current)),
+            )
+
+    @staticmethod
+    def _validate_session_summary_output(task: dict[str, object], output: dict[str, object]) -> None:
+        if output.get("schema_version") != "xibalba.session_summary.v1":
+            raise ValueError("session summary schema_version must be xibalba.session_summary.v1")
+        contract = (task.get("input") or {}).get("_contract") or {}
+        expected_hash = contract.get("input_snapshot_hash")
+        if not isinstance(expected_hash, str) or output.get("input_snapshot_hash") != expected_hash:
+            raise ValueError("session summary input_snapshot_hash does not match bounded evidence")
+        summary = output.get("summary")
+        if not isinstance(summary, str) or not summary.strip():
+            raise ValueError("session summary text is required")
+        confidence = output.get("confidence")
+        if not isinstance(confidence, (int, float)) or isinstance(confidence, bool) or not 0 <= float(confidence) <= 1:
+            raise ValueError("session summary confidence must be between 0 and 1")
+        evidence_ids = output.get("evidence_ids")
+        if not isinstance(evidence_ids, list) or any(not isinstance(item, str) or not item for item in evidence_ids):
+            raise ValueError("session summary evidence_ids must be a list of non-empty strings")
+        allowed_ids = set(contract.get("evidence_item_ids") or [])
+        if any(item not in allowed_ids for item in evidence_ids):
+            raise ValueError("session summary evidence_ids must come from the bounded evidence snapshot")
 
     @staticmethod
     def _validate_para_output(task: dict[str, object], output: dict[str, object]) -> None:
@@ -4188,7 +4367,7 @@ class GraphStore:
             row = self._connection.execute("SELECT * FROM para_classifications WHERE task_id = ?", (task_id,)).fetchone()
         if row is None:
             raise KeyError(task_id)
-        return {"task_id": row["task_id"], "memory_id": row["memory_id"], "source_content_hash": row["source_content_hash"], "category": row["category"], "confidence": row["confidence"], "rationale": row["rationale"], "signals": json.loads(row["signals_json"]), "alternatives": json.loads(row["alternatives_json"]), "status": row["status"], "decision_note": row["decision_note"], "created_at": row["created_at"], "decided_at": row["decided_at"]}
+        return {"task_id": row["task_id"], "memory_id": row["memory_id"], "source_content_hash": row["source_content_hash"], "category": row["category"], "confidence": row["confidence"], "confidence_semantics": _MODEL_CONFIDENCE_SEMANTICS, "rationale": row["rationale"], "signals": json.loads(row["signals_json"]), "alternatives": json.loads(row["alternatives_json"]), "status": row["status"], "decision_note": row["decision_note"], "created_at": row["created_at"], "decided_at": row["decided_at"]}
 
     def list_para_classifications(self, *, status: str = "proposed", limit: int = 50) -> list[dict[str, object]]:
         with self._lock:
@@ -4211,6 +4390,64 @@ class GraphStore:
         with self._lock:
             self._connection.execute("UPDATE para_classifications SET status = ?, decision_note = ?, decided_at = CURRENT_TIMESTAMP WHERE task_id = ?", (status, note, task_id))
         return self.get_para_classification(task_id)
+
+    def auto_accept_high_confidence_proposals(
+        self, *, threshold: float = 0.75, task_thresholds: dict[str, float] | None = None,
+        promotion_policy: str = "confidence_gated", contradictions_require_review: bool = True,
+        decided_by: str = "inference-policy"
+    ) -> dict[str, int]:
+        """Apply the configured confidence policy while preserving an audit decision.
+
+        Anything below ``threshold`` remains proposed for human review. This is deliberately
+        separate from insertion so an operator can change the policy and drain existing queues
+        without rewriting source memories or losing proposal provenance.
+        """
+        if not 0 <= float(threshold) <= 1:
+            raise ValueError("confidence threshold must be between 0 and 1")
+        if promotion_policy not in {"confidence_gated", "review_required"}:
+            raise ValueError("promotion policy must be confidence_gated or review_required")
+        thresholds = {str(k): float(v) for k, v in (task_thresholds or {}).items()}
+        if any(not 0 <= value <= 1 for value in thresholds.values()):
+            raise ValueError("task confidence thresholds must be between 0 and 1")
+        with self._lock:
+            extraction_rows = self._connection.execute(
+                "SELECT id, task_type, payload_json FROM extraction_proposals WHERE status = 'proposed'"
+            ).fetchall()
+            para_rows = self._connection.execute(
+                "SELECT task_id, confidence FROM para_classifications WHERE status = 'proposed'"
+            ).fetchall()
+        accepted_extraction = accepted_para = skipped = 0
+        for row in extraction_rows:
+            try:
+                payload = json.loads(row["payload_json"])
+                confidence = payload.get("confidence")
+                task_type = str(row["task_type"])
+                minimum = thresholds.get(task_type, threshold)
+                if promotion_policy == "review_required" or (task_type == "detect_contradictions" and contradictions_require_review) or not isinstance(confidence, (int, float)) or isinstance(confidence, bool) or float(confidence) < minimum:
+                    skipped += 1
+                    continue
+                self.decide_extraction_proposal(
+                    str(row["id"]), decision="accept", decided_by=decided_by,
+                    note=f"Automatically accepted at confidence >= {minimum:.2f}.",
+                )
+                accepted_extraction += 1
+            except (KeyError, ValueError, TypeError, json.JSONDecodeError):
+                skipped += 1
+        for row in para_rows:
+            try:
+                confidence = row["confidence"]
+                minimum = thresholds.get("classify_para", threshold)
+                if promotion_policy == "review_required" or not isinstance(confidence, (int, float)) or isinstance(confidence, bool) or float(confidence) < minimum:
+                    skipped += 1
+                    continue
+                self.accept_para_classification(
+                    str(row["task_id"]), decision="accept",
+                    note=f"Automatically accepted at confidence >= {minimum:.2f}.",
+                )
+                accepted_para += 1
+            except (KeyError, ValueError, TypeError):
+                skipped += 1
+        return {"extraction_accepted": accepted_extraction, "para_accepted": accepted_para, "below_threshold_or_skipped": skipped}
 
     def _insert_extraction_proposals(
         self, task: dict[str, object], items: list[dict[str, object]], *, source_content_hash: str
@@ -4245,6 +4482,7 @@ class GraphStore:
             "source_memory_id": row["source_memory_id"],
             "source_content_hash": row["source_content_hash"],
             "payload": json.loads(row["payload_json"]),
+            "confidence_semantics": _MODEL_CONFIDENCE_SEMANTICS,
             "evidence_quote": row["evidence_quote"],
             "status": row["status"],
             "decision_note": row["decision_note"],

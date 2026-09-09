@@ -1,1 +1,118 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="48" height="46" fill="none" viewBox="0 0 48 46"><path fill="#863bff" d="M25.946 44.938c-.664.845-2.021.375-2.021-.698V33.937a2.26 2.26 0 0 0-2.262-2.262H10.287c-.92 0-1.456-1.04-.92-1.788l7.48-10.471c1.07-1.497 0-3.578-1.842-3.578H1.237c-.92 0-1.456-1.04-.92-1.788L10.013.474c.214-.297.556-.474.92-.474h28.894c.92 0 1.456 1.04.92 1.788l-7.48 10.471c-1.07 1.498 0 3.579 1.842 3.579h11.377c.943 0 1.473 1.088.89 1.83L25.947 44.94z" style="fill:#863bff;fill:color(display-p3 .5252 .23 1);fill-opacity:1"/><mask id="a" width="48" height="46" x="0" y="0" maskUnits="userSpaceOnUse" style="mask-type:alpha"><path fill="#000" d="M25.842 44.938c-.664.844-2.021.375-2.021-.698V33.937a2.26 2.26 0 0 0-2.262-2.262H10.183c-.92 0-1.456-1.04-.92-1.788l7.48-10.471c1.07-1.498 0-3.579-1.842-3.579H1.133c-.92 0-1.456-1.04-.92-1.787L9.91.473c.214-.297.556-.474.92-.474h28.894c.92 0 1.456 1.04.92 1.788l-7.48 10.471c-1.07 1.498 0 3.578 1.842 3.578h11.377c.943 0 1.473 1.088.89 1.832L25.843 44.94z" style="fill:#000;fill-opacity:1"/></mask><g mask="url(#a)"><g filter="url(#b)"><ellipse cx="5.508" cy="14.704" fill="#ede6ff" rx="5.508" ry="14.704" style="fill:#ede6ff;fill:color(display-p3 .9275 .9033 1);fill-opacity:1" transform="matrix(.00324 1 1 -.00324 -4.47 31.516)"/></g><g filter="url(#c)"><ellipse cx="10.399" cy="29.851" fill="#ede6ff" rx="10.399" ry="29.851" style="fill:#ede6ff;fill:color(display-p3 .9275 .9033 1);fill-opacity:1" transform="matrix(.00324 1 1 -.00324 -39.328 7.883)"/></g><g filter="url(#d)"><ellipse cx="5.508" cy="30.487" fill="#7e14ff" rx="5.508" ry="30.487" style="fill:#7e14ff;fill:color(display-p3 .4922 .0767 1);fill-opacity:1" transform="rotate(89.814 -25.913 -14.639)scale(1 -1)"/></g><g filter="url(#e)"><ellipse cx="5.508" cy="30.599" fill="#7e14ff" rx="5.508" ry="30.599" style="fill:#7e14ff;fill:color(display-p3 .4922 .0767 1);fill-opacity:1" transform="rotate(89.814 -32.644 -3.334)scale(1 -1)"/></g><g filter="url(#f)"><ellipse cx="5.508" cy="30.599" fill="#7e14ff" rx="5.508" ry="30.599" style="fill:#7e14ff;fill:color(display-p3 .4922 .0767 1);fill-opacity:1" transform="matrix(.00324 1 1 -.00324 -34.34 30.47)"/></g><g filter="url(#g)"><ellipse cx="14.072" cy="22.078" fill="#ede6ff" rx="14.072" ry="22.078" style="fill:#ede6ff;fill:color(display-p3 .9275 .9033 1);fill-opacity:1" transform="rotate(93.35 24.506 48.493)scale(-1 1)"/></g><g filter="url(#h)"><ellipse cx="3.47" cy="21.501" fill="#7e14ff" rx="3.47" ry="21.501" style="fill:#7e14ff;fill:color(display-p3 .4922 .0767 1);fill-opacity:1" transform="rotate(89.009 28.708 47.59)scale(-1 1)"/></g><g filter="url(#i)"><ellipse cx="3.47" cy="21.501" fill="#7e14ff" rx="3.47" ry="21.501" style="fill:#7e14ff;fill:color(display-p3 .4922 .0767 1);fill-opacity:1" transform="rotate(89.009 28.708 47.59)scale(-1 1)"/></g><g filter="url(#j)"><ellipse cx=".387" cy="8.972" fill="#7e14ff" rx="4.407" ry="29.108" style="fill:#7e14ff;fill:color(display-p3 .4922 .0767 1);fill-opacity:1" transform="rotate(39.51 .387 8.972)"/></g><g filter="url(#k)"><ellipse cx="47.523" cy="-6.092" fill="#7e14ff" rx="4.407" ry="29.108" style="fill:#7e14ff;fill:color(display-p3 .4922 .0767 1);fill-opacity:1" transform="rotate(37.892 47.523 -6.092)"/></g><g filter="url(#l)"><ellipse cx="41.412" cy="6.333" fill="#47bfff" rx="5.971" ry="9.665" style="fill:#47bfff;fill:color(display-p3 .2799 .748 1);fill-opacity:1" transform="rotate(37.892 41.412 6.333)"/></g><g filter="url(#m)"><ellipse cx="-1.879" cy="38.332" fill="#7e14ff" rx="4.407" ry="29.108" style="fill:#7e14ff;fill:color(display-p3 .4922 .0767 1);fill-opacity:1" transform="rotate(37.892 -1.88 38.332)"/></g><g filter="url(#n)"><ellipse cx="-1.879" cy="38.332" fill="#7e14ff" rx="4.407" ry="29.108" style="fill:#7e14ff;fill:color(display-p3 .4922 .0767 1);fill-opacity:1" transform="rotate(37.892 -1.88 38.332)"/></g><g filter="url(#o)"><ellipse cx="35.651" cy="29.907" fill="#7e14ff" rx="4.407" ry="29.108" style="fill:#7e14ff;fill:color(display-p3 .4922 .0767 1);fill-opacity:1" transform="rotate(37.892 35.651 29.907)"/></g><g filter="url(#p)"><ellipse cx="38.418" cy="32.4" fill="#47bfff" rx="5.971" ry="15.297" style="fill:#47bfff;fill:color(display-p3 .2799 .748 1);fill-opacity:1" transform="rotate(37.892 38.418 32.4)"/></g></g><defs><filter id="b" width="60.045" height="41.654" x="-19.77" y="16.149" color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse"><feFlood flood-opacity="0" result="BackgroundImageFix"/><feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"/><feGaussianBlur result="effect1_foregroundBlur_2002_17158" stdDeviation="7.659"/></filter><filter id="c" width="90.34" height="51.437" x="-54.613" y="-7.533" color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse"><feFlood flood-opacity="0" result="BackgroundImageFix"/><feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"/><feGaussianBlur result="effect1_foregroundBlur_2002_17158" stdDeviation="7.659"/></filter><filter id="d" width="79.355" height="29.4" x="-49.64" y="2.03" color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse"><feFlood flood-opacity="0" result="BackgroundImageFix"/><feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"/><feGaussianBlur result="effect1_foregroundBlur_2002_17158" stdDeviation="4.596"/></filter><filter id="e" width="79.579" height="29.4" x="-45.045" y="20.029" color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse"><feFlood flood-opacity="0" result="BackgroundImageFix"/><feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"/><feGaussianBlur result="effect1_foregroundBlur_2002_17158" stdDeviation="4.596"/></filter><filter id="f" width="79.579" height="29.4" x="-43.513" y="21.178" color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse"><feFlood flood-opacity="0" result="BackgroundImageFix"/><feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"/><feGaussianBlur result="effect1_foregroundBlur_2002_17158" stdDeviation="4.596"/></filter><filter id="g" width="74.749" height="58.852" x="15.756" y="-17.901" color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse"><feFlood flood-opacity="0" result="BackgroundImageFix"/><feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"/><feGaussianBlur result="effect1_foregroundBlur_2002_17158" stdDeviation="7.659"/></filter><filter id="h" width="61.377" height="25.362" x="23.548" y="2.284" color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse"><feFlood flood-opacity="0" result="BackgroundImageFix"/><feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"/><feGaussianBlur result="effect1_foregroundBlur_2002_17158" stdDeviation="4.596"/></filter><filter id="i" width="61.377" height="25.362" x="23.548" y="2.284" color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse"><feFlood flood-opacity="0" result="BackgroundImageFix"/><feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"/><feGaussianBlur result="effect1_foregroundBlur_2002_17158" stdDeviation="4.596"/></filter><filter id="j" width="56.045" height="63.649" x="-27.636" y="-22.853" color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse"><feFlood flood-opacity="0" result="BackgroundImageFix"/><feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"/><feGaussianBlur result="effect1_foregroundBlur_2002_17158" stdDeviation="4.596"/></filter><filter id="k" width="54.814" height="64.646" x="20.116" y="-38.415" color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse"><feFlood flood-opacity="0" result="BackgroundImageFix"/><feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"/><feGaussianBlur result="effect1_foregroundBlur_2002_17158" stdDeviation="4.596"/></filter><filter id="l" width="33.541" height="35.313" x="24.641" y="-11.323" color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse"><feFlood flood-opacity="0" result="BackgroundImageFix"/><feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"/><feGaussianBlur result="effect1_foregroundBlur_2002_17158" stdDeviation="4.596"/></filter><filter id="m" width="54.814" height="64.646" x="-29.286" y="6.009" color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse"><feFlood flood-opacity="0" result="BackgroundImageFix"/><feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"/><feGaussianBlur result="effect1_foregroundBlur_2002_17158" stdDeviation="4.596"/></filter><filter id="n" width="54.814" height="64.646" x="-29.286" y="6.009" color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse"><feFlood flood-opacity="0" result="BackgroundImageFix"/><feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"/><feGaussianBlur result="effect1_foregroundBlur_2002_17158" stdDeviation="4.596"/></filter><filter id="o" width="54.814" height="64.646" x="8.244" y="-2.416" color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse"><feFlood flood-opacity="0" result="BackgroundImageFix"/><feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"/><feGaussianBlur result="effect1_foregroundBlur_2002_17158" stdDeviation="4.596"/></filter><filter id="p" width="39.409" height="43.623" x="18.713" y="10.588" color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse"><feFlood flood-opacity="0" result="BackgroundImageFix"/><feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"/><feGaussianBlur result="effect1_foregroundBlur_2002_17158" stdDeviation="4.596"/></filter></defs></svg>
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 1000" width="1000" height="1000">
+<defs>
+    <filter id="01shadow" x="-30%" y="-30%" width="160%" height="160%">
+        <feDropShadow dx="8" dy="16" stdDeviation="12" flood-color="#1E1D1F" flood-opacity="0.3"/>
+    </filter>
+    <filter id="01shadow-deep" x="-50%" y="-50%" width="200%" height="200%">
+        <feDropShadow dx="0" dy="25" stdDeviation="15" flood-color="#1E1D1F" flood-opacity="0.4"/>
+    </filter>
+    <filter id="01extrude" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="4" dy="8" stdDeviation="0" flood-color="#2D2B2E" flood-opacity="0.5"/>
+      <feDropShadow dx="12" dy="20" stdDeviation="10" flood-color="#1E1D1F" flood-opacity="0.3"/>
+    </filter>
+    <filter id="01extrude-light" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="3" dy="6" stdDeviation="0" flood-color="#DCD7CD" flood-opacity="0.5"/>
+      <feDropShadow dx="8" dy="16" stdDeviation="10" flood-color="#1E1D1F" flood-opacity="0.15"/>
+    </filter>
+</defs>
+<rect width="1000" height="1000" fill="transparent"/>
+<g transform="translate(500, 500)">
+
+    <g filter="url(#01shadow)">
+        <polygon points="0.0,-99.99999999999999 -56.29,-132.5 0.0,-165.0 56.29,-132.5" fill="#706080"/>
+        <polygon points="0.0,-99.99999999999999 56.29,-132.5 56.29,-67.49999999999999 0.0,-34.999999999999986" fill="#5B4D68"/>
+        <polygon points="0.0,-99.99999999999999 0.0,-34.999999999999986 -56.29,-67.49999999999999 -56.29,-132.5" fill="#443850"/>
+        <polyline points="-56.29,-132.5 0.0,-99.99999999999999 56.29,-132.5" fill="none" stroke="#Fcfaf5" stroke-width="2" opacity="0.5"/>
+        <line x1="0.0" y1="-99.99999999999999" x2="0.0" y2="-34.999999999999986" stroke="#Fcfaf5" stroke-width="2" opacity="0.5"/>
+    </g>
+
+    <g filter="url(#01shadow)">
+        <polygon points="-129.9038105676658,-74.99999999999999 -186.1938105676658,-107.49999999999999 -129.9038105676658,-140.0 -73.61381056766581,-107.49999999999999" fill="#4A8B91"/>
+        <polygon points="-129.9038105676658,-74.99999999999999 -73.61381056766581,-107.49999999999999 -73.61381056766581,-42.499999999999986 -129.9038105676658,-9.999999999999986" fill="#3A7177"/>
+        <polygon points="-129.9038105676658,-74.99999999999999 -129.9038105676658,-9.999999999999986 -186.1938105676658,-42.499999999999986 -186.1938105676658,-107.49999999999999" fill="#244F54"/>
+        <polyline points="-186.1938105676658,-107.49999999999999 -129.9038105676658,-74.99999999999999 -73.61381056766581,-107.49999999999999" fill="none" stroke="#Fcfaf5" stroke-width="2" opacity="0.5"/>
+        <line x1="-129.9038105676658" y1="-74.99999999999999" x2="-129.9038105676658" y2="-9.999999999999986" stroke="#Fcfaf5" stroke-width="2" opacity="0.5"/>
+    </g>
+
+    <g filter="url(#01shadow)">
+        <polygon points="-43.30127018922194,-75.0 -99.59127018922194,-107.5 -43.30127018922194,-140.0 12.98872981077806,-107.5" fill="#DE9B43"/>
+        <polygon points="-43.30127018922194,-75.0 12.98872981077806,-107.5 12.98872981077806,-42.5 -43.30127018922194,-10.0" fill="#C28230"/>
+        <polygon points="-43.30127018922194,-75.0 -43.30127018922194,-10.0 -99.59127018922194,-42.5 -99.59127018922194,-107.5" fill="#A86A1D"/>
+        <polyline points="-99.59127018922194,-107.5 -43.30127018922194,-75.0 12.98872981077806,-107.5" fill="none" stroke="#Fcfaf5" stroke-width="2" opacity="0.5"/>
+        <line x1="-43.30127018922194" y1="-75.0" x2="-43.30127018922194" y2="-10.0" stroke="#Fcfaf5" stroke-width="2" opacity="0.5"/>
+    </g>
+
+    <g filter="url(#01shadow)">
+        <polygon points="0.0,-100.0 -56.29,-132.5 0.0,-165.0 56.29,-132.5" fill="#706080"/>
+        <polygon points="0.0,-100.0 56.29,-132.5 56.29,-67.5 0.0,-35.0" fill="#5B4D68"/>
+        <polygon points="0.0,-100.0 0.0,-35.0 -56.29,-67.5 -56.29,-132.5" fill="#443850"/>
+        <polyline points="-56.29,-132.5 0.0,-100.0 56.29,-132.5" fill="none" stroke="#Fcfaf5" stroke-width="2" opacity="0.5"/>
+        <line x1="0.0" y1="-100.0" x2="0.0" y2="-35.0" stroke="#Fcfaf5" stroke-width="2" opacity="0.5"/>
+    </g>
+
+    <g filter="url(#01shadow)">
+        <polygon points="173.20508075688775,0.0 116.91508075688776,-32.5 173.20508075688775,-65.0 229.49508075688775,-32.5" fill="#706080"/>
+        <polygon points="173.20508075688775,0.0 229.49508075688775,-32.5 229.49508075688775,32.5 173.20508075688775,65.0" fill="#5B4D68"/>
+        <polygon points="173.20508075688775,0.0 173.20508075688775,65.0 116.91508075688776,32.5 116.91508075688776,-32.5" fill="#443850"/>
+        <polyline points="116.91508075688776,-32.5 173.20508075688775,0.0 229.49508075688775,-32.5" fill="none" stroke="#Fcfaf5" stroke-width="2" opacity="0.5"/>
+        <line x1="173.20508075688775" y1="0.0" x2="173.20508075688775" y2="65.0" stroke="#Fcfaf5" stroke-width="2" opacity="0.5"/>
+    </g>
+
+    <g filter="url(#01shadow)">
+        <polygon points="86.60254037844388,50.00000000000001 30.312540378443877,17.500000000000007 86.60254037844388,-14.999999999999993 142.89254037844387,17.500000000000007" fill="#4A8B91"/>
+        <polygon points="86.60254037844388,50.00000000000001 142.89254037844387,17.500000000000007 142.89254037844387,82.5 86.60254037844388,115.0" fill="#3A7177"/>
+        <polygon points="86.60254037844388,50.00000000000001 86.60254037844388,115.0 30.312540378443877,82.5 30.312540378443877,17.500000000000007" fill="#244F54"/>
+        <polyline points="30.312540378443877,17.500000000000007 86.60254037844388,50.00000000000001 142.89254037844387,17.500000000000007" fill="none" stroke="#Fcfaf5" stroke-width="2" opacity="0.5"/>
+        <line x1="86.60254037844388" y1="50.00000000000001" x2="86.60254037844388" y2="115.0" stroke="#Fcfaf5" stroke-width="2" opacity="0.5"/>
+    </g>
+
+    <g filter="url(#01shadow)">
+        <polygon points="43.30127018922194,-25.000000000000004 -12.98872981077806,-57.5 43.30127018922194,-90.0 99.59127018922194,-57.5" fill="#DE9B43"/>
+        <polygon points="43.30127018922194,-25.000000000000004 99.59127018922194,-57.5 99.59127018922194,7.4999999999999964 43.30127018922194,40.0" fill="#C28230"/>
+        <polygon points="43.30127018922194,-25.000000000000004 43.30127018922194,40.0 -12.98872981077806,7.4999999999999964 -12.98872981077806,-57.5" fill="#A86A1D"/>
+        <polyline points="-12.98872981077806,-57.5 43.30127018922194,-25.000000000000004 99.59127018922194,-57.5" fill="none" stroke="#Fcfaf5" stroke-width="2" opacity="0.5"/>
+        <line x1="43.30127018922194" y1="-25.000000000000004" x2="43.30127018922194" y2="40.0" stroke="#Fcfaf5" stroke-width="2" opacity="0.5"/>
+    </g>
+
+    <g filter="url(#01shadow)">
+        <polygon points="-173.20508075688775,0.0 -229.49508075688775,-32.5 -173.20508075688775,-65.0 -116.91508075688776,-32.5" fill="#706080"/>
+        <polygon points="-173.20508075688775,0.0 -116.91508075688776,-32.5 -116.91508075688776,32.5 -173.20508075688775,65.0" fill="#5B4D68"/>
+        <polygon points="-173.20508075688775,0.0 -173.20508075688775,65.0 -229.49508075688775,32.5 -229.49508075688775,-32.5" fill="#443850"/>
+        <polyline points="-229.49508075688775,-32.5 -173.20508075688775,0.0 -116.91508075688776,-32.5" fill="none" stroke="#Fcfaf5" stroke-width="2" opacity="0.5"/>
+        <line x1="-173.20508075688775" y1="0.0" x2="-173.20508075688775" y2="65.0" stroke="#Fcfaf5" stroke-width="2" opacity="0.5"/>
+    </g>
+
+    <g filter="url(#01shadow)">
+        <polygon points="-129.9038105676658,24.999999999999986 -186.1938105676658,-7.500000000000014 -129.9038105676658,-40.000000000000014 -73.61381056766581,-7.500000000000014" fill="#DE9B43"/>
+        <polygon points="-129.9038105676658,24.999999999999986 -73.61381056766581,-7.500000000000014 -73.61381056766581,57.499999999999986 -129.9038105676658,89.99999999999999" fill="#C28230"/>
+        <polygon points="-129.9038105676658,24.999999999999986 -129.9038105676658,89.99999999999999 -186.1938105676658,57.499999999999986 -186.1938105676658,-7.500000000000014" fill="#A86A1D"/>
+        <polyline points="-186.1938105676658,-7.500000000000014 -129.9038105676658,24.999999999999986 -73.61381056766581,-7.500000000000014" fill="none" stroke="#Fcfaf5" stroke-width="2" opacity="0.5"/>
+        <line x1="-129.9038105676658" y1="24.999999999999986" x2="-129.9038105676658" y2="89.99999999999999" stroke="#Fcfaf5" stroke-width="2" opacity="0.5"/>
+    </g>
+
+    <g filter="url(#01shadow)">
+        <polygon points="129.9038105676658,74.99999999999999 73.61381056766581,42.499999999999986 129.9038105676658,9.999999999999986 186.1938105676658,42.499999999999986" fill="#4A8B91"/>
+        <polygon points="129.9038105676658,74.99999999999999 186.1938105676658,42.499999999999986 186.1938105676658,107.49999999999999 129.9038105676658,140.0" fill="#3A7177"/>
+        <polygon points="129.9038105676658,74.99999999999999 129.9038105676658,140.0 73.61381056766581,107.49999999999999 73.61381056766581,42.499999999999986" fill="#244F54"/>
+        <polyline points="73.61381056766581,42.499999999999986 129.9038105676658,74.99999999999999 186.1938105676658,42.499999999999986" fill="none" stroke="#Fcfaf5" stroke-width="2" opacity="0.5"/>
+        <line x1="129.9038105676658" y1="74.99999999999999" x2="129.9038105676658" y2="140.0" stroke="#Fcfaf5" stroke-width="2" opacity="0.5"/>
+    </g>
+
+    <g filter="url(#01shadow)">
+        <polygon points="-86.60254037844388,100.0 -142.89254037844387,67.5 -86.60254037844388,35.0 -30.312540378443877,67.5" fill="#4A8B91"/>
+        <polygon points="-86.60254037844388,100.0 -30.312540378443877,67.5 -30.312540378443877,132.5 -86.60254037844388,165.0" fill="#3A7177"/>
+        <polygon points="-86.60254037844388,100.0 -86.60254037844388,165.0 -142.89254037844387,132.5 -142.89254037844387,67.5" fill="#244F54"/>
+        <polyline points="-142.89254037844387,67.5 -86.60254037844388,100.0 -30.312540378443877,67.5" fill="none" stroke="#Fcfaf5" stroke-width="2" opacity="0.5"/>
+        <line x1="-86.60254037844388" y1="100.0" x2="-86.60254037844388" y2="165.0" stroke="#Fcfaf5" stroke-width="2" opacity="0.5"/>
+    </g>
+
+    <g filter="url(#01shadow)">
+        <polygon points="0.0,99.99999999999999 -56.29,67.49999999999999 0.0,34.999999999999986 56.29,67.49999999999999" fill="#706080"/>
+        <polygon points="0.0,99.99999999999999 56.29,67.49999999999999 56.29,132.5 0.0,165.0" fill="#5B4D68"/>
+        <polygon points="0.0,99.99999999999999 0.0,165.0 -56.29,132.5 -56.29,67.49999999999999" fill="#443850"/>
+        <polyline points="-56.29,67.49999999999999 0.0,99.99999999999999 56.29,67.49999999999999" fill="none" stroke="#Fcfaf5" stroke-width="2" opacity="0.5"/>
+        <line x1="0.0" y1="99.99999999999999" x2="0.0" y2="165.0" stroke="#Fcfaf5" stroke-width="2" opacity="0.5"/>
+    </g>
+    </g>
+</svg>

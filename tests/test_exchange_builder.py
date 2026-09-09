@@ -99,3 +99,34 @@ def test_build_session_exchanges_excludes_session_summary_memories(tmp_path):
     # the summary memory (evidence_class=summary) must not appear as a response in any exchange
     all_response_content = [m["content"] for e in exchanges for m in e["response_memories"]]
     assert "Session complete: fixed login CSS." not in all_response_content
+
+
+def test_build_empty_session_is_explicit_and_accepts_internal_identifier(tmp_path):
+    store = GraphStore(tmp_path / "empty")
+    session = store.start_session("empty-external")
+    result = build_session_exchanges(store, session["id"])
+    assert result == {
+        "session_id": "empty-external",
+        "exchanges_built": 0,
+        "exchange_ids": [],
+        "status": "empty",
+        "deduplicated": False,
+        "reason": "no_non_summary_memories_or_otel_events",
+    }
+    store.close()
+
+
+def test_build_session_exchanges_reports_idempotent_duplicate(tmp_path):
+    store = GraphStore(tmp_path / "duplicate")
+    store.start_session("duplicate-session")
+    store.store_memory(
+        "Prompt", source={"kind": "direct_user", "session_id": "duplicate-session", "role": "user"},
+        status="confirmed",
+    )
+    first = build_session_exchanges(store, "duplicate-session")
+    second = build_session_exchanges(store, "duplicate-session")
+    assert first["status"] == "built"
+    assert second["status"] == "unchanged"
+    assert second["deduplicated"] is True
+    assert len(store.session_exchanges("duplicate-session")) == 1
+    store.close()

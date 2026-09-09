@@ -38,7 +38,9 @@ Inference work is stored in SQLite as durable, idempotent tasks. Claim metadata 
 
 ## Task lifecycle
 
-The inference task table records the task type, subject, input payload, output or error, requester, status, timestamps, and additive claim metadata. Task creation is idempotent for the same explicit task identity.
+The inference task table records the task type, subject, input payload, output or error, requester, status, timestamps, additive claim metadata, and an optional open provider identifier. Built-in identifiers are `hermes`, `in_session`, and `structural`; another harness may use its own stable identifier and claim only tasks routed to it. Provider identifiers select a worker boundary, not an executable command.
+
+Task creation is idempotent for the same explicit task identity. The request result reports `created`, `deduplicated`, `input_reused`, and `idempotency_key`. Reusing a key for the same task returns the original durable input and explicitly reports whether new input was ignored; reusing it for a different task type, subject type, or subject id fails instead of silently aliasing unrelated work.
 
 The normal lifecycle is:
 

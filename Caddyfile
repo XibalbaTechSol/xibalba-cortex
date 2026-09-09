@@ -1,0 +1,24 @@
+{
+    admin off
+}
+
+:8443 {
+    # Production TLS (auto HTTPS if a real domain is provided)
+    # tls internal # Use this for local self-signed dev certificates
+
+    root * /srv/cortex/viewer/dist
+    file_server
+
+    try_files {path} /index.html
+
+    # Reverse proxy API requests to the Python backend
+    reverse_proxy /api/* 127.0.0.1:8420
+
+    header {
+        Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options "DENY"
+        # CORS Headers - allow the frontend to access the API if on a different domain,
+        # but since we're serving both from the same domain, it's not strictly necessary.
+    }
+}

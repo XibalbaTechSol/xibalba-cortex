@@ -6,10 +6,12 @@
 // transport uses -- see auth_middleware.py / ingest_tokens.py). The operator enters it at
 // runtime; it is kept only in this tab's sessionStorage, never embedded in the Vite bundle.
 
-const DEFAULT_BASE_URL = import.meta.env.VITE_LOCAL_API_URL ?? 'http://localhost:8420'
+const DEFAULT_BASE_URL = import.meta.env.VITE_LOCAL_API_URL ?? (import.meta.env.DEV ? '/cortex-api' : 'http://localhost:8420')
 const TOKEN_STORAGE_KEY = 'xibalba-cortex.local-api-token'
 const URL_STORAGE_KEY = 'xibalba-cortex.local-api-url'
-let apiToken = sessionStorage.getItem(TOKEN_STORAGE_KEY) ?? ''
+// In development this is only a non-secret UI marker. Vite's loopback-only proxy reads the
+// real mode-0600 credential and injects it server-side; the browser never receives that token.
+let apiToken = import.meta.env.DEV ? 'local-dev-proxy' : sessionStorage.getItem(TOKEN_STORAGE_KEY) ?? ''
 let apiBaseUrl = sessionStorage.getItem(URL_STORAGE_KEY) ?? DEFAULT_BASE_URL
 
 export function getApiToken(): string {
@@ -446,6 +448,27 @@ export interface EmbeddingModel {
   checked_at: string | null
 }
 
+export interface InferenceSettings {
+  enabled: boolean
+  provider: string
+  harness: string
+  profile_name: string
+  allow_fallback: boolean
+  task_types: string[]
+  batch_size: number
+  interval_seconds: number
+  max_attempts: number
+  timeout_seconds: number
+  max_parallel_families: number
+  combined_batching: boolean
+  max_evidence_chars_per_memory: number
+  max_items_per_type: number
+  human_review_confidence_threshold: number
+  task_confidence_thresholds: Record<string, number>
+  promotion_policy: 'confidence_gated' | 'review_required'
+  contradictions_require_review: boolean
+}
+
 export interface RecordModelExchangePayload {
   external_session_id: string
   user_prompt: string
@@ -602,5 +625,6 @@ export const api = {
   rebuildProjectionCheckpoint: (projectionId: string) =>
     postJson<ProjectionCheckpoint & { verified: boolean }>(`/api/projections/${encodeURIComponent(projectionId)}/rebuild`, {}),
   embeddingModels: () => getJson<EmbeddingModel[]>('/api/embedding/models'),
-  updateInferenceSettings: (apiKey: string, modelId: string) => postJson('/api/settings/inference', { api_key: apiKey, model_id: modelId }),
+  inferenceSettings: () => getJson<InferenceSettings>('/api/settings/inference'),
+  updateInferenceSettings: (settings: InferenceSettings) => postJson<{ok: boolean; inference: InferenceSettings; message: string}>('/api/settings/inference', settings as unknown as Record<string, unknown>),
 }

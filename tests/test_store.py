@@ -1308,7 +1308,10 @@ def test_memory_inference_task_lifecycle_is_harness_facing(tmp_path):
         idempotency_key="metadata-task-1",
     )
 
-    assert duplicate == task
+    assert task["created"] is True
+    assert duplicate["deduplicated"] is True
+    assert duplicate["input_reused"] is True
+    assert duplicate["id"] == task["id"]
     assert [item["id"] for item in store.list_inference_tasks()] == [task["id"]]
 
     claimed = store.claim_inference_task(task["id"], claimed_by="xibalba-memory-inference")
@@ -1496,4 +1499,158 @@ def test_session_replay_reconstructs_messages_tools_timestamps_and_detects_compl
         store._connection.execute("UPDATE otel_events SET attributes_json = ? WHERE id = ?", (json.dumps({"content": "tampered"}), tool_ids[1]))
         store._connection.commit()
     assert store.verify_exchange_chain("replay")["valid"] is False
+    store.close()
+
+
+def test_session_identifiers_are_nonempty_and_internal_ids_resolve(tmp_path):
+    store = GraphStore(tmp_path / "session-identifiers")
+    with pytest.raises(ValueError, match="non-empty"):
+        store.start_session("   ")
+    session = store.start_session("external-session")
+    assert store.get_session(session["id"])["external_session_id"] == "external-session"
+    memory = store.store_memory(
+        "Legacy internal-id-linked memory.",
+        source={"kind": "test", "session_id": session["id"]},
+        status="confirmed",
+    )
+    assert [item["id"] for item in store.session_memories("external-session")] == [memory["id"]]
+    assert [item["id"] for item in store.session_memories(session["id"])] == [memory["id"]]
+    store.close()
+
+
+def test_unverified_session_summary_defaults_to_candidate_and_not_current_fact(tmp_path):
+    store = GraphStore(tmp_path / "summary-trust")
+    store.start_session("summary-session")
+    ended = store.end_session("summary-session", summary_content="Unverified current session summary marker.")
+    summary = store.get_memory(ended["summary_memory_id"])
+    assert summary["status"] == "candidate"
+    assert summary["evidence_class"] == "summary"
+    context = store.assemble_context("Unverified current session summary marker")
+    assert all(item["memory_id"] != summary["id"] for bucket in ("current_facts", "summaries", "observations") for item in context[bucket])
+    store.close()
+
+
+def test_inference_task_duplicate_result_is_explicit_and_provider_routed(tmp_path):
+    store = GraphStore(tmp_path / "provider-routing")
+    memory = store.store_memory("Provider routing evidence.", source={"kind": "test"}, status="confirmed")
+    first = store.request_inference_task(
+        "extract_entities", subject_type="memory", subject_id=memory["id"],
+        input_payload={"source_content_hash": memory["content_hash"]},
+        idempotency_key="provider-task", provider_id="custom:test-provider",
+    )
+    duplicate = store.request_inference_task(
+        "extract_entities", subject_type="memory", subject_id=memory["id"],
+        input_payload={"ignored": True}, idempotency_key="provider-task",
+        provider_id="custom:test-provider",
+    )
+    assert first["created"] is True and first["deduplicated"] is False
+    assert duplicate["created"] is False and duplicate["deduplicated"] is True
+    assert duplicate["input_reused"] is True
+    assert duplicate["input"] == first["input"]
+    with pytest.raises(ValueError, match="requires provider"):
+        store.claim_inference_task(first["id"], claimed_by="wrong", provider_id="hermes")
+    claimed = store.claim_inference_task(first["id"], claimed_by="custom", provider_id="custom:test-provider")
+    assert claimed["status"] == "claimed"
+    with pytest.raises(ValueError, match="different inference task identity"):
+        store.request_inference_task(
+            "extract_relations", subject_type="memory", subject_id=memory["id"],
+            input_payload={}, idempotency_key="provider-task",
+        )
+    store.close()
+
+
+def test_structural_and_in_session_extraction_are_distinct_and_traceable(tmp_path):
+    store = GraphStore(tmp_path / "extraction-providers")
+    memory = store.store_memory("Xibalba Cortex manages memory.", source={"kind": "test"}, status="confirmed")
+    structural = store.run_structural_extraction(memory["id"])
+    assert structural["output"]["entities"] == []
+    assert structural["input"]["_contract"]["provider_id"] == "structural"
+
+    started = store.start_self_extraction(
+        "extract_entities", subject_type="memory", subject_id=memory["id"],
+        input_payload={"source_content_hash": memory["content_hash"]}, claimed_by="test-session",
+    )
+    task = store.get_inference_task(started["task_id"])
+    assert task["input"]["_contract"]["provider_id"] == "in_session"
+    completed = store.complete_inference_task(
+        started["task_id"], claimed_by="test-session", claim_token=started["claim_token"],
+        output_payload={
+            "schema_version": "xibalba.entities.v1",
+            "input_snapshot_hash": memory["content_hash"],
+            "entities": [{"name": "Xibalba Cortex", "entity_type": "software", "evidence_quote": "Xibalba Cortex", "confidence": 0.9}],
+        },
+    )
+    assert completed["status"] == "completed"
+    proposals = store.list_extraction_proposals(task_id=started["task_id"])
+    assert proposals[0]["payload"]["name"] == "Xibalba Cortex"
+    assert "not probability of truth" in proposals[0]["confidence_semantics"]
+    store.close()
+
+
+def test_in_session_para_is_validated_and_review_gated(tmp_path):
+    store = GraphStore(tmp_path / "in-session-para")
+    memory = store.store_memory("Ship the Cortex release by Friday.", source={"kind": "test"}, status="confirmed")
+    started = store.start_self_extraction(
+        "classify_para", subject_type="memory", subject_id=memory["id"],
+        input_payload={"source_content_hash": memory["content_hash"]}, claimed_by="live-session",
+    )
+    completed = store.complete_inference_task(
+        started["task_id"], claimed_by="live-session", claim_token=started["claim_token"],
+        output_payload={
+            "category": "project", "confidence": 0.92,
+            "rationale": "A bounded deliverable has a deadline.",
+            "signals": ["deliverable", "deadline"], "alternatives": ["area"],
+            "source_memory_id": memory["id"], "source_content_hash": memory["content_hash"],
+        },
+    )
+    assert completed["status"] == "completed"
+    assert completed["input"]["_contract"]["provider_id"] == "in_session"
+    proposal = store.get_para_classification(started["task_id"])
+    assert proposal["status"] == "proposed"
+    assert "not probability of truth" in proposal["confidence_semantics"]
+    store.close()
+
+
+def test_in_session_summary_is_snapshot_bound_and_does_not_create_current_fact(tmp_path):
+    store = GraphStore(tmp_path / "in-session-summary")
+    store.start_session("summary-source")
+    store.store_memory("Please fix login.", source={"kind": "direct_user", "session_id": "summary-source", "role": "user"}, status="confirmed")
+    store.store_memory("Login fixed.", source={"kind": "direct_model_response", "session_id": "summary-source", "role": "assistant"}, status="confirmed", evidence_class="observed_event")
+    from xibalba_cortex.exchange_builder import build_session_exchanges
+    build_session_exchanges(store, "summary-source")
+    started = store.start_self_extraction(
+        "summarize_session", subject_type="session", subject_id="summary-source",
+        input_payload={}, claimed_by="live-session",
+    )
+    evidence_ids = [item["id"] for item in started["evidence"]["items"]]
+    completed = store.complete_inference_task(
+        started["task_id"], claimed_by="live-session", claim_token=started["claim_token"],
+        output_payload={
+            "schema_version": "xibalba.session_summary.v1",
+            "input_snapshot_hash": started["input_snapshot_hash"],
+            "summary": "The session requested and completed a login fix.",
+            "confidence": 0.95, "evidence_ids": evidence_ids,
+        },
+    )
+    assert completed["status"] == "completed"
+    assert completed["input"]["_contract"]["provider_id"] == "in_session"
+    assert store.get_session("summary-source")["summary_memory_id"] is None
+    assert all(memory["evidence_class"] != "summary" for memory in store.session_memories("summary-source"))
+    store.close()
+
+
+def test_invalid_in_session_summary_fails_closed(tmp_path):
+    store = GraphStore(tmp_path / "invalid-summary")
+    store.start_session("invalid-summary-source")
+    started = store.start_self_extraction(
+        "summarize_session", subject_type="session", subject_id="invalid-summary-source",
+        input_payload={}, claimed_by="live-session",
+    )
+    failed = store.complete_inference_task(
+        started["task_id"], claimed_by="live-session", claim_token=started["claim_token"],
+        output_payload={"summary": "Unbound summary"},
+    )
+    assert failed["status"] == "failed"
+    assert failed["failure_class"] == "validation"
+    assert failed["dead_letter_reason"] == "summary_validation_failed"
     store.close()

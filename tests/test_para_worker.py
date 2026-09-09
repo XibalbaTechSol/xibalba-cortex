@@ -9,7 +9,9 @@ def test_para_worker_completes_a_claimed_task_with_hash_bound_output(tmp_path: P
     memory = store.store_memory("Prepare the quarterly launch plan by Friday.", source={"kind": "test"}, status="active")
     store.request_inference_task("classify_para", subject_type="memory", subject_id=memory["id"], input_payload={"source_content_hash": memory["content_hash"]}, idempotency_key="para-worker-1")
 
-    def runner(_: str) -> str:
+    prompts: list[str] = []
+    def runner(prompt: str) -> str:
+        prompts.append(prompt)
         return '{"category":"project","confidence":0.93,"rationale":"A concrete deliverable has a deadline.","signals":["deliverable","deadline"],"alternatives":[]}'
 
     result = process_para_tasks(store, runner=runner, worker_id="test-worker")
@@ -18,6 +20,8 @@ def test_para_worker_completes_a_claimed_task_with_hash_bound_output(tmp_path: P
     assert task["output"]["source_memory_id"] == memory["id"]
     assert task["output"]["source_content_hash"] == memory["content_hash"]
     assert store.get_para_classification(task["id"])["status"] == "proposed"
+    assert "category (project|area|resource|archive)" in prompts[0]
+    assert "Prepare the quarterly launch plan by Friday." in prompts[0]
 
 
 def test_para_payload_rejects_invalid_json():

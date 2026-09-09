@@ -67,3 +67,28 @@ def test_hermes_extraction_vertical_slice_claims_validates_and_completes(tmp_pat
 def test_extraction_result_rejects_wrong_snapshot_hash():
     with pytest.raises(ValueError, match="input_snapshot_hash"):
         validate_extraction_result({"schema_version": "xibalba.entities.v1", "input_snapshot_hash": "sha256:" + "0" * 64, "entities": []}, expected_hash="sha256:" + "1" * 64, kind="entities")
+
+
+def test_worker_omits_unsupported_relation_quotes_but_keeps_valid_items(tmp_path: Path):
+    store = GraphStore(tmp_path / "graph")
+    memory = store.store_memory("Cortex uses Hermes for extraction.", source={"kind": "test"}, status="confirmed")
+    task = store.request_inference_task(
+        "extract_relations", subject_type="memory", subject_id=memory["id"],
+        input_payload={"source_content_hash": memory["content_hash"]}, idempotency_key="relation-citations",
+    )
+
+    def runner(_: str) -> str:
+        return json.dumps({
+            "schema_version": "xibalba.relations.v1",
+            "input_snapshot_hash": "model-supplied-value-is-not-trusted",
+            "relations": [
+                {"subject": "Cortex", "predicate": "uses", "object": "Hermes", "evidence_quote": "Cortex uses Hermes", "confidence": 0.95},
+                {"subject": "Cortex", "predicate": "uses", "object": "Other", "evidence_quote": "invented evidence", "confidence": 0.8},
+            ],
+        })
+
+    assert process_extraction_tasks(store, runner=runner, worker_id="citation-test") == {"processed": 1, "completed": 1, "failed": 0}
+    output = store.get_inference_task(task["id"])["output"]
+    assert output["input_snapshot_hash"] == memory["content_hash"]
+    assert len(output["relations"]) == 1
+    assert output["relations"][0]["evidence_quote"] == "Cortex uses Hermes"

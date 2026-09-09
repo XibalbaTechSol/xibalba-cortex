@@ -1,18 +1,19 @@
-import smtplib
-from email.message import EmailMessage
 import os
+import resend
 
-SMTP_HOST = os.getenv("SMTP_HOST", "127.0.0.1")
-SMTP_PORT = int(os.getenv("SMTP_PORT", "1025"))
+resend.api_key = os.getenv("RESEND_API_KEY")
 
 def send_email(to_email: str, subject: str, body: str) -> None:
-    msg = EmailMessage()
-    msg.set_content(body)
-    msg['Subject'] = subject
-    msg['From'] = "noreply@xibalba.local"
-    msg['To'] = to_email
+    if not resend.api_key:
+        print(f"WARN: RESEND_API_KEY not set. Would have sent email to {to_email} with subject '{subject}'")
+        return
+
     try:
-        with smtplib.SMTP(SMTP_HOST, SMTP_PORT) as server:
-            server.send_message(msg)
-    except Exception:
-        pass
+        resend.Emails.send({
+            "from": "noreply@xibalba.local", # Replace with verified domain in production
+            "to": to_email,
+            "subject": subject,
+            "text": body
+        })
+    except Exception as e:
+        print(f"WARN: Failed to send email via Resend: {e}")

@@ -6,6 +6,14 @@ The local API includes both read routes and bounded mutating `POST` routes for r
 
 ## Run
 
+For local development, `npm run dev` now creates a dedicated `viewer-local-dev` operator token
+on first boot, stores its raw value at `<CORTEX_HOME>/.viewer-dev.token` with mode `0600`, and
+uses a loopback-only Vite proxy to inject it into API requests. The browser receives only a
+non-secret local-development marker. Delete the token file and revoke its token record to rotate
+it. This automation is never included in a production build.
+
+For a production build or an explicitly authenticated operator flow:
+
 1. Issue a token for the viewer (once per profile home):
    ```bash
    uv run xibalba-cortex-ingest-tokens --home ~/.hermes/xibalba-cortex issue --label viewer --role reader
@@ -24,13 +32,15 @@ The local API includes both read routes and bounded mutating `POST` routes for r
    npm install
    npm run dev
    ```
-4. Open the viewer, enter the local API endpoint and token from step 1, and connect. The viewer
+4. Open the production viewer, enter the local API endpoint and token from step 1, and connect. The viewer
    validates both against `/api/status` before opening the workspace. The endpoint and token
    stay in the current browser tab via `sessionStorage`; neither is embedded in the bundle.
    The viewer opens on `http://localhost:5190` (a fixed, non-default port that avoids the
    Dockerized `integrity-dashboard` instances on 5173/5174).
 
-`VITE_LOCAL_API_URL` sets the initial endpoint value. Operators may change it on the sign-in screen without rebuilding the viewer.
+`VITE_LOCAL_API_URL` sets the initial production endpoint value. For local development,
+`CORTEX_HOME`, `CORTEX_DEV_TOKEN_FILE`, and `CORTEX_LOCAL_API_URL` configure the profile,
+protected token file, and Vite proxy target respectively.
 
 ## Graph rendering behavior
 

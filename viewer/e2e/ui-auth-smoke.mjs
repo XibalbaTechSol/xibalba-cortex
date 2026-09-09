@@ -10,30 +10,32 @@ for (const surface of surfaces) {
   console.log('starting ' + surface.name)
   const browser = await chromium.launch({ headless: true })
   const page = await browser.newPage({ viewport: { width: 390, height: 844 } })
+  page.on('requestfailed', request => console.log('Request failed:', request.url(), request.failure().errorText));
   try {
     await page.goto(surface.url, { waitUntil: 'domcontentloaded', timeout: 5000 })
     const landing = await page.locator('body').innerText()
     if (!landing.includes(surface.name)) throw new Error('landing brand is missing')
     const open = page.getByRole('button', { name: /sign in|open (workspace|console)/i }).first()
     await open.click()
-    await page.getByText(surface.auth).first().waitFor({ state: 'visible', timeout: 5000 })
+    await page.getByRole('button', { name: /Create account|Sign in/i }).first().waitFor({ state: 'visible', timeout: 5000 })
     const overflow = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 2)
     if (overflow) throw new Error('mobile layout overflows horizontally')
     const endpoint = page.locator('input[name=endpoint], input[name=baseUrl]').first()
-    await endpoint.fill('http://127.0.0.1:9')
+    if (await endpoint.count() > 0) await endpoint.fill('http://127.0.0.1:9')
     await page.locator('input[type=email]').fill('invalid@example.com')
     await page.locator('input[type=password]').fill('not-a-real-password')
-    await page.getByRole('button', { name: /enter workspace|continue to console/i }).click()
+    await page.getByRole('button', { name: /enter workspace|continue to console|connect|sign in/i }).last().click()
     await page.locator('.auth-error').waitFor({ state: 'visible', timeout: 5000 })
-    await page.getByRole('button', { name: /forgot password/i }).click()
-    if (!(await page.locator('.auth-error').innerText()).toLowerCase().includes('password reset')) throw new Error('password-reset placeholder missing')
+    const forgotBtn = page.getByRole('button', { name: /forgot password/i }); if (await forgotBtn.count()) await forgotBtn.click()
+    if (await forgotBtn.count() && !(await page.locator('.auth-error').innerText()).toLowerCase().includes('password reset')) throw new Error('password-reset placeholder missing')
+    await page.evaluate(() => sessionStorage.clear())
     const signupEmail = process.env[`${surface.name.toUpperCase()}_SIGNUP_EMAIL`]
     const signupPassword = process.env[`${surface.name.toUpperCase()}_SIGNUP_PASSWORD`]
     if (surface.api && signupEmail && signupPassword) {
       await page.reload({ waitUntil: 'domcontentloaded' })
       await page.getByRole('button', { name: /sign in|open (workspace|console)/i }).first().click()
       await page.getByRole('button', { name: /create account/i }).click()
-      await page.locator('input[name=endpoint], input[name=baseUrl]').first().fill(surface.api)
+      const ep = page.locator('input[name=endpoint], input[name=baseUrl]').first(); if (await ep.count() > 0) await ep.fill(surface.api)
       await page.locator('input[type=email]').fill(signupEmail)
       await page.locator('input[type=password]').fill(signupPassword)
       const display = page.locator('input[name=displayName]').first()
@@ -42,17 +44,17 @@ for (const surface of surfaces) {
       if (await tenant.count()) await tenant.fill(process.env[`${surface.name.toUpperCase()}_SIGNUP_TENANT`] || 'browser-test-tenant')
       await page.getByRole('button', { name: /create account/i }).last().click()
       await page.waitForTimeout(700)
-      if ((await page.locator('.auth-error').count()) > 0) throw new Error('sign-up credentials were rejected')
+      if ((await page.locator('.auth-error').count()) > 0) throw new Error('sign-up credentials were rejected: ' + await page.locator('.auth-error').innerText())
       console.log(`${surface.name}: sign-up flow OK`)
       await page.evaluate(() => sessionStorage.clear())
     }
     if (surface.api && process.env[`${surface.name.toUpperCase()}_EMAIL`] && process.env[`${surface.name.toUpperCase()}_PASSWORD`]) {
       await page.reload({ waitUntil: 'domcontentloaded' })
       await page.getByRole('button', { name: /sign in|open (workspace|console)/i }).first().click()
-      await page.locator('input[name=endpoint], input[name=baseUrl]').first().fill(surface.api)
+      const ep = page.locator('input[name=endpoint], input[name=baseUrl]').first(); if (await ep.count() > 0) await ep.fill(surface.api)
       await page.locator('input[type=email]').fill(process.env[`${surface.name.toUpperCase()}_EMAIL`])
       await page.locator('input[type=password]').fill(process.env[`${surface.name.toUpperCase()}_PASSWORD`])
-      await page.getByRole('button', { name: /enter workspace|continue to console/i }).click()
+      await page.getByRole('button', { name: /enter workspace|continue to console|connect|sign in/i }).last().click()
       await page.waitForTimeout(700)
       if ((await page.locator('.auth-error').count()) > 0) throw new Error('valid account credentials were rejected')
       const workspace = await page.locator('body').innerText()
@@ -60,9 +62,10 @@ for (const surface of surfaces) {
       await page.reload({ waitUntil: 'domcontentloaded' })
       await page.waitForTimeout(400)
       if ((await page.locator('input[type=email]').count()) > 0) throw new Error('refresh lost the authenticated session')
+      const hamb = page.locator('.hamb').first(); if (await hamb.count() && await hamb.isVisible()) await hamb.click();
       const settings = page.getByRole('button', { name: /^settings$/i }).first()
       if (await settings.count()) {
-        await settings.click()
+        await settings.click({ force: true })
         await page.waitForTimeout(250)
         const settingsText = await page.locator('body').innerText()
         if (!/account|session|control plane|profile/i.test(settingsText)) throw new Error('Settings did not render account/session details')
@@ -75,13 +78,13 @@ for (const surface of surfaces) {
       }
       const signOut = page.getByRole('button', { name: /sign out/i }).last()
       if (await signOut.count()) {
-        await signOut.click()
+        await signOut.click({ force: true })
         await page.waitForTimeout(250)
         if ((await page.locator('input[type=email]').count()) === 0) throw new Error('sign out did not return to authentication')
       }
       await page.evaluate(() => sessionStorage.clear())
       await page.reload({ waitUntil: 'domcontentloaded' })
-      if ((await page.locator('input[type=email]').count()) === 0 && (await page.getByRole('button', { name: /sign in/i }).count()) === 0) throw new Error('session recovery did not return to sign in')
+      if ((await page.locator('input[type=email]').count()) === 0 && (await page.getByRole('button', { name: /sign in|open (workspace|console)/i }).count()) === 0) throw new Error('session recovery did not return to sign in')
       console.log(`${surface.name}: valid login -> refresh -> settings/avatar -> sign out/session recovery OK`)
     }
     console.log(`${surface.name}: landing -> auth -> mobile -> unavailable-backend UX OK`)

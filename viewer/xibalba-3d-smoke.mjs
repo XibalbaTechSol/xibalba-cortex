@@ -11,7 +11,7 @@ async function checkViewport(name, viewport) {
     const canvas = document.querySelector('canvas');
     if (!canvas) return null;
     const rect = canvas.getBoundingClientRect();
-    const ctx = canvas.getContext('2d');
+    // const ctx = canvas.getContext('2d');
     // WebGL canvases cannot be read via 2D context, use screenshot pixel sampling instead.
     return { width: rect.width, height: rect.height };
   });

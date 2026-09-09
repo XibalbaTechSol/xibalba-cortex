@@ -46,10 +46,16 @@ def test_para_completion_rejects_invalid_category_and_stale_source(tmp_path: Pat
     task = store.request_inference_task("classify_para", subject_type="memory", subject_id=memory["id"], input_payload={"source_content_hash": memory["content_hash"]})
     store.claim_inference_task(task["id"], claimed_by="test-worker")
     claimed = store.get_inference_task(task["id"])
-    with pytest.raises(ValueError, match="category"):
-        store.complete_inference_task(task["id"], claimed_by="test-worker", claim_token=claimed["claim_token"], output_payload={"category": "other"})
-    with pytest.raises(ValueError, match="source_content_hash"):
-        store.complete_inference_task(task["id"], claimed_by="test-worker", claim_token=claimed["claim_token"], output_payload={"category": "resource", "confidence": 0.8, "rationale": "reference", "source_memory_id": memory["id"], "source_content_hash": "sha256:stale"})
+    invalid = store.complete_inference_task(task["id"], claimed_by="test-worker", claim_token=claimed["claim_token"], output_payload={"category": "other"})
+    assert invalid["status"] == "failed"
+    assert invalid["failure_class"] == "validation"
+    assert invalid["dead_letter_reason"] == "para_validation_failed"
+
+    stale_task = store.request_inference_task("classify_para", subject_type="memory", subject_id=memory["id"], input_payload={"source_content_hash": memory["content_hash"]})
+    stale_claimed = store.claim_inference_task(stale_task["id"], claimed_by="test-worker")
+    stale = store.complete_inference_task(stale_task["id"], claimed_by="test-worker", claim_token=stale_claimed["claim_token"], output_payload={"category": "resource", "confidence": 0.8, "rationale": "reference", "source_memory_id": memory["id"], "source_content_hash": "sha256:stale"})
+    assert stale["status"] == "failed"
+    assert "source_content_hash" in stale["error"]
 
 
 def test_stale_para_decision_is_recorded_without_mutating_memory(tmp_path: Path):

@@ -111,3 +111,30 @@ def test_invalid_auth_rate_limit_is_rejected(tmp_path):
     (tmp_path / "config.yaml").write_text("auth:\n  rate_limit_per_minute: 0\n")
     with pytest.raises(ValueError, match="rate_limit_per_minute"):
         load_config(home=tmp_path)
+
+
+def test_inference_pipeline_policy_is_fully_profile_configurable(tmp_path):
+    (tmp_path / "config.yaml").write_text(
+        "inference:\n"
+        "  enabled: true\n"
+        "  harness: custom-harness\n"
+        "  profile_name: private-worker\n"
+        "  task_types: [classify_para, extract_entities]\n"
+        "  batch_size: 17\n"
+        "  interval_seconds: 1.5\n"
+        "  max_attempts: 4\n"
+        "  timeout_seconds: 45\n"
+        "  max_parallel_families: 3\n"
+    )
+    policy = load_config(home=tmp_path).inference
+    assert policy.harness == "custom-harness"
+    assert policy.profile_name == "private-worker"
+    assert policy.task_types == ("classify_para", "extract_entities")
+    assert (policy.batch_size, policy.interval_seconds, policy.max_attempts, policy.timeout_seconds) == (17, 1.5, 4, 45)
+    assert policy.max_parallel_families == 3
+
+
+def test_inference_pipeline_rejects_unknown_tasks(tmp_path):
+    (tmp_path / "config.yaml").write_text("inference:\n  task_types: [invent_facts]\n")
+    with pytest.raises(ValueError, match="unsupported inference task types"):
+        load_config(home=tmp_path)

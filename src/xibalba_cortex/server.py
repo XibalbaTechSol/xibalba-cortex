@@ -694,6 +694,7 @@ def memory_record_model_exchange(
         response_time=response_time,
         metadata=metadata,
         idempotency_key=idempotency_key,
+        provider_id=provider_id,
     )
 
 
@@ -763,6 +764,7 @@ def memory_request_inference(
     input_payload: dict[str, object],
     requested_by: str | None = None,
     idempotency_key: str | None = None,
+    provider_id: str | None = None,
 ) -> dict[str, object]:
     """Queue an inference task for the user's agent harness or future cloud inference worker."""
     return get_store().request_inference_task(
@@ -783,9 +785,9 @@ def memory_inference_tasks(status: str = "pending", limit: int = 50) -> list[dic
 
 @server.tool()
 @_requires_scope("memory:write")
-def memory_claim_inference_task(task_id: str, claimed_by: str | None = None) -> dict[str, object]:
-    """Mark a pending inference task as claimed by a local harness worker."""
-    return get_store().claim_inference_task(task_id, claimed_by=claimed_by)
+def memory_claim_inference_task(task_id: str, claimed_by: str | None = None, provider_id: str | None = None) -> dict[str, object]:
+    """Claim a task only when this worker matches its selected provider, if any."""
+    return get_store().claim_inference_task(task_id, claimed_by=claimed_by, provider_id=provider_id)
 
 
 @server.tool()
@@ -800,8 +802,9 @@ def memory_start_self_extraction(
     """Request + claim + fetch bounded evidence in one call, for the CALLING agent to do its
     own extraction inline instead of the isolated NativeHarnessInferenceProvider subprocess.
 
-    Only extract_entities/extract_relations/detect_contradictions are accepted -- the task
-    types with a real server-side output validator. After extracting from the returned
+    Entity/relation extraction, contradiction detection, PARA classification, and
+    snapshot-bound session summaries are accepted -- the task types with a real server-side
+    output validator. After inferring from the returned
     `evidence`, call memory_complete_inference_task(task_id, output_payload, claimed_by,
     claim_token) with your own structured result -- it goes through the exact same
     server-side validation (schema, snapshot-hash match, evidence_quote containment) a
@@ -1405,7 +1408,7 @@ def main() -> None:
     import uvicorn
     import threading
     import time
-    from .hermes_worker import process_extraction_tasks
+    from .inference_loop import process_inference_cycle
     from .store import GraphStore
 
     def _inference_daemon():
@@ -1414,10 +1417,14 @@ def main() -> None:
         store = GraphStore(home=home, profile_id=profile_id)
         while True:
             try:
-                process_extraction_tasks(store, limit=5)
+                inference_config = load_config(home=home).inference
+                result = process_inference_cycle(store, config=inference_config)
+                if any(isinstance(value, dict) and "error" in value for value in result.values()):
+                    print(f"Inference daemon cycle degraded: {result}")
             except Exception as e:
                 print(f"Inference daemon error: {e}")
-            time.sleep(5)
+                inference_config = None
+            time.sleep(inference_config.interval_seconds if inference_config else 5)
 
     threading.Thread(target=_inference_daemon, daemon=True).start()
 

@@ -38,7 +38,7 @@ The PARA worker classifies a selected memory into **Project**, **Area**, **Resou
 The classifier accepts structured JSON with:
 
 - `category`: `project`, `area`, `resource`, or `archive`;
-- `confidence`: a number from `0` through `1`;
+- `confidence`: a model-assessed support score from `0` through `1`; it is not probability of truth, source trust, retrieval relevance, or operator approval;
 - `rationale`: a non-empty explanation;
 - optional `signals` and `alternatives` arrays.
 

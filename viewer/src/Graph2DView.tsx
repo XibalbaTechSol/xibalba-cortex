@@ -34,22 +34,22 @@ export function Graph2DView({
   }, [options.fitNonce, options.fitMode, selectedNodeId, graph.nodes])
 
   const colors = useMemo(() => ({
-    memory: '#1f77b4',
-    entity: '#2ca02c',
-    session: '#9467bd',
-    exchange: '#ff7f0e',
-    merkle: '#d62728'
+    memory: '#3b82f6',
+    entity: '#facc15',
+    session: '#52e096',
+    exchange: '#8b5cf6',
+    merkle: '#f87171'
   }), [])
 
   return (
     <ForceGraph2D
       ref={fgRef as any}
-      graphData={graph as any}
-      backgroundColor={options.background === 'paper' ? '#f8f9fa' : options.background === 'midnight' ? '#0f172a' : options.background === 'matrix' ? '#000000' : '#ffffff'}
+      graphData={{ nodes: graph.nodes, links: graph.edges } as any}
+      backgroundColor={options.background === 'paper' ? '#f5f7f9' : options.background === 'midnight' ? '#090d12' : options.background === 'matrix' ? '#0a1012' : '#000000'}
       nodeLabel="label"
-      nodeColor={(node: any) => node.id === selectedNodeId ? '#ff0000' : colors[node.type as keyof typeof colors] || '#999'}
+      nodeColor={(node: any) => node.id === selectedNodeId ? '#ffffff' : colors[node.type as keyof typeof colors] || '#475569'}
       nodeRelSize={6}
-      linkColor={(edge: any) => `${edge.source.id || edge.source}|${edge.target.id || edge.target}|${edge.type}` === selectedEdgeKey ? '#ff0000' : options.background === 'paper' ? '#999' : '#555'}
+      linkColor={(edge: any) => `${edge.source.id || edge.source}|${edge.target.id || edge.target}|${edge.type}` === selectedEdgeKey ? '#ffffff' : options.background === 'paper' ? '#cbd5e1' : '#1e293b'}
       linkWidth={(edge: any) => `${edge.source.id || edge.source}|${edge.target.id || edge.target}|${edge.type}` === selectedEdgeKey ? 3 : 1}
       linkDirectionalArrowLength={3.5}
       linkDirectionalArrowRelPos={1}
