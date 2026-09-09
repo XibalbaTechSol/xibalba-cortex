@@ -12,7 +12,6 @@ dependencies = [
   "integrity-sdk",
   "uvicorn>=0.30",
   "sentence-transformers>=5.7.0",
-  "resend>=2.43.0",
   "pyjwt[crypto]>=2.13.0",
   "requests>=2.34.2",
 ]

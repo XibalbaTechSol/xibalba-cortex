@@ -66,10 +66,10 @@ The API reads its default allowed origin from `CORTEX_ALLOWED_ORIGIN`, falling b
 so operators must configure an exact origin and external TLS before exposing the service.
 
 Profile accounts include signup, login/logout, password change, session revocation, reset
-request/confirmation, and administrative approval routes. Password reset remains a development
-surface: the API returns the raw token with `delivery: local_only`. The optional SMTP helper is
-best-effort, uses local development defaults, and suppresses delivery failures, so it is not
-evidence that mail was delivered and is not a production recovery flow.
+request/confirmation, and administrative approval routes. Reset requests never return the raw
+token. They require a configured reset URL and STARTTLS SMTP transport; missing configuration or
+delivery failure returns `503` and deletes the newly issued token. A successful local test proves
+the fail-closed application contract, not production inbox delivery.
 
 The viewer can be unavailable while the MCP server and local store remain operational. Conversely, a successful page render does not prove that a write operation was authorized or completed. Validate mutations through API readback and database evidence.
 

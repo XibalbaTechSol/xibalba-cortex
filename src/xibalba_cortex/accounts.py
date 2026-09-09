@@ -11,6 +11,7 @@ import base64
 import hashlib
 import hmac
 import json
+import os
 import secrets
 import sqlite3
 import uuid
@@ -228,18 +229,36 @@ def request_password_reset(home: str | Path, *, email: str, ttl_minutes: int = 3
         record_auth_event(home, event_type="password_reset_requested", email=_normalize_email(email), detail="unknown account")
         return None
     raw = secrets.token_urlsafe(32)
+    token_id = str(uuid.uuid4())
     now = datetime.now(timezone.utc)
     conn = _connect(home)
     try:
-        conn.execute("INSERT INTO password_reset_tokens(id,account_id,token_hash,expires_at,created_at) VALUES(?,?,?,?,?)", (str(uuid.uuid4()), row["id"], _hash(raw), (now + timedelta(minutes=ttl_minutes)).isoformat(), _now()))
+        conn.execute("INSERT INTO password_reset_tokens(id,account_id,token_hash,expires_at,created_at) VALUES(?,?,?,?,?)", (token_id, row["id"], _hash(raw), (now + timedelta(minutes=ttl_minutes)).isoformat(), _now()))
         conn.commit()
     finally:
         conn.close()
-    record_auth_event(home, event_type="password_reset_requested", email=row["email"], profile_id=row["profile_id"])
+    reset_url = os.environ.get("CORTEX_PASSWORD_RESET_URL", "").strip()
+    if not reset_url:
+        conn = _connect(home)
+        try:
+            conn.execute("DELETE FROM password_reset_tokens WHERE id=?", (token_id,))
+            conn.commit()
+        finally:
+            conn.close()
+        raise RuntimeError("CORTEX_PASSWORD_RESET_URL is required for password reset delivery")
+    separator = "&" if "?" in reset_url else "?"
     try:
         from .email_delivery import send_email
-        send_email(row["email"], "Password Reset", f"Your password reset token is: {raw}")
-    except Exception: pass
+        send_email(row["email"], "Reset your Xibalba Cortex password", f"Use this time-limited link to reset your password:\n\n{reset_url}{separator}token={raw}\n")
+    except Exception as exc:
+        conn = _connect(home)
+        try:
+            conn.execute("DELETE FROM password_reset_tokens WHERE id=?", (token_id,))
+            conn.commit()
+        finally:
+            conn.close()
+        raise RuntimeError("password reset email delivery failed") from exc
+    record_auth_event(home, event_type="password_reset_requested", email=row["email"], profile_id=row["profile_id"], detail="email delivered")
     return raw
 
 def reset_password(home: str | Path, *, reset_token: str, new_password: str) -> bool:

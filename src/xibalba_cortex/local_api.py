@@ -536,7 +536,11 @@ def _make_handler(store: GraphStore, *, allowed_origin: str):
                         self._send_json(200 if approved else 404, {"ok": approved} if approved else {"error": "account not found"})
                     elif parts[-2:] == ["password-reset", "request"]:
                         email = str(payload.get("email") or "")
-                        token = request_password_reset(store.home, email=email)
+                        try:
+                            request_password_reset(store.home, email=email)
+                        except RuntimeError:
+                            self._send_json(503, {"error": "password reset delivery is unavailable"})
+                            return
                         self._send_json(200, {"ok": True, "delivery": "email"})
                     elif parts[-2:] == ["password-reset", "confirm"]:
                         changed = reset_password(store.home, reset_token=str(payload.get("reset_token") or ""), new_password=str(payload.get("new_password") or ""))

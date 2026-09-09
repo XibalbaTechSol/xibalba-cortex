@@ -5,6 +5,7 @@ import threading
 import time
 import urllib.error
 import urllib.request
+from unittest.mock import patch
 
 import pytest
 
@@ -578,7 +579,7 @@ def test_inference_task_route_rejects_invalid_type(running_store):
     assert status == 400
     assert "task_type" in body["error"]
 
-def test_account_signup_me_and_logout(running_store):
+def test_account_signup_me_and_logout(running_store, monkeypatch):
     store, port = running_store
     global _CURRENT_TOKEN
     status, signup = _post(port, "/api/auth/signup", {"email": "operator@example.com", "password": "correct horse battery staple", "display_name": "Account Operator"})
@@ -599,12 +600,16 @@ def test_account_signup_me_and_logout(running_store):
     assert status == 200 and changed["ok"] is True
 
     # Request password reset (via API, but we can't extract the token)
-    status, reset = _post(port, "/api/auth/password-reset/request", {"email": "operator@example.com"})
+    monkeypatch.setenv("CORTEX_PASSWORD_RESET_URL", "https://cortex.example/reset")
+    with patch("xibalba_cortex.email_delivery.send_email") as delivery:
+        status, reset = _post(port, "/api/auth/password-reset/request", {"email": "operator@example.com"})
     assert status == 200 and reset.get("delivery") == "email"
+    assert "token=" in delivery.call_args.args[2]
 
     # Generate a fresh token via backend bypass to test the confirm endpoint
     from xibalba_cortex.accounts import request_password_reset
-    raw_token = request_password_reset(store.home, email="operator@example.com")
+    with patch("xibalba_cortex.email_delivery.send_email"):
+        raw_token = request_password_reset(store.home, email="operator@example.com")
 
     status, confirmed = _post(port, "/api/auth/password-reset/confirm", {"reset_token": raw_token, "new_password": "reset correct horse battery"})
     assert status == 200 and confirmed["ok"] is True
@@ -626,6 +631,19 @@ def test_account_auth_rate_limits_repeated_attempts(running_store):
         status, _ = _post(port, "/api/auth/login", {"email": "rate@example.com", "password": "wrong password"})
         statuses.append(status)
     assert statuses[-1] == 429
+
+
+def test_password_reset_fails_closed_without_delivery_config(running_store, monkeypatch):
+    store, port = running_store
+    monkeypatch.delenv("CORTEX_PASSWORD_RESET_URL", raising=False)
+    status, _signup = _post(port, "/api/auth/signup", {"email": "reset@example.com", "password": "correct horse battery staple", "display_name": "Reset Operator"})
+    assert status == 201
+
+    status, response = _post(port, "/api/auth/password-reset/request", {"email": "reset@example.com"})
+    assert status == 503
+    assert response == {"error": "password reset delivery is unavailable"}
+    with sqlite3.connect(store.home / "ingest_tokens.sqlite3") as connection:
+        assert connection.execute("SELECT count(*) FROM password_reset_tokens").fetchone()[0] == 0
 
 def test_account_failed_logins_lock_account_and_record_audit(running_store):
     store, _port = running_store

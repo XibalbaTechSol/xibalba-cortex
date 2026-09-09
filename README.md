@@ -223,12 +223,12 @@ authoritative gate definitions and evidence boundaries.
 
 The local API includes profile-scoped account signup/login, session revocation,
 password change, and password-reset endpoints used by the viewer. Password-reset
-requests currently return the raw token in the JSON response with
-`delivery: local_only`. The in-progress SMTP helper also makes a best-effort send to
-`SMTP_HOST`/`SMTP_PORT` (defaults `127.0.0.1:1025`) from
-`noreply@xibalba.local`, but delivery failures are swallowed. This is development
-behavior, not production account recovery: do not expose it publicly or claim that
-email delivery succeeded.
+requests never return the raw token. Delivery requires `CORTEX_PASSWORD_RESET_URL`,
+`CORTEX_SMTP_HOST`, and `CORTEX_SMTP_FROM`; `CORTEX_SMTP_PORT` defaults to `587`,
+and optional authentication uses `CORTEX_SMTP_USERNAME` plus
+`CORTEX_SMTP_PASSWORD`. SMTP delivery requires STARTTLS. Missing configuration or
+delivery failure returns `503`, and the newly issued token is deleted before the
+request completes.
 
 The local API's CORS origin defaults from `CORTEX_ALLOWED_ORIGIN`, falling back to
 `*`; `--allowed-origin` overrides it. Set one exact viewer origin for any deployment.
