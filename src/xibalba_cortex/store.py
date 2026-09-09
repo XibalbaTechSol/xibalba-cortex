@@ -1736,6 +1736,50 @@ class GraphStore:
                 ).fetchone()[0],
             }
 
+    def agent_summary(self, agent_id: str, *, limit: int = 8) -> dict[str, object]:
+        """Return agent-scoped, source-backed memory totals for operator UIs.
+
+        The agent DID is carried by ``sources.agent_id``. Records without that
+        provenance are intentionally excluded rather than guessed into an agent.
+        """
+        normalized = str(agent_id).strip()
+        bounded_limit = max(1, min(int(limit), 50))
+        if not normalized:
+            raise ValueError("agent_id is required")
+        with self._lock:
+            totals = self._connection.execute(
+                """
+                SELECT COUNT(*) AS memories,
+                       COUNT(DISTINCT sources.session_id) AS sessions,
+                       COUNT(DISTINCT sources.id) AS sources,
+                       COUNT(memory_vectors.memory_id) AS embedded_memories
+                FROM memories
+                JOIN sources ON sources.id = memories.source_id
+                LEFT JOIN memory_vectors ON memory_vectors.memory_id = memories.id
+                WHERE sources.agent_id = ?
+                """,
+                (normalized,),
+            ).fetchone()
+            rows = self._connection.execute(
+                """
+                SELECT memories.id
+                FROM memories
+                JOIN sources ON sources.id = memories.source_id
+                WHERE sources.agent_id = ?
+                ORDER BY memories.created_at DESC
+                LIMIT ?
+                """,
+                (normalized, bounded_limit),
+            ).fetchall()
+        return {
+            "agent_id": normalized,
+            "memories": int(totals["memories"]),
+            "embedded_memories": int(totals["embedded_memories"]),
+            "sessions": int(totals["sessions"]),
+            "sources": int(totals["sources"]),
+            "recent_memories": [self.get_memory(row["id"]) for row in rows],
+        }
+
     def list_memories(
         self, *, limit: int = 200, offset: int = 0, statuses: tuple[str, ...] = ("active", "confirmed")
     ) -> list[dict[str, object]]:

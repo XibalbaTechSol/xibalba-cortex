@@ -352,6 +352,9 @@ def _make_handler(store: GraphStore, *, allowed_origin: str):
                     self._send_json(200 if ready else 503, {"schema_version": "xibalba.readiness.v1", "ready": ready, "profile_id": store.profile_id, "checks": {"integrity_check": status["integrity_check"], "foreign_keys": status["foreign_keys"], "fts5": status["fts5"], "backup_ready": status["backup_ready"]}})
                 elif parts == ["api", "stats"]:
                     self._send_json(200, store.counts())
+                elif len(parts) == 4 and parts[0] == "api" and parts[1] == "agent" and parts[3] == "summary":
+                    limit = int(params.get("limit", 8))
+                    self._send_json(200, store.agent_summary(unquote(parts[2]), limit=limit))
                 elif parts == ["api", "status"]:
                     self._send_json(200, store.status(fast=True))
                 elif parts == ["api", "operations"]:
@@ -817,6 +820,7 @@ def main() -> None:
     store = GraphStore(
         config.storage.home,
         profile_id=config.profile_id,
+        identity_mode=os.environ.get("XIBALBA_CORTEX_IDENTITY_MODE", "pseudonymous"),
         quotas=config.quotas.as_dict(),
     )
     try:
