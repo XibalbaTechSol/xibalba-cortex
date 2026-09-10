@@ -1780,6 +1780,45 @@ class GraphStore:
             "recent_memories": [self.get_memory(row["id"]) for row in rows],
         }
 
+    def agent_workspaces(self, *, limit: int = 100) -> list[dict[str, object]]:
+        """List canonical agent/device memory namespaces without merging identities."""
+        bounded_limit = max(1, min(int(limit), 500))
+        with self._lock:
+            rows = self._connection.execute(
+                """
+                SELECT sources.agent_id,
+                       json_extract(sources.metadata_json, '$.device_id') AS device_id,
+                       json_extract(sources.metadata_json, '$.agent_name') AS agent_name,
+                       COUNT(DISTINCT memories.id) AS memories,
+                       COUNT(DISTINCT sources.session_id) AS sessions,
+                       MAX(memories.created_at) AS last_seen_at
+                FROM memories JOIN sources ON sources.id = memories.source_id
+                WHERE sources.agent_id IS NOT NULL
+                GROUP BY sources.agent_id, device_id, agent_name
+                ORDER BY last_seen_at DESC LIMIT ?
+                """,
+                (bounded_limit,),
+            ).fetchall()
+        return [dict(row) for row in rows]
+
+    def agent_memories(self, agent_id: str, *, device_id: str | None = None, limit: int = 100) -> list[dict[str, object]]:
+        normalized = str(agent_id).strip()
+        if not normalized:
+            raise ValueError("agent_id is required")
+        bounded_limit = max(1, min(int(limit), 500))
+        clauses = ["sources.agent_id = ?"]
+        params: list[object] = [normalized]
+        if device_id:
+            clauses.append("json_extract(sources.metadata_json, '$.device_id') = ?")
+            params.append(str(device_id))
+        params.append(bounded_limit)
+        with self._lock:
+            rows = self._connection.execute(
+                f"SELECT memories.id FROM memories JOIN sources ON sources.id = memories.source_id WHERE {' AND '.join(clauses)} ORDER BY memories.created_at DESC LIMIT ?",
+                params,
+            ).fetchall()
+        return [self.get_memory(row["id"]) for row in rows]
+
     def list_memories(
         self, *, limit: int = 200, offset: int = 0, statuses: tuple[str, ...] = ("active", "confirmed")
     ) -> list[dict[str, object]]:

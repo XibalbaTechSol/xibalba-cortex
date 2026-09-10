@@ -44,6 +44,7 @@ import {
   setApiBaseUrl,
   setApiToken,
   type Attachment,
+  type AgentWorkspace,
   type EntityRelation,
   type Exchange,
   type ExtractionProposal,
@@ -72,7 +73,7 @@ import { ProvenanceTab } from './ProvenancePanels'
 import { MermaidDiagram } from './components/MermaidDiagram'
 import './index.css'
 
-type Tab = 'overview' | 'timeline' | 'graph' | 'recall' | 'inference' | 'provenance' | 'integrity' | 'operations' | 'settings'
+type Tab = 'overview' | 'agents' | 'timeline' | 'graph' | 'recall' | 'inference' | 'provenance' | 'integrity' | 'operations' | 'settings'
 type GraphFilterIntent = { nonce: number; status?: string; evidence?: string }
 // The API returns a bounded memory sample plus relation endpoints. Keep the canvas projection
 // intentionally small enough that session changes remain interactive; Recall remains the path
@@ -82,6 +83,7 @@ const GRAPH_SESSION_LIMIT = 20
 
 const tabs: Array<{ id: Tab; label: string; icon: React.ComponentType<{ size?: number; className?: string }> }> = [
   { id: 'overview', label: 'Overview', icon: LayoutDashboard },
+  { id: 'agents', label: 'Agents', icon: ShieldCheck },
   { id: 'timeline', label: 'Timeline', icon: MessageSquare },
   { id: 'graph', label: 'Graph', icon: Network },
   { id: 'recall', label: 'Recall', icon: Search },
@@ -2031,12 +2033,33 @@ function SettingsTab({
   )
 }
 
+function AgentWorkspacesTab({ workspaces, onSelect }: { workspaces: AgentWorkspace[]; onSelect: (agentId: string, deviceId?: string | null) => void }) {
+  const [selected, setSelected] = useState<{ agentId: string; deviceId?: string | null } | null>(null)
+  const [memories, setMemories] = useState<Memory[]>([])
+  const [loading, setLoading] = useState(false)
+  const choose = async (workspace: AgentWorkspace) => {
+    setSelected({ agentId: workspace.agent_id, deviceId: workspace.device_id })
+    setLoading(true)
+    try {
+      const result = await api.agentMemories(workspace.agent_id, workspace.device_id || undefined)
+      setMemories(result.memories)
+      onSelect(workspace.agent_id, workspace.device_id)
+    } finally { setLoading(false) }
+  }
+  return <section className="resource agent-workspaces" aria-labelledby="agent-workspaces-title">
+    <header className="section-heading"><div><p className="cortex-kicker">CANONICAL IDENTITY PARTITION</p><h2 id="agent-workspaces-title">Agent memory workspaces</h2><p>Every Cortex memory stays scoped by the exact registered agent ID and, when present, its Shield device. Historical records without that provenance remain unassigned.</p></div><span className="metric-badge info">{workspaces.length} namespaces</span></header>
+    {workspaces.length === 0 ? <EmptyState icon="◈" title="No canonical agent memories yet" description="New Shield and runtime events will appear here once they carry XIBALBA_AGENT_ID and device_id." /> : <div className="overview-card-grid">{workspaces.map((workspace) => <button type="button" className={`overview-card agent-workspace-card ${selected?.agentId === workspace.agent_id && selected?.deviceId === workspace.device_id ? 'selected' : ''}`} key={`${workspace.agent_id}:${workspace.device_id || 'agent'}`} onClick={() => choose(workspace)}><div className="card-icon"><ShieldCheck size={18} /></div><h3>{workspace.agent_name || 'Shield agent'}</h3><p className="mono">{workspace.agent_id}</p><p>{workspace.device_id || 'Agent-wide namespace'}</p><div className="card-meta"><span>{workspace.memories} memories</span><span>{workspace.sessions} sessions</span></div></button>)}</div>}
+    {selected && <section className="overview-card workspace-memory-preview"><div className="section-heading"><div><h3>Scoped memory</h3><p className="mono">{selected.agentId}{selected.deviceId ? ` · ${selected.deviceId}` : ''}</p></div><span className="metric-badge info">{memories.length} loaded</span></div>{loading ? <Skeleton width={180} height={18} /> : memories.length === 0 ? <p className="small muted">No memories in this exact namespace.</p> : <div className="item-list">{memories.slice(0, 8).map((memory) => <button type="button" className="item" key={memory.id} onClick={() => onSelect(selected.agentId, selected.deviceId)}><b>{memory.content.slice(0, 140)}</b><div className="badges"><Badge>{memory.source.kind}</Badge><Badge>{String(memory.source.metadata?.device_id || 'device-unattributed')}</Badge><Badge>{memory.status}</Badge></div></button>)}</div>}</section>}
+  </section>
+}
+
 function AuthenticatedApp() {
   const [stats, setStats] = useState<Stats | null>(null)
   const [storeStatus, setStoreStatus] = useState<StoreStatus | null>(null)
   const [operations, setOperations] = useState<OperationsSnapshot | null>(null)
   const [integrityLinks, setIntegrityLinks] = useState<IntegrityLinksStatus | null>(null)
   const [sessions, setSessions] = useState<Session[]>([])
+  const [agentWorkspaces, setAgentWorkspaces] = useState<AgentWorkspace[]>([])
   const [selectedSessionId, setSelectedSessionId] = useState('')
   const [loadedSessionId, setLoadedSessionId] = useState('')
   const [root, setRoot] = useState<MerkleRoot | null>(null)
@@ -2093,6 +2116,7 @@ function AuthenticatedApp() {
       setSessions(items)
       setSelectedSessionId((current) => current || items[0]?.external_session_id || '')
     }).catch((e) => setError(String(e)))
+    api.agents().then((result) => setAgentWorkspaces(result.agents)).catch(() => setAgentWorkspaces([]))
     api.graph(GRAPH_RENDER_LIMIT, similarityThreshold).then(setGraph).catch((e) => setError(String(e)))
     setLastRefreshed(new Date())
     window.setTimeout(() => setRefreshing(false), 350)
@@ -2537,6 +2561,7 @@ function AuthenticatedApp() {
               }}
             />
           )}
+          {activeTab === 'agents' && <AgentWorkspacesTab workspaces={agentWorkspaces} onSelect={() => {}} />}
           {activeTab === 'timeline' && (
             <TimelineTab
               exchanges={exchanges}

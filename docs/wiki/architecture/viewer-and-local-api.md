@@ -27,6 +27,7 @@ The local API exposes read and operator-oriented surfaces over the canonical `Gr
 ## Table of contents
 
 - [Surfaces](#surfaces)
+- [Agent workspaces](#agent-workspaces)
 - [PARA and inference integration](#para-and-inference-integration)
 - [Integrity presentation](#integrity-presentation)
 - [Headless verification](#headless-verification)
@@ -40,6 +41,16 @@ The local API exposes read and operator-oriented surfaces over the canonical `Gr
 - **Recall** — lexical search over eligible memories.
 - **Inference** — task queue, claim/complete controls, explicit write-back, and PARA review.
 - **Integrity** — SQLite health, backup readiness, session Merkle root, and integrity-link state.
+- **Agents** — exact canonical agent/device workspaces. `GET /api/agents` lists namespaces and
+  `GET /api/agent/{agent_id}/memories?device_id=` reads only that agent/device partition. Records
+  without `sources.agent_id` remain outside these workspaces rather than being guessed into one.
+
+## Agent workspaces
+
+The Agents view is a read-only operator surface over the exact `sources.agent_id` value. Selecting
+a workspace calls `GET /api/agent/{agent_id}/memories` and optionally adds `device_id`; it never
+falls back to the global memory list. This makes agent comparison safe even when multiple Shield
+devices share one registered agent or when historical records have no canonical identity.
 
 ## PARA and inference integration
 
@@ -72,6 +83,11 @@ delivery failure returns `503` and deletes the newly issued token. A successful 
 the fail-closed application contract, not production inbox delivery.
 
 The viewer can be unavailable while the MCP server and local store remain operational. Conversely, a successful page render does not prove that a write operation was authorized or completed. Validate mutations through API readback and database evidence.
+
+Agent identity is intentionally exact: `XIBALBA_AGENT_ID` is persisted as `sources.agent_id` when
+identity mode permits it, while `device_id` and optional `agent_name` remain source metadata. This
+supports Shield's hybrid model (local rule enforcement plus redacted cloud memory) without merging
+different devices or agents. Historical records are not rewritten to fabricate attribution.
 
 ## Related pages
 

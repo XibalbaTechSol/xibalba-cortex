@@ -505,6 +505,15 @@ export interface OperationsSnapshot {
   disclaimer: string
 }
 
+export interface AgentWorkspace {
+  agent_id: string
+  device_id?: string | null
+  agent_name?: string | null
+  memories: number
+  sessions: number
+  last_seen_at?: string | null
+}
+
 async function getJson<T>(path: string): Promise<T> {
   const response = await fetch(`${getApiBaseUrl()}${path}`, { headers: authHeaders() })
   if (!response.ok) {
@@ -539,6 +548,8 @@ export const api = {
   operations: () => getJson<OperationsSnapshot>('/api/operations'),
   integrityLinks: (limit = 50) => getJson<IntegrityLinksStatus>(`/api/integrity-links?limit=${limit}`),
   sessions: (limit = 100) => getJson<Session[]>(`/api/sessions?limit=${limit}`),
+  agents: (limit = 100) => getJson<{agents: AgentWorkspace[]}>(`/api/agents?limit=${limit}`),
+  agentMemories: (agentId: string, deviceId?: string, limit = 100) => getJson<{agent_id: string; memories: Memory[]}>(`/api/agent/${encodeURIComponent(agentId)}/memories?limit=${limit}${deviceId ? `&device_id=${encodeURIComponent(deviceId)}` : ''}`),
   graph: (limit = 500, similarityThreshold = 0.75) =>
     getJson<GraphPayload>(`/api/graph?limit=${limit}&similarity_threshold=${similarityThreshold}`),
   search: (query: string, limit = 20) =>

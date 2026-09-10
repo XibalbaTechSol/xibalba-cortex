@@ -355,6 +355,10 @@ def _make_handler(store: GraphStore, *, allowed_origin: str):
                 elif len(parts) == 4 and parts[0] == "api" and parts[1] == "agent" and parts[3] == "summary":
                     limit = int(params.get("limit", 8))
                     self._send_json(200, store.agent_summary(unquote(parts[2]), limit=limit))
+                elif parts == ["api", "agents"]:
+                    self._send_json(200, {"agents": store.agent_workspaces(limit=int(params.get("limit", 100)))})
+                elif len(parts) == 4 and parts[0] == "api" and parts[1] == "agent" and parts[3] == "memories":
+                    self._send_json(200, {"agent_id": unquote(parts[2]), "memories": store.agent_memories(unquote(parts[2]), device_id=params.get("device_id"), limit=int(params.get("limit", 100)))})
                 elif parts == ["api", "status"]:
                     self._send_json(200, store.status(fast=True))
                 elif parts == ["api", "operations"]:
