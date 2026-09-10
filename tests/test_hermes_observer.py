@@ -71,6 +71,24 @@ def test_post_llm_call_ignores_non_string_or_blank_messages(tmp_path):
     store.close()
 
 
+def test_runtime_telemetry_carries_configured_canonical_agent_id(tmp_path, monkeypatch):
+    monkeypatch.setenv("XIBALBA_AGENT_ID", "did:integrity:agent-1")
+    store, adapter = _adapter(tmp_path)
+    adapter.post_api_request(session_id="s1", turn_id="turn-1", api_request_id="req-1")
+    adapter.post_tool_call(session_id="s1", tool_name="Read", tool_call_id="tool-1", turn_id="turn-1")
+    events = store.session_otel_events("s1")
+    assert all(event["attributes"]["agent_id"] == "did:integrity:agent-1" for event in events)
+    store.close()
+
+
+def test_runtime_telemetry_omits_unconfigured_agent_id(tmp_path, monkeypatch):
+    monkeypatch.delenv("XIBALBA_AGENT_ID", raising=False)
+    store, adapter = _adapter(tmp_path)
+    adapter.post_api_request(session_id="s1", turn_id="turn-1", api_request_id="req-1")
+    assert "agent_id" not in store.session_otel_events("s1")[0]["attributes"]
+    store.close()
+
+
 def test_post_api_request_records_otel_log_event(tmp_path):
     store, adapter = _adapter(tmp_path)
     adapter.post_api_request(

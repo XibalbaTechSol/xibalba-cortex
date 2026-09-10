@@ -3010,6 +3010,7 @@ class GraphStore:
                 {
                     "invocation_id": invocation_id,
                     "session_id": row["session_id"],
+                    "agent_id": attributes.get("agent_id") or metadata.get("agent_id"),
                     "runtime": attributes.get("runtime"),
                     "tool_name": attributes.get("tool_name"),
                     "tool_call_id": metadata.get("tool_call_id"),

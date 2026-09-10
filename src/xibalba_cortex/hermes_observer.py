@@ -75,6 +75,20 @@ class HermesObserverAdapter:
     def __init__(self, store: GraphStore):
         self.store = store
 
+    @staticmethod
+    def _agent_id() -> str | None:
+        """Return the configured canonical Oracle DID, or no identity if unset.
+
+        The observer must never invent a legacy agent label: an absent identity is
+        safer than attributing telemetry to the wrong protocol agent.
+        """
+        value = os.environ.get("XIBALBA_AGENT_ID", "").strip()
+        return value or None
+
+    def _identity_attributes(self) -> dict[str, str]:
+        agent_id = self._agent_id()
+        return {"agent_id": agent_id} if agent_id else {}
+
     def _store_text(self, session_id: str, text: Any, *, role: str, prompt_id: str | None) -> str | None:
         if not isinstance(text, str) or not text.strip():
             return None
@@ -89,7 +103,7 @@ class HermesObserverAdapter:
                 "session_id": session_id,
                 "role": role,
                 "prompt_id": prompt_id,
-                "agent_id": os.environ.get("XIBALBA_AGENT_ID", "xibalba.agent"),
+                "agent_id": self._agent_id(),
             },
             status="candidate",
             evidence_class="observed_event",
@@ -143,6 +157,7 @@ class HermesObserverAdapter:
             "span_id": api_request_id,
             "prompt_id": turn_id,
             "attributes": {
+                **self._identity_attributes(),
                 "model": model, "provider": provider, "duration_ms": api_duration,
                 "usage": usage, "finish_reason": finish_reason, "response_model": response_model,
             },
@@ -162,7 +177,7 @@ class HermesObserverAdapter:
             "trace_id": turn_id,
             "span_id": api_request_id,
             "prompt_id": turn_id,
-            "attributes": {"error": error, "status_code": status_code, "retryable": retryable},
+            "attributes": {**self._identity_attributes(), "error": error, "status_code": status_code, "retryable": retryable},
         }])
 
     def post_tool_call(
@@ -182,6 +197,8 @@ class HermesObserverAdapter:
             "parent_span_id": turn_id,
             "prompt_id": turn_id,
             "attributes": {
+                **self._identity_attributes(),
+                "invocation_id": kwargs.get("invocation_id"),
                 "status": status, "duration_ms": duration_ms, "error_type": error_type,
                 "error_message": error_message, "result": result,
             },
