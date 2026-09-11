@@ -242,6 +242,12 @@ CREATE TABLE IF NOT EXISTS memories (
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
+-- Agent-scoped Cortex reads join memories back through source_id. Without this
+-- index SQLite scans the full memory table for every registered-agent summary,
+-- turning the dashboard's agent selector into an unbounded query on a mature
+-- profile.
+CREATE INDEX IF NOT EXISTS idx_memories_source_id ON memories(source_id);
+
 CREATE VIRTUAL TABLE IF NOT EXISTS memory_fts USING fts5(
     memory_id UNINDEXED,
     content,
@@ -1840,38 +1846,72 @@ class GraphStore:
         provenance are intentionally excluded rather than guessed into an agent.
         """
         normalized = str(agent_id).strip()
-        bounded_limit = max(1, min(int(limit), 50))
+        # A summary request may explicitly pass 0 when the caller only needs
+        # aggregate counts. This keeps identity selectors responsive on large
+        # profiles instead of sorting the entire memory corpus for preview cards.
+        bounded_limit = max(0, min(int(limit), 50))
         if not normalized:
             raise ValueError("agent_id is required")
         with self._lock:
-            totals = self._connection.execute(
-                """
-                SELECT COUNT(*) AS memories,
-                       COUNT(DISTINCT sources.session_id) AS sessions,
-                       COUNT(DISTINCT sources.id) AS sources,
-                       COUNT(memory_vectors.memory_id) AS embedded_memories
-                FROM memories
-                JOIN sources ON sources.id = memories.source_id
-                LEFT JOIN memory_vectors ON memory_vectors.memory_id = memories.id
-                WHERE sources.agent_id = ?
-                """,
-                (normalized,),
-            ).fetchone()
-            rows = self._connection.execute(
-                """
-                SELECT memories.id
-                FROM memories
-                JOIN sources ON sources.id = memories.source_id
-                WHERE sources.agent_id = ?
-                ORDER BY memories.created_at DESC
-                LIMIT ?
-                """,
-                (normalized, bounded_limit),
-            ).fetchall()
+            if bounded_limit == 0:
+                # The dashboard summary deliberately asks for aggregates only.
+                # Avoid the vector virtual-table join here: on a large profile it
+                # multiplies the memory scan and can starve the local API thread.
+                totals = self._connection.execute(
+                    """
+                    SELECT COUNT(*) AS memories
+                    FROM memories
+                    JOIN sources ON sources.id = memories.source_id
+                    WHERE sources.agent_id = ?
+                    """,
+                    (normalized,),
+                ).fetchone()
+                source_totals = self._connection.execute(
+                    """
+                    SELECT COUNT(DISTINCT session_id) AS sessions,
+                           COUNT(*) AS sources
+                    FROM sources
+                    WHERE agent_id = ?
+                    """,
+                    (normalized,),
+                ).fetchone()
+                totals = {
+                    "memories": totals["memories"],
+                    "sessions": source_totals["sessions"],
+                    "sources": source_totals["sources"],
+                    "embedded_memories": None,
+                }
+            else:
+                totals = self._connection.execute(
+                    """
+                    SELECT COUNT(*) AS memories,
+                           COUNT(DISTINCT sources.session_id) AS sessions,
+                           COUNT(DISTINCT sources.id) AS sources,
+                           COUNT(memory_vectors.memory_id) AS embedded_memories
+                    FROM memories
+                    JOIN sources ON sources.id = memories.source_id
+                    LEFT JOIN memory_vectors ON memory_vectors.memory_id = memories.id
+                    WHERE sources.agent_id = ?
+                    """,
+                    (normalized,),
+                ).fetchone()
+            rows = []
+            if bounded_limit:
+                rows = self._connection.execute(
+                    """
+                    SELECT memories.id
+                    FROM memories
+                    JOIN sources ON sources.id = memories.source_id
+                    WHERE sources.agent_id = ?
+                    ORDER BY memories.created_at DESC
+                    LIMIT ?
+                    """,
+                    (normalized, bounded_limit),
+                ).fetchall()
         return {
             "agent_id": normalized,
             "memories": int(totals["memories"]),
-            "embedded_memories": int(totals["embedded_memories"]),
+            "embedded_memories": int(totals["embedded_memories"]) if totals["embedded_memories"] is not None else None,
             "sessions": int(totals["sessions"]),
             "sources": int(totals["sources"]),
             "recent_memories": [self.get_memory(row["id"]) for row in rows],
