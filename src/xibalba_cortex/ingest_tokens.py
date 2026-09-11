@@ -59,6 +59,8 @@ CREATE TABLE IF NOT EXISTS ingest_tokens (
     profile_id TEXT NOT NULL DEFAULT 'default',
     roles_json TEXT NOT NULL DEFAULT '["reader"]',
     scopes_json TEXT NOT NULL DEFAULT '["memory:read"]'
+    ,agent_id TEXT
+    ,agent_ids_json TEXT NOT NULL DEFAULT '[]'
 );
 CREATE UNIQUE INDEX IF NOT EXISTS idx_ingest_tokens_token_hash ON ingest_tokens(token_hash);
 """
@@ -71,11 +73,15 @@ def _db_path(home: str | Path) -> Path:
 
 
 def _connect(home: str | Path) -> sqlite3.Connection:
-    conn = sqlite3.connect(_db_path(home))
+    # The local API and the MCP transport can authenticate concurrently.  Keep
+    # credential lookups fail-closed, but wait briefly for a schema/last-used
+    # write instead of surfacing transient ``database is locked`` errors.
+    conn = sqlite3.connect(_db_path(home), timeout=30.0)
     conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA busy_timeout=30000")
     conn.executescript(_SCHEMA)
     columns = {row["name"] for row in conn.execute("PRAGMA table_info(ingest_tokens)")}
-    for name, definition in (("profile_id", "TEXT NOT NULL DEFAULT 'default'"), ("roles_json", "TEXT NOT NULL DEFAULT '[\"reader\"]'"), ("scopes_json", "TEXT NOT NULL DEFAULT '[\"memory:read\"]'"), ("expires_at", "TEXT")):
+    for name, definition in (("profile_id", "TEXT NOT NULL DEFAULT 'default'"), ("roles_json", "TEXT NOT NULL DEFAULT '[\"reader\"]'"), ("scopes_json", "TEXT NOT NULL DEFAULT '[\"memory:read\"]'"), ("expires_at", "TEXT"), ("agent_id", "TEXT"), ("agent_ids_json", "TEXT NOT NULL DEFAULT '[]'")):
         if name not in columns:
             conn.execute(f"ALTER TABLE ingest_tokens ADD COLUMN {name} {definition}")
     return conn
@@ -85,7 +91,7 @@ def _hash(raw_token: str) -> str:
     return hashlib.sha256(raw_token.encode("utf-8")).hexdigest()
 
 
-def issue_token(home: str | Path, label: str, *, profile_id: str = "default", roles: tuple[str, ...] = ("writer",), scopes: tuple[str, ...] = ("memory:read",), ttl_hours: int | None = None) -> str:
+def issue_token(home: str | Path, label: str, *, profile_id: str = "default", roles: tuple[str, ...] = ("writer",), scopes: tuple[str, ...] = ("memory:read",), ttl_hours: int | None = None, agent_id: str | None = None, agent_ids: tuple[str, ...] | None = None) -> str:
     """Generate a new random token for `label`, store only its hash, and return the raw
     token. This is the only moment the raw value exists outside the caller's own hands --
     it is never logged, never stored, and cannot be recovered later."""
@@ -99,13 +105,16 @@ def issue_token(home: str | Path, label: str, *, profile_id: str = "default", ro
         raise ValueError("scopes must contain non-empty strings")
     if ttl_hours is not None and ttl_hours < 1:
         raise ValueError("ttl_hours must be positive or None")
+    normalized_agent_ids = sorted({str(value).strip() for value in (agent_ids or ()) if str(value).strip()})
+    if isinstance(agent_id, str) and agent_id.strip():
+        normalized_agent_ids = sorted(set(normalized_agent_ids) | {agent_id.strip()})
     expires_at = None if ttl_hours is None else (datetime.now(timezone.utc) + timedelta(hours=ttl_hours)).isoformat()
     raw_token = secrets.token_urlsafe(32)
     conn = _connect(home)
     try:
         conn.execute(
-            "INSERT INTO ingest_tokens(id, label, token_hash, profile_id, roles_json, scopes_json, expires_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
-            (str(uuid.uuid4()), label.strip(), _hash(raw_token), profile_id.strip(), json.dumps(list(roles)), json.dumps(list(scopes)), expires_at),
+            "INSERT INTO ingest_tokens(id, label, token_hash, profile_id, roles_json, scopes_json, expires_at, agent_id, agent_ids_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (str(uuid.uuid4()), label.strip(), _hash(raw_token), profile_id.strip(), json.dumps(list(roles)), json.dumps(list(scopes)), expires_at, normalized_agent_ids[0] if len(normalized_agent_ids) == 1 else (agent_id.strip() if isinstance(agent_id, str) and agent_id.strip() else None), json.dumps(normalized_agent_ids)),
         )
         conn.commit()
     finally:
@@ -123,7 +132,7 @@ def verify_token_record(home: str | Path, raw_token: str) -> dict[str, object] |
     conn = _connect(home)
     try:
         row = conn.execute(
-            "SELECT id, label, profile_id, roles_json, scopes_json, expires_at FROM ingest_tokens "
+            "SELECT id, label, profile_id, roles_json, scopes_json, expires_at, agent_id, agent_ids_json FROM ingest_tokens "
             "WHERE token_hash = ? AND revoked_at IS NULL AND (expires_at IS NULL OR expires_at > ?)",
             (candidate_hash, datetime.now(timezone.utc).isoformat()),
         ).fetchone()
@@ -136,7 +145,13 @@ def verify_token_record(home: str | Path, raw_token: str) -> dict[str, object] |
         conn.commit()
         roles = json.loads(row["roles_json"])
         scopes = json.loads(row["scopes_json"])
-        return {"id": row["id"], "label": row["label"], "profile_id": row["profile_id"], "roles": roles, "scopes": effective_scopes(roles, scopes), "expires_at": row["expires_at"]}
+        try:
+            agent_ids = [str(value).strip() for value in json.loads(row["agent_ids_json"] or "[]") if str(value).strip()]
+        except (TypeError, json.JSONDecodeError):
+            agent_ids = []
+        if not agent_ids and row["agent_id"]:
+            agent_ids = [str(row["agent_id"]).strip()]
+        return {"id": row["id"], "label": row["label"], "profile_id": row["profile_id"], "agent_id": row["agent_id"], "agent_ids": sorted(set(agent_ids)), "roles": roles, "scopes": effective_scopes(roles, scopes), "expires_at": row["expires_at"]}
     finally:
         conn.close()
 
@@ -168,7 +183,7 @@ def list_tokens(home: str | Path) -> list[dict[str, object]]:
     conn = _connect(home)
     try:
         rows = conn.execute(
-            "SELECT id, label, profile_id, roles_json, scopes_json, created_at, last_used_at, revoked_at, expires_at FROM ingest_tokens "
+            "SELECT id, label, profile_id, roles_json, scopes_json, created_at, last_used_at, revoked_at, expires_at, agent_id, agent_ids_json FROM ingest_tokens "
             "ORDER BY created_at"
         ).fetchall()
         result = []
@@ -176,6 +191,10 @@ def list_tokens(home: str | Path) -> list[dict[str, object]]:
             item = dict(row)
             item["roles"] = json.loads(item.pop("roles_json"))
             item["scopes"] = effective_scopes(item["roles"], json.loads(item.pop("scopes_json")))
+            try:
+                item["agent_ids"] = sorted(set(str(value).strip() for value in json.loads(item.pop("agent_ids_json") or "[]") if str(value).strip()))
+            except (TypeError, json.JSONDecodeError):
+                item["agent_ids"] = [item["agent_id"]] if item.get("agent_id") else []
             result.append(item)
         return result
     finally:
@@ -193,6 +212,7 @@ def main() -> None:
     p_issue.add_argument("--role", action="append", dest="roles", default=None)
     p_issue.add_argument("--scope", action="append", dest="scopes", default=None)
     p_issue.add_argument("--ttl-hours", type=int, default=None, help="expire the token after this many hours")
+    p_issue.add_argument("--agent-id", action="append", dest="agent_ids", default=None, help="bind the token to a canonical agent identity; repeat for multiple registered agents")
 
     p_revoke = sub.add_parser("revoke", help="revoke a token by its id")
     p_revoke.add_argument("--id", required=True, dest="token_id")
@@ -208,7 +228,7 @@ def main() -> None:
         # narrowing, and a `--role writer` issuance ends up with `memory:write` as intended instead
         # of silently downgrading to read-only.
         all_known_scopes = tuple(sorted({scope for grants in ROLE_SCOPES.values() for scope in grants if scope != "*"}))
-        raw_token = issue_token(args.home, args.label, profile_id=args.profile_id, roles=tuple(args.roles or ("reader",)), scopes=tuple(args.scopes or all_known_scopes), ttl_hours=args.ttl_hours)
+        raw_token = issue_token(args.home, args.label, profile_id=args.profile_id, roles=tuple(args.roles or ("reader",)), scopes=tuple(args.scopes or all_known_scopes), ttl_hours=args.ttl_hours, agent_ids=tuple(args.agent_ids or ()))
         print(f"Issued token for {args.label!r}. Shown once, save it now:")
         print(raw_token)
     elif args.command == "revoke":

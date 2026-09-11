@@ -1,0 +1,12 @@
+[Unit]
+Description=Periodically reconcile CORE registered agents into Cortex
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=5min
+RandomizedDelaySec=30s
+Persistent=true
+
+[Install]
+WantedBy=timers.target
+

@@ -112,6 +112,7 @@ export interface GraphPayload {
 
 export interface MemorySource {
   kind: string
+  agent_id?: string | null
   locator?: string | null
   role?: string | null
   session_id?: string | null
@@ -198,6 +199,7 @@ export interface Session {
   started_at: string
   ended_at: string | null
   summary_memory_id: string | null
+  agent_id?: string | null
 }
 
 export interface MemoryEvent {
@@ -509,6 +511,9 @@ export interface AgentWorkspace {
   agent_id: string
   device_id?: string | null
   agent_name?: string | null
+  device_name?: string | null
+  pair_status?: 'active' | 'detached' | 'revoked' | null
+  pair_updated_at?: string | null
   memories: number
   sessions: number
   last_seen_at?: string | null
@@ -547,13 +552,21 @@ export const api = {
   status: () => getJson<StoreStatus>('/api/status'),
   operations: () => getJson<OperationsSnapshot>('/api/operations'),
   integrityLinks: (limit = 50) => getJson<IntegrityLinksStatus>(`/api/integrity-links?limit=${limit}`),
-  sessions: (limit = 100) => getJson<Session[]>(`/api/sessions?limit=${limit}`),
+  sessions: (limit = 100, agentId?: string) => getJson<Session[]>(`/api/sessions?limit=${limit}${agentId ? `&agent_id=${encodeURIComponent(agentId)}` : ''}`),
   agents: (limit = 100) => getJson<{agents: AgentWorkspace[]}>(`/api/agents?limit=${limit}`),
   agentMemories: (agentId: string, deviceId?: string, limit = 100) => getJson<{agent_id: string; memories: Memory[]}>(`/api/agent/${encodeURIComponent(agentId)}/memories?limit=${limit}${deviceId ? `&device_id=${encodeURIComponent(deviceId)}` : ''}`),
-  graph: (limit = 500, similarityThreshold = 0.75) =>
-    getJson<GraphPayload>(`/api/graph?limit=${limit}&similarity_threshold=${similarityThreshold}`),
-  search: (query: string, limit = 20) =>
-    getJson<Memory[]>(`/api/search?q=${encodeURIComponent(query)}&limit=${limit}`),
+  associateAgentDevice: (agentId: string, deviceId: string, displayName?: string) =>
+    postJson<AgentWorkspace>('/api/agent-devices/associate', { agent_id: agentId, device_id: deviceId, display_name: displayName || deviceId }),
+  renameAgentDevice: (deviceId: string, displayName: string) =>
+    postJson<AgentWorkspace>(`/api/agent-devices/${encodeURIComponent(deviceId)}/rename`, { display_name: displayName }),
+  detachAgentDevice: (deviceId: string) =>
+    postJson<AgentWorkspace>(`/api/agent-devices/${encodeURIComponent(deviceId)}/detach`, {}),
+  revokeAgentDevice: (deviceId: string) =>
+    postJson<AgentWorkspace>(`/api/agent-devices/${encodeURIComponent(deviceId)}/revoke`, {}),
+  graph: (limit = 500, similarityThreshold = 0.75, agentId?: string) =>
+    getJson<GraphPayload>(`/api/graph?limit=${limit}&similarity_threshold=${similarityThreshold}${agentId ? `&agent_id=${encodeURIComponent(agentId)}` : ''}`),
+  search: (query: string, limit = 20, agentId?: string) =>
+    getJson<Memory[]>(`/api/search?q=${encodeURIComponent(query)}&limit=${limit}${agentId ? `&agent_id=${encodeURIComponent(agentId)}` : ''}`),
   memory: (id: string) => getJson<Memory>(`/api/memory/${encodeURIComponent(id)}`),
   similar: (id: string, limit = 10) =>
     getJson<SimilarHit[]>(`/api/memory/${encodeURIComponent(id)}/similar?limit=${limit}`),

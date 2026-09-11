@@ -19,12 +19,18 @@ from .server import (
     memory_session_start,
 )
 
+REGISTERED_AGENT_ID = "xibalba.agent"
+
 
 def dispatch(request: dict[str, Any]) -> dict[str, Any]:
     operation = str(request.get("operation") or "")
+    requested_agent = str(request.get("agent_id") or "").strip()
+    if requested_agent != REGISTERED_AGENT_ID:
+        raise PermissionError("provider bridge is bound to the registered xibalba.agent identity")
     if operation == "session_start":
         return memory_session_start(
-            str(request["session_id"]), request.get("retention_tier")
+            str(request["session_id"]), request.get("retention_tier"),
+            agent_id=str(request["agent_id"]),
         )
     if operation == "session_end":
         return memory_session_end(
@@ -37,7 +43,7 @@ def dispatch(request: dict[str, Any]) -> dict[str, Any]:
             str(request.get("query") or ""),
             limit=max(1, min(int(request.get("limit", 8)), 20)),
             max_total_chars=max(1000, min(int(request.get("max_total_chars", 12000)), 32000)),
-            filters={"status": "active"},
+            filters={"agent_id": str(request["agent_id"])},
         )
     if operation == "sync_turn":
         return memory_ingest_agent_turn(

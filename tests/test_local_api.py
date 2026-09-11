@@ -272,6 +272,143 @@ def test_search_returns_matching_memory(running_store):
     assert body[0]["content"] == "Xibalba Shield local API test content."
 
 
+def test_operator_can_select_an_agent_partition_across_memory_views(running_store):
+    store, port = running_store
+    store.start_session("agent-a-session", agent_id="agent-a")
+    store.start_session("agent-b-session", agent_id="agent-b")
+    memory_a = store.store_memory(
+        "Shared search term from agent A.",
+        source={"kind": "direct_user", "session_id": "agent-a-session", "agent_id": "agent-a"},
+        status="confirmed",
+    )
+    memory_b = store.store_memory(
+        "Shared search term from agent B.",
+        source={"kind": "direct_user", "session_id": "agent-b-session", "agent_id": "agent-b"},
+        status="confirmed",
+    )
+
+    status, payload = _get(port, "/api/agents")
+    assert status == 200
+    agent_ids = {row["agent_id"] for row in payload["agents"]}
+    source_agent_a = memory_a["source"]["agent_id"]
+    source_agent_b = memory_b["source"]["agent_id"]
+    assert agent_ids == {source_agent_a, source_agent_b}
+
+    status, results = _get(port, f"/api/search?q=Shared&agent_id={source_agent_a}")
+    assert status == 200
+    assert [row["id"] for row in results] == [memory_a["id"]]
+
+    status, sessions = _get(port, f"/api/sessions?agent_id={source_agent_a}")
+    assert status == 200
+    assert [row["external_session_id"] for row in sessions] == ["agent-a-session"]
+
+    status, graph = _get(port, f"/api/graph?agent_id={source_agent_a}")
+    assert status == 200
+    graph_memory_ids = {node["id"] for node in graph["nodes"] if node["type"] == "memory"}
+    assert graph_memory_ids == {f"memory:{memory_a['id']}"}
+
+
+def test_registered_agent_set_can_switch_between_multiple_agents(running_store):
+    global _CURRENT_TOKEN
+    store, port = running_store
+    store.identity_mode = "full"
+    store.start_session("registered-agent-a", agent_id="did:integrity:agent-a")
+    store.start_session("registered-agent-b", agent_id="did:integrity:agent-b")
+    memory_a = store.store_memory(
+        "Registered agent A private memory.",
+        source={"kind": "test", "session_id": "registered-agent-a", "agent_id": "did:integrity:agent-a"},
+        status="confirmed",
+    )
+    memory_b = store.store_memory(
+        "Registered agent B private memory.",
+        source={"kind": "test", "session_id": "registered-agent-b", "agent_id": "did:integrity:agent-b"},
+        status="confirmed",
+    )
+    _CURRENT_TOKEN = issue_token(
+        store.home,
+        "registered-agent-user",
+        roles=("reader",),
+        scopes=("memory:read",),
+        agent_ids=("did:integrity:agent-a", "did:integrity:agent-b"),
+    )
+
+    status, payload = _get(port, "/api/agents")
+    assert status == 200
+    assert {row["agent_id"] for row in payload["agents"]} == {"did:integrity:agent-a", "did:integrity:agent-b"}
+
+    status, results = _get(port, "/api/search?q=private&agent_id=did%3Aintegrity%3Aagent-a")
+    assert status == 200 and [row["id"] for row in results] == [memory_a["id"]]
+    status, results = _get(port, "/api/search?q=private&agent_id=did%3Aintegrity%3Aagent-b")
+    assert status == 200 and [row["id"] for row in results] == [memory_b["id"]]
+    status, error = _get(port, "/api/search?q=private&agent_id=did%3Aintegrity%3Aagent-c")
+    assert status == 403 and "not authorized" in error["error"]
+
+
+def test_registered_agent_without_memory_is_visible_in_directory(running_store):
+    global _CURRENT_TOKEN
+    store, port = running_store
+    store.identity_mode = "full"
+    _CURRENT_TOKEN = issue_token(
+        store.home,
+        "registered-empty-user",
+        roles=("reader",),
+        scopes=("memory:read",),
+        agent_ids=("did:integrity:registered-but-empty",),
+    )
+
+    status, payload = _get(port, "/api/agents")
+    assert status == 200
+    assert payload["agents"] == [{
+        "agent_id": "did:integrity:registered-but-empty",
+        "device_id": None,
+        "agent_name": None,
+        "device_name": None,
+        "pair_status": None,
+        "pair_updated_at": None,
+        "memories": 0,
+        "sessions": 0,
+        "last_seen_at": None,
+    }]
+
+
+def test_account_session_carries_synced_registered_agent_set(running_store):
+    global _CURRENT_TOKEN
+    from xibalba_cortex.accounts import create_account, issue_account_session, set_account_agent_ids
+
+    store, port = running_store
+    store.identity_mode = "full"
+    account = create_account(store.home, email="registered@example.com", password="correct horse battery staple", display_name="Registered User", profile_id=store.profile_id)
+    assert set_account_agent_ids(store.home, account_id=str(account["id"]), agent_ids=["did:integrity:agent-a", "did:integrity:agent-b"])
+    store.store_memory("Account agent A memory", source={"kind": "test", "agent_id": "did:integrity:agent-a"}, status="confirmed")
+    store.store_memory("Account agent B memory", source={"kind": "test", "agent_id": "did:integrity:agent-b"}, status="confirmed")
+    _CURRENT_TOKEN, session = issue_account_session(store.home, email="registered@example.com", password="correct horse battery staple")
+    assert session["agent_ids"] == ["did:integrity:agent-a", "did:integrity:agent-b"]
+    status, payload = _get(port, "/api/agents")
+    assert status == 200
+    assert {row["agent_id"] for row in payload["agents"]} == {"did:integrity:agent-a", "did:integrity:agent-b"}
+
+
+def test_operator_can_manage_agent_device_pairs(running_store):
+    store, port = running_store
+    agent_id = store.storage_agent_id("did:integrity:managed-agent")
+
+    status, pair = _post(port, "/api/agent-devices/associate", {
+        "agent_id": "did:integrity:managed-agent",
+        "device_id": "managed-device",
+        "display_name": "Managed device",
+    })
+    assert status == 200
+    assert pair["agent_id"] == agent_id
+    assert pair["status"] == "active"
+
+    status, renamed = _post(port, "/api/agent-devices/managed-device/rename", {"display_name": "Renamed device"})
+    assert status == 200 and renamed["display_name"] == "Renamed device"
+    status, detached = _post(port, "/api/agent-devices/managed-device/detach", {})
+    assert status == 200 and detached["status"] == "detached"
+    status, revoked = _post(port, "/api/agent-devices/managed-device/revoke", {})
+    assert status == 200 and revoked["status"] == "revoked"
+
+
 def test_invocations_route_returns_protocol_correlations(running_store):
     store, port = running_store
     invocation_id = "d32c93ca-7c8e-49fb-8071-0941572cecf6"

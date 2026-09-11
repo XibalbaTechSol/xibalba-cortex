@@ -117,6 +117,77 @@ def set_store_for_testing(store: GraphStore) -> None:
     _store = store
     _controller = None
 
+def _bound_agent_id(requested: str | None = None, *, require: bool = False) -> str | None:
+    """Resolve the only agent identity a network caller may use.
+
+    A bearer credential may be explicitly bound to one agent.  Tool arguments are treated as
+    assertions only: they must match that binding and are never allowed to select a different
+    namespace.  Unauthenticated stdio calls retain the historical local-development behavior.
+    """
+    principal = current_principal()
+    requested_value = str(requested).strip() if requested is not None and str(requested).strip() else None
+    if principal is None:
+        return requested_value
+    principal_agent = str(principal.get("agent_id") or "").strip() or None
+    if principal_agent is None:
+        if requested_value is not None:
+            raise PermissionError("credential is not bound to an agent")
+        if require:
+            raise PermissionError("credential is not bound to an agent")
+        return None
+    if requested_value is not None and requested_value != principal_agent:
+        raise PermissionError("requested agent does not match authenticated principal")
+    return principal_agent
+
+
+def _scoped_source(source: dict[str, object] | None, *, require: bool = False) -> dict[str, object]:
+    value = dict(source or {})
+    bound = _bound_agent_id(value.get("agent_id"), require=require)
+    if bound is not None:
+        value["agent_id"] = bound
+    elif current_principal() is not None:
+        value.pop("agent_id", None)
+    return value
+
+
+def _storage_agent_id(raw_agent_id: str | None) -> str | None:
+    """Translate the authenticated raw identity to the store's persisted identity policy."""
+    if raw_agent_id is None:
+        return None
+    resolved = get_store().storage_agent_id(raw_agent_id)
+    if resolved is None:
+        raise PermissionError("agent-scoped access is unavailable while identity attribution is disabled")
+    return resolved
+
+
+def _assert_memory_scope(memory: dict[str, object]) -> dict[str, object]:
+    bound = _bound_agent_id()
+    if bound is None:
+        return memory
+    source = memory.get("source") if isinstance(memory.get("source"), dict) else {}
+    if str(source.get("agent_id") or "") != str(_storage_agent_id(bound) or ""):
+        raise PermissionError("memory is outside the authenticated agent namespace")
+    return memory
+
+
+def _assert_session_scope(session: dict[str, object]) -> dict[str, object]:
+    bound = _bound_agent_id()
+    if bound is not None and str(session.get("agent_id") or "") != str(_storage_agent_id(bound) or ""):
+        raise PermissionError("session is outside the authenticated agent namespace")
+    return session
+
+
+def _assert_trace_scope(trace: dict[str, object]) -> dict[str, object]:
+    bound = _bound_agent_id()
+    if bound is None:
+        return trace
+    scoped = _storage_agent_id(bound)
+    filters = trace.get("filters") if isinstance(trace.get("filters"), dict) else {}
+    if filters.get("agent_id") not in {bound, scoped}:
+        raise PermissionError("retrieval trace is outside the authenticated agent namespace")
+    return trace
+
+
 def _requires_scope(scope_name: str):
     def decorator(function):
         @wraps(function)
@@ -124,6 +195,10 @@ def _requires_scope(scope_name: str):
             principal = current_principal()
             if principal is not None and scope_name not in principal["scopes"]:
                 raise PermissionError(f"credential lacks required scope: {scope_name}")
+            if "agent_id" in kwargs:
+                # An unbound administrative credential may use the broad namespace only when
+                # it omits agent_id. Any supplied identity is still rejected by _bound_agent_id.
+                kwargs["agent_id"] = _bound_agent_id(kwargs.get("agent_id"))
             return function(*args, **kwargs)
         return wrapped
     return decorator
@@ -147,7 +222,7 @@ def memory_ingest_connector_event(
 ) -> dict[str, object]:
     """Ingest one idempotent external connector event with canonical provenance."""
     return get_store().ingest_connector_event(
-        connector, event_id, content, source=source, status=status,
+        connector, event_id, content, source=_scoped_source(source, require=current_principal() is not None), status=status,
         evidence_class=evidence_class, metadata=metadata,
     )
 
@@ -170,7 +245,7 @@ def memory_remember(
     """
     return get_store().store_memory(
         content,
-        source=source,
+        source=_scoped_source(source, require=current_principal() is not None),
         status=status,
         idempotency_key=idempotency_key,
         evidence_class=evidence_class,
@@ -191,9 +266,15 @@ def memory_hybrid_retrieve(
     provenance trace. filters narrows by status/evidence_class; max_per_source/max_total_chars
     cap diversity and result size, recording any drops in the trace rather than silently
     omitting them. {_UNTRUSTED_EVIDENCE_NOTE}"""
+    scoped_filters = dict(filters or {})
+    bound = _bound_agent_id(scoped_filters.get("agent_id"), require=current_principal() is not None)
+    if bound is not None:
+        scoped_filters["agent_id"] = _storage_agent_id(bound)
+    elif current_principal() is not None:
+        scoped_filters.pop("agent_id", None)
     return get_store().hybrid_retrieve(
         query, query_vector=query_vector, limit=limit, temporal_at=temporal_at,
-        filters=filters, max_per_source=max_per_source, max_total_chars=max_total_chars,
+        filters=scoped_filters, max_per_source=max_per_source, max_total_chars=max_total_chars,
     )
 
 
@@ -205,16 +286,22 @@ def memory_context_assemble(
 ) -> dict[str, object]:
     """Return a bounded context block with facts, history, summaries, observations, and
     provenance. This convenience projection is optional and can be disabled per profile."""
+    scoped_filters = dict(filters or {})
+    bound = _bound_agent_id(scoped_filters.get("agent_id"), require=current_principal() is not None)
+    if bound is not None:
+        scoped_filters["agent_id"] = _storage_agent_id(bound)
+    elif current_principal() is not None:
+        scoped_filters.pop("agent_id", None)
     return get_store().assemble_context(
         query, query_vector=query_vector, limit=limit, temporal_at=temporal_at,
-        max_total_chars=max_total_chars, filters=filters,
+        max_total_chars=max_total_chars, filters=scoped_filters,
     )
 
 
 @server.tool()
 def memory_retrieval_trace(trace_id: str) -> dict[str, object]:
     """Read a persisted retrieval trace and its root commitment."""
-    return get_store().get_retrieval_trace(trace_id)
+    return _assert_trace_scope(get_store().get_retrieval_trace(trace_id))
 
 
 @server.tool()
@@ -222,6 +309,7 @@ def memory_retrieval_trace_evidence(trace_id: str, rank: int) -> dict[str, objec
     """Merkle inclusion proof for one ranked result within a retrieval trace -- lets a caller
     verify a single candidate was really part of the traced fusion without trusting the whole
     trace record. Previously HTTP-only (`GET /api/retrieval/trace/{id}/evidence`)."""
+    _assert_trace_scope(get_store().get_retrieval_trace(trace_id))
     return get_store().retrieval_trace_evidence(trace_id, rank=rank)
 
 
@@ -269,7 +357,8 @@ def memory_recall(
     also carry their own `cosine_similarity` (0.0-1.0) so you can see the real score behind the
     fused rank, not just the rank itself.
     """
-    return get_store().search(query, query_vector=query_vector, limit=limit)
+    bound = _bound_agent_id(require=current_principal() is not None)
+    return get_store().search(query, query_vector=query_vector, limit=limit, agent_id=_storage_agent_id(bound))
 
 
 @server.tool()
@@ -279,6 +368,7 @@ def memory_similar(memory_id: str, limit: int = 10) -> list[dict[str, object]]:
     Requires memory_id to already have an embedding attached via memory_embed -- raises if not.
     Each result is {{"memory": ..., "cosine_similarity": 0.0-1.0}}, best match first.
     """
+    _assert_memory_scope(get_store().get_memory(memory_id))
     return get_store().similar_memories(memory_id, limit=limit)
 
 
@@ -328,13 +418,15 @@ def memory_attach(
 @server.tool()
 def memory_list_attachments(memory_id: str) -> list[dict[str, object]]:
     """List all attachments on a memory."""
+    _assert_memory_scope(get_store().get_memory(memory_id))
     return get_store().list_attachments(memory_id)
 
 
 @server.tool()
 @_requires_scope("memory:write")
 def memory_session_start(
-    external_session_id: str, retention_tier: str | None = None
+    external_session_id: str, retention_tier: str | None = None,
+    agent_id: str | None = None,
 ) -> dict[str, object]:
     """Declare a session and which write-pattern tier it follows. Idempotent -- safe to call
     again for a reconnecting session; the tier from the FIRST call wins.
@@ -349,7 +441,8 @@ def memory_session_start(
     Falls back to XIBALBA_CORTEX_RETENTION_TIER if not specified, else "digest".
     """
     return get_store().start_session(
-        external_session_id, retention_tier=retention_tier or _default_retention_tier()
+        external_session_id, retention_tier=retention_tier or _default_retention_tier(),
+        agent_id=_bound_agent_id(agent_id, require=current_principal() is not None),
     )
 
 
@@ -361,21 +454,24 @@ def memory_session_end(
     source: dict[str, object] | None = None,
 ) -> dict[str, object]:
     """Close a session, optionally storing a closing summary memory (evidence_class=summary)."""
+    _assert_session_scope(get_store().get_session(external_session_id))
     return get_store().end_session(
-        external_session_id, summary_content=summary_content, source=source
+        external_session_id, summary_content=summary_content,
+        source=_scoped_source(source, require=current_principal() is not None),
     )
 
 
 @server.tool()
 def memory_session_get(external_session_id: str) -> dict[str, object]:
     """Fetch a session's record: tier, start/end time, linked summary memory."""
-    return get_store().get_session(external_session_id)
+    return _assert_session_scope(get_store().get_session(external_session_id))
 
 
 @server.tool()
 def memory_session_memories(external_session_id: str) -> list[dict[str, object]]:
     f"""All memories written under this session, oldest first. {_UNTRUSTED_EVIDENCE_NOTE}"""
-    return get_store().session_memories(external_session_id)
+    _assert_session_scope(get_store().get_session(external_session_id))
+    return [_assert_memory_scope(memory) for memory in get_store().session_memories(external_session_id)]
 
 
 @server.tool()
@@ -402,6 +498,7 @@ def memory_record_otel_batch(
     authenticated telemetry_events (which this server has no involvement in and never will).
     The session must already exist (memory_session_start).
     """
+    _assert_session_scope(get_store().get_session(external_session_id))
     return get_store().record_otel_batch(external_session_id, events)
 
 
@@ -409,6 +506,7 @@ def memory_record_otel_batch(
 def memory_session_otel_summary(external_session_id: str) -> dict[str, object]:
     """Diagnostic rollup for a session: event counts by kind, and metric totals by name (e.g.
     summed claude_code.token.usage / claude_code.cost.usage, if those names were used)."""
+    _assert_session_scope(get_store().get_session(external_session_id))
     return get_store().session_otel_summary(external_session_id)
 
 
@@ -421,13 +519,14 @@ def memory_otel_events(memory_id: str) -> list[dict[str, object]]:
     This is what answers "what telemetry corresponds to this specific piece of LLM output,"
     not just "what telemetry happened in the same session."
     """
+    _assert_memory_scope(get_store().get_memory(memory_id))
     return get_store().memory_otel_events(memory_id)
 
 
 @server.tool()
 def memory_get(memory_id: str) -> dict[str, object]:
     """Fetch one memory by id, including current status and provenance."""
-    return get_store().get_memory(memory_id)
+    return _assert_memory_scope(get_store().get_memory(memory_id))
 
 
 @server.tool()
@@ -441,10 +540,11 @@ def memory_supersede(
     idempotency_key: str | None = None,
 ) -> dict[str, object]:
     """Replace a memory with a corrected version, preserving the old one as superseded history."""
+    _assert_memory_scope(get_store().get_memory(old_id))
     return get_store().supersede_memory(
         old_id,
         new_content,
-        source=source,
+        source=_scoped_source(source, require=current_principal() is not None),
         status=status,
         idempotency_key=idempotency_key,
         evidence_class=evidence_class,
@@ -455,13 +555,16 @@ def memory_supersede(
 @_requires_scope("memory:write")
 def memory_contradict(memory_id_a: str, memory_id_b: str, reason: str) -> dict[str, object]:
     """Record that two memories conflict, without resolving or deleting either."""
+    _assert_memory_scope(get_store().get_memory(memory_id_a))
+    _assert_memory_scope(get_store().get_memory(memory_id_b))
     return get_store().mark_contradiction(memory_id_a, memory_id_b, reason)
 
 
 @server.tool()
 def memory_contradictions(memory_id: str) -> list[dict[str, object]]:
     """List memories recorded as contradicting the given memory."""
-    return get_store().contradictions(memory_id)
+    _assert_memory_scope(get_store().get_memory(memory_id))
+    return [_assert_memory_scope(memory) for memory in get_store().contradictions(memory_id)]
 
 
 @server.tool()
@@ -469,8 +572,13 @@ def memory_export_provenance(
     memory_ids: list[str] | None = None, include_forgotten: bool = False, limit: int = 500,
 ) -> dict[str, object]:
     """Export a bounded provenance bundle with a verifiable Merkle commitment."""
+    bound = _bound_agent_id(require=current_principal() is not None)
+    if memory_ids:
+        for memory_id in memory_ids:
+            _assert_memory_scope(get_store().get_memory(memory_id))
     return get_store().export_memory_bundle(
         memory_ids=memory_ids, include_forgotten=include_forgotten, limit=limit,
+        agent_id=bound,
     )
 
 
@@ -479,6 +587,7 @@ def memory_export_provenance(
 @_requires_scope("memory:delete")
 def memory_forget(memory_id: str) -> dict[str, object]:
     """Mark a memory forgotten: excluded from recall, content hash retained (not erased)."""
+    _assert_memory_scope(get_store().get_memory(memory_id))
     return get_store().forget_memory(memory_id)
 
 
@@ -492,6 +601,7 @@ def memory_link_entities(
     confidence: float = 1.0,
 ) -> dict[str, object]:
     """Assert a typed relationship between two entities, evidenced by a specific memory."""
+    _assert_memory_scope(get_store().get_memory(evidence_memory_id))
     return get_store().link_entities(
         subject, predicate, obj, evidence_memory_id=evidence_memory_id, confidence=confidence
     )
@@ -500,18 +610,21 @@ def memory_link_entities(
 @server.tool()
 def memory_neighbors(subject: str, max_depth: int = 1) -> dict[str, object]:
     """Bounded graph neighborhood around an entity (max_depth 1-3). Reports truncation honestly."""
-    return get_store().neighbors(subject, max_depth=max_depth)
+    bound = _bound_agent_id(require=current_principal() is not None)
+    return get_store().neighbors(subject, max_depth=max_depth, agent_id=_storage_agent_id(bound))
 
 
 @server.tool()
 def memory_find_path(from_entity: str, to_entity: str, max_depth: int = 3) -> dict[str, object]:
     """Shortest relationship path between two entities (max_depth 1-5)."""
-    return get_store().find_path(from_entity, to_entity, max_depth=max_depth)
+    bound = _bound_agent_id(require=current_principal() is not None)
+    return get_store().find_path(from_entity, to_entity, max_depth=max_depth, agent_id=_storage_agent_id(bound))
 
 
 @server.tool()
 def memory_events(memory_id: str) -> list[dict[str, object]]:
     """Full hash-linked event history for a memory (node_id/parent_event_id included)."""
+    _assert_memory_scope(get_store().get_memory(memory_id))
     return get_store().memory_events(memory_id)
 
 
@@ -522,6 +635,7 @@ def memory_verify_chain(memory_id: str) -> dict[str, object]:
     Proves this memory's own history is internally self-consistent -- it does NOT prove
     Integrity Protocol on-chain anchoring. See spec/xibalba-cortex-v1.md section 6.3.
     """
+    _assert_memory_scope(get_store().get_memory(memory_id))
     return get_store().verify_chain(memory_id)
 
 
@@ -537,11 +651,12 @@ def memory_verify_integrity_link(
     This can advance a link to hash_match_local, but it does not prove truth,
     authorization, completeness, ancestry to a root, or on-chain anchoring.
     """
+    _assert_memory_scope(get_store().get_memory(memory_id))
     return get_store().verify_integrity_link(
         memory_id,
         node_id=node_id,
         dag_home=dag_home,
-        agent_id=agent_id,
+        agent_id=_bound_agent_id(agent_id, require=current_principal() is not None),
     )
 
 
@@ -613,6 +728,7 @@ def memory_build_session_exchanges(external_session_id: str) -> dict[str, object
     duplicates every exchange, since this derives exchanges from current data rather than
     tracking them incrementally.
     """
+    _assert_session_scope(get_store().get_session(external_session_id))
     from xibalba_cortex.exchange_builder import build_session_exchanges
     return build_session_exchanges(get_store(), external_session_id)
 
@@ -623,11 +739,13 @@ def memory_session_exchanges(external_session_id: str) -> list[dict[str, object]
     memories, linked tool calls, and context-window token usage, in order.
     {_UNTRUSTED_EVIDENCE_NOTE}
     """
+    _assert_session_scope(get_store().get_session(external_session_id))
     return get_store().session_exchanges(external_session_id)
 
 @server.tool()
 def memory_session_replay(external_session_id: str) -> dict[str, object]:
     """Return an ordered, replay-ready session transcript with completeness diagnostics."""
+    _assert_session_scope(get_store().get_session(external_session_id))
     return get_store().session_replay(external_session_id)
 
 
@@ -638,6 +756,7 @@ def memory_verify_exchange_chain(external_session_id: str) -> dict[str, object]:
     built, the same tamper-evidence memory_verify_chain gives one memory's own revision
     history, applied to a session's complete structure instead.
     """
+    _assert_session_scope(get_store().get_session(external_session_id))
     return get_store().verify_exchange_chain(external_session_id)
 
 
@@ -649,6 +768,7 @@ def memory_session_merkle_root(external_session_id: str) -> dict[str, object]:
     tool-call ids, and parent exchange nodes. It is local tamper evidence, not an Integrity DAG
     anchor or proof that the remembered content is true.
     """
+    _assert_session_scope(get_store().get_session(external_session_id))
     return get_store().session_merkle_root(external_session_id)
 
 
@@ -657,6 +777,7 @@ def memory_session_merkle_root(external_session_id: str) -> dict[str, object]:
 def memory_anchor_session_root(external_session_id: str) -> dict[str, object]:
     """Push the session root to the configured anchor consumer (e.g. XIBALBA_ANCHOR_URL).
     """
+    _assert_session_scope(get_store().get_session(external_session_id))
     return get_store().anchor_session_root(external_session_id)
 
 
@@ -694,7 +815,6 @@ def memory_record_model_exchange(
         response_time=response_time,
         metadata=metadata,
         idempotency_key=idempotency_key,
-        provider_id=provider_id,
     )
 
 
@@ -767,6 +887,8 @@ def memory_request_inference(
     provider_id: str | None = None,
 ) -> dict[str, object]:
     """Queue an inference task for the user's agent harness or future cloud inference worker."""
+    if subject_type == "memory":
+        _assert_memory_scope(get_store().get_memory(subject_id))
     return get_store().request_inference_task(
         task_type,
         subject_type=subject_type,
@@ -780,7 +902,19 @@ def memory_request_inference(
 @server.tool()
 def memory_inference_tasks(status: str = "pending", limit: int = 50) -> list[dict[str, object]]:
     """List queued/claimed/completed/failed memory inference tasks."""
-    return get_store().list_inference_tasks(status=status, limit=limit)
+    tasks = get_store().list_inference_tasks(status=status, limit=limit)
+    bound = _bound_agent_id()
+    if bound is None:
+        return tasks
+    visible = []
+    for task in tasks:
+        if task.get("subject_type") == "memory":
+            try:
+                _assert_memory_scope(get_store().get_memory(str(task.get("subject_id"))))
+            except (KeyError, PermissionError):
+                continue
+        visible.append(task)
+    return visible
 
 
 @server.tool()
@@ -811,6 +945,8 @@ def memory_start_self_extraction(
     worker-produced output would. See docs/wiki/architecture/inference-queue.md for the
     trust tradeoff versus the isolated worker path.
     """
+    if subject_type == "memory":
+        _assert_memory_scope(get_store().get_memory(subject_id))
     return get_store().start_self_extraction(
         task_type,
         subject_type=subject_type,
@@ -829,6 +965,7 @@ def memory_extract_structural_entities(subject_id: str, claimed_by: str = "struc
     task. Every match gets confidence 1.0: a regex match is unambiguous by construction, so
     there's nothing to hedge against. See docs/wiki/architecture/inference-queue.md.
     """
+    _assert_memory_scope(get_store().get_memory(subject_id))
     return get_store().run_structural_extraction(subject_id, claimed_by=claimed_by)
 
 
@@ -843,6 +980,8 @@ def memory_evidence_bundle(task_id: str) -> dict[str, object]:
     """
     store = get_store()
     task = store.get_inference_task(task_id)
+    if task.get("subject_type") == "memory":
+        _assert_memory_scope(store.get_memory(str(task.get("subject_id"))))
     return store.fetch_bounded_evidence_for_task(task)
 
 
@@ -856,6 +995,9 @@ def memory_complete_inference_task(
     claim_token: str | None = None,
 ) -> dict[str, object]:
     """Complete or fail an inference task. Passing error marks it failed."""
+    task = get_store().get_inference_task(task_id)
+    if task.get("subject_type") == "memory":
+        _assert_memory_scope(get_store().get_memory(str(task.get("subject_id"))))
     return get_store().complete_inference_task(
         task_id, output_payload=output_payload, error=error,
         claimed_by=claimed_by, claim_token=claim_token,

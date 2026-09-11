@@ -607,6 +607,100 @@ code {
   gap: 10px;
 }
 
+.agent-switcher {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-muted);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+}
+
+.agent-switcher select {
+  width: min(310px, 28vw);
+  height: 34px;
+  padding: 0 32px 0 10px;
+  border: 1px solid var(--border-highlight);
+  border-radius: 7px;
+  background: var(--surface, #111722);
+  color: var(--text);
+  font: 500 12px/1 system-ui, sans-serif;
+  letter-spacing: normal;
+  text-transform: none;
+}
+
+.agent-switcher select:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+}
+
+.pair-association-form {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr)) auto;
+  gap: 12px;
+  align-items: end;
+  margin: 18px 0 24px;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+}
+
+.pair-association-form label {
+  display: grid;
+  gap: 6px;
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+.pair-association-form input,
+.pair-actions input {
+  min-width: 0;
+  height: 34px;
+  padding: 0 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--background, #090d14);
+  color: var(--text);
+}
+
+.workspace-select {
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+}
+
+.pair-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+
+.pair-actions input { flex: 1 1 160px; }
+.pair-actions .danger { color: #fca5a5; border-color: rgba(239, 68, 68, .35); }
+
+@media (max-width: 900px) {
+  .top-telemetry-badge,
+  .agent-switcher > span,
+  .refresh-tool-btn .btn-label {
+    display: none;
+  }
+
+  .agent-switcher select {
+    width: min(44vw, 260px);
+  }
+
+  .pair-association-form { grid-template-columns: 1fr; }
+}
+
 .refresh-tool-btn {
   display: inline-flex;
   align-items: center;

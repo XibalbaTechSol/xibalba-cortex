@@ -1,0 +1,14 @@
+[Unit]
+Description=Sync finalized CORE agent registrations into Cortex
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+EnvironmentFile=%h/.config/xibalba-cortex/core-sync.env
+ExecStart=%h/.local/bin/xibalba-cortex-sync-core-registrations
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=%h/.hermes/xibalba-cortex

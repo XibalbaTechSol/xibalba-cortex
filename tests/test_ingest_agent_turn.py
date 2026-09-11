@@ -124,4 +124,41 @@ def test_ingest_agent_turn_is_idempotent_under_the_same_key(tmp_path):
 
     assert first["prompt_memory"]["id"] == second["prompt_memory"]["id"]
     assert first["response_memory"]["id"] == second["response_memory"]["id"]
+    assert first["exchange"]["id"] == second["exchange"]["id"]
+    assert len(store.session_exchanges("sess-cloud-6")) == 1
+    store.close()
+
+
+def test_session_agent_scope_rejects_cross_agent_memory_and_exchange(tmp_path):
+    store = GraphStore(tmp_path / "scoped")
+    store.start_session("scoped-session", agent_id="agent-a")
+    with pytest.raises(PermissionError):
+        store.ingest_agent_turn(
+            "scoped-session", runtime="test", prompt="p", response="r", agent_id="agent-b",
+            idempotency_key="scoped-turn-b",
+        )
+    allowed = store.ingest_agent_turn(
+        "scoped-session", runtime="test", prompt="p", response="r", agent_id="agent-a",
+        idempotency_key="scoped-turn-a",
+    )
+    assert allowed["session"]["agent_id"] == allowed["prompt_memory"]["source"]["agent_id"]
+    store.close()
+
+
+def test_ingest_agent_turn_rolls_back_prompt_when_response_write_fails(tmp_path, monkeypatch):
+    store = GraphStore(tmp_path / "atomic")
+    original = store.store_memory
+    calls = {"count": 0}
+
+    def fail_on_response(*args, **kwargs):
+        calls["count"] += 1
+        if calls["count"] == 2:
+            raise RuntimeError("simulated response write failure")
+        return original(*args, **kwargs)
+
+    monkeypatch.setattr(store, "store_memory", fail_on_response)
+    with pytest.raises(RuntimeError, match="simulated response"):
+        store.ingest_agent_turn("atomic-session", runtime="test", prompt="prompt", response="response")
+    assert store.list_sessions(limit=10) == []
+    assert store.counts()["memories"] == 0
     store.close()

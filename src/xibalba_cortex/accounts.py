@@ -32,12 +32,39 @@ CREATE TABLE IF NOT EXISTS accounts (
     role TEXT NOT NULL DEFAULT 'operator',
     email_verified INTEGER NOT NULL DEFAULT 1,
     approval_status TEXT NOT NULL DEFAULT 'approved',
+    controller_address TEXT,
+    agent_ids_json TEXT NOT NULL DEFAULT '[]',
     failed_attempts INTEGER NOT NULL DEFAULT 0,
     locked_until TEXT,
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 CREATE INDEX IF NOT EXISTS idx_accounts_email ON accounts(email);
+CREATE TABLE IF NOT EXISTS user_agent_registrations (
+    account_id TEXT NOT NULL,
+    agent_did TEXT NOT NULL,
+    chain_id INTEGER NOT NULL,
+    block_number INTEGER NOT NULL,
+    tx_hash TEXT NOT NULL,
+    log_index INTEGER NOT NULL,
+    status TEXT NOT NULL DEFAULT 'active',
+    finalized INTEGER NOT NULL DEFAULT 0,
+    observed_at TEXT NOT NULL,
+    revoked_at TEXT,
+    PRIMARY KEY (account_id, agent_did)
+    -- A directory snapshot cursor may cover several agents; uniqueness is enforced
+    -- by the account/DID primary key while the cursor remains auditable metadata.
+);
+CREATE INDEX IF NOT EXISTS idx_user_agent_registrations_account ON user_agent_registrations(account_id, status, finalized);
+CREATE TABLE IF NOT EXISTS core_registration_cursors (
+    account_id TEXT NOT NULL,
+    chain_id INTEGER NOT NULL,
+    block_number INTEGER NOT NULL,
+    snapshot_id TEXT NOT NULL,
+    log_index INTEGER NOT NULL DEFAULT 0,
+    observed_at TEXT NOT NULL,
+    PRIMARY KEY (account_id, chain_id)
+);
 CREATE TABLE IF NOT EXISTS auth_events (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     profile_id TEXT,
@@ -92,6 +119,10 @@ def _ensure_schema(home: str | Path) -> None:
             conn.execute("ALTER TABLE accounts ADD COLUMN email_verified INTEGER NOT NULL DEFAULT 1")
         if "approval_status" not in columns:
             conn.execute("ALTER TABLE accounts ADD COLUMN approval_status TEXT NOT NULL DEFAULT 'approved'")
+        if "agent_ids_json" not in columns:
+            conn.execute("ALTER TABLE accounts ADD COLUMN agent_ids_json TEXT NOT NULL DEFAULT '[]'")
+        if "controller_address" not in columns:
+            conn.execute("ALTER TABLE accounts ADD COLUMN controller_address TEXT")
         conn.commit()
     finally:
         conn.close()
@@ -116,7 +147,7 @@ def create_account(home: str | Path, *, email: str, password: str, display_name:
     finally:
         conn.close()
     record_auth_event(home, event_type="account_created", email=email, profile_id=profile_id)
-    return {"id": account_id, "email": email, "display_name": display_name, "profile_id": profile_id, "role": "operator", "status": "active", "email_verified": True, "approval_status": "approved", "created_at": now}
+    return {"id": account_id, "email": email, "display_name": display_name, "profile_id": profile_id, "role": "operator", "status": "active", "email_verified": True, "approval_status": "approved", "controller_address": None, "agent_ids": [], "created_at": now}
 
 def _account(home: str | Path, email: str) -> sqlite3.Row | None:
     _ensure_schema(home)
@@ -125,6 +156,15 @@ def _account(home: str | Path, email: str) -> sqlite3.Row | None:
         return conn.execute("SELECT * FROM accounts WHERE email=? AND status='active'", (_normalize_email(email),)).fetchone()
     finally:
         conn.close()
+
+
+def _registered_agent_ids(conn: sqlite3.Connection, account_id: str) -> list[str]:
+    """Read only active, finalized registrations; legacy JSON is a fallback projection."""
+    rows = conn.execute(
+        "SELECT agent_did FROM user_agent_registrations WHERE account_id=? AND status='active' AND finalized=1 ORDER BY agent_did",
+        (account_id,),
+    ).fetchall()
+    return [str(row["agent_did"]) for row in rows]
 
 def record_auth_event(home: str | Path, *, event_type: str, email: str | None = None, profile_id: str | None = None, detail: str | None = None) -> None:
     conn = _connect(home)
@@ -166,15 +206,17 @@ def issue_account_session(home: str | Path, *, email: str, password: str, ttl_ho
         raise ValueError("invalid email or password")
     conn = _connect(home)
     try:
+        registered_ids = _registered_agent_ids(conn, str(row["id"]))
+        effective_ids = registered_ids or json.loads(row["agent_ids_json"] or "[]")
         conn.execute("UPDATE accounts SET failed_attempts=0, locked_until=NULL WHERE id=?", (row["id"],))
         token = secrets.token_urlsafe(32)
         expires = (now + timedelta(hours=ttl_hours)).isoformat()
-        conn.execute("INSERT INTO ingest_tokens(id,label,token_hash,profile_id,roles_json,scopes_json,expires_at) VALUES(?,?,?,?,?,?,?)", (str(uuid.uuid4()), f"account:{row['email']}", _hash(token), row["profile_id"], json.dumps(["operator"]), json.dumps(sorted(ROLE_SCOPES["operator"])), expires))
+        conn.execute("INSERT INTO ingest_tokens(id,label,token_hash,profile_id,roles_json,scopes_json,expires_at,agent_id,agent_ids_json) VALUES(?,?,?,?,?,?,?,?,?)", (str(uuid.uuid4()), f"account:{row['email']}", _hash(token), row["profile_id"], json.dumps(["operator"]), json.dumps(sorted(ROLE_SCOPES["operator"])), expires, None, json.dumps(effective_ids)))
         conn.commit()
     finally:
         conn.close()
     record_auth_event(home, event_type="login_succeeded", email=normalized, profile_id=row["profile_id"])
-    return token, {"id": row["id"], "email": row["email"], "display_name": row["display_name"], "profile_id": row["profile_id"], "role": row["role"], "status": row["status"], "email_verified": bool(row["email_verified"]), "approval_status": row["approval_status"], "created_at": row["created_at"]}
+    return token, {"id": row["id"], "email": row["email"], "display_name": row["display_name"], "profile_id": row["profile_id"], "role": row["role"], "status": row["status"], "email_verified": bool(row["email_verified"]), "approval_status": row["approval_status"], "controller_address": row["controller_address"], "agent_ids": effective_ids, "created_at": row["created_at"]}
 
 def account_for_token(home: str | Path, token: str) -> dict[str, object] | None:
     record = None
@@ -190,7 +232,92 @@ def account_for_token(home: str | Path, token: str) -> dict[str, object] | None:
     row = _account(home, email)
     if row is None:
         return None
-    return {"id": row["id"], "email": row["email"], "display_name": row["display_name"], "profile_id": row["profile_id"], "role": row["role"], "status": row["status"], "email_verified": bool(row["email_verified"]), "approval_status": row["approval_status"], "created_at": row["created_at"]}
+    conn = _connect(home)
+    try:
+        agent_ids = _registered_agent_ids(conn, str(row["id"])) or json.loads(row["agent_ids_json"] or "[]")
+    finally:
+        conn.close()
+    return {"id": row["id"], "email": row["email"], "display_name": row["display_name"], "profile_id": row["profile_id"], "role": row["role"], "status": row["status"], "email_verified": bool(row["email_verified"]), "approval_status": row["approval_status"], "controller_address": row["controller_address"], "agent_ids": agent_ids, "created_at": row["created_at"]}
+
+
+def set_account_agent_ids(home: str | Path, *, account_id: str, agent_ids: list[str]) -> bool:
+    """Synchronize an account's agent access from a trusted CORE indexer.
+
+    This is intentionally a service-layer operation, not a browser-facing self-grant.
+    The caller must have already verified controller ownership and chain finality.
+    """
+    normalized = sorted({str(value).strip() for value in agent_ids if str(value).strip()})
+    _ensure_schema(home)
+    conn = _connect(home)
+    try:
+        changed = conn.execute("UPDATE accounts SET agent_ids_json=?, updated_at=? WHERE id=? AND status='active'", (json.dumps(normalized), _now(), account_id)).rowcount
+        conn.commit()
+    finally:
+        conn.close()
+    if changed:
+        record_auth_event(home, event_type="agent_registrations_synced", detail=f"account={account_id};count={len(normalized)}")
+    return bool(changed)
+
+
+def set_account_controller(home: str | Path, *, account_id: str, controller_address: str) -> bool:
+    """Bind an account to a normalized EVM controller from a trusted auth/indexer flow."""
+    normalized = str(controller_address).strip().lower()
+    if len(normalized) != 42 or not normalized.startswith("0x"):
+        raise ValueError("controller_address must be a 20-byte EVM address")
+    _ensure_schema(home)
+    conn = _connect(home)
+    try:
+        changed = conn.execute("UPDATE accounts SET controller_address=?, updated_at=? WHERE id=? AND status='active'", (normalized, _now(), account_id)).rowcount
+        conn.commit()
+    finally:
+        conn.close()
+    if changed:
+        record_auth_event(home, event_type="controller_bound", detail=f"account={account_id};controller={normalized}")
+    return bool(changed)
+
+
+def sync_account_registrations(home: str | Path, *, account_id: str, chain_id: int, block_number: int, tx_hash: str, log_index: int, agent_ids: list[str], finalized: bool) -> bool:
+    """Replace the active finalized registration projection from a CORE snapshot."""
+    normalized = sorted({str(value).strip() for value in agent_ids if str(value).startswith("did:integrity:")})
+    if not tx_hash or block_number < 0 or chain_id < 0 or log_index < 0:
+        raise ValueError("invalid CORE registration cursor")
+    _ensure_schema(home)
+    now = _now()
+    conn = _connect(home)
+    try:
+        account_row = conn.execute("SELECT email FROM accounts WHERE id=? AND status='active'", (account_id,)).fetchone()
+        if account_row is None:
+            return False
+        cursor = conn.execute("SELECT block_number,snapshot_id FROM core_registration_cursors WHERE account_id=? AND chain_id=?", (account_id, chain_id)).fetchone()
+        if cursor is not None:
+            previous_block = int(cursor["block_number"])
+            previous_snapshot = str(cursor["snapshot_id"])
+            if block_number < previous_block:
+                raise ValueError("CORE registration snapshot is older than the applied cursor")
+            if block_number == previous_block and tx_hash != previous_snapshot:
+                raise ValueError("CORE registration snapshot conflicts at the applied cursor")
+        conn.execute("UPDATE user_agent_registrations SET status='revoked', revoked_at=? WHERE account_id=? AND status='active'", (now, account_id))
+        for agent_id in normalized:
+            conn.execute(
+                "INSERT INTO user_agent_registrations(account_id,agent_did,chain_id,block_number,tx_hash,log_index,status,finalized,observed_at) VALUES(?,?,?,?,?,?,?,?,?) ON CONFLICT(account_id,agent_did) DO UPDATE SET chain_id=excluded.chain_id,block_number=excluded.block_number,tx_hash=excluded.tx_hash,log_index=excluded.log_index,status='active',finalized=excluded.finalized,observed_at=excluded.observed_at,revoked_at=NULL",
+                (account_id, agent_id, chain_id, block_number, tx_hash, log_index, "active", 1 if finalized else 0, now),
+            )
+        conn.execute(
+            "INSERT INTO core_registration_cursors(account_id,chain_id,block_number,snapshot_id,log_index,observed_at) VALUES(?,?,?,?,?,?) "
+            "ON CONFLICT(account_id,chain_id) DO UPDATE SET block_number=excluded.block_number,snapshot_id=excluded.snapshot_id,log_index=excluded.log_index,observed_at=excluded.observed_at",
+            (account_id, chain_id, block_number, tx_hash, log_index, now),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+    effective_ids = normalized if finalized else []
+    conn = _connect(home)
+    try:
+        conn.execute("UPDATE ingest_tokens SET agent_ids_json=? WHERE label=? AND revoked_at IS NULL", (json.dumps(effective_ids), f"account:{account_row['email']}"))
+        conn.commit()
+    finally:
+        conn.close()
+    return set_account_agent_ids(home, account_id=account_id, agent_ids=effective_ids)
 
 def approve_account(home: str | Path, *, email: str, verified: bool = True) -> bool:
     row = _account(home, email)

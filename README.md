@@ -262,6 +262,20 @@ uv run pytest -q
 
 Full suite is validated in CI and locally; run `uv run pytest -q` for the current result. (The one skip and warnings are pre-existing and unrelated to recent work.) Viewer build is separate: `cd viewer && npm install && npm run build`. Local operator commands: `uv run xibalba-cortex-operator [readiness|status|backup|restore|verify-memory|verify-integrity-link|verify-session|integrity-links|production-readiness|evaluation-smoke|retention-sweep|audit]`.
 
+### CORE registration reconciliation
+
+The CORE oracle exposes the finality-bearing directory at `/v1/agents/snapshot`. Configure
+`AGENT_DIRECTORY_FINALIZED=true` only after the deployed indexer has applied its chain-finality
+policy. Cortex ships user-systemd service/timer templates under `packaging/systemd/`; install
+those units, copy `core-sync.env.example` to `~/.config/xibalba-cortex/core-sync.env`, then enable:
+
+```sh
+systemctl --user enable --now xibalba-cortex-core-sync.timer
+```
+
+The timer invokes `xibalba-cortex-sync-core-registrations` every five minutes. A non-finalized
+snapshot fails closed and leaves existing account authorization unchanged.
+
 **Not yet installable standalone.** `pyproject.toml` pins `integrity-sdk` as a local path
 dependency on `../integrity-core/integrity-sdk` (`[tool.uv.sources]`) — `uv sync` only resolves
 if `integrity-core` is checked out as a sibling directory (this is also how CI installs it — see

@@ -668,3 +668,25 @@ async def test_read_only_principal_cannot_write_runtime_telemetry(store):
             server.runtime_open_session("hermes", "auth-session")
     finally:
         _current_principal.reset(token)
+
+
+def test_authenticated_agent_principal_controls_memory_namespace(store):
+    from xibalba_cortex.auth_middleware import _current_principal
+
+    agent_a = "did:integrity:agent-a"
+    agent_b = "did:integrity:agent-b"
+    first = server.memory_remember("agent-a secret context", {"kind": "observed_event", "agent_id": agent_a}, status="confirmed")
+    second = server.memory_remember("agent-b secret context", {"kind": "observed_event", "agent_id": agent_b}, status="confirmed")
+    token = _current_principal.set({"id": "agent-a-token", "agent_id": agent_a, "scopes": ["memory:read", "memory:write"], "roles": [], "profile_id": "default"})
+    try:
+        recalled = server.memory_recall("agent-a")
+        assert [memory["id"] for memory in recalled] == [first["id"]]
+        assert server.memory_get(first["id"])["source"]["agent_id"] == store.storage_agent_id(agent_a)
+        with pytest.raises(PermissionError, match="authenticated agent namespace"):
+            server.memory_get(second["id"])
+        with pytest.raises(PermissionError, match="does not match authenticated principal"):
+            server.memory_remember("cross-agent write", {"kind": "observed_event", "agent_id": agent_b})
+        session = server.memory_session_start("agent-a-session")
+        assert session["agent_id"] == store.storage_agent_id(agent_a)
+    finally:
+        _current_principal.reset(token)

@@ -63,6 +63,27 @@ def test_bootstrap_creates_secure_healthy_sqlite_store(tmp_path):
     store.close()
 
 
+def test_configured_agent_registers_this_device_and_enriches_new_sources(tmp_path, monkeypatch):
+    monkeypatch.setenv("XIBALBA_AGENT_ID", "did:integrity:local-agent")
+    monkeypatch.setenv("XIBALBA_DEVICE_ID", "workstation-01")
+    monkeypatch.setenv("XIBALBA_DEVICE_NAME", "Primary workstation")
+    store = GraphStore(tmp_path / "graph", identity_mode="full")
+
+    pair = store.list_agent_devices()[0]
+    assert pair["device_id"] == "workstation-01"
+    assert pair["agent_id"] == "did:integrity:local-agent"
+    assert pair["display_name"] == "Primary workstation"
+    assert pair["status"] == "active"
+    memory = store.store_memory(
+        "Device-attributed memory.",
+        source={"kind": "direct_user", "agent_id": "did:integrity:local-agent"},
+        status="confirmed",
+    )
+    assert memory["source"]["metadata"]["device_id"] == "workstation-01"
+    assert memory["source"]["metadata"]["device_name"] == "Primary workstation"
+    store.close()
+
+
 def test_store_rejects_opening_a_profile_database_under_another_profile(tmp_path):
     GraphStore(tmp_path, profile_id="tenant-a").close()
     with pytest.raises(RuntimeError, match="store profile mismatch"):
@@ -1257,6 +1278,41 @@ def test_anchor_session_root_proceeds_without_registration_env_configured(tmp_pa
     store = _seeded_session_store(tmp_path)
     result = store.anchor_session_root("sess-anchor")
     assert result["anchored"] is True
+    store.close()
+
+
+def test_anchor_session_root_uses_core_profile_and_idempotent_contract(tmp_path, monkeypatch):
+    import json
+
+    monkeypatch.setenv("XIBALBA_ANCHOR_URL", "https://oracle.example/v1/memory/anchor")
+    monkeypatch.setenv("XIBALBA_AGENT_ID", "did:integrity:core-agent")
+    monkeypatch.setenv("XIBALBA_ANCHOR_TOKEN", "scoped-test-token")
+    calls = []
+
+    class _Resp:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
+        def read(self):
+            return b'{"anchored": true}'
+
+    def _fake_urlopen(request, timeout=None):
+        calls.append((request.full_url, json.loads(request.data.decode()), dict(request.headers)))
+        return _Resp()
+
+    monkeypatch.setattr("urllib.request.urlopen", _fake_urlopen)
+    store = _seeded_session_store(tmp_path)
+    result = store.anchor_session_root("sess-anchor")
+    assert result["anchored"] is True
+    assert [call[0] for call in calls] == ["https://oracle.example/v1/memory/profile", "https://oracle.example/v1/memory/anchor"]
+    assert calls[0][1] == {"profile_id": store.profile_id, "agent_id": "did:integrity:core-agent"}
+    assert calls[1][1]["profile_id"] == store.profile_id
+    assert calls[1][1]["agent_id"] == "did:integrity:core-agent"
+    assert calls[1][1]["idempotency_key"].startswith(f"cortex:{store.profile_id}:sess-anchor:")
+    assert calls[1][2]["Authorization"] == "Bearer scoped-test-token"
     store.close()
 
 

@@ -8,8 +8,10 @@ import math
 import mimetypes
 import re
 import shutil
+import socket
 import sqlite3
 import threading
+from functools import wraps
 import uuid
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -211,6 +213,18 @@ CREATE TABLE IF NOT EXISTS sources (
 CREATE INDEX IF NOT EXISTS idx_sources_agent_id ON sources(agent_id);
 CREATE INDEX IF NOT EXISTS idx_sources_prompt_id ON sources(prompt_id);
 
+CREATE TABLE IF NOT EXISTS agent_devices (
+    device_id TEXT PRIMARY KEY,
+    agent_id TEXT NOT NULL,
+    display_name TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'detached', 'revoked')),
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    last_seen_at TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_agent_devices_agent_id ON agent_devices(agent_id, status);
+
 CREATE TABLE IF NOT EXISTS memories (
     id TEXT PRIMARY KEY,
     source_id TEXT NOT NULL REFERENCES sources(id),
@@ -307,7 +321,8 @@ CREATE TABLE IF NOT EXISTS sessions (
     retention_tier TEXT NOT NULL CHECK (retention_tier IN ('verbatim', 'synopsis', 'digest')),
     started_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
     ended_at TEXT,
-    summary_memory_id TEXT REFERENCES memories(id)
+    summary_memory_id TEXT REFERENCES memories(id),
+    agent_id TEXT
 );
 
 -- Local mirror of the "unsigned_vendor" OTel evidence tier the Integrity Oracle's own
@@ -362,6 +377,7 @@ CREATE TABLE IF NOT EXISTS exchanges (
     latency_ms REAL,
     node_id TEXT NOT NULL,
     parent_node_id TEXT,
+    idempotency_key TEXT UNIQUE,
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(session_id, sequence_number)
 );
@@ -611,6 +627,28 @@ CREATE TABLE IF NOT EXISTS meta_edges (
 """
 
 
+def _atomic_write(method):
+    """Wrap a compound write in one SQLite transaction; nested writes share it."""
+    @wraps(method)
+    def wrapped(self, *args, **kwargs):
+        owner = self._atomic_depth == 0
+        if owner:
+            with self._lock:
+                self._connection.execute("BEGIN IMMEDIATE")
+                self._atomic_depth = 1
+                try:
+                    result = method(self, *args, **kwargs)
+                    self._connection.execute("COMMIT")
+                    return result
+                except Exception:
+                    self._connection.execute("ROLLBACK")
+                    raise
+                finally:
+                    self._atomic_depth = 0
+        return method(self, *args, **kwargs)
+    return wrapped
+
+
 class GraphStore:
     """Profile-local SQLite authority for Xibalba graph memory."""
 
@@ -647,6 +685,7 @@ class GraphStore:
         os.chmod(self.home, 0o700)
         self.db_path = self.home / "graph-memory.sqlite3"
         self._lock = threading.RLock()
+        self._atomic_depth = 0
         self._connection = sqlite3.connect(
             self.db_path,
             timeout=30.0,
@@ -658,6 +697,7 @@ class GraphStore:
         self._configure()
         self._migrate()
         self._identity_salt = self._load_or_create_identity_salt()
+        self._register_configured_device()
 
     def _load_or_create_identity_salt(self) -> bytes:
         """Per-profile secret for pseudonymizing agent_id. Not a signing key -- safe to store
@@ -687,6 +727,31 @@ class GraphStore:
         # brute-forceable (rainbow-table it), HMAC with a per-profile secret is not.
         digest = hmac.new(self._identity_salt, agent_id.encode("utf-8"), hashlib.sha256).hexdigest()
         return "pseudonym:" + digest, self.identity_mode
+
+    def storage_agent_id(self, agent_id: str | None) -> str | None:
+        """Return the persisted form of an agent identity for scoped read queries."""
+        if isinstance(agent_id, str) and agent_id.startswith("pseudonym:"):
+            return agent_id
+        return self._resolve_agent_id(agent_id)[0]
+
+    @staticmethod
+    def local_device_id() -> str:
+        """Stable operator-visible device identity, overridable for managed runtimes."""
+        return str(os.environ.get("XIBALBA_DEVICE_ID") or socket.gethostname()).strip()
+
+    def _register_configured_device(self) -> None:
+        agent_id = str(os.environ.get("XIBALBA_AGENT_ID") or "").strip()
+        device_id = self.local_device_id()
+        if not agent_id or not device_id:
+            return
+        persisted_agent = self.storage_agent_id(agent_id)
+        if persisted_agent:
+            self.associate_agent_device(
+                persisted_agent,
+                device_id,
+                display_name=str(os.environ.get("XIBALBA_DEVICE_NAME") or device_id),
+                reactivate=False,
+            )
 
     def _configure(self) -> None:
         self._connection.execute("PRAGMA busy_timeout = 30000")
@@ -991,6 +1056,14 @@ class GraphStore:
                 self._connection.execute("CREATE INDEX IF NOT EXISTS idx_memory_inference_tasks_status ON memory_inference_tasks(status, created_at)")
                 self._connection.execute("CREATE INDEX IF NOT EXISTS idx_inference_claimable ON memory_inference_tasks(status, lease_expires_at, created_at)")
                 self._reconcile_legacy_claimed_tasks_locked()
+            session_columns = {row["name"] for row in self._connection.execute("PRAGMA table_info(sessions)")}
+            if "agent_id" not in session_columns:
+                self._connection.execute("ALTER TABLE sessions ADD COLUMN agent_id TEXT")
+            exchange_columns = {row["name"] for row in self._connection.execute("PRAGMA table_info(exchanges)")}
+            if "idempotency_key" not in exchange_columns:
+                self._connection.execute("ALTER TABLE exchanges ADD COLUMN idempotency_key TEXT")
+            self._connection.execute("CREATE INDEX IF NOT EXISTS idx_sessions_agent_id ON sessions(agent_id)")
+            self._connection.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_exchanges_idempotency ON exchanges(idempotency_key) WHERE idempotency_key IS NOT NULL")
             trace_columns_v10 = {row["name"] for row in self._connection.execute("PRAGMA table_info(retrieval_traces)")}
             if trace_columns_v10 and "degraded_json" not in trace_columns_v10:
                 self._connection.execute("ALTER TABLE retrieval_traces ADD COLUMN degraded_json TEXT NOT NULL DEFAULT '[]'")
@@ -1582,16 +1655,37 @@ class GraphStore:
         reasons = self._quarantine_reasons(content, source_kind)
         effective_status = "quarantined" if reasons else status
         content_digest = self._sha256(content)
-        source_payload = dict(source)
-        source_payload["content_hash"] = content_digest
-        # Hashed from the raw caller-supplied payload (including raw agent_id, if any) so dedup
-        # is keyed on what the caller actually sent, independent of this store's identity_mode --
-        # only the persisted/returned agent_id column is policy-filtered, not the dedup key.
-        source_id = compute_node_hash(source_payload)
-        memory_id = str(uuid.uuid4())
         stored_agent_id, identity_mode_in_effect = self._resolve_agent_id(
             source.get("agent_id") if isinstance(source.get("agent_id"), str) else None
         )
+        source = dict(source)
+        if stored_agent_id and not source.get("device_id"):
+            configured_device = self.local_device_id()
+            with self._lock:
+                pair = self._connection.execute(
+                    "SELECT display_name FROM agent_devices WHERE device_id = ? AND agent_id = ? AND status = 'active'",
+                    (configured_device, stored_agent_id),
+                ).fetchone()
+            if pair:
+                source["device_id"] = configured_device
+                source.setdefault("device_name", pair["display_name"])
+        source_payload = dict(source)
+        source_payload["content_hash"] = content_digest
+        # Hashed from the effective caller payload before identity-mode filtering so device
+        # provenance participates in source deduplication while the persisted agent identity
+        # remains governed by the profile policy.
+        source_id = compute_node_hash(source_payload)
+        memory_id = str(uuid.uuid4())
+        session_identifier = str(source.get("session_id") or "").strip()
+        if session_identifier:
+            try:
+                session_scope = self.get_session(session_identifier).get("agent_id")
+            except (KeyError, ValueError):
+                session_scope = None
+            if session_scope is not None:
+                if stored_agent_id is not None and stored_agent_id != session_scope:
+                    raise PermissionError("memory source agent does not match session agent scope")
+                stored_agent_id = session_scope
         known_source_fields = {
             "kind", "locator", "role", "session_id", "message_id", "tool_name", "observed_at",
             "agent_id", "prompt_id",
@@ -1615,7 +1709,8 @@ class GraphStore:
                 if count >= int(max_memories):
                     raise RuntimeError(f"memory quota exceeded: max_memories={max_memories}")
 
-            self._connection.execute("BEGIN IMMEDIATE")
+            if self._atomic_depth == 0:
+                self._connection.execute("BEGIN IMMEDIATE")
             try:
                 self._connection.execute(
                     """
@@ -1663,9 +1758,11 @@ class GraphStore:
                     (memory_id, content),
                 )
                 self._append_event(memory_id, event_type, {"quarantine_reasons": reasons})
-                self._connection.execute("COMMIT")
+                if self._atomic_depth == 0:
+                    self._connection.execute("COMMIT")
             except Exception:
-                self._connection.execute("ROLLBACK")
+                if self._atomic_depth == 0:
+                    self._connection.execute("ROLLBACK")
                 raise
         return self.get_memory(memory_id)
 
@@ -1780,9 +1877,108 @@ class GraphStore:
             "recent_memories": [self.get_memory(row["id"]) for row in rows],
         }
 
+    def associate_agent_device(
+        self, agent_id: str, device_id: str, *, display_name: str | None = None,
+        reactivate: bool = True,
+    ) -> dict[str, object]:
+        normalized_agent = str(agent_id).strip()
+        normalized_device = str(device_id).strip()
+        if not normalized_agent or not normalized_device:
+            raise ValueError("agent_id and device_id are required")
+        label = str(display_name or normalized_device).strip() or normalized_device
+        with self._lock:
+            existing = self._connection.execute(
+                "SELECT status FROM agent_devices WHERE device_id = ?", (normalized_device,)
+            ).fetchone()
+            if existing and existing["status"] == "revoked" and not reactivate:
+                return self.get_agent_device(normalized_device)
+            self._connection.execute(
+                """INSERT INTO agent_devices(device_id, agent_id, display_name, status, last_seen_at)
+                   VALUES (?, ?, ?, 'active', CURRENT_TIMESTAMP)
+                   ON CONFLICT(device_id) DO UPDATE SET
+                     agent_id = excluded.agent_id,
+                     display_name = excluded.display_name,
+                     status = 'active',
+                     updated_at = CURRENT_TIMESTAMP,
+                     last_seen_at = CURRENT_TIMESTAMP""",
+                (normalized_device, normalized_agent, label),
+            )
+        return self.get_agent_device(normalized_device)
+
+    def get_agent_device(self, device_id: str) -> dict[str, object]:
+        normalized = str(device_id).strip()
+        with self._lock:
+            row = self._connection.execute(
+                "SELECT * FROM agent_devices WHERE device_id = ?", (normalized,)
+            ).fetchone()
+        if row is None:
+            raise KeyError(normalized)
+        return dict(row)
+
+    def rename_agent_device(self, device_id: str, display_name: str) -> dict[str, object]:
+        normalized_name = str(display_name).strip()
+        if not normalized_name:
+            raise ValueError("display_name is required")
+        with self._lock:
+            updated = self._connection.execute(
+                "UPDATE agent_devices SET display_name = ?, updated_at = CURRENT_TIMESTAMP WHERE device_id = ?",
+                (normalized_name, str(device_id).strip()),
+            ).rowcount
+        if not updated:
+            raise KeyError(str(device_id))
+        return self.get_agent_device(device_id)
+
+    def set_agent_device_status(self, device_id: str, status: str) -> dict[str, object]:
+        if status not in {"detached", "revoked"}:
+            raise ValueError("status must be detached or revoked")
+        with self._lock:
+            updated = self._connection.execute(
+                "UPDATE agent_devices SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE device_id = ?",
+                (status, str(device_id).strip()),
+            ).rowcount
+        if not updated:
+            raise KeyError(str(device_id))
+        return self.get_agent_device(device_id)
+
+    def list_agent_devices(self, *, limit: int = 500) -> list[dict[str, object]]:
+        with self._lock:
+            rows = self._connection.execute(
+                "SELECT * FROM agent_devices ORDER BY updated_at DESC LIMIT ?",
+                (max(1, min(int(limit), 500)),),
+            ).fetchall()
+        return [dict(row) for row in rows]
+
     def agent_workspaces(self, *, limit: int = 100) -> list[dict[str, object]]:
         """List canonical agent/device memory namespaces without merging identities."""
         bounded_limit = max(1, min(int(limit), 500))
+        # The operator dashboard must remain responsive on large profiles. When
+        # registered device pairs exist, start from that small authoritative set
+        # instead of scanning the entire memories table before appending pairs.
+        pair_rows = self.list_agent_devices(limit=bounded_limit)
+        if pair_rows:
+            workspaces: list[dict[str, object]] = []
+            with self._lock:
+                for pair in pair_rows:
+                    agent_id = str(pair["agent_id"])
+                    device_id = str(pair["device_id"])
+                    counts = self._connection.execute(
+                        """SELECT COUNT(DISTINCT memories.id) AS memories,
+                                  COUNT(DISTINCT sources.session_id) AS sessions,
+                                  MAX(memories.created_at) AS last_seen_at
+                           FROM memories JOIN sources ON sources.id = memories.source_id
+                           WHERE sources.agent_id = ?
+                             AND json_extract(sources.metadata_json, '$.device_id') = ?""",
+                        (agent_id, device_id),
+                    ).fetchone()
+                    workspaces.append({
+                        "agent_id": agent_id, "device_id": device_id,
+                        "agent_name": None, "device_name": pair["display_name"],
+                        "pair_status": pair["status"], "pair_updated_at": pair["updated_at"],
+                        "memories": int(counts["memories"] or 0),
+                        "sessions": int(counts["sessions"] or 0),
+                        "last_seen_at": counts["last_seen_at"] or pair["last_seen_at"],
+                    })
+            return workspaces
         with self._lock:
             rows = self._connection.execute(
                 """
@@ -1799,7 +1995,21 @@ class GraphStore:
                 """,
                 (bounded_limit,),
             ).fetchall()
-        return [dict(row) for row in rows]
+        workspaces = [dict(row) for row in rows]
+        source_pairs = {(row["agent_id"], row.get("device_id")) for row in workspaces}
+        for pair in self.list_agent_devices(limit=bounded_limit):
+            key = (pair["agent_id"], pair["device_id"])
+            if key in source_pairs:
+                row = next(item for item in workspaces if (item["agent_id"], item.get("device_id")) == key)
+                row.update({"device_name": pair["display_name"], "pair_status": pair["status"], "pair_updated_at": pair["updated_at"]})
+                continue
+            workspaces.append({
+                "agent_id": pair["agent_id"], "device_id": pair["device_id"],
+                "agent_name": None, "device_name": pair["display_name"],
+                "pair_status": pair["status"], "pair_updated_at": pair["updated_at"],
+                "memories": 0, "sessions": 0, "last_seen_at": pair["last_seen_at"],
+            })
+        return workspaces[:bounded_limit]
 
     def agent_memories(self, agent_id: str, *, device_id: str | None = None, limit: int = 100) -> list[dict[str, object]]:
         normalized = str(agent_id).strip()
@@ -1932,7 +2142,7 @@ class GraphStore:
         if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", vector_table):
             raise ValueError("active embedding vector table name is invalid")
         if len(query_vector) != expected_dim:
-            raise ValueError(f"query_vector must have dimension {expected_dim} (model {active_model["model_id"]}), got {len(query_vector)}")
+            raise ValueError(f"query_vector must have dimension {expected_dim} (model {active_model['model_id']}), got {len(query_vector)}")
         with self._lock:
             rows = self._connection.execute(
                 f"""
@@ -1953,6 +2163,7 @@ class GraphStore:
         *,
         query_vector: list[float] | None = None,
         limit: int = 10,
+        agent_id: str | None = None,
     ) -> list[dict[str, object]]:
         """Recall active/confirmed memories.
 
@@ -1971,7 +2182,8 @@ class GraphStore:
                 raise RuntimeError("lexical and vector retrieval are disabled by feature policy")
         bounded_limit = max(1, min(int(limit), 100))
         if query_vector is None:
-            return [self.get_memory(memory_id) for memory_id in self._lexical_ranked_ids(query, bounded_limit)]
+            memories = [self.get_memory(memory_id) for memory_id in self._lexical_ranked_ids(query, bounded_limit * 4)]
+            return [item for item in memories if not agent_id or item.get("source", {}).get("agent_id") == agent_id][:bounded_limit]
 
         candidate_pool = max(bounded_limit * 4, 20)
         lexical_ids = self._lexical_ranked_ids(query, candidate_pool) if self.features["lexical"] else []
@@ -1990,6 +2202,8 @@ class GraphStore:
         results = []
         for memory_id in ranked[:bounded_limit]:
             memory = self.get_memory(memory_id)
+            if agent_id and memory.get("source", {}).get("agent_id") != agent_id:
+                continue
             if memory_id in similarity_by_id:
                 memory["cosine_similarity"] = similarity_by_id[memory_id]
             results.append(memory)
@@ -2020,12 +2234,17 @@ class GraphStore:
         """
         bounded = max(1, min(int(limit), 100))
         effective_filters = dict(filters or {})
+        agent_filter = str(effective_filters.get("agent_id") or "").strip() or None
         allowed_statuses = set(effective_filters.get("status") or []) or None
         allowed_evidence_classes = set(effective_filters.get("evidence_class") or []) or None
         lexical_ids = self._lexical_ranked_ids(query, max(20, bounded * 4)) if self.features["lexical"] else []
+        if agent_filter:
+            lexical_ids = [mid for mid in lexical_ids if self.get_memory(mid).get("source", {}).get("agent_id") == agent_filter]
         if not self.features["embeddings"] or not self.features["vector"]:
             query_vector = None
         vector_hits = self._vector_ranked_ids(query_vector, max(20, bounded * 4)) if query_vector is not None else []
+        if agent_filter:
+            vector_hits = [(mid, score) for mid, score in vector_hits if self.get_memory(mid).get("source", {}).get("agent_id") == agent_filter]
         vector_ids = [item[0] for item in vector_hits]
         similarity = dict(vector_hits)
         graph_ids: list[str] = []
@@ -2104,9 +2323,11 @@ class GraphStore:
                 return False
             if allowed_evidence_classes is not None and memory["evidence_class"] not in allowed_evidence_classes:
                 return False
+            if agent_filter and memory.get("source", {}).get("agent_id") != agent_filter:
+                return False
             return True
 
-        if allowed_statuses is not None or allowed_evidence_classes is not None:
+        if allowed_statuses is not None or allowed_evidence_classes is not None or agent_filter:
             lexical_ids = [m for m in lexical_ids if _passes_filters(m)]
             vector_ids = [m for m in vector_ids if _passes_filters(m)]
             graph_ids = [m for m in graph_ids if _passes_filters(m)]
@@ -2654,7 +2875,8 @@ class GraphStore:
         return [self.get_attachment(row["id"]) for row in rows]
 
     def start_session(
-        self, external_session_id: str, *, retention_tier: str | None = None
+        self, external_session_id: str, *, retention_tier: str | None = None,
+        agent_id: str | None = None
     ) -> dict[str, object]:
         """Declare a session and the write-pattern tier it will follow. Idempotent -- calling
         this again for the same external_session_id returns the existing row unchanged, so a
@@ -2669,23 +2891,31 @@ class GraphStore:
         tier = retention_tier or _DEFAULT_RETENTION_TIER
         if tier not in _RETENTION_TIERS:
             raise ValueError(f"invalid retention_tier: {tier!r}, must be one of {_RETENTION_TIERS}")
+        scoped_agent_id, _ = self._resolve_agent_id(agent_id)
 
         with self._lock:
             existing = self._connection.execute(
-                "SELECT id FROM sessions WHERE external_session_id = ?", (external_session_id,)
+                "SELECT id, agent_id FROM sessions WHERE external_session_id = ?", (external_session_id,)
             ).fetchone()
             if existing:
+                if scoped_agent_id is not None and existing["agent_id"] not in (None, scoped_agent_id):
+                    raise PermissionError("session is bound to a different agent")
+                if scoped_agent_id is not None and existing["agent_id"] is None:
+                    self._connection.execute("UPDATE sessions SET agent_id = ? WHERE external_session_id = ?", (scoped_agent_id, external_session_id))
                 return self.get_session(external_session_id)
 
-            self._connection.execute("BEGIN IMMEDIATE")
+            if self._atomic_depth == 0:
+                self._connection.execute("BEGIN IMMEDIATE")
             try:
                 self._connection.execute(
-                    "INSERT INTO sessions(id, external_session_id, retention_tier) VALUES (?, ?, ?)",
-                    (str(uuid.uuid4()), external_session_id, tier),
+                    "INSERT INTO sessions(id, external_session_id, retention_tier, agent_id) VALUES (?, ?, ?, ?)",
+                    (str(uuid.uuid4()), external_session_id, tier, scoped_agent_id),
                 )
-                self._connection.execute("COMMIT")
+                if self._atomic_depth == 0:
+                    self._connection.execute("COMMIT")
             except Exception:
-                self._connection.execute("ROLLBACK")
+                if self._atomic_depth == 0:
+                    self._connection.execute("ROLLBACK")
                 raise
         return self.get_session(external_session_id)
 
@@ -2708,19 +2938,31 @@ class GraphStore:
             "started_at": row["started_at"],
             "ended_at": row["ended_at"],
             "summary_memory_id": row["summary_memory_id"],
+            "agent_id": row["agent_id"],
         }
 
-    def list_sessions(self, *, limit: int = 100) -> list[dict[str, object]]:
+    def list_sessions(self, *, limit: int = 100, agent_id: str | None = None) -> list[dict[str, object]]:
         bounded_limit = max(1, min(int(limit), 1000))
+        normalized_agent = str(agent_id or "").strip() or None
         with self._lock:
-            rows = self._connection.execute(
-                """
-                SELECT external_session_id FROM sessions
-                ORDER BY COALESCE(ended_at, started_at) DESC, started_at DESC
-                LIMIT ?
-                """,
-                (bounded_limit,),
-            ).fetchall()
+            if normalized_agent:
+                rows = self._connection.execute(
+                    """SELECT external_session_id FROM sessions
+                       WHERE agent_id = ? OR external_session_id IN (
+                           SELECT DISTINCT session_id FROM sources
+                           WHERE agent_id = ? AND session_id IS NOT NULL
+                       )
+                       ORDER BY COALESCE(ended_at, started_at) DESC, started_at DESC
+                       LIMIT ?""",
+                    (normalized_agent, normalized_agent, bounded_limit),
+                ).fetchall()
+            else:
+                rows = self._connection.execute(
+                    """SELECT external_session_id FROM sessions
+                       ORDER BY COALESCE(ended_at, started_at) DESC, started_at DESC
+                       LIMIT ?""",
+                    (bounded_limit,),
+                ).fetchall()
         return [self.get_session(row["external_session_id"]) for row in rows]
 
     def end_session(
@@ -2848,7 +3090,8 @@ class GraphStore:
         self.get_session(external_session_id)  # raises KeyError if never started
         rows = [self._validate_otel_event(event) for event in events]
         with self._lock:
-            self._connection.execute("BEGIN IMMEDIATE")
+            if self._atomic_depth == 0:
+                self._connection.execute("BEGIN IMMEDIATE")
             try:
                 self._connection.executemany(
                     """
@@ -2859,9 +3102,11 @@ class GraphStore:
                     """,
                     [(row[0], external_session_id, *row[1:]) for row in rows],
                 )
-                self._connection.execute("COMMIT")
+                if self._atomic_depth == 0:
+                    self._connection.execute("COMMIT")
             except Exception:
-                self._connection.execute("ROLLBACK")
+                if self._atomic_depth == 0:
+                    self._connection.execute("ROLLBACK")
                 raise
         return {"session_id": external_session_id, "recorded": len(rows)}
 
@@ -3021,7 +3266,7 @@ class GraphStore:
             })
         return triples
 
-    def invocation_correlations(self, limit: int = 100) -> list[dict[str, object]]:
+    def invocation_correlations(self, limit: int = 100, *, agent_id: str | None = None) -> list[dict[str, object]]:
         """Recent runtime invocations grouped by the protocol correlation key.
 
         This is the Cortex operator projection: it keeps the raw pre/post evidence and makes
@@ -3041,6 +3286,8 @@ class GraphStore:
             attributes = json.loads(row["attributes_json"])
             invocation_id = attributes.get("invocation_id")
             if not invocation_id:
+                continue
+            if agent_id and attributes.get("agent_id") != agent_id and (attributes.get("metadata") or {}).get("agent_id") != agent_id:
                 continue
             metadata = attributes.get("metadata") or {}
             hook = metadata.get("hook")
@@ -3095,6 +3342,7 @@ class GraphStore:
         prompt_id: str | None = None,
         prompt_time: str | None = None,
         response_time: str | None = None,
+        idempotency_key: str | None = None,
     ) -> dict[str, object]:
         """Append one exchange to a session's Merkle-chained sequence. Hash-chained the same
         way memory_events is: node_id commits to this exchange's content (prompt/response
@@ -3102,6 +3350,16 @@ class GraphStore:
         verify_exchange_chain can detect reordering or tampering by recomputation alone.
         """
         self.get_session(external_session_id)
+        if idempotency_key:
+            with self._lock:
+                existing = self._connection.execute(
+                    "SELECT id, session_id FROM exchanges WHERE idempotency_key = ?",
+                    (idempotency_key,),
+                ).fetchone()
+            if existing is not None:
+                if existing["session_id"] != external_session_id:
+                    raise ValueError("idempotency_key already belongs to a different session")
+                return self.get_exchange(existing["id"])
         prompt_memory_ids = list(prompt_memory_ids)
         response_memory_ids = list(response_memory_ids)
         context_contributions = [dict(item) for item in context_contributions]
@@ -3141,7 +3399,8 @@ class GraphStore:
                 latency_ms = None  # unparseable timestamp format -- honest absence, not a guess
 
         with self._lock:
-            self._connection.execute("BEGIN IMMEDIATE")
+            if self._atomic_depth == 0:
+                self._connection.execute("BEGIN IMMEDIATE")
             try:
                 next_seq_row = self._connection.execute(
                     "SELECT COALESCE(MAX(sequence_number), -1) + 1 AS n FROM exchanges WHERE session_id = ?",
@@ -3187,11 +3446,11 @@ class GraphStore:
                     """
                     INSERT INTO exchanges(
                         id, session_id, sequence_number, prompt_id, prompt_time, response_time,
-                        latency_ms, node_id, parent_node_id
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        latency_ms, node_id, parent_node_id, idempotency_key
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     (exchange_id, external_session_id, sequence_number, prompt_id, prompt_time,
-                     response_time, latency_ms, node_id, parent_node_id),
+                     response_time, latency_ms, node_id, parent_node_id, idempotency_key),
                 )
                 for mid in prompt_memory_ids:
                     self._connection.execute(
@@ -3221,9 +3480,11 @@ class GraphStore:
                         "INSERT INTO exchange_tool_calls(exchange_id, otel_event_id) VALUES (?, ?)",
                         (exchange_id, oid),
                     )
-                self._connection.execute("COMMIT")
+                if self._atomic_depth == 0:
+                    self._connection.execute("COMMIT")
             except Exception:
-                self._connection.execute("ROLLBACK")
+                if self._atomic_depth == 0:
+                    self._connection.execute("ROLLBACK")
                 raise
         return self.get_exchange(exchange_id)
 
@@ -3523,11 +3784,40 @@ class GraphStore:
         if not root.get("root_node_id"):
             raise ValueError("No root node found, nothing to anchor.")
 
-        payload = json.dumps(root).encode("utf-8")
+        # CORE's DID-bound memory endpoint is an explicit integration path. It
+        # requires profile registration and an idempotency key; older arbitrary
+        # anchor consumers retain the original session-root payload contract.
+        core_memory_anchor = anchor_url.rstrip("/").endswith("/v1/memory/anchor")
+        anchor_headers = {"Content-Type": "application/json"}
+        if core_memory_anchor:
+            if not agent_id:
+                return {"anchored": False, "session_id": external_session_id, "error": "XIBALBA_AGENT_ID is required for CORE memory anchoring"}
+            anchor_token = os.environ.get("XIBALBA_ANCHOR_TOKEN")
+            if not anchor_token:
+                return {"anchored": False, "session_id": external_session_id, "error": "XIBALBA_ANCHOR_TOKEN is required for CORE memory anchoring"}
+            anchor_headers["Authorization"] = f"Bearer {anchor_token}"
+            profile_url = anchor_url.rstrip("/")[:-len("/v1/memory/anchor")] + "/v1/memory/profile"
+            profile_payload = json.dumps({"profile_id": self.profile_id, "agent_id": agent_id}).encode("utf-8")
+            try:
+                with urllib.request.urlopen(urllib.request.Request(profile_url, data=profile_payload, headers=anchor_headers, method="POST"), timeout=10):
+                    pass
+            except urllib.error.URLError as e:
+                return {"anchored": False, "session_id": external_session_id, "error": f"CORE profile registration failed: {e}"}
+            payload = json.dumps({
+                "profile_id": self.profile_id,
+                "agent_id": agent_id,
+                "session_id": external_session_id,
+                "root_hash": root["root_node_id"],
+                "leaf_count": int(root.get("exchange_count", 0)),
+                "idempotency_key": f"cortex:{self.profile_id}:{external_session_id}:{root['root_node_id']}",
+                "metadata": {"root_kind": root.get("root_kind")},
+            }).encode("utf-8")
+        else:
+            payload = json.dumps(root).encode("utf-8")
         req = urllib.request.Request(
             anchor_url, 
             data=payload,
-            headers={"Content-Type": "application/json"}
+            headers=anchor_headers,
         )
 
         try:
@@ -3611,6 +3901,7 @@ class GraphStore:
             "head_node_id": rows[-1]["node_id"] if rows else None,
         }
 
+    @_atomic_write
     def record_model_exchange(
         self,
         external_session_id: str,
@@ -3633,7 +3924,7 @@ class GraphStore:
         node commits to all linked content hashes, so later inference can say exactly which
         context shaped the response instead of treating the session as an opaque transcript.
         """
-        self.start_session(external_session_id, retention_tier="verbatim")
+        self.start_session(external_session_id, retention_tier="verbatim", agent_id=agent_id)
         base_source = {
             "session_id": external_session_id,
             "prompt_id": prompt_id,
@@ -3714,6 +4005,7 @@ class GraphStore:
             prompt_id=prompt_id,
             prompt_time=prompt_time,
             response_time=response_time,
+            idempotency_key=idempotency_key,
         )
         return {
             "session": self.get_session(external_session_id),
@@ -3723,6 +4015,7 @@ class GraphStore:
             "context_memory_ids": [item["memory_id"] for item in context_links],
         }
 
+    @_atomic_write
     def ingest_agent_turn(
         self,
         external_session_id: str,
@@ -3757,7 +4050,7 @@ class GraphStore:
         before storage. This matters more here than for the local-file ingestion paths:
         this is the entry point for network-reachable, less-trusted callers.
         """
-        self.start_session(external_session_id, retention_tier="verbatim")
+        self.start_session(external_session_id, retention_tier="verbatim", agent_id=agent_id)
 
         base_source = {
             "session_id": external_session_id,
@@ -3832,6 +4125,7 @@ class GraphStore:
             prompt_id=prompt_id,
             prompt_time=prompt_time,
             response_time=response_time,
+            idempotency_key=idempotency_key,
         )
         return {
             "session": self.get_session(external_session_id),
@@ -4904,7 +5198,7 @@ class GraphStore:
 
     def export_memory_bundle(
         self, *, memory_ids: list[str] | tuple[str, ...] | None = None,
-        include_forgotten: bool = False, limit: int = 500,
+        include_forgotten: bool = False, limit: int = 500, agent_id: str | None = None,
     ) -> dict[str, object]:
         if not self.features["provenance"]:
             raise RuntimeError("provenance is disabled by feature policy")
@@ -4912,12 +5206,19 @@ class GraphStore:
             raise RuntimeError("governance is disabled by feature policy")
         """Export a bounded provenance bundle with a domain-separated Merkle commitment."""
         bounded = max(1, min(int(limit), 5000))
+        scoped_agent_id = self.storage_agent_id(agent_id)
         if memory_ids is None:
             with self._lock:
-                rows = self._connection.execute(
-                    "SELECT id FROM memories WHERE status != ? OR ? ORDER BY created_at, id LIMIT ?",
-                    ("forgotten", int(include_forgotten), bounded),
-                ).fetchall()
+                if scoped_agent_id:
+                    rows = self._connection.execute(
+                        "SELECT m.id FROM memories m JOIN sources s ON s.id=m.source_id WHERE (m.status != ? OR ?) AND s.agent_id=? ORDER BY m.created_at, m.id LIMIT ?",
+                        ("forgotten", int(include_forgotten), scoped_agent_id, bounded),
+                    ).fetchall()
+                else:
+                    rows = self._connection.execute(
+                        "SELECT id FROM memories WHERE status != ? OR ? ORDER BY created_at, id LIMIT ?",
+                        ("forgotten", int(include_forgotten), bounded),
+                    ).fetchall()
             selected = [str(row["id"]) for row in rows]
         else:
             selected = list(dict.fromkeys(str(item) for item in memory_ids))[:bounded]
@@ -5127,7 +5428,8 @@ class GraphStore:
         }
 
     def neighbors(
-        self, subject_name: str, *, max_depth: int = 1, node_limit: int = 50, edge_limit: int = 200
+        self, subject_name: str, *, max_depth: int = 1, node_limit: int = 50, edge_limit: int = 200,
+        agent_id: str | None = None,
     ) -> dict[str, object]:
         self._require_feature("graph")
         if not isinstance(max_depth, int) or not (1 <= max_depth <= 3):
@@ -5152,9 +5454,13 @@ class GraphStore:
                     FROM relations r
                     LEFT JOIN entities oe ON oe.id = r.object_entity_id
                     WHERE r.subject_entity_id IN ({placeholders}) AND r.status = 'active'
+                      AND (? IS NULL OR EXISTS (
+                          SELECT 1 FROM memories sm JOIN sources ss ON ss.id = sm.source_id
+                          WHERE sm.id = r.evidence_memory_id AND ss.agent_id = ?
+                      ))
                     ORDER BY r.rowid
                     """,
-                    frontier,
+                    [*frontier, agent_id, agent_id],
                 ).fetchall()
                 for row in rows:
                     if len(edges) >= edge_limit:
@@ -5178,7 +5484,7 @@ class GraphStore:
         return {"truncated": truncated, "edges": edges}
 
     def find_path(
-        self, from_name: str, to_name: str, *, max_depth: int = 3
+        self, from_name: str, to_name: str, *, max_depth: int = 3, agent_id: str | None = None
     ) -> dict[str, object]:
         self._require_feature("graph")
         if not isinstance(max_depth, int) or not (1 <= max_depth <= 5):
@@ -5201,9 +5507,13 @@ class GraphStore:
                     FROM relations r
                     LEFT JOIN entities oe ON oe.id = r.object_entity_id
                     WHERE r.subject_entity_id = ? AND r.status = 'active'
+                      AND (? IS NULL OR EXISTS (
+                          SELECT 1 FROM memories sm JOIN sources ss ON ss.id = sm.source_id
+                          WHERE sm.id = r.evidence_memory_id AND ss.agent_id = ?
+                      ))
                     ORDER BY r.rowid
                     """,
-                    (current_id,),
+                    (current_id, agent_id, agent_id),
                 ).fetchall()
                 for row in rows:
                     edge = {
@@ -5245,7 +5555,7 @@ class GraphStore:
         ]
 
     def graph_payload(
-        self, *, limit: int = 500, similarity_threshold: float = 0.75
+        self, *, limit: int = 500, similarity_threshold: float = 0.75, agent_id: str | None = None
     ) -> dict[str, object]:
         self._require_feature("graph")
         """Bulk nodes+edges payload for a graph-visualization client: memories and entities as
@@ -5253,9 +5563,18 @@ class GraphStore:
         embedded memories to build similarity edges via similar_memories() -- fine at
         hundreds/low-thousands of memories, not designed to scale past that yet.
         """
+        # Callers provide the raw principal identity; source rows may persist a pseudonym.
+        scoped_agent_id = self.storage_agent_id(agent_id)
         memories = self.list_memories(limit=limit)
+        if scoped_agent_id:
+            memories = [m for m in memories if m.get("source", {}).get("agent_id") == scoped_agent_id]
+        memory_ids = {str(m["id"]) for m in memories}
         entities = self.list_entities()
         relations = self.list_relations()
+        if scoped_agent_id:
+            relations = [r for r in relations if str(r.get("evidence_memory_id") or "") in memory_ids]
+            entity_ids = {str(r.get("subject_entity_id")) for r in relations} | {str(r.get("object_entity_id")) for r in relations}
+            entities = [entity for entity in entities if str(entity.get("id")) in entity_ids]
 
         nodes: list[dict[str, object]] = [
             {
@@ -5279,6 +5598,8 @@ class GraphStore:
         )
 
         sessions = self.list_sessions(limit=limit)
+        if scoped_agent_id:
+            sessions = [s for s in sessions if s.get("agent_id") == scoped_agent_id]
         session_ids = {s["external_session_id"] for s in sessions}
         nodes.extend(
             {

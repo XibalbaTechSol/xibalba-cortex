@@ -2033,10 +2033,13 @@ function SettingsTab({
   )
 }
 
-function AgentWorkspacesTab({ workspaces, onSelect }: { workspaces: AgentWorkspace[]; onSelect: (agentId: string, deviceId?: string | null) => void }) {
+function AgentWorkspacesTab({ workspaces, selectedAgentId, onSelect, onRefresh, onNotice, onError }: { workspaces: AgentWorkspace[]; selectedAgentId: string; onSelect: (agentId: string, deviceId?: string | null) => void; onRefresh: () => void; onNotice: (message: string) => void; onError: (message: string) => void }) {
   const [selected, setSelected] = useState<{ agentId: string; deviceId?: string | null } | null>(null)
   const [memories, setMemories] = useState<Memory[]>([])
   const [loading, setLoading] = useState(false)
+  const [editingDeviceId, setEditingDeviceId] = useState('')
+  const [nameDraft, setNameDraft] = useState('')
+  const [busyDeviceId, setBusyDeviceId] = useState('')
   const choose = async (workspace: AgentWorkspace) => {
     setSelected({ agentId: workspace.agent_id, deviceId: workspace.device_id })
     setLoading(true)
@@ -2046,9 +2049,49 @@ function AgentWorkspacesTab({ workspaces, onSelect }: { workspaces: AgentWorkspa
       onSelect(workspace.agent_id, workspace.device_id)
     } finally { setLoading(false) }
   }
+  const manage = async (deviceId: string, action: 'rename' | 'detach' | 'revoke') => {
+    setBusyDeviceId(deviceId)
+    try {
+      if (action === 'rename') await api.renameAgentDevice(deviceId, nameDraft)
+      if (action === 'detach') await api.detachAgentDevice(deviceId)
+      if (action === 'revoke') await api.revokeAgentDevice(deviceId)
+      setEditingDeviceId('')
+      onRefresh()
+      onNotice(`Device ${action === 'rename' ? 'renamed' : action === 'detach' ? 'detached' : 'revoked'}.`)
+    } catch (error) { onError(String(error)) } finally { setBusyDeviceId('') }
+  }
+  const associate = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    const data = new FormData(event.currentTarget)
+    try {
+      await api.associateAgentDevice(String(data.get('agent_id') || ''), String(data.get('device_id') || ''), String(data.get('display_name') || ''))
+      event.currentTarget.reset()
+      onRefresh()
+      onNotice('Agent/device pair associated.')
+    } catch (error) { onError(String(error)) }
+  }
   return <section className="resource agent-workspaces" aria-labelledby="agent-workspaces-title">
     <header className="section-heading"><div><p className="cortex-kicker">CANONICAL IDENTITY PARTITION</p><h2 id="agent-workspaces-title">Agent memory workspaces</h2><p>Every Cortex memory stays scoped by the exact registered agent ID and, when present, its Shield device. Historical records without that provenance remain unassigned.</p></div><span className="metric-badge info">{workspaces.length} namespaces</span></header>
-    {workspaces.length === 0 ? <EmptyState icon="◈" title="No canonical agent memories yet" description="New Shield and runtime events will appear here once they carry XIBALBA_AGENT_ID and device_id." /> : <div className="overview-card-grid">{workspaces.map((workspace) => <button type="button" className={`overview-card agent-workspace-card ${selected?.agentId === workspace.agent_id && selected?.deviceId === workspace.device_id ? 'selected' : ''}`} key={`${workspace.agent_id}:${workspace.device_id || 'agent'}`} onClick={() => choose(workspace)}><div className="card-icon"><ShieldCheck size={18} /></div><h3>{workspace.agent_name || 'Shield agent'}</h3><p className="mono">{workspace.agent_id}</p><p>{workspace.device_id || 'Agent-wide namespace'}</p><div className="card-meta"><span>{workspace.memories} memories</span><span>{workspace.sessions} sessions</span></div></button>)}</div>}
+    <form className="pair-association-form" onSubmit={associate}>
+      <label>Agent ID<input name="agent_id" required placeholder="did:integrity:…" /></label>
+      <label>Device ID<input name="device_id" required placeholder="device hostname or managed ID" /></label>
+      <label>Display name<input name="display_name" placeholder="Operator-friendly device name" /></label>
+      <button type="submit">Associate pair</button>
+    </form>
+    {workspaces.length === 0 ? <EmptyState icon="◈" title="No canonical agent memories yet" description="Associate a device above or ingest a memory carrying XIBALBA_AGENT_ID and XIBALBA_DEVICE_ID." /> : <div className="overview-card-grid">{workspaces.map((workspace) => {
+      const managed = Boolean(workspace.device_id && workspace.pair_status)
+      const isBusy = busyDeviceId === workspace.device_id
+      return <article className={`overview-card agent-workspace-card ${selectedAgentId === workspace.agent_id && (!selected || (selected.agentId === workspace.agent_id && selected.deviceId === workspace.device_id)) ? 'selected' : ''}`} key={`${workspace.agent_id}:${workspace.device_id || 'agent'}`}>
+        <button type="button" className="workspace-select" onClick={() => choose(workspace)} aria-label={`View ${workspace.device_name || workspace.device_id || workspace.agent_id}`}>
+          <div className="card-icon"><ShieldCheck size={18} /></div><h3>{workspace.device_name || workspace.agent_name || 'Agent workspace'}</h3><p className="mono">{workspace.agent_id}</p><p>{workspace.device_id || 'Agent-wide historical namespace'}</p><div className="card-meta"><span>{workspace.memories} memories</span><span>{workspace.sessions} sessions</span>{workspace.pair_status && <Badge>{workspace.pair_status}</Badge>}</div>
+        </button>
+        {managed && <div className="pair-actions">
+          {editingDeviceId === workspace.device_id ? <><input aria-label={`New name for ${workspace.device_id}`} value={nameDraft} onChange={(event) => setNameDraft(event.target.value)} /><button disabled={isBusy || !nameDraft.trim()} onClick={() => manage(workspace.device_id!, 'rename')}>Save</button><button onClick={() => setEditingDeviceId('')}>Cancel</button></> : <button onClick={() => { setEditingDeviceId(workspace.device_id!); setNameDraft(workspace.device_name || workspace.device_id!) }}>Rename</button>}
+          <button disabled={isBusy || workspace.pair_status === 'detached'} onClick={() => manage(workspace.device_id!, 'detach')}>Detach</button>
+          <button className="danger" disabled={isBusy || workspace.pair_status === 'revoked'} onClick={() => { if (window.confirm(`Revoke ${workspace.device_name || workspace.device_id}? Existing memories remain preserved.`)) manage(workspace.device_id!, 'revoke') }}>Revoke</button>
+        </div>}
+      </article>
+    })}</div>}
     {selected && <section className="overview-card workspace-memory-preview"><div className="section-heading"><div><h3>Scoped memory</h3><p className="mono">{selected.agentId}{selected.deviceId ? ` · ${selected.deviceId}` : ''}</p></div><span className="metric-badge info">{memories.length} loaded</span></div>{loading ? <Skeleton width={180} height={18} /> : memories.length === 0 ? <p className="small muted">No memories in this exact namespace.</p> : <div className="item-list">{memories.slice(0, 8).map((memory) => <button type="button" className="item" key={memory.id} onClick={() => onSelect(selected.agentId, selected.deviceId)}><b>{memory.content.slice(0, 140)}</b><div className="badges"><Badge>{memory.source.kind}</Badge><Badge>{String(memory.source.metadata?.device_id || 'device-unattributed')}</Badge><Badge>{memory.status}</Badge></div></button>)}</div>}</section>}
   </section>
 }
@@ -2060,6 +2103,9 @@ function AuthenticatedApp() {
   const [integrityLinks, setIntegrityLinks] = useState<IntegrityLinksStatus | null>(null)
   const [sessions, setSessions] = useState<Session[]>([])
   const [agentWorkspaces, setAgentWorkspaces] = useState<AgentWorkspace[]>([])
+  const [selectedAgentId, setSelectedAgentId] = useState(() => {
+    try { return sessionStorage.getItem('xibalba-cortex.selected-agent') ?? '' } catch { return '' }
+  })
   const [selectedSessionId, setSelectedSessionId] = useState('')
   const [loadedSessionId, setLoadedSessionId] = useState('')
   const [root, setRoot] = useState<MerkleRoot | null>(null)
@@ -2106,18 +2152,43 @@ function AuthenticatedApp() {
   const [lastRefreshed, setLastRefreshed] = useState<Date | null>(null)
   const [refreshing, setRefreshing] = useState(false)
 
+  const agentOptions = useMemo(() => {
+    const agents = new Map<string, { label: string; memories: number }>()
+    agentWorkspaces.forEach((workspace) => {
+      const current = agents.get(workspace.agent_id)
+      agents.set(workspace.agent_id, {
+        label: current?.label || workspace.agent_name || workspace.agent_id,
+        memories: (current?.memories ?? 0) + workspace.memories,
+      })
+    })
+    return [...agents.entries()].map(([id, value]) => ({ id, ...value }))
+  }, [agentWorkspaces])
+
+  const chooseAgent = useCallback((agentId: string) => {
+    setSelectedAgentId(agentId)
+    try { sessionStorage.setItem('xibalba-cortex.selected-agent', agentId) } catch {}
+    setSelectedMemoryId(null)
+    setSelectedGraphNode(null)
+    setContextBundle([])
+  }, [])
+
   const refreshOverview = () => {
     setRefreshing(true)
     api.stats().then(setStats).catch((e) => setError(String(e)))
     api.status().then(setStoreStatus).catch((e) => setError(String(e)))
     api.operations().then(setOperations).catch((e) => setError(String(e)))
     api.integrityLinks().then(setIntegrityLinks).catch(() => setIntegrityLinks(null))
-    api.sessions().then((items) => {
-      setSessions(items)
-      setSelectedSessionId((current) => current || items[0]?.external_session_id || '')
-    }).catch((e) => setError(String(e)))
-    api.agents().then((result) => setAgentWorkspaces(result.agents)).catch(() => setAgentWorkspaces([]))
-    api.graph(GRAPH_RENDER_LIMIT, similarityThreshold).then(setGraph).catch((e) => setError(String(e)))
+    api.agents().then((result) => {
+      setAgentWorkspaces(result.agents)
+      const available = new Set(result.agents.map((item) => item.agent_id))
+      setSelectedAgentId((current) => {
+        const next = available.has(current) ? current : result.agents[0]?.agent_id || ''
+        if (next) {
+          try { sessionStorage.setItem('xibalba-cortex.selected-agent', next) } catch {}
+        }
+        return next
+      })
+    }).catch(() => setAgentWorkspaces([]))
     setLastRefreshed(new Date())
     window.setTimeout(() => setRefreshing(false), 350)
   }
@@ -2147,9 +2218,25 @@ function AuthenticatedApp() {
   }, [isNavOpen, selectedMemoryId])
 
   useEffect(() => {
-    api.graph(GRAPH_RENDER_LIMIT, similarityThreshold).then(setGraph).catch((e) => setError(String(e)))
-    setLastRefreshed(new Date())
-  }, [similarityThreshold, setError])
+    if (!selectedAgentId) {
+      setSessions([])
+      setGraph(null)
+      setSelectedSessionId('')
+      return
+    }
+    let cancelled = false
+    Promise.all([
+      api.sessions(100, selectedAgentId),
+      api.graph(GRAPH_RENDER_LIMIT, similarityThreshold, selectedAgentId),
+    ]).then(([items, nextGraph]) => {
+      if (cancelled) return
+      setSessions(items)
+      setGraph(nextGraph)
+      setSelectedSessionId((current) => items.some((item) => item.external_session_id === current) ? current : items[0]?.external_session_id || '')
+      setLastRefreshed(new Date())
+    }).catch((e) => setError(String(e)))
+    return () => { cancelled = true }
+  }, [selectedAgentId, similarityThreshold, refreshing, setError])
 
   useEffect(() => {
     // Keep the rendered graph stable while the three session projections load. Replacing
@@ -2197,13 +2284,13 @@ function AuthenticatedApp() {
     setSearchLoading(true)
     setSearchError(null)
     const timeout = setTimeout(() => {
-      api.search(query).then(setSearchResults).catch((error) => {
+      api.search(query, 20, selectedAgentId).then(setSearchResults).catch((error) => {
         setSearchResults([])
         setSearchError(String(error))
       }).finally(() => setSearchLoading(false))
     }, 200)
     return () => clearTimeout(timeout)
-  }, [query])
+  }, [query, selectedAgentId])
 
   useEffect(() => {
     let cancelled = false
@@ -2516,16 +2603,29 @@ function AuthenticatedApp() {
               <span className="breadcrumb-sep">/</span>
               <span className="breadcrumb-tab">{tabs.find(t => t.id === activeTab)?.label || (activeTab === 'settings' ? 'Settings' : 'Overview')}</span>
             </div>
-            {stats && (
+            {stats && selectedAgentId && (
               <div className="top-telemetry-badge">
                 <span className="telemetry-live-dot" />
-                <span>{stats.memories.toLocaleString()} memories</span>
+                <span>{(agentOptions.find((agent) => agent.id === selectedAgentId)?.memories ?? 0).toLocaleString()} memories</span>
                 <span className="badge-divider">·</span>
-                <span>{stats.sessions.toLocaleString()} sessions</span>
+                <span>{sessions.length.toLocaleString()} sessions</span>
               </div>
             )}
           </div>
           <div className="tools">
+            <label className="agent-switcher">
+              <span>Memory agent</span>
+              <select
+                aria-label="Active memory agent"
+                value={selectedAgentId}
+                onChange={(event) => chooseAgent(event.target.value)}
+                disabled={agentOptions.length === 0}
+              >
+                {agentOptions.length === 0 ? <option value="">No registered agents</option> : agentOptions.map((agent) => (
+                  <option value={agent.id} key={agent.id}>{agent.label} · {agent.memories.toLocaleString()} memories</option>
+                ))}
+              </select>
+            </label>
             <button
               className="refresh-tool-btn"
               aria-label="Refresh data"
@@ -2550,7 +2650,11 @@ function AuthenticatedApp() {
         <div className="content">
           {activeTab === 'overview' && (
             <CortexOverview
-              stats={stats}
+              stats={stats ? {
+                ...stats,
+                memories: agentOptions.find((agent) => agent.id === selectedAgentId)?.memories ?? 0,
+                sessions: sessions.length,
+              } : null}
               status={storeStatus}
               operations={operations}
               sessions={sessions}
@@ -2561,7 +2665,7 @@ function AuthenticatedApp() {
               }}
             />
           )}
-          {activeTab === 'agents' && <AgentWorkspacesTab workspaces={agentWorkspaces} onSelect={() => {}} />}
+          {activeTab === 'agents' && <AgentWorkspacesTab workspaces={agentWorkspaces} selectedAgentId={selectedAgentId} onSelect={(agentId) => chooseAgent(agentId)} onRefresh={refreshOverview} onNotice={setNotice} onError={setError} />}
           {activeTab === 'timeline' && (
             <TimelineTab
               exchanges={exchanges}
