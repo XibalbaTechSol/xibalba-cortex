@@ -4,7 +4,9 @@ set -euo pipefail
 CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/xibalba-cortex"
 ENV_FILE="$CONFIG_DIR/core-sync.env"
 INSTALLER="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/install_core_sync.sh"
-ACCOUNT_DB="${XIBALBA_CORTEX_HOME:-$HOME/.hermes/xibalba-cortex}/ingest_tokens.sqlite3"
+CORTEX_HOME="${XIBALBA_CORTEX_HOME:-$HOME/.hermes/xibalba-cortex}"
+[[ "$CORTEX_HOME" == %h/* ]] && CORTEX_HOME="$HOME/${CORTEX_HOME#%h/}"
+ACCOUNT_DB="$CORTEX_HOME/ingest_tokens.sqlite3"
 
 mkdir -p "$CONFIG_DIR"
 read -r -p "CORE oracle URL [http://127.0.0.1:8080]: " core_url
@@ -85,7 +87,7 @@ fi
 umask 077
 cat > "$ENV_FILE" <<EOF
 XIBALBA_CORE_ORACLE_URL=$core_url
-XIBALBA_CORTEX_HOME=%h/.hermes/xibalba-cortex
+XIBALBA_CORTEX_HOME=$CORTEX_HOME
 XIBALBA_CORTEX_ACCOUNT_ID=$account_id
 XIBALBA_CORTEX_CONTROLLER=${controller,,}
 EOF
