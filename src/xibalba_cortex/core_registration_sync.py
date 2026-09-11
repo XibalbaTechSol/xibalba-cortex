@@ -11,6 +11,7 @@ import json
 from urllib.request import Request, urlopen
 import argparse
 import os
+import re
 
 from .accounts import sync_account_registrations
 
@@ -18,6 +19,20 @@ from .accounts import sync_account_registrations
 def registered_agents_for_controller(payload: Mapping[str, object], controller: str) -> list[str]:
     if payload.get("finalized") is not True:
         raise ValueError("CORE registration snapshot is not finalized")
+    # The operator bit alone is not a finality proof.  Require the oracle's
+    # finalized execution-client cursor and ensure it covers the directory
+    # cursor being applied; otherwise a caller could mark an arbitrary/latest
+    # snapshot as finalized and widen Cortex access across a reorg boundary.
+    try:
+        block_number = int(payload["block_number"])
+        finalized_block_number = int(payload["finalized_block_number"])
+        finalized_block_hash = str(payload["finalized_block_hash"])
+    except (KeyError, TypeError, ValueError) as exc:
+        raise ValueError("CORE snapshot is missing its finalized chain cursor") from exc
+    if block_number < 0 or finalized_block_number < block_number:
+        raise ValueError("CORE snapshot block is newer than its finalized cursor")
+    if not re.fullmatch(r"0x[0-9a-fA-F]{64}", finalized_block_hash):
+        raise ValueError("CORE snapshot has an invalid finalized block hash")
     expected = str(controller).strip().lower()
     if len(expected) != 42 or not expected.startswith("0x"):
         raise ValueError("controller must be a 20-byte EVM address")
