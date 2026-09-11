@@ -53,6 +53,56 @@ if [[ -z "$account_id" ]]; then
   read -r -p "Cortex account UUID (or set XIBALBA_CORTEX_ACCOUNT_EMAIL): " account_id
 fi
 if [[ -z "$controller" ]]; then
+  registration_tx="${XIBALBA_REGISTRATION_TX:-}"
+  if [[ -z "$registration_tx" ]]; then
+    read -r -p "Registration transaction hash (optional): " registration_tx
+  fi
+  if [[ -n "$registration_tx" ]]; then
+    rpc_url="${BASE_SEPOLIA_RPC_URL:-}"
+    if [[ -z "$rpc_url" && -r /home/xibalba/Projects/integrity-core/.env ]]; then
+      rpc_url="$(awk -F= '$1 == "RPC_URL" {print substr($0,index($0,"=")+1); exit}' /home/xibalba/Projects/integrity-core/.env)"
+    fi
+    if [[ "$registration_tx" =~ ^0x[0-9a-fA-F]{64}$ && -n "$rpc_url" ]]; then
+      tx_from="$(python3 - "$rpc_url" "$registration_tx" <<'PY'
+import json, sys
+from urllib.request import Request, urlopen
+try:
+    body = json.dumps({"jsonrpc":"2.0","id":1,"method":"eth_getTransactionByHash","params":[sys.argv[2]]}).encode()
+    req = Request(sys.argv[1], data=body, headers={"content-type":"application/json"})
+    result = json.load(urlopen(req, timeout=8)).get("result") or {}
+    print(str(result.get("from") or "").lower())
+except Exception:
+    pass
+PY
+      )"
+      if [[ "$tx_from" =~ ^0x[0-9a-f]{40}$ ]]; then
+        if python3 - "$core_url" "$tx_from" <<'PY'
+import json, sys
+from urllib.request import urlopen
+try:
+    with urlopen(sys.argv[1].rstrip('/') + '/v1/agents/snapshot', timeout=5) as response:
+        payload = json.load(response)
+    controllers = {str(row.get('controller','')).lower() for row in payload.get('agents', []) if isinstance(row, dict)}
+    raise SystemExit(0 if sys.argv[2].lower() in controllers else 1)
+except Exception:
+    raise SystemExit(1)
+PY
+        then
+          controller="$tx_from"
+          echo "Transaction sender matches a CORE controller: $controller"
+        else
+          echo "WARN: transaction sender is not present in the CORE snapshot; refusing to select it." >&2
+        fi
+      else
+        echo "WARN: could not resolve the transaction sender; continuing safely." >&2
+      fi
+    else
+      echo "WARN: transaction hash or RPC URL is invalid; continuing safely." >&2
+    fi
+  fi
+fi
+
+if [[ -z "$controller" ]]; then
   mapfile -t controllers < <(python3 - "$core_url" <<'PY'
 import json, sys
 from urllib.request import urlopen
