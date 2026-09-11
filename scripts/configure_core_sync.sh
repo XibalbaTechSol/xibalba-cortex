@@ -51,7 +51,31 @@ if [[ -z "$account_id" ]]; then
   read -r -p "Cortex account UUID (or set XIBALBA_CORTEX_ACCOUNT_EMAIL): " account_id
 fi
 if [[ -z "$controller" ]]; then
-  read -r -p "Bound controller EVM address (0x...): " controller
+  mapfile -t controllers < <(python3 - "$core_url" <<'PY'
+import json, sys
+from urllib.request import urlopen
+try:
+    with urlopen(sys.argv[1].rstrip('/') + '/v1/agents/snapshot', timeout=5) as response:
+        payload = json.load(response)
+    values = sorted({str(row.get('controller','')).lower() for row in payload.get('agents', [])
+                     if isinstance(row, dict) and str(row.get('controller','')).startswith('0x')})
+    for value in values:
+        if len(value) == 42:
+            print(value)
+except Exception:
+    pass
+PY
+  )
+  if [[ "${#controllers[@]}" -eq 1 ]]; then
+    controller="${controllers[0]}"
+    echo "Using the only controller found in the CORE snapshot: $controller"
+  else
+    if [[ "${#controllers[@]}" -gt 1 ]]; then
+      echo "Multiple CORE controllers found; choose the one bound to this Cortex account:" >&2
+      printf '  %s\n' "${controllers[@]}" >&2
+    fi
+    read -r -p "Bound controller EVM address (0x...): " controller
+  fi
 fi
 
 [[ "$core_url" =~ ^https?://[^[:space:]]+$ ]] || { echo "ERROR: invalid CORE URL" >&2; exit 1; }
