@@ -276,6 +276,11 @@ systemctl --user enable --now xibalba-cortex-core-sync.timer
 The timer invokes `xibalba-cortex-sync-core-registrations` every five minutes. A non-finalized
 snapshot fails closed and leaves existing account authorization unchanged.
 
+The adapter also requires the snapshot's `finalized_block_number` and
+`finalized_block_hash`; the finalized cursor must cover `block_number` and the hash must be a
+32-byte hex block hash. The operator-controlled `finalized` bit is therefore not sufficient by
+itself to widen an account's agent namespace.
+
 **Not yet installable standalone.** `pyproject.toml` pins `integrity-sdk` as a local path
 dependency on `../integrity-core/integrity-sdk` (`[tool.uv.sources]`) — `uv sync` only resolves
 if `integrity-core` is checked out as a sibling directory (this is also how CI installs it — see
