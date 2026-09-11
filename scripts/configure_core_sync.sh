@@ -28,7 +28,7 @@ PY
     for row in "${accounts[@]}"; do
       IFS=$'\t' read -r candidate_id candidate_email candidate_controller <<< "$row"
       if [[ "$candidate_email" == "$XIBALBA_CORTEX_ACCOUNT_EMAIL" ]]; then
-        account_id="$candidate_id"; controller="$candidate_controller"; break
+        account_id="$candidate_id"; controller="$candidate_controller"
       fi
     done
   elif [[ "${#accounts[@]}" -eq 1 ]]; then
@@ -43,7 +43,7 @@ PY
     for row in "${accounts[@]}"; do
       IFS=$'\t' read -r candidate_id candidate_email candidate_controller <<< "$row"
       if [[ "$candidate_email" == "$selected_email" ]]; then
-        account_id="$candidate_id"; controller="$candidate_controller"; break
+        account_id="$candidate_id"; controller="$candidate_controller"
       fi
     done
   fi
