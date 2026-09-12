@@ -33,16 +33,15 @@ import ReactMarkdown from 'react-markdown'
 import {
   api,
   accountAuth,
+  isSignedIn,
   accountMe,
   accountLogout,
   accountChangePassword,
   accountSessions,
   accountRevokeSession,
   accountEvents,
-  getApiToken,
   getApiBaseUrl,
   setApiBaseUrl,
-  setApiToken,
   type Attachment,
   type AgentWorkspace,
   type EntityRelation,
@@ -768,14 +767,10 @@ function formatSessionLabel(session: Session) {
 
 export default function App() {
   const [token, setToken] = useState(() =>
-    new URLSearchParams(window.location.search).get('landing')
-      ? ''
-      : import.meta.env.DEV
-      ? 'local-dev-proxy'
-      : getApiToken()
+    new URLSearchParams(window.location.search).get('landing') ? false : isSignedIn()
   )
   const [entry, setEntry] = useState<'landing' | 'signin'>('landing')
-  const [mode, setMode] = useState<'login' | 'signup' | 'token'>('login')
+  const [mode, setMode] = useState<'login' | 'signup'>('login')
   const [authError, setAuthError] = useState(()=>sessionStorage.getItem('xibalba-cortex.auth-notice') || '')
   const [authenticating, setAuthenticating] = useState(false)
   if (token) return <><AuthenticatedApp /><ToastContainer /></>
@@ -785,28 +780,23 @@ export default function App() {
     const endpoint = String(form.get('endpoint') || '').trim()
     setAuthenticating(true); setAuthError(''); setApiBaseUrl(endpoint)
     try {
-      if (mode === 'token') {
-        setApiToken(String(form.get('token') || '').trim())
-        await api.status()
-      } else {
-        const payload = await accountAuth(mode, { email: String(form.get('email') || ''), password: String(form.get('password') || ''), display_name: String(form.get('displayName') || '') })
-        const me = await accountMe()
-        sessionStorage.setItem('xibalba-cortex.account', JSON.stringify({ ...(me.account ?? payload.account), session_expires_at: me.session_expires_at }))
-        await api.status()
-      }
-      setToken(getApiToken())
-    } catch (error) { setApiToken(''); setAuthError(error instanceof Error ? error.message : String(error)) }
+      const payload = await accountAuth(mode, { email: String(form.get('email') || ''), password: String(form.get('password') || ''), display_name: String(form.get('displayName') || '') })
+      const me = await accountMe()
+      sessionStorage.setItem('xibalba-cortex.account', JSON.stringify({ ...(me.account ?? payload.account), session_expires_at: me.session_expires_at }))
+      await api.status()
+      setToken(true)
+    } catch (error) { setAuthError(error instanceof Error ? error.message : String(error)) }
     finally { setAuthenticating(false) }
   }
   if (entry === 'landing') return <CortexLanding connect={() => {
     sessionStorage.removeItem('xibalba-cortex.auth-notice')
     if (import.meta.env.DEV) {
-      setToken('local-dev-proxy')
+      setToken(true)
       return
     }
     setEntry('signin')
   }} />
-  return <main className="cortex-auth"><button className="cortex-auth-back" onClick={()=>setEntry('landing')}>← Back to Cortex</button><section className="cortex-auth-story"><CortexBrand/><div><p className="cortex-kicker">PRIVATE BY ARCHITECTURE</p><h1>Your agents' memory.<br/>Under your control.</h1><p>Connect to a local Cortex profile and inspect the provenance behind every remembered fact.</p></div><aside><span>⌁</span><div><b>Session-scoped access</b><small>Your endpoint and credentials stay in this tab.</small></div></aside></section><section className="cortex-auth-form"><form onSubmit={submit}><span className="cortex-lock">⌘</span><div className="auth-tabs"><button type="button" className={mode==='login'?'active':''} onClick={()=>setMode('login')}>Sign in</button><button type="button" className={mode==='signup'?'active':''} onClick={()=>setMode('signup')}>Create account</button></div><h2>{mode==='signup'?'Create your Cortex account':mode==='token'?'Connect with bearer token':'Connect to Cortex'}</h2><p>{mode==='signup'?'Create a local operator account for this Cortex profile.':'Use your account credentials or an existing bearer token.'}</p><label>Profile endpoint<input name="endpoint" type="url" defaultValue={getApiBaseUrl()} required/></label>{mode !== 'token' ? <><label>Email<input name="email" type="email" autoFocus required/></label>{mode==='signup'&&<label>Display name<input name="displayName" required/></label>}<label>Password<input name="password" type="password" minLength={10} required/></label><button type="button" className="advanced" onClick={()=>setMode('token')}>Use bearer token instead</button></> : <><label>Bearer token<input name="token" type="password" autoFocus required/></label><button type="button" className="advanced" onClick={()=>setMode('login')}>Use account sign in</button></>}{authError&&<div className="auth-error">{authError}</div>}<button className="cortex-cta auth-submit" type="submit" disabled={authenticating}>{authenticating?'Connecting…':mode==='signup'?'Create account':'Enter workspace'} <span>→</span></button><small className="auth-security">◇ Session-only credentials · <button type="button" className="link-button" onClick={()=>setAuthError('Password reset is not configured for this local deployment yet.')}>Forgot password?</button></small></form><small className="auth-page-footer">© 2026 Xibalba Technology Solutions · Local-first memory infrastructure</small></section></main>
+  return <main className="cortex-auth"><button className="cortex-auth-back" onClick={()=>setEntry('landing')}>← Back to Cortex</button><section className="cortex-auth-story"><CortexBrand/><div><p className="cortex-kicker">PRIVATE BY ARCHITECTURE</p><h1>Your agents' memory.<br/>Under your control.</h1><p>Connect to a local Cortex profile and inspect the provenance behind every remembered fact.</p></div><aside><span>⌁</span><div><b>Session-scoped access</b><small>Your session is held in a secure cookie the browser cannot read.</small></div></aside></section><section className="cortex-auth-form"><form onSubmit={submit}><span className="cortex-lock">⌘</span><div className="auth-tabs"><button type="button" className={mode==='login'?'active':''} onClick={()=>setMode('login')}>Sign in</button><button type="button" className={mode==='signup'?'active':''} onClick={()=>setMode('signup')}>Create account</button></div><h2>{mode==='signup'?'Create your Cortex account':'Connect to Cortex'}</h2><p>{mode==='signup'?'Create a local operator account for this Cortex profile.':'Sign in with your account credentials.'}</p><label>Profile endpoint<input name="endpoint" type="url" defaultValue={getApiBaseUrl()} required/></label><label>Email<input name="email" type="email" autoFocus required/></label>{mode==='signup'&&<label>Display name<input name="displayName" required/></label>}<label>Password<input name="password" type="password" minLength={10} required/></label>{authError&&<div className="auth-error">{authError}</div>}<button className="cortex-cta auth-submit" type="submit" disabled={authenticating}>{authenticating?'Connecting…':mode==='signup'?'Create account':'Enter workspace'} <span>→</span></button><small className="auth-security">◇ HttpOnly session cookie · <button type="button" className="link-button" onClick={()=>setAuthError('Password reset is not configured for this local deployment yet.')}>Forgot password?</button></small></form><small className="auth-page-footer">© 2026 Xibalba Technology Solutions · Local-first memory infrastructure</small></section></main>
 }
 function CortexLanding({ connect }: { connect: () => void }) {
   const memoryFlow = `flowchart LR
@@ -1430,7 +1420,6 @@ function SettingsTab({
 
   const handleSignOut = () => {
     accountLogout().catch(() => {}).finally(() => {
-      setApiToken('')
       window.location.reload()
     })
   }
@@ -2200,8 +2189,7 @@ function AuthenticatedApp() {
         const message = String(authError)
         if (/401|invalid|expired|unauthorized/i.test(message)) {
           sessionStorage.setItem('xibalba-cortex.auth-notice', 'Session expired. Sign in again to reconnect to this Cortex profile.')
-          setApiToken('')
-          window.location.reload()
+          accountLogout().catch(() => {}).finally(() => window.location.reload())
         }
       })
     }
@@ -2577,7 +2565,6 @@ function AuthenticatedApp() {
               aria-label="Sign out"
               onClick={() => {
                 accountLogout().catch(() => {}).finally(() => {
-                  setApiToken('')
                   window.location.reload()
                 })
               }}
@@ -3007,7 +2994,7 @@ function TimelineTab({
                 return (
                   <div className="chat-turn turn-agent" key={idx}>
                     <div className="turn-avatar agent-avatar" title="Cortex Agent">
-                      <img src="/brain-logo.jpg" alt="Cortex Agent" />
+                      <img src="/cortex-brain-compact-dark.png" alt="Cortex Agent" />
                     </div>
                     <div className="turn-body">
                       <div className="turn-meta">
@@ -3082,7 +3069,7 @@ function TimelineTab({
 
                   {/* Response Turn */}
                   <div className="chat-turn turn-agent">
-                    <div className="turn-avatar agent-avatar"><img src="/brain-logo.jpg" alt="Cortex Agent" /></div>
+                    <div className="turn-avatar agent-avatar"><img src="/cortex-brain-compact-dark.png" alt="Cortex Agent" /></div>
                     <div className="turn-body">
                       <div className="turn-meta">
                         <span className="sender-name">Cortex Cognitive Agent</span>

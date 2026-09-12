@@ -11,6 +11,9 @@ import pytest
 
 from xibalba_cortex.ingest_tokens import issue_token
 from xibalba_cortex.local_api import serve
+from http.cookies import SimpleCookie
+
+from xibalba_cortex.local_api import SESSION_COOKIE_NAME
 from xibalba_cortex.store import EMBEDDING_DIM, GraphStore
 
 _CURRENT_TOKEN: str | None = None
@@ -33,6 +36,29 @@ def _get(port: int, path: str) -> tuple[int, object]:
             return response.status, json.loads(response.read())
     except urllib.error.HTTPError as exc:
         return exc.code, json.loads(exc.read())
+
+
+def _post_capture_cookie(port: int, path: str, payload: dict[str, object]) -> tuple[int, object, str]:
+    """POST and also return the session token the server set as an HttpOnly cookie.
+
+    Browsers no longer receive the token in the response body, so a test that needs to act as a
+    signed-in operator has to read it the same way a browser would.
+    """
+    body = json.dumps(payload).encode()
+    request = urllib.request.Request(
+        f"http://localhost:{port}{path}",
+        data=body,
+        method="POST",
+        headers={"Content-Type": "application/json", **_auth_headers()},
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=5) as response:
+            raw = response.headers.get("Set-Cookie", "")
+            status, parsed = response.status, json.loads(response.read())
+    except urllib.error.HTTPError as exc:
+        return exc.code, json.loads(exc.read()), ""
+    morsel = SimpleCookie(raw).get(SESSION_COOKIE_NAME)
+    return status, parsed, morsel.value if morsel else ""
 
 
 def _post(port: int, path: str, payload: dict[str, object]) -> tuple[int, object]:
@@ -719,19 +745,21 @@ def test_inference_task_route_rejects_invalid_type(running_store):
 def test_account_signup_me_and_logout(running_store, monkeypatch):
     store, port = running_store
     global _CURRENT_TOKEN
-    status, signup = _post(port, "/api/auth/signup", {"email": "operator@example.com", "password": "correct horse battery staple", "display_name": "Account Operator"})
+    status, signup, cookie_token = _post_capture_cookie(port, "/api/auth/signup", {"email": "operator@example.com", "password": "correct horse battery staple", "display_name": "Account Operator"})
     assert status == 201
     assert signup["account"]["email"] == "operator@example.com"
-    _CURRENT_TOKEN = signup["token"]
+    assert "token" not in signup, "raw session token must not be returned in the response body"
+    assert cookie_token, "signup must set the session cookie"
+    _CURRENT_TOKEN = cookie_token
     status, me = _get(port, "/api/auth/me")
     assert status == 200 and me["account"]["email"] == "operator@example.com" and me["session_expires_at"]
     status, audit = _get(port, "/api/auth/events")
     assert status == 200 and any(event["event_type"] == "login_succeeded" for event in audit["events"])
-    status, second = _post(port, "/api/auth/login", {"email": "operator@example.com", "password": "correct horse battery staple"})
-    assert status == 200
+    status, second, second_cookie = _post_capture_cookie(port, "/api/auth/login", {"email": "operator@example.com", "password": "correct horse battery staple"})
+    assert status == 200 and second_cookie
     status, sessions = _get(port, "/api/auth/sessions")
     assert status == 200 and len(sessions["sessions"]) >= 2
-    status, revoked = _post(port, "/api/auth/sessions/revoke", {"session_id": second["token"] and next(item["id"] for item in sessions["sessions"] if item["revoked_at"] is None and item["id"] != sessions["sessions"][0]["id"])})
+    status, revoked = _post(port, "/api/auth/sessions/revoke", {"session_id": second_cookie and next(item["id"] for item in sessions["sessions"] if item["revoked_at"] is None and item["id"] != sessions["sessions"][0]["id"])})
     assert status == 200 and revoked["ok"] is True
     status, changed = _post(port, "/api/auth/password", {"current_password": "correct horse battery staple", "new_password": "new correct horse battery"})
     assert status == 200 and changed["ok"] is True
@@ -751,10 +779,10 @@ def test_account_signup_me_and_logout(running_store, monkeypatch):
     status, confirmed = _post(port, "/api/auth/password-reset/confirm", {"reset_token": raw_token, "new_password": "reset correct horse battery"})
     assert status == 200 and confirmed["ok"] is True
 
-    status, login = _post(port, "/api/auth/login", {"email": "operator@example.com", "password": "reset correct horse battery"})
+    status, login, login_cookie = _post_capture_cookie(port, "/api/auth/login", {"email": "operator@example.com", "password": "reset correct horse battery"})
     assert status == 200
 
-    _CURRENT_TOKEN = login["token"]
+    _CURRENT_TOKEN = login_cookie
     status, logged_out = _post(port, "/api/auth/logout", {})
     assert status == 200 and logged_out["ok"] is True
     status, _ = _get(port, "/api/auth/me")
@@ -802,3 +830,39 @@ def test_account_failed_logins_lock_account_and_record_audit(running_store):
     with sqlite3.connect(rows) as conn:
         events = conn.execute("SELECT event_type, detail FROM auth_events WHERE email=? ORDER BY id", ("lock@example.com",)).fetchall()
     assert events[-1][0] == "login_blocked"
+
+
+def test_session_cookie_is_httponly_secure_samesite(running_store):
+    """The browser credential must be unreadable from JavaScript and not sent cross-site.
+
+    These three attributes are the entire security argument for moving off the sessionStorage
+    bearer token, so assert them directly rather than trusting the helper.
+    """
+    _store, port = running_store
+    import urllib.request
+
+    body = json.dumps({"email": "cookie@example.com", "password": "correct horse battery staple", "display_name": "Cookie Operator"}).encode()
+    request = urllib.request.Request(f"http://localhost:{port}/api/auth/signup", data=body, method="POST", headers={"Content-Type": "application/json"})
+    with urllib.request.urlopen(request, timeout=5) as response:
+        raw = response.headers.get("Set-Cookie", "")
+        payload = json.loads(response.read())
+
+    assert SESSION_COOKIE_NAME in raw
+    assert "HttpOnly" in raw
+    assert "Secure" in raw
+    assert "SameSite=Strict" in raw
+    assert "token" not in payload
+
+
+def test_dev_bypass_token_is_not_accepted(running_store):
+    """`Authorization: Bearer dev` used to authenticate any caller with any scope it asked for."""
+    _store, port = running_store
+    global _CURRENT_TOKEN
+    previous = _CURRENT_TOKEN
+    try:
+        _CURRENT_TOKEN = "dev"
+        status, body = _get(port, "/api/stats")
+        assert status == 401, "the literal 'dev' token must no longer authenticate"
+        assert body["error"] == "invalid or revoked token"
+    finally:
+        _CURRENT_TOKEN = previous

@@ -6,12 +6,27 @@ Flask/FastAPI for a small local operator UI. It intentionally omits destructive 
 as restore or hard purge.
 
 Despite the module's original "localhost-bound" framing, the shipped Dockerfile binds this to
-0.0.0.0 -- so every route except the liveness probes (/healthz, /readyz, /metrics) requires the
-same bearer-token auth as the streamable-HTTP MCP transport (auth_middleware.py /
-ingest_tokens.py): a `memory:read`-scoped token for GET, `memory:write` for most POST routes, and
-`proposal:decide` for the two decision endpoints. Issue tokens with
-`xibalba-cortex-ingest-tokens issue`. There is no unauthenticated fallback -- a deployment with
-no tokens issued simply has no working API, which is the fail-closed default.
+0.0.0.0 -- so every route except the liveness probes (/healthz, /readyz, /metrics) is
+authenticated: a `memory:read`-scoped credential for GET, `memory:write` for most POST routes, and
+`proposal:decide` for the two decision endpoints. There is no unauthenticated fallback -- a
+deployment with no credentials issued simply has no working API, which is the fail-closed default.
+
+Two credential types, by caller kind:
+
+  * Browsers get an HttpOnly, Secure, SameSite=Strict session cookie (`cortex_session`) set by
+    /api/auth/login and /api/auth/signup. The raw token is never returned in a response body and
+    is never readable from JavaScript, so an XSS bug cannot exfiltrate it -- which the previous
+    sessionStorage-held bearer token could not prevent. `SameSite=Strict` is what makes this safe
+    without a separate CSRF token. Because the cookie is `Secure`, this path requires TLS; the
+    packaged Caddyfile terminates it and serves the viewer and API on one origin, so no CORS
+    credentials dance is needed. Set XIBALBA_CORTEX_INSECURE_COOKIES=1 to drop `Secure` for a
+    plain-HTTP loopback dev server.
+  * Machine callers (the streamable-HTTP MCP transport, CLI, workers) continue to present
+    `Authorization: Bearer <token>` against the same ingest-token store (auth_middleware.py /
+    ingest_tokens.py). Issue tokens with `xibalba-cortex-ingest-tokens issue`. These callers have
+    no cookie jar, so removing bearer support entirely would break them.
+
+Cookie is checked first so a stale header cannot shadow a live browser session.
 
 Every route is a thin wrapper around one public GraphStore method -- all the actual query logic
 (graph_payload, memory_entity_relations, counts, etc.) lives in store.py where it's unit-tested
@@ -85,6 +100,7 @@ from datetime import datetime, timezone
 import threading
 import time
 import tempfile
+from http.cookies import SimpleCookie
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, unquote, urlparse
 from pathlib import Path
@@ -314,6 +330,38 @@ def _run_kernel_bridge_self_test(store: GraphStore, *, session_id: str | None) -
     }
 
 
+SESSION_COOKIE_NAME = "cortex_session"
+
+# Must track `accounts.issue_account_session`'s ttl_hours default so the cookie does not
+# outlive the server-side session record it points at.
+_SESSION_TTL_HOURS = 24
+
+# `Secure` is omitted only when the operator explicitly opts out for a plain-HTTP loopback
+# dev server; the deployed path runs behind Caddy TLS, where `Secure` must be set or the
+# browser will refuse to store the cookie on an HTTPS origin.
+_INSECURE_COOKIES = os.environ.get("XIBALBA_CORTEX_INSECURE_COOKIES") == "1"
+
+
+def _session_cookie(token: str, *, max_age: int) -> str:
+    """Serialize the session cookie.
+
+    `HttpOnly` keeps the token out of JavaScript (so XSS cannot exfiltrate it, which the
+    previous sessionStorage bearer token could not prevent). `SameSite=Strict` is what makes
+    this safe without a separate CSRF token: the browser will not attach the cookie to any
+    cross-site request, including top-level navigations.
+    """
+    parts = [
+        f"{SESSION_COOKIE_NAME}={token}",
+        "Path=/",
+        "HttpOnly",
+        "SameSite=Strict",
+        f"Max-Age={max_age}",
+    ]
+    if not _INSECURE_COOKIES:
+        parts.append("Secure")
+    return "; ".join(parts)
+
+
 def _make_handler(store: GraphStore, *, allowed_origin: str):
     # The authenticated webhook/operator surface is profile-local. Keep a bounded
     # per-profile request budget so one connector or tenant cannot starve the store.
@@ -333,7 +381,7 @@ def _make_handler(store: GraphStore, *, allowed_origin: str):
             return True
 
     class Handler(BaseHTTPRequestHandler):
-        def _send_json(self, status: int, payload: object) -> None:
+        def _send_json(self, status: int, payload: object, *, extra_headers: tuple[tuple[str, str], ...] = ()) -> None:
             body = json.dumps(payload).encode()
             with _REQUEST_METRICS_LOCK:
                 _REQUEST_METRICS["requests_total"] += 1
@@ -342,9 +390,37 @@ def _make_handler(store: GraphStore, *, allowed_origin: str):
             self.send_header("Content-Type", "application/json")
             self.send_header("Access-Control-Allow-Origin", allowed_origin)
             self.send_header("Access-Control-Allow-Headers", "Authorization, Content-Type")
+            if allowed_origin != "*":
+                self.send_header("Access-Control-Allow-Credentials", "true")
+            for name, value in extra_headers:
+                self.send_header(name, value)
             self.send_header("Content-Length", str(len(body)))
             self.end_headers()
             self.wfile.write(body)
+
+        def _cookie_session_token(self) -> str:
+            """Read the session token from the HttpOnly cookie.
+
+            The browser never handles this value in JavaScript, which is the whole point of
+            moving off `Authorization: Bearer` for interactive callers.
+            """
+            raw = self.headers.get("Cookie")
+            if not raw:
+                return ""
+            morsel = SimpleCookie(raw).get(SESSION_COOKIE_NAME)
+            return morsel.value if morsel else ""
+
+        def _current_token(self) -> str:
+            """The caller's credential, cookie first then bearer.
+
+            Used where a route needs the token itself to identify the session record, not just
+            to authorize the request.
+            """
+            token = self._cookie_session_token()
+            if token:
+                return token
+            auth = self.headers.get("Authorization", "")
+            return auth.split(" ", 1)[-1] if " " in auth else ""
 
         def _send_metrics(self) -> None:
             with _REQUEST_METRICS_LOCK:
@@ -361,13 +437,16 @@ def _make_handler(store: GraphStore, *, allowed_origin: str):
             self.wfile.write(body)
 
         def _authenticate(self, *, required_scope: str) -> dict[str, object] | None:
-            auth = self.headers.get("Authorization", "")
-            scheme, _, credentials = auth.partition(" ")
-            token = credentials.strip() if scheme.lower() == "bearer" else ""
-            if os.environ.get("VITE_DEV_SERVER") == "true" or token == "dev":
-                return {"profile_id": store.profile_id, "label": "local-dev", "scopes": [required_scope], "expires_at": "never"}
+            # Interactive callers present an HttpOnly cookie; machine callers (MCP over
+            # streamable-HTTP, CLI, workers) still present a bearer token. The cookie wins so a
+            # stale header cannot shadow a live browser session.
+            token = self._cookie_session_token()
             if not token:
-                self._send_json(401, {"error": "missing or malformed Authorization: Bearer <token> header"})
+                auth = self.headers.get("Authorization", "")
+                scheme, _, credentials = auth.partition(" ")
+                token = credentials.strip() if scheme.lower() == "bearer" else ""
+            if not token:
+                self._send_json(401, {"error": "authentication required: session cookie or Authorization: Bearer <token>"})
                 return None
             principal = verify_token_record(store.home, token)
             if principal is None:
@@ -416,8 +495,7 @@ def _make_handler(store: GraphStore, *, allowed_origin: str):
                 principal = self._authenticate(required_scope="memory:read")
                 if principal is None:
                     return
-                auth = self.headers.get("Authorization", "")
-                token = auth.split(" ", 1)[-1] if " " in auth else ""
+                token = self._current_token()
                 account = account_for_token(store.home, token)
                 self._send_json(200, {"account": account, "session_expires_at": principal.get("expires_at")} if account else {"error": "account session not found"})
                 return
@@ -425,8 +503,7 @@ def _make_handler(store: GraphStore, *, allowed_origin: str):
                 principal = self._authenticate(required_scope="memory:read")
                 if principal is None:
                     return
-                auth = self.headers.get("Authorization", "")
-                token = auth.split(" ", 1)[-1] if " " in auth else ""
+                token = self._current_token()
                 account = account_for_token(store.home, token)
                 email = str(account.get("email")) if account else ""
                 sessions = [item for item in list_tokens(store.home) if item["label"] == f"account:{email}"]
@@ -436,8 +513,7 @@ def _make_handler(store: GraphStore, *, allowed_origin: str):
                 principal = self._authenticate(required_scope="memory:read")
                 if principal is None:
                     return
-                auth = self.headers.get("Authorization", "")
-                token = auth.split(" ", 1)[-1] if " " in auth else ""
+                token = self._current_token()
                 account = account_for_token(store.home, token)
                 conn = _connect(store.home)
                 try:
@@ -746,16 +822,14 @@ def _make_handler(store: GraphStore, *, allowed_origin: str):
                         changed = reset_password(store.home, reset_token=str(payload.get("reset_token") or ""), new_password=str(payload.get("new_password") or ""))
                         self._send_json(200 if changed else 400, {"ok": changed} if changed else {"error": "reset token is invalid or expired"})
                     elif parts[-2:] == ["sessions", "revoke"]:
-                        auth = self.headers.get("Authorization", "")
-                        token = auth.split(" ", 1)[-1] if " " in auth else ""
+                        token = self._current_token()
                         principal = self._authenticate(required_scope="memory:read")
                         if principal is None:
                             return
                         revoked = revoke_account_session_by_id(store.home, current_token=token, session_id=str(payload.get("session_id") or ""))
                         self._send_json(200 if revoked else 404, {"ok": revoked} if revoked else {"error": "session not found"})
                     elif parts[-1] == "password":
-                        auth = self.headers.get("Authorization", "")
-                        token = auth.split(" ", 1)[-1] if " " in auth else ""
+                        token = self._current_token()
                         principal = self._authenticate(required_scope="memory:read")
                         if principal is None:
                             return
@@ -764,14 +838,18 @@ def _make_handler(store: GraphStore, *, allowed_origin: str):
                     elif parts[-1] == "signup":
                         create_account(store.home, email=str(payload.get("email") or ""), password=str(payload.get("password") or ""), display_name=str(payload.get("display_name") or ""), profile_id=store.profile_id)
                         token, account = issue_account_session(store.home, email=str(payload.get("email") or ""), password=str(payload.get("password") or ""))
-                        self._send_json(201, {"token": token, "account": account})
+                        self._send_json(201, {"account": account}, extra_headers=(("Set-Cookie", _session_cookie(token, max_age=_SESSION_TTL_HOURS * 3600)),))
                     elif parts[-1] == "login":
                         token, account = issue_account_session(store.home, email=str(payload.get("email") or ""), password=str(payload.get("password") or ""))
-                        self._send_json(200, {"token": token, "account": account})
+                        self._send_json(200, {"account": account}, extra_headers=(("Set-Cookie", _session_cookie(token, max_age=_SESSION_TTL_HOURS * 3600)),))
                     else:
-                        auth = self.headers.get("Authorization", "")
-                        token = auth.split(" ", 1)[-1] if " " in auth else ""
-                        self._send_json(200, {"ok": revoke_account_session(store.home, token)})
+                        token = self._cookie_session_token()
+                        if not token:
+                            token = self._current_token()
+                        revoked = revoke_account_session(store.home, token)
+                        # Clear the cookie regardless of whether the record was still live, so a
+                        # browser holding an already-expired session is not left presenting it.
+                        self._send_json(200, {"ok": revoked}, extra_headers=(("Set-Cookie", _session_cookie("", max_age=0)),))
                 except ValueError as exc:
                     self._send_json(400, {"error": str(exc)})
                 return

@@ -2,20 +2,29 @@
 // framework response envelope -- every route just returns the JSON body GraphStore's own method
 // returned, so these types mirror store.py's returned dicts directly.
 //
-// local_api.py requires a bearer token (the same ingest-token store the streamable-HTTP MCP
-// transport uses -- see auth_middleware.py / ingest_tokens.py). The operator enters it at
-// runtime; it is kept only in this tab's sessionStorage, never embedded in the Vite bundle.
+// local_api.py authenticates the browser with an HttpOnly, Secure, SameSite=Strict session
+// cookie set at sign-in. The token is never readable from JavaScript and is never held in
+// sessionStorage, so an XSS bug cannot exfiltrate it. Every request below therefore sends
+// `credentials: 'include'` and carries no Authorization header. Bearer tokens remain in
+// local_api.py for machine callers (MCP, CLI, workers) that cannot hold a cookie.
 
 const DEFAULT_BASE_URL = import.meta.env.VITE_LOCAL_API_URL ?? (import.meta.env.DEV ? '/cortex-api' : 'http://localhost:8420')
-const TOKEN_STORAGE_KEY = 'xibalba-cortex.local-api-token'
+const SIGNED_IN_KEY = 'xibalba-cortex.signed-in'
 const URL_STORAGE_KEY = 'xibalba-cortex.local-api-url'
-// In development this is only a non-secret UI marker. Vite's loopback-only proxy reads the
-// real mode-0600 credential and injects it server-side; the browser never receives that token.
-let apiToken = import.meta.env.DEV ? 'local-dev-proxy' : sessionStorage.getItem(TOKEN_STORAGE_KEY) ?? ''
+// Non-secret UI hint only: the real credential is the HttpOnly cookie, which this code cannot
+// read. This just lets the app render the authenticated shell without a round-trip first; any
+// stale value is corrected by the next 401.
+let signedIn = sessionStorage.getItem(SIGNED_IN_KEY) === '1'
 let apiBaseUrl = sessionStorage.getItem(URL_STORAGE_KEY) ?? DEFAULT_BASE_URL
 
-export function getApiToken(): string {
-  return apiToken
+export function isSignedIn(): boolean {
+  return signedIn
+}
+
+function markSignedIn(value: boolean): void {
+  signedIn = value
+  if (value) sessionStorage.setItem(SIGNED_IN_KEY, '1')
+  else sessionStorage.removeItem(SIGNED_IN_KEY)
 }
 
 export function getApiBaseUrl(): string {
@@ -28,59 +37,50 @@ export function setApiBaseUrl(value: string): void {
   sessionStorage.setItem(URL_STORAGE_KEY, normalized)
 }
 
-export function setApiToken(token: string): void {
-  apiToken = token.trim()
-  if (apiToken) sessionStorage.setItem(TOKEN_STORAGE_KEY, apiToken)
-  else sessionStorage.removeItem(TOKEN_STORAGE_KEY)
-}
-
-export function authHeaders(): Record<string, string> {
-  return apiToken ? { Authorization: `Bearer ${apiToken}` } : {}
-}
-
-export async function accountAuth(path: "signup" | "login", input: Record<string, string>): Promise<{token: string; account: Record<string, unknown>}> {
-  const response = await fetch(getApiBaseUrl() + "/api/auth/" + path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(input) })
+export async function accountAuth(path: "signup" | "login", input: Record<string, string>): Promise<{account: Record<string, unknown>}> {
+  const response = await fetch(getApiBaseUrl() + "/api/auth/" + path, { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify(input) })
   const payload = await response.json().catch(() => ({}))
   if (!response.ok) throw new Error(payload.error || response.status + " " + response.statusText)
-  setApiToken(String(payload.token || ""))
+  markSignedIn(true)
   return payload
 }
 
 export async function accountMe(): Promise<{account: Record<string, unknown>; session_expires_at?: string | null}> {
-  const response = await fetch(getApiBaseUrl() + "/api/auth/me", { headers: authHeaders() })
+  const response = await fetch(getApiBaseUrl() + "/api/auth/me", { credentials: "include" })
   const payload = await response.json().catch(() => ({}))
   if (!response.ok) throw new Error(payload.error || response.status + " " + response.statusText)
   return payload
 }
 
 export async function accountSessions(): Promise<{sessions: Array<Record<string, unknown>>}> {
-  const response = await fetch(getApiBaseUrl() + "/api/auth/sessions", { headers: authHeaders() })
+  const response = await fetch(getApiBaseUrl() + "/api/auth/sessions", { credentials: "include" })
   const payload = await response.json().catch(() => ({}))
   if (!response.ok) throw new Error(payload.error || response.status + " " + response.statusText)
   return payload
 }
 
 export async function accountRevokeSession(sessionId: string): Promise<void> {
-  const response = await fetch(getApiBaseUrl() + "/api/auth/sessions/revoke", { method: "POST", headers: { "Content-Type": "application/json", ...authHeaders() }, body: JSON.stringify({ session_id: sessionId }) })
+  const response = await fetch(getApiBaseUrl() + "/api/auth/sessions/revoke", { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ session_id: sessionId }) })
   const payload = await response.json().catch(() => ({}))
   if (!response.ok) throw new Error(payload.error || response.status + " " + response.statusText)
 }
 
 export async function accountEvents(): Promise<{events: Array<Record<string, unknown>>}> {
-  const response = await fetch(getApiBaseUrl() + "/api/auth/events", { headers: authHeaders() })
+  const response = await fetch(getApiBaseUrl() + "/api/auth/events", { credentials: "include" })
   const payload = await response.json().catch(() => ({}))
   if (!response.ok) throw new Error(payload.error || response.status + " " + response.statusText)
   return payload
 }
 
 export async function accountLogout(): Promise<void> {
-  if (!apiToken) return
-  await fetch(getApiBaseUrl() + "/api/auth/logout", { method: "POST", headers: authHeaders() })
-  setApiToken("")
+  // Always call the server: it owns the session record and the cookie, and this client cannot
+  // tell whether a cookie is present.
+  await fetch(getApiBaseUrl() + "/api/auth/logout", { method: "POST", credentials: "include" })
+  markSignedIn(false)
 }
 
 export async function accountChangePassword(currentPassword: string, newPassword: string): Promise<void> {
-  const response = await fetch(getApiBaseUrl() + "/api/auth/password", { method: "POST", headers: { "Content-Type": "application/json", ...authHeaders() }, body: JSON.stringify({ current_password: currentPassword, new_password: newPassword }) })
+  const response = await fetch(getApiBaseUrl() + "/api/auth/password", { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ current_password: currentPassword, new_password: newPassword }) })
   const payload = await response.json().catch(() => ({}))
   if (!response.ok) throw new Error(payload.error || response.status + " " + response.statusText)
 }
@@ -520,7 +520,7 @@ export interface AgentWorkspace {
 }
 
 async function getJson<T>(path: string): Promise<T> {
-  const response = await fetch(`${getApiBaseUrl()}${path}`, { headers: authHeaders() })
+  const response = await fetch(`${getApiBaseUrl()}${path}`, { credentials: "include" })
   if (!response.ok) {
     const body = await response.json().catch(() => ({ error: response.statusText }))
     throw new Error(body.error ?? `request failed: ${response.status}`)
@@ -531,7 +531,8 @@ async function getJson<T>(path: string): Promise<T> {
 async function postJson<T>(path: string, payload: Record<string, unknown>): Promise<T> {
   const response = await fetch(`${getApiBaseUrl()}${path}`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
   })
   if (!response.ok) {
@@ -542,7 +543,7 @@ async function postJson<T>(path: string, payload: Record<string, unknown>): Prom
 }
 
 async function getBlob(path: string): Promise<Blob> {
-  const response = await fetch(`${getApiBaseUrl()}${path}`, { headers: authHeaders() })
+  const response = await fetch(`${getApiBaseUrl()}${path}`, { credentials: "include" })
   if (!response.ok) throw new Error(`request failed: ${response.status}`)
   return response.blob()
 }
