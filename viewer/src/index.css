@@ -4508,7 +4508,7 @@ dl.graph-reference.compact dd {
 .cortex-header { position: sticky; top: 0; z-index: 40; border-bottom: 1px solid rgba(255,255,255,.06); background: rgba(6,8,18,.84); backdrop-filter: blur(18px); }
 .cortex-site-nav { height: 76px; max-width: 1220px; border: 0; }
 .cortex-brand-link { color: inherit; text-decoration: none; }
-.cortex-brand img { width: 38px; height: 38px; object-fit: cover; border: 1px solid rgba(146,153,255,.32); border-radius: 10px; }
+.cortex-brand img { width: 154px; height: 52px; object-fit: contain; border: 0; border-radius: 0; background: transparent; }
 .cortex-brand b { color: #f4f5fb; letter-spacing: -.02em; }
 .cortex-links a { position: relative; padding: 29px 0; color: #a0a8b8; font-weight: 600; transition: color .2s ease; }
 .cortex-links a:hover { color: #fff; }
@@ -4517,7 +4517,7 @@ dl.graph-reference.compact dd {
 .cortex-site-nav button { font-family: inherit; }
 .ghost-cta { border: 1px solid rgba(255,255,255,.09); border-radius: 8px; padding: 10px 15px; }
 .cortex-hero { min-height: 680px; padding-top: 78px; }
-.cortex-hero-logo { width: 74px; height: 74px; object-fit: cover; margin-bottom: 18px; border: 1px solid rgba(146,153,255,.2); border-radius: 20px; box-shadow: 0 20px 60px rgba(74,81,175,.2); }
+.cortex-hero-logo { width: min(280px, 70vw); height: auto; object-fit: contain; margin-bottom: 18px; border: 0; border-radius: 0; background: transparent; box-shadow: none; }
 .cortex-hero-copy>p:nth-of-type(2) { font-family: inherit; }
 .cortex-actions a { font-weight: 600; text-underline-offset: 4px; }
 .cortex-proof { max-width: 1172px; }
