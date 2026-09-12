@@ -34,6 +34,23 @@ _current_principal: ContextVar[dict[str, object] | None] = ContextVar("xibalba_c
 def current_principal() -> dict[str, object] | None:
     return _current_principal.get()
 
+
+def set_local_principal(principal: dict[str, object]) -> None:
+    """Install the principal for a locally-spawned stdio server.
+
+    stdio has no HTTP layer, so there is no header to authenticate and no middleware runs. That
+    left `current_principal()` returning None for every stdio call, which silently disabled every
+    agent-scope check in server.py — the checks were present but never enforced on the transport
+    actually in use.
+
+    A local subprocess cannot be authenticated cryptographically in any meaningful way: it is
+    spawned by the harness, runs as the same user, and can read the SQLite store directly. The
+    threat this addresses is therefore not an attacker but accidental cross-agent access — one
+    harness reading or writing another agent's memory namespace. Binding the principal to the
+    agent identity the process was launched with makes the existing scope checks enforce.
+    """
+    _current_principal.set(principal)
+
 ASGIApp = Callable[[dict[str, Any], Callable[[], Awaitable[dict[str, Any]]], Callable[[dict[str, Any]], Awaitable[None]]], Awaitable[None]]
 
 

@@ -22,7 +22,8 @@ from mcp.server import MCPServer
 
 from xibalba_cortex.agy_adapter import AgyWrapperShim
 from xibalba_cortex.config import load_config
-from xibalba_cortex.auth_middleware import current_principal
+from xibalba_cortex.auth_middleware import current_principal, set_local_principal
+from xibalba_cortex.ingest_tokens import ROLE_SCOPES
 from xibalba_cortex.claude_adapter import ClaudeAdapter
 from xibalba_cortex.codex_probe import CodexAdapter, CodexLauncher, CodexLauncherProbe
 from xibalba_cortex.cursor_adapter import CursorAdapter
@@ -1508,6 +1509,39 @@ def runtime_openai_compatible_observation(
     )
 
 
+def _install_stdio_principal() -> None:
+    """Bind the stdio server to the agent identity it was launched with.
+
+    Without this, `current_principal()` is None for every stdio call and every agent-scope check
+    in this module returns unchecked — authorization exists in code but not on the transport in
+    use. `XIBALBA_AGENT_ID` is what the harness already passes to identify the agent whose memory
+    this process is serving (see store.py's storage_agent_id and hermes_observer.py).
+
+    Fails closed when it is unset, because the alternative is to keep silently serving every
+    agent's namespace to whoever spawned the process. `XIBALBA_CORTEX_ALLOW_UNSCOPED_STDIO=1` is
+    the deliberate, visible escape hatch for a single-agent local setup that has not configured an
+    identity yet; it restores the historical unscoped behavior and nothing else.
+    """
+    agent_id = str(os.environ.get("XIBALBA_AGENT_ID") or "").strip()
+    if not agent_id:
+        if os.environ.get("XIBALBA_CORTEX_ALLOW_UNSCOPED_STDIO") == "1":
+            return
+        raise SystemExit(
+            "XIBALBA_AGENT_ID is required: without it this server cannot scope memory access to "
+            "an agent, and every agent-scope check would silently pass. Set it to the agent's "
+            "canonical DID, or set XIBALBA_CORTEX_ALLOW_UNSCOPED_STDIO=1 to accept unscoped "
+            "local access deliberately."
+        )
+    set_local_principal({
+        "label": "local-stdio",
+        "profile_id": get_store().profile_id,
+        "agent_id": agent_id,
+        "agent_ids": [agent_id],
+        "scopes": sorted(ROLE_SCOPES["operator"]),
+        "expires_at": None,
+    })
+
+
 def main() -> None:
     import argparse
 
@@ -1525,6 +1559,7 @@ def main() -> None:
     args = parser.parse_args()
 
     if args.transport == "stdio":
+        _install_stdio_principal()
         asyncio.run(server.run_stdio_async())
         return
 
