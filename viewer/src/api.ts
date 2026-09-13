@@ -8,7 +8,11 @@
 // `credentials: 'include'` and carries no Authorization header. Bearer tokens remain in
 // local_api.py for machine callers (MCP, CLI, workers) that cannot hold a cookie.
 
-const DEFAULT_BASE_URL = import.meta.env.VITE_LOCAL_API_URL ?? (import.meta.env.DEV ? '/cortex-api' : 'http://localhost:8420')
+// Production defaults to the page's own origin: Caddy serves the viewer and proxies /api/* to
+// local_api.py, which is what lets the Secure, SameSite=Strict cookie be stored and sent back. A
+// cross-origin default (e.g. http://localhost:8420) would be blocked by CORS for credentialed
+// requests and as mixed content under HTTPS. Same model as the Shield UI.
+const DEFAULT_BASE_URL = import.meta.env.VITE_LOCAL_API_URL ?? (import.meta.env.DEV ? '/cortex-api' : '')
 const SIGNED_IN_KEY = 'xibalba-cortex.signed-in'
 const URL_STORAGE_KEY = 'xibalba-cortex.local-api-url'
 // Non-secret UI hint only: the real credential is the HttpOnly cookie, which this code cannot
