@@ -713,7 +713,11 @@ class GraphStore:
         self._lock = threading.RLock()
         self._atomic_depth = 0
         self._agent_workspaces_cache: tuple[float, list[dict[str, object]]] | None = None
-        self._agent_workspaces_cache_ttl_sec = 15.0
+        # 60s, not 15s: the underlying scan cost grows with the sources table (~7s+ once it
+        # passed a few thousand rows, 2026-09-14) and every cache miss holds `self._lock` for
+        # its full duration, blocking all other store access. A longer TTL trades a little
+        # staleness in the Agents view for far fewer of these lock-holding cold scans.
+        self._agent_workspaces_cache_ttl_sec = 60.0
         self._connection = sqlite3.connect(
             self.db_path,
             timeout=30.0,
@@ -802,7 +806,14 @@ class GraphStore:
         self._connection.execute("PRAGMA busy_timeout = 30000")
         self._connection.execute("PRAGMA foreign_keys = ON")
         self._connection.execute("PRAGMA journal_mode = WAL")
-        self._connection.execute("PRAGMA synchronous = FULL")
+        # NORMAL, not FULL: in WAL mode NORMAL still can't corrupt the database on an
+        # application crash (SQLite's own documented guarantee) -- it only risks losing the
+        # very last commit on an actual OS-level power loss, which isn't this box's failure
+        # mode. FULL forces an fsync on every single commit; under this box's disk/swap
+        # pressure that fsync is exactly what has repeatedly put a store thread into kernel
+        # D-state (uninterruptible disk sleep) while holding `self._lock`, wedging every other
+        # request behind it (see PRODUCTION_GAPS.md / thread-pileup incident, 2026-09-14).
+        self._connection.execute("PRAGMA synchronous = NORMAL")
         self._connection.enable_load_extension(True)
         sqlite_vec.load(self._connection)
         self._connection.enable_load_extension(False)
