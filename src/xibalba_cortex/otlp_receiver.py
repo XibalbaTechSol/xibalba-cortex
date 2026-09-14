@@ -1,4 +1,4 @@
-"""A local OTLP/HTTP-JSON receiver, two signals, two conventions:
+"""A local OTLP receiver for traces, metrics, and logs.
 
 **/v1/logs -- Path B, Claude-Code-specific.** claude_code.user_prompt / assistant_response /
 api_request / tool_result, all carrying prompt.id, message.uuid, session.id -- closes the
@@ -22,15 +22,12 @@ resourceLogs/scopeLogs/logRecords) -- confirmed against the spec, not guessed.
 
     OTEL_EXPORTER_OTLP_TRACES_PROTOCOL=http/json
     OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=http://localhost:4318/v1/traces
+    OTEL_EXPORTER_OTLP_METRICS_PROTOCOL=http/json
+    OTEL_EXPORTER_OTLP_METRICS_ENDPOINT=http://localhost:4318/v1/metrics
     # exact enablement flags are per-harness -- see that harness's own OTel docs.
 
-http/json (not grpc, not http/protobuf) throughout, deliberate: stdlib http.server + json is
-enough, no opentelemetry-proto/grpc dependency needed.
-
-Scope, stated plainly: /v1/metrics (a third OTLP signal, different payload shape again --
-resourceMetrics/dataPoints) is not handled by either endpoint. Claude Code's
-claude_code.token.usage / claude_code.cost.usage still require memory_record_otel_batch
-directly, same as before this module existed.
+The receiver accepts OTLP/HTTP JSON and OTLP/HTTP protobuf. The optional exporter module uses
+the official OpenTelemetry HTTP/protobuf or gRPC exporters for outbound telemetry.
 """
 from __future__ import annotations
 
@@ -41,6 +38,13 @@ from typing import Any
 
 from .config import load_config
 from .connector_policy import ConnectorRateLimiter
+from .otel_core import (
+    canonical_gen_ai_attributes,
+    ingest_metric_records,
+    normalize_trace_identifier,
+    parse_otlp_metrics_json,
+    protobuf_json,
+)
 from .store import GraphStore
 
 logger = logging.getLogger("xibalba_cortex.otlp_receiver")
@@ -218,14 +222,27 @@ def parse_otlp_spans_json(body: dict[str, Any]) -> list[dict[str, Any]]:
         for scope_span in resource_span.get("scopeSpans", []):
             for span in scope_span.get("spans", []):
                 span_attrs = _decode_attributes(span.get("attributes", []))
+                attributes = canonical_gen_ai_attributes({**resource_attrs, **span_attrs})
+                status = span.get("status") or {}
+                if status.get("code") is not None:
+                    attributes["otel.status.code"] = status["code"]
+                if status.get("message") is not None:
+                    attributes["otel.status.message"] = status["message"]
+                start = span.get("startTimeUnixNano")
+                end = span.get("endTimeUnixNano")
+                if start is not None and end is not None:
+                    try:
+                        attributes["otel.duration_ns"] = int(end) - int(start)
+                    except (TypeError, ValueError):
+                        pass
                 records.append({
                     "name": span.get("name"),
-                    "trace_id": span.get("traceId"),
-                    "span_id": span.get("spanId"),
-                    "parent_span_id": span.get("parentSpanId"),
-                    "attributes": {**resource_attrs, **span_attrs},
-                    "start_time_unix_nano": span.get("startTimeUnixNano"),
-                    "end_time_unix_nano": span.get("endTimeUnixNano"),
+                    "trace_id": normalize_trace_identifier(span.get("traceId"), 16),
+                    "span_id": normalize_trace_identifier(span.get("spanId"), 8),
+                    "parent_span_id": normalize_trace_identifier(span.get("parentSpanId"), 8),
+                    "attributes": attributes,
+                    "start_time_unix_nano": start,
+                    "end_time_unix_nano": end,
                 })
     return records
 
@@ -282,7 +299,7 @@ def ingest_gen_ai_spans(store: GraphStore, records: list[dict[str, Any]]) -> dic
     skipped_spans = 0
 
     for record in records:
-        attrs = record["attributes"]
+        attrs = canonical_gen_ai_attributes(record["attributes"])
         if not any(key in attrs for key in _GEN_AI_MARKER_ATTRS):
             skipped_spans += 1
             continue
@@ -291,6 +308,15 @@ def ingest_gen_ai_spans(store: GraphStore, records: list[dict[str, Any]]) -> dic
         trace_id = record.get("trace_id")
         span_id = record.get("span_id")
         provider = attrs.get("gen_ai.provider.name") or attrs.get("gen_ai.system")
+        attrs.setdefault("provider", provider)
+        if attrs.get("gen_ai.request.model") is not None:
+            attrs.setdefault("model", attrs["gen_ai.request.model"])
+        for standard, legacy in (
+            ("gen_ai.usage.input_tokens", "input_tokens"),
+            ("gen_ai.usage.output_tokens", "output_tokens"),
+        ):
+            if standard in attrs:
+                attrs.setdefault(legacy, attrs[standard])
         agent_id = attrs.get("user.account_uuid") or attrs.get("user.id")
         store.start_session(session_id, retention_tier="verbatim")
 
@@ -329,7 +355,10 @@ def ingest_gen_ai_spans(store: GraphStore, records: list[dict[str, Any]]) -> dic
                     "span_id": tool_call.get("id"),
                     "parent_span_id": span_id,
                     "prompt_id": trace_id,
-                    "attributes": {"provider": provider, "tool_call": tool_call},
+                    "start_time": record.get("start_time_unix_nano"),
+                    "end_time": record.get("end_time_unix_nano"),
+                    "attributes": {**attrs, "gen_ai.tool.name": tool_call.get("name"),
+                                   "gen_ai.tool.type": "function", "tool_call": tool_call},
                 }])
                 stored_otel_events += 1
 
@@ -338,14 +367,11 @@ def ingest_gen_ai_spans(store: GraphStore, records: list[dict[str, Any]]) -> dic
             "name": "gen_ai.chat",
             "trace_id": trace_id,
             "span_id": span_id,
+            "parent_span_id": record.get("parent_span_id"),
             "prompt_id": trace_id,
-            "attributes": {
-                "provider": provider,
-                "model": attrs.get("gen_ai.request.model"),
-                "input_tokens": attrs.get("gen_ai.usage.input_tokens"),
-                "output_tokens": attrs.get("gen_ai.usage.output_tokens"),
-                "finish_reasons": attrs.get("gen_ai.response.finish_reasons"),
-            },
+            "start_time": record.get("start_time_unix_nano"),
+            "end_time": record.get("end_time_unix_nano"),
+            "attributes": attrs,
         }])
         stored_otel_events += 1
 
@@ -361,6 +387,7 @@ def ingest_gen_ai_spans(store: GraphStore, records: list[dict[str, Any]]) -> dic
 # every OTel exporter targeting this receiver already expects these exact paths by default.
 _LOGS_PATH = "/v1/logs"
 _TRACES_PATH = "/v1/traces"
+_METRICS_PATH = "/v1/metrics"
 
 
 def _make_handler(store: GraphStore):
@@ -370,9 +397,11 @@ def _make_handler(store: GraphStore):
         def do_POST(self) -> None:  # noqa: N802 -- BaseHTTPRequestHandler's naming convention
             request_limiter.wait()
             if self.path == _LOGS_PATH:
-                parse_fn, ingest_fn, label = parse_otlp_logs_json, ingest_log_records, "log"
+                signal, parse_fn, ingest_fn, label = "logs", parse_otlp_logs_json, ingest_log_records, "log"
             elif self.path == _TRACES_PATH:
-                parse_fn, ingest_fn, label = parse_otlp_spans_json, ingest_gen_ai_spans, "span"
+                signal, parse_fn, ingest_fn, label = "traces", parse_otlp_spans_json, ingest_gen_ai_spans, "span"
+            elif self.path == _METRICS_PATH:
+                signal, parse_fn, ingest_fn, label = "metrics", parse_otlp_metrics_json, ingest_metric_records, "metric"
             else:
                 self.send_response(404)
                 self.end_headers()
@@ -381,7 +410,8 @@ def _make_handler(store: GraphStore):
             length = int(self.headers.get("Content-Length", 0))
             raw = self.rfile.read(length)
             try:
-                body = json.loads(raw)
+                content_type = self.headers.get("Content-Type", "application/json").split(";", 1)[0].strip().lower()
+                body = protobuf_json(raw, signal) if content_type in {"application/x-protobuf", "application/protobuf"} else json.loads(raw)
                 records = parse_fn(body)
                 result = ingest_fn(store, records)
                 logger.info("ingested %s batch: %s", label, result)
@@ -394,9 +424,14 @@ def _make_handler(store: GraphStore):
             # OTLP/HTTP success response for both Export*ServiceResponse shapes is an empty
             # JSON object -- same for logs and traces.
             self.send_response(200)
-            self.send_header("Content-Type", "application/json")
+            if content_type in {"application/x-protobuf", "application/protobuf"}:
+                self.send_header("Content-Type", "application/x-protobuf")
+                response_body = b""
+            else:
+                self.send_header("Content-Type", "application/json")
+                response_body = b"{}"
             self.end_headers()
-            self.wfile.write(b"{}")
+            self.wfile.write(response_body)
 
         def log_message(self, format: str, *args: Any) -> None:  # noqa: A002
             logger.debug(format, *args)
@@ -407,8 +442,8 @@ def _make_handler(store: GraphStore):
 def serve(store: GraphStore, *, host: str = "localhost", port: int = 4318) -> None:
     server = ThreadingHTTPServer((host, port), _make_handler(store))
     logger.info(
-        "OTLP receiver listening on http://%s:%d (%s logs, %s traces/gen_ai)",
-        host, port, _LOGS_PATH, _TRACES_PATH,
+        "OTLP receiver listening on http://%s:%d (%s logs, %s traces/gen_ai, %s metrics)",
+        host, port, _LOGS_PATH, _TRACES_PATH, _METRICS_PATH,
     )
     try:
         server.serve_forever()

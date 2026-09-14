@@ -159,11 +159,18 @@ class XibalbaRuntimeController:
                 {
                     "kind": "log",
                     "name": "xibalba.runtime.event",
-                    "trace_id": event.turn_id,
-                    "span_id": event.tool_name,
-                    "parent_span_id": event.turn_id,
+                    "trace_id": event.trace_id or event.turn_id,
+                    "span_id": event.span_id or event.invocation_id or event.tool_name,
+                    "parent_span_id": event.parent_span_id,
                     "prompt_id": event.turn_id,
-                    "attributes": event.to_record(),
+                    "start_time": event.start_time,
+                    "end_time": event.end_time,
+                    "attributes": {
+                        **event.to_record(),
+                        "otel.duration_ns": event.duration_ns,
+                        "otel.status.code": event.status_code,
+                        "otel.status.message": event.status_message,
+                    },
                     "idempotency_key": event.idempotency_key,
                 }
             ],

@@ -380,7 +380,7 @@ async def test_otel_batch_and_summary_through_mcp(store):
             ],
         },
     )
-    assert _dict_result(recorded) == {"session_id": "sess-otel-mcp", "recorded": 3}
+    assert _dict_result(recorded) == {"session_id": "sess-otel-mcp", "recorded": 3, "duplicates": 0}
 
     summary = await server.server.call_tool(
         "memory_session_otel_summary", {"external_session_id": "sess-otel-mcp"}

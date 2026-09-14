@@ -18,7 +18,8 @@ source_files:
   - src/xibalba_cortex/server.py
 ---
 
-Runtime bridge schema v2 adds first-class `invocation_id` correlation. Claude pre- and post-tool
+Runtime bridge schema v3 adds first-class native OTel trace/span identity, timing, status, and
+`invocation_id` correlation. Claude pre- and post-tool
 events preserve a supplied canonical UUID or deterministically derive the same UUIDv5 from the
 runtime, session, and native `tool_call_id`. Investigation joins prefer `invocation_id`; fallback
 to provider `tool_call_id` is visibly labeled `legacy_tool_call_id` and is not a cross-system
@@ -35,16 +36,17 @@ correlation claim.
 ## Overview
 
 The runtime-adapter layer is a richer, opt-in identity-and-policy layer on top of the generic
-store primitives — not the only way into Cortex. `RuntimeName = Literal["claude", "hermes", "agy",
-"codex", "gemini", "cursor", "openai_compatible"]` in `runtime_bridge_contract.py` documents the
-eight officially-adapted runtimes, each with a real per-runtime adapter and a declared set of
+store primitives — not the only way into Cortex. `RuntimeName` in `runtime_bridge_contract.py`
+documents the officially-adapted runtimes, each with a real per-runtime adapter and a declared set of
 guarantees. Any other harness talks to the store directly through the generic MCP tools
 (`memory_remember`, `memory_recall`, `memory_ingest_agent_turn`, …) without going through this
 layer at all — see [Generic Ingestion](generic-ingestion.md).
 
-## The eight adapters
+## The runtime adapters
 
-`runtime_bridge_contract.py` defines a `RuntimeAdapterResponsibilities` record per runtime:
+`runtime_bridge_contract.py` defines a `RuntimeAdapterResponsibilities` record per runtime. The
+provider-facing Perplexity, MCP, and Cloud Run adapters are documented separately in
+[Provider Telemetry](provider-telemetry.md):
 
 | Runtime | Transport | Status | Notes |
 |---|---|---|---|

@@ -24,6 +24,9 @@ CONTROLLER_REQUIRED_EVENT_FIELDS = (
     "runtime",
     "session_id",
     "idempotency_key",
+    "trace_id",
+    "span_id",
+    "parent_span_id",
     "invocation_id",
     "turn_id",
     "traceparent",
@@ -35,6 +38,12 @@ CONTROLLER_REQUIRED_EVENT_FIELDS = (
     "token_usage",
     "assistant_response",
     "observed_at_utc",
+    "start_time",
+    "end_time",
+    "duration_ns",
+    "status_code",
+    "status_message",
+    "attributes",
     "provenance",
     "metadata",
 )
@@ -64,6 +73,9 @@ class RuntimeEvent:
     runtime: RuntimeName
     session_id: str
     idempotency_key: str | None = None
+    trace_id: str | None = None
+    span_id: str | None = None
+    parent_span_id: str | None = None
     invocation_id: str | None = None
     turn_id: str | None = None
     traceparent: str | None = None
@@ -75,6 +87,15 @@ class RuntimeEvent:
     token_usage: dict[str, int] | None = None
     assistant_response: str | None = None
     observed_at_utc: str | None = None
+    start_time: str | None = None
+    end_time: str | None = None
+    duration_ns: int | None = None
+    status_code: str | None = None
+    status_message: str | None = None
+    # Canonical OpenTelemetry/GenAI attributes. Integrity metadata remains in ``metadata``
+    # and provenance remains in ``provenance`` so downstream OTel consumers can read the
+    # standard namespace without losing Integrity-specific evidence.
+    attributes: dict[str, Any] = field(default_factory=dict)
     provenance: dict[str, Any] = field(default_factory=dict)
     metadata: dict[str, Any] = field(default_factory=dict)
 

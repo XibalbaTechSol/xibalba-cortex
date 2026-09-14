@@ -904,7 +904,7 @@ def test_otel_batch_ingestion_and_summary(tmp_path):
         {"kind": "metric", "name": "claude_code.cost.usage", "value": 0.0231, "unit": "USD"},
         {"kind": "log", "name": "claude_code.api_request", "attributes": {"duration_ms": 842}},
     ])
-    assert result == {"session_id": "sess-otel", "recorded": 5}
+    assert result == {"session_id": "sess-otel", "recorded": 5, "duplicates": 0}
 
     summary = store.session_otel_summary("sess-otel")
     assert summary["counts_by_kind"] == {"span": 1, "metric": 3, "log": 1}

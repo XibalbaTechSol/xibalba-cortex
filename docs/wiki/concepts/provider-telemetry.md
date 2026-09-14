@@ -19,6 +19,18 @@ Cortex exposes three provider-facing adapters over the shared `RuntimeEvent` sch
 - `CloudRunAdapter` accepts provider-neutral webhook or SDK lifecycle events, recording model,
   request ID, usage, retries, latency, citations, final output, and outcome.
 
+All provider adapters now also emit canonical `gen_ai.*` attributes and
+`gen_ai.client.token.usage` metric datapoints. The Integrity fields remain separate, namespaced
+extensions such as `integrity.agent.did`, `integrity.consent.granted`, and
+`integrity.retention.tier`.
+
+## OpenTelemetry compatibility
+
+`xibalba-cortex-otlp-receiver` accepts OTLP/HTTP JSON and OTLP/HTTP protobuf on `/v1/traces`,
+`/v1/metrics`, and `/v1/logs`. The optional `xibalba-cortex-otlp-grpc-receiver` serves the same
+three signals on the standard gRPC port. `otel_core.build_otlp_exporters()` constructs the
+official OpenTelemetry HTTP/protobuf or gRPC exporters when the `otel` extra is installed.
+
 ## Privacy and authorization
 
 `ProviderTelemetryPolicy` is fail-closed:

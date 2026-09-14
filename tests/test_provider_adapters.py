@@ -59,13 +59,15 @@ def test_perplexity_adapter_captures_response_usage_and_citations_without_networ
                            api_key="not-stored", payload={"input": "question"}, turn_id="t1")
     assert response["id"] == "req-1"
     events = store.session_otel_events("s1")
-    assert events[-1]["attributes"]["token_usage"] == {
+    response_event = next(e for e in events if e["attributes"]["metadata"].get("phase") == "response")
+    assert response_event["attributes"]["token_usage"] == {
         "input_tokens": 3, "output_tokens": 5, "cached_input_tokens": 2,
         "cache_read_tokens": 2, "cache_write_tokens": 1,
         "reasoning_tokens": 4, "reasoning_output_tokens": 4,
     }
-    assert events[-1]["attributes"]["metadata"]["usage"]["cost_usd"] == 0.0125
-    assert events[-1]["attributes"]["metadata"]["citations"]["hash"].startswith("sha256:")
+    assert response_event["attributes"]["metadata"]["usage"]["cost_usd"] == 0.0125
+    assert response_event["attributes"]["metadata"]["citations"]["hash"].startswith("sha256:")
+    assert any(e["kind"] == "metric" and e["name"] == "gen_ai.client.token.usage" for e in events)
     store.close()
 
 

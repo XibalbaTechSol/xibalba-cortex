@@ -3190,7 +3190,10 @@ class GraphStore:
                     if key:
                         dedupe = self._connection.execute(
                             "INSERT OR IGNORE INTO telemetry_event_dedupe(idempotency_key, event_id, provider) VALUES (?, ?, ?)",
-                            (str(key), str(uuid.uuid4()), str((event.get("attributes") or {}).get("provider") or "")),
+                            (str(key), str(uuid.uuid4()), str(
+                                (event.get("attributes") or {}).get("provider")
+                                or (event.get("attributes") or {}).get("gen_ai.provider.name") or ""
+                            )),
                         )
                         if dedupe.rowcount == 0:
                             duplicate_count += 1

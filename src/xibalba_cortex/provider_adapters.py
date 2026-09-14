@@ -19,6 +19,7 @@ from .redaction import redact
 from .config import CortexConfig
 from .runtime_bridge_contract import RuntimeEvent
 from .runtime_controller import XibalbaRuntimeController
+from .otel_core import token_usage_metric_events
 
 TelemetryRuntime = Literal["perplexity", "mcp", "cloud_run"]
 _RETENTION_TIERS = {"digest", "synopsis", "verbatim"}
@@ -149,6 +150,29 @@ class _BaseProviderAdapter:
             )
             raise
         normalized_usage = _usage(usage)
+        standard_attributes: dict[str, Any] = {
+            "gen_ai.provider.name": self.policy.provider,
+            "integrity.agent.did": agent_id,
+            "integrity.consent.granted": True,
+            "integrity.retention.tier": self.policy.retention_tier,
+        }
+        if normalized_usage:
+            standard_attributes.update({
+                f"gen_ai.usage.{key}": value for key, value in normalized_usage.items()
+            })
+            if "cached_input_tokens" in normalized_usage:
+                standard_attributes["gen_ai.usage.cache_read.input_tokens"] = normalized_usage["cached_input_tokens"]
+            if "cache_write_tokens" in normalized_usage:
+                standard_attributes["gen_ai.usage.cache_creation.input_tokens"] = normalized_usage["cache_write_tokens"]
+            if "reasoning_tokens" in normalized_usage:
+                standard_attributes["gen_ai.usage.reasoning.output_tokens"] = normalized_usage["reasoning_tokens"]
+        if metadata:
+            if metadata.get("model"):
+                standard_attributes["gen_ai.request.model"] = metadata["model"]
+            if metadata.get("operation_name"):
+                standard_attributes["gen_ai.operation.name"] = metadata["operation_name"]
+            if metadata.get("tool_name"):
+                standard_attributes["gen_ai.tool.name"] = metadata["tool_name"]
         event_metadata = {"consent_granted": True, "retention_tier": self.policy.retention_tier,
                           "usage": _usage_metadata(usage), **(metadata or {})}
         idempotency_key = "sha256:" + hashlib.sha256(json.dumps({
@@ -158,10 +182,13 @@ class _BaseProviderAdapter:
         }, sort_keys=True, default=str).encode()).hexdigest()
         event = RuntimeEvent(
             runtime=self.runtime, session_id=session_id or "", idempotency_key=idempotency_key,
+            trace_id=turn_id, span_id=invocation_id or tool_name,
+            status_code="ERROR" if outcome == "error" else "OK" if outcome == "success" else None,
             agent_id=agent_id,
             turn_id=turn_id, invocation_id=invocation_id, tool_name=tool_name,
             tool_outcome=outcome, token_usage=normalized_usage,
             assistant_response=assistant_response if self.policy.allow_raw_payloads else None,
+            attributes=standard_attributes,
             provenance={**self.provenance, "provider": self.policy.provider},
             metadata=event_metadata,
         )
@@ -169,11 +196,27 @@ class _BaseProviderAdapter:
                                      agent_id=agent_id, retention_tier=self.policy.retention_tier,
                                      provenance={"provider": self.policy.provider})
         result = self.controller.ingest_event(event)
+        metric_result = {"recorded": 0, "duplicates": 0}
+        if normalized_usage:
+            metric_result = self.controller.store.record_otel_batch(
+                event.session_id,
+                token_usage_metric_events(
+                    session_id=event.session_id, provider=self.policy.provider,
+                    usage=normalized_usage, trace_id=turn_id,
+                    span_id=invocation_id or tool_name,
+                    model=event_metadata.get("model"),
+                    integrity_attributes={"integrity.agent.did": agent_id,
+                                           "integrity.retention.tier": self.policy.retention_tier},
+                ),
+            )
         self.controller.store.record_telemetry_health(
-            self.policy.provider, accepted=int(result.get("recorded", 0)),
-            duplicates=int(result.get("duplicates", 0)),
+            self.policy.provider,
+            accepted=int(result.get("recorded", 0)) + int(metric_result.get("recorded", 0)),
+            duplicates=int(result.get("duplicates", 0)) + int(metric_result.get("duplicates", 0)),
         )
         return {"recorded": int(result.get("recorded", 0)), "duplicates": int(result.get("duplicates", 0)),
+                "metric_recorded": int(metric_result.get("recorded", 0)),
+                "metric_duplicates": int(metric_result.get("duplicates", 0)),
                 "session_id": event.session_id}
 
 
@@ -190,7 +233,7 @@ class PerplexityAdapter(_BaseProviderAdapter):
             turn_id: str | None = None) -> dict[str, Any]:
         safe_request = _payload_metadata(payload, allow_raw=self.policy.allow_raw_payloads)
         self._event(session_id=session_id, agent_id=agent_id, turn_id=turn_id,
-                    metadata={"phase": "request", "request": safe_request})
+                    metadata={"phase": "request", "operation_name": "chat", "request": safe_request})
         try:
             body = json.dumps(payload).encode()
             if self.request_fn:
@@ -208,7 +251,7 @@ class PerplexityAdapter(_BaseProviderAdapter):
             self._event(session_id=session_id, agent_id=agent_id, turn_id=turn_id,
                         outcome="success", assistant_response=output if isinstance(output, str) else None,
                         usage=response.get("usage"), metadata={
-                            "phase": "response", "response": _payload_metadata(response, allow_raw=self.policy.allow_raw_payloads),
+                            "phase": "response", "operation_name": "chat", "model": response.get("model"), "response": _payload_metadata(response, allow_raw=self.policy.allow_raw_payloads),
                             "citations": _payload_metadata(response.get("citations"), allow_raw=self.policy.allow_raw_payloads),
                             "request_id": response.get("id") or response.get("request_id"),
                         })
@@ -224,7 +267,7 @@ class PerplexityAdapter(_BaseProviderAdapter):
         if self.request_async_fn:
             self.policy.authorize(session_id=session_id, agent_id=agent_id)
             self._event(session_id=session_id, agent_id=agent_id, turn_id=turn_id,
-                        metadata={"phase": "request", "request": _payload_metadata(
+                        metadata={"phase": "request", "operation_name": "chat", "request": _payload_metadata(
                             payload, allow_raw=self.policy.allow_raw_payloads)})
             try:
                 response = await self.request_async_fn(self.endpoint, api_key, payload)
@@ -248,7 +291,7 @@ class PerplexityAdapter(_BaseProviderAdapter):
         self._event(session_id=session_id, agent_id=agent_id, turn_id=turn_id,
                     outcome="success", assistant_response=output if isinstance(output, str) else None,
                     usage=response.get("usage"), metadata={
-                        "phase": "response", "response": _payload_metadata(response, allow_raw=self.policy.allow_raw_payloads),
+                        "phase": "response", "operation_name": "chat", "model": response.get("model"), "response": _payload_metadata(response, allow_raw=self.policy.allow_raw_payloads),
                         "citations": _payload_metadata(response.get("citations"), allow_raw=self.policy.allow_raw_payloads),
                         "request_id": response.get("id") or response.get("request_id"),
                     })
@@ -266,7 +309,8 @@ class MCPAdapter(_BaseProviderAdapter):
                      invocation_id: str | None = None) -> dict[str, Any]:
         return self._event(session_id=session_id, agent_id=agent_id, turn_id=turn_id,
                            invocation_id=invocation_id, tool_name=tool_name,
-                           metadata={"phase": "start", "arguments": _payload_metadata(arguments, allow_raw=self.policy.allow_raw_payloads)})
+                           metadata={"phase": "start", "operation_name": "execute_tool", "tool_name": tool_name,
+                                     "arguments": _payload_metadata(arguments, allow_raw=self.policy.allow_raw_payloads)})
 
     def tool_finished(self, *, session_id: str, agent_id: str, tool_name: str,
                       result: Any = None, status: str = "success", turn_id: str | None = None,
@@ -274,7 +318,7 @@ class MCPAdapter(_BaseProviderAdapter):
         outcome = "success" if status in {"success", "ok", "completed"} else "error" if status in {"error", "failed"} else "blocked" if status in {"blocked", "denied"} else "unknown"
         return self._event(session_id=session_id, agent_id=agent_id, turn_id=turn_id,
                            invocation_id=invocation_id, tool_name=tool_name, outcome=outcome,
-                           metadata={"phase": "finish", "duration_ms": duration_ms,
+                           metadata={"phase": "finish", "operation_name": "execute_tool", "tool_name": tool_name, "duration_ms": duration_ms,
                                      "result": _payload_metadata(result, allow_raw=self.policy.allow_raw_payloads)})
 
 
@@ -297,7 +341,7 @@ class CloudRunAdapter(_BaseProviderAdapter):
                            invocation_id=invocation_id, outcome=outcome,
                            assistant_response=output if isinstance(output, str) else None,
                            usage=payload.get("usage"), metadata={
-                               "event_name": event_name, "phase": payload.get("phase"),
+                               "event_name": event_name, "operation_name": "invoke_agent", "phase": payload.get("phase"),
                                "model": payload.get("model"), "provider": payload.get("provider"),
                                "request_id": payload.get("request_id") or payload.get("id"),
                                "latency_ms": payload.get("latency_ms") or payload.get("duration_ms"),

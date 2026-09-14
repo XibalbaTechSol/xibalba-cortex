@@ -14,6 +14,7 @@ dependencies = [
   "sentence-transformers>=5.7.0",
   "pyjwt[crypto]>=2.13.0",
   "requests>=2.34.2",
+  "protobuf>=5.0.0",
 ]
 
 [project.optional-dependencies]
@@ -22,11 +23,20 @@ drive = [
   "google-auth>=2.0",
   "pypdf>=4.0",
 ]
+otel = [
+  "opentelemetry-api>=1.35.0",
+  "opentelemetry-sdk>=1.35.0",
+  "opentelemetry-proto>=1.35.0",
+  "opentelemetry-exporter-otlp-proto-http>=1.35.0",
+  "opentelemetry-exporter-otlp-proto-grpc>=1.35.0",
+  "grpcio>=1.70.0",
+]
 
 [project.scripts]
 xibalba-cortex = "xibalba_cortex.server:main"
 xibalba-cortex-raw-ingest = "xibalba_cortex.raw_body_ingest:main"
 xibalba-cortex-otlp-receiver = "xibalba_cortex.otlp_receiver:main"
+xibalba-cortex-otlp-grpc-receiver = "xibalba_cortex.otlp_grpc_receiver:main"
 xibalba-cortex-transcript-ingest = "xibalba_cortex.transcript_ingest:main"
 xibalba-cortex-session-sync = "xibalba_cortex.session_sync:main"
 xibalba-cortex-codex-mcp-backfill = "xibalba_cortex.codex_mcp_backfill:main"

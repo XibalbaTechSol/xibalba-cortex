@@ -10,6 +10,7 @@ from xibalba_cortex.otlp_receiver import (
     ingest_gen_ai_spans,
     ingest_log_records,
     parse_otlp_logs_json,
+    parse_otlp_metrics_json,
     parse_otlp_spans_json,
     serve,
 )
@@ -210,7 +211,7 @@ def test_serve_accepts_a_real_http_post_end_to_end(tmp_path):
     store.close()
 
 
-def test_serve_returns_404_for_unconfigured_path(tmp_path):
+def test_metrics_endpoint_accepts_otlp_metrics_json(tmp_path):
     store = GraphStore(tmp_path / "graph")
     port = _free_test_port()
     thread = threading.Thread(target=serve, kwargs={"store": store, "port": port}, daemon=True)
@@ -218,13 +219,65 @@ def test_serve_returns_404_for_unconfigured_path(tmp_path):
     import time
     time.sleep(0.3)
 
+    payload = {
+        "resourceMetrics": [{
+            "resource": {"attributes": [_attr("session.id", "metric-session")]},
+            "scopeMetrics": [{"metrics": [{
+                "name": "gen_ai.client.token.usage",
+                "unit": "{token}",
+                "histogram": {"dataPoints": [{
+                    "attributes": [_attr("gen_ai.token.type", "input")],
+                    "count": "1", "sum": 12, "timeUnixNano": "100",
+                }]},
+            }]}],
+        }],
+    }
     request = urllib.request.Request(
-        f"http://localhost:{port}/v1/metrics", data=b"{}", method="POST"
+        f"http://localhost:{port}/v1/metrics", data=json.dumps(payload).encode(),
+        headers={"Content-Type": "application/json"}, method="POST"
     )
-    with pytest.raises(urllib.error.HTTPError) as exc_info:
-        urllib.request.urlopen(request, timeout=5)
-    assert exc_info.value.code == 404
+    with urllib.request.urlopen(request, timeout=5) as response:
+        assert response.status == 200
+    event = store.session_otel_events("metric-session")[0]
+    assert event["kind"] == "metric"
+    assert event["name"] == "gen_ai.client.token.usage"
+    assert event["attributes"]["gen_ai.token.type"] == "input"
     store.close()
+
+
+def test_parse_metrics_supports_canonical_token_usage(tmp_path):
+    payload = {
+        "resourceMetrics": [{
+            "resource": {"attributes": [_attr("session.id", "s1")]},
+            "scopeMetrics": [{"metrics": [{
+                "name": "gen_ai.client.token.usage",
+                "sum": {"dataPoints": [{
+                    "attributes": [_attr("gen_ai.token.type", "output")],
+                    "asInt": "7", "timeUnixNano": "200",
+                }]},
+            }]}],
+        }],
+    }
+    records = parse_otlp_metrics_json(payload)
+    assert records[0]["value"] == "7"
+    assert records[0]["attributes"]["session.id"] == "s1"
+    store = GraphStore(tmp_path / "graph")
+    from xibalba_cortex.otel_core import ingest_metric_records
+    assert ingest_metric_records(store, records)["stored_metrics"] == 1
+    store.close()
+
+
+def test_protobuf_trace_payload_is_decoded():
+    from opentelemetry.proto.collector.trace.v1.trace_service_pb2 import ExportTraceServiceRequest
+    from xibalba_cortex.otel_core import protobuf_json
+    request = ExportTraceServiceRequest()
+    span = request.resource_spans.add().scope_spans.add().spans.add()
+    span.name = "chat"
+    span.trace_id = b"1" * 16
+    span.span_id = b"2" * 8
+    body = protobuf_json(request.SerializeToString(), "traces")
+    assert body["resourceSpans"][0]["scopeSpans"][0]["spans"][0]["name"] == "chat"
+    assert parse_otlp_spans_json(body)[0]["trace_id"] == (b"1" * 16).hex()
 
 
 def test_ingest_dedupes_against_content_already_captured_by_raw_body_ingest(tmp_path):
