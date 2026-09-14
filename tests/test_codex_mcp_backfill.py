@@ -44,6 +44,29 @@ def test_parse_codex_session_skips_incomplete_turns(tmp_path):
     assert parse_codex_session(transcript) == []
 
 
+def test_parse_codex_session_accepts_current_response_item_user_messages(tmp_path):
+    transcript = tmp_path / "rollout-current.jsonl"
+    transcript.write_text(
+        textwrap.dedent(
+            """
+            {"timestamp":"2026-09-14T18:00:00Z","type":"session_meta","payload":{"id":"sess-current"}}
+            {"timestamp":"2026-09-14T18:00:01Z","type":"turn_context","payload":{"turn_id":"turn-current"}}
+            {"timestamp":"2026-09-14T18:00:02Z","type":"response_item","payload":{"type":"message","role":"user","content":[{"type":"input_text","text":"smoke codex"}]}}
+            {"timestamp":"2026-09-14T18:00:03Z","type":"response_item","payload":{"type":"message","role":"assistant","content":[{"type":"output_text","text":"CODEX_OK"}]}}
+            """
+        ).strip()
+        + "\n"
+    )
+
+    turns = parse_codex_session(transcript)
+
+    assert len(turns) == 1
+    assert turns[0].session_id == "sess-current"
+    assert turns[0].turn_id == "turn-current"
+    assert turns[0].prompt == "smoke codex"
+    assert turns[0].response == "CODEX_OK"
+
+
 @pytest.mark.asyncio
 async def test_watch_mode_can_run_one_dry_iteration(tmp_path):
     transcript = tmp_path / "rollout-watch.jsonl"

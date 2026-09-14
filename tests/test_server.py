@@ -488,10 +488,15 @@ async def test_runtime_controller_tools_through_mcp(store):
     assert payload["registered_runtimes"] == [
         "agy",
         "claude",
+        "cloud_run",
         "codex",
         "cursor",
         "gemini",
+        "hermes",
+        "mcp",
         "openai_compatible",
+        "openclaw",
+        "perplexity",
     ]
 
     opened = await server.server.call_tool(

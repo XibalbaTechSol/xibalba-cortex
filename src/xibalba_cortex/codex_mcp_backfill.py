@@ -156,6 +156,18 @@ def parse_codex_session(path: Path) -> list[CodexTurn]:
         turn_id = _turn_id_from_payload(payload, current_turn_id)
         turn = get_turn(turn_id)
 
+        if item_type == "message" and payload.get("role") == "user":
+            prompt = _text(payload.get("content"))
+            if prompt.strip():
+                # Current Codex JSONL emits user turns as response_item messages;
+                # older transcripts use event_msg.user_message above.  Keep the
+                # latest user message for the active turn so injected context
+                # records do not replace the actual request.
+                turn.prompt = prompt
+                turn.prompt_time = timestamp
+                turn.metadata["prompt_line"] = line_number
+            continue
+
         if item_type == "message" and payload.get("role") == "assistant":
             text = _text(payload.get("content"))
             if text.strip():
@@ -231,7 +243,11 @@ async def ingest_turns_via_mcp(
         "XIBALBA_CORTEX_HOME": str(cortex_home),
         "XIBALBA_CORTEX_RETENTION_TIER": os.environ.get("XIBALBA_CORTEX_RETENTION_TIER", "verbatim"),
         "XIBALBA_CORTEX_IDENTITY_MODE": os.environ.get("XIBALBA_CORTEX_IDENTITY_MODE", "full"),
-        "XIBALBA_AGENT_ID": os.environ.get("XIBALBA_AGENT_ID", "codex.backfill"),
+        # The local Codex MCP principal is `codex`; using a separate default
+        # label causes the server's authenticated-principal check to reject
+        # otherwise valid backfill requests. Callers can still override this
+        # for explicitly provisioned identities.
+        "XIBALBA_AGENT_ID": os.environ.get("XIBALBA_AGENT_ID", "codex"),
     }
     params = StdioServerParameters(command=server_command, env=env)
     async with stdio_client(params) as (read, write):
