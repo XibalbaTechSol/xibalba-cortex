@@ -138,7 +138,16 @@ def _bound_agent_id(requested: str | None = None, *, require: bool = False) -> s
     principal = current_principal()
     requested_value = str(requested).strip() if requested is not None and str(requested).strip() else None
     if principal is None:
-        return requested_value
+        if requested_value is not None:
+            return requested_value
+        # Local stdio callers (Claude Code, Hermes, agy) carry no HTTP principal, but the
+        # launching harness already sets XIBALBA_AGENT_ID in this process's own environment
+        # (see server.py's other direct reads of it, e.g. the CORE memory-anchor path) -- it
+        # was just never consulted here, so every session/write tool that relies solely on
+        # _bound_agent_id() silently landed unscoped (agent_id=None) even when the harness
+        # correctly identified itself. 2477 sessions back to 2026-08-05 confirmed this gap.
+        env_agent_id = str(os.environ.get("XIBALBA_AGENT_ID") or "").strip()
+        return env_agent_id or None
     principal_agent = str(principal.get("agent_id") or "").strip() or None
     if principal_agent is None:
         if requested_value is not None:
