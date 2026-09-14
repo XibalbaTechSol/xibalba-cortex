@@ -382,6 +382,12 @@ def _make_handler(store: GraphStore, *, allowed_origin: str):
             return True
 
     class Handler(BaseHTTPRequestHandler):
+        # Without a socket timeout, a client that opens a connection and never completes a
+        # valid HTTP request blocks that handler thread in a raw socket read forever --
+        # permanently consuming one of _BoundedThreadingHTTPServer's fixed thread-pool slots.
+        # Ported alongside the identical fix in xibalba-shield's backend/api.py, 2026-09-14.
+        timeout = 30
+
         def _send_json(self, status: int, payload: object, *, extra_headers: tuple[tuple[str, str], ...] = ()) -> None:
             body = json.dumps(payload).encode()
             with _REQUEST_METRICS_LOCK:
@@ -1120,8 +1126,41 @@ def _make_handler(store: GraphStore, *, allowed_origin: str):
     return Handler
 
 
+class _BoundedThreadingHTTPServer(ThreadingHTTPServer):
+    """ThreadingHTTPServer capped at a fixed number of concurrent request threads.
+
+    Unbounded per-connection threading, combined with GraphStore's lock-held scans (see
+    agent_workspaces()'s docstring), let concurrent polling outpace drain rate and run away to
+    hundreds of threads within minutes (588 observed 2026-09-14) -- the same failure class
+    documented for xibalba-shield's per-device identity resolution. Acquiring the semaphore in
+    process_request (which runs in the single accept-loop thread) blocks new connections from
+    spawning a thread once the cap is hit, turning an unbounded explosion into bounded queuing.
+    """
+
+    daemon_threads = True
+    max_concurrent_requests = 32
+
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        self._request_semaphore = threading.BoundedSemaphore(self.max_concurrent_requests)
+
+    def process_request_thread(self, request, client_address) -> None:
+        try:
+            super().process_request_thread(request, client_address)
+        finally:
+            self._request_semaphore.release()
+
+    def process_request(self, request, client_address) -> None:
+        self._request_semaphore.acquire()
+        threading.Thread(
+            target=self.process_request_thread,
+            args=(request, client_address),
+            daemon=self.daemon_threads,
+        ).start()
+
+
 def serve(store: GraphStore, *, host: str = "localhost", port: int = 8420, allowed_origin: str = "*") -> None:
-    server = ThreadingHTTPServer((host, port), _make_handler(store, allowed_origin=allowed_origin))
+    server = _BoundedThreadingHTTPServer((host, port), _make_handler(store, allowed_origin=allowed_origin))
     logger.info("local_api listening on http://%s:%d (local operator API)", host, port)
     try:
         server.serve_forever()

@@ -12,6 +12,7 @@ import shutil
 import socket
 import sqlite3
 import threading
+import time
 from functools import wraps
 import uuid
 from datetime import datetime, timedelta, timezone
@@ -695,6 +696,8 @@ class GraphStore:
         self.db_path = self.home / "graph-memory.sqlite3"
         self._lock = threading.RLock()
         self._atomic_depth = 0
+        self._agent_workspaces_cache: tuple[float, list[dict[str, object]]] | None = None
+        self._agent_workspaces_cache_ttl_sec = 15.0
         self._connection = sqlite3.connect(
             self.db_path,
             timeout=30.0,
@@ -2023,11 +2026,30 @@ class GraphStore:
         header selector fires on every page load. Real counts for an unpaired
         agent are available via agent_summary()/agent_memories() once it's
         actually selected.
+
+        Short-TTL cached: this scan measured 4+ seconds against this repo's own production DB
+        (2026-09-14) and is hit by the dashboard's header selector on every page load. Without
+        caching, concurrent polling outpaces drain rate under ThreadingHTTPServer's one-thread-
+        per-connection model and thread count runs away (588 threads observed within minutes)
+        -- the same failure class documented for xibalba-shield's per-device identity
+        resolution. A stale-by-at-most-TTL agent list is an acceptable tradeoff against that.
+
+        The cache check and the recompute both happen under ``self._lock`` (not checked, then
+        separately locked) so that N concurrent callers arriving during a cache miss serialize
+        into exactly one recompute: the first to acquire the lock computes and populates the
+        cache, then every caller queued behind it sees a fresh cache hit on its turn instead of
+        each redoing the full scan -- an earlier version checked the cache before acquiring the
+        lock, which let a burst of concurrent requests each recompute in turn (N x 4.2s) and
+        reproduced the same thread/latency pileup this cache was meant to fix.
         """
         bounded_limit = max(1, min(int(limit), 500))
-        workspaces: list[dict[str, object]] = []
         with self._lock:
-            for pair in self.list_agent_devices(limit=bounded_limit):
+            cache = self._agent_workspaces_cache
+            now = time.monotonic()
+            if cache is not None and (now - cache[0]) < self._agent_workspaces_cache_ttl_sec:
+                return cache[1][:bounded_limit]
+            workspaces: list[dict[str, object]] = []
+            for pair in self.list_agent_devices(limit=500):
                 agent_id = str(pair["agent_id"])
                 device_id = str(pair["device_id"])
                 counts = self._connection.execute(
@@ -2051,17 +2073,18 @@ class GraphStore:
             unpaired_rows = self._connection.execute(
                 "SELECT DISTINCT agent_id FROM sources WHERE agent_id IS NOT NULL"
             ).fetchall()
-        for row in unpaired_rows:
-            agent_id = str(row["agent_id"])
-            if agent_id in present:
-                continue
-            workspaces.append({
-                "agent_id": agent_id, "device_id": None,
-                "agent_name": None, "device_name": None,
-                "pair_status": None, "pair_updated_at": None,
-                "memories": 0, "sessions": 0, "last_seen_at": None,
-            })
-        return workspaces[:bounded_limit]
+            for row in unpaired_rows:
+                agent_id = str(row["agent_id"])
+                if agent_id in present:
+                    continue
+                workspaces.append({
+                    "agent_id": agent_id, "device_id": None,
+                    "agent_name": None, "device_name": None,
+                    "pair_status": None, "pair_updated_at": None,
+                    "memories": 0, "sessions": 0, "last_seen_at": None,
+                })
+            self._agent_workspaces_cache = (now, workspaces)
+            return workspaces[:bounded_limit]
 
     def agent_memories(self, agent_id: str, *, device_id: str | None = None, limit: int = 100) -> list[dict[str, object]]:
         normalized = str(agent_id).strip()
