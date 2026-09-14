@@ -89,6 +89,20 @@ def _free_test_port() -> int:
         return probe.getsockname()[1]
 
 
+@pytest.fixture(autouse=True)
+def _no_real_oracle_identity_lookups(monkeypatch):
+    """`/api/agents` calls integrity_sdk.agent_identity.resolve_agent_identities (added
+    2026-09-13 for the cross-product identity-display standard), which makes real HTTP calls
+    to an oracle backend. This suite has no oracle running and must not depend on one --
+    without this, a reachable-but-slow oracle on the test machine (or one that's simply not
+    there, timing out rather than refusing fast) can make these tests flaky or hang. Stubbed
+    to return "no identity info", matching this function's own documented fail-open contract,
+    so every existing assertion about agent_id/device_name/etc. is unaffected -- this only
+    controls the fields this test suite doesn't exercise (display_name/on_chain/handle/...).
+    """
+    monkeypatch.setattr("xibalba_cortex.local_api.resolve_agent_identities", lambda dids, oracle_url, **kw: {})
+
+
 @pytest.fixture
 def running_store(tmp_path):
     global _CURRENT_TOKEN

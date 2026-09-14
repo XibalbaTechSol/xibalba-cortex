@@ -4,6 +4,7 @@ import os
 import hashlib
 import hmac
 import json
+import logging
 import math
 import mimetypes
 import re
@@ -24,6 +25,8 @@ from .events import domain_merkle_proof, domain_merkle_root, merkle_proof, merkl
 from . import projection_reconcile
 from .providers import InferenceTaskContract, validate_contradiction_result, validate_extraction_result, validate_metadata_result
 from .redaction import redact
+
+logger = logging.getLogger("xibalba_cortex.store")
 
 _SCHEMA_VERSION = 13
 
@@ -750,6 +753,23 @@ class GraphStore:
         device_id = self.local_device_id()
         if not agent_id or not device_id:
             return
+        # XIBALBA_AGENT_ID is often a raw local label (e.g. "xibalba.agent"), not the DID --
+        # resolve it through the AgentSubject SAME_SUBJECT mapping first, or a heartbeat that
+        # re-runs this on every store open clobbers a device's DID pairing back to the label.
+        # resolve_subject()'s own docstring warns its return value (the lexicographically
+        # smallest label in the mapping group) is NOT a stable id and must not be persisted
+        # as one -- only accept it here when it's actually DID-shaped, so a future mapping
+        # edge that happens to sort below the DID can't silently repoint this device's agent_id
+        # back to a non-DID label. Any other outcome (resolution unavailable, or the group's
+        # smallest label isn't a DID) keeps the raw XIBALBA_AGENT_ID value, same as before.
+        try:
+            from integrity_sdk.agent_subject import resolve_subject
+
+            resolved = resolve_subject(agent_id)
+            if resolved.startswith("did:"):
+                agent_id = resolved
+        except Exception:
+            logger.warning("agent_subject resolution failed for %r; using raw label", agent_id, exc_info=True)
         persisted_agent = self.storage_agent_id(agent_id)
         if persisted_agent:
             self.associate_agent_device(
@@ -1989,65 +2009,57 @@ class GraphStore:
         return [dict(row) for row in rows]
 
     def agent_workspaces(self, *, limit: int = 100) -> list[dict[str, object]]:
-        """List canonical agent/device memory namespaces without merging identities."""
+        """List canonical agent/device memory namespaces without merging identities.
+
+        Paired agents (from `agent_devices`, expected to be few) get a real
+        per-agent memories/sessions count. Every OTHER agent_id present in
+        `sources` but never device-paired appears too (a prior "pairs only, full
+        scan only as a fallback when there are zero pairs" version silently hid
+        any agent with real memories but no device pairing -- the common case,
+        not an edge case) -- but with counts left at 0 rather than run through a
+        full memories/sources join: on a profile with order-10^6 memory rows that
+        join is a multi-second-to-minutes table scan (measured live against this
+        repo's own production DB, 2026-09-14), unacceptable for a request the
+        header selector fires on every page load. Real counts for an unpaired
+        agent are available via agent_summary()/agent_memories() once it's
+        actually selected.
+        """
         bounded_limit = max(1, min(int(limit), 500))
-        # The operator dashboard must remain responsive on large profiles. When
-        # registered device pairs exist, start from that small authoritative set
-        # instead of scanning the entire memories table before appending pairs.
-        pair_rows = self.list_agent_devices(limit=bounded_limit)
-        if pair_rows:
-            workspaces: list[dict[str, object]] = []
-            with self._lock:
-                for pair in pair_rows:
-                    agent_id = str(pair["agent_id"])
-                    device_id = str(pair["device_id"])
-                    counts = self._connection.execute(
-                        """SELECT COUNT(DISTINCT memories.id) AS memories,
-                                  COUNT(DISTINCT sources.session_id) AS sessions,
-                                  MAX(memories.created_at) AS last_seen_at
-                           FROM memories JOIN sources ON sources.id = memories.source_id
-                           WHERE sources.agent_id = ?
-                             AND json_extract(sources.metadata_json, '$.device_id') = ?""",
-                        (agent_id, device_id),
-                    ).fetchone()
-                    workspaces.append({
-                        "agent_id": agent_id, "device_id": device_id,
-                        "agent_name": None, "device_name": pair["display_name"],
-                        "pair_status": pair["status"], "pair_updated_at": pair["updated_at"],
-                        "memories": int(counts["memories"] or 0),
-                        "sessions": int(counts["sessions"] or 0),
-                        "last_seen_at": counts["last_seen_at"] or pair["last_seen_at"],
-                    })
-            return workspaces
+        workspaces: list[dict[str, object]] = []
         with self._lock:
-            rows = self._connection.execute(
-                """
-                SELECT sources.agent_id,
-                       json_extract(sources.metadata_json, '$.device_id') AS device_id,
-                       json_extract(sources.metadata_json, '$.agent_name') AS agent_name,
-                       COUNT(DISTINCT memories.id) AS memories,
-                       COUNT(DISTINCT sources.session_id) AS sessions,
-                       MAX(memories.created_at) AS last_seen_at
-                FROM memories JOIN sources ON sources.id = memories.source_id
-                WHERE sources.agent_id IS NOT NULL
-                GROUP BY sources.agent_id, device_id, agent_name
-                ORDER BY last_seen_at DESC LIMIT ?
-                """,
-                (bounded_limit,),
+            for pair in self.list_agent_devices(limit=bounded_limit):
+                agent_id = str(pair["agent_id"])
+                device_id = str(pair["device_id"])
+                counts = self._connection.execute(
+                    """SELECT COUNT(DISTINCT memories.id) AS memories,
+                              COUNT(DISTINCT sources.session_id) AS sessions,
+                              MAX(memories.created_at) AS last_seen_at
+                       FROM memories JOIN sources ON sources.id = memories.source_id
+                       WHERE sources.agent_id = ?
+                         AND json_extract(sources.metadata_json, '$.device_id') = ?""",
+                    (agent_id, device_id),
+                ).fetchone()
+                workspaces.append({
+                    "agent_id": agent_id, "device_id": device_id,
+                    "agent_name": None, "device_name": pair["display_name"],
+                    "pair_status": pair["status"], "pair_updated_at": pair["updated_at"],
+                    "memories": int(counts["memories"] or 0),
+                    "sessions": int(counts["sessions"] or 0),
+                    "last_seen_at": counts["last_seen_at"] or pair["last_seen_at"],
+                })
+            present = {str(item["agent_id"]) for item in workspaces}
+            unpaired_rows = self._connection.execute(
+                "SELECT DISTINCT agent_id FROM sources WHERE agent_id IS NOT NULL"
             ).fetchall()
-        workspaces = [dict(row) for row in rows]
-        source_pairs = {(row["agent_id"], row.get("device_id")) for row in workspaces}
-        for pair in self.list_agent_devices(limit=bounded_limit):
-            key = (pair["agent_id"], pair["device_id"])
-            if key in source_pairs:
-                row = next(item for item in workspaces if (item["agent_id"], item.get("device_id")) == key)
-                row.update({"device_name": pair["display_name"], "pair_status": pair["status"], "pair_updated_at": pair["updated_at"]})
+        for row in unpaired_rows:
+            agent_id = str(row["agent_id"])
+            if agent_id in present:
                 continue
             workspaces.append({
-                "agent_id": pair["agent_id"], "device_id": pair["device_id"],
-                "agent_name": None, "device_name": pair["display_name"],
-                "pair_status": pair["status"], "pair_updated_at": pair["updated_at"],
-                "memories": 0, "sessions": 0, "last_seen_at": pair["last_seen_at"],
+                "agent_id": agent_id, "device_id": None,
+                "agent_name": None, "device_name": None,
+                "pair_status": None, "pair_updated_at": None,
+                "memories": 0, "sessions": 0, "last_seen_at": None,
             })
         return workspaces[:bounded_limit]
 

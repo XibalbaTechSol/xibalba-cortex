@@ -112,6 +112,7 @@ from .connector_policy import ConnectorRateLimiter
 from .ingest_tokens import _connect, list_tokens, verify_token_record
 from .accounts import account_for_token, approve_account, change_account_password, create_account, issue_account_session, request_password_reset, reset_password, revoke_account_session, revoke_account_session_by_id
 from .providers import InferenceTaskContract, connector_manifest
+from integrity_sdk.agent_identity import resolve_agent_identities
 from .store import MEMORY_INFERENCE_SUBAGENT_MANIFEST, GraphStore, _INFERENCE_TASK_TYPES
 
 
@@ -545,24 +546,12 @@ def _make_handler(store: GraphStore, *, allowed_origin: str):
                         raise PermissionError("credential is not bound to an agent")
                     self._send_json(200, store.agent_summary(agent_filter, limit=limit))
                 elif parts == ["api", "agents"]:
-                    # Prefer the bounded registered-pair projection for the header
-                    # selector. The historical memory aggregation can span millions
-                    # of rows and must not block identity selection on a large profile.
-                    pair_rows = store.list_agent_devices(limit=int(params.get("limit", 100)))
-                    workspaces = [
-                        {
-                            "agent_id": pair["agent_id"],
-                            "device_id": pair["device_id"],
-                            "agent_name": None,
-                            "device_name": pair["display_name"],
-                            "pair_status": pair["status"],
-                            "pair_updated_at": pair["updated_at"],
-                            "memories": 0,
-                            "sessions": 0,
-                            "last_seen_at": pair["last_seen_at"],
-                        }
-                        for pair in pair_rows
-                    ] or store.agent_workspaces(limit=int(params.get("limit", 100)))
+                    # agent_workspaces() scans sources/memories for every agent_id and
+                    # overlays agent_devices pairing metadata where it exists -- it must
+                    # not be replaced with a pairs-only projection here, or any agent
+                    # with real memories but no device pairing silently disappears from
+                    # the header selector (the common case, not an edge case).
+                    workspaces = store.agent_workspaces(limit=int(params.get("limit", 100)))
                     authorized = _principal_agent_ids(principal)
                     if authorized:
                         persisted = {value for agent in authorized if (value := store.storage_agent_id(agent))}
@@ -589,6 +578,31 @@ def _make_handler(store: GraphStore, *, allowed_origin: str):
                                 "last_seen_at": None,
                             })
                         workspaces = workspaces[:max(1, min(int(params.get("limit", 100)), 500))]
+                    # Standardized 2026-09-13 identity resolution (see integrity_sdk's own
+                    # docstring): on-chain status + XNS handle/DID-doc name/local label, the
+                    # same contract Shield and the dashboard use for the same three questions
+                    # ("what do I call this agent", "is it real", "is it on-chain").
+                    #
+                    # `import os` here (module already imported at file scope) works around
+                    # this same do_GET method's own local `import os` further down (elif
+                    # branch handling a different route) -- that local import makes `os` a
+                    # function-local name for this entire method under Python's scoping
+                    # rules, which would otherwise make this earlier reference raise
+                    # UnboundLocalError.
+                    import os
+                    identities = resolve_agent_identities(
+                        [str(item["agent_id"]) for item in workspaces if item.get("agent_id")],
+                        os.environ.get("XIBALBA_ORACLE_URL", "http://localhost:8080"),
+                    )
+                    for item in workspaces:
+                        identity = identities.get(str(item.get("agent_id")))
+                        if identity:
+                            item.update(identity)
+                            # The viewer's existing card rendering
+                            # (`workspace.device_name || workspace.agent_name`) already reads
+                            # this exact field -- set it from the resolved display name so no
+                            # viewer change is needed, instead of leaving it permanently null.
+                            item["agent_name"] = identity["display_name"]
                     self._send_json(200, {"agents": workspaces})
                 elif parts == ["api", "agent-devices"]:
                     _assert_pair_manager(principal)

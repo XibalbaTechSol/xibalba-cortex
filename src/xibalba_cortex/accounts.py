@@ -211,7 +211,15 @@ def issue_account_session(home: str | Path, *, email: str, password: str, ttl_ho
         conn.execute("UPDATE accounts SET failed_attempts=0, locked_until=NULL WHERE id=?", (row["id"],))
         token = secrets.token_urlsafe(32)
         expires = (now + timedelta(hours=ttl_hours)).isoformat()
-        conn.execute("INSERT INTO ingest_tokens(id,label,token_hash,profile_id,roles_json,scopes_json,expires_at,agent_id,agent_ids_json) VALUES(?,?,?,?,?,?,?,?,?)", (str(uuid.uuid4()), f"account:{row['email']}", _hash(token), row["profile_id"], json.dumps(["operator"]), json.dumps(sorted(ROLE_SCOPES["operator"])), expires, None, json.dumps(effective_ids)))
+        account_role = row["role"] if row["role"] in ROLE_SCOPES else "operator"
+        # `effective_scopes` only ever intersects the *requested* scopes against what the role
+        # grants -- it never expands a "*" role grant itself. So requesting every known concrete
+        # scope here (matching ingest_tokens.py's CLI `issue` convention) lets the role do the
+        # real narrowing; requesting "*" verbatim, as ROLE_SCOPES["admin"] literally contains,
+        # would store the literal string "*" as the session's scope and never match a concrete
+        # required scope like "memory:read" at auth time.
+        all_known_scopes = sorted({scope for grants in ROLE_SCOPES.values() for scope in grants if scope != "*"})
+        conn.execute("INSERT INTO ingest_tokens(id,label,token_hash,profile_id,roles_json,scopes_json,expires_at,agent_id,agent_ids_json) VALUES(?,?,?,?,?,?,?,?,?)", (str(uuid.uuid4()), f"account:{row['email']}", _hash(token), row["profile_id"], json.dumps([account_role]), json.dumps(all_known_scopes), expires, None, json.dumps(effective_ids)))
         conn.commit()
     finally:
         conn.close()

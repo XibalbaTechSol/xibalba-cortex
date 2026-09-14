@@ -521,6 +521,11 @@ export interface AgentWorkspace {
   memories: number
   sessions: number
   last_seen_at?: string | null
+  /** Standardized 2026-09-13 identity fields (integrity_sdk.agent_identity, same contract
+   *  Shield and the dashboard use) -- absent only if the oracle was unreachable when this
+   *  response was built. */
+  on_chain?: boolean
+  wallet_address?: string | null
 }
 
 async function getJson<T>(path: string): Promise<T> {
