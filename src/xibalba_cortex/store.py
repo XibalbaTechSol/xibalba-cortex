@@ -370,6 +370,22 @@ CREATE INDEX IF NOT EXISTS idx_otel_events_session_name ON otel_events(session_i
 CREATE INDEX IF NOT EXISTS idx_otel_events_prompt_id ON otel_events(prompt_id);
 CREATE INDEX IF NOT EXISTS idx_otel_events_memory_id ON otel_events(memory_id);
 
+CREATE TABLE IF NOT EXISTS telemetry_event_dedupe (
+    idempotency_key TEXT PRIMARY KEY,
+    event_id TEXT NOT NULL,
+    provider TEXT,
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS telemetry_health (
+    provider TEXT PRIMARY KEY,
+    accepted INTEGER NOT NULL DEFAULT 0,
+    duplicates INTEGER NOT NULL DEFAULT 0,
+    rejected INTEGER NOT NULL DEFAULT 0,
+    last_error TEXT,
+    last_seen_at TEXT
+);
+
 -- A session's complete memory as a walkable, Merkle-chained sequence of exchanges -- the same
 -- content-addressed, backward-linked pattern already proven for memory_events (and explored
 -- for the Integrity DAG), applied one level up: instead of chaining a single memory's own
@@ -3163,11 +3179,23 @@ class GraphStore:
         section 4.9.
         """
         self.get_session(external_session_id)  # raises KeyError if never started
-        rows = [self._validate_otel_event(event) for event in events]
+        rows = []
+        duplicate_count = 0
         with self._lock:
             if self._atomic_depth == 0:
                 self._connection.execute("BEGIN IMMEDIATE")
             try:
+                for event in events:
+                    key = event.get("idempotency_key")
+                    if key:
+                        dedupe = self._connection.execute(
+                            "INSERT OR IGNORE INTO telemetry_event_dedupe(idempotency_key, event_id, provider) VALUES (?, ?, ?)",
+                            (str(key), str(uuid.uuid4()), str((event.get("attributes") or {}).get("provider") or "")),
+                        )
+                        if dedupe.rowcount == 0:
+                            duplicate_count += 1
+                            continue
+                    rows.append(self._validate_otel_event(event))
                 self._connection.executemany(
                     """
                     INSERT INTO otel_events(
@@ -3183,7 +3211,65 @@ class GraphStore:
                 if self._atomic_depth == 0:
                     self._connection.execute("ROLLBACK")
                 raise
-        return {"session_id": external_session_id, "recorded": len(rows)}
+        return {"session_id": external_session_id, "recorded": len(rows), "duplicates": duplicate_count}
+
+    def record_telemetry_health(self, provider: str, *, accepted: int = 0,
+                                duplicates: int = 0, rejected: int = 0,
+                                error: str | None = None) -> None:
+        """Persist operational counters for provider telemetry without retaining payloads."""
+        if not provider:
+            return
+        with self._lock:
+            self._connection.execute(
+                """INSERT INTO telemetry_health(provider, accepted, duplicates, rejected, last_error, last_seen_at)
+                   VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+                   ON CONFLICT(provider) DO UPDATE SET accepted = accepted + excluded.accepted,
+                   duplicates = duplicates + excluded.duplicates, rejected = rejected + excluded.rejected,
+                   last_error = excluded.last_error, last_seen_at = CURRENT_TIMESTAMP""",
+                (provider, int(accepted), int(duplicates), int(rejected), error),
+            )
+            self._connection.commit()
+
+    def telemetry_health_report(self) -> list[dict[str, object]]:
+        with self._lock:
+            return [dict(row) for row in self._connection.execute(
+                "SELECT provider, accepted, duplicates, rejected, last_error, last_seen_at "
+                "FROM telemetry_health ORDER BY provider"
+            ).fetchall()]
+
+    def export_provider_telemetry(self, provider: str, *, limit: int = 500) -> dict[str, object]:
+        """Export bounded provider events with a local Merkle-style commitment."""
+        bounded = max(1, min(int(limit), 5000))
+        with self._lock:
+            rows = self._connection.execute(
+                "SELECT * FROM otel_events WHERE json_extract(attributes_json, '$.provenance.provider') = ? "
+                "OR json_extract(attributes_json, '$.provider') = ? ORDER BY rowid LIMIT ?",
+                (provider, provider, bounded),
+            ).fetchall()
+        events = [dict(row) for row in rows]
+        leaves = [self._sha256(self._canonical_json(event)) for event in events]
+        return {"schema_version": "xibalba.provider_telemetry_export.v1", "provider": provider,
+                "count": len(events), "events": events, "leaf_hashes": leaves,
+                "root_hash": domain_merkle_root(leaves, domain="provider_telemetry_export") or self._sha256("empty")}
+
+    def delete_provider_telemetry(self, provider: str, *, before: str,
+                                  apply: bool = False, limit: int = 500) -> dict[str, object]:
+        """Plan or apply bounded deletion of provider telemetry; default is non-destructive."""
+        bounded = max(1, min(int(limit), 5000))
+        with self._lock:
+            rows = self._connection.execute(
+                "SELECT id, session_id, created_at FROM otel_events WHERE "
+                "(json_extract(attributes_json, '$.provenance.provider') = ? OR json_extract(attributes_json, '$.provider') = ?) "
+                "AND created_at < ? ORDER BY rowid LIMIT ?", (provider, provider, before, bounded),
+            ).fetchall()
+            ids = [row["id"] for row in rows]
+            if apply and ids:
+                self._connection.executemany("DELETE FROM otel_events WHERE id = ?", [(item,) for item in ids])
+                self._connection.commit()
+        return {"schema_version": "xibalba.provider_telemetry_deletion.v1", "provider": provider,
+                "before": before, "apply": apply, "count": len(rows),
+                "events": [dict(row) for row in rows],
+                "disclaimer": "Deletion is local telemetry deletion; it does not revoke provider-side copies."}
 
     def memory_otel_events(self, memory_id: str) -> list[dict[str, object]]:
         """OTel events correlated with a specific memory: explicit memory_id matches (strong

@@ -18,6 +18,11 @@ from .runtime_bridge_contract import (
     CODEX_ADAPTER,
     CURSOR_ADAPTER,
     GEMINI_ADAPTER,
+    HERMES_ADAPTER,
+    OPENCLAW_ADAPTER,
+    PERPLEXITY_ADAPTER,
+    MCP_ADAPTER,
+    CLOUD_RUN_ADAPTER,
     OPENAI_COMPATIBLE_ADAPTER,
     RuntimeAdapterResponsibilities,
     RuntimeEvent,
@@ -159,10 +164,13 @@ class XibalbaRuntimeController:
                     "parent_span_id": event.turn_id,
                     "prompt_id": event.turn_id,
                     "attributes": event.to_record(),
+                    "idempotency_key": event.idempotency_key,
                 }
             ],
         )
-        return {"recorded": 1, "session_id": event.session_id, "store_result": result}
+        return {"recorded": int(result.get("recorded", 0)),
+                "duplicates": int(result.get("duplicates", 0)),
+                "session_id": event.session_id, "store_result": result}
 
     def ingest_events(self, events: list[RuntimeEvent]) -> list[dict[str, Any]]:
         return [self.ingest_event(event) for event in events]
@@ -279,6 +287,11 @@ __all__ = [
     "CODEX_ADAPTER",
     "CURSOR_ADAPTER",
     "GEMINI_ADAPTER",
+    "HERMES_ADAPTER",
+    "OPENCLAW_ADAPTER",
+    "PERPLEXITY_ADAPTER",
+    "MCP_ADAPTER",
+    "CLOUD_RUN_ADAPTER",
     "OPENAI_COMPATIBLE_ADAPTER",
 ]
 

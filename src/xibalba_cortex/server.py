@@ -35,6 +35,11 @@ from xibalba_cortex.runtime_bridge_contract import (
     CODEX_ADAPTER,
     CURSOR_ADAPTER,
     GEMINI_ADAPTER,
+    HERMES_ADAPTER,
+    OPENCLAW_ADAPTER,
+    PERPLEXITY_ADAPTER,
+    MCP_ADAPTER,
+    CLOUD_RUN_ADAPTER,
     OPENAI_COMPATIBLE_ADAPTER,
     RuntimeEvent,
 )
@@ -104,6 +109,11 @@ def get_controller() -> XibalbaRuntimeController:
     if _controller is None or _controller.store is not get_store():
         _controller = XibalbaRuntimeController(get_store())
         _controller.register_runtime(CLAUDE_ADAPTER, provenance={"source": "mcp_server"})
+        _controller.register_runtime(HERMES_ADAPTER, provenance={"source": "mcp_server"})
+        _controller.register_runtime(OPENCLAW_ADAPTER, provenance={"source": "mcp_server"})
+        _controller.register_runtime(PERPLEXITY_ADAPTER, provenance={"source": "mcp_server"})
+        _controller.register_runtime(MCP_ADAPTER, provenance={"source": "mcp_server"})
+        _controller.register_runtime(CLOUD_RUN_ADAPTER, provenance={"source": "mcp_server"})
         _controller.register_runtime(AGY_ADAPTER, provenance={"source": "mcp_server"})
         _controller.register_runtime(CODEX_ADAPTER, provenance={"source": "mcp_server"})
         _controller.register_runtime(GEMINI_ADAPTER, provenance={"source": "mcp_server"})

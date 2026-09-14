@@ -117,6 +117,43 @@ def test_api_request_error_records_otel_log_event(tmp_path):
     store.close()
 
 
+def test_extended_observer_hooks_capture_correlation_and_bound_payload_metadata(tmp_path):
+    store, adapter = _adapter(tmp_path)
+    adapter.on_session_start(session_id="s1")
+    adapter.pre_llm_call(session_id="s1", turn_id="turn-1", model="m", messages=[{"role": "user"}])
+    adapter.pre_api_request(session_id="s1", turn_id="turn-1", api_request_id="req-1", provider="p")
+    adapter.pre_tool_call(session_id="s1", turn_id="turn-1", tool_call_id="tool-1",
+                          tool_name="shell", arguments={"command": "secret"})
+    adapter.on_stream_start(session_id="s1", turn_id="turn-1", api_request_id="req-1")
+    adapter.on_stream_end(session_id="s1", turn_id="turn-1", delta_count=3, text_chars=12)
+    adapter.on_skill_lifecycle(session_id="s1", skill_name="demo", action="load", status="ok")
+    adapter.pre_command(session_id="s1", command="secret command")
+    events = store.session_otel_events("s1")
+    names = [event["name"] for event in events]
+    assert names == [
+        "hermes.llm_start", "hermes.api_request_start", "tool_call_start.shell",
+        "hermes.stream_start", "hermes.stream_end", "hermes.skill_lifecycle",
+        "hermes.command_start",
+    ]
+    assert events[2]["attributes"]["arguments_hash"]
+    assert "secret" not in str(events[2]["attributes"])
+    assert events[4]["attributes"]["delta_count"] == 3
+    store.close()
+
+
+def test_session_finalize_and_reset_are_observer_events_not_session_close(tmp_path):
+    store, adapter = _adapter(tmp_path)
+    adapter.on_session_start(session_id="s1")
+    adapter.on_session_finalize(session_id="s1", reason="turn finalized")
+    adapter.on_session_reset(session_id="s1", reason="new task")
+    session = store.get_session("s1")
+    assert session["ended_at"] is None
+    assert [e["name"] for e in store.session_otel_events("s1")] == [
+        "hermes.session_finalize", "hermes.session_reset"
+    ]
+    store.close()
+
+
 def test_post_tool_call_records_span_event_parented_to_turn(tmp_path):
     store, adapter = _adapter(tmp_path)
     adapter.post_tool_call(

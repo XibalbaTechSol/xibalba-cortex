@@ -154,8 +154,12 @@ class CodexAdapter:
         )
         return {"closed": True, **closed}
 
-    def record_observation(self, *, session_id: str | None = None, note: str | None = None, **kwargs: Any) -> dict[str, Any]:
-        """Optional best-effort helper; not a native Codex tool hook."""
+    def record_observation(self, *, session_id: str | None = None, note: str | None = None,
+                           event_name: str = "codex.wrapper.observation",
+                           turn_id: str | None = None, invocation_id: str | None = None,
+                           tool_name: str | None = None, status: str | None = None,
+                           duration_ms: float | None = None, **kwargs: Any) -> dict[str, Any]:
+        """Record an explicitly forwarded wrapper observation; not a native Codex hook."""
         if not session_id:
             return {"recorded": 0, "reason": "missing session_id"}
         if not note:
@@ -164,11 +168,14 @@ class CodexAdapter:
             RuntimeEvent(
                 runtime=self.runtime,
                 session_id=session_id,
-                tool_name="codex.adapter.observation",
-                tool_outcome="unknown",
+                invocation_id=invocation_id,
+                turn_id=turn_id,
+                tool_name=tool_name or event_name,
+                tool_outcome=("success" if status in {"ok", "success", "completed"}
+                              else "error" if status in {"error", "failed"} else "unknown"),
                 provenance={**self.provenance, **kwargs},
                 assistant_response=note,
-                metadata={"hook": "observation"},
+                metadata={"hook": event_name, "status": status, "duration_ms": duration_ms},
             )
         )
         return {"recorded": 1, "session_id": session_id}

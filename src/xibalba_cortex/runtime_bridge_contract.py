@@ -13,16 +13,17 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass, field
 from typing import Any, Literal, Protocol
 
-RuntimeName = Literal["claude", "agy", "codex", "gemini", "cursor", "openai_compatible"]
+RuntimeName = Literal["claude", "hermes", "openclaw", "perplexity", "mcp", "cloud_run", "agy", "codex", "gemini", "cursor", "openai_compatible"]
 TransportMode = Literal["hooks", "wrapper", "launcher"]
 AdapterStatus = Literal["implemented", "partial", "unknown"]
 ToolOutcome = Literal["success", "error", "blocked", "unknown"]
 
-CONTROLLER_EVENT_SCHEMA_VERSION = "xibalba.runtime.bridge.v2"
+CONTROLLER_EVENT_SCHEMA_VERSION = "xibalba.runtime.bridge.v3"
 CONTROLLER_REQUIRED_EVENT_FIELDS = (
     "schema_version",
     "runtime",
     "session_id",
+    "idempotency_key",
     "invocation_id",
     "turn_id",
     "traceparent",
@@ -62,6 +63,7 @@ class RuntimeEvent:
 
     runtime: RuntimeName
     session_id: str
+    idempotency_key: str | None = None
     invocation_id: str | None = None
     turn_id: str | None = None
     traceparent: str | None = None
@@ -117,6 +119,60 @@ CLAUDE_ADAPTER = RuntimeAdapterResponsibilities(
         "normalized_event_ingest",
     ),
     notes="Claude Code has the richest native hook surface and should be treated as the reference adapter.",
+)
+
+HERMES_ADAPTER = RuntimeAdapterResponsibilities(
+    runtime="hermes",
+    transport="hooks",
+    status="implemented",
+    responsibilities=(
+        "bind_identity", "session_start", "session_end", "llm_telemetry",
+        "api_request_telemetry", "stream_telemetry", "tool_telemetry",
+        "approval_telemetry", "skill_and_command_telemetry", "subagent_telemetry",
+        "memory_bus_access",
+    ),
+    guarantees=("normalized_event_ingest", "session_trace_propagation", "privacy_bounded_payload_hashes"),
+    limitations=("observer_only_no_policy_enforcement", "native_provider_may_own_prompt_response_persistence"),
+    notes="Hermes Observer Hooks are bridged into Cortex; Integrity policy enforcement remains a separate gate.",
+)
+
+OPENCLAW_ADAPTER = RuntimeAdapterResponsibilities(
+    runtime="openclaw",
+    transport="hooks",
+    status="implemented",
+    responsibilities=(
+        "bind_identity", "session_start", "session_end", "agent_telemetry",
+        "model_and_prompt_telemetry", "tool_telemetry", "message_telemetry",
+        "compaction_telemetry", "subagent_telemetry", "gateway_telemetry",
+        "memory_bus_access",
+    ),
+    guarantees=("normalized_event_ingest", "session_and_run_correlation", "privacy_bounded_payload_hashes"),
+    limitations=("observer_only_no_policy_enforcement", "requires_native_openclaw_plugin_registration"),
+    notes="Typed OpenClaw plugin hooks are the live source; internal HOOK.md events and Gateway RPC are separate surfaces.",
+)
+
+PERPLEXITY_ADAPTER = RuntimeAdapterResponsibilities(
+    runtime="perplexity", transport="wrapper", status="implemented",
+    responsibilities=("direct_agent_api", "request_response_telemetry", "usage_and_citation_capture"),
+    guarantees=("explicit_consent_gate", "did_session_binding", "privacy_bounded_payloads"),
+    limitations=("provider_api_response_is_the_observable_boundary",),
+    notes="Direct Agent API integration; provider-internal reasoning remains unavailable.",
+)
+
+MCP_ADAPTER = RuntimeAdapterResponsibilities(
+    runtime="mcp", transport="hooks", status="implemented",
+    responsibilities=("tool_start_telemetry", "tool_finish_telemetry", "invocation_correlation"),
+    guarantees=("explicit_consent_gate", "did_session_binding", "privacy_bounded_payloads"),
+    limitations=("captures MCP boundary only",),
+    notes="Tool-boundary adapter; it does not claim model or provider-side visibility.",
+)
+
+CLOUD_RUN_ADAPTER = RuntimeAdapterResponsibilities(
+    runtime="cloud_run", transport="wrapper", status="implemented",
+    responsibilities=("request_lifecycle", "usage_capture", "citation_capture", "retry_capture", "final_output_capture"),
+    guarantees=("explicit_consent_gate", "did_session_binding", "privacy_bounded_payloads"),
+    limitations=("requires provider webhook, SDK callback, or gateway integration",),
+    notes="Provider-neutral cloud event adapter for externally supplied lifecycle events.",
 )
 
 AGY_ADAPTER = RuntimeAdapterResponsibilities(

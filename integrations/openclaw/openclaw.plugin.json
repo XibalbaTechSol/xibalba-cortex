@@ -1,0 +1,6 @@
+{
+  "id": "xibalba-cortex-telemetry",
+  "name": "Xibalba Cortex telemetry",
+  "description": "Observer-only OpenClaw typed-hook bridge into local Cortex.",
+  "entry": "./xibalba_cortex_plugin.mjs"
+}

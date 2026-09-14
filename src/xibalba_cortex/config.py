@@ -99,6 +99,16 @@ class FeatureConfig:
 
 
 @dataclass(frozen=True)
+class ProviderTelemetryConfig:
+    """Explicit opt-in policy for external provider telemetry."""
+
+    enabled: bool = False
+    consented_providers: tuple[str, ...] = ()
+    retention_tier: str = "digest"
+    allow_raw_payloads: bool = False
+
+
+@dataclass(frozen=True)
 class CortexConfig:
     profile_id: str = "default"
     mode: str = "local"
@@ -108,6 +118,7 @@ class CortexConfig:
     embeddings: EmbeddingConfig = field(default_factory=EmbeddingConfig)
     retrieval: RetrievalConfig = field(default_factory=RetrievalConfig)
     features: FeatureConfig = field(default_factory=FeatureConfig)
+    telemetry: ProviderTelemetryConfig = field(default_factory=ProviderTelemetryConfig)
     quotas: QuotaConfig = field(default_factory=QuotaConfig)
     remote: dict[str, Any] = field(default_factory=dict)
 
@@ -245,6 +256,19 @@ def load_config(*, home: Path | str | None = None, environ: dict[str, str] | Non
         raise ValueError(f"{name} feature flag must be boolean")
 
     features = FeatureConfig(**{name: feature_value(name) for name in defaults.__dataclass_fields__})
+
+    telemetry_raw = _mapping(raw.get("telemetry"), "telemetry")
+    consented_raw = telemetry_raw.get("consented_providers", ())
+    if not isinstance(consented_raw, (list, tuple)) or not all(isinstance(item, str) and item.strip() for item in consented_raw):
+        raise ValueError("telemetry.consented_providers must be a list of non-empty strings")
+    telemetry = ProviderTelemetryConfig(
+        enabled=bool(telemetry_raw.get("enabled", False)),
+        consented_providers=tuple(dict.fromkeys(item.strip() for item in consented_raw)),
+        retention_tier=str(telemetry_raw.get("retention_tier", "digest")),
+        allow_raw_payloads=bool(telemetry_raw.get("allow_raw_payloads", False)),
+    )
+    if telemetry.retention_tier not in {"digest", "synopsis", "verbatim"}:
+        raise ValueError("telemetry.retention_tier must be digest, synopsis, or verbatim")
     quota_raw = _mapping(raw.get("quotas"), "quotas")
     quota_value = env.get("XIBALBA_CORTEX_QUOTA_MAX_MEMORIES", quota_raw.get("max_memories"))
     max_memories = None if quota_value in (None, "", "none", "null") else int(quota_value)
@@ -259,6 +283,7 @@ def load_config(*, home: Path | str | None = None, environ: dict[str, str] | Non
         embeddings=embeddings,
         retrieval=retrieval,
         features=features,
+        telemetry=telemetry,
         quotas=QuotaConfig(max_memories=max_memories),
         remote=_mapping(raw.get("remote"), "remote"),
     )

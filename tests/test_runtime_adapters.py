@@ -17,6 +17,7 @@ from xibalba_cortex.runtime_bridge_contract import (
     CODEX_ADAPTER,
     CURSOR_ADAPTER,
     GEMINI_ADAPTER,
+    HERMES_ADAPTER,
     OPENAI_COMPATIBLE_ADAPTER,
     RuntimeEvent,
 )
@@ -168,6 +169,42 @@ def test_claude_adapter_routes_hooks_through_controller(controller):
         if event["attributes"].get("metadata", {}).get("hook") == "pre_tool_call"
     ]
     assert [event["attributes"]["tool_outcome"] for event in pre_tool_events] == ["blocked", "success"]
+
+
+def test_claude_extended_observer_hooks_share_normalized_runtime_event_shape(controller):
+    ctl, store = controller
+    adapter = ClaudeAdapter(ctl)
+    adapter.on_session_start(session_id="claude-observer")
+    adapter.pre_llm_call(session_id="claude-observer", turn_id="t1", model="m", messages=[])
+    adapter.pre_api_request(session_id="claude-observer", turn_id="t1", api_request_id="r1")
+    adapter.post_api_request(session_id="claude-observer", turn_id="t1", api_request_id="r1",
+                             usage={"input_tokens": 2}, api_duration=4.0)
+    adapter.on_stream_end(session_id="claude-observer", turn_id="t1", text_chars=5)
+    names = [e["attributes"]["metadata"]["hook"] for e in store.session_otel_events("claude-observer")]
+    assert names == ["pre_llm_call", "pre_api_request", "post_api_request", "on_stream_end"]
+
+
+def test_wrapper_adapters_accept_explicit_correlated_observations(controller):
+    ctl, store = controller
+    agy = AgyWrapperShim(ctl)
+    codex = CodexAdapter(ctl)
+    agy.start(session_id="agy-telemetry")
+    codex.start(session_id="codex-telemetry")
+    agy.record_observation(session_id="agy-telemetry", note="done", event_name="post_tool_call",
+                           turn_id="t-a", invocation_id="i-a", tool_name="shell", status="success")
+    codex.record_observation(session_id="codex-telemetry", note="done", event_name="turn/completed",
+                             turn_id="t-c", status="success", duration_ms=10)
+    agy_event = store.session_otel_events("agy-telemetry")[-1]
+    codex_event = store.session_otel_events("codex-telemetry")[-1]
+    assert agy_event["attributes"]["metadata"]["hook"] == "post_tool_call"
+    assert agy_event["attributes"]["invocation_id"] == "i-a"
+    assert codex_event["attributes"]["metadata"]["hook"] == "turn/completed"
+    assert codex_event["attributes"]["turn_id"] == "t-c"
+
+
+def test_hermes_is_a_declared_dedicated_runtime_adapter():
+    assert HERMES_ADAPTER.runtime == "hermes"
+    assert HERMES_ADAPTER.status == "implemented"
 
 
 def test_claude_adapter_propagates_supplied_invocation_id_across_pre_and_post(controller):

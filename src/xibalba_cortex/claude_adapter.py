@@ -64,6 +64,21 @@ class ClaudeAdapter:
     runtime: Literal["claude"] = "claude"
     provenance: dict[str, Any] = field(default_factory=dict)
 
+    def _observer_event(self, *, session_id: str | None, hook: str,
+                        turn_id: str | None = None, invocation_id: str | None = None,
+                        tool_name: str | None = None, tool_outcome: str = "unknown",
+                        assistant_response: str | None = None, agent_id: str | None = None,
+                        **metadata: Any) -> dict[str, Any]:
+        if not session_id:
+            return {"recorded": 0, "reason": "missing session_id"}
+        self.controller.ingest_event(RuntimeEvent(
+            runtime=self.runtime, session_id=session_id, invocation_id=invocation_id,
+            turn_id=turn_id, agent_id=agent_id, tool_name=tool_name,
+            tool_outcome=tool_outcome, assistant_response=assistant_response,
+            provenance={**self.provenance}, metadata={"hook": hook, **metadata},
+        ))
+        return {"recorded": 1, "session_id": session_id}
+
     def on_session_start(
         self,
         *,
@@ -164,6 +179,50 @@ class ClaudeAdapter:
         )
         self.controller.ingest_event(event)
         return {"recorded": recorded + 1, "session_id": session_id}
+
+    def pre_llm_call(self, *, session_id: str | None = None, turn_id: str | None = None,
+                     model: str | None = None, provider: str | None = None,
+                     messages: Any = None, **kwargs: Any) -> dict[str, Any]:
+        return self._observer_event(session_id=session_id, hook="pre_llm_call", turn_id=turn_id,
+                                    model=model, provider=provider,
+                                    message_count=len(messages) if isinstance(messages, list) else None)
+
+    def pre_api_request(self, *, session_id: str | None = None, turn_id: str | None = None,
+                        api_request_id: str | None = None, model: str | None = None,
+                        provider: str | None = None, **kwargs: Any) -> dict[str, Any]:
+        return self._observer_event(session_id=session_id, hook="pre_api_request", turn_id=turn_id,
+                                    api_request_id=api_request_id, model=model, provider=provider)
+
+    def post_api_request(self, *, session_id: str | None = None, turn_id: str | None = None,
+                         api_request_id: str | None = None, usage: dict | None = None,
+                         api_duration: float | None = None, model: str | None = None,
+                         provider: str | None = None, finish_reason: str | None = None,
+                         **kwargs: Any) -> dict[str, Any]:
+        return self._observer_event(session_id=session_id, hook="post_api_request", turn_id=turn_id,
+                                    api_request_id=api_request_id, model=model, provider=provider,
+                                    usage=usage, duration_ms=api_duration, finish_reason=finish_reason)
+
+    def on_stream_start(self, *, session_id: str | None = None, turn_id: str | None = None,
+                        api_request_id: str | None = None, **kwargs: Any) -> dict[str, Any]:
+        return self._observer_event(session_id=session_id, hook="on_stream_start", turn_id=turn_id,
+                                    api_request_id=api_request_id)
+
+    def on_stream_end(self, *, session_id: str | None = None, turn_id: str | None = None,
+                      api_request_id: str | None = None, **kwargs: Any) -> dict[str, Any]:
+        return self._observer_event(session_id=session_id, hook="on_stream_end", turn_id=turn_id,
+                                    api_request_id=api_request_id,
+                                    delta_count=kwargs.get("delta_count"),
+                                    text_chars=kwargs.get("text_chars"),
+                                    duration_ms=kwargs.get("duration_ms"),
+                                    finish_reason=kwargs.get("finish_reason"))
+
+    def on_session_finalize(self, *, session_id: str | None = None, **kwargs: Any) -> dict[str, Any]:
+        return self._observer_event(session_id=session_id, hook="on_session_finalize",
+                                    reason=kwargs.get("reason"))
+
+    def on_session_reset(self, *, session_id: str | None = None, **kwargs: Any) -> dict[str, Any]:
+        return self._observer_event(session_id=session_id, hook="on_session_reset",
+                                    reason=kwargs.get("reason"))
 
     def post_tool_call(
         self,
