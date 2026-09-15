@@ -149,6 +149,28 @@ def create_account(home: str | Path, *, email: str, password: str, display_name:
     record_auth_event(home, event_type="account_created", email=email, profile_id=profile_id)
     return {"id": account_id, "email": email, "display_name": display_name, "profile_id": profile_id, "role": "operator", "status": "active", "email_verified": True, "approval_status": "approved", "controller_address": None, "agent_ids": [], "created_at": now}
 
+
+def active_account_by_email(home: str | Path, *, email: str) -> dict[str, object] | None:
+    """Return non-secret identity fields for an active account, if it exists."""
+    row = _account(home, email)
+    if row is None:
+        return None
+    return {
+        "id": str(row["id"]),
+        "email": str(row["email"]),
+        "display_name": str(row["display_name"]),
+        "profile_id": str(row["profile_id"]),
+        "controller_address": row["controller_address"],
+    }
+
+
+def verify_account_password(home: str | Path, *, email: str, password: str) -> bool:
+    """Verify an existing account password without creating a bearer session."""
+    row = _account(home, email)
+    if row is None:
+        return False
+    return _password_matches(password, row["password_salt"], row["password_hash"])
+
 def _account(home: str | Path, email: str) -> sqlite3.Row | None:
     _ensure_schema(home)
     conn = _connect(home)

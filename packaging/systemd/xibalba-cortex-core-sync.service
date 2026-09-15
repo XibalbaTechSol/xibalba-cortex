@@ -6,7 +6,10 @@ Wants=network-online.target
 [Service]
 Type=oneshot
 EnvironmentFile=%h/.config/xibalba-cortex/core-sync.env
-ExecStart=%h/.local/bin/xibalba-cortex-sync-core-registrations
+# Run from the checked-out sibling repository so the local integrity-sdk path
+# dependency is resolved by uv. The command itself remains fail-closed when
+# CORE's snapshot is not finalized.
+ExecStart=%h/.local/bin/uv run --project %h/Projects/xibalba-cortex xibalba-cortex-sync-core-registrations
 NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=strict
