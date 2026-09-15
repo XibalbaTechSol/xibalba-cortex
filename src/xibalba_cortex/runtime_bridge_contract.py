@@ -10,6 +10,8 @@ telemetry.
 """
 from __future__ import annotations
 
+import hashlib
+import json
 from dataclasses import asdict, dataclass, field
 from typing import Any, Literal, Protocol
 
@@ -24,6 +26,7 @@ CONTROLLER_REQUIRED_EVENT_FIELDS = (
     "runtime",
     "session_id",
     "idempotency_key",
+    "event_id",
     "trace_id",
     "span_id",
     "parent_span_id",
@@ -73,6 +76,7 @@ class RuntimeEvent:
     runtime: RuntimeName
     session_id: str
     idempotency_key: str | None = None
+    event_id: str | None = None
     trace_id: str | None = None
     span_id: str | None = None
     parent_span_id: str | None = None
@@ -102,6 +106,19 @@ class RuntimeEvent:
     def to_record(self) -> dict[str, Any]:
         record = {"schema_version": CONTROLLER_EVENT_SCHEMA_VERSION}
         record.update(asdict(self))
+        if not record["event_id"]:
+            identity = {
+                "runtime": record["runtime"],
+                "session_id": record["session_id"],
+                "idempotency_key": record["idempotency_key"],
+                "trace_id": record["trace_id"],
+                "span_id": record["span_id"],
+                "invocation_id": record["invocation_id"],
+                "turn_id": record["turn_id"],
+            }
+            record["event_id"] = "evt:sha256:" + hashlib.sha256(
+                json.dumps(identity, sort_keys=True, separators=(",", ":"), default=str).encode("utf-8")
+            ).hexdigest()
         return record
 
 

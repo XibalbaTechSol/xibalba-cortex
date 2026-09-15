@@ -296,17 +296,42 @@ async def ingest_turns_via_mcp(
     return summary
 
 
+# Process-local (mtime, size) per session file, so --watch's 30s loop only re-reads and
+# re-parses files that actually changed since the last cycle instead of every .jsonl under
+# ~/.codex/sessions on every pass. Before this fix the watcher re-parsed the *entire* history of
+# Codex session transcripts every 30 seconds regardless of change, unbounded in both the number
+# of files (grows forever as Codex is used) and the size of the biggest ones -- confirmed as the
+# cause of xibalba-cortex-codex-mcp-backfill.service growing to 1.7GB RSS / 3h CPU over one 4h
+# run (2026-09-15 RAM-exhaustion investigation). `ingest_turns_via_mcp`'s own existing-prompt-id
+# dedup already made re-sends a no-op on the write side; this fixes the read/parse side, which
+# had no such guard at all. Not persisted across restarts -- a fresh process re-parsing once on
+# startup is fine and keeps correctness independent of this cache.
+_SEEN_FILE_STATE: dict[Path, tuple[float, int]] = {}
+
+
 async def collect_once(args: argparse.Namespace) -> dict[str, Any]:
     files = discover_session_files(args.sessions)
     if args.limit_files:
         files = files[:args.limit_files]
     turns: list[CodexTurn] = []
     malformed_files = 0
+    files_skipped_unchanged = 0
     for path in files:
+        try:
+            stat = path.stat()
+        except OSError:
+            malformed_files += 1
+            continue
+        state = (stat.st_mtime, stat.st_size)
+        if _SEEN_FILE_STATE.get(path) == state:
+            files_skipped_unchanged += 1
+            continue
         try:
             turns.extend(parse_codex_session(path))
         except OSError:
             malformed_files += 1
+            continue
+        _SEEN_FILE_STATE[path] = state
     if args.limit_turns:
         turns = turns[:args.limit_turns]
     summary = await ingest_turns_via_mcp(
@@ -316,6 +341,7 @@ async def collect_once(args: argparse.Namespace) -> dict[str, Any]:
         dry_run=args.dry_run,
     )
     summary["files_seen"] = len(files)
+    summary["files_skipped_unchanged"] = files_skipped_unchanged
     summary["malformed_files"] = malformed_files
     return summary
 

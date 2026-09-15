@@ -1,4 +1,12 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react"
+
+// These three panels (inference tasks, PARA classifications, extraction proposals) each
+// polled independently every 5s regardless of whether the panel was visible, which meant ~36
+// requests/minute against local_api's single-lock backend from this viewer alone -- a real
+// contributor to the 2026-09-15 thread-pool-saturation incident (op-tab 502s / "dial tcp
+// 127.0.0.1:8420: i/o timeout") once combined with this box's swap pressure. Bumped to a
+// still-responsive-feeling but much lighter interval.
+const BACKGROUND_POLL_INTERVAL_MS = 20000
 import type { ChangeEvent, FormEvent, ReactNode } from 'react'
 import {
   Database,
@@ -2283,21 +2291,21 @@ function AuthenticatedApp() {
   useEffect(() => {
     let cancelled = false
     const refresh = () => api.inferenceTasks(taskStatus).then(value => { if (!cancelled) setTasks(value) }).catch(() => { if (!cancelled) setTasks([]) })
-    refresh(); const timer = window.setInterval(refresh, 5000)
+    refresh(); const timer = window.setInterval(refresh, BACKGROUND_POLL_INTERVAL_MS)
     return () => { cancelled = true; window.clearInterval(timer) }
   }, [taskStatus])
 
   useEffect(() => {
     let cancelled = false
     const refresh = () => api.paraClassifications().then(value => { if (!cancelled) setParaClassifications(value) }).catch(() => { if (!cancelled) setParaClassifications([]) })
-    refresh(); const timer = window.setInterval(refresh, 5000)
+    refresh(); const timer = window.setInterval(refresh, BACKGROUND_POLL_INTERVAL_MS)
     return () => { cancelled = true; window.clearInterval(timer) }
   }, [])
 
   useEffect(() => {
     let cancelled = false
     const refresh = () => api.extractionProposals(extractionProposalStatus).then(value => { if (!cancelled) setExtractionProposals(value) }).catch(() => { if (!cancelled) setExtractionProposals([]) })
-    refresh(); const timer = window.setInterval(refresh, 5000)
+    refresh(); const timer = window.setInterval(refresh, BACKGROUND_POLL_INTERVAL_MS)
     return () => { cancelled = true; window.clearInterval(timer) }
   }, [extractionProposalStatus])
 

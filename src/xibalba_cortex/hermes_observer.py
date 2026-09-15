@@ -78,6 +78,14 @@ class HermesObserverAdapter:
         self.store = store
 
     @staticmethod
+    def _retention_tier() -> str:
+        """Use the profile's bounded retention policy instead of forcing verbatim capture."""
+        tier = os.environ.get("XIBALBA_CORTEX_RETENTION_TIER", "digest").strip().lower()
+        if tier not in {"digest", "synopsis", "verbatim"}:
+            raise ValueError(f"invalid XIBALBA_CORTEX_RETENTION_TIER: {tier!r}")
+        return tier
+
+    @staticmethod
     def _agent_id() -> str | None:
         """Return the configured canonical Oracle DID, or no identity if unset.
 
@@ -110,7 +118,7 @@ class HermesObserverAdapter:
     ) -> None:
         if not session_id:
             return
-        self.store.start_session(session_id, retention_tier="verbatim")
+        self.store.start_session(session_id, retention_tier=self._retention_tier())
         self.store.record_otel_batch(session_id, [{
             "kind": kind, "name": name, "trace_id": trace_id, "span_id": span_id,
             "parent_span_id": parent_span_id, "prompt_id": prompt_id,
@@ -123,7 +131,7 @@ class HermesObserverAdapter:
         existing = self.store.find_memory_id_by_content(text)
         if existing:
             return existing
-        self.store.start_session(session_id, retention_tier="verbatim")
+        self.store.start_session(session_id, retention_tier=self._retention_tier())
         memory = self.store.store_memory(
             text,
             source={
@@ -141,7 +149,7 @@ class HermesObserverAdapter:
     def on_session_start(self, *, session_id: str | None = None, **kwargs: Any) -> None:
         if not session_id:
             return
-        self.store.start_session(session_id, retention_tier="verbatim")
+        self.store.start_session(session_id, retention_tier=self._retention_tier())
 
     def on_session_finalize(self, *, session_id: str | None = None, **kwargs: Any) -> None:
         self._event(session_id, "hermes.session_finalize", attributes={
@@ -174,8 +182,16 @@ class HermesObserverAdapter:
     ) -> None:
         if not session_id:
             return
-        self._store_text(session_id, user_message, role="user", prompt_id=turn_id)
-        self._store_text(session_id, assistant_response, role="assistant", prompt_id=turn_id)
+        prompt_memory_id = self._store_text(session_id, user_message, role="user", prompt_id=turn_id)
+        response_memory_id = self._store_text(session_id, assistant_response, role="assistant", prompt_id=turn_id)
+        if prompt_memory_id and response_memory_id:
+            self.store.record_exchange(
+                session_id,
+                prompt_memory_ids=[prompt_memory_id],
+                response_memory_ids=[response_memory_id],
+                prompt_id=turn_id,
+                idempotency_key=f"hermes:{session_id}:{turn_id}",
+            )
 
     def pre_llm_call(self, *, session_id: str | None = None, turn_id: str | None = None,
                      model: str | None = None, provider: str | None = None, **kwargs: Any) -> None:
@@ -307,7 +323,7 @@ class HermesObserverAdapter:
     ) -> None:
         if not parent_session_id:
             return
-        self.store.start_session(parent_session_id, retention_tier="verbatim")
+        self.store.start_session(parent_session_id, retention_tier=self._retention_tier())
         self.store.record_otel_batch(parent_session_id, [{
             "kind": "log",
             "name": "hermes.subagent_start",
@@ -327,7 +343,7 @@ class HermesObserverAdapter:
         # (only subagent_start does).
         if not parent_session_id:
             return
-        self.store.start_session(parent_session_id, retention_tier="verbatim")
+        self.store.start_session(parent_session_id, retention_tier=self._retention_tier())
         self.store.record_otel_batch(parent_session_id, [{
             "kind": "log",
             "name": "hermes.subagent_stop",

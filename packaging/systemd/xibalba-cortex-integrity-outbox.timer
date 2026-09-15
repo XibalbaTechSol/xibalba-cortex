@@ -1,0 +1,12 @@
+[Unit]
+Description=Periodic Integrity SDK telemetry outbox drain
+
+[Timer]
+OnBootSec=30s
+OnUnitActiveSec=30s
+RandomizedDelaySec=5s
+Persistent=true
+Unit=xibalba-cortex-integrity-outbox.service
+
+[Install]
+WantedBy=timers.target

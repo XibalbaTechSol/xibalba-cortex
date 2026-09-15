@@ -4,6 +4,7 @@ import sys
 
 from xibalba_cortex.hermes_watermark import status as watermark_status
 from xibalba_cortex.store import GraphStore
+from xibalba_cortex.telemetry_outbox import TelemetryOutbox
 
 
 def _run_bridge(hook_name, kwargs, env):
@@ -29,6 +30,11 @@ def test_bridge_dispatches_post_llm_call_to_the_env_selected_store(tmp_path, mon
     contents = {m["content"] for m in store.session_memories("s1")}
     assert contents == {"hi", "hello"}
     store.close()
+
+    outbox = TelemetryOutbox(tmp_path / "graph" / "telemetry-outbox.sqlite3")
+    deliveries = [item for item in outbox.stats()["deliveries"] if item["destination"] == "cortex"]
+    assert deliveries == [{"destination": "cortex", "status": "acked", "count": 1}]
+    outbox.close()
 
     # Real, subprocess-produced watermark evidence -- not just a successful exit code, a durable
     # record that this exact hook fired and succeeded (hermes_watermark.py).

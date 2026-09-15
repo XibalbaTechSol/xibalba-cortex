@@ -619,11 +619,14 @@ def memory_link_entities(
     obj: str,
     evidence_memory_id: str,
     confidence: float = 1.0,
+    shared: bool = False,
 ) -> dict[str, object]:
-    """Assert a typed relationship between two entities, evidenced by a specific memory."""
+    """Assert a typed relationship between two entities, evidenced by a specific memory.
+    Entities are created private to the evidence memory's agent by default (agent-scoped
+    knowledge graph); pass shared=True to place them in the graph every agent can see."""
     _assert_memory_scope(get_store().get_memory(evidence_memory_id))
     return get_store().link_entities(
-        subject, predicate, obj, evidence_memory_id=evidence_memory_id, confidence=confidence
+        subject, predicate, obj, evidence_memory_id=evidence_memory_id, confidence=confidence, shared=shared
     )
 
 

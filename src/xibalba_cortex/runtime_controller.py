@@ -31,6 +31,14 @@ from .runtime_bridge_contract import (
 from .store import GraphStore
 
 
+def _retention_tier() -> str:
+    """Return the bounded profile policy used by runtime event ingestion."""
+    tier = os.environ.get("XIBALBA_CORTEX_RETENTION_TIER", "digest").strip().lower()
+    if tier not in {"digest", "synopsis", "verbatim"}:
+        raise ValueError(f"invalid XIBALBA_CORTEX_RETENTION_TIER: {tier!r}")
+    return tier
+
+
 @dataclass(slots=True)
 class RuntimeRegistration:
     adapter: dict[str, Any]
@@ -152,7 +160,7 @@ class XibalbaRuntimeController:
         }
 
     def ingest_event(self, event: RuntimeEvent) -> dict[str, Any]:
-        self.store.start_session(event.session_id, retention_tier="verbatim")
+        self.store.start_session(event.session_id, retention_tier=_retention_tier())
         result = self.store.record_otel_batch(
             event.session_id,
             [
@@ -223,7 +231,7 @@ class XibalbaRuntimeController:
         metadata: dict[str, Any] | None = None,
         idempotency_key: str | None = None,
     ) -> dict[str, Any]:
-        self.open_session(runtime, session_id=session_id, agent_id=agent_id, retention_tier="verbatim")
+        self.open_session(runtime, session_id=session_id, agent_id=agent_id, retention_tier=_retention_tier())
         return self.store.record_model_exchange(
             session_id,
             user_prompt=user_prompt,

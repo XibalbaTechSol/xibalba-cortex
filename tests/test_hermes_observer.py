@@ -21,6 +21,33 @@ def test_session_start_and_end_round_trip(tmp_path):
     store.close()
 
 
+def test_hermes_capture_defaults_to_digest_retention(tmp_path, monkeypatch):
+    monkeypatch.delenv("XIBALBA_CORTEX_RETENTION_TIER", raising=False)
+    store, adapter = _adapter(tmp_path)
+    adapter.on_session_start(session_id="bounded-session")
+    assert store.get_session("bounded-session")["retention_tier"] == "digest"
+    store.close()
+
+
+def test_hermes_capture_honors_explicit_retention_tier(tmp_path, monkeypatch):
+    monkeypatch.setenv("XIBALBA_CORTEX_RETENTION_TIER", "synopsis")
+    store, adapter = _adapter(tmp_path)
+    adapter.on_session_start(session_id="synopsis-session")
+    assert store.get_session("synopsis-session")["retention_tier"] == "synopsis"
+    store.close()
+
+
+def test_hermes_capture_rejects_invalid_retention_tier(tmp_path, monkeypatch):
+    monkeypatch.setenv("XIBALBA_CORTEX_RETENTION_TIER", "unbounded")
+    store, adapter = _adapter(tmp_path)
+    try:
+        import pytest
+        with pytest.raises(ValueError, match="XIBALBA_CORTEX_RETENTION_TIER"):
+            adapter.on_session_start(session_id="invalid-session")
+    finally:
+        store.close()
+
+
 def test_session_end_for_unknown_session_is_a_noop_not_a_crash(tmp_path):
     store, adapter = _adapter(tmp_path)
     adapter.on_session_end(session_id="never-started")  # must not raise
@@ -37,6 +64,9 @@ def test_post_llm_call_stores_prompt_and_response_with_shared_prompt_id(tmp_path
     assert {m["content"] for m in memories} == {"What's 2+2?", "4"}
     for m in memories:
         assert m["source"]["prompt_id"] == "turn-1"
+    exchanges = store.session_exchanges("s1")
+    assert len(exchanges) == 1
+    assert exchanges[0]["prompt_id"] == "turn-1"
     store.close()
 
 
