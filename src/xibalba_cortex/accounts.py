@@ -188,6 +188,16 @@ def _registered_agent_ids(conn: sqlite3.Connection, account_id: str) -> list[str
     ).fetchall()
     return [str(row["agent_did"]) for row in rows]
 
+
+def _effective_agent_ids(conn: sqlite3.Connection, account_id: str, agent_ids_json: str | None) -> list[str]:
+    """An account's full agent set: on-chain-finalized registrations union'd with the
+    off-chain agent_ids_json binding (set via set_account_agent_ids for agents that aren't
+    on-chain registered yet, e.g. harness identities like codex/xibalba.agent). Neither
+    source overrides the other -- an account legitimately has both kinds."""
+    registered = _registered_agent_ids(conn, account_id)
+    off_chain = json.loads(agent_ids_json or "[]")
+    return sorted({str(value).strip() for value in (*registered, *off_chain) if str(value).strip()})
+
 def record_auth_event(home: str | Path, *, event_type: str, email: str | None = None, profile_id: str | None = None, detail: str | None = None) -> None:
     conn = _connect(home)
     try:
@@ -228,8 +238,7 @@ def issue_account_session(home: str | Path, *, email: str, password: str, ttl_ho
         raise ValueError("invalid email or password")
     conn = _connect(home)
     try:
-        registered_ids = _registered_agent_ids(conn, str(row["id"]))
-        effective_ids = registered_ids or json.loads(row["agent_ids_json"] or "[]")
+        effective_ids = _effective_agent_ids(conn, str(row["id"]), row["agent_ids_json"])
         conn.execute("UPDATE accounts SET failed_attempts=0, locked_until=NULL WHERE id=?", (row["id"],))
         token = secrets.token_urlsafe(32)
         expires = (now + timedelta(hours=ttl_hours)).isoformat()
@@ -264,7 +273,7 @@ def account_for_token(home: str | Path, token: str) -> dict[str, object] | None:
         return None
     conn = _connect(home)
     try:
-        agent_ids = _registered_agent_ids(conn, str(row["id"])) or json.loads(row["agent_ids_json"] or "[]")
+        agent_ids = _effective_agent_ids(conn, str(row["id"]), row["agent_ids_json"])
     finally:
         conn.close()
     return {"id": row["id"], "email": row["email"], "display_name": row["display_name"], "profile_id": row["profile_id"], "role": row["role"], "status": row["status"], "email_verified": bool(row["email_verified"]), "approval_status": row["approval_status"], "controller_address": row["controller_address"], "agent_ids": agent_ids, "created_at": row["created_at"]}
@@ -347,7 +356,14 @@ def sync_account_registrations(home: str | Path, *, account_id: str, chain_id: i
         conn.commit()
     finally:
         conn.close()
-    return set_account_agent_ids(home, account_id=account_id, agent_ids=effective_ids)
+    # Deliberately does NOT touch accounts.agent_ids_json: that column also carries off-chain
+    # identities (harness/runtime agents bound via set_account_agent_ids with no on-chain
+    # registration, e.g. "codex" or "xibalba.agent"). _effective_agent_ids() already unions
+    # the live on-chain set (user_agent_registrations, correctly revoked above) with
+    # agent_ids_json at read time -- writing the on-chain set into agent_ids_json here would
+    # be redundant, and previously clobbered those off-chain additions on every periodic sync,
+    # and worse, made a revoked on-chain agent "stick" in agent_ids_json past its revocation.
+    return True
 
 def approve_account(home: str | Path, *, email: str, verified: bool = True) -> bool:
     row = _account(home, email)

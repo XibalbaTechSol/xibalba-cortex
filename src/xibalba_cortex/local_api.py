@@ -91,6 +91,8 @@ Routes:
 """
 from __future__ import annotations
 
+import hashlib
+import hmac
 import json
 import logging
 import os
@@ -347,15 +349,21 @@ def _session_cookie(token: str, *, max_age: int) -> str:
     """Serialize the session cookie.
 
     `HttpOnly` keeps the token out of JavaScript (so XSS cannot exfiltrate it, which the
-    previous sessionStorage bearer token could not prevent). `SameSite=Strict` is what makes
-    this safe without a separate CSRF token: the browser will not attach the cookie to any
-    cross-site request, including top-level navigations.
+    previous sessionStorage bearer token could not prevent).
+
+    `SameSite=None` (2026-09-15, was `Strict`): a cross-origin browser caller (e.g. the
+    integrity-dashboard app, served over a different scheme/port) needs this cookie attached to
+    its `credentials: 'include'` fetches. Under schemeful same-site, the comparison that governs
+    SameSite is against the *calling page's* own site, not the fetch target's -- so no choice of
+    target origin/port here can make `Strict` (or `Lax`) cookies reach a caller on a different
+    scheme. `SameSite=None` requires `Secure` and drops the free CSRF protection `Strict` gave;
+    see `_csrf_token_for`/`/api/auth/csrf` for the explicit CSRF check that replaces it.
     """
     parts = [
         f"{SESSION_COOKIE_NAME}={token}",
         "Path=/",
         "HttpOnly",
-        "SameSite=Strict",
+        "SameSite=None",
         f"Max-Age={max_age}",
     ]
     if not _INSECURE_COOKIES:
@@ -363,7 +371,37 @@ def _session_cookie(token: str, *, max_age: int) -> str:
     return "; ".join(parts)
 
 
-def _make_handler(store: GraphStore, *, allowed_origin: str):
+_CSRF_SECRET_FILENAME = "local_api_csrf_secret"
+
+
+def _load_or_create_csrf_secret(home: str | Path) -> bytes:
+    """Per-profile secret for deriving CSRF tokens from session tokens. Same pattern as
+    GraphStore._load_or_create_identity_salt: local file, 0600, generated once."""
+    secret_path = Path(home) / _CSRF_SECRET_FILENAME
+    if secret_path.is_file():
+        return secret_path.read_bytes()
+    secret = os.urandom(32)
+    secret_path.parent.mkdir(parents=True, exist_ok=True)
+    secret_path.write_bytes(secret)
+    os.chmod(secret_path, 0o600)
+    return secret
+
+
+def _csrf_token_for(secret: bytes, session_token: str) -> str:
+    """Derive the CSRF token a legitimate same-session caller must echo back.
+
+    Deliberately stateless (HMAC of the session token itself, not a separately stored value):
+    a forged cross-site request carries the SameSite=None session cookie automatically (the
+    browser attaches it), but the attacker's page cannot read this cookie's value (HttpOnly)
+    or a same-origin response naming it (CORS blocks reading a response from an origin not on
+    the operator's --allowed-origins list) -- so it cannot compute or observe this header,
+    even though it can trigger the request.
+    """
+    return hmac.new(secret, session_token.encode("utf-8"), hashlib.sha256).hexdigest()
+
+
+def _make_handler(store: GraphStore, *, allowed_origins: frozenset[str]):
+    csrf_secret = _load_or_create_csrf_secret(store.home)
     # The authenticated webhook/operator surface is profile-local. Keep a bounded
     # per-profile request budget so one connector or tenant cannot starve the store.
     request_limiter = ConnectorRateLimiter(rate_per_second=20.0, burst=40)
@@ -386,18 +424,39 @@ def _make_handler(store: GraphStore, *, allowed_origin: str):
         # valid HTTP request blocks that handler thread in a raw socket read forever --
         # permanently consuming one of _BoundedThreadingHTTPServer's fixed thread-pool slots.
         # Ported alongside the identical fix in xibalba-shield's backend/api.py, 2026-09-14.
-        timeout = 30
+        # Lowered 30s -> 10s (2026-09-15): HTTP/1.1 keep-alive means this timeout also bounds
+        # how long a connection the *client* already walked away from (browser tab closed,
+        # script exited) sits in CLOSE-WAIT still holding a thread-pool slot -- observed up to
+        # 23/32 slots stuck this way at once under repeated headless-browser test cycles,
+        # which is what made the viewer intermittently hang on "Connecting..." despite the
+        # backend itself responding in milliseconds. 10s still comfortably covers any real
+        # in-flight request (the slowest observed endpoint before the 2026-09-15 fixes was
+        # ~19s, and that was the pathological unindexed-query case, now fixed).
+        timeout = 10
+
+        def _cors_origin(self) -> str:
+            # "*" in allowed_origins is the wildcard/no-restriction config (the CLI default):
+            # always reflect "*" and never claim credentials support, matching a browser's own
+            # rule that a credentialed request can't be satisfied by a wildcard origin. Once an
+            # operator configures an explicit allow-list, an allowed request's own Origin is
+            # reflected back (required for Access-Control-Allow-Credentials to be honored at
+            # all) and anything else falls back to the non-credentialed "*" response.
+            if "*" in allowed_origins:
+                return "*"
+            origin = self.headers.get("Origin")
+            return origin if origin and origin in allowed_origins else "*"
 
         def _send_json(self, status: int, payload: object, *, extra_headers: tuple[tuple[str, str], ...] = ()) -> None:
             body = json.dumps(payload).encode()
             with _REQUEST_METRICS_LOCK:
                 _REQUEST_METRICS["requests_total"] += 1
                 _REQUEST_METRICS[f"responses_{status}"] += 1
+            origin = self._cors_origin()
             self.send_response(status)
             self.send_header("Content-Type", "application/json")
-            self.send_header("Access-Control-Allow-Origin", allowed_origin)
-            self.send_header("Access-Control-Allow-Headers", "Authorization, Content-Type")
-            if allowed_origin != "*":
+            self.send_header("Access-Control-Allow-Origin", origin)
+            self.send_header("Access-Control-Allow-Headers", "Authorization, Content-Type, X-Cortex-CSRF-Token")
+            if origin != "*":
                 self.send_header("Access-Control-Allow-Credentials", "true")
             for name, value in extra_headers:
                 self.send_header(name, value)
@@ -467,11 +526,32 @@ def _make_handler(store: GraphStore, *, allowed_origin: str):
                 return None
             return principal
 
+        def _verify_csrf(self) -> bool:
+            """Call after a successful _authenticate() on every state-changing (POST) route.
+
+            Only cookie-authenticated requests need this: a bearer-token caller (MCP, CLI,
+            workers) has no cookie jar for a malicious page to ride, so it isn't a CSRF target.
+            See _csrf_token_for's docstring for why the header can't be forged cross-site even
+            though the SameSite=None cookie itself is attached automatically.
+            """
+            cookie_token = self._cookie_session_token()
+            if not cookie_token:
+                return True
+            expected = _csrf_token_for(csrf_secret, cookie_token)
+            provided = self.headers.get("X-Cortex-CSRF-Token", "")
+            if not provided or not hmac.compare_digest(provided, expected):
+                self._send_json(403, {"error": "missing or invalid CSRF token; GET /api/auth/csrf first"})
+                return False
+            return True
+
         def do_OPTIONS(self) -> None:  # noqa: N802 -- CORS preflight
+            origin = self._cors_origin()
             self.send_response(204)
-            self.send_header("Access-Control-Allow-Origin", allowed_origin)
+            self.send_header("Access-Control-Allow-Origin", origin)
             self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-            self.send_header("Access-Control-Allow-Headers", "Authorization, Content-Type")
+            self.send_header("Access-Control-Allow-Headers", "Authorization, Content-Type, X-Cortex-CSRF-Token")
+            if origin != "*":
+                self.send_header("Access-Control-Allow-Credentials", "true")
             self.end_headers()
 
         def _read_json_body(self) -> dict[str, object]:
@@ -505,6 +585,21 @@ def _make_handler(store: GraphStore, *, allowed_origin: str):
                 token = self._current_token()
                 account = account_for_token(store.home, token)
                 self._send_json(200, {"account": account, "session_expires_at": principal.get("expires_at")} if account else {"error": "account session not found"})
+                return
+            if parts == ["api", "auth", "csrf"]:
+                # Cross-origin browser callers (SameSite=None session cookie) can't read this
+                # cookie's own value to derive the CSRF token themselves -- HttpOnly, and even
+                # if it weren't, cross-origin `document.cookie` reads are blocked regardless of
+                # SameSite. Handing the token back in a CORS-mediated JSON body works because
+                # CORS gates *response reading* by origin (the --allowed-origins allow-list),
+                # independent of the SameSite cookie policy that gates *request sending*.
+                principal = self._authenticate(required_scope="memory:read")
+                if principal is None:
+                    return
+                if not self._cookie_session_token():
+                    self._send_json(400, {"error": "csrf token requires cookie-based session auth"})
+                    return
+                self._send_json(200, {"csrf_token": _csrf_token_for(csrf_secret, self._cookie_session_token())})
                 return
             if parts == ["api", "auth", "sessions"]:
                 principal = self._authenticate(required_scope="memory:read")
@@ -747,10 +842,13 @@ def _make_handler(store: GraphStore, *, allowed_origin: str):
                         if not os.path.exists(file_path):
                             self._send_json(404, {"error": f"file not found at {file_path}"})
                         else:
+                            origin = self._cors_origin()
                             self.send_response(200)
                             self.send_header("Content-Type", attachment.get("media_type") or "application/octet-stream")
-                            self.send_header("Access-Control-Allow-Origin", allowed_origin)
-                            self.send_header("Access-Control-Allow-Headers", "Authorization, Content-Type")
+                            self.send_header("Access-Control-Allow-Origin", origin)
+                            self.send_header("Access-Control-Allow-Headers", "Authorization, Content-Type, X-Cortex-CSRF-Token")
+                            if origin != "*":
+                                self.send_header("Access-Control-Allow-Credentials", "true")
                             self.send_header("Content-Length", str(os.path.getsize(file_path)))
                             self.end_headers()
                             with open(file_path, "rb") as f:
@@ -828,6 +926,8 @@ def _make_handler(store: GraphStore, *, allowed_origin: str):
                         principal = self._authenticate(required_scope="*")
                         if principal is None:
                             return
+                        if not self._verify_csrf():
+                            return
                         approved = approve_account(store.home, email=str(payload.get("email") or ""), verified=bool(payload.get("verified", True)))
                         self._send_json(200 if approved else 404, {"ok": approved} if approved else {"error": "account not found"})
                     elif parts[-2:] == ["password-reset", "request"]:
@@ -846,12 +946,16 @@ def _make_handler(store: GraphStore, *, allowed_origin: str):
                         principal = self._authenticate(required_scope="memory:read")
                         if principal is None:
                             return
+                        if not self._verify_csrf():
+                            return
                         revoked = revoke_account_session_by_id(store.home, current_token=token, session_id=str(payload.get("session_id") or ""))
                         self._send_json(200 if revoked else 404, {"ok": revoked} if revoked else {"error": "session not found"})
                     elif parts[-1] == "password":
                         token = self._current_token()
                         principal = self._authenticate(required_scope="memory:read")
                         if principal is None:
+                            return
+                        if not self._verify_csrf():
                             return
                         changed = change_account_password(store.home, token=token, current_password=str(payload.get("current_password") or ""), new_password=str(payload.get("new_password") or ""))
                         self._send_json(200 if changed else 401, {"ok": changed} if changed else {"error": "current password is incorrect"})
@@ -875,6 +979,8 @@ def _make_handler(store: GraphStore, *, allowed_origin: str):
                 return
             principal = self._authenticate(required_scope=required_scope)
             if principal is None:
+                return
+            if not self._verify_csrf():
                 return
 
             try:
@@ -1116,6 +1222,8 @@ def _make_handler(store: GraphStore, *, allowed_origin: str):
                 self._send_json(404, {"error": "not found"})
             except (sqlite3.IntegrityError, TypeError, ValueError) as exc:
                 self._send_json(400, {"error": str(exc)})
+            except PermissionError as exc:
+                self._send_json(403, {"error": str(exc)})
             except Exception:
                 logger.exception("local_api request failed: %s", self.path)
                 self._send_json(500, {"error": "internal error"})
@@ -1139,6 +1247,16 @@ class _BoundedThreadingHTTPServer(ThreadingHTTPServer):
 
     daemon_threads = True
     max_concurrent_requests = 32
+    # socketserver.TCPServer's default listen() backlog is 5. process_request() below blocks
+    # the single accept-loop thread on a semaphore once max_concurrent_requests is in flight --
+    # while blocked, it isn't calling accept() at all, so new TCP connections just pile up in
+    # the kernel's backlog. At the default of 5, a handful of concurrently slow requests (e.g.
+    # under memory-pressure-induced disk contention) fills that backlog, and Caddy's proxy
+    # dial fails outright -- a 502 for a request the backend would have served fine once a
+    # semaphore slot freed up (reproduced 2026-09-15: direct curl to this port succeeded in
+    # ~3s while the same request through Caddy 502'd). A larger backlog buys queuing room
+    # instead of an outright connection failure.
+    request_queue_size = 128
 
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
@@ -1159,8 +1277,50 @@ class _BoundedThreadingHTTPServer(ThreadingHTTPServer):
         ).start()
 
 
-def serve(store: GraphStore, *, host: str = "localhost", port: int = 8420, allowed_origin: str = "*") -> None:
-    server = _BoundedThreadingHTTPServer((host, port), _make_handler(store, allowed_origin=allowed_origin))
+def _run_retention_sweep_once(store: GraphStore) -> None:
+    """One bounded pass of session/telemetry retention pruning; never raises."""
+    try:
+        tier_days = {
+            "digest": int(os.environ.get("XIBALBA_CORTEX_RETENTION_DIGEST_DAYS", "14")),
+            "synopsis": int(os.environ.get("XIBALBA_CORTEX_RETENTION_SYNOPSIS_DAYS", "30")),
+            "verbatim": int(os.environ.get("XIBALBA_CORTEX_RETENTION_VERBATIM_DAYS", "180")),
+        }
+        result = store.retention_sweep(max_age_days=tier_days, apply=True, limit=500)
+        if result["candidate_count"]:
+            logger.info("retention sweep: forgot %d memory/memories (tiers=%s)", result["candidate_count"], tier_days)
+    except Exception:
+        logger.exception("session retention sweep failed")
+    try:
+        otel_days = int(os.environ.get("XIBALBA_CORTEX_OTEL_RETENTION_DAYS", "60"))
+        result = store.prune_old_otel_events(max_age_days=otel_days, apply=True, limit=2000)
+        if result["count"]:
+            logger.info("retention sweep: pruned %d otel_events older than %d days", result["count"], otel_days)
+    except Exception:
+        logger.exception("otel_events retention sweep failed")
+
+
+def _retention_sweep_loop(store: GraphStore) -> None:
+    # Nothing in this codebase called GraphStore.retention_sweep() automatically before this --
+    # every session-starting call site defaults retention_tier="verbatim" (full fidelity, no
+    # sweep window), and otel_events (verbatim tool-call attributes_json, up to ~40KB/row) had no
+    # pruning path at all. Left alone that grew graph-memory.sqlite3 to 8.7GB over ~6 weeks and
+    # contributed to the 2026-09-15 thread-pileup/D-state stall incident (see PRODUCTION_GAPS.md
+    # and store.py's `_configure` docstring). This loop is the automatic side of that fix -- the
+    # bounded, non-destructive-by-default primitives (`retention_sweep`, `prune_old_otel_events`)
+    # already existed but were operator-invoked only.
+    interval_hours = max(1, int(os.environ.get("XIBALBA_CORTEX_RETENTION_SWEEP_INTERVAL_HOURS", "6")))
+    # Run one pass shortly after startup (not immediately -- let the server finish coming up
+    # under load) rather than waiting a full interval for the first sweep.
+    time.sleep(300)
+    while True:
+        _run_retention_sweep_once(store)
+        time.sleep(interval_hours * 3600)
+
+
+def serve(store: GraphStore, *, host: str = "localhost", port: int = 8420, allowed_origins: frozenset[str] = frozenset({"*"})) -> None:
+    server = _BoundedThreadingHTTPServer((host, port), _make_handler(store, allowed_origins=allowed_origins))
+    if os.environ.get("XIBALBA_CORTEX_DISABLE_RETENTION_SWEEP") != "1":
+        threading.Thread(target=_retention_sweep_loop, args=(store,), daemon=True).start()
     logger.info("local_api listening on http://%s:%d (local operator API)", host, port)
     try:
         server.serve_forever()
@@ -1175,8 +1335,14 @@ def main() -> None:
     parser.add_argument("--home", required=True, help="xibalba-cortex profile home")
     parser.add_argument("--host", default="localhost")
     parser.add_argument("--port", type=int, default=8420)
-    parser.add_argument("--allowed-origin", default="*", help="CORS origin for the browser viewer")
+    parser.add_argument(
+        "--allowed-origins", default="*",
+        help="Comma-separated CORS origins for browser viewers (e.g. http://localhost:5173,http://localhost:9443). "
+        "'*' (default) allows any origin but never sends Access-Control-Allow-Credentials, so cookie-based "
+        "auth (fetch with credentials: 'include') will fail cross-origin -- pass explicit origins instead.",
+    )
     args = parser.parse_args()
+    allowed_origins = frozenset(origin.strip() for origin in args.allowed_origins.split(",") if origin.strip())
 
     logging.basicConfig(level=logging.INFO)
     config = load_config(home=args.home)
@@ -1187,7 +1353,7 @@ def main() -> None:
         quotas=config.quotas.as_dict(),
     )
     try:
-        serve(store, host=args.host, port=args.port, allowed_origin=args.allowed_origin)
+        serve(store, host=args.host, port=args.port, allowed_origins=allowed_origins)
     finally:
         store.close()
 

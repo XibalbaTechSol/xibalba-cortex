@@ -276,7 +276,7 @@ def test_status_and_integrity_links_routes(running_store):
 
     status, body = _get(port, "/api/status")
     assert status == 200
-    assert body["schema_version"] == 13
+    assert body["schema_version"] == 15
     assert body["journal_mode"] == "wal"
     assert body["backup_ready"] is True
 
@@ -846,11 +846,11 @@ def test_account_failed_logins_lock_account_and_record_audit(running_store):
     assert events[-1][0] == "login_blocked"
 
 
-def test_session_cookie_is_httponly_secure_samesite(running_store):
-    """The browser credential must be unreadable from JavaScript and not sent cross-site.
-
-    These three attributes are the entire security argument for moving off the sessionStorage
-    bearer token, so assert them directly rather than trusting the helper.
+def test_session_cookie_is_httponly_secure_samesite_none(running_store):
+    """The browser credential must be unreadable from JavaScript, and (2026-09-15) explicitly
+    shareable cross-site so a cross-origin browser app (e.g. integrity-dashboard) can present
+    it -- SameSite=None replaces SameSite=Strict's implicit CSRF protection, so assert these
+    attributes directly rather than trusting the helper.
     """
     _store, port = running_store
     import urllib.request
@@ -864,8 +864,57 @@ def test_session_cookie_is_httponly_secure_samesite(running_store):
     assert SESSION_COOKIE_NAME in raw
     assert "HttpOnly" in raw
     assert "Secure" in raw
-    assert "SameSite=Strict" in raw
+    assert "SameSite=None" in raw
     assert "token" not in payload
+
+
+def _cookie_request(port: int, path: str, *, cookie: str, method: str = "GET", payload: dict[str, object] | None = None, csrf_token: str | None = None) -> tuple[int, object]:
+    """Simulate a real browser call: session identified purely by Cookie header, never Bearer --
+    exercises the same code path _verify_csrf() actually guards, unlike _post()/_get() (which
+    authenticate via Authorization: Bearer even when the token came from a cookie response)."""
+    headers = {"Cookie": f"{SESSION_COOKIE_NAME}={cookie}"}
+    data = None
+    if payload is not None:
+        data = json.dumps(payload).encode()
+        headers["Content-Type"] = "application/json"
+    if csrf_token is not None:
+        headers["X-Cortex-CSRF-Token"] = csrf_token
+    request = urllib.request.Request(f"http://localhost:{port}{path}", data=data, method=method, headers=headers)
+    try:
+        with urllib.request.urlopen(request, timeout=5) as response:
+            return response.status, json.loads(response.read())
+    except urllib.error.HTTPError as exc:
+        return exc.code, json.loads(exc.read())
+
+
+def test_cookie_authenticated_write_requires_csrf_token(running_store):
+    """A SameSite=None cookie is attached to forged cross-site requests automatically -- the
+    CSRF token header is what a forger can't produce, since it can't read this origin's
+    HttpOnly cookie or a CORS-blocked response naming the token (see _csrf_token_for)."""
+    _store, port = running_store
+    status, _signup, cookie = _post_capture_cookie(port, "/api/auth/signup", {"email": "csrf@example.com", "password": "correct horse battery staple", "display_name": "CSRF Operator"})
+    assert status == 201 and cookie
+
+    # No CSRF header at all: rejected, even though the (SameSite=None) cookie is valid.
+    status, body = _cookie_request(port, "/api/memory/propositions", cookie=cookie, method="POST", payload={"content": "csrf probe", "source": {"kind": "test"}})
+    assert status == 403 and "csrf" in body["error"].lower()
+
+    # Wrong CSRF token: also rejected.
+    status, body = _cookie_request(port, "/api/memory/propositions", cookie=cookie, method="POST", payload={"content": "csrf probe", "source": {"kind": "test"}}, csrf_token="not-the-real-token")
+    assert status == 403
+
+    # Fetch the real token the way the browser would, then the write succeeds.
+    status, csrf_body = _cookie_request(port, "/api/auth/csrf", cookie=cookie)
+    assert status == 200 and csrf_body["csrf_token"]
+    status, body = _cookie_request(port, "/api/memory/propositions", cookie=cookie, method="POST", payload={"content": "csrf probe", "source": {"kind": "test"}}, csrf_token=csrf_body["csrf_token"])
+    assert status == 200
+
+    # A bearer-token caller (no cookie) is exempt from the CSRF check entirely.
+    global _CURRENT_TOKEN
+    _CURRENT_TOKEN = cookie
+    status, body = _post(port, "/api/memory/propositions", {"content": "bearer caller, no csrf needed", "source": {"kind": "test"}})
+    assert status == 200
+    _CURRENT_TOKEN = None
 
 
 def test_dev_bypass_token_is_not_accepted(running_store):
