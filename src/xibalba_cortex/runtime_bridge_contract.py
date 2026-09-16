@@ -10,19 +10,26 @@ telemetry.
 """
 from __future__ import annotations
 
+import hashlib
+import json
 from dataclasses import asdict, dataclass, field
 from typing import Any, Literal, Protocol
 
-RuntimeName = Literal["claude", "agy", "codex", "gemini", "cursor", "openai_compatible"]
+RuntimeName = Literal["claude", "hermes", "openclaw", "perplexity", "mcp", "cloud_run", "agy", "codex", "gemini", "cursor", "openai_compatible"]
 TransportMode = Literal["hooks", "wrapper", "launcher"]
 AdapterStatus = Literal["implemented", "partial", "unknown"]
 ToolOutcome = Literal["success", "error", "blocked", "unknown"]
 
-CONTROLLER_EVENT_SCHEMA_VERSION = "xibalba.runtime.bridge.v2"
+CONTROLLER_EVENT_SCHEMA_VERSION = "xibalba.runtime.bridge.v3"
 CONTROLLER_REQUIRED_EVENT_FIELDS = (
     "schema_version",
     "runtime",
     "session_id",
+    "idempotency_key",
+    "event_id",
+    "trace_id",
+    "span_id",
+    "parent_span_id",
     "invocation_id",
     "turn_id",
     "traceparent",
@@ -34,6 +41,12 @@ CONTROLLER_REQUIRED_EVENT_FIELDS = (
     "token_usage",
     "assistant_response",
     "observed_at_utc",
+    "start_time",
+    "end_time",
+    "duration_ns",
+    "status_code",
+    "status_message",
+    "attributes",
     "provenance",
     "metadata",
 )
@@ -62,6 +75,11 @@ class RuntimeEvent:
 
     runtime: RuntimeName
     session_id: str
+    idempotency_key: str | None = None
+    event_id: str | None = None
+    trace_id: str | None = None
+    span_id: str | None = None
+    parent_span_id: str | None = None
     invocation_id: str | None = None
     turn_id: str | None = None
     traceparent: str | None = None
@@ -73,12 +91,34 @@ class RuntimeEvent:
     token_usage: dict[str, int] | None = None
     assistant_response: str | None = None
     observed_at_utc: str | None = None
+    start_time: str | None = None
+    end_time: str | None = None
+    duration_ns: int | None = None
+    status_code: str | None = None
+    status_message: str | None = None
+    # Canonical OpenTelemetry/GenAI attributes. Integrity metadata remains in ``metadata``
+    # and provenance remains in ``provenance`` so downstream OTel consumers can read the
+    # standard namespace without losing Integrity-specific evidence.
+    attributes: dict[str, Any] = field(default_factory=dict)
     provenance: dict[str, Any] = field(default_factory=dict)
     metadata: dict[str, Any] = field(default_factory=dict)
 
     def to_record(self) -> dict[str, Any]:
         record = {"schema_version": CONTROLLER_EVENT_SCHEMA_VERSION}
         record.update(asdict(self))
+        if not record["event_id"]:
+            identity = {
+                "runtime": record["runtime"],
+                "session_id": record["session_id"],
+                "idempotency_key": record["idempotency_key"],
+                "trace_id": record["trace_id"],
+                "span_id": record["span_id"],
+                "invocation_id": record["invocation_id"],
+                "turn_id": record["turn_id"],
+            }
+            record["event_id"] = "evt:sha256:" + hashlib.sha256(
+                json.dumps(identity, sort_keys=True, separators=(",", ":"), default=str).encode("utf-8")
+            ).hexdigest()
         return record
 
 
@@ -119,14 +159,69 @@ CLAUDE_ADAPTER = RuntimeAdapterResponsibilities(
     notes="Claude Code has the richest native hook surface and should be treated as the reference adapter.",
 )
 
+HERMES_ADAPTER = RuntimeAdapterResponsibilities(
+    runtime="hermes",
+    transport="hooks",
+    status="implemented",
+    responsibilities=(
+        "bind_identity", "session_start", "session_end", "llm_telemetry",
+        "api_request_telemetry", "stream_telemetry", "tool_telemetry",
+        "approval_telemetry", "skill_and_command_telemetry", "subagent_telemetry",
+        "memory_bus_access",
+    ),
+    guarantees=("normalized_event_ingest", "session_trace_propagation", "privacy_bounded_payload_hashes"),
+    limitations=("observer_only_no_policy_enforcement", "native_provider_may_own_prompt_response_persistence"),
+    notes="Hermes Observer Hooks are bridged into Cortex; Integrity policy enforcement remains a separate gate.",
+)
+
+OPENCLAW_ADAPTER = RuntimeAdapterResponsibilities(
+    runtime="openclaw",
+    transport="hooks",
+    status="implemented",
+    responsibilities=(
+        "bind_identity", "session_start", "session_end", "agent_telemetry",
+        "model_and_prompt_telemetry", "tool_telemetry", "message_telemetry",
+        "compaction_telemetry", "subagent_telemetry", "gateway_telemetry",
+        "memory_bus_access",
+    ),
+    guarantees=("normalized_event_ingest", "session_and_run_correlation", "privacy_bounded_payload_hashes"),
+    limitations=("observer_only_no_policy_enforcement", "requires_native_openclaw_plugin_registration"),
+    notes="Typed OpenClaw plugin hooks are the live source; internal HOOK.md events and Gateway RPC are separate surfaces.",
+)
+
+PERPLEXITY_ADAPTER = RuntimeAdapterResponsibilities(
+    runtime="perplexity", transport="wrapper", status="implemented",
+    responsibilities=("direct_agent_api", "request_response_telemetry", "usage_and_citation_capture"),
+    guarantees=("explicit_consent_gate", "did_session_binding", "privacy_bounded_payloads"),
+    limitations=("provider_api_response_is_the_observable_boundary",),
+    notes="Direct Agent API integration; provider-internal reasoning remains unavailable.",
+)
+
+MCP_ADAPTER = RuntimeAdapterResponsibilities(
+    runtime="mcp", transport="hooks", status="implemented",
+    responsibilities=("tool_start_telemetry", "tool_finish_telemetry", "invocation_correlation"),
+    guarantees=("explicit_consent_gate", "did_session_binding", "privacy_bounded_payloads"),
+    limitations=("captures MCP boundary only",),
+    notes="Tool-boundary adapter; it does not claim model or provider-side visibility.",
+)
+
+CLOUD_RUN_ADAPTER = RuntimeAdapterResponsibilities(
+    runtime="cloud_run", transport="wrapper", status="implemented",
+    responsibilities=("request_lifecycle", "usage_capture", "citation_capture", "retry_capture", "final_output_capture"),
+    guarantees=("explicit_consent_gate", "did_session_binding", "privacy_bounded_payloads"),
+    limitations=("requires provider webhook, SDK callback, or gateway integration",),
+    notes="Provider-neutral cloud event adapter for externally supplied lifecycle events.",
+)
+
 AGY_ADAPTER = RuntimeAdapterResponsibilities(
     runtime="agy",
-    transport="wrapper",
+    transport="hooks",
     status="partial",
     responsibilities=(
         "bind_identity",
         "wrapper_session_start",
         "wrapper_session_end",
+        "native_hook_ingest",
         "memory_bus_access",
         "best_effort_telemetry",
     ),
@@ -135,11 +230,15 @@ AGY_ADAPTER = RuntimeAdapterResponsibilities(
         "lifecycle_telemetry",
     ),
     limitations=(
-        "no_native_hook_surface",
-        "no_pre_tool_or_post_tool_hooks",
+        "native_hook_payloads_are_integration_defined",
+        "coverage_depends_on_configured_plugin_or_sdk_hooks",
         "trace_continuity_is_best_effort_only",
     ),
-    notes="agy is wrapper-only today; it must not claim Claude-equivalent tool-level parity.",
+    notes=(
+        "Agy can be customized through its CLI/plugin or Python SDK hook configuration; "
+        "AgyNativeHookAdapter accepts forwarded callbacks. The existing wrapper remains a "
+        "fallback, and Claude-equivalent coverage is not claimed without live hook evidence."
+    ),
 )
 
 CODEX_ADAPTER = RuntimeAdapterResponsibilities(
@@ -161,15 +260,15 @@ CODEX_ADAPTER = RuntimeAdapterResponsibilities(
         "lifecycle_telemetry",
     ),
     limitations=(
-        "hook_surface_must_be_discovered",
+        "lifecycle_hook_effects_are_plugin_defined",
         "tool_level_parity_is_unverified",
         "no_native_pre_tool_or_post_tool_hooks",
     ),
     notes=(
-        "Codex now has a lifecycle-only adapter (CodexAdapter) plus the CodexLauncher subprocess "
-        "wrapper, so identity binding and session telemetry are real. Pre-tool/post-tool hook "
-        "parity with Claude is still unverified and must be measured in the live environment "
-        "before a stronger claim is made."
+        "Codex has active SessionStart/Stop lifecycle hooks in the measured coordinator plugin, "
+        "plus a lifecycle-only adapter (CodexAdapter) and CodexLauncher subprocess wrapper. "
+        "The hooks are plugin-defined and do not provide Claude-equivalent PreToolUse/PostToolUse "
+        "coverage; that stronger claim remains prohibited."
     ),
 )
 

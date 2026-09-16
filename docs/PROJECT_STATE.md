@@ -5,10 +5,10 @@ when a verification command produces new evidence, or when a blocker is resolved
 Do not create another numbered roadmap. The detailed production plan is reference
 material; its gate IDs map to this state.
 
-**Last verified:** 2026-09-08
+**Last verified:** 2026-09-14
 **Repository:** `/home/xibalba/Projects/xibalba-cortex`
-**Branch:** `main`
-**Commit:** `d61d1c9` plus existing dirty inference/provider/session changes; not committed
+**Branch:** `feat/otel-compatible-integrity-telemetry`
+**Commit:** `ccaccdd` (CORE sync account binding, guarded setup script, and systemd service fix)
 **Local-only residue:** pre-existing untracked `LICENSE` (preserve; do not stage)
 
 ## Resume in one sentence
@@ -91,6 +91,37 @@ Disclosed scope limitation, same class as `bcc_middleware/app/spool.py` in
 the sibling `integrity-core` repo: single SQLite file, no alerting wired up
 yet — this is a pull (status/staleness-report) surface, not a push one.
 
+## 2026-09-14 Integrity Protocol checkpoint
+
+The CORE registration reconciliation gate is now live for the configured
+operator account. Read-only historical Base Sepolia calls at finalized block
+`46830231` resolved all five current directory agents with `exists=true`. The
+Integrity Oracle was restarted with `AGENT_DIRECTORY_FINALIZED=true` and
+returned `finalized=true` at that same block. This approval followed chain
+evidence; it was not enabled merely because the latest block advanced.
+
+The Cortex account binding is explicit and recorded in the local audit log:
+
+- account UUID: `395a2ffd-d8ad-48b0-9032-935afbc4b0c0`
+- controller: `0x14bb099e3add7341a987a3fb435f051908f46ee2`
+- `xibalba-cortex-core-sync.timer`: enabled and active
+- sync service: exit status `0`; the Xibalba DID is projected into
+  `user_agent_registrations` at chain ID `84532`, block `46830231`, finalized
+  flag `1`
+
+The service unit now invokes `uv run --project %h/Projects/xibalba-cortex`
+instead of a missing standalone executable, preserving the local sibling
+dependency on `integrity-sdk`. The guarded setup script is
+`scripts/create_core_sync_account.py`; it verifies an explicitly supplied
+controller against CORE, reuses an existing account only after password
+verification, refuses controller replacement, protects the config with mode
+`0600`, and enables the timer.
+
+The related cross-repository evidence is recorded in
+`integrity-core/docs/runbooks/integrity-protocol-handoff-2026-09-14.md`.
+Codex, Claude, and Antigravity remain locally canary-tested but not yet
+on-chain registered, so strict live canaries for those three are still open.
+
 ## Gate ledger
 
 | ID | Gate | State | Evidence / blocker |
@@ -111,6 +142,14 @@ yet — this is a pull (status/staleness-report) surface, not a push one.
 - Authenticated Operations UI visibly renders the Production readiness card; verification was local-only and the temporary credential was revoked.
 
 ## Exact resume commands
+
+```bash
+cd /home/xibalba/Projects/xibalba-cortex
+./scripts/cortex-resume.sh
+curl -fsS http://127.0.0.1:8080/v1/agents/snapshot | jq .
+systemctl --user status xibalba-cortex-core-sync.timer
+systemctl --user status xibalba-cortex-core-sync.service
+```
 
 ## Inference handoff — 2026-09-08
 

@@ -7,6 +7,7 @@ from pathlib import Path
 import pytest
 import sqlite_vec
 
+import xibalba_cortex.store as store_module
 from xibalba_cortex.events import verify_domain_merkle_proof
 from xibalba_cortex.providers import InferenceTaskContract
 from xibalba_cortex.store import EMBEDDING_DIM, EMBEDDING_MODEL_ID, GraphStore
@@ -28,7 +29,7 @@ def test_bootstrap_creates_secure_healthy_sqlite_store(tmp_path):
     assert os.stat(home).st_mode & 0o777 == 0o700
     assert store.db_path.is_file()
     assert os.stat(store.db_path).st_mode & 0o777 == 0o600
-    assert status["schema_version"] == 13
+    assert status["schema_version"] == 15
     assert status["journal_mode"] == "wal"
     assert status["foreign_keys"] is True
     assert status["fts5"] is True
@@ -499,6 +500,20 @@ def test_vector_search_ranks_by_similarity_and_fuses_with_lexical(tmp_path):
     store.close()
 
 
+def test_lexical_search_fails_closed_at_resource_deadline(tmp_path, monkeypatch):
+    store = GraphStore(tmp_path / "graph")
+    store.store_memory(
+        "A bounded lexical search fixture.",
+        source={"kind": "direct_user"},
+        status="confirmed",
+    )
+    monkeypatch.setattr(store_module, "_LEXICAL_QUERY_TIMEOUT_SEC", 0.0)
+
+    with pytest.raises(RuntimeError, match="2-second resource limit"):
+        store.search("lexical")
+    store.close()
+
+
 def test_search_reports_real_cosine_similarity_not_just_rank(tmp_path):
     store = GraphStore(tmp_path / "graph")
     identical = store.store_memory(
@@ -589,7 +604,7 @@ def test_memory_vectors_migrates_existing_l2_table_to_cosine_preserving_data(tmp
     raw.close()
 
     reopened = GraphStore(home)
-    assert reopened.status()["schema_version"] == 13
+    assert reopened.status()["schema_version"] == 15
     results = reopened.search("nomatchingterm-xyz", query_vector=_unit_vector(0), limit=5)
     assert results[0]["id"] == memory["id"]
     assert results[0]["cosine_similarity"] == pytest.approx(1.0)
@@ -607,7 +622,7 @@ def test_backup_produces_verified_restorable_snapshot(tmp_path):
     backup_path = tmp_path / "backups" / "snapshot.sqlite3"
     result = store.backup(backup_path)
     assert result["integrity_check"] == "ok"
-    assert result["schema_version"] == 13
+    assert result["schema_version"] == 15
     assert backup_path.is_file()
     assert os.stat(backup_path).st_mode & 0o777 == 0o600
 
@@ -904,7 +919,7 @@ def test_otel_batch_ingestion_and_summary(tmp_path):
         {"kind": "metric", "name": "claude_code.cost.usage", "value": 0.0231, "unit": "USD"},
         {"kind": "log", "name": "claude_code.api_request", "attributes": {"duration_ms": 842}},
     ])
-    assert result == {"session_id": "sess-otel", "recorded": 5}
+    assert result == {"session_id": "sess-otel", "recorded": 5, "duplicates": 0}
 
     summary = store.session_otel_summary("sess-otel")
     assert summary["counts_by_kind"] == {"span": 1, "metric": 3, "log": 1}
@@ -1502,6 +1517,15 @@ def test_forget_returns_hash_bound_deletion_receipt(tmp_path):
 def test_store_status_reports_explicit_profile_id(tmp_path):
     store = GraphStore(tmp_path / "graph", profile_id="tenant-a")
     assert store.status(fast=True)["profile_id"] == "tenant-a"
+    store.close()
+
+
+def test_fast_status_defers_large_store_count(monkeypatch, tmp_path):
+    store = GraphStore(tmp_path / "large-status")
+    monkeypatch.setattr(store_module, "_FAST_STATUS_COUNT_MAX_DB_BYTES", 1)
+    status = store.status(fast=True)
+    assert status["memory_count"] is None
+    assert status["memory_count_deferred"] is True
     store.close()
 
 

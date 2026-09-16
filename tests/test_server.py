@@ -23,6 +23,14 @@ def _list_result(result):
     return result.structured_content["result"]
 
 
+def test_agy_hook_rejects_nested_identity_spoofing(store, monkeypatch):
+    monkeypatch.setattr(server, "current_principal", lambda: {
+        "agent_id": "agy", "scopes": ["memory:write"],
+    })
+    with pytest.raises(PermissionError, match="authenticated principal"):
+        server.runtime_agy_hook("PostToolUse", {"session_id": "spoof-test", "agentId": "codex"})
+
+
 @pytest.mark.asyncio
 async def test_all_tools_are_advertised(store):
     tools = await server.server.list_tools()
@@ -90,6 +98,7 @@ async def test_all_tools_are_advertised(store):
         "runtime_agy_start",
         "runtime_agy_end",
         "runtime_agy_observation",
+        "runtime_agy_hook",
         "runtime_codex_probe",
         "runtime_codex_launch",
         "runtime_codex_adapter_start",
@@ -380,7 +389,7 @@ async def test_otel_batch_and_summary_through_mcp(store):
             ],
         },
     )
-    assert _dict_result(recorded) == {"session_id": "sess-otel-mcp", "recorded": 3}
+    assert _dict_result(recorded) == {"session_id": "sess-otel-mcp", "recorded": 3, "duplicates": 0}
 
     summary = await server.server.call_tool(
         "memory_session_otel_summary", {"external_session_id": "sess-otel-mcp"}
@@ -488,10 +497,15 @@ async def test_runtime_controller_tools_through_mcp(store):
     assert payload["registered_runtimes"] == [
         "agy",
         "claude",
+        "cloud_run",
         "codex",
         "cursor",
         "gemini",
+        "hermes",
+        "mcp",
         "openai_compatible",
+        "openclaw",
+        "perplexity",
     ]
 
     opened = await server.server.call_tool(
@@ -595,6 +609,18 @@ async def test_runtime_adapter_tools_through_mcp(store, monkeypatch):
         {"session_id": "runtime-agy-mcp", "note": "wrapper-only observation"},
     )
     assert _dict_result(agy_observation)["recorded"] == 1
+
+    agy_hook = await server.server.call_tool(
+        "runtime_agy_hook",
+        {"hook_name": "post_tool_call", "event": {
+            "session_id": "runtime-agy-mcp", "tool_name": "test_tool",
+            "status": "success", "tool_input": {"secret": "never-store-this"},
+        }},
+    )
+    assert _dict_result(agy_hook)["recorded"] == 1
+    native = store.session_otel_events("runtime-agy-mcp")[-1]["attributes"]
+    assert native["provenance"]["hook_surface"] == "native"
+    assert "never-store-this" not in str(native)
 
     agy_end = await server.server.call_tool(
         "runtime_agy_end",

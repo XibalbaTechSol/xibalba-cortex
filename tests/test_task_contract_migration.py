@@ -115,7 +115,7 @@ def test_v8_database_migrates_task_type_check_and_dead_letters_legacy_claims(tmp
     raw.close()
 
     reopened = GraphStore(home)
-    assert reopened.status()["schema_version"] == 13
+    assert reopened.status()["schema_version"] == 15
 
     # Pre-existing row preserved.
     preserved = reopened.get_inference_task(task["id"])
@@ -148,4 +148,4 @@ def test_repairs_extraction_proposals_fk_rewritten_by_v8_migration(tmp_path: Pat
     fk = repaired._connection.execute("PRAGMA foreign_key_list(extraction_proposals)").fetchall()
     task_fk = next(row for row in fk if row[3] == "task_id")
     assert task_fk[2] == "memory_inference_tasks"
-    assert repaired.status()["schema_version"] == 13
+    assert repaired.status()["schema_version"] == 15

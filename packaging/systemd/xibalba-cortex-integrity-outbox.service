@@ -1,0 +1,23 @@
+[Unit]
+Description=Drain the Integrity SDK telemetry outbox into the Oracle
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+# This worker is deliberately bounded; the timer provides the maintenance loop.
+Environment=RPC_URL=https://sepolia.base.org
+Environment=DOCKER_RPC_URL=https://sepolia.base.org
+Environment=BASE_SEPOLIA_RPC_URL=https://sepolia.base.org
+Environment=INTEGRITY_RPC_URL=https://sepolia.base.org
+Environment=CHAIN_ID=84532
+ExecStart=%h/.local/bin/uv run --project %h/Projects/xibalba-cortex xibalba-cortex-integrity-outbox-consumer --limit 5
+TimeoutStartSec=90
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=%h/.hermes/xibalba-cortex
+
+[Install]
+WantedBy=multi-user.target

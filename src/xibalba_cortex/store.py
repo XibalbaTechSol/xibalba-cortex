@@ -29,11 +29,20 @@ from .redaction import redact
 
 logger = logging.getLogger("xibalba_cortex.store")
 
-_SCHEMA_VERSION = 13
+_SCHEMA_VERSION = 15
 
 # Generous default cap on a single attachment -- not a policy decision, just a guard against
 # accidentally ingesting something absurd (e.g. a whole video library) into the blob store.
 _DEFAULT_MAX_ATTACHMENT_BYTES = 200 * 1024 * 1024
+
+# FTS5/BM25 ranking is bounded by wall time as well as result count.  A common term over a
+# multi-gigabyte tenant store can otherwise consume a worker for an unbounded interval even
+# when it no longer holds the GraphStore writer lock.
+_LEXICAL_QUERY_TIMEOUT_SEC = 2.0
+
+# Fast liveness/status requests must not turn into a full table scan on a large tenant store.
+# Exact counts remain available for ordinary stores and the operator's non-fast status path.
+_FAST_STATUS_COUNT_MAX_DB_BYTES = 256 * 1024 * 1024
 
 # Governs whether/how an agent identifier passed in source["agent_id"] gets stored. Privacy or
 # compliance posture varies by deployment, so this is configurable, not hardcoded -- see
@@ -85,6 +94,7 @@ _EVIDENCE_CLASSES = {
     "inference",
     "summary",
     "policy",
+    "protocol_receipt",
 }
 # Not code-enforced content -- this store never inspects what an agent writes and can't judge
 # "is this actually verbatim." A tier is a declared write-pattern contract the calling agent
@@ -265,7 +275,11 @@ CREATE TABLE IF NOT EXISTS entities (
     entity_type TEXT NOT NULL DEFAULT 'unknown',
     normalization_version TEXT NOT NULL DEFAULT 'v1',
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE(normalized_name, entity_type)
+    -- '' is the shared/global scope: an entity any agent can see and reuse. A non-empty
+    -- agent_id makes the entity private to that agent. New entities default to their
+    -- creating agent's scope (isolated); callers opt into '' explicitly to share.
+    agent_id TEXT NOT NULL DEFAULT '',
+    UNIQUE(agent_id, normalized_name, entity_type)
 );
 
 CREATE TABLE IF NOT EXISTS entity_aliases (
@@ -299,6 +313,10 @@ CREATE TABLE IF NOT EXISTS relations (
     valid_from TEXT,
     valid_to TEXT,
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    -- Same convention as entities.agent_id: '' is shared (visible to every agent), a
+    -- non-empty value is that relation's private asserting agent. Set at insert time from
+    -- the evidence memory's source, same as the entities it links -- never independently.
+    agent_id TEXT NOT NULL DEFAULT '',
     CHECK ((object_entity_id IS NOT NULL) != (object_literal IS NOT NULL))
 );
 
@@ -369,6 +387,22 @@ CREATE INDEX IF NOT EXISTS idx_otel_events_session ON otel_events(session_id);
 CREATE INDEX IF NOT EXISTS idx_otel_events_session_name ON otel_events(session_id, name);
 CREATE INDEX IF NOT EXISTS idx_otel_events_prompt_id ON otel_events(prompt_id);
 CREATE INDEX IF NOT EXISTS idx_otel_events_memory_id ON otel_events(memory_id);
+
+CREATE TABLE IF NOT EXISTS telemetry_event_dedupe (
+    idempotency_key TEXT PRIMARY KEY,
+    event_id TEXT NOT NULL,
+    provider TEXT,
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS telemetry_health (
+    provider TEXT PRIMARY KEY,
+    accepted INTEGER NOT NULL DEFAULT 0,
+    duplicates INTEGER NOT NULL DEFAULT 0,
+    rejected INTEGER NOT NULL DEFAULT 0,
+    last_error TEXT,
+    last_seen_at TEXT
+);
 
 -- A session's complete memory as a walkable, Merkle-chained sequence of exchanges -- the same
 -- content-addressed, backward-linked pattern already proven for memory_events (and explored
@@ -697,7 +731,16 @@ class GraphStore:
         self._lock = threading.RLock()
         self._atomic_depth = 0
         self._agent_workspaces_cache: tuple[float, list[dict[str, object]]] | None = None
-        self._agent_workspaces_cache_ttl_sec = 15.0
+        # Separate from `self._lock` on purpose: this guards only the cache tuple itself, for
+        # the handful of read-only endpoints below that no longer take `self._lock` at all (see
+        # `_read_connection()`). Reusing `self._lock` here would put those reads right back in
+        # line behind writers, defeating the point of the split.
+        self._cache_lock = threading.Lock()
+        # 60s, not 15s: the underlying scan cost grows with the sources table (~7s+ once it
+        # passed a few thousand rows, 2026-09-14) and every cache miss holds `self._lock` for
+        # its full duration, blocking all other store access. A longer TTL trades a little
+        # staleness in the Agents view for far fewer of these lock-holding cold scans.
+        self._agent_workspaces_cache_ttl_sec = 60.0
         self._connection = sqlite3.connect(
             self.db_path,
             timeout=30.0,
@@ -710,6 +753,49 @@ class GraphStore:
         self._migrate()
         self._identity_salt = self._load_or_create_identity_salt()
         self._register_configured_device()
+        # Per-thread read-only connections, WAL mode lets these run fully concurrently with the
+        # single writer above -- no `self._lock` needed. Added 2026-09-15 after confirming a
+        # handful of read-heavy local_api endpoints (agent_workspaces, para/classifications,
+        # inference/tasks, extraction-proposals, counts/status) were queuing behind
+        # `self._lock` even though their own queries run in single-digit milliseconds
+        # standalone: the box's memory pressure occasionally stalls a *write* in kernel D-state
+        # while holding the lock, and every reader -- not just other writers -- was paying for
+        # that stall. Only for genuinely read-only paths that never touch the sqlite_vec
+        # extension (loaded on `self._connection` only, not on these).
+        self._read_local = threading.local()
+        # Incremented when restore() replaces the database so thread-local read connections
+        # cannot retain a snapshot of the old FTS tables.
+        self._read_generation = 0
+
+    def _read_connection(self) -> sqlite3.Connection:
+        """A lazily-created, per-thread, read-only SQLite connection.
+
+        Never call from a code path that writes. `mode=ro` at the SQLite level is a second line
+        of defense against an accidental write landing here -- it would raise
+        `OperationalError: attempt to write a readonly database` rather than silently bypassing
+        `self._lock`'s serialization. The `sqlite_vec` extension is loaded here too (each
+        connection needs its own load; it's a runtime module registration, not a file write, so
+        this is safe on a read-only connection) so vec0-table queries like `counts()`'s
+        `memory_vectors` count don't need to fall back to the locked write connection either.
+        """
+        conn = getattr(self._read_local, "conn", None)
+        if conn is not None and getattr(self._read_local, "generation", -1) != self._read_generation:
+            conn.close()
+            conn = None
+        if conn is None:
+            conn = sqlite3.connect(f"file:{self.db_path}?mode=ro", uri=True, timeout=30.0)
+            conn.row_factory = sqlite3.Row
+            conn.execute("PRAGMA busy_timeout = 30000")
+            # `PRAGMA foreign_keys` is per-connection, not persisted in the file -- set to match
+            # the write connection purely so `status()`'s reported value stays accurate; it has
+            # no enforcement effect here since this connection never runs DML.
+            conn.execute("PRAGMA foreign_keys = ON")
+            conn.enable_load_extension(True)
+            sqlite_vec.load(conn)
+            conn.enable_load_extension(False)
+            self._read_local.conn = conn
+            self._read_local.generation = self._read_generation
+        return conn
 
     def _load_or_create_identity_salt(self) -> bytes:
         """Per-profile secret for pseudonymizing agent_id. Not a signing key -- safe to store
@@ -786,10 +872,98 @@ class GraphStore:
         self._connection.execute("PRAGMA busy_timeout = 30000")
         self._connection.execute("PRAGMA foreign_keys = ON")
         self._connection.execute("PRAGMA journal_mode = WAL")
-        self._connection.execute("PRAGMA synchronous = FULL")
+        # NORMAL, not FULL: in WAL mode NORMAL still can't corrupt the database on an
+        # application crash (SQLite's own documented guarantee) -- it only risks losing the
+        # very last commit on an actual OS-level power loss, which isn't this box's failure
+        # mode. FULL forces an fsync on every single commit; under this box's disk/swap
+        # pressure that fsync is exactly what has repeatedly put a store thread into kernel
+        # D-state (uninterruptible disk sleep) while holding `self._lock`, wedging every other
+        # request behind it (see PRODUCTION_GAPS.md / thread-pileup incident, 2026-09-14).
+        self._connection.execute("PRAGMA synchronous = NORMAL")
         self._connection.enable_load_extension(True)
         sqlite_vec.load(self._connection)
         self._connection.enable_load_extension(False)
+
+    def _migrate_entities_agent_scoping_locked(self) -> None:
+        """Add agent_id to entities (v14): agent-scoped knowledge graphs. Every existing
+        entity predates agent attribution, so it is migrated into the shared ('') scope --
+        fully visible to every agent, exactly as it was before this migration. Only entities
+        created after this migration default to their creating agent's private scope.
+
+        Rebuilds the table (SQLite can't ALTER a UNIQUE constraint) via create-new/drop-old/
+        rename-into-place -- never renaming `entities` itself away, since entity_aliases,
+        memory_entities, and relations hold live FK references to it by name and SQLite
+        rewrites a referencing child's stored FK clause when the *parent* is the one renamed
+        (see _repair_para_classifications_foreign_key_locked for the failure mode this avoids).
+        """
+        entity_columns = {row["name"] for row in self._connection.execute("PRAGMA table_info(entities)")}
+        if entity_columns and "agent_id" not in entity_columns:
+            self._connection.execute("PRAGMA foreign_keys = OFF")
+            try:
+                self._connection.execute("BEGIN IMMEDIATE")
+                try:
+                    self._connection.execute(
+                        """
+                        CREATE TABLE entities_v14 (
+                            id TEXT PRIMARY KEY,
+                            canonical_name TEXT NOT NULL,
+                            normalized_name TEXT NOT NULL,
+                            entity_type TEXT NOT NULL DEFAULT 'unknown',
+                            normalization_version TEXT NOT NULL DEFAULT 'v1',
+                            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                            agent_id TEXT NOT NULL DEFAULT '',
+                            UNIQUE(agent_id, normalized_name, entity_type)
+                        )
+                        """
+                    )
+                    self._connection.execute(
+                        """INSERT INTO entities_v14
+                           (id, canonical_name, normalized_name, entity_type, normalization_version, created_at, agent_id)
+                           SELECT id, canonical_name, normalized_name, entity_type, normalization_version, created_at, ''
+                           FROM entities"""
+                    )
+                    self._connection.execute("DROP TABLE entities")
+                    self._connection.execute("ALTER TABLE entities_v14 RENAME TO entities")
+                    self._connection.execute("COMMIT")
+                except Exception:
+                    self._connection.execute("ROLLBACK")
+                    raise
+            finally:
+                self._connection.execute("PRAGMA foreign_keys = ON")
+            violations = self._connection.execute("PRAGMA foreign_key_check(entity_aliases)").fetchall()
+            violations += self._connection.execute("PRAGMA foreign_key_check(memory_entities)").fetchall()
+            violations += self._connection.execute("PRAGMA foreign_key_check(relations)").fetchall()
+            if violations:
+                raise RuntimeError(f"entities agent-scoping migration left dangling foreign keys: {violations!r}")
+        # Unconditional/idempotent: covers both a freshly created v14 table (via _SCHEMA above)
+        # and a table just rebuilt by the branch above.
+        self._connection.execute("CREATE INDEX IF NOT EXISTS idx_entities_agent ON entities(agent_id)")
+
+    def _migrate_relations_agent_scoping_locked(self) -> None:
+        """Add agent_id to relations (v15): explicit per-relation sharing, alongside the v14
+        entity scoping. No table rebuild needed here (relations has no UNIQUE constraint to
+        widen) -- a plain ADD COLUMN plus a backfill UPDATE suffices.
+
+        Unlike entities (which were already globally shared pre-migration), relation reads
+        were already agent-filtered before this column existed -- neighbors()/find_path()
+        joined through evidence_memory_id -> sources.agent_id to restrict results to the
+        requesting agent. Backfilling agent_id from that same evidence chain preserves each
+        existing relation's current visibility exactly; only new relations going forward gain
+        the ability to opt into the shared ('') scope explicitly via shared=True.
+        """
+        relation_columns = {row["name"] for row in self._connection.execute("PRAGMA table_info(relations)")}
+        if relation_columns and "agent_id" not in relation_columns:
+            self._connection.execute("ALTER TABLE relations ADD COLUMN agent_id TEXT NOT NULL DEFAULT ''")
+            self._connection.execute(
+                """
+                UPDATE relations SET agent_id = COALESCE((
+                    SELECT ss.agent_id
+                    FROM memories sm JOIN sources ss ON ss.id = sm.source_id
+                    WHERE sm.id = relations.evidence_memory_id
+                ), '')
+                """
+            )
+        self._connection.execute("CREATE INDEX IF NOT EXISTS idx_relations_agent_id ON relations(agent_id)")
 
     def _repair_para_classifications_foreign_key_locked(self) -> None:
         """Repair the PARA FK rewritten by SQLite during the v8 task-table migration."""
@@ -864,6 +1038,8 @@ class GraphStore:
             current_version = self._connection.execute(
                 "SELECT COALESCE(MAX(version), 0) FROM schema_migrations"
             ).fetchone()[0]
+            self._migrate_entities_agent_scoping_locked()
+            self._migrate_relations_agent_scoping_locked()
             vectors_table_exists = self._connection.execute(
                 "SELECT 1 FROM sqlite_master WHERE name = 'memory_vectors'"
             ).fetchone() is not None
@@ -1138,23 +1314,27 @@ class GraphStore:
         # on-demand operator/MCP status call, but local_api's /api/status is polled by
         # the dashboard's health check on a 2.5s client timeout, so it needs a cheap
         # liveness signal, not a corruption audit every few seconds.
-        with self._lock:
-            schema_version = self._connection.execute(
-                "SELECT COALESCE(MAX(version), 0) FROM schema_migrations"
-            ).fetchone()[0]
-            journal_mode = self._connection.execute("PRAGMA journal_mode").fetchone()[0]
-            foreign_keys = bool(self._connection.execute("PRAGMA foreign_keys").fetchone()[0])
-            integrity_check = (
-                "skipped (fast mode)"
-                if fast
-                else self._connection.execute("PRAGMA integrity_check").fetchone()[0]
-            )
-            fts5 = bool(
-                self._connection.execute(
-                    "SELECT 1 FROM sqlite_master WHERE name = 'memory_fts'"
-                ).fetchone()
-            )
-            memory_count = self._connection.execute("SELECT COUNT(*) FROM memories").fetchone()[0]
+        # Read-only connection (2026-09-15): none of these touch sqlite_vec, and running
+        # `PRAGMA integrity_check`'s full B-tree scan off `self._lock` means it no longer blocks
+        # every writer for its ~2s duration either.
+        conn = self._read_connection()
+        schema_version = conn.execute(
+            "SELECT COALESCE(MAX(version), 0) FROM schema_migrations"
+        ).fetchone()[0]
+        journal_mode = conn.execute("PRAGMA journal_mode").fetchone()[0]
+        foreign_keys = bool(conn.execute("PRAGMA foreign_keys").fetchone()[0])
+        integrity_check = (
+            "skipped (fast mode)"
+            if fast
+            else conn.execute("PRAGMA integrity_check").fetchone()[0]
+        )
+        fts5 = bool(
+            conn.execute(
+                "SELECT 1 FROM sqlite_master WHERE name = 'memory_fts'"
+            ).fetchone()
+        )
+        count_deferred = bool(fast and self.db_path.stat().st_size > _FAST_STATUS_COUNT_MAX_DB_BYTES)
+        memory_count = None if count_deferred else conn.execute("SELECT COUNT(*) FROM memories").fetchone()[0]
         backup_ready = self.db_path.is_file() and os.access(self.home, os.W_OK)
         return {
             "schema_version": schema_version,
@@ -1166,6 +1346,7 @@ class GraphStore:
             "identity_mode": self.identity_mode,
             "db_path": str(self.db_path),
             "memory_count": memory_count,
+            "memory_count_deferred": count_deferred,
             "backup_ready": backup_ready,
             "backup_method": "sqlite_online_backup",
             "features": dict(self.features),
@@ -1513,6 +1694,7 @@ class GraphStore:
             self._connection.row_factory = sqlite3.Row
             self._configure()
             self._migrate()
+            self._read_generation += 1
         return self.status()
 
     @staticmethod
@@ -1848,19 +2030,22 @@ class GraphStore:
 
     def counts(self) -> dict[str, int]:
         """Table row counts for a stats/overview surface -- not part of v1's spec, added for
-        the local graph API (a browser-facing read surface, distinct from the MCP tool set)."""
-        with self._lock:
-            return {
-                "memories": self._connection.execute("SELECT COUNT(*) FROM memories").fetchone()[0],
-                "entities": self._connection.execute("SELECT COUNT(*) FROM entities").fetchone()[0],
-                "relations": self._connection.execute(
-                    "SELECT COUNT(*) FROM relations WHERE status = 'active'"
-                ).fetchone()[0],
-                "sessions": self._connection.execute("SELECT COUNT(*) FROM sessions").fetchone()[0],
-                "embedded_memories": self._connection.execute(
-                    "SELECT COUNT(*) FROM memory_vectors"
-                ).fetchone()[0],
-            }
+        the local graph API (a browser-facing read surface, distinct from the MCP tool set).
+
+        Fully on the read-only connection (2026-09-15) -- including `embedded_memories`, since
+        `_read_connection()` now loads `sqlite_vec` too, so the `memory_vectors` vec0-table
+        count no longer needs the locked write connection either.
+        """
+        conn = self._read_connection()
+        return {
+            "memories": conn.execute("SELECT COUNT(*) FROM memories").fetchone()[0],
+            "entities": conn.execute("SELECT COUNT(*) FROM entities").fetchone()[0],
+            "relations": conn.execute(
+                "SELECT COUNT(*) FROM relations WHERE status = 'active'"
+            ).fetchone()[0],
+            "sessions": conn.execute("SELECT COUNT(*) FROM sessions").fetchone()[0],
+            "embedded_memories": conn.execute("SELECT COUNT(*) FROM memory_vectors").fetchone()[0],
+        }
 
     def agent_summary(self, agent_id: str, *, limit: int = 8) -> dict[str, object]:
         """Return agent-scoped, source-backed memory totals for operator UIs.
@@ -1875,62 +2060,68 @@ class GraphStore:
         bounded_limit = max(0, min(int(limit), 50))
         if not normalized:
             raise ValueError("agent_id is required")
-        with self._lock:
-            if bounded_limit == 0:
-                # The dashboard summary deliberately asks for aggregates only.
-                # Avoid the vector virtual-table join here: on a large profile it
-                # multiplies the memory scan and can starve the local API thread.
-                totals = self._connection.execute(
-                    """
-                    SELECT COUNT(*) AS memories
-                    FROM memories
-                    JOIN sources ON sources.id = memories.source_id
-                    WHERE sources.agent_id = ?
-                    """,
-                    (normalized,),
-                ).fetchone()
-                source_totals = self._connection.execute(
-                    """
-                    SELECT COUNT(DISTINCT session_id) AS sessions,
-                           COUNT(*) AS sources
-                    FROM sources
-                    WHERE agent_id = ?
-                    """,
-                    (normalized,),
-                ).fetchone()
-                totals = {
-                    "memories": totals["memories"],
-                    "sessions": source_totals["sessions"],
-                    "sources": source_totals["sources"],
-                    "embedded_memories": None,
-                }
-            else:
-                totals = self._connection.execute(
-                    """
-                    SELECT COUNT(*) AS memories,
-                           COUNT(DISTINCT sources.session_id) AS sessions,
-                           COUNT(DISTINCT sources.id) AS sources,
-                           COUNT(memory_vectors.memory_id) AS embedded_memories
-                    FROM memories
-                    JOIN sources ON sources.id = memories.source_id
-                    LEFT JOIN memory_vectors ON memory_vectors.memory_id = memories.id
-                    WHERE sources.agent_id = ?
-                    """,
-                    (normalized,),
-                ).fetchone()
-            rows = []
-            if bounded_limit:
-                rows = self._connection.execute(
-                    """
-                    SELECT memories.id
-                    FROM memories
-                    JOIN sources ON sources.id = memories.source_id
-                    WHERE sources.agent_id = ?
-                    ORDER BY memories.created_at DESC
-                    LIMIT ?
-                    """,
-                    (normalized, bounded_limit),
-                ).fetchall()
+        # Read-only connection (2026-09-15): this can be a multi-second scan for an agent
+        # with a large memory count (measured against this repo's own production DB --
+        # ~800k memories under one agent_id). Holding self._lock for that duration blocked
+        # every other reader and writer, and on a memory-pressured box the scan itself can
+        # take well over a minute; that combination wedged the local API's whole bounded
+        # thread pool for one slow per-agent summary request.
+        conn = self._read_connection()
+        if bounded_limit == 0:
+            # The dashboard summary deliberately asks for aggregates only.
+            # Avoid the vector virtual-table join here: on a large profile it
+            # multiplies the memory scan and can starve the local API thread.
+            totals_row = conn.execute(
+                """
+                SELECT COUNT(*) AS memories
+                FROM memories
+                JOIN sources ON sources.id = memories.source_id
+                WHERE sources.agent_id = ?
+                """,
+                (normalized,),
+            ).fetchone()
+            source_totals = conn.execute(
+                """
+                SELECT COUNT(DISTINCT session_id) AS sessions,
+                       COUNT(*) AS sources
+                FROM sources
+                WHERE agent_id = ?
+                """,
+                (normalized,),
+            ).fetchone()
+            totals = {
+                "memories": totals_row["memories"],
+                "sessions": source_totals["sessions"],
+                "sources": source_totals["sources"],
+                "embedded_memories": None,
+            }
+        else:
+            totals = conn.execute(
+                """
+                SELECT COUNT(*) AS memories,
+                       COUNT(DISTINCT sources.session_id) AS sessions,
+                       COUNT(DISTINCT sources.id) AS sources,
+                       COUNT(memory_vectors.memory_id) AS embedded_memories
+                FROM memories
+                JOIN sources ON sources.id = memories.source_id
+                LEFT JOIN memory_vectors ON memory_vectors.memory_id = memories.id
+                WHERE sources.agent_id = ?
+                """,
+                (normalized,),
+            ).fetchone()
+        rows = []
+        if bounded_limit:
+            rows = conn.execute(
+                """
+                SELECT memories.id
+                FROM memories
+                JOIN sources ON sources.id = memories.source_id
+                WHERE sources.agent_id = ?
+                ORDER BY memories.created_at DESC
+                LIMIT ?
+                """,
+                (normalized, bounded_limit),
+            ).fetchall()
         return {
             "agent_id": normalized,
             "memories": int(totals["memories"]),
@@ -2028,63 +2219,67 @@ class GraphStore:
         actually selected.
 
         Short-TTL cached: this scan measured 4+ seconds against this repo's own production DB
-        (2026-09-14) and is hit by the dashboard's header selector on every page load. Without
-        caching, concurrent polling outpaces drain rate under ThreadingHTTPServer's one-thread-
-        per-connection model and thread count runs away (588 threads observed within minutes)
-        -- the same failure class documented for xibalba-shield's per-device identity
-        resolution. A stale-by-at-most-TTL agent list is an acceptable tradeoff against that.
+        (2026-09-14) under lock contention, and is hit by the dashboard's header selector on
+        every page load. The cache absorbs repeat hits within the TTL regardless.
 
-        The cache check and the recompute both happen under ``self._lock`` (not checked, then
-        separately locked) so that N concurrent callers arriving during a cache miss serialize
-        into exactly one recompute: the first to acquire the lock computes and populates the
-        cache, then every caller queued behind it sees a fresh cache hit on its turn instead of
-        each redoing the full scan -- an earlier version checked the cache before acquiring the
-        lock, which let a burst of concurrent requests each recompute in turn (N x 4.2s) and
-        reproduced the same thread/latency pileup this cache was meant to fix.
+        As of 2026-09-15 this method runs entirely on a per-thread read-only connection
+        (`_read_connection()`), not `self._connection`/`self._lock` -- standalone, the queries
+        below run in single-digit milliseconds; the multi-second cost measured earlier was
+        `self._lock` contention with writers (including one stalled in kernel D-state under
+        this box's memory pressure), not the queries themselves. `self._cache_lock` (a plain,
+        short-held `Lock`, separate from `self._lock`) still dedupes the cache read/write: two
+        threads can now legitimately recompute concurrently on a cache miss (cheap, no longer
+        the 4+ second cost that made that worth preventing), but the dict write is still
+        serialized so one doesn't clobber a newer result with a stale one.
         """
         bounded_limit = max(1, min(int(limit), 500))
-        with self._lock:
+        with self._cache_lock:
             cache = self._agent_workspaces_cache
             now = time.monotonic()
             if cache is not None and (now - cache[0]) < self._agent_workspaces_cache_ttl_sec:
                 return cache[1][:bounded_limit]
-            workspaces: list[dict[str, object]] = []
-            for pair in self.list_agent_devices(limit=500):
-                agent_id = str(pair["agent_id"])
-                device_id = str(pair["device_id"])
-                counts = self._connection.execute(
-                    """SELECT COUNT(DISTINCT memories.id) AS memories,
-                              COUNT(DISTINCT sources.session_id) AS sessions,
-                              MAX(memories.created_at) AS last_seen_at
-                       FROM memories JOIN sources ON sources.id = memories.source_id
-                       WHERE sources.agent_id = ?
-                         AND json_extract(sources.metadata_json, '$.device_id') = ?""",
-                    (agent_id, device_id),
-                ).fetchone()
-                workspaces.append({
-                    "agent_id": agent_id, "device_id": device_id,
-                    "agent_name": None, "device_name": pair["display_name"],
-                    "pair_status": pair["status"], "pair_updated_at": pair["updated_at"],
-                    "memories": int(counts["memories"] or 0),
-                    "sessions": int(counts["sessions"] or 0),
-                    "last_seen_at": counts["last_seen_at"] or pair["last_seen_at"],
-                })
-            present = {str(item["agent_id"]) for item in workspaces}
-            unpaired_rows = self._connection.execute(
-                "SELECT DISTINCT agent_id FROM sources WHERE agent_id IS NOT NULL"
-            ).fetchall()
-            for row in unpaired_rows:
-                agent_id = str(row["agent_id"])
-                if agent_id in present:
-                    continue
-                workspaces.append({
-                    "agent_id": agent_id, "device_id": None,
-                    "agent_name": None, "device_name": None,
-                    "pair_status": None, "pair_updated_at": None,
-                    "memories": 0, "sessions": 0, "last_seen_at": None,
-                })
-            self._agent_workspaces_cache = (now, workspaces)
-            return workspaces[:bounded_limit]
+        conn = self._read_connection()
+        pairs = conn.execute(
+            "SELECT * FROM agent_devices ORDER BY updated_at DESC LIMIT 500"
+        ).fetchall()
+        workspaces: list[dict[str, object]] = []
+        for pair in pairs:
+            agent_id = str(pair["agent_id"])
+            device_id = str(pair["device_id"])
+            counts = conn.execute(
+                """SELECT COUNT(DISTINCT memories.id) AS memories,
+                          COUNT(DISTINCT sources.session_id) AS sessions,
+                          MAX(memories.created_at) AS last_seen_at
+                   FROM memories JOIN sources ON sources.id = memories.source_id
+                   WHERE sources.agent_id = ?
+                     AND json_extract(sources.metadata_json, '$.device_id') = ?""",
+                (agent_id, device_id),
+            ).fetchone()
+            workspaces.append({
+                "agent_id": agent_id, "device_id": device_id,
+                "agent_name": None, "device_name": pair["display_name"],
+                "pair_status": pair["status"], "pair_updated_at": pair["updated_at"],
+                "memories": int(counts["memories"] or 0),
+                "sessions": int(counts["sessions"] or 0),
+                "last_seen_at": counts["last_seen_at"] or pair["last_seen_at"],
+            })
+        present = {str(item["agent_id"]) for item in workspaces}
+        unpaired_rows = conn.execute(
+            "SELECT DISTINCT agent_id FROM sources WHERE agent_id IS NOT NULL"
+        ).fetchall()
+        for row in unpaired_rows:
+            agent_id = str(row["agent_id"])
+            if agent_id in present:
+                continue
+            workspaces.append({
+                "agent_id": agent_id, "device_id": None,
+                "agent_name": None, "device_name": None,
+                "pair_status": None, "pair_updated_at": None,
+                "memories": 0, "sessions": 0, "last_seen_at": None,
+            })
+        with self._cache_lock:
+            self._agent_workspaces_cache = (time.monotonic(), workspaces)
+        return workspaces[:bounded_limit]
 
     def agent_memories(self, agent_id: str, *, device_id: str | None = None, limit: int = 100) -> list[dict[str, object]]:
         normalized = str(agent_id).strip()
@@ -2105,16 +2300,33 @@ class GraphStore:
         return [self.get_memory(row["id"]) for row in rows]
 
     def list_memories(
-        self, *, limit: int = 200, offset: int = 0, statuses: tuple[str, ...] = ("active", "confirmed")
+        self,
+        *,
+        limit: int = 200,
+        offset: int = 0,
+        statuses: tuple[str, ...] = ("active", "confirmed"),
+        agent_id: str | None = None,
     ) -> list[dict[str, object]]:
-        """Bulk-paginated memory listing for the local graph API's node payload -- distinct from
-        search()/get_memory(), which are single-memory or query-driven, not "give me a page."""
+        """Bulk-paginated memory listing for the local graph API's node payload and the viewer's
+        Memory Explorer -- distinct from search()/get_memory(), which are single-memory or
+        query-driven, not "give me a page." agent_id, when given, is a persisted partition value
+        (already resolved by the caller) filtered via a join on sources, mirroring
+        agent_memories()."""
         bounded_limit = max(1, min(int(limit), 1000))
         placeholders = ",".join("?" * len(statuses))
+        params: list[object] = [*statuses]
+        join = ""
+        where_agent = ""
+        if agent_id:
+            join = "JOIN sources ON sources.id = memories.source_id"
+            where_agent = " AND sources.agent_id = ?"
+            params.append(str(agent_id))
+        params.extend([bounded_limit, max(0, int(offset))])
         with self._lock:
             rows = self._connection.execute(
-                f"SELECT id FROM memories WHERE status IN ({placeholders}) ORDER BY created_at LIMIT ? OFFSET ?",
-                (*statuses, bounded_limit, max(0, int(offset))),
+                f"SELECT memories.id FROM memories {join} WHERE memories.status IN ({placeholders}){where_agent} "
+                "ORDER BY memories.created_at DESC LIMIT ? OFFSET ?",
+                params,
             ).fetchall()
         return [self.get_memory(row["id"]) for row in rows]
 
@@ -2125,13 +2337,22 @@ class GraphStore:
             rows = self._connection.execute("SELECT memory_id FROM memory_vectors").fetchall()
         return [row["memory_id"] for row in rows]
 
-    def list_entities(self, *, limit: int = 500) -> list[dict[str, object]]:
+    def list_entities(self, *, limit: int = 500, agent_id: str | None = None) -> list[dict[str, object]]:
+        """agent_id=None (default) lists every entity regardless of scope. Pass an agent_id to
+        see only that agent's private entities plus shared ('') ones."""
         bounded_limit = max(1, min(int(limit), 5000))
         with self._lock:
-            rows = self._connection.execute(
-                "SELECT id, canonical_name, entity_type FROM entities ORDER BY created_at LIMIT ?",
-                (bounded_limit,),
-            ).fetchall()
+            if agent_id is None:
+                rows = self._connection.execute(
+                    "SELECT id, canonical_name, entity_type, agent_id FROM entities ORDER BY created_at LIMIT ?",
+                    (bounded_limit,),
+                ).fetchall()
+            else:
+                rows = self._connection.execute(
+                    "SELECT id, canonical_name, entity_type, agent_id FROM entities "
+                    "WHERE agent_id IN (?, '') ORDER BY created_at LIMIT ?",
+                    (agent_id, bounded_limit),
+                ).fetchall()
         return [dict(row) for row in rows]
 
     def list_relations(self, *, limit: int = 1000) -> list[dict[str, object]]:
@@ -2188,8 +2409,15 @@ class GraphStore:
         if not tokens:
             return []
         fts_query = " AND ".join(f'"{token.replace(chr(34), "")}"' for token in tokens)
-        with self._lock:
-            rows = self._connection.execute(
+        # FTS ranking can be materially slower than the surrounding point reads on a large
+        # tenant store.  Keep it off the process-wide writer lock: a slow/common term must not
+        # starve liveness, authentication, or unrelated tenant reads.  WAL permits this
+        # read-only connection to run concurrently with the writer.
+        conn = self._read_connection()
+        deadline = time.monotonic() + _LEXICAL_QUERY_TIMEOUT_SEC
+        conn.set_progress_handler(lambda: int(time.monotonic() >= deadline), 1000)
+        try:
+            rows = conn.execute(
                 """
                 SELECT m.id
                 FROM memory_fts f
@@ -2201,6 +2429,14 @@ class GraphStore:
                 """,
                 (fts_query, limit),
             ).fetchall()
+            if time.monotonic() >= deadline:
+                raise RuntimeError("lexical search exceeded its 2-second resource limit")
+        except sqlite3.OperationalError as exc:
+            if "interrupted" in str(exc).lower():
+                raise RuntimeError("lexical search exceeded its 2-second resource limit") from exc
+            raise
+        finally:
+            conn.set_progress_handler(None, 0)
         return [row["id"] for row in rows]
 
     def _vector_ranked_ids(self, query_vector: list[float], limit: int) -> list[tuple[str, float]]:
@@ -3116,6 +3352,47 @@ class GraphStore:
             ).fetchall()
         return [self.get_memory(row["id"]) for row in rows]
 
+    # No cap existed here before this fix: a caller's raw OTel span attributes (e.g. a
+    # tool_call.exec span's full command/patch text) were serialized and stored verbatim,
+    # unbounded -- rows up to ~43KB were observed in production, and 73k+ such rows was the
+    # single largest contributor short of `memories` itself to the 8.7GB DB-bloat incident
+    # (2026-09-15) that caused sustained thread-pool exhaustion. This mirrors the
+    # `max_content_chars` cap integrity-sdk's `collection.py` already applies on the
+    # oracle-bound telemetry path -- this is the equivalent for Cortex's own OTel ingestion,
+    # which had no such cap.
+    _OTEL_ATTR_VALUE_CHAR_CAP = 4_096
+    _OTEL_ATTRIBUTES_JSON_BYTE_CAP = 16_384
+
+    @staticmethod
+    def _capped_otel_attributes(attributes: dict[str, object] | None) -> str:
+        capped = {}
+        for key, value in (attributes or {}).items():
+            if isinstance(value, str) and len(value) > GraphStore._OTEL_ATTR_VALUE_CHAR_CAP:
+                capped[key] = value[: GraphStore._OTEL_ATTR_VALUE_CHAR_CAP] + f"...[truncated, {len(value)} chars]"
+            else:
+                capped[key] = value
+        serialized = json.dumps(capped, sort_keys=True, separators=(",", ":"))
+        if len(serialized.encode("utf-8")) > GraphStore._OTEL_ATTRIBUTES_JSON_BYTE_CAP:
+            # Individual values were already capped but there are enough attributes that the
+            # whole object is still oversized -- drop to a summary rather than raise, so a
+            # pathological event can't fail an entire ingest batch. `provenance`/`provider` are
+            # preserved verbatim (always short strings) rather than summarized away: both
+            # `export_provider_telemetry` and `delete_provider_telemetry` key off
+            # `json_extract(attributes_json, '$.provenance.provider')` / `'$.provider'`, and a
+            # summarized row that dropped those keys would silently become invisible to
+            # provider-scoped export/deletion (found during the 2026-09-15 read-connection
+            # review -- not observed in production, but real for any 16KB+ event).
+            keys = sorted(capped.keys())
+            summary: dict[str, object] = {"_truncated_attribute_keys": keys, "_reason": "attributes_json exceeded byte cap"}
+            if "provenance" in capped:
+                summary["provenance"] = capped["provenance"]
+            if "provider" in capped:
+                summary["provider"] = capped["provider"]
+            if "gen_ai.provider.name" in capped:
+                summary["gen_ai.provider.name"] = capped["gen_ai.provider.name"]
+            serialized = json.dumps(summary, sort_keys=True, separators=(",", ":"))
+        return serialized
+
     @staticmethod
     def _validate_otel_event(event: dict[str, object]) -> tuple:
         kind = event.get("kind")
@@ -3140,7 +3417,7 @@ class GraphStore:
             event.get("unit"),
             event.get("start_time"),
             event.get("end_time"),
-            json.dumps(event.get("attributes") or {}, sort_keys=True, separators=(",", ":")),
+            GraphStore._capped_otel_attributes(event.get("attributes")),
         )
 
     def record_otel_batch(
@@ -3163,11 +3440,26 @@ class GraphStore:
         section 4.9.
         """
         self.get_session(external_session_id)  # raises KeyError if never started
-        rows = [self._validate_otel_event(event) for event in events]
+        rows = []
+        duplicate_count = 0
         with self._lock:
             if self._atomic_depth == 0:
                 self._connection.execute("BEGIN IMMEDIATE")
             try:
+                for event in events:
+                    key = event.get("idempotency_key")
+                    if key:
+                        dedupe = self._connection.execute(
+                            "INSERT OR IGNORE INTO telemetry_event_dedupe(idempotency_key, event_id, provider) VALUES (?, ?, ?)",
+                            (str(key), str(uuid.uuid4()), str(
+                                (event.get("attributes") or {}).get("provider")
+                                or (event.get("attributes") or {}).get("gen_ai.provider.name") or ""
+                            )),
+                        )
+                        if dedupe.rowcount == 0:
+                            duplicate_count += 1
+                            continue
+                    rows.append(self._validate_otel_event(event))
                 self._connection.executemany(
                     """
                     INSERT INTO otel_events(
@@ -3183,7 +3475,91 @@ class GraphStore:
                 if self._atomic_depth == 0:
                     self._connection.execute("ROLLBACK")
                 raise
-        return {"session_id": external_session_id, "recorded": len(rows)}
+        return {"session_id": external_session_id, "recorded": len(rows), "duplicates": duplicate_count}
+
+    def record_telemetry_health(self, provider: str, *, accepted: int = 0,
+                                duplicates: int = 0, rejected: int = 0,
+                                error: str | None = None) -> None:
+        """Persist operational counters for provider telemetry without retaining payloads."""
+        if not provider:
+            return
+        with self._lock:
+            self._connection.execute(
+                """INSERT INTO telemetry_health(provider, accepted, duplicates, rejected, last_error, last_seen_at)
+                   VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+                   ON CONFLICT(provider) DO UPDATE SET accepted = accepted + excluded.accepted,
+                   duplicates = duplicates + excluded.duplicates, rejected = rejected + excluded.rejected,
+                   last_error = excluded.last_error, last_seen_at = CURRENT_TIMESTAMP""",
+                (provider, int(accepted), int(duplicates), int(rejected), error),
+            )
+            self._connection.commit()
+
+    def telemetry_health_report(self) -> list[dict[str, object]]:
+        with self._lock:
+            return [dict(row) for row in self._connection.execute(
+                "SELECT provider, accepted, duplicates, rejected, last_error, last_seen_at "
+                "FROM telemetry_health ORDER BY provider"
+            ).fetchall()]
+
+    def export_provider_telemetry(self, provider: str, *, limit: int = 500) -> dict[str, object]:
+        """Export bounded provider events with a local Merkle-style commitment."""
+        bounded = max(1, min(int(limit), 5000))
+        with self._lock:
+            rows = self._connection.execute(
+                "SELECT * FROM otel_events WHERE json_extract(attributes_json, '$.provenance.provider') = ? "
+                "OR json_extract(attributes_json, '$.provider') = ? ORDER BY rowid LIMIT ?",
+                (provider, provider, bounded),
+            ).fetchall()
+        events = [dict(row) for row in rows]
+        leaves = [self._sha256(self._canonical_json(event)) for event in events]
+        return {"schema_version": "xibalba.provider_telemetry_export.v1", "provider": provider,
+                "count": len(events), "events": events, "leaf_hashes": leaves,
+                "root_hash": domain_merkle_root(leaves, domain="provider_telemetry_export") or self._sha256("empty")}
+
+    def prune_old_otel_events(self, *, max_age_days: int, apply: bool = False, limit: int = 2000) -> dict[str, object]:
+        """Plan or apply bounded age-based deletion of otel_events, regardless of provider.
+
+        `delete_provider_telemetry` above requires the caller to already know a specific
+        provider to filter on; nothing in this codebase ever called it automatically, which let
+        otel_events (full tool-call `attributes_json` payloads, unbounded) grow to hundreds of
+        MB with rows going back to first ingestion (see the 2026-09-15 thread-pileup/DB-bloat
+        incident this method was added to fix). This sweep is provider-agnostic so it can run on
+        a schedule without an operator having to enumerate providers first.
+        """
+        if int(max_age_days) < 0:
+            raise ValueError("max_age_days must be a non-negative integer")
+        bounded = max(1, min(int(limit), 5000))
+        cutoff = f"-{int(max_age_days)} days"
+        with self._lock:
+            rows = self._connection.execute(
+                "SELECT id, session_id, created_at FROM otel_events WHERE created_at < datetime('now', ?) "
+                "ORDER BY rowid LIMIT ?", (cutoff, bounded),
+            ).fetchall()
+            ids = [row["id"] for row in rows]
+            if apply and ids:
+                self._connection.executemany("DELETE FROM otel_events WHERE id = ?", [(item,) for item in ids])
+                self._connection.commit()
+        return {"schema_version": "xibalba.otel_retention_sweep.v1", "apply": apply, "max_age_days": max_age_days,
+                "count": len(rows), "events": [dict(row) for row in rows]}
+
+    def delete_provider_telemetry(self, provider: str, *, before: str,
+                                  apply: bool = False, limit: int = 500) -> dict[str, object]:
+        """Plan or apply bounded deletion of provider telemetry; default is non-destructive."""
+        bounded = max(1, min(int(limit), 5000))
+        with self._lock:
+            rows = self._connection.execute(
+                "SELECT id, session_id, created_at FROM otel_events WHERE "
+                "(json_extract(attributes_json, '$.provenance.provider') = ? OR json_extract(attributes_json, '$.provider') = ?) "
+                "AND created_at < ? ORDER BY rowid LIMIT ?", (provider, provider, before, bounded),
+            ).fetchall()
+            ids = [row["id"] for row in rows]
+            if apply and ids:
+                self._connection.executemany("DELETE FROM otel_events WHERE id = ?", [(item,) for item in ids])
+                self._connection.commit()
+        return {"schema_version": "xibalba.provider_telemetry_deletion.v1", "provider": provider,
+                "before": before, "apply": apply, "count": len(rows),
+                "events": [dict(row) for row in rows],
+                "disclaimer": "Deletion is local telemetry deletion; it does not revoke provider-side copies."}
 
     def memory_otel_events(self, memory_id: str) -> list[dict[str, object]]:
         """OTel events correlated with a specific memory: explicit memory_id matches (strong
@@ -4016,8 +4392,9 @@ class GraphStore:
                 "observed_at": prompt_time,
                 "locator": f"xibalba://sessions/{external_session_id}/prompts/{prompt_id or 'unassigned'}",
             },
-            status="confirmed",
-            evidence_class="declared_intent",
+            status="candidate",
+            # A runtime prompt is an observed event, not a signed Behavioral Commitment Chain declaration.
+            evidence_class="observed_event",
             idempotency_key=f"{idempotency_key}:prompt" if idempotency_key else None,
         )
         response_memory = self.store_memory(
@@ -4125,7 +4502,7 @@ class GraphStore:
         before storage. This matters more here than for the local-file ingestion paths:
         this is the entry point for network-reachable, less-trusted callers.
         """
-        self.start_session(external_session_id, retention_tier="verbatim", agent_id=agent_id)
+        self.start_session(external_session_id, retention_tier=_DEFAULT_RETENTION_TIER, agent_id=agent_id)
 
         base_source = {
             "session_id": external_session_id,
@@ -4143,8 +4520,9 @@ class GraphStore:
                 "observed_at": prompt_time,
                 "locator": f"xibalba://sessions/{external_session_id}/prompts/{prompt_id or 'unassigned'}",
             },
-            status="confirmed",
-            evidence_class="declared_intent",
+            status="candidate",
+            # A runtime prompt is an observed event, not a signed Behavioral Commitment Chain declaration.
+            evidence_class="observed_event",
             idempotency_key=f"{idempotency_key}:prompt" if idempotency_key else None,
         )
         response_memory = self.store_memory(
@@ -4338,13 +4716,8 @@ class GraphStore:
             "idempotency_key": idempotency_key,
         }
 
-    def get_inference_task(self, task_id: str) -> dict[str, object]:
-        with self._lock:
-            row = self._connection.execute(
-                "SELECT * FROM memory_inference_tasks WHERE id = ?", (task_id,)
-            ).fetchone()
-        if row is None:
-            raise KeyError(task_id)
+    @staticmethod
+    def _inference_task_row_to_dict(row: sqlite3.Row) -> dict[str, object]:
         return {
             "id": row["id"],
             "task_type": row["task_type"],
@@ -4368,22 +4741,34 @@ class GraphStore:
             "updated_at": row["updated_at"],
         }
 
+    def get_inference_task(self, task_id: str) -> dict[str, object]:
+        with self._lock:
+            row = self._connection.execute(
+                "SELECT * FROM memory_inference_tasks WHERE id = ?", (task_id,)
+            ).fetchone()
+        if row is None:
+            raise KeyError(task_id)
+        return self._inference_task_row_to_dict(row)
+
     def list_inference_tasks(
         self, *, status: str = "pending", limit: int = 50, task_type: str | None = None
     ) -> list[dict[str, object]]:
+        # Read-only connection (2026-09-15): polled by the viewer's Inference panel every 20s;
+        # fetches full rows directly instead of id-then-refetch through the locked
+        # `get_inference_task`, so this no longer takes `self._lock` at all.
         bounded_limit = max(1, min(int(limit), 500))
-        with self._lock:
-            if task_type is None:
-                rows = self._connection.execute(
-                    "SELECT id FROM memory_inference_tasks WHERE status = ? AND (retry_after IS NULL OR retry_after <= CURRENT_TIMESTAMP) ORDER BY created_at LIMIT ?",
-                    (status, bounded_limit),
-                ).fetchall()
-            else:
-                rows = self._connection.execute(
-                    "SELECT id FROM memory_inference_tasks WHERE status = ? AND task_type = ? AND (retry_after IS NULL OR retry_after <= CURRENT_TIMESTAMP) ORDER BY created_at LIMIT ?",
-                    (status, task_type, bounded_limit),
-                ).fetchall()
-        return [self.get_inference_task(row["id"]) for row in rows]
+        conn = self._read_connection()
+        if task_type is None:
+            rows = conn.execute(
+                "SELECT * FROM memory_inference_tasks WHERE status = ? AND (retry_after IS NULL OR retry_after <= CURRENT_TIMESTAMP) ORDER BY created_at LIMIT ?",
+                (status, bounded_limit),
+            ).fetchall()
+        else:
+            rows = conn.execute(
+                "SELECT * FROM memory_inference_tasks WHERE status = ? AND task_type = ? AND (retry_after IS NULL OR retry_after <= CURRENT_TIMESTAMP) ORDER BY created_at LIMIT ?",
+                (status, task_type, bounded_limit),
+            ).fetchall()
+        return [self._inference_task_row_to_dict(row) for row in rows]
 
     def claim_inference_task(self, task_id: str, *, claimed_by: str | None = None, provider_id: str | None = None) -> dict[str, object]:
         task = self.get_inference_task(task_id)
@@ -4823,9 +5208,21 @@ class GraphStore:
         return {"task_id": row["task_id"], "memory_id": row["memory_id"], "source_content_hash": row["source_content_hash"], "category": row["category"], "confidence": row["confidence"], "confidence_semantics": _MODEL_CONFIDENCE_SEMANTICS, "rationale": row["rationale"], "signals": json.loads(row["signals_json"]), "alternatives": json.loads(row["alternatives_json"]), "status": row["status"], "decision_note": row["decision_note"], "created_at": row["created_at"], "decided_at": row["decided_at"]}
 
     def list_para_classifications(self, *, status: str = "proposed", limit: int = 50) -> list[dict[str, object]]:
-        with self._lock:
-            rows = self._connection.execute("SELECT task_id FROM para_classifications WHERE status = ? ORDER BY created_at DESC LIMIT ?", (status, max(1, min(int(limit), 500)))).fetchall()
-        return [self.get_para_classification(row["task_id"]) for row in rows]
+        # Read-only connection (2026-09-15): polled by the viewer's PARA panel every 20s; no
+        # vec-table dependency, so this and the per-row fetch below both move off `self._lock`
+        # instead of taking it once per row via `get_para_classification`.
+        conn = self._read_connection()
+        rows = conn.execute(
+            "SELECT * FROM para_classifications WHERE status = ? ORDER BY created_at DESC LIMIT ?",
+            (status, max(1, min(int(limit), 500))),
+        ).fetchall()
+        return [
+            {"task_id": row["task_id"], "memory_id": row["memory_id"], "source_content_hash": row["source_content_hash"],
+             "category": row["category"], "confidence": row["confidence"], "confidence_semantics": _MODEL_CONFIDENCE_SEMANTICS,
+             "rationale": row["rationale"], "signals": json.loads(row["signals_json"]), "alternatives": json.loads(row["alternatives_json"]),
+             "status": row["status"], "decision_note": row["decision_note"], "created_at": row["created_at"], "decided_at": row["decided_at"]}
+            for row in rows
+        ]
 
     def accept_para_classification(self, task_id: str, *, decision: str, note: str | None = None) -> dict[str, object]:
         if decision not in {"accept", "dismiss", "keep_original"}:
@@ -4972,12 +5369,13 @@ class GraphStore:
             clauses.append("source_memory_id = ?")
             params.append(source_memory_id)
         params.append(max(1, min(int(limit), 500)))
-        with self._lock:
-            rows = self._connection.execute(
-                f"SELECT * FROM extraction_proposals WHERE {' AND '.join(clauses)} "
-                "ORDER BY created_at DESC LIMIT ?",
-                params,
-            ).fetchall()
+        # Read-only connection (2026-09-15): polled by the viewer's Extraction Proposals panel
+        # every 20s.
+        rows = self._read_connection().execute(
+            f"SELECT * FROM extraction_proposals WHERE {' AND '.join(clauses)} "
+            "ORDER BY created_at DESC LIMIT ?",
+            params,
+        ).fetchall()
         return [self._row_to_extraction_proposal(row) for row in rows]
 
     def _apply_extraction_proposal(self, proposal: dict[str, object]) -> dict[str, object]:
@@ -4986,18 +5384,22 @@ class GraphStore:
         payload = proposal["payload"]
         memory_id = str(proposal["source_memory_id"])
         if proposal["task_type"] == "extract_entities":
-            entity = self._get_or_create_entity(str(payload["name"]), str(payload.get("entity_type") or "unknown"))
+            asserting_agent_id = self._memory_agent_id_locked(memory_id)
+            entity = self._get_or_create_entity(
+                str(payload["name"]), str(payload.get("entity_type") or "unknown"), agent_id=asserting_agent_id
+            )
             return {"kind": "entity", "entity_id": entity["id"], "canonical_name": entity["canonical_name"]}
         if proposal["task_type"] == "extract_relations":
-            subject = self._get_or_create_entity(str(payload["subject"]))
-            obj = self._get_or_create_entity(str(payload["object"]))
+            asserting_agent_id = self._memory_agent_id_locked(memory_id)
+            subject = self._get_or_create_entity(str(payload["subject"]), agent_id=asserting_agent_id)
+            obj = self._get_or_create_entity(str(payload["object"]), agent_id=asserting_agent_id)
             relation_id = str(uuid.uuid4())
             self._connection.execute(
                 """
-                INSERT INTO relations(id, subject_entity_id, predicate, object_entity_id, evidence_memory_id, confidence)
-                VALUES (?, ?, ?, ?, ?, ?)
+                INSERT INTO relations(id, subject_entity_id, predicate, object_entity_id, evidence_memory_id, confidence, agent_id)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
                 """,
-                (relation_id, subject["id"], str(payload["predicate"]), obj["id"], memory_id, float(payload.get("confidence") or 1.0)),
+                (relation_id, subject["id"], str(payload["predicate"]), obj["id"], memory_id, float(payload.get("confidence") or 1.0), asserting_agent_id),
             )
             return {"kind": "relation", "relation_id": relation_id}
         if proposal["task_type"] == "detect_contradictions":
@@ -5395,13 +5797,25 @@ class GraphStore:
     def _normalize_name(name: str) -> str:
         return " ".join(name.strip().lower().split())
 
-    def _find_entity(self, name: str) -> sqlite3.Row | None:
+    def _find_entity(self, name: str, *, agent_id: str | None = None) -> sqlite3.Row | None:
+        """Look up an entity by name. When agent_id is given, only entities visible to that
+        agent (its own private entities, or shared ('') ones) are considered, preferring the
+        agent's own private entity over a shared one of the same name. agent_id=None sees
+        every entity regardless of scope (admin/internal use)."""
         normalized = self._normalize_name(name)
         by_alias = self._resolve_entity_alias_locked(normalized)
         if by_alias is not None:
-            return self._connection.execute("SELECT * FROM entities WHERE id = ?", (by_alias,)).fetchone()
+            row = self._connection.execute("SELECT * FROM entities WHERE id = ?", (by_alias,)).fetchone()
+            if row is not None and (agent_id is None or row["agent_id"] in (agent_id, "")):
+                return row
+        if agent_id is None:
+            return self._connection.execute(
+                "SELECT * FROM entities WHERE normalized_name = ? LIMIT 1", (normalized,)
+            ).fetchone()
         return self._connection.execute(
-            "SELECT * FROM entities WHERE normalized_name = ? LIMIT 1", (normalized,)
+            "SELECT * FROM entities WHERE normalized_name = ? AND agent_id IN (?, '') "
+            "ORDER BY (agent_id = ?) DESC LIMIT 1",
+            (normalized, agent_id, agent_id),
         ).fetchone()
 
     def _resolve_entity_alias_locked(self, normalized_name: str) -> str | None:
@@ -5441,7 +5855,14 @@ class GraphStore:
                 raise
         return {"entity_id": entity_id, "alias": alias.strip(), "normalized_alias": normalized}
 
-    def _get_or_create_entity(self, name: str, entity_type: str = "unknown") -> sqlite3.Row:
+    def _get_or_create_entity(
+        self, name: str, entity_type: str = "unknown", *, agent_id: str, shared: bool = False
+    ) -> sqlite3.Row:
+        """agent_id scopes both lookup and creation: entities are private to their creating
+        agent by default (agent-scoped knowledge graphs), unless shared=True places them in
+        the '' shared scope visible to every agent. Callers must pass the *asserting* agent's
+        id -- derive it from the evidence memory's source, never accept it as caller input."""
+        scope = "" if shared else agent_id
         normalized = self._normalize_name(name)
         # Alias resolution takes precedence over the exact normalized_name+entity_type match:
         # a known alias means this string already refers to an existing entity, regardless of
@@ -5449,22 +5870,34 @@ class GraphStore:
         aliased_entity_id = self._resolve_entity_alias_locked(normalized)
         if aliased_entity_id is not None:
             row = self._connection.execute("SELECT * FROM entities WHERE id = ?", (aliased_entity_id,)).fetchone()
-            if row is not None:
+            if row is not None and row["agent_id"] in (scope, ""):
                 return row
         row = self._connection.execute(
-            "SELECT * FROM entities WHERE normalized_name = ? AND entity_type = ?",
-            (normalized, entity_type),
+            "SELECT * FROM entities WHERE normalized_name = ? AND entity_type = ? AND agent_id = ?",
+            (normalized, entity_type, scope),
         ).fetchone()
         if row is not None:
             return row
         entity_id = str(uuid.uuid4())
         self._connection.execute(
-            "INSERT INTO entities(id, canonical_name, normalized_name, entity_type) VALUES (?, ?, ?, ?)",
-            (entity_id, name.strip(), normalized, entity_type),
+            "INSERT INTO entities(id, canonical_name, normalized_name, entity_type, agent_id) VALUES (?, ?, ?, ?, ?)",
+            (entity_id, name.strip(), normalized, entity_type, scope),
         )
         return self._connection.execute(
             "SELECT * FROM entities WHERE id = ?", (entity_id,)
         ).fetchone()
+
+    def _memory_agent_id_locked(self, memory_id: str) -> str:
+        """The storage agent_id of the source behind a memory -- used to attribute new
+        entities/relations to the asserting agent. Caller must hold self._lock. Returns ''
+        (shared scope) when the memory has no resolvable agent, so provenance-less legacy
+        or anonymous writes never accidentally end up private to nobody."""
+        row = self._connection.execute(
+            "SELECT ss.agent_id FROM memories sm JOIN sources ss ON ss.id = sm.source_id WHERE sm.id = ?",
+            (memory_id,),
+        ).fetchone()
+        agent_id = row["agent_id"] if row is not None else None
+        return agent_id or ""
 
     def link_entities(
         self,
@@ -5474,21 +5907,27 @@ class GraphStore:
         *,
         evidence_memory_id: str,
         confidence: float = 1.0,
+        shared: bool = False,
     ) -> dict[str, object]:
+        """shared=False (default): subject/object entities are created private to the
+        evidence memory's agent (agent-scoped knowledge graph). shared=True places them in
+        the shared scope visible to every agent."""
         with self._lock:
             self._connection.execute("BEGIN IMMEDIATE")
             try:
-                subject = self._get_or_create_entity(subject_name)
-                obj = self._get_or_create_entity(object_name)
+                asserting_agent_id = self._memory_agent_id_locked(evidence_memory_id)
+                subject = self._get_or_create_entity(subject_name, agent_id=asserting_agent_id, shared=shared)
+                obj = self._get_or_create_entity(object_name, agent_id=asserting_agent_id, shared=shared)
                 relation_id = str(uuid.uuid4())
+                relation_scope = "" if shared else asserting_agent_id
                 self._connection.execute(
                     """
                     INSERT INTO relations(
                         id, subject_entity_id, predicate, object_entity_id,
-                        evidence_memory_id, confidence
-                    ) VALUES (?, ?, ?, ?, ?, ?)
+                        evidence_memory_id, confidence, agent_id
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?)
                     """,
-                    (relation_id, subject["id"], predicate, obj["id"], evidence_memory_id, confidence),
+                    (relation_id, subject["id"], predicate, obj["id"], evidence_memory_id, confidence, relation_scope),
                 )
                 self._connection.execute("COMMIT")
             except Exception:
@@ -5510,7 +5949,7 @@ class GraphStore:
         if not isinstance(max_depth, int) or not (1 <= max_depth <= 3):
             raise ValueError("max_depth must be an integer between 1 and 3")
         with self._lock:
-            entity = self._find_entity(subject_name)
+            entity = self._find_entity(subject_name, agent_id=agent_id)
             if entity is None:
                 return {"truncated": False, "edges": []}
             visited = {entity["id"]}
@@ -5529,10 +5968,7 @@ class GraphStore:
                     FROM relations r
                     LEFT JOIN entities oe ON oe.id = r.object_entity_id
                     WHERE r.subject_entity_id IN ({placeholders}) AND r.status = 'active'
-                      AND (? IS NULL OR EXISTS (
-                          SELECT 1 FROM memories sm JOIN sources ss ON ss.id = sm.source_id
-                          WHERE sm.id = r.evidence_memory_id AND ss.agent_id = ?
-                      ))
+                      AND (? IS NULL OR r.agent_id IN (?, ''))
                     ORDER BY r.rowid
                     """,
                     [*frontier, agent_id, agent_id],
@@ -5565,8 +6001,8 @@ class GraphStore:
         if not isinstance(max_depth, int) or not (1 <= max_depth <= 5):
             raise ValueError("max_depth must be an integer between 1 and 5")
         with self._lock:
-            start = self._find_entity(from_name)
-            goal = self._find_entity(to_name)
+            start = self._find_entity(from_name, agent_id=agent_id)
+            goal = self._find_entity(to_name, agent_id=agent_id)
             if start is None or goal is None or start["id"] == goal["id"]:
                 return {"edges": []}
             visited = {start["id"]}
@@ -5582,10 +6018,7 @@ class GraphStore:
                     FROM relations r
                     LEFT JOIN entities oe ON oe.id = r.object_entity_id
                     WHERE r.subject_entity_id = ? AND r.status = 'active'
-                      AND (? IS NULL OR EXISTS (
-                          SELECT 1 FROM memories sm JOIN sources ss ON ss.id = sm.source_id
-                          WHERE sm.id = r.evidence_memory_id AND ss.agent_id = ?
-                      ))
+                      AND (? IS NULL OR r.agent_id IN (?, ''))
                     ORDER BY r.rowid
                     """,
                     (current_id, agent_id, agent_id),
@@ -5668,6 +6101,11 @@ class GraphStore:
                 "type": "entity",
                 "label": entity["canonical_name"],
                 "entity_type": entity["entity_type"],
+                # '' means shared scope; a non-empty value is that entity's private owning
+                # agent. Surfaced so an unscoped (agent_id=None) admin view can distinguish
+                # same-named private entities from different agents instead of rendering
+                # them as indistinguishable duplicate nodes.
+                "agent_id": entity.get("agent_id", ""),
             }
             for entity in entities
         )

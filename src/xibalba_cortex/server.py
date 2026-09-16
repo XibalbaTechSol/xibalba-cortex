@@ -20,7 +20,7 @@ from pathlib import Path
 
 from mcp.server import MCPServer
 
-from xibalba_cortex.agy_adapter import AgyWrapperShim
+from xibalba_cortex.agy_adapter import AgyNativeHookAdapter, AgyWrapperShim
 from xibalba_cortex.config import load_config
 from xibalba_cortex.auth_middleware import current_principal, set_local_principal
 from xibalba_cortex.ingest_tokens import ROLE_SCOPES
@@ -35,6 +35,11 @@ from xibalba_cortex.runtime_bridge_contract import (
     CODEX_ADAPTER,
     CURSOR_ADAPTER,
     GEMINI_ADAPTER,
+    HERMES_ADAPTER,
+    OPENCLAW_ADAPTER,
+    PERPLEXITY_ADAPTER,
+    MCP_ADAPTER,
+    CLOUD_RUN_ADAPTER,
     OPENAI_COMPATIBLE_ADAPTER,
     RuntimeEvent,
 )
@@ -104,6 +109,11 @@ def get_controller() -> XibalbaRuntimeController:
     if _controller is None or _controller.store is not get_store():
         _controller = XibalbaRuntimeController(get_store())
         _controller.register_runtime(CLAUDE_ADAPTER, provenance={"source": "mcp_server"})
+        _controller.register_runtime(HERMES_ADAPTER, provenance={"source": "mcp_server"})
+        _controller.register_runtime(OPENCLAW_ADAPTER, provenance={"source": "mcp_server"})
+        _controller.register_runtime(PERPLEXITY_ADAPTER, provenance={"source": "mcp_server"})
+        _controller.register_runtime(MCP_ADAPTER, provenance={"source": "mcp_server"})
+        _controller.register_runtime(CLOUD_RUN_ADAPTER, provenance={"source": "mcp_server"})
         _controller.register_runtime(AGY_ADAPTER, provenance={"source": "mcp_server"})
         _controller.register_runtime(CODEX_ADAPTER, provenance={"source": "mcp_server"})
         _controller.register_runtime(GEMINI_ADAPTER, provenance={"source": "mcp_server"})
@@ -128,7 +138,16 @@ def _bound_agent_id(requested: str | None = None, *, require: bool = False) -> s
     principal = current_principal()
     requested_value = str(requested).strip() if requested is not None and str(requested).strip() else None
     if principal is None:
-        return requested_value
+        if requested_value is not None:
+            return requested_value
+        # Local stdio callers (Claude Code, Hermes, agy) carry no HTTP principal, but the
+        # launching harness already sets XIBALBA_AGENT_ID in this process's own environment
+        # (see server.py's other direct reads of it, e.g. the CORE memory-anchor path) -- it
+        # was just never consulted here, so every session/write tool that relies solely on
+        # _bound_agent_id() silently landed unscoped (agent_id=None) even when the harness
+        # correctly identified itself. 2477 sessions back to 2026-08-05 confirmed this gap.
+        env_agent_id = str(os.environ.get("XIBALBA_AGENT_ID") or "").strip()
+        return env_agent_id or None
     principal_agent = str(principal.get("agent_id") or "").strip() or None
     if principal_agent is None:
         if requested_value is not None:
@@ -600,11 +619,14 @@ def memory_link_entities(
     obj: str,
     evidence_memory_id: str,
     confidence: float = 1.0,
+    shared: bool = False,
 ) -> dict[str, object]:
-    """Assert a typed relationship between two entities, evidenced by a specific memory."""
+    """Assert a typed relationship between two entities, evidenced by a specific memory.
+    Entities are created private to the evidence memory's agent by default (agent-scoped
+    knowledge graph); pass shared=True to place them in the graph every agent can see."""
     _assert_memory_scope(get_store().get_memory(evidence_memory_id))
     return get_store().link_entities(
-        subject, predicate, obj, evidence_memory_id=evidence_memory_id, confidence=confidence
+        subject, predicate, obj, evidence_memory_id=evidence_memory_id, confidence=confidence, shared=shared
     )
 
 
@@ -1294,6 +1316,24 @@ def runtime_agy_observation(
         session_id=session_id,
         note=note,
     )
+
+
+@server.tool()
+@_requires_scope("memory:write")
+def runtime_agy_hook(
+    hook_name: str,
+    event: dict[str, object],
+    provenance: dict[str, object] | None = None,
+) -> dict[str, object]:
+    """Forward one configured Agy CLI-plugin or SDK hook callback."""
+    event = dict(event)
+    event["agent_id"] = _bound_agent_id(
+        event.get("agent_id") or event.get("agentId"),
+        require=current_principal() is not None,
+    )
+    return AgyNativeHookAdapter(
+        get_controller(), provenance=dict(provenance or {})
+    ).ingest_hook(hook_name, event)
 
 
 @server.tool()

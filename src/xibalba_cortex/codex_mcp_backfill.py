@@ -26,6 +26,13 @@ DEFAULT_SERVER_COMMAND = (
     or str(Path(__file__).resolve().parents[2] / ".venv" / "bin" / "xibalba-cortex")
 )
 
+# The watcher is a background safety net, not an unrestricted historical replay engine.
+# Keep these hard ceilings independent of CLI values so a unit file or operator cannot
+# accidentally restore the pre-incident unbounded read/parse path.
+MAX_WATCH_FILES = 32
+MAX_WATCH_TURNS = 128
+MAX_SESSION_FILE_BYTES = 32 * 1024 * 1024
+
 
 @dataclass
 class CodexTurn:
@@ -156,6 +163,18 @@ def parse_codex_session(path: Path) -> list[CodexTurn]:
         turn_id = _turn_id_from_payload(payload, current_turn_id)
         turn = get_turn(turn_id)
 
+        if item_type == "message" and payload.get("role") == "user":
+            prompt = _text(payload.get("content"))
+            if prompt.strip():
+                # Current Codex JSONL emits user turns as response_item messages;
+                # older transcripts use event_msg.user_message above.  Keep the
+                # latest user message for the active turn so injected context
+                # records do not replace the actual request.
+                turn.prompt = prompt
+                turn.prompt_time = timestamp
+                turn.metadata["prompt_line"] = line_number
+            continue
+
         if item_type == "message" and payload.get("role") == "assistant":
             text = _text(payload.get("content"))
             if text.strip():
@@ -206,7 +225,10 @@ def parse_codex_session(path: Path) -> list[CodexTurn]:
 def discover_session_files(root: Path) -> list[Path]:
     if root.is_file():
         return [root]
-    return sorted(root.glob("**/*.jsonl"))
+    files = list(root.glob("**/*.jsonl"))
+    # Prefer active/recent transcripts when the hard cycle cap is reached.  Lexical path
+    # ordering selected the oldest sessions and could leave current Codex activity unobserved.
+    return sorted(files, key=lambda path: path.stat().st_mtime_ns if path.exists() else 0, reverse=True)
 
 
 async def ingest_turns_via_mcp(
@@ -231,7 +253,11 @@ async def ingest_turns_via_mcp(
         "XIBALBA_CORTEX_HOME": str(cortex_home),
         "XIBALBA_CORTEX_RETENTION_TIER": os.environ.get("XIBALBA_CORTEX_RETENTION_TIER", "verbatim"),
         "XIBALBA_CORTEX_IDENTITY_MODE": os.environ.get("XIBALBA_CORTEX_IDENTITY_MODE", "full"),
-        "XIBALBA_AGENT_ID": os.environ.get("XIBALBA_AGENT_ID", "codex.backfill"),
+        # The local Codex MCP principal is `codex`; using a separate default
+        # label causes the server's authenticated-principal check to reject
+        # otherwise valid backfill requests. Callers can still override this
+        # for explicitly provisioned identities.
+        "XIBALBA_AGENT_ID": os.environ.get("XIBALBA_AGENT_ID", "codex"),
     }
     params = StdioServerParameters(command=server_command, env=env)
     async with stdio_client(params) as (read, write):
@@ -280,19 +306,49 @@ async def ingest_turns_via_mcp(
     return summary
 
 
+# Process-local (mtime, size) per session file, so --watch's 30s loop only re-reads and
+# re-parses files that actually changed since the last cycle instead of every .jsonl under
+# ~/.codex/sessions on every pass. Before this fix the watcher re-parsed the *entire* history of
+# Codex session transcripts every 30 seconds regardless of change, unbounded in both the number
+# of files (grows forever as Codex is used) and the size of the biggest ones -- confirmed as the
+# cause of xibalba-cortex-codex-mcp-backfill.service growing to 1.7GB RSS / 3h CPU over one 4h
+# run (2026-09-15 RAM-exhaustion investigation). `ingest_turns_via_mcp`'s own existing-prompt-id
+# dedup already made re-sends a no-op on the write side; this fixes the read/parse side, which
+# had no such guard at all. Not persisted across restarts -- a fresh process re-parsing once on
+# startup is fine and keeps correctness independent of this cache.
+_SEEN_FILE_STATE: dict[Path, tuple[float, int]] = {}
+
+
 async def collect_once(args: argparse.Namespace) -> dict[str, Any]:
     files = discover_session_files(args.sessions)
-    if args.limit_files:
-        files = files[:args.limit_files]
+    requested_file_limit = args.limit_files or MAX_WATCH_FILES
+    file_limit = max(1, min(int(requested_file_limit), MAX_WATCH_FILES))
+    files = files[:file_limit]
     turns: list[CodexTurn] = []
     malformed_files = 0
+    files_skipped_unchanged = 0
+    files_skipped_oversize = 0
     for path in files:
+        try:
+            stat = path.stat()
+        except OSError:
+            malformed_files += 1
+            continue
+        if stat.st_size > MAX_SESSION_FILE_BYTES:
+            files_skipped_oversize += 1
+            continue
+        state = (stat.st_mtime, stat.st_size)
+        if _SEEN_FILE_STATE.get(path) == state:
+            files_skipped_unchanged += 1
+            continue
         try:
             turns.extend(parse_codex_session(path))
         except OSError:
             malformed_files += 1
-    if args.limit_turns:
-        turns = turns[:args.limit_turns]
+            continue
+        _SEEN_FILE_STATE[path] = state
+    requested_turn_limit = args.limit_turns or MAX_WATCH_TURNS
+    turns = turns[:max(1, min(int(requested_turn_limit), MAX_WATCH_TURNS))]
     summary = await ingest_turns_via_mcp(
         turns,
         server_command=args.server_command,
@@ -300,6 +356,8 @@ async def collect_once(args: argparse.Namespace) -> dict[str, Any]:
         dry_run=args.dry_run,
     )
     summary["files_seen"] = len(files)
+    summary["files_skipped_unchanged"] = files_skipped_unchanged
+    summary["files_skipped_oversize"] = files_skipped_oversize
     summary["malformed_files"] = malformed_files
     return summary
 
@@ -328,8 +386,8 @@ def main() -> int:
     parser.add_argument("--watch", action="store_true", help="Poll Codex sessions continuously and ingest only new turns")
     parser.add_argument("--poll-interval", type=float, default=15.0, help="Seconds between --watch scans")
     parser.add_argument("--max-iterations", type=int, default=0, help="Stop --watch after N scans; 0 means forever")
-    parser.add_argument("--limit-files", type=int, default=0, help="Only process the first N session files")
-    parser.add_argument("--limit-turns", type=int, default=0, help="Only ingest the first N reconstructed turns")
+    parser.add_argument("--limit-files", type=int, default=0, help="Only process the first N session files (hard-capped)")
+    parser.add_argument("--limit-turns", type=int, default=0, help="Only ingest the first N reconstructed turns (hard-capped)")
     args = parser.parse_args()
     print(json.dumps(asyncio.run(run(args)), indent=2, sort_keys=True))
     return 0

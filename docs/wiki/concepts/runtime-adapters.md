@@ -18,7 +18,8 @@ source_files:
   - src/xibalba_cortex/server.py
 ---
 
-Runtime bridge schema v2 adds first-class `invocation_id` correlation. Claude pre- and post-tool
+Runtime bridge schema v3 adds first-class native OTel trace/span identity, timing, status, and
+`invocation_id` correlation. Claude pre- and post-tool
 events preserve a supplied canonical UUID or deterministically derive the same UUIDv5 from the
 runtime, session, and native `tool_call_id`. Investigation joins prefer `invocation_id`; fallback
 to provider `tool_call_id` is visibly labeled `legacy_tool_call_id` and is not a cross-system
@@ -27,7 +28,7 @@ correlation claim.
 ## Table of contents
 
 - [Overview](#overview)
-- [The six adapters](#the-six-adapters)
+- [The eight adapters](#the-eight-adapters)
 - [Enforcement boundary is looser than the type](#enforcement-boundary-is-looser-than-the-type)
 - [Controller interface](#controller-interface)
 - [Operator correlation view](#operator-correlation-view)
@@ -35,20 +36,23 @@ correlation claim.
 ## Overview
 
 The runtime-adapter layer is a richer, opt-in identity-and-policy layer on top of the generic
-store primitives — not the only way into Cortex. `RuntimeName = Literal["claude", "agy",
-"codex", "gemini", "cursor", "openai_compatible"]` in `runtime_bridge_contract.py` documents the
-six officially-adapted runtimes, each with a real per-runtime adapter and a declared set of
+store primitives — not the only way into Cortex. `RuntimeName` in `runtime_bridge_contract.py`
+documents the officially-adapted runtimes, each with a real per-runtime adapter and a declared set of
 guarantees. Any other harness talks to the store directly through the generic MCP tools
 (`memory_remember`, `memory_recall`, `memory_ingest_agent_turn`, …) without going through this
 layer at all — see [Generic Ingestion](generic-ingestion.md).
 
-## The six adapters
+## The runtime adapters
 
-`runtime_bridge_contract.py` defines a `RuntimeAdapterResponsibilities` record per runtime:
+`runtime_bridge_contract.py` defines a `RuntimeAdapterResponsibilities` record per runtime. The
+provider-facing Perplexity, MCP, and Cloud Run adapters are documented separately in
+[Provider Telemetry](provider-telemetry.md):
 
 | Runtime | Transport | Status | Notes |
 |---|---|---|---|
 | `claude` (`claude_adapter.py`) | `hooks` | `implemented` | Richest native hook surface; treated as the reference adapter. Guarantees per-tool policy enforcement, session trace propagation, normalized event ingest. |
+| `hermes` (`hermes_observer.py`) | `hooks` | `implemented` | Hermes Observer Hooks bridged into Cortex: sessions, LLM/API, streams, tools, approvals, skills, commands, and subagents. Payload-heavy fields use bounded hashes where raw capture is unsafe; Integrity policy remains a separate gate. |
+| `openclaw` (`openclaw_adapter.py`) | `hooks` | `implemented` | Native OpenClaw typed plugin hooks for sessions, agent/model/prompt, tools, messages, compaction, subagents, and Gateway lifecycle. Internal `HOOK.md` events and Gateway RPC remain separate surfaces. |
 | `agy` (`agy_adapter.py`) | `wrapper` | `partial` | Wrapper-only today: `no_native_hook_surface`, `no_pre_tool_or_post_tool_hooks`, `trace_continuity_is_best_effort_only` — explicitly must not claim Claude-equivalent tool-level parity. |
 | `codex` (`codex_probe.py`) | `launcher` | `partial` | `CodexAdapter` (lifecycle-only, mirrors the Agy shim) plus `CodexLauncher` (subprocess wrapper) give real identity binding and session telemetry; `hook_surface_must_be_discovered` and `tool_level_parity_is_unverified` still stand — pre/post-tool parity with Claude has not been measured live. |
 | `gemini` (`gemini_adapter.py`) | `wrapper` | `partial` | Same shape as the Agy shim: lifecycle-only, `no_native_hook_surface`, `no_pre_tool_or_post_tool_hooks`, `trace_continuity_is_best_effort_only`. |
@@ -57,13 +61,13 @@ layer at all — see [Generic Ingestion](generic-ingestion.md).
 
 Each adapter's `limitations` tuple is populated honestly: missing pre-tool/post-tool/lifecycle
 hooks are recorded as real capability gaps, not smoothed over to look like parity with the
-Claude adapter. `gemini`, `cursor`, `openai_compatible`, and Codex's `CodexAdapter` are all
-lifecycle-only (`start`/`end`/`record_observation`) — none of them claims a native `pre_tool_call`
-or `post_tool_call` hook.
+Claude adapter. Codex's `CodexAdapter` remains lifecycle-only, while its rollout JSONL parser is
+the durable evidence path. agy's wrapper now accepts explicitly forwarded correlation fields but
+still does not claim native SDK callbacks. See [Runtime Adapter Research](runtime-adapter-research.md).
 
 ## Enforcement boundary is looser than the type
 
-`RuntimeName` is a `Literal["claude", "agy", "codex"]` at the type level, but the actual
+`RuntimeName` includes `hermes` at the type level, but the actual
 `runtime_*` MCP tools in `server.py` (`runtime_open_session`, `runtime_close_session`,
 `runtime_bind_identity`, …) only check that `runtime` is a non-empty string — the `Literal` is
 not runtime-enforced. The code comment in `server.py` is explicit about why: `"claude"`/`"agy"`/

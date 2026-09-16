@@ -44,10 +44,10 @@ def test_adapter_responsibility_records_keep_runtime_specific_limits_explicit():
     assert CLAUDE_ADAPTER.status == "implemented"
     assert "pre_tool_gating" in CLAUDE_ADAPTER.responsibilities
     assert AGY_ADAPTER.status == "partial"
-    assert "no_native_hook_surface" in AGY_ADAPTER.limitations
+    assert "native_hook_payloads_are_integration_defined" in AGY_ADAPTER.limitations
     assert "trace_continuity_is_best_effort_only" in AGY_ADAPTER.limitations
     assert CODEX_ADAPTER.status == "partial"
-    assert "hook_surface_must_be_discovered" in CODEX_ADAPTER.limitations
+    assert "lifecycle_hook_effects_are_plugin_defined" in CODEX_ADAPTER.limitations
     assert GEMINI_ADAPTER.status == "partial"
     assert "no_native_hook_surface" in GEMINI_ADAPTER.limitations
     assert CURSOR_ADAPTER.status == "partial"

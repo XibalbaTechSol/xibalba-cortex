@@ -79,6 +79,17 @@ def _connect(home: str | Path) -> sqlite3.Connection:
     conn = sqlite3.connect(_db_path(home), timeout=30.0)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA busy_timeout=30000")
+    # This file (accounts, sessions, ingest tokens -- login writes a session row here on every
+    # call) never got the same journal_mode/synchronous tuning `store.py`'s `_configure()`
+    # applies to graph-memory.sqlite3, and was left on SQLite's default rollback-journal mode
+    # with `synchronous=FULL` -- an fsync on every single commit. Under this box's memory/swap
+    # pressure that's exactly what put threads into kernel D-state (`folio_wait_bit_common`)
+    # while holding this connection, hanging login itself (2026-09-15 incident: `/api/auth/login`
+    # timed out with the pool exhausted, traced here). WAL + NORMAL is the same tradeoff already
+    # accepted for the memory store: safe against an app crash, only risks the very last commit
+    # on an actual OS power-loss (not this box's failure mode).
+    conn.execute("PRAGMA journal_mode=WAL")
+    conn.execute("PRAGMA synchronous=NORMAL")
     conn.executescript(_SCHEMA)
     columns = {row["name"] for row in conn.execute("PRAGMA table_info(ingest_tokens)")}
     for name, definition in (("profile_id", "TEXT NOT NULL DEFAULT 'default'"), ("roles_json", "TEXT NOT NULL DEFAULT '[\"reader\"]'"), ("scopes_json", "TEXT NOT NULL DEFAULT '[\"memory:read\"]'"), ("expires_at", "TEXT"), ("agent_id", "TEXT"), ("agent_ids_json", "TEXT NOT NULL DEFAULT '[]'")):

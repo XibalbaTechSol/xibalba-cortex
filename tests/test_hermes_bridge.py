@@ -4,6 +4,7 @@ import sys
 
 from xibalba_cortex.hermes_watermark import status as watermark_status
 from xibalba_cortex.store import GraphStore
+from xibalba_cortex.telemetry_outbox import TelemetryOutbox
 
 
 def _run_bridge(hook_name, kwargs, env):
@@ -29,6 +30,11 @@ def test_bridge_dispatches_post_llm_call_to_the_env_selected_store(tmp_path, mon
     contents = {m["content"] for m in store.session_memories("s1")}
     assert contents == {"hi", "hello"}
     store.close()
+
+    outbox = TelemetryOutbox(tmp_path / "graph" / "telemetry-outbox.sqlite3")
+    deliveries = [item for item in outbox.stats()["deliveries"] if item["destination"] == "cortex"]
+    assert deliveries == [{"destination": "cortex", "status": "acked", "count": 1}]
+    outbox.close()
 
     # Real, subprocess-produced watermark evidence -- not just a successful exit code, a durable
     # record that this exact hook fired and succeeded (hermes_watermark.py).
@@ -95,3 +101,26 @@ def test_bridge_requires_exactly_one_argument(tmp_path):
         input="{}", text=True, capture_output=True, env=env, timeout=30,
     )
     assert result.returncode == 2
+
+
+def test_bridge_does_not_lease_unrelated_backlog(tmp_path):
+    import os
+    graph_home = tmp_path / "graph"
+    outbox = TelemetryOutbox(graph_home / "telemetry-outbox.sqlite3")
+    try:
+        outbox.enqueue({"event_id": "older", "session_id": "older-session",
+                        "schema_version": "test"}, destinations=("cortex",))
+    finally:
+        outbox.close()
+    result = _run_bridge("pre_llm_call", {"session_id": "current-session", "turn_id": "t1"},
+                         {**os.environ, "XIBALBA_CORTEX_HOME": str(graph_home)})
+    assert result.returncode == 0, result.stderr
+    outbox = TelemetryOutbox(graph_home / "telemetry-outbox.sqlite3")
+    try:
+        rows = outbox.connection.execute(
+            "SELECT event_id,status,attempts FROM outbox_deliveries WHERE destination='cortex'"
+        ).fetchall()
+        assert [(r["status"], r["attempts"]) for r in rows if r["event_id"] == "older"] == [("pending", 0)]
+        assert [r["status"] for r in rows if r["event_id"] != "older"] == ["acked"]
+    finally:
+        outbox.close()

@@ -2,17 +2,19 @@
 title: Viewer and Local API
 acronyms: [MCP, FTS5, WAL]
 created: 2026-08-13
-updated: 2026-09-08
+updated: 2026-09-15
 type: architecture
 tags: [infrastructure, storage, provenance]
 confidence: high
 source_files:
   - src/xibalba_cortex/local_api.py
+  - src/xibalba_cortex/store.py
   - src/xibalba_cortex/accounts.py
   - src/xibalba_cortex/email_delivery.py
   - viewer/src/App.tsx
   - viewer/src/api.ts
   - viewer/src/index.css
+  - viewer/src/ProvenancePanels.tsx
   - viewer/xibalba-3d-smoke.mjs
 ---
 
@@ -22,7 +24,7 @@ The reviewed viewer and local-API implementation described on this page exists o
 Account/email changes that are still uncommitted in a working tree are not promoted to
 released capability by this documentation.
 
-The local API exposes read and operator-oriented surfaces over the canonical `GraphStore`. It is a local operator API, not a read-only API: bounded `POST` routes can record exchanges, create propositions, link entities, apply lifecycle changes, manage inference tasks, and record PARA decisions. The React viewer presents the graph, timeline, recall, inference, PARA review, and integrity state without treating the viewer as the source of truth.
+The local API exposes read and operator-oriented surfaces over the canonical `GraphStore`. It is a local operator API, not a read-only API: bounded `POST` routes can record exchanges, create propositions, link entities, apply lifecycle changes (including forgetting a memory), manage inference tasks, and record PARA decisions. The React viewer presents memory browsing, the session/graph timeline, retrieval, inference, PARA review, and audit/integrity state without treating the viewer as the source of truth.
 
 ## Table of contents
 
@@ -36,14 +38,62 @@ The local API exposes read and operator-oriented surfaces over the canonical `Gr
 
 ## Surfaces
 
-- **Timeline** — sessions, exchanges, tool events, and context contributions.
+As of 2026-09-15 the viewer's left nav is: Overview, Agents, Memory Explorer, Sessions, Graph,
+Search & Retrieval, Inference, Audit Log, Operations, Settings. Several of these are renames or
+merges of the tabs this page previously described, done to match a proposed information
+architecture without rewriting working code underneath the label:
+
+- **Memory Explorer** — a paginated, status-filterable browse of the canonical memory store,
+  independent of any search query. `GET /api/memories?limit=&offset=&status=&agent_id=` (new
+  2026-09-15) backs it; `status` is a comma-separated subset of
+  `candidate,active,confirmed,superseded,forgotten` (default: all five). Agent-scoped exactly
+  like every other route (`_agent_filter`); an operator session sees every agent unless one is
+  selected via the global agent switcher.
+- **Sessions** (formerly "Timeline") — sessions, exchanges, tool events, and context
+  contributions, plus inline transcript replay for the selected session. This remains one
+  component (`TimelineTab`), not split into separate Sessions/Replay tabs — the two are
+  tightly coupled around one `selectedSessionId`, and splitting them would add navigation
+  without adding capability.
 - **Graph** — nodes, edges, filters, 3D canvas, and bounded traversal controls.
-- **Recall** — lexical search over eligible memories.
+- **Search & Retrieval** (formerly "Recall") — lexical/hybrid search over eligible memories.
 - **Inference** — task queue, claim/complete controls, explicit write-back, and PARA review.
-- **Integrity** — SQLite health, backup readiness, session Merkle root, and integrity-link state.
+- **Audit Log** (formerly two separate tabs, "Integrity Audit" and "Provenance") — merged into
+  one tab with an `All / Chain & Store Lineage / Extraction & Retrieval Traces` subnav (the same
+  pattern Settings already used), since both were reading different slices of the same
+  provenance/audit concern. Chain & Store Lineage: SQLite health, backup readiness, session
+  Merkle root, and integrity-link state. Extraction & Retrieval Traces: autonomous extraction
+  proposal review, hybrid-retrieval Merkle inclusion proofs, and projection-checkpoint drift.
 - **Agents** — exact canonical agent/device workspaces. `GET /api/agents` lists namespaces and
   `GET /api/agent/{agent_id}/memories?device_id=` reads only that agent/device partition. Records
   without `sources.agent_id` remain outside these workspaces rather than being guessed into one.
+  `GET /api/agents` also returns `oracle_reachable` and a per-agent `identity_verified` flag (new
+  2026-09-15) — see "On-chain identity honesty" below.
+- **Settings** — operator profile, inference-daemon policy, and account security, plus a
+  Dark/Light/System theme picker (new 2026-09-15; `[data-theme]` CSS variable overrides in
+  `viewer/src/index.css`, applied live and persisted to `localStorage`).
+
+## Memory lifecycle: forget
+
+`POST /api/memory/{id}/forget` (new 2026-09-15) exposes `GraphStore.forget_memory()` — previously
+implemented in `store.py` but not reachable over HTTP. Sets the memory's status to `forgotten`
+and returns a hash-bound deletion receipt (`content_hash` retained for chain verification; the
+content itself is not). Agent-scoped like `supersede`. Raises `RuntimeError` (mapped to HTTP
+`409`) when governance is disabled by feature policy, rather than a bare `500` — every route's
+`RuntimeError` now maps to `409` for this reason. The viewer's memory Inspector panel requires an
+explicit confirm step before calling it and disables the action once a memory is already
+forgotten.
+
+## On-chain identity honesty
+
+`integrity_sdk.agent_identity.resolve_agent_identities` (shared with Shield and the dashboard)
+fails open by design: an unreachable oracle still returns `on_chain: false` for every requested
+DID rather than raising, so a naming lookup can never break a page that wanted to show an agent
+list. Read alone, that makes "confirmed off-chain" and "couldn't check, oracle down"
+indistinguishable. `GET /api/agents` independently probes the oracle (2s timeout) and adds
+`oracle_reachable` (response-level) and `identity_verified` (per agent) so the viewer can render
+an honest "status unverified" state instead of a confident but possibly-false on-chain/off-chain
+badge. Do not add a similar on/off-chain claim anywhere else in the viewer without also carrying
+this verified flag.
 
 ## Agent workspaces
 
@@ -60,13 +110,20 @@ Inference completion carries the task's claim owner and claim token. The viewer 
 
 ## Integrity presentation
 
-The header and Integrity tab display observed store state such as schema version, Write-Ahead Logging (WAL), Full-Text Search (FTS5), backup readiness, and root validity. The UI also preserves the boundary that local tamper evidence is not proof of truth, authorization, completeness, or external anchoring.
+The header and the Audit Log tab's Chain & Store Lineage section display observed store state such as schema version, Write-Ahead Logging (WAL), Full-Text Search (FTS5), backup readiness, and root validity. The UI also preserves the boundary that local tamper evidence is not proof of truth, authorization, completeness, or external anchoring.
 
 ## Headless verification
 
-The viewer was exercised with headless Chromium at desktop and mobile sizes. Screenshots were used as the visual source of truth for navigation, graph rendering, Timeline, Recall, Inference, Integrity, and responsive layout. The run observed no browser console errors, uncaught page errors, failed network requests, or horizontal document overflow.
+The viewer was exercised with headless Chromium at desktop and mobile sizes, under the pre-2026-09-15 tab names (Timeline, Recall, Integrity) — this evidence predates the Memory Explorer addition, the Sessions/Search & Retrieval renames, and the Audit Log merge, and has not been re-run against them. Screenshots were used as the visual source of truth for navigation, graph rendering, Timeline, Recall, Inference, Integrity, and responsive layout. The run observed no browser console errors, uncaught page errors, failed network requests, or horizontal document overflow.
 
 The evidence set is generated locally under `/tmp/xibalba-cortex-playwright/`; it is not committed automatically because screenshots from a live profile may contain sensitive memory labels or operational history.
+
+The 2026-09-15 additions (Memory Explorer, forget lifecycle, Audit Log merge, theme picker,
+`identity_verified`/`oracle_reachable`) are source-verified plus `tsc --noEmit`/`vite build`/
+`pytest` verified only — a live browser pass was attempted and blocked by an unrelated
+environmental issue (the local API process wedged under host memory pressure, timing out on
+every route including ones untouched by these changes) rather than completed. Re-run headless
+verification before treating this set as browser-confirmed.
 
 ## Design boundaries
 

@@ -3,7 +3,7 @@ from argparse import Namespace
 
 import pytest
 
-from xibalba_cortex.codex_mcp_backfill import parse_codex_session, run
+from xibalba_cortex.codex_mcp_backfill import MAX_WATCH_FILES, parse_codex_session, run
 
 
 def test_parse_codex_session_reconstructs_turn_and_tool_call(tmp_path):
@@ -44,6 +44,29 @@ def test_parse_codex_session_skips_incomplete_turns(tmp_path):
     assert parse_codex_session(transcript) == []
 
 
+def test_parse_codex_session_accepts_current_response_item_user_messages(tmp_path):
+    transcript = tmp_path / "rollout-current.jsonl"
+    transcript.write_text(
+        textwrap.dedent(
+            """
+            {"timestamp":"2026-09-14T18:00:00Z","type":"session_meta","payload":{"id":"sess-current"}}
+            {"timestamp":"2026-09-14T18:00:01Z","type":"turn_context","payload":{"turn_id":"turn-current"}}
+            {"timestamp":"2026-09-14T18:00:02Z","type":"response_item","payload":{"type":"message","role":"user","content":[{"type":"input_text","text":"smoke codex"}]}}
+            {"timestamp":"2026-09-14T18:00:03Z","type":"response_item","payload":{"type":"message","role":"assistant","content":[{"type":"output_text","text":"CODEX_OK"}]}}
+            """
+        ).strip()
+        + "\n"
+    )
+
+    turns = parse_codex_session(transcript)
+
+    assert len(turns) == 1
+    assert turns[0].session_id == "sess-current"
+    assert turns[0].turn_id == "turn-current"
+    assert turns[0].prompt == "smoke codex"
+    assert turns[0].response == "CODEX_OK"
+
+
 @pytest.mark.asyncio
 async def test_watch_mode_can_run_one_dry_iteration(tmp_path):
     transcript = tmp_path / "rollout-watch.jsonl"
@@ -76,3 +99,25 @@ async def test_watch_mode_can_run_one_dry_iteration(tmp_path):
     assert result["iterations"] == 1
     assert result["last_summary"]["turns_seen"] == 1
     assert result["last_summary"]["turns_ingested"] == 0
+
+
+@pytest.mark.asyncio
+async def test_watch_mode_hard_caps_files_even_when_operator_requests_unbounded(tmp_path):
+    for index in range(MAX_WATCH_FILES + 5):
+        (tmp_path / f"rollout-{index:03d}.jsonl").write_text("{}\n")
+
+    result = await run(
+        Namespace(
+            sessions=tmp_path,
+            home=tmp_path / "graph",
+            server_command="xibalba-cortex",
+            dry_run=True,
+            watch=True,
+            poll_interval=0,
+            max_iterations=1,
+            limit_files=999999,
+            limit_turns=999999,
+        )
+    )
+
+    assert result["last_summary"]["files_seen"] == MAX_WATCH_FILES

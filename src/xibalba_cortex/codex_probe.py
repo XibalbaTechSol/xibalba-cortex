@@ -9,9 +9,12 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass, field
 import os
 from pathlib import Path
+import re
 import shutil
 import subprocess
+import tomllib
 from typing import Any, Literal
+import json
 
 from .runtime_bridge_contract import RuntimeEvent
 from .runtime_controller import XibalbaRuntimeController
@@ -23,6 +26,7 @@ class CodexProbeResult:
     version: str | None
     surface_kind: str
     hook_surface: str
+    hook_events: tuple[str, ...] = ()
     environment_signals: dict[str, str] = field(default_factory=dict)
     notes: str = ""
 
@@ -49,19 +53,27 @@ class CodexLauncherProbe:
                 version=None,
                 surface_kind="absent",
                 hook_surface="unknown",
+                hook_events=(),
                 environment_signals=environment_signals,
                 notes="No Codex executable was found on PATH.",
             )
 
         version = self._version_for(executable)
         surface_kind = "cli"
-        hook_surface = "unknown"
-        notes = "Codex executable found; launcher surface must still be inspected for hook support."
+        hook_events = self._active_hook_events()
+        hook_surface = "lifecycle" if hook_events else "unknown"
+        notes = (
+            "Codex lifecycle hooks discovered from the active plugin registry; tool-level hook "
+            "support remains unverified."
+            if hook_events
+            else "Codex executable found; hook registry did not expose active lifecycle hooks."
+        )
         return CodexProbeResult(
             executable=executable,
             version=version,
             surface_kind=surface_kind,
             hook_surface=hook_surface,
+            hook_events=hook_events,
             environment_signals=environment_signals,
             notes=notes,
         )
@@ -79,6 +91,48 @@ class CodexLauncherProbe:
             return None
         text = (completed.stdout or completed.stderr or "").strip()
         return text or None
+
+    def _active_hook_events(self) -> tuple[str, ...]:
+        """Read active lifecycle hooks from the local Codex plugin registry.
+
+        The CLI itself does not advertise hook support through ``--help``. Codex persists
+        active plugin hook registrations in ``~/.codex/config.toml`` and the corresponding
+        plugin ``hooks/hooks.json`` files. This is intentionally read-only and reports only
+        event names, never commands or credentials.
+        """
+        config_path = Path.home() / ".codex" / "config.toml"
+        try:
+            with config_path.open("rb") as handle:
+                config = tomllib.load(handle)
+        except (OSError, tomllib.TOMLDecodeError):
+            return ()
+        active_keys = tuple(str(key) for key in config.get("hooks", {}).get("state", {}))
+        if not active_keys:
+            return ()
+
+        events: set[str] = set()
+        cache_root = config_path.parent / "plugins" / "cache"
+        for hooks_file in cache_root.glob("*/*/*/hooks/hooks.json"):
+            provider = hooks_file.parents[3].name
+            plugin = hooks_file.parents[2].name
+            active_prefix = f"{plugin}@{provider}:hooks/hooks.json:"
+            if not any(key.startswith(active_prefix) for key in active_keys):
+                continue
+            try:
+                with hooks_file.open("rb") as handle:
+                    hooks = json.load(handle).get("hooks", {})
+            except (OSError, json.JSONDecodeError, AttributeError):
+                continue
+            for event_name in hooks:
+                state_event = re.sub(r"[^a-z0-9]", "", str(event_name).lower())
+                if any(
+                    key.startswith(active_prefix)
+                    and re.sub(r"[^a-z0-9]", "", key[len(active_prefix):].split(":", 1)[0].lower())
+                    == state_event
+                    for key in active_keys
+                ):
+                    events.add(str(event_name))
+        return tuple(sorted(events))
 
 
 @dataclass(slots=True)
@@ -154,8 +208,12 @@ class CodexAdapter:
         )
         return {"closed": True, **closed}
 
-    def record_observation(self, *, session_id: str | None = None, note: str | None = None, **kwargs: Any) -> dict[str, Any]:
-        """Optional best-effort helper; not a native Codex tool hook."""
+    def record_observation(self, *, session_id: str | None = None, note: str | None = None,
+                           event_name: str = "codex.wrapper.observation",
+                           turn_id: str | None = None, invocation_id: str | None = None,
+                           tool_name: str | None = None, status: str | None = None,
+                           duration_ms: float | None = None, **kwargs: Any) -> dict[str, Any]:
+        """Record an explicitly forwarded wrapper observation; not a native Codex hook."""
         if not session_id:
             return {"recorded": 0, "reason": "missing session_id"}
         if not note:
@@ -164,11 +222,14 @@ class CodexAdapter:
             RuntimeEvent(
                 runtime=self.runtime,
                 session_id=session_id,
-                tool_name="codex.adapter.observation",
-                tool_outcome="unknown",
+                invocation_id=invocation_id,
+                turn_id=turn_id,
+                tool_name=tool_name or event_name,
+                tool_outcome=("success" if status in {"ok", "success", "completed"}
+                              else "error" if status in {"error", "failed"} else "unknown"),
                 provenance={**self.provenance, **kwargs},
                 assistant_response=note,
-                metadata={"hook": "observation"},
+                metadata={"hook": event_name, "status": status, "duration_ms": duration_ms},
             )
         )
         return {"recorded": 1, "session_id": session_id}

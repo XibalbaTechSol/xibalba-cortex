@@ -18,12 +18,25 @@ from .runtime_bridge_contract import (
     CODEX_ADAPTER,
     CURSOR_ADAPTER,
     GEMINI_ADAPTER,
+    HERMES_ADAPTER,
+    OPENCLAW_ADAPTER,
+    PERPLEXITY_ADAPTER,
+    MCP_ADAPTER,
+    CLOUD_RUN_ADAPTER,
     OPENAI_COMPATIBLE_ADAPTER,
     RuntimeAdapterResponsibilities,
     RuntimeEvent,
     RuntimeName,
 )
 from .store import GraphStore
+
+
+def _retention_tier() -> str:
+    """Return the bounded profile policy used by runtime event ingestion."""
+    tier = os.environ.get("XIBALBA_CORTEX_RETENTION_TIER", "digest").strip().lower()
+    if tier not in {"digest", "synopsis", "verbatim"}:
+        raise ValueError(f"invalid XIBALBA_CORTEX_RETENTION_TIER: {tier!r}")
+    return tier
 
 
 @dataclass(slots=True)
@@ -147,22 +160,32 @@ class XibalbaRuntimeController:
         }
 
     def ingest_event(self, event: RuntimeEvent) -> dict[str, Any]:
-        self.store.start_session(event.session_id, retention_tier="verbatim")
+        self.store.start_session(event.session_id, retention_tier=_retention_tier())
         result = self.store.record_otel_batch(
             event.session_id,
             [
                 {
                     "kind": "log",
                     "name": "xibalba.runtime.event",
-                    "trace_id": event.turn_id,
-                    "span_id": event.tool_name,
-                    "parent_span_id": event.turn_id,
+                    "trace_id": event.trace_id or event.turn_id,
+                    "span_id": event.span_id or event.invocation_id or event.tool_name,
+                    "parent_span_id": event.parent_span_id,
                     "prompt_id": event.turn_id,
-                    "attributes": event.to_record(),
+                    "start_time": event.start_time,
+                    "end_time": event.end_time,
+                    "attributes": {
+                        **event.to_record(),
+                        "otel.duration_ns": event.duration_ns,
+                        "otel.status.code": event.status_code,
+                        "otel.status.message": event.status_message,
+                    },
+                    "idempotency_key": event.idempotency_key,
                 }
             ],
         )
-        return {"recorded": 1, "session_id": event.session_id, "store_result": result}
+        return {"recorded": int(result.get("recorded", 0)),
+                "duplicates": int(result.get("duplicates", 0)),
+                "session_id": event.session_id, "store_result": result}
 
     def ingest_events(self, events: list[RuntimeEvent]) -> list[dict[str, Any]]:
         return [self.ingest_event(event) for event in events]
@@ -208,7 +231,7 @@ class XibalbaRuntimeController:
         metadata: dict[str, Any] | None = None,
         idempotency_key: str | None = None,
     ) -> dict[str, Any]:
-        self.open_session(runtime, session_id=session_id, agent_id=agent_id, retention_tier="verbatim")
+        self.open_session(runtime, session_id=session_id, agent_id=agent_id, retention_tier=_retention_tier())
         return self.store.record_model_exchange(
             session_id,
             user_prompt=user_prompt,
@@ -279,6 +302,11 @@ __all__ = [
     "CODEX_ADAPTER",
     "CURSOR_ADAPTER",
     "GEMINI_ADAPTER",
+    "HERMES_ADAPTER",
+    "OPENCLAW_ADAPTER",
+    "PERPLEXITY_ADAPTER",
+    "MCP_ADAPTER",
+    "CLOUD_RUN_ADAPTER",
     "OPENAI_COMPATIBLE_ADAPTER",
 ]
 
