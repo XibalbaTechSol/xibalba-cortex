@@ -16,6 +16,8 @@ import tomllib
 from typing import Any, Literal
 import json
 
+from integrity_sdk import normalize_hook
+
 from .runtime_bridge_contract import RuntimeEvent
 from .runtime_controller import XibalbaRuntimeController
 
@@ -159,11 +161,15 @@ class CodexAdapter:
     ) -> dict[str, Any]:
         if not session_id:
             return {"opened": False, "reason": "missing session_id"}
+        normalized = normalize_hook("session_start", {
+            **kwargs, "session_id": session_id, "traceparent": traceparent,
+        })
+        session_id = normalized["session_id"]
         discovered = self.probe.discover()
         opened = self.controller.open_session(
             self.runtime,
             session_id=session_id,
-            traceparent=traceparent,
+            traceparent=normalized["traceparent"],
             agent_id=agent_id,
             provenance={**self.provenance, **kwargs, "hook_surface": discovered.hook_surface},
         )
@@ -171,12 +177,12 @@ class CodexAdapter:
             RuntimeEvent(
                 runtime=self.runtime,
                 session_id=session_id,
-                traceparent=traceparent,
+                traceparent=normalized["traceparent"],
                 agent_id=agent_id,
                 tool_name="codex.adapter.start",
                 tool_outcome="success",
                 provenance={**self.provenance, **kwargs},
-                metadata={"hook": "start", "probe": discovered.to_record()},
+                metadata={"hook": "start", "event_id": normalized["event_id"], "probe": discovered.to_record()},
             )
         )
         return {"opened": True, **opened}
@@ -190,6 +196,8 @@ class CodexAdapter:
     ) -> dict[str, Any]:
         if not session_id:
             return {"closed": False, "reason": "missing session_id"}
+        normalized = normalize_hook("session_end", {**kwargs, "session_id": session_id})
+        session_id = normalized["session_id"]
         self.controller.ingest_event(
             RuntimeEvent(
                 runtime=self.runtime,
@@ -197,7 +205,7 @@ class CodexAdapter:
                 tool_name="codex.adapter.end",
                 tool_outcome="success",
                 provenance={**self.provenance, **kwargs},
-                metadata={"hook": "end"},
+                metadata={"hook": "end", "event_id": normalized["event_id"]},
             )
         )
         closed = self.controller.close_session(
@@ -218,18 +226,23 @@ class CodexAdapter:
             return {"recorded": 0, "reason": "missing session_id"}
         if not note:
             return {"recorded": 0, "reason": "missing note"}
+        normalized = normalize_hook(event_name, {
+            **kwargs, "session_id": session_id, "turn_id": turn_id,
+            "invocation_id": invocation_id, "tool_name": tool_name, "status": status,
+        })
+        session_id = normalized["session_id"]
         self.controller.ingest_event(
             RuntimeEvent(
                 runtime=self.runtime,
                 session_id=session_id,
-                invocation_id=invocation_id,
-                turn_id=turn_id,
-                tool_name=tool_name or event_name,
+                invocation_id=normalized["invocation_id"],
+                turn_id=normalized["turn_id"],
+                tool_name=normalized["tool_name"] or event_name,
                 tool_outcome=("success" if status in {"ok", "success", "completed"}
                               else "error" if status in {"error", "failed"} else "unknown"),
                 provenance={**self.provenance, **kwargs},
                 assistant_response=note,
-                metadata={"hook": event_name, "status": status, "duration_ms": duration_ms},
+                metadata={"hook": event_name, "event_id": normalized["event_id"], "status": status, "duration_ms": duration_ms},
             )
         )
         return {"recorded": 1, "session_id": session_id}

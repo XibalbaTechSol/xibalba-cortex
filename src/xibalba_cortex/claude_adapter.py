@@ -10,6 +10,8 @@ import uuid
 from dataclasses import dataclass, field
 from typing import Any, Literal
 
+from integrity_sdk import normalize_hook
+
 from .runtime_bridge_contract import RuntimeEvent
 from .runtime_controller import XibalbaRuntimeController
 
@@ -21,6 +23,19 @@ _KERNEL_BRIDGE_ENV = "XIBALBA_KERNEL_BRIDGE_ENABLED"
 _KERNEL_BRIDGE_TEST_VALUE_WEI = int(0.01 * 10**18)
 _KERNEL_BRIDGE_TEST_RECIPIENT = "0x" + "0" * 38 + "ff"
 _INVOCATION_NAMESPACE = uuid.UUID("9f7df4b9-8538-4c58-9044-b34d56454f13")
+
+
+def _normalized_hook(hook: str, *, session_id: str | None = None,
+                     turn_id: str | None = None, invocation_id: str | None = None,
+                     tool_call_id: str | None = None, tool_name: str | None = None,
+                     traceparent: str | None = None, status: str | None = None,
+                     **payload: Any) -> dict[str, Any]:
+    """Use the SDK correlation vocabulary at the Claude adapter boundary."""
+    return normalize_hook(hook, {
+        **payload, "session_id": session_id, "turn_id": turn_id,
+        "invocation_id": invocation_id, "tool_call_id": tool_call_id,
+        "tool_name": tool_name, "traceparent": traceparent, "status": status,
+    })
 
 
 def _invocation_id(session_id: str, tool_call_id: str | None, supplied: str | None) -> str:
@@ -69,13 +84,20 @@ class ClaudeAdapter:
                         tool_name: str | None = None, tool_outcome: str = "unknown",
                         assistant_response: str | None = None, agent_id: str | None = None,
                         **metadata: Any) -> dict[str, Any]:
+        normalized = _normalized_hook(
+            hook, session_id=session_id, turn_id=turn_id, invocation_id=invocation_id,
+            tool_name=tool_name, **metadata,
+        )
+        session_id = normalized["session_id"]
         if not session_id:
             return {"recorded": 0, "reason": "missing session_id"}
         self.controller.ingest_event(RuntimeEvent(
-            runtime=self.runtime, session_id=session_id, invocation_id=invocation_id,
-            turn_id=turn_id, agent_id=agent_id, tool_name=tool_name,
+            runtime=self.runtime, session_id=session_id, invocation_id=normalized["invocation_id"],
+            turn_id=normalized["turn_id"], agent_id=agent_id,
+            tool_name=normalized["tool_name"],
             tool_outcome=tool_outcome, assistant_response=assistant_response,
-            provenance={**self.provenance}, metadata={"hook": hook, **metadata},
+            provenance={**self.provenance},
+            metadata={"hook": hook, "event_id": normalized["event_id"], **metadata},
         ))
         return {"recorded": 1, "session_id": session_id}
 
@@ -245,6 +267,15 @@ class ClaudeAdapter:
         if not session_id:
             return {"recorded": 0, "reason": "missing session_id"}
         invocation_id = _invocation_id(session_id, tool_call_id, invocation_id)
+        normalized = _normalized_hook(
+            "post_tool_call", session_id=session_id, turn_id=turn_id,
+            invocation_id=invocation_id, tool_call_id=tool_call_id, tool_name=tool_name,
+            status=status, traceparent=traceparent,
+        )
+        session_id = normalized["session_id"]
+        turn_id = normalized["turn_id"]
+        invocation_id = normalized["invocation_id"]
+        tool_name = normalized["tool_name"]
         outcome = "unknown"
         if status:
             status_lower = status.lower()
@@ -259,7 +290,7 @@ class ClaudeAdapter:
             session_id=session_id,
             invocation_id=invocation_id,
             turn_id=turn_id,
-            traceparent=traceparent,
+            traceparent=normalized["traceparent"],
             agent_id=agent_id,
             intent_rationale=intent_rationale,
             tool_name=tool_name,
@@ -268,11 +299,12 @@ class ClaudeAdapter:
             provenance={**self.provenance, **kwargs},
             metadata={
                 "hook": "post_tool_call",
-                "tool_call_id": tool_call_id,
+                "tool_call_id": normalized["tool_call_id"],
                 "result": result,
                 "duration_ms": duration_ms,
                 "error_type": error_type,
                 "error_message": error_message,
+                "event_id": normalized["event_id"],
             },
         )
         self.controller.ingest_event(event)
@@ -295,6 +327,15 @@ class ClaudeAdapter:
         if not session_id:
             return {"allowed": False, "reason": "missing session_id"}
         invocation_id = _invocation_id(session_id, tool_call_id, invocation_id)
+        normalized = _normalized_hook(
+            "pre_tool_call", session_id=session_id, turn_id=turn_id,
+            invocation_id=invocation_id, tool_call_id=tool_call_id, tool_name=tool_name,
+            traceparent=traceparent,
+        )
+        session_id = normalized["session_id"]
+        turn_id = normalized["turn_id"]
+        invocation_id = normalized["invocation_id"]
+        tool_name = normalized["tool_name"]
         decision = self.controller.evaluate_policy(
             runtime=self.runtime,
             session_id=session_id,
@@ -305,8 +346,9 @@ class ClaudeAdapter:
         kernel_decision = _maybe_submit_kernel_intent(intent_rationale=intent_rationale, tool_name=tool_name)
         metadata = {
             "hook": "pre_tool_call",
-            "tool_call_id": tool_call_id,
+            "tool_call_id": normalized["tool_call_id"],
             "policy_reason": decision["reason"],
+            "event_id": normalized["event_id"],
         }
         if kernel_decision is not None:
             metadata["kernel_decision"] = kernel_decision
@@ -316,7 +358,7 @@ class ClaudeAdapter:
                 session_id=session_id,
                 invocation_id=invocation_id,
                 turn_id=turn_id,
-                traceparent=traceparent,
+                traceparent=normalized["traceparent"],
                 agent_id=agent_id,
                 intent_rationale=intent_rationale,
                 tool_name=tool_name,
