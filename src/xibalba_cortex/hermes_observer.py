@@ -18,7 +18,7 @@ Only the *_end/post_* member of each pair is handled -- the corresponding pre_* 
 before the same data exists (a tool hasn't run yet, a response hasn't arrived yet), so it adds
 framing but no additional capturable content; instrumenting both would double-count nothing new.
 
-  on_session_start / on_session_end  -> start_session / end_session
+  on_session_start -> start_session; on_session_end -> run-end observation
   post_llm_call                      -> user_message + assistant_response as memories
                                          (turn_id doubles as prompt_id, same reuse-not-invent
                                          pattern as otlp_receiver's trace_id)
@@ -169,12 +169,12 @@ class HermesObserverAdapter:
             self.store.get_session(session_id)
         except KeyError:
             return  # on_session_end can fire for a session this adapter never saw start
-        summary = None
-        if interrupted:
-            summary = f"Session interrupted: {reason or 'no reason given'}"
-        elif reason:
-            summary = f"Session ended: {reason}"
-        self.store.end_session(session_id, summary_content=summary)
+        # Hermes emits this after each run_conversation, including interrupted
+        # runs. The plugin's on_session_finalize synchronizer owns final closure.
+        self._event(session_id, "hermes.run_end", attributes={
+            "completed": completed, "interrupted": interrupted,
+            "reason_hash": self._digest(reason),
+        })
 
     def post_llm_call(
         self, *, session_id: str | None = None, turn_id: str | None = None,

@@ -7,6 +7,7 @@ from pathlib import Path
 import pytest
 import sqlite_vec
 
+import xibalba_cortex.store as store_module
 from xibalba_cortex.events import verify_domain_merkle_proof
 from xibalba_cortex.providers import InferenceTaskContract
 from xibalba_cortex.store import EMBEDDING_DIM, EMBEDDING_MODEL_ID, GraphStore
@@ -496,6 +497,20 @@ def test_vector_search_ranks_by_similarity_and_fuses_with_lexical(tmp_path):
 
     with pytest.raises(ValueError, match="dimension"):
         store.search("query", query_vector=[0.0, 0.0])
+    store.close()
+
+
+def test_lexical_search_fails_closed_at_resource_deadline(tmp_path, monkeypatch):
+    store = GraphStore(tmp_path / "graph")
+    store.store_memory(
+        "A bounded lexical search fixture.",
+        source={"kind": "direct_user"},
+        status="confirmed",
+    )
+    monkeypatch.setattr(store_module, "_LEXICAL_QUERY_TIMEOUT_SEC", 0.0)
+
+    with pytest.raises(RuntimeError, match="2-second resource limit"):
+        store.search("lexical")
     store.close()
 
 
@@ -1502,6 +1517,15 @@ def test_forget_returns_hash_bound_deletion_receipt(tmp_path):
 def test_store_status_reports_explicit_profile_id(tmp_path):
     store = GraphStore(tmp_path / "graph", profile_id="tenant-a")
     assert store.status(fast=True)["profile_id"] == "tenant-a"
+    store.close()
+
+
+def test_fast_status_defers_large_store_count(monkeypatch, tmp_path):
+    store = GraphStore(tmp_path / "large-status")
+    monkeypatch.setattr(store_module, "_FAST_STATUS_COUNT_MAX_DB_BYTES", 1)
+    status = store.status(fast=True)
+    assert status["memory_count"] is None
+    assert status["memory_count_deferred"] is True
     store.close()
 
 

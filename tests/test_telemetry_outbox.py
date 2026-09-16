@@ -21,6 +21,12 @@ def _event(event_id="event-1"):
     }
 
 
+def test_outbox_default_byte_limit_is_16_mib(tmp_path: Path):
+    outbox = TelemetryOutbox(tmp_path / "outbox.sqlite3")
+    assert outbox.max_bytes == 16 * 1024 * 1024
+    outbox.close()
+
+
 def test_outbox_persists_one_event_with_independent_destinations(tmp_path: Path):
     path = tmp_path / "outbox.sqlite3"
     outbox = TelemetryOutbox(path, max_events=10, max_bytes=10_000)

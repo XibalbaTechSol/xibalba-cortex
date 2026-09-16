@@ -1,0 +1,8 @@
+{
+  "cortex-telemetry": {
+    "PreInvocation": [{"type": "command", "command": "XIBALBA_AGENT_ID=agy XIBALBA_CORTEX_HOME=/home/xibalba/.hermes/xibalba-cortex /home/xibalba/Projects/xibalba-cortex/.venv/bin/python -m xibalba_cortex.agy_hook_bridge PreInvocation", "timeout": 15}],
+    "PostInvocation": [{"type": "command", "command": "XIBALBA_AGENT_ID=agy XIBALBA_CORTEX_HOME=/home/xibalba/.hermes/xibalba-cortex /home/xibalba/Projects/xibalba-cortex/.venv/bin/python -m xibalba_cortex.agy_hook_bridge PostInvocation", "timeout": 15}],
+    "PostToolUse": [{"matcher": "*", "hooks": [{"type": "command", "command": "XIBALBA_AGENT_ID=agy XIBALBA_CORTEX_HOME=/home/xibalba/.hermes/xibalba-cortex /home/xibalba/Projects/xibalba-cortex/.venv/bin/python -m xibalba_cortex.agy_hook_bridge PostToolUse", "timeout": 15}]}],
+    "Stop": [{"type": "command", "command": "XIBALBA_AGENT_ID=agy XIBALBA_CORTEX_HOME=/home/xibalba/.hermes/xibalba-cortex /home/xibalba/Projects/xibalba-cortex/.venv/bin/python -m xibalba_cortex.agy_hook_bridge Stop", "timeout": 15}]
+  }
+}

@@ -101,3 +101,26 @@ def test_bridge_requires_exactly_one_argument(tmp_path):
         input="{}", text=True, capture_output=True, env=env, timeout=30,
     )
     assert result.returncode == 2
+
+
+def test_bridge_does_not_lease_unrelated_backlog(tmp_path):
+    import os
+    graph_home = tmp_path / "graph"
+    outbox = TelemetryOutbox(graph_home / "telemetry-outbox.sqlite3")
+    try:
+        outbox.enqueue({"event_id": "older", "session_id": "older-session",
+                        "schema_version": "test"}, destinations=("cortex",))
+    finally:
+        outbox.close()
+    result = _run_bridge("pre_llm_call", {"session_id": "current-session", "turn_id": "t1"},
+                         {**os.environ, "XIBALBA_CORTEX_HOME": str(graph_home)})
+    assert result.returncode == 0, result.stderr
+    outbox = TelemetryOutbox(graph_home / "telemetry-outbox.sqlite3")
+    try:
+        rows = outbox.connection.execute(
+            "SELECT event_id,status,attempts FROM outbox_deliveries WHERE destination='cortex'"
+        ).fetchall()
+        assert [(r["status"], r["attempts"]) for r in rows if r["event_id"] == "older"] == [("pending", 0)]
+        assert [r["status"] for r in rows if r["event_id"] != "older"] == ["acked"]
+    finally:
+        outbox.close()

@@ -3,7 +3,7 @@ from argparse import Namespace
 
 import pytest
 
-from xibalba_cortex.codex_mcp_backfill import parse_codex_session, run
+from xibalba_cortex.codex_mcp_backfill import MAX_WATCH_FILES, parse_codex_session, run
 
 
 def test_parse_codex_session_reconstructs_turn_and_tool_call(tmp_path):
@@ -99,3 +99,25 @@ async def test_watch_mode_can_run_one_dry_iteration(tmp_path):
     assert result["iterations"] == 1
     assert result["last_summary"]["turns_seen"] == 1
     assert result["last_summary"]["turns_ingested"] == 0
+
+
+@pytest.mark.asyncio
+async def test_watch_mode_hard_caps_files_even_when_operator_requests_unbounded(tmp_path):
+    for index in range(MAX_WATCH_FILES + 5):
+        (tmp_path / f"rollout-{index:03d}.jsonl").write_text("{}\n")
+
+    result = await run(
+        Namespace(
+            sessions=tmp_path,
+            home=tmp_path / "graph",
+            server_command="xibalba-cortex",
+            dry_run=True,
+            watch=True,
+            poll_interval=0,
+            max_iterations=1,
+            limit_files=999999,
+            limit_turns=999999,
+        )
+    )
+
+    assert result["last_summary"]["files_seen"] == MAX_WATCH_FILES

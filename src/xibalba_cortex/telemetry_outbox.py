@@ -46,7 +46,7 @@ class TelemetryOutbox:
         path: str | Path,
         *,
         max_events: int = 10_000,
-        max_bytes: int = 64 * 1024 * 1024,
+        max_bytes: int = 16 * 1024 * 1024,
         busy_timeout_ms: int = 2_000,
     ) -> None:
         if max_events < 1 or max_bytes < 1:
@@ -159,7 +159,8 @@ class TelemetryOutbox:
             raise
         return {"event_id": event_id, "duplicate": False, "payload_hash": payload_hash, "destinations": list(targets)}
 
-    def claim(self, destination: str, *, limit: int = 50, lease_seconds: int = 60) -> list[dict[str, Any]]:
+    def claim(self, destination: str, *, limit: int = 50, lease_seconds: int = 60,
+              event_id: str | None = None) -> list[dict[str, Any]]:
         destination = str(destination).strip()
         if not destination:
             raise ValueError("destination is required")
@@ -173,11 +174,11 @@ class TelemetryOutbox:
                 """SELECT d.event_id, e.schema_version, e.payload_json, e.payload_hash,
                           d.attempts
                    FROM outbox_deliveries d JOIN outbox_events e ON e.event_id = d.event_id
-                   WHERE d.destination = ? AND
+                   WHERE d.destination = ? AND (? IS NULL OR d.event_id = ?) AND
                          ((d.status IN ('pending', 'retry') AND d.available_at <= ?) OR
                           (d.status = 'in_flight' AND d.lease_until <= ?))
                    ORDER BY d.updated_at, d.event_id LIMIT ?""",
-                (destination, now, now, min(int(limit), 1000)),
+                (destination, event_id, event_id, now, now, min(int(limit), 1000)),
             ).fetchall()
             result = []
             for row in rows:

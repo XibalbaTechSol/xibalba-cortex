@@ -7,7 +7,7 @@ def _adapter(tmp_path):
     return store, HermesObserverAdapter(store)
 
 
-def test_session_start_and_end_round_trip(tmp_path):
+def test_run_end_preserves_resumable_session(tmp_path):
     store, adapter = _adapter(tmp_path)
     adapter.on_session_start(session_id="s1")
     session = store.get_session("s1")
@@ -15,9 +15,10 @@ def test_session_start_and_end_round_trip(tmp_path):
 
     adapter.on_session_end(session_id="s1", completed=True, reason="task finished")
     session = store.get_session("s1")
-    assert session["ended_at"] is not None
-    summary = store.get_memory(session["summary_memory_id"])
-    assert summary["content"] == "Session ended: task finished"
+    assert session["ended_at"] is None
+    event = store.session_otel_events("s1")[-1]
+    assert event["name"] == "hermes.run_end"
+    assert event["attributes"]["completed"] is True
     store.close()
 
 

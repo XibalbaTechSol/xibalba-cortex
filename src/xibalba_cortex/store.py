@@ -35,6 +35,15 @@ _SCHEMA_VERSION = 15
 # accidentally ingesting something absurd (e.g. a whole video library) into the blob store.
 _DEFAULT_MAX_ATTACHMENT_BYTES = 200 * 1024 * 1024
 
+# FTS5/BM25 ranking is bounded by wall time as well as result count.  A common term over a
+# multi-gigabyte tenant store can otherwise consume a worker for an unbounded interval even
+# when it no longer holds the GraphStore writer lock.
+_LEXICAL_QUERY_TIMEOUT_SEC = 2.0
+
+# Fast liveness/status requests must not turn into a full table scan on a large tenant store.
+# Exact counts remain available for ordinary stores and the operator's non-fast status path.
+_FAST_STATUS_COUNT_MAX_DB_BYTES = 256 * 1024 * 1024
+
 # Governs whether/how an agent identifier passed in source["agent_id"] gets stored. Privacy or
 # compliance posture varies by deployment, so this is configurable, not hardcoded -- see
 # spec section 4.1a. "pseudonymous" is the default: still lets you correlate "same agent wrote
@@ -754,6 +763,9 @@ class GraphStore:
         # that stall. Only for genuinely read-only paths that never touch the sqlite_vec
         # extension (loaded on `self._connection` only, not on these).
         self._read_local = threading.local()
+        # Incremented when restore() replaces the database so thread-local read connections
+        # cannot retain a snapshot of the old FTS tables.
+        self._read_generation = 0
 
     def _read_connection(self) -> sqlite3.Connection:
         """A lazily-created, per-thread, read-only SQLite connection.
@@ -767,6 +779,9 @@ class GraphStore:
         `memory_vectors` count don't need to fall back to the locked write connection either.
         """
         conn = getattr(self._read_local, "conn", None)
+        if conn is not None and getattr(self._read_local, "generation", -1) != self._read_generation:
+            conn.close()
+            conn = None
         if conn is None:
             conn = sqlite3.connect(f"file:{self.db_path}?mode=ro", uri=True, timeout=30.0)
             conn.row_factory = sqlite3.Row
@@ -779,6 +794,7 @@ class GraphStore:
             sqlite_vec.load(conn)
             conn.enable_load_extension(False)
             self._read_local.conn = conn
+            self._read_local.generation = self._read_generation
         return conn
 
     def _load_or_create_identity_salt(self) -> bytes:
@@ -1317,7 +1333,8 @@ class GraphStore:
                 "SELECT 1 FROM sqlite_master WHERE name = 'memory_fts'"
             ).fetchone()
         )
-        memory_count = conn.execute("SELECT COUNT(*) FROM memories").fetchone()[0]
+        count_deferred = bool(fast and self.db_path.stat().st_size > _FAST_STATUS_COUNT_MAX_DB_BYTES)
+        memory_count = None if count_deferred else conn.execute("SELECT COUNT(*) FROM memories").fetchone()[0]
         backup_ready = self.db_path.is_file() and os.access(self.home, os.W_OK)
         return {
             "schema_version": schema_version,
@@ -1329,6 +1346,7 @@ class GraphStore:
             "identity_mode": self.identity_mode,
             "db_path": str(self.db_path),
             "memory_count": memory_count,
+            "memory_count_deferred": count_deferred,
             "backup_ready": backup_ready,
             "backup_method": "sqlite_online_backup",
             "features": dict(self.features),
@@ -1676,6 +1694,7 @@ class GraphStore:
             self._connection.row_factory = sqlite3.Row
             self._configure()
             self._migrate()
+            self._read_generation += 1
         return self.status()
 
     @staticmethod
@@ -2390,8 +2409,15 @@ class GraphStore:
         if not tokens:
             return []
         fts_query = " AND ".join(f'"{token.replace(chr(34), "")}"' for token in tokens)
-        with self._lock:
-            rows = self._connection.execute(
+        # FTS ranking can be materially slower than the surrounding point reads on a large
+        # tenant store.  Keep it off the process-wide writer lock: a slow/common term must not
+        # starve liveness, authentication, or unrelated tenant reads.  WAL permits this
+        # read-only connection to run concurrently with the writer.
+        conn = self._read_connection()
+        deadline = time.monotonic() + _LEXICAL_QUERY_TIMEOUT_SEC
+        conn.set_progress_handler(lambda: int(time.monotonic() >= deadline), 1000)
+        try:
+            rows = conn.execute(
                 """
                 SELECT m.id
                 FROM memory_fts f
@@ -2403,6 +2429,14 @@ class GraphStore:
                 """,
                 (fts_query, limit),
             ).fetchall()
+            if time.monotonic() >= deadline:
+                raise RuntimeError("lexical search exceeded its 2-second resource limit")
+        except sqlite3.OperationalError as exc:
+            if "interrupted" in str(exc).lower():
+                raise RuntimeError("lexical search exceeded its 2-second resource limit") from exc
+            raise
+        finally:
+            conn.set_progress_handler(None, 0)
         return [row["id"] for row in rows]
 
     def _vector_ranked_ids(self, query_vector: list[float], limit: int) -> list[tuple[str, float]]:

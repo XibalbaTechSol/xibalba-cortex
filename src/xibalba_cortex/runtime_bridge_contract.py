@@ -215,12 +215,13 @@ CLOUD_RUN_ADAPTER = RuntimeAdapterResponsibilities(
 
 AGY_ADAPTER = RuntimeAdapterResponsibilities(
     runtime="agy",
-    transport="wrapper",
+    transport="hooks",
     status="partial",
     responsibilities=(
         "bind_identity",
         "wrapper_session_start",
         "wrapper_session_end",
+        "native_hook_ingest",
         "memory_bus_access",
         "best_effort_telemetry",
     ),
@@ -229,11 +230,15 @@ AGY_ADAPTER = RuntimeAdapterResponsibilities(
         "lifecycle_telemetry",
     ),
     limitations=(
-        "no_native_hook_surface",
-        "no_pre_tool_or_post_tool_hooks",
+        "native_hook_payloads_are_integration_defined",
+        "coverage_depends_on_configured_plugin_or_sdk_hooks",
         "trace_continuity_is_best_effort_only",
     ),
-    notes="agy is wrapper-only today; it must not claim Claude-equivalent tool-level parity.",
+    notes=(
+        "Agy can be customized through its CLI/plugin or Python SDK hook configuration; "
+        "AgyNativeHookAdapter accepts forwarded callbacks. The existing wrapper remains a "
+        "fallback, and Claude-equivalent coverage is not claimed without live hook evidence."
+    ),
 )
 
 CODEX_ADAPTER = RuntimeAdapterResponsibilities(
@@ -255,15 +260,15 @@ CODEX_ADAPTER = RuntimeAdapterResponsibilities(
         "lifecycle_telemetry",
     ),
     limitations=(
-        "hook_surface_must_be_discovered",
+        "lifecycle_hook_effects_are_plugin_defined",
         "tool_level_parity_is_unverified",
         "no_native_pre_tool_or_post_tool_hooks",
     ),
     notes=(
-        "Codex now has a lifecycle-only adapter (CodexAdapter) plus the CodexLauncher subprocess "
-        "wrapper, so identity binding and session telemetry are real. Pre-tool/post-tool hook "
-        "parity with Claude is still unverified and must be measured in the live environment "
-        "before a stronger claim is made."
+        "Codex has active SessionStart/Stop lifecycle hooks in the measured coordinator plugin, "
+        "plus a lifecycle-only adapter (CodexAdapter) and CodexLauncher subprocess wrapper. "
+        "The hooks are plugin-defined and do not provide Claude-equivalent PreToolUse/PostToolUse "
+        "coverage; that stronger claim remains prohibited."
     ),
 )
 

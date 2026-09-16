@@ -5,7 +5,7 @@ import uuid
 
 import pytest
 
-from xibalba_cortex.agy_adapter import AgyWrapperShim
+from xibalba_cortex.agy_adapter import AgyNativeHookAdapter, AgyWrapperShim
 from xibalba_cortex.claude_adapter import ClaudeAdapter
 from xibalba_cortex.codex_probe import CodexAdapter, CodexLauncher, CodexLauncherProbe
 from xibalba_cortex.cursor_adapter import CursorAdapter
@@ -364,6 +364,7 @@ def test_invocation_correlations_exposes_complete_and_missing_runtime_stages(con
 def test_runtime_adapters_do_not_write_directly_to_graph_store():
     for adapter in (
         ClaudeAdapter,
+        AgyNativeHookAdapter,
         AgyWrapperShim,
         CodexAdapter,
         GeminiCliAdapter,
@@ -404,6 +405,54 @@ def test_agy_wrapper_is_lifecycle_only_but_records_observations(controller):
     )
 
 
+def test_agy_native_hook_adapter_forwards_configured_callbacks_without_raw_payloads(controller):
+    ctl, store = controller
+    adapter = AgyNativeHookAdapter(ctl)
+
+    assert adapter.ingest_hook("pre_turn", {"sessionId": "agy-native", "turnId": "t1"})["recorded"] == 1
+    result = adapter.ingest_hook("post_tool_call", {
+        "session_id": "agy-native", "turn_id": "t1", "invocation_id": "i1",
+        "tool_name": "shell", "tool_input": {"command": "secret"},
+        "tool_output": "completed", "status": "success",
+    })
+    assert result == {"recorded": 1, "session_id": "agy-native", "hook": "post_tool_call"}
+    adapter.ingest_hook("on_tool_error", {
+        "session_id": "agy-native", "tool_name": "shell", "error": "private details",
+    })
+
+    events = store.session_otel_events("agy-native")
+    assert len(events) == 3
+    assert events[1]["attributes"]["tool_outcome"] == "success"
+    assert events[2]["attributes"]["tool_outcome"] == "error"
+    assert events[1]["attributes"]["metadata"]["tool_input_hash"].startswith("sha256:")
+    assert "secret" not in str(events[1]["attributes"])
+    assert "private details" not in str(events[2]["attributes"])
+    assert adapter.ingest_hook("post_turn", {}) == {
+        "recorded": 0,
+        "reason": "missing session_id",
+    }
+
+
+def test_agy_native_hook_retries_preserve_distinct_phases(controller):
+    ctl, store = controller
+    adapter = AgyNativeHookAdapter(ctl)
+    payload = {"session_id": "retry-session", "invocation_id": "tool-1", "event_id": "delivery-1"}
+    assert adapter.ingest_hook("pre_tool_call", payload)["recorded"] == 1
+    assert adapter.ingest_hook("post_tool_call", payload)["recorded"] == 1
+    assert adapter.ingest_hook("post_tool_call", payload)["recorded"] == 0
+    events = store.session_otel_events("retry-session")
+    assert len(events) == 2
+    assert len({event["attributes"]["event_id"] for event in events}) == 2
+
+
+def test_agy_native_session_lifecycle(controller):
+    ctl, store = controller
+    adapter = AgyNativeHookAdapter(ctl)
+    assert adapter.ingest_hook("session_start", {"session_id": "native-lifecycle"})["opened"]
+    assert adapter.ingest_hook("session_end", {"session_id": "native-lifecycle"})["closed"]
+    assert store.get_session("native-lifecycle")["ended_at"] is not None
+
+
 def test_codex_probe_reports_absence_and_discovery(monkeypatch):
     probe = CodexLauncherProbe()
     monkeypatch.setattr("xibalba_cortex.codex_probe.shutil.which", lambda candidate: None)
@@ -422,11 +471,33 @@ def test_codex_probe_reports_absence_and_discovery(monkeypatch):
         "run",
         lambda *args, **kwargs: Completed(),
     )
+    monkeypatch.setattr("xibalba_cortex.codex_probe.Path.home", lambda: __import__("pathlib").Path("/tmp/nonexistent-codex-home"))
     discovered = probe.discover()
     assert discovered.executable == "codex"
     assert discovered.surface_kind == "cli"
     assert discovered.hook_surface == "unknown"
+    assert discovered.hook_events == ()
     assert discovered.version == "codex 1.2.3"
+
+
+def test_codex_probe_reports_active_lifecycle_hooks(monkeypatch, tmp_path):
+    codex_home = tmp_path / ".codex"
+    hooks_file = codex_home / "plugins" / "cache" / "openai-curated-remote" / "codex-coordinator" / "0.4.0" / "hooks" / "hooks.json"
+    hooks_file.parent.mkdir(parents=True)
+    hooks_file.write_text('{"hooks": {"SessionStart": [], "Stop": []}}')
+    (codex_home / "config.toml").write_text(
+        '[hooks.state]\n'
+        '"codex-coordinator@openai-curated-remote:hooks/hooks.json:session_start:0:0" = true\n'
+        '"codex-coordinator@openai-curated-remote:hooks/hooks.json:stop:0:0" = true\n'
+    )
+    monkeypatch.setattr("xibalba_cortex.codex_probe.Path.home", lambda: tmp_path)
+    monkeypatch.setattr("xibalba_cortex.codex_probe.shutil.which", lambda candidate: "/usr/local/bin/codex")
+    monkeypatch.setattr(CodexLauncherProbe, "_version_for", lambda self, executable: "codex test")
+
+    discovered = CodexLauncherProbe().discover()
+
+    assert discovered.hook_surface == "lifecycle"
+    assert discovered.hook_events == ("SessionStart", "Stop")
 
 
 def test_codex_launcher_reports_absent_executable_without_fabricating_session(controller, monkeypatch):
@@ -444,6 +515,7 @@ def test_codex_launcher_reports_absent_executable_without_fabricating_session(co
 def test_codex_launcher_opens_session_injects_context_and_records_process_telemetry(controller, monkeypatch):
     ctl, store = controller
     monkeypatch.setattr("xibalba_cortex.codex_probe.shutil.which", lambda candidate: "/usr/local/bin/codex")
+    monkeypatch.setattr("xibalba_cortex.codex_probe.Path.home", lambda: __import__("pathlib").Path("/tmp/nonexistent-codex-home"))
 
     class VersionCompleted:
         stdout = "codex 1.2.3"

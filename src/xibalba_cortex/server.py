@@ -20,7 +20,7 @@ from pathlib import Path
 
 from mcp.server import MCPServer
 
-from xibalba_cortex.agy_adapter import AgyWrapperShim
+from xibalba_cortex.agy_adapter import AgyNativeHookAdapter, AgyWrapperShim
 from xibalba_cortex.config import load_config
 from xibalba_cortex.auth_middleware import current_principal, set_local_principal
 from xibalba_cortex.ingest_tokens import ROLE_SCOPES
@@ -1316,6 +1316,24 @@ def runtime_agy_observation(
         session_id=session_id,
         note=note,
     )
+
+
+@server.tool()
+@_requires_scope("memory:write")
+def runtime_agy_hook(
+    hook_name: str,
+    event: dict[str, object],
+    provenance: dict[str, object] | None = None,
+) -> dict[str, object]:
+    """Forward one configured Agy CLI-plugin or SDK hook callback."""
+    event = dict(event)
+    event["agent_id"] = _bound_agent_id(
+        event.get("agent_id") or event.get("agentId"),
+        require=current_principal() is not None,
+    )
+    return AgyNativeHookAdapter(
+        get_controller(), provenance=dict(provenance or {})
+    ).ingest_hook(hook_name, event)
 
 
 @server.tool()

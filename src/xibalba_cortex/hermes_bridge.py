@@ -1,4 +1,4 @@
-"""CLI bridge invoked by the Hermes plugin at ~/.hermes/plugins/xibalba_cortex_memory/.
+"""CLI bridge invoked by the Hermes plugin at ~/.hermes/plugins/xibalba_cortex/.
 
 The Hermes agent's own venv (~/.hermes/hermes-agent/venv) does not have xibalba_cortex
 installed -- it's a separate project with its own dependencies (mcp, eth-hash, sqlite-vec) --
@@ -114,8 +114,8 @@ def _enqueue_cortex_event(hook_name: str, kwargs: dict) -> tuple[str, bool] | No
         "observed_at_utc": kwargs.get("observed_at_utc"),
         "payload": payload,
     }
-    queued = _get_outbox().enqueue(event, destinations=("cortex", "integrity_sdk"))
-    claimed = _get_outbox().claim("cortex", limit=1, lease_seconds=60)
+    _get_outbox().enqueue(event, destinations=("cortex", "integrity_sdk"))
+    claimed = _get_outbox().claim("cortex", limit=1, lease_seconds=60, event_id=event_id)
     return event_id, bool(claimed and claimed[0]["event_id"] == event_id)
 
 
