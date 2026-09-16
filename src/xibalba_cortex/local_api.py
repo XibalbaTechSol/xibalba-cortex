@@ -71,6 +71,7 @@ Routes:
   POST /api/memory/link-entities           -> GraphStore.link_entities()
   POST /api/memory/contradictions          -> GraphStore.mark_contradiction()
   POST /api/memory/{id}/supersede          -> GraphStore.supersede_memory()
+  POST /api/memory/{id}/forget             -> GraphStore.forget_memory()
   POST /api/inference/tasks                -> GraphStore.request_inference_task()
   POST /api/inference/tasks/{id}/claim     -> GraphStore.claim_inference_task()
   POST /api/inference/tasks/{id}/complete  -> GraphStore.complete_inference_task()
@@ -107,6 +108,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, unquote, urlparse
 from pathlib import Path
 
+import requests
 import yaml
 
 from .config import load_config
@@ -691,10 +693,23 @@ def _make_handler(store: GraphStore, *, allowed_origins: frozenset[str]):
                     # rules, which would otherwise make this earlier reference raise
                     # UnboundLocalError.
                     import os
+                    oracle_url = os.environ.get("XIBALBA_ORACLE_URL", "http://localhost:8080")
                     identities = resolve_agent_identities(
                         [str(item["agent_id"]) for item in workspaces if item.get("agent_id")],
-                        os.environ.get("XIBALBA_ORACLE_URL", "http://localhost:8080"),
+                        oracle_url,
                     )
+                    # resolve_agent_identities() fails open by design (its own docstring: "any
+                    # oracle-reachability problem resolves every requested DID to 'unknown,
+                    # off-chain, no name'") -- correct for a naming lookup that must never break
+                    # this page, but it makes "confirmed off-chain" and "couldn't check, oracle
+                    # down" indistinguishable to a caller reading only on_chain/seen. Probe the
+                    # oracle independently so the viewer can render an honest "unverified" state
+                    # instead of a confident, possibly-false "off-chain" badge.
+                    oracle_reachable = True
+                    try:
+                        requests.get(f"{oracle_url.rstrip('/')}/v1/agents", timeout=2.0).raise_for_status()
+                    except requests.RequestException:
+                        oracle_reachable = False
                     for item in workspaces:
                         identity = identities.get(str(item.get("agent_id")))
                         if identity:
@@ -704,7 +719,8 @@ def _make_handler(store: GraphStore, *, allowed_origins: frozenset[str]):
                             # this exact field -- set it from the resolved display name so no
                             # viewer change is needed, instead of leaving it permanently null.
                             item["agent_name"] = identity["display_name"]
-                    self._send_json(200, {"agents": workspaces})
+                        item["identity_verified"] = oracle_reachable
+                    self._send_json(200, {"agents": workspaces, "oracle_reachable": oracle_reachable})
                 elif parts == ["api", "agent-devices"]:
                     _assert_pair_manager(principal)
                     self._send_json(200, {"pairs": store.list_agent_devices(limit=int(params.get("limit", 500)))})
@@ -744,6 +760,17 @@ def _make_handler(store: GraphStore, *, allowed_origins: frozenset[str]):
                     requested_agent = params.get("agent_id")
                     agent_filter = _agent_filter(store, principal, requested_agent)
                     self._send_json(200, store.search(query, limit=limit, agent_id=agent_filter))
+                elif parts == ["api", "memories"]:
+                    limit = int(params.get("limit", 50))
+                    offset = int(params.get("offset", 0))
+                    raw_status = params.get("status")
+                    statuses = tuple(s.strip() for s in raw_status.split(",") if s.strip()) if raw_status else (
+                        "candidate", "active", "confirmed", "superseded", "forgotten",
+                    )
+                    requested_agent = params.get("agent_id")
+                    agent_filter = _agent_filter(store, principal, requested_agent)
+                    page = store.list_memories(limit=limit + 1, offset=offset, statuses=statuses, agent_id=agent_filter)
+                    self._send_json(200, {"memories": page[:limit], "has_more": len(page) > limit, "offset": offset, "limit": limit})
                 elif parts == ["api", "graph"]:
                     limit = int(params.get("limit", 500))
                     threshold = float(params.get("similarity_threshold", 0.75))
@@ -1138,6 +1165,9 @@ def _make_handler(store: GraphStore, *, allowed_origins: frozenset[str]):
                             else None,
                         ),
                     )
+                elif len(parts) == 4 and parts[0] == "api" and parts[1] == "memory" and parts[3] == "forget":
+                    _assert_memory_scope(store.get_memory(unquote(parts[2])), principal, store)
+                    self._send_json(200, store.forget_memory(unquote(parts[2])))
                 elif len(parts) == 5 and parts[:3] == ["api", "para", "classifications"] and parts[4] == "decision":
                     decision = str(payload.get("decision") or "")
                     note = payload.get("note") if isinstance(payload.get("note"), str) else None
@@ -1224,6 +1254,8 @@ def _make_handler(store: GraphStore, *, allowed_origins: frozenset[str]):
                 self._send_json(400, {"error": str(exc)})
             except PermissionError as exc:
                 self._send_json(403, {"error": str(exc)})
+            except RuntimeError as exc:
+                self._send_json(409, {"error": str(exc)})
             except Exception:
                 logger.exception("local_api request failed: %s", self.path)
                 self._send_json(500, {"error": "internal error"})

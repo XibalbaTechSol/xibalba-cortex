@@ -522,10 +522,14 @@ export interface AgentWorkspace {
   sessions: number
   last_seen_at?: string | null
   /** Standardized 2026-09-13 identity fields (integrity_sdk.agent_identity, same contract
-   *  Shield and the dashboard use) -- absent only if the oracle was unreachable when this
-   *  response was built. */
+   *  Shield and the dashboard use). integrity_sdk's resolver fails open on an unreachable
+   *  oracle -- it still returns on_chain: false rather than omitting the field -- so
+   *  `identity_verified` is the honest signal for whether that false actually means
+   *  "confirmed off-chain" or "couldn't check." Never render on_chain/wallet_address as
+   *  confirmed when identity_verified is false. */
   on_chain?: boolean
   wallet_address?: string | null
+  identity_verified?: boolean
 }
 
 async function getJson<T>(path: string): Promise<T> {
@@ -563,7 +567,7 @@ export const api = {
   operations: () => getJson<OperationsSnapshot>('/api/operations'),
   integrityLinks: (limit = 50) => getJson<IntegrityLinksStatus>(`/api/integrity-links?limit=${limit}`),
   sessions: (limit = 100, agentId?: string) => getJson<Session[]>(`/api/sessions?limit=${limit}${agentId ? `&agent_id=${encodeURIComponent(agentId)}` : ''}`),
-  agents: (limit = 100) => getJson<{agents: AgentWorkspace[]}>(`/api/agents?limit=${limit}`),
+  agents: (limit = 100) => getJson<{agents: AgentWorkspace[]; oracle_reachable: boolean}>(`/api/agents?limit=${limit}`),
   agentMemories: (agentId: string, deviceId?: string, limit = 100) => getJson<{agent_id: string; memories: Memory[]}>(`/api/agent/${encodeURIComponent(agentId)}/memories?limit=${limit}${deviceId ? `&device_id=${encodeURIComponent(deviceId)}` : ''}`),
   associateAgentDevice: (agentId: string, deviceId: string, displayName?: string) =>
     postJson<AgentWorkspace>('/api/agent-devices/associate', { agent_id: agentId, device_id: deviceId, display_name: displayName || deviceId }),
@@ -577,6 +581,13 @@ export const api = {
     getJson<GraphPayload>(`/api/graph?limit=${limit}&similarity_threshold=${similarityThreshold}${agentId ? `&agent_id=${encodeURIComponent(agentId)}` : ''}`),
   search: (query: string, limit = 20, agentId?: string) =>
     getJson<Memory[]>(`/api/search?q=${encodeURIComponent(query)}&limit=${limit}${agentId ? `&agent_id=${encodeURIComponent(agentId)}` : ''}`),
+  memories: (opts: { limit?: number; offset?: number; statuses?: string[]; agentId?: string } = {}) => {
+    const { limit = 50, offset = 0, statuses, agentId } = opts
+    const params = new URLSearchParams({ limit: String(limit), offset: String(offset) })
+    if (statuses?.length) params.set('status', statuses.join(','))
+    if (agentId) params.set('agent_id', agentId)
+    return getJson<{ memories: Memory[]; has_more: boolean; offset: number; limit: number }>(`/api/memories?${params.toString()}`)
+  },
   memory: (id: string) => getJson<Memory>(`/api/memory/${encodeURIComponent(id)}`),
   similar: (id: string, limit = 10) =>
     getJson<SimilarHit[]>(`/api/memory/${encodeURIComponent(id)}/similar?limit=${limit}`),
@@ -609,6 +620,8 @@ export const api = {
     postJson<Record<string, unknown>>('/api/memory/contradictions', payload),
   supersedeMemory: (id: string, payload: Record<string, unknown>) =>
     postJson<Memory>(`/api/memory/${encodeURIComponent(id)}/supersede`, payload),
+  forgetMemory: (id: string) =>
+    postJson<Memory & { content_hash_retained: boolean; deletion_receipt: Record<string, unknown> }>(`/api/memory/${encodeURIComponent(id)}/forget`, {}),
   claimInferenceTask: (id: string, claimedBy: string) =>
     postJson<InferenceTask>(`/api/inference/tasks/${encodeURIComponent(id)}/claim`, { claimed_by: claimedBy }),
   completeInferenceTask: (id: string, outputPayload: Record<string, unknown>, error?: string, claimedBy?: string | null, claimToken?: string | null) =>

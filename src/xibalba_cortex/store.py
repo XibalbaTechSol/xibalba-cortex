@@ -2281,16 +2281,33 @@ class GraphStore:
         return [self.get_memory(row["id"]) for row in rows]
 
     def list_memories(
-        self, *, limit: int = 200, offset: int = 0, statuses: tuple[str, ...] = ("active", "confirmed")
+        self,
+        *,
+        limit: int = 200,
+        offset: int = 0,
+        statuses: tuple[str, ...] = ("active", "confirmed"),
+        agent_id: str | None = None,
     ) -> list[dict[str, object]]:
-        """Bulk-paginated memory listing for the local graph API's node payload -- distinct from
-        search()/get_memory(), which are single-memory or query-driven, not "give me a page."""
+        """Bulk-paginated memory listing for the local graph API's node payload and the viewer's
+        Memory Explorer -- distinct from search()/get_memory(), which are single-memory or
+        query-driven, not "give me a page." agent_id, when given, is a persisted partition value
+        (already resolved by the caller) filtered via a join on sources, mirroring
+        agent_memories()."""
         bounded_limit = max(1, min(int(limit), 1000))
         placeholders = ",".join("?" * len(statuses))
+        params: list[object] = [*statuses]
+        join = ""
+        where_agent = ""
+        if agent_id:
+            join = "JOIN sources ON sources.id = memories.source_id"
+            where_agent = " AND sources.agent_id = ?"
+            params.append(str(agent_id))
+        params.extend([bounded_limit, max(0, int(offset))])
         with self._lock:
             rows = self._connection.execute(
-                f"SELECT id FROM memories WHERE status IN ({placeholders}) ORDER BY created_at LIMIT ? OFFSET ?",
-                (*statuses, bounded_limit, max(0, int(offset))),
+                f"SELECT memories.id FROM memories {join} WHERE memories.status IN ({placeholders}){where_agent} "
+                "ORDER BY memories.created_at DESC LIMIT ? OFFSET ?",
+                params,
             ).fetchall()
         return [self.get_memory(row["id"]) for row in rows]
 

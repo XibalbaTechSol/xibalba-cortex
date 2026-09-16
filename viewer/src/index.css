@@ -87,6 +87,28 @@
   color-scheme: dark;
 }
 
+:root[data-theme="light"] {
+  --text: #10151c;
+  --text-muted: #55627a;
+  --bg: #f4f6f9;
+  --panel-bg: rgba(255, 255, 255, 0.85);
+  --surface: rgba(255, 255, 255, 0.9);
+  --surface-color: rgba(255, 255, 255, 0.9);
+  --border: rgba(16, 21, 28, 0.1);
+  --border-color: rgba(16, 21, 28, 0.1);
+  --border-highlight: rgba(16, 21, 28, 0.18);
+  --accent: #1f9d5f;
+  --accent-color: #1f9d5f;
+  --accent-soft: rgba(31, 157, 95, 0.12);
+  --success: #1f9d5f;
+  --warning: #b45309;
+  --error: #c0362c;
+  --glass-bg: rgba(255, 255, 255, 0.75);
+  --glass-border: rgba(16, 21, 28, 0.08);
+  --glass-shadow: 0 8px 32px 0 rgba(16, 21, 28, 0.08);
+  color-scheme: light;
+}
+
 * {
   box-sizing: border-box;
 }
@@ -967,6 +989,39 @@ code {
   padding: 0 10px;
 }
 
+.inspector-lifecycle-actions {
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+}
+
+.forget-confirm {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.forget-confirm-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.small-button.danger,
+.small-button.danger-outline {
+  border-color: var(--error);
+  color: var(--error);
+}
+
+.small-button.danger {
+  background: var(--error);
+  color: var(--bg);
+}
+
+.small-button.danger:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
 .timeline,
 .item-list {
   display: flex;
@@ -1102,6 +1157,11 @@ code {
   font-size: 11px;
   color: var(--accent);
   white-space: nowrap;
+}
+
+.badge-unverified {
+  background: rgba(250, 204, 21, 0.15);
+  color: var(--warning);
 }
 
 .hash-line {
@@ -4417,6 +4477,36 @@ dl.graph-reference.compact dd {
   text-transform: uppercase;
   letter-spacing: 0.5px;
   color: var(--text-muted);
+}
+
+.theme-picker {
+  display: flex;
+  gap: 6px;
+}
+
+.theme-picker-option {
+  flex: 1;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text-muted);
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color var(--transition-fast), color var(--transition-fast), background var(--transition-fast);
+}
+
+.theme-picker-option:hover {
+  border-color: var(--border-highlight);
+  color: var(--text);
+}
+
+.theme-picker-option.active {
+  border-color: var(--accent);
+  color: var(--text);
+  background: var(--accent-soft);
 }
 
 .task-chips-grid {

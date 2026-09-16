@@ -80,7 +80,7 @@ import { ProvenanceTab } from './ProvenancePanels'
 import { MermaidDiagram } from './components/MermaidDiagram'
 import './index.css'
 
-type Tab = 'overview' | 'agents' | 'timeline' | 'graph' | 'recall' | 'inference' | 'provenance' | 'integrity' | 'operations' | 'settings'
+type Tab = 'overview' | 'agents' | 'explorer' | 'timeline' | 'graph' | 'recall' | 'inference' | 'audit' | 'operations' | 'settings'
 type GraphFilterIntent = { nonce: number; status?: string; evidence?: string }
 // The API returns a bounded memory sample plus relation endpoints. Keep the canvas projection
 // intentionally small enough that session changes remain interactive; Recall remains the path
@@ -91,12 +91,12 @@ const GRAPH_SESSION_LIMIT = 20
 const tabs: Array<{ id: Tab; label: string; icon: React.ComponentType<{ size?: number; className?: string }> }> = [
   { id: 'overview', label: 'Overview', icon: LayoutDashboard },
   { id: 'agents', label: 'Agents', icon: ShieldCheck },
-  { id: 'timeline', label: 'Timeline', icon: MessageSquare },
+  { id: 'explorer', label: 'Memory Explorer', icon: Database },
+  { id: 'timeline', label: 'Sessions', icon: MessageSquare },
   { id: 'graph', label: 'Graph', icon: Network },
-  { id: 'recall', label: 'Recall', icon: Search },
+  { id: 'recall', label: 'Search & Retrieval', icon: Search },
   { id: 'inference', label: 'Inference', icon: Cpu },
-  { id: 'provenance', label: 'Provenance', icon: GitFork },
-  { id: 'integrity', label: 'Integrity Audit', icon: ShieldCheck },
+  { id: 'audit', label: 'Audit Log', icon: GitFork },
   { id: 'operations', label: 'Operations', icon: Sliders },
 ]
 
@@ -278,10 +278,14 @@ function Inspector({
   memoryId,
   onSelectMemory,
   onClose,
+  onNotice,
+  onError: onErrorProp,
 }: {
   memoryId: string | null
   onSelectMemory: (id: string) => void
   onClose: () => void
+  onNotice?: (msg: string) => void
+  onError?: (msg: string) => void
 }) {
   const [memory, setMemory] = useState<Memory | null>(null)
   const [similar, setSimilar] = useState<SimilarHit[]>([])
@@ -291,6 +295,8 @@ function Inspector({
   const [attachments, setAttachments] = useState<Attachment[]>([])
   const [contradictions, setContradictions] = useState<Memory[]>([])
   const [error, setError] = useState<string | null>(null)
+  const [confirmingForget, setConfirmingForget] = useState(false)
+  const [forgetting, setForgetting] = useState(false)
 
   useEffect(() => {
     if (!memoryId) return
@@ -302,6 +308,7 @@ function Inspector({
     setAttachments([])
     setContradictions([])
     setError(null)
+    setConfirmingForget(false)
     api.memory(memoryId).then(setMemory).catch((e) => setError(String(e)))
     api.similar(memoryId).then(setSimilar).catch(() => setSimilar([]))
     api.neighbors(memoryId).then(setNeighbors).catch(() => setNeighbors([]))
@@ -310,6 +317,21 @@ function Inspector({
     api.attachments(memoryId).then(setAttachments).catch(() => setAttachments([]))
     api.contradictions(memoryId).then(setContradictions).catch(() => setContradictions([]))
   }, [memoryId])
+
+  const confirmForget = async () => {
+    if (!memoryId) return
+    setForgetting(true)
+    try {
+      const updated = await api.forgetMemory(memoryId)
+      setMemory(updated)
+      setConfirmingForget(false)
+      onNotice?.(`Memory ${memoryId.slice(0, 8)}… marked forgotten. Content hash retained for chain verification; content is not.`)
+    } catch (e) {
+      onErrorProp?.(String(e))
+    } finally {
+      setForgetting(false)
+    }
+  }
 
   if (!memoryId) {
     return (
@@ -347,6 +369,29 @@ function Inspector({
             <dt>Locator</dt>
             <dd>{memory.source.locator ?? 'none'}</dd>
           </dl>
+          <div className="inspector-lifecycle-actions">
+            {memory.status === 'forgotten' ? (
+              <p className="small muted">Forgotten — content removed, content hash retained for chain verification.</p>
+            ) : confirmingForget ? (
+              <div className="forget-confirm">
+                <p className="small warning">
+                  This removes the content permanently. The content hash and event chain are retained so verification still works, but the text itself cannot be recovered. Continue?
+                </p>
+                <div className="forget-confirm-actions">
+                  <button type="button" className="small-button danger" disabled={forgetting} onClick={confirmForget}>
+                    {forgetting ? 'Forgetting…' : 'Confirm forget'}
+                  </button>
+                  <button type="button" className="small-button" disabled={forgetting} onClick={() => setConfirmingForget(false)}>
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <button type="button" className="small-button danger-outline" onClick={() => setConfirmingForget(true)}>
+                Forget memory
+              </button>
+            )}
+          </div>
         </>
       )}
 
@@ -943,7 +988,7 @@ function CortexOverview({
             <Clock size={15} />
             <span>Replay Timeline</span>
           </button>
-          <button className="ghost-cta" onClick={() => onOpen('integrity')}>
+          <button className="ghost-cta" onClick={() => onOpen('audit')}>
             <ShieldCheck size={15} />
             <span>Integrity Audit</span>
           </button>
@@ -1117,7 +1162,7 @@ function CortexOverview({
               <span className="spec-value code-font">Append-only Merkle DAG</span>
             </div>
           </div>
-          <button className="card-action-btn" onClick={() => onOpen('integrity')}>
+          <button className="card-action-btn" onClick={() => onOpen('audit')}>
             <span>Inspect Merkle Audit & Evidence</span>
             <ChevronRight size={14} />
           </button>
@@ -1285,10 +1330,11 @@ function CortexOverview({
   )
 }
 
-type OperatorProfile = { displayName: string; email: string; role: string; avatar: string; compactMode: boolean }
+type ThemePreference = 'dark' | 'light' | 'system'
+type OperatorProfile = { displayName: string; email: string; role: string; avatar: string; compactMode: boolean; theme: ThemePreference }
 const PROFILE_KEY = 'xibalba-cortex.operator-profile'
 function loadOperatorProfile(): OperatorProfile {
-  const fallback = { displayName: 'Cortex Operator', email: '', role: 'Operator', avatar: '', compactMode: false }
+  const fallback: OperatorProfile = { displayName: 'Cortex Operator', email: '', role: 'Operator', avatar: '', compactMode: false, theme: 'dark' }
   try {
     const account = JSON.parse(sessionStorage.getItem('xibalba-cortex.account') || '{}')
     const preferences = JSON.parse(localStorage.getItem(PROFILE_KEY) || '{}')
@@ -1297,6 +1343,13 @@ function loadOperatorProfile(): OperatorProfile {
 }
 function saveOperatorProfile(profile: OperatorProfile) {
   try { localStorage.setItem(PROFILE_KEY, JSON.stringify(profile)) } catch { /* storage may be disabled in isolated previews */ }
+}
+function applyThemePreference(preference: ThemePreference) {
+  const root = document.documentElement
+  const resolved = preference === 'system'
+    ? (window.matchMedia?.('(prefers-color-scheme: light)').matches ? 'light' : 'dark')
+    : preference
+  root.setAttribute('data-theme', resolved)
 }
 function ProfileAvatar({ profile }: { profile: OperatorProfile }) {
   const initials = profile.displayName.split(/\s+/).filter(Boolean).slice(0,2).map(part => part[0]).join('').toUpperCase() || 'CO'
@@ -1339,6 +1392,11 @@ function SettingsTab({
 
   const updateDraft = (key: keyof OperatorProfile, value: string | boolean) =>
     setDraft(current => ({ ...current, [key]: value }))
+
+  useEffect(() => {
+    applyThemePreference(draft.theme)
+    return () => applyThemePreference(profile.theme)
+  }, [draft.theme, profile.theme])
 
   const chooseAvatar = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
@@ -1605,6 +1663,24 @@ function SettingsTab({
                       style={{ width: '16px', height: '16px', cursor: 'pointer' }}
                     />
                   </label>
+                </div>
+                <div className="settings-field-group">
+                  <label>Appearance</label>
+                  <div className="theme-picker" role="radiogroup" aria-label="Theme">
+                    {(['dark', 'light', 'system'] as const).map((option) => (
+                      <button
+                        key={option}
+                        type="button"
+                        role="radio"
+                        aria-checked={draft.theme === option}
+                        className={`theme-picker-option ${draft.theme === option ? 'active' : ''}`}
+                        onClick={() => updateDraft('theme', option)}
+                      >
+                        {option === 'dark' ? 'Dark' : option === 'light' ? 'Light' : 'System'}
+                      </button>
+                    ))}
+                  </div>
+                  <small style={{ fontSize: '10px', color: 'var(--text-muted)' }}>Applies immediately; saved with your preferences.</small>
                 </div>
               </div>
 
@@ -2080,7 +2156,7 @@ function AgentWorkspacesTab({ workspaces, selectedAgentId, onSelect, onRefresh, 
       const isBusy = busyDeviceId === workspace.device_id
       return <article className={`overview-card agent-workspace-card ${selectedAgentId === workspace.agent_id && (!selected || (selected.agentId === workspace.agent_id && selected.deviceId === workspace.device_id)) ? 'selected' : ''}`} key={`${workspace.agent_id}:${workspace.device_id || 'agent'}`}>
         <button type="button" className="workspace-select" onClick={() => choose(workspace)} aria-label={`View ${workspace.device_name || workspace.device_id || workspace.agent_id}`}>
-          <div className="card-icon"><ShieldCheck size={18} /></div><h3>{workspace.device_name || workspace.agent_name || 'Agent workspace'}</h3><p className="mono">{workspace.agent_id}</p><p>{workspace.device_id || 'Agent-wide historical namespace'}</p><div className="card-meta"><span>{workspace.memories} memories</span><span>{workspace.sessions} sessions</span>{workspace.pair_status && <Badge>{workspace.pair_status}</Badge>}{workspace.on_chain !== undefined && <Badge>{workspace.on_chain ? 'on-chain' : 'off-chain'}</Badge>}{workspace.wallet_address && <span className="mono" title={workspace.wallet_address}>{workspace.wallet_address.slice(0, 6)}…{workspace.wallet_address.slice(-4)}</span>}</div>
+          <div className="card-icon"><ShieldCheck size={18} /></div><h3>{workspace.device_name || workspace.agent_name || 'Agent workspace'}</h3><p className="mono">{workspace.agent_id}</p><p>{workspace.device_id || 'Agent-wide historical namespace'}</p><div className="card-meta"><span>{workspace.memories} memories</span><span>{workspace.sessions} sessions</span>{workspace.pair_status && <Badge>{workspace.pair_status}</Badge>}{workspace.on_chain !== undefined && (workspace.identity_verified ? <Badge>{workspace.on_chain ? 'on-chain' : 'off-chain'}</Badge> : <span className="badge badge-unverified" title="Integrity oracle was unreachable; on-chain status could not be confirmed.">status unverified</span>)}{workspace.identity_verified && workspace.wallet_address && <span className="mono" title={workspace.wallet_address}>{workspace.wallet_address.slice(0, 6)}…{workspace.wallet_address.slice(-4)}</span>}</div>
         </button>
         {managed && <div className="pair-actions">
           {editingDeviceId === workspace.device_id ? <><input aria-label={`New name for ${workspace.device_id}`} value={nameDraft} onChange={(event) => setNameDraft(event.target.value)} /><button disabled={isBusy || !nameDraft.trim()} onClick={() => manage(workspace.device_id!, 'rename')}>Save</button><button onClick={() => setEditingDeviceId('')}>Cancel</button></> : <button onClick={() => { setEditingDeviceId(workspace.device_id!); setNameDraft(workspace.device_name || workspace.device_id!) }}>Rename</button>}
@@ -2146,6 +2222,14 @@ function AuthenticatedApp() {
     })
   }, [])
   const [operatorProfile, setOperatorProfile] = useState<OperatorProfile>(loadOperatorProfile)
+  useEffect(() => {
+    applyThemePreference(operatorProfile.theme)
+    if (operatorProfile.theme !== 'system' || !window.matchMedia) return
+    const media = window.matchMedia('(prefers-color-scheme: light)')
+    const onChange = () => applyThemePreference('system')
+    media.addEventListener('change', onChange)
+    return () => media.removeEventListener('change', onChange)
+  }, [operatorProfile.theme])
   const [lastRefreshed, setLastRefreshed] = useState<Date | null>(null)
   const [refreshing, setRefreshing] = useState(false)
 
@@ -2661,6 +2745,7 @@ function AuthenticatedApp() {
             />
           )}
           {activeTab === 'agents' && <AgentWorkspacesTab workspaces={agentWorkspaces} selectedAgentId={selectedAgentId} onSelect={(agentId) => chooseAgent(agentId)} onRefresh={refreshOverview} onNotice={setNotice} onError={setError} />}
+          {activeTab === 'explorer' && <MemoryExplorerTab selectedAgentId={selectedAgentId} onSelectMemory={selectMemory} />}
           {activeTab === 'timeline' && (
             <TimelineTab
               exchanges={exchanges}
@@ -2733,8 +2818,27 @@ function AuthenticatedApp() {
               />
             </>
           )}
-          {activeTab === 'provenance' && (
-            <ProvenanceTab
+          {activeTab === 'operations' && (
+            <OperationsTab operations={operations} onRefresh={() => api.operations().then(setOperations).catch((e) => setError(String(e)))} />
+          )}
+          {activeTab === 'settings' && (
+            <SettingsTab
+              profile={operatorProfile}
+              setProfile={setOperatorProfile}
+              profileId={operations?.profile_id ?? 'default'}
+              onNotice={setNotice}
+              onError={setError}
+            />
+          )}
+          {activeTab === 'audit' && (
+            <AuditLogTab
+              root={root}
+              exchanges={exchanges}
+              storeStatus={storeStatus}
+              integrityLinks={integrityLinks}
+              sessions={sessions}
+              selectedSessionId={selectedSessionId}
+              setSelectedSessionId={setSelectedSessionId}
               proposals={extractionProposals}
               status={extractionProposalStatus}
               onStatusChange={setExtractionProposalStatus}
@@ -2750,29 +2854,6 @@ function AuthenticatedApp() {
               onSelectMemory={selectMemory}
             />
           )}
-          {activeTab === 'operations' && (
-            <OperationsTab operations={operations} onRefresh={() => api.operations().then(setOperations).catch((e) => setError(String(e)))} />
-          )}
-          {activeTab === 'settings' && (
-            <SettingsTab
-              profile={operatorProfile}
-              setProfile={setOperatorProfile}
-              profileId={operations?.profile_id ?? 'default'}
-              onNotice={setNotice}
-              onError={setError}
-            />
-          )}
-          {activeTab === 'integrity' && (
-            <IntegrityTab
-              root={root}
-              exchanges={exchanges}
-              storeStatus={storeStatus}
-              integrityLinks={integrityLinks}
-              sessions={sessions}
-              selectedSessionId={selectedSessionId}
-              setSelectedSessionId={setSelectedSessionId}
-            />
-          )}
         </div>
       </section>
 
@@ -2780,6 +2861,8 @@ function AuthenticatedApp() {
         memoryId={selectedMemoryId}
         onSelectMemory={selectMemory}
         onClose={() => setSelectedMemoryId(null)}
+        onNotice={setNotice}
+        onError={setError}
       />
 
       {selectedGraphNode && (
@@ -3754,6 +3837,113 @@ function NodePopup({
   )
 }
 
+const MEMORY_EXPLORER_STATUSES = ['candidate', 'active', 'confirmed', 'superseded', 'forgotten'] as const
+
+function MemoryExplorerTab({
+  selectedAgentId,
+  onSelectMemory,
+}: {
+  selectedAgentId: string
+  onSelectMemory: (id: string) => void
+}) {
+  const PAGE_SIZE = 25
+  const [statusFilter, setStatusFilter] = useState<string[]>(['candidate', 'active', 'confirmed', 'superseded'])
+  const [offset, setOffset] = useState(0)
+  const [memories, setMemories] = useState<Memory[]>([])
+  const [hasMore, setHasMore] = useState(false)
+  const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
+
+  const load = useCallback((nextOffset: number) => {
+    setLoading(true)
+    setLoadError(null)
+    api.memories({ limit: PAGE_SIZE, offset: nextOffset, statuses: statusFilter, agentId: selectedAgentId || undefined })
+      .then((page) => {
+        setMemories(page.memories)
+        setHasMore(page.has_more)
+        setOffset(nextOffset)
+      })
+      .catch((e) => setLoadError(String(e)))
+      .finally(() => setLoading(false))
+  }, [statusFilter, selectedAgentId])
+
+  useEffect(() => { load(0) }, [load])
+
+  const toggleStatus = (status: string) => {
+    setStatusFilter((current) =>
+      current.includes(status) ? current.filter((s) => s !== status) : [...current, status]
+    )
+  }
+
+  return (
+    <section className="tab-panel">
+      <header className="tab-hero-header">
+        <div className="tab-hero-main">
+          <div className="overview-kicker">
+            <span className="kicker-pulse" />
+            <span>COGNITIVE CONTROL PLANE</span>
+            <span className="kicker-divider">/</span>
+            <span className="kicker-live">MEMORY EXPLORER</span>
+          </div>
+          <h2>Memory Explorer</h2>
+          <div className="overview-meta-strip">
+            <span className="meta-chip">
+              <Database size={13} />
+              <span>Canonical SQLite store, browsed directly</span>
+            </span>
+            <span className="meta-chip">
+              <span>{selectedAgentId ? `Scoped to ${selectedAgentId}` : 'All agents (operator view)'}</span>
+            </span>
+          </div>
+        </div>
+      </header>
+
+      <div className="quick-filter-chips">
+        <span style={{ fontSize: '11px', color: 'var(--text-muted)', marginRight: '6px' }}>Status:</span>
+        {MEMORY_EXPLORER_STATUSES.map((status) => (
+          <button
+            key={status}
+            type="button"
+            className={`quick-filter-chip ${statusFilter.includes(status) ? 'active' : ''}`}
+            onClick={() => toggleStatus(status)}
+          >
+            {status}
+          </button>
+        ))}
+      </div>
+
+      {loadError ? (
+        <div className="empty-state error-state" role="alert"><h4>Memory Explorer unavailable</h4><p>{loadError}</p></div>
+      ) : loading ? (
+        <div className="empty-state" role="status"><h4>Loading memories…</h4></div>
+      ) : memories.length === 0 ? (
+        <div className="empty-state" role="status">
+          <div className="empty-chat-icon"><Database size={28} /></div>
+          <h4>No memories in this view</h4>
+          <p>{statusFilter.length === 0 ? 'Select at least one status filter.' : 'No records match the selected statuses and agent scope.'}</p>
+        </div>
+      ) : (
+        <>
+          <div className="item-list">
+            {memories.map((memory) => (
+              <MemorySnippet key={memory.id} memory={memory} onSelect={onSelectMemory} />
+            ))}
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginTop: '16px' }}>
+            <button type="button" className="small-button" disabled={offset === 0 || loading} onClick={() => load(Math.max(0, offset - PAGE_SIZE))}>
+              ← Newer
+            </button>
+            <span className="small muted">Showing {offset + 1}–{offset + memories.length}</span>
+            <button type="button" className="small-button" disabled={!hasMore || loading} onClick={() => load(offset + PAGE_SIZE)}>
+              Older →
+            </button>
+          </div>
+        </>
+      )}
+    </section>
+  )
+}
+
 function RecallTab({
   query,
   results,
@@ -4611,6 +4801,52 @@ function OperationsTab({ operations, onRefresh }: { operations: OperationsSnapsh
         </div>
       </section>
     </section>
+  )
+}
+
+function AuditLogTab(props: {
+  root: MerkleRoot | null
+  exchanges: Exchange[]
+  storeStatus: StoreStatus | null
+  integrityLinks: IntegrityLinksStatus | null
+  sessions: Session[]
+  selectedSessionId: string
+  setSelectedSessionId: (id: string) => void
+  proposals: ExtractionProposal[]
+  status: string
+  onStatusChange: (status: string) => void
+  onDecision: (proposalId: string, decision: 'accept' | 'dismiss') => void
+  onSelectMemory: (memoryId: string) => void
+}) {
+  const [section, setSection] = useState<'all' | 'chain' | 'extraction'>('all')
+  return (
+    <div>
+      <div className="settings-subnav" style={{ marginBottom: '20px' }}>
+        <button type="button" className={`settings-subnav-btn ${section === 'all' ? 'active' : ''}`} onClick={() => setSection('all')}>All</button>
+        <button type="button" className={`settings-subnav-btn ${section === 'chain' ? 'active' : ''}`} onClick={() => setSection('chain')}>Chain & Store Lineage</button>
+        <button type="button" className={`settings-subnav-btn ${section === 'extraction' ? 'active' : ''}`} onClick={() => setSection('extraction')}>Extraction & Retrieval Traces</button>
+      </div>
+      {(section === 'all' || section === 'chain') && (
+        <IntegrityTab
+          root={props.root}
+          exchanges={props.exchanges}
+          storeStatus={props.storeStatus}
+          integrityLinks={props.integrityLinks}
+          sessions={props.sessions}
+          selectedSessionId={props.selectedSessionId}
+          setSelectedSessionId={props.setSelectedSessionId}
+        />
+      )}
+      {(section === 'all' || section === 'extraction') && (
+        <ProvenanceTab
+          proposals={props.proposals}
+          status={props.status}
+          onStatusChange={props.onStatusChange}
+          onDecision={props.onDecision}
+          onSelectMemory={props.onSelectMemory}
+        />
+      )}
+    </div>
   )
 }
 

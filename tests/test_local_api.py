@@ -8,6 +8,7 @@ import urllib.request
 from unittest.mock import patch
 
 import pytest
+import requests
 
 from xibalba_cortex.ingest_tokens import issue_token
 from xibalba_cortex.local_api import serve
@@ -101,6 +102,11 @@ def _no_real_oracle_identity_lookups(monkeypatch):
     controls the fields this test suite doesn't exercise (display_name/on_chain/handle/...).
     """
     monkeypatch.setattr("xibalba_cortex.local_api.resolve_agent_identities", lambda dids, oracle_url, **kw: {})
+
+    def _unreachable(*args, **kwargs):
+        raise requests.RequestException("no oracle in this test suite")
+
+    monkeypatch.setattr("xibalba_cortex.local_api.requests.get", _unreachable)
 
 
 @pytest.fixture
@@ -408,6 +414,7 @@ def test_registered_agent_without_memory_is_visible_in_directory(running_store):
         "memories": 0,
         "sessions": 0,
         "last_seen_at": None,
+        "identity_verified": False,
     }]
 
 
@@ -449,6 +456,43 @@ def test_operator_can_manage_agent_device_pairs(running_store):
     assert status == 200 and revoked["status"] == "revoked"
 
 
+def test_agents_route_marks_identity_unverified_when_oracle_unreachable(running_store):
+    store, port = running_store
+    store.store_memory(
+        "Agent-attributed content.",
+        source={"kind": "direct_user", "locator": "hermes://session/agents-unverified", "agent_id": "did:integrity:unverified-agent"},
+        status="confirmed",
+    )
+    status, body = _get(port, "/api/agents")
+    assert status == 200
+    assert body["oracle_reachable"] is False
+    assert body["agents"]
+    for item in body["agents"]:
+        assert item["identity_verified"] is False
+
+
+def test_agents_route_marks_identity_verified_when_oracle_reachable(running_store, monkeypatch):
+    store, port = running_store
+    store.store_memory(
+        "Agent-attributed content.",
+        source={"kind": "direct_user", "locator": "hermes://session/agents-verified", "agent_id": "did:integrity:verified-agent"},
+        status="confirmed",
+    )
+
+    class _FakeResponse:
+        def raise_for_status(self):
+            return None
+
+    monkeypatch.setattr("xibalba_cortex.local_api.requests.get", lambda *a, **kw: _FakeResponse())
+
+    status, body = _get(port, "/api/agents")
+    assert status == 200
+    assert body["oracle_reachable"] is True
+    assert body["agents"]
+    for item in body["agents"]:
+        assert item["identity_verified"] is True
+
+
 def test_invocations_route_returns_protocol_correlations(running_store):
     store, port = running_store
     invocation_id = "d32c93ca-7c8e-49fb-8071-0941572cecf6"
@@ -483,6 +527,53 @@ def test_memory_detail_and_404(running_store):
 
     status, body = _get(port, "/api/memory/does-not-exist")
     assert status == 404
+
+
+def test_memory_forget_route_returns_deletion_receipt_and_404_for_missing(running_store):
+    store, port = running_store
+    memory = store.store_memory(
+        "Forget me content.",
+        source={"kind": "direct_user", "locator": "hermes://session/forget"},
+        status="confirmed",
+    )
+    status, body = _post(port, f"/api/memory/{memory['id']}/forget", {})
+    assert status == 200
+    assert body["deletion_receipt"]["memory_id"] == memory["id"]
+    assert body["content_hash_retained"] is True
+
+    status, body = _get(port, f"/api/memory/{memory['id']}")
+    assert status == 200
+    assert body["status"] == "forgotten"
+
+    status, body = _post(port, "/api/memory/does-not-exist/forget", {})
+    assert status == 404
+
+
+def test_memories_list_route_paginates_and_filters_by_status(running_store):
+    store, port = running_store
+    ids = []
+    for i in range(3):
+        memory = store.store_memory(
+            f"Explorer content {i}.",
+            source={"kind": "direct_user", "locator": f"hermes://session/explorer-{i}"},
+            status="confirmed",
+        )
+        ids.append(memory["id"])
+
+    status, body = _get(port, "/api/memories?limit=2&status=confirmed")
+    assert status == 200
+    assert len(body["memories"]) == 2
+    assert body["has_more"] is True
+
+    status, body = _get(port, "/api/memories?limit=2&offset=2&status=confirmed")
+    assert status == 200
+    assert len(body["memories"]) == 1
+    assert body["has_more"] is False
+
+    store.forget_memory(ids[0])
+    status, body = _get(port, "/api/memories?status=forgotten")
+    assert status == 200
+    assert [m["id"] for m in body["memories"]] == [ids[0]]
 
 
 def test_memory_similar_endpoint(running_store):
