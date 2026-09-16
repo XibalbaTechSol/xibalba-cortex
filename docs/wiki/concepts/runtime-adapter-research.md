@@ -65,8 +65,13 @@ configured verbatim tier, subject to its retention policy. Policy enforcement is
 Claude's verified pre-tool path; Codex app-server and Antigravity SDK policy hooks require separate
 live validation before being enabled.
 
+The Claude and Codex compatibility adapters now call the Integrity SDK's `normalize_hook` at their
+entry boundaries (`xibalba-cortex` commit `498e67f`). This makes their correlation vocabulary match
+the Hermes and Agy native/forwarded adapters without claiming native hook parity. The Cortex
+package pins the SDK to an immutable Git revision; deployment still owns local-store dispatch.
+
 | Runtime | Live adapter now | Durable fallback | Honest gap |
 |---|---|---|---|
-| Claude | Native hook-shaped adapter, including pre/post tool and lifecycle events | Hook watermark | Hook configuration/deployment must be validated in each Claude surface |
+| Claude | Native hook-shaped adapter, including pre/post tool and lifecycle events; SDK-normalized correlation | Hook watermark | Hook configuration/deployment must be validated in each Claude surface |
 | Codex | Launcher/process telemetry | Rollout JSONL parser and MCP backfill | App-server event subscription is not yet owned by this adapter |
 | agy | Wrapper start/end and explicit observations | SDK persistence when exposed by caller | No in-process SDK callback registration yet |
