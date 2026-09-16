@@ -29,6 +29,7 @@ import hashlib
 import os
 import sys
 
+from integrity_sdk import normalize_hook
 from xibalba_cortex import hermes_watermark
 from xibalba_cortex.hermes_observer import HermesObserverAdapter
 from xibalba_cortex.redaction import redact
@@ -87,16 +88,17 @@ def _record_watermark(hook_name: str, kwargs: dict, *, success: bool, error: str
 
 def _enqueue_cortex_event(hook_name: str, kwargs: dict) -> tuple[str, bool] | None:
     """Enqueue one redacted normalized event; return its claimed delivery if available."""
-    session_id = _extract_session_id(kwargs)
+    # Keep Hermes-specific aliases at the bridge edge, then let the SDK own the
+    # shared correlation vocabulary used by Agy and other harnesses.
+    normalized_input = dict(kwargs)
+    normalized_input.setdefault("session_id", _extract_session_id(kwargs))
+    normalized = normalize_hook(hook_name, normalized_input)
+    session_id = normalized["session_id"] or _extract_session_id(kwargs)
     if not session_id:
         return None
     payload = redact(dict(kwargs))
     identity = {
-        "hook": hook_name,
-        "session_id": session_id,
-        "turn_id": kwargs.get("turn_id"),
-        "invocation_id": kwargs.get("invocation_id"),
-        "tool_call_id": kwargs.get("tool_call_id"),
+        "normalized": normalized,
         "payload": payload,
     }
     event_id = "evt:sha256:" + hashlib.sha256(
@@ -108,9 +110,9 @@ def _enqueue_cortex_event(hook_name: str, kwargs: dict) -> tuple[str, bool] | No
         "runtime": "hermes",
         "event_type": hook_name,
         "session_id": session_id,
-        "turn_id": kwargs.get("turn_id"),
-        "invocation_id": kwargs.get("invocation_id"),
-        "tool_call_id": kwargs.get("tool_call_id"),
+        "turn_id": normalized["turn_id"],
+        "invocation_id": normalized["invocation_id"],
+        "tool_call_id": normalized["tool_call_id"],
         "observed_at_utc": kwargs.get("observed_at_utc"),
         "payload": payload,
     }
