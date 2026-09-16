@@ -70,6 +70,14 @@ build-backend = "hatchling.build"
 [tool.hatch.build.targets.wheel]
 packages = ["src/xibalba_cortex"]
 
+[tool.hatch.build.targets.sdist]
+exclude = [
+  "/viewer/node_modules",
+  "/viewer/dist",
+  "/test-results",
+  "/*.png",
+]
+
 [tool.hatch.metadata]
 allow-direct-references = true
 
