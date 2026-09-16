@@ -9,7 +9,7 @@ dependencies = [
   "eth-hash[pycryptodome]>=0.7.0",
   "sqlite-vec>=0.1.9",
   "pyyaml>=6.0",
-  "integrity-sdk",
+  "integrity-sdk @ git+https://github.com/XibalbaTechSol/integrity-core.git@2c9de2d#subdirectory=integrity-sdk",
   "uvicorn>=0.30",
   "sentence-transformers>=5.7.0",
   "pyjwt[crypto]>=2.13.0",
@@ -70,9 +70,9 @@ build-backend = "hatchling.build"
 [tool.hatch.build.targets.wheel]
 packages = ["src/xibalba_cortex"]
 
+[tool.hatch.metadata]
+allow-direct-references = true
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-q"
-
-[tool.uv.sources]
-integrity-sdk = { path = "../integrity-core/integrity-sdk" }
