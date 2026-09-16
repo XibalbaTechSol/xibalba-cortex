@@ -74,6 +74,7 @@ packages = ["src/xibalba_cortex"]
 exclude = [
   "/viewer/node_modules",
   "/viewer/dist",
+  "/viewer/test-results",
   "/test-results",
   "/*.png",
 ]
