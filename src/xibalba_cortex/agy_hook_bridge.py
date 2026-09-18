@@ -18,7 +18,13 @@ def normalize(hook: str, payload: dict) -> dict:
     if not isinstance(session, str) or not session:
         raise ValueError("missing conversationId")
     tool = payload.get("toolCall") or {}
-    event = {"session_id": session, "agent_id": "agy"}
+    # Use the profile-bound DID supplied by the installed hook. A short harness
+    # label is not an authenticated identity and would split attribution from
+    # the local Cortex API's DID-bound profile.
+    agent_id = os.environ.get("XIBALBA_AGENT_ID", "").strip()
+    if not agent_id.startswith("did:integrity:"):
+        raise ValueError("missing or invalid profile DID")
+    event = {"session_id": session, "agent_id": agent_id}
     for counter in ("stepIdx", "invocationNum", "executionNum"):
         if counter in payload:
             event["event_id"] = f"{counter}:{payload[counter]}"

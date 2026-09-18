@@ -160,7 +160,7 @@ export interface TraversalResult {
 }
 
 export interface Stats {
-  memories: number
+  memories: number | null
   entities: number
   relations: number
   sessions: number
@@ -519,6 +519,8 @@ export interface AgentWorkspace {
   pair_status?: 'active' | 'detached' | 'revoked' | null
   pair_updated_at?: string | null
   memories: number
+  /** False means the API skipped an expensive count; zero is not a measured total. */
+  memories_counted?: boolean
   sessions: number
   last_seen_at?: string | null
   /** Standardized 2026-09-13 identity fields (integrity_sdk.agent_identity, same contract

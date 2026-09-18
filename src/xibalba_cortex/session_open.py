@@ -12,11 +12,12 @@ DEFAULT_HOME = Path(os.environ.get("XIBALBA_CORTEX_HOME", "~/.hermes/xibalba-cor
 HERMES_AGENT_ROOT = Path(os.environ.get("HERMES_AGENT_ROOT", "~/.hermes/hermes-agent")).expanduser()
 
 
-def open_session(session_id: str, runtime: str, home: Path = DEFAULT_HOME) -> dict[str, object]:
+def open_session(session_id: str, runtime: str, home: Path = DEFAULT_HOME,
+                 agent_id: str | None = None, identity_mode: str = "pseudonymous") -> dict[str, object]:
     home.mkdir(parents=True, exist_ok=True)
-    store = GraphStore(home)
+    store = GraphStore(home, identity_mode=identity_mode)
     try:
-        session = store.start_session(session_id, retention_tier="verbatim")
+        session = store.start_session(session_id, retention_tier="verbatim", agent_id=agent_id)
     finally:
         store.close()
     hermes: dict[str, object] = {"created": False}
@@ -46,8 +47,10 @@ def main() -> int:
     parser.add_argument("--session-id", required=True)
     parser.add_argument("--runtime", required=True, choices=("claude", "codex", "agy", "hermes"))
     parser.add_argument("--home", type=Path, default=DEFAULT_HOME)
+    parser.add_argument("--agent-id", help="exact runtime identity for session attribution")
+    parser.add_argument("--identity-mode", choices=("full", "pseudonymous", "omit"), default="pseudonymous")
     args = parser.parse_args()
-    print(open_session(args.session_id, args.runtime, args.home))
+    print(open_session(args.session_id, args.runtime, args.home, args.agent_id, args.identity_mode))
     return 0
 
 

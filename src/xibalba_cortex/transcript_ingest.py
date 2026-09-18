@@ -63,7 +63,8 @@ def _save_state(home: Path, state: dict[str, int]) -> None:
 
 
 def _ingest_user_record(
-    store: GraphStore, rec: dict[str, Any], session_id: str, prompt_id: str | None
+    store: GraphStore, rec: dict[str, Any], session_id: str, prompt_id: str | None,
+    agent_id: str | None = None,
 ) -> list[dict[str, object]]:
     message = rec.get("message") or {}
     content = message.get("content")
@@ -81,6 +82,7 @@ def _ingest_user_record(
             content,
             source={
                 "kind": "runtime_observed",
+                "agent_id": agent_id,
                 "session_id": session_id,
                 "role": "user",
                 "message_id": rec.get("uuid"),
@@ -129,7 +131,8 @@ def _ingest_user_record(
 
 
 def _ingest_assistant_record(
-    store: GraphStore, rec: dict[str, Any], session_id: str, prompt_id: str | None
+    store: GraphStore, rec: dict[str, Any], session_id: str, prompt_id: str | None,
+    agent_id: str | None = None,
 ) -> list[dict[str, object]]:
     message = rec.get("message") or {}
     content = message.get("content")
@@ -151,6 +154,7 @@ def _ingest_assistant_record(
                     text,
                     source={
                         "kind": "runtime_observed",
+                        "agent_id": agent_id,
                         "session_id": session_id,
                         "role": "assistant",
                         "message_id": rec.get("uuid"),
@@ -220,7 +224,8 @@ def _recover_prompt_ids_before(lines: list[str], resume_from_line: int) -> dict[
     return current
 
 
-def ingest_transcript(store: GraphStore, transcript_path: Path, *, resume_from_line: int = 0) -> dict[str, object]:
+def ingest_transcript(store: GraphStore, transcript_path: Path, *, resume_from_line: int = 0,
+                      agent_id: str | None = None) -> dict[str, object]:
     """Process one transcript file starting at `resume_from_line`. Pure function over an
     explicit offset -- state persistence is the caller's job (see `run` below), so this stays
     directly testable without touching disk for state.
@@ -251,15 +256,15 @@ def ingest_transcript(store: GraphStore, transcript_path: Path, *, resume_from_l
             skipped_records += 1
             continue
 
-        store.start_session(session_id, retention_tier="verbatim")
+        store.start_session(session_id, retention_tier="verbatim", agent_id=agent_id)
         message = rec.get("message") or {}
         if rec_type == "user" and isinstance(message.get("content"), str) and rec.get("promptId"):
             current_prompt_id_by_session[session_id] = rec["promptId"]
         prompt_id = current_prompt_id_by_session.get(session_id)
         if rec_type == "user":
-            results = _ingest_user_record(store, rec, session_id, prompt_id)
+            results = _ingest_user_record(store, rec, session_id, prompt_id, agent_id)
         else:
-            results = _ingest_assistant_record(store, rec, session_id, prompt_id)
+            results = _ingest_assistant_record(store, rec, session_id, prompt_id, agent_id)
 
         for result in results:
             if result["kind"] == "memory":
@@ -281,7 +286,8 @@ def ingest_transcript(store: GraphStore, transcript_path: Path, *, resume_from_l
     }
 
 
-def run(store: GraphStore, home: Path, transcript_path: Path) -> dict[str, object]:
+def run(store: GraphStore, home: Path, transcript_path: Path, *,
+        agent_id: str | None = None) -> dict[str, object]:
     """Stateful wrapper: reads/writes the resume offset for `transcript_path` in
     `<home>/transcript_ingest_state.json` so repeated calls (e.g. polling an in-progress
     session) only process newly appended lines.
@@ -289,7 +295,7 @@ def run(store: GraphStore, home: Path, transcript_path: Path) -> dict[str, objec
     state = _load_state(home)
     key = str(transcript_path.resolve())
     resume_from = state.get(key, 0)
-    result = ingest_transcript(store, transcript_path, resume_from_line=resume_from)
+    result = ingest_transcript(store, transcript_path, resume_from_line=resume_from, agent_id=agent_id)
     state[key] = result["new_resume_line"]
     _save_state(home, state)
     return result
@@ -299,12 +305,13 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--transcript", required=True, type=Path, help="Path to a Claude Code session transcript JSONL")
     parser.add_argument("--home", required=True, type=Path, help="xibalba-cortex profile home")
+    parser.add_argument("--agent-id", help="exact runtime identity for session and source attribution")
     args = parser.parse_args()
 
     config = load_config(home=args.home)
     store = GraphStore(config.storage.home, profile_id=config.profile_id, quotas=config.quotas.as_dict())
     try:
-        result = run(store, args.home, args.transcript)
+        result = run(store, args.home, args.transcript, agent_id=args.agent_id)
         print(json.dumps(result, indent=2))
     finally:
         store.close()

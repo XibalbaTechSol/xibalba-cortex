@@ -387,6 +387,7 @@ CREATE INDEX IF NOT EXISTS idx_otel_events_session ON otel_events(session_id);
 CREATE INDEX IF NOT EXISTS idx_otel_events_session_name ON otel_events(session_id, name);
 CREATE INDEX IF NOT EXISTS idx_otel_events_prompt_id ON otel_events(prompt_id);
 CREATE INDEX IF NOT EXISTS idx_otel_events_memory_id ON otel_events(memory_id);
+CREATE INDEX IF NOT EXISTS idx_otel_events_created_at ON otel_events(created_at);
 
 CREATE TABLE IF NOT EXISTS telemetry_event_dedupe (
     idempotency_key TEXT PRIMARY KEY,
@@ -697,7 +698,8 @@ class GraphStore:
     """Profile-local SQLite authority for Xibalba graph memory."""
 
     def __init__(self, home: str | Path, *, profile_id: str = "default", identity_mode: str = _DEFAULT_IDENTITY_MODE,
-                 features: dict[str, bool] | None = None, quotas: dict[str, int | None] | None = None):
+                 features: dict[str, bool] | None = None, quotas: dict[str, int | None] | None = None,
+                 readonly: bool = False):
         if not profile_id or not profile_id.strip():
             raise ValueError("profile_id must be a non-empty string")
         if identity_mode not in _IDENTITY_MODES:
@@ -706,6 +708,7 @@ class GraphStore:
             )
         self.profile_id = profile_id.strip()
         self.identity_mode = identity_mode
+        self.readonly = bool(readonly)
         self.features = {
             "provenance": True, "lexical": True, "vector": True, "inference": True, "embeddings": True, "graph": True,
             "context_assembly": True, "connectors": True, "governance": True,
@@ -725,9 +728,13 @@ class GraphStore:
         if self.quotas["max_memories"] is not None and int(self.quotas["max_memories"]) < 1:
             raise ValueError("max_memories quota must be positive or None")
         self.home = Path(home).expanduser().resolve()
-        self.home.mkdir(parents=True, exist_ok=True, mode=0o700)
-        os.chmod(self.home, 0o700)
         self.db_path = self.home / "graph-memory.sqlite3"
+        if self.readonly:
+            if not self.db_path.is_file():
+                raise FileNotFoundError(f"read-only Cortex database does not exist: {self.db_path}")
+        else:
+            self.home.mkdir(parents=True, exist_ok=True, mode=0o700)
+            os.chmod(self.home, 0o700)
         self._lock = threading.RLock()
         self._atomic_depth = 0
         self._agent_workspaces_cache: tuple[float, list[dict[str, object]]] | None = None
@@ -741,18 +748,30 @@ class GraphStore:
         # its full duration, blocking all other store access. A longer TTL trades a little
         # staleness in the Agents view for far fewer of these lock-holding cold scans.
         self._agent_workspaces_cache_ttl_sec = 60.0
+        database_target = f"file:{self.db_path}?mode=ro" if self.readonly else self.db_path
         self._connection = sqlite3.connect(
-            self.db_path,
+            database_target,
+            uri=self.readonly,
             timeout=30.0,
             isolation_level=None,
             check_same_thread=False,
         )
-        os.chmod(self.db_path, 0o600)
+        if not self.readonly:
+            os.chmod(self.db_path, 0o600)
         self._connection.row_factory = sqlite3.Row
-        self._configure()
-        self._migrate()
-        self._identity_salt = self._load_or_create_identity_salt()
-        self._register_configured_device()
+        if self.readonly:
+            self._connection.execute("PRAGMA busy_timeout = 30000")
+            self._connection.execute("PRAGMA foreign_keys = ON")
+            self._connection.enable_load_extension(True)
+            sqlite_vec.load(self._connection)
+            self._connection.enable_load_extension(False)
+            salt_path = self.home / "identity_salt"
+            self._identity_salt = salt_path.read_bytes() if salt_path.is_file() else b""
+        else:
+            self._configure()
+            self._migrate()
+            self._identity_salt = self._load_or_create_identity_salt()
+            self._register_configured_device()
         # Per-thread read-only connections, WAL mode lets these run fully concurrently with the
         # single writer above -- no `self._lock` needed. Added 2026-09-15 after confirming a
         # handful of read-heavy local_api endpoints (agent_workspaces, para/classifications,
@@ -831,6 +850,22 @@ class GraphStore:
         if isinstance(agent_id, str) and agent_id.startswith("pseudonym:"):
             return agent_id
         return self._resolve_agent_id(agent_id)[0]
+
+    def has_agent_partition(self, agent_id: str) -> bool:
+        """Check whether the exact persisted agent id has source records.
+
+        A local API process can be configured with a different identity mode than the
+        writer that created a store. Prefer an existing exact partition over deriving a
+        pseudonym with the reader's salt/mode; this remains safe because callers must
+        separately authorize the requested identity before using it.
+        """
+        value = str(agent_id or "").strip()
+        if not value:
+            return False
+        row = self._read_connection().execute(
+            "SELECT 1 FROM sources WHERE agent_id = ? LIMIT 1", (value,)
+        ).fetchone()
+        return row is not None
 
     @staticmethod
     def local_device_id() -> str:
@@ -1109,7 +1144,7 @@ class GraphStore:
                     ).fetchall()
                     self._connection.execute("DROP TABLE memory_vectors")
                     self._connection.execute(
-                        f"""
+                        """
                         CREATE VIRTUAL TABLE memory_vectors USING vec0(
                             memory_id TEXT PRIMARY KEY,
                             embedding FLOAT[{EMBEDDING_DIM}] distance_metric=cosine
@@ -1969,6 +2004,18 @@ class GraphStore:
                     (memory_id, content),
                 )
                 self._append_event(memory_id, event_type, {"quarantine_reasons": reasons})
+                # Queue one durable PARA proposal task with the memory write. The
+                # transaction boundary guarantees new memories are not silently
+                # omitted from classification after a process crash.
+                if effective_status != "quarantined" and evidence_class != "summary" and self.features["inference"]:
+                    task_id = f"auto-classify:{memory_id}:{content_digest.removeprefix('sha256:')}"
+                    task_input = {"source_content_hash": content_digest, "_contract": {"provider_id": "hermes"}}
+                    self._connection.execute(
+                        """INSERT OR IGNORE INTO memory_inference_tasks(
+                            id, task_type, status, subject_type, subject_id, input_json, requested_by
+                        ) VALUES (?, 'classify_para', 'pending', 'memory', ?, ?, 'automatic-memory-ingest')""",
+                        (task_id, memory_id, self._canonical_json(task_input)),
+                    )
                 if self._atomic_depth == 0:
                     self._connection.execute("COMMIT")
             except Exception:
@@ -2260,6 +2307,7 @@ class GraphStore:
                 "agent_name": None, "device_name": pair["display_name"],
                 "pair_status": pair["status"], "pair_updated_at": pair["updated_at"],
                 "memories": int(counts["memories"] or 0),
+                "memories_counted": True,
                 "sessions": int(counts["sessions"] or 0),
                 "last_seen_at": counts["last_seen_at"] or pair["last_seen_at"],
             })
@@ -2275,7 +2323,8 @@ class GraphStore:
                 "agent_id": agent_id, "device_id": None,
                 "agent_name": None, "device_name": None,
                 "pair_status": None, "pair_updated_at": None,
-                "memories": 0, "sessions": 0, "last_seen_at": None,
+                "memories": 0, "memories_counted": False,
+                "sessions": 0, "last_seen_at": None,
             })
         with self._cache_lock:
             self._agent_workspaces_cache = (time.monotonic(), workspaces)
@@ -2404,7 +2453,9 @@ class GraphStore:
             for row in rows
         ]
 
-    def _lexical_ranked_ids(self, query: str, limit: int) -> list[str]:
+    def _lexical_ranked_ids(
+        self, query: str, limit: int, statuses: tuple[str, ...] = ("active", "confirmed")
+    ) -> list[str]:
         tokens = re.findall(r"[\w-]+", query, flags=re.UNICODE)
         if not tokens:
             return []
@@ -2417,17 +2468,18 @@ class GraphStore:
         deadline = time.monotonic() + _LEXICAL_QUERY_TIMEOUT_SEC
         conn.set_progress_handler(lambda: int(time.monotonic() >= deadline), 1000)
         try:
+            placeholders = ",".join("?" for _ in statuses)
             rows = conn.execute(
-                """
+                f"""
                 SELECT m.id
                 FROM memory_fts f
                 JOIN memories m ON m.id = f.memory_id
                 WHERE memory_fts MATCH ?
-                  AND m.status IN ('active', 'confirmed')
+                  AND m.status IN ({placeholders})
                 ORDER BY bm25(memory_fts)
                 LIMIT ?
                 """,
-                (fts_query, limit),
+                (fts_query, *statuses, limit),
             ).fetchall()
             if time.monotonic() >= deadline:
                 raise RuntimeError("lexical search exceeded its 2-second resource limit")
@@ -2439,7 +2491,10 @@ class GraphStore:
             conn.set_progress_handler(None, 0)
         return [row["id"] for row in rows]
 
-    def _vector_ranked_ids(self, query_vector: list[float], limit: int) -> list[tuple[str, float]]:
+    def _vector_ranked_ids(
+        self, query_vector: list[float], limit: int,
+        statuses: tuple[str, ...] = ("active", "confirmed"),
+    ) -> list[tuple[str, float]]:
         """Returns (memory_id, cosine_similarity) pairs, best match first.
 
         memory_vectors is a cosine-metric vec0 table (schema v2+), where sqlite-vec's returned
@@ -2455,16 +2510,17 @@ class GraphStore:
         if len(query_vector) != expected_dim:
             raise ValueError(f"query_vector must have dimension {expected_dim} (model {active_model['model_id']}), got {len(query_vector)}")
         with self._lock:
+            placeholders = ",".join("?" for _ in statuses)
             rows = self._connection.execute(
                 f"""
                 SELECT v.memory_id, v.distance
                 FROM {vector_table} v
                 JOIN memories m ON m.id = v.memory_id
                 WHERE v.embedding MATCH ? AND k = ?
-                  AND m.status IN ('active', 'confirmed')
+                  AND m.status IN ({placeholders})
                 ORDER BY distance
                 """,
-                (sqlite_vec.serialize_float32(query_vector), limit),
+                (sqlite_vec.serialize_float32(query_vector), limit, *statuses),
             ).fetchall()
         return [(row["memory_id"], 1.0 - row["distance"]) for row in rows]
 
@@ -2475,6 +2531,7 @@ class GraphStore:
         query_vector: list[float] | None = None,
         limit: int = 10,
         agent_id: str | None = None,
+        statuses: list[str] | tuple[str, ...] | None = None,
     ) -> list[dict[str, object]]:
         """Recall active/confirmed memories.
 
@@ -2491,14 +2548,17 @@ class GraphStore:
         else:
             if not self.features["lexical"] and not self.features["vector"]:
                 raise RuntimeError("lexical and vector retrieval are disabled by feature policy")
+        eligible_statuses = tuple(dict.fromkeys(statuses or ("active", "confirmed")))
+        if not eligible_statuses or set(eligible_statuses) - {"active", "confirmed", "candidate"}:
+            raise ValueError("statuses may include only active, confirmed, and candidate")
         bounded_limit = max(1, min(int(limit), 100))
         if query_vector is None:
-            memories = [self.get_memory(memory_id) for memory_id in self._lexical_ranked_ids(query, bounded_limit * 4)]
+            memories = [self.get_memory(memory_id) for memory_id in self._lexical_ranked_ids(query, bounded_limit * 4, eligible_statuses)]
             return [item for item in memories if not agent_id or item.get("source", {}).get("agent_id") == agent_id][:bounded_limit]
 
         candidate_pool = max(bounded_limit * 4, 20)
-        lexical_ids = self._lexical_ranked_ids(query, candidate_pool) if self.features["lexical"] else []
-        vector_hits = self._vector_ranked_ids(query_vector, candidate_pool) if self.features["vector"] and self.features["embeddings"] else []
+        lexical_ids = self._lexical_ranked_ids(query, candidate_pool, eligible_statuses) if self.features["lexical"] else []
+        vector_hits = self._vector_ranked_ids(query_vector, candidate_pool, eligible_statuses) if self.features["vector"] and self.features["embeddings"] else []
         vector_ids = [memory_id for memory_id, _ in vector_hits]
         similarity_by_id = dict(vector_hits)
 
@@ -2546,14 +2606,17 @@ class GraphStore:
         bounded = max(1, min(int(limit), 100))
         effective_filters = dict(filters or {})
         agent_filter = str(effective_filters.get("agent_id") or "").strip() or None
-        allowed_statuses = set(effective_filters.get("status") or []) or None
+        allowed_statuses = set(effective_filters.get("status") or {"active", "confirmed"})
+        if allowed_statuses - {"active", "confirmed", "candidate"}:
+            raise ValueError("retrieval status filter may include only active, confirmed, and candidate")
         allowed_evidence_classes = set(effective_filters.get("evidence_class") or []) or None
-        lexical_ids = self._lexical_ranked_ids(query, max(20, bounded * 4)) if self.features["lexical"] else []
+        retrieval_statuses = tuple(sorted(allowed_statuses))
+        lexical_ids = self._lexical_ranked_ids(query, max(20, bounded * 4), retrieval_statuses) if self.features["lexical"] else []
         if agent_filter:
             lexical_ids = [mid for mid in lexical_ids if self.get_memory(mid).get("source", {}).get("agent_id") == agent_filter]
         if not self.features["embeddings"] or not self.features["vector"]:
             query_vector = None
-        vector_hits = self._vector_ranked_ids(query_vector, max(20, bounded * 4)) if query_vector is not None else []
+        vector_hits = self._vector_ranked_ids(query_vector, max(20, bounded * 4), retrieval_statuses) if query_vector is not None else []
         if agent_filter:
             vector_hits = [(mid, score) for mid, score in vector_hits if self.get_memory(mid).get("source", {}).get("agent_id") == agent_filter]
         vector_ids = [item[0] for item in vector_hits]
@@ -2597,18 +2660,18 @@ class GraphStore:
         with self._lock:
             if temporal_at:
                 temporal_rows = self._connection.execute(
-                    """
+                    f"""
                     SELECT m.id FROM memories m JOIN sources s ON s.id = m.source_id
-                    WHERE m.status IN ('active','confirmed')
+                    WHERE m.status IN ({','.join('?' for _ in retrieval_statuses)})
                       AND COALESCE(s.observed_at, m.valid_from, m.created_at) <= ?
                     ORDER BY COALESCE(s.observed_at, m.valid_from, m.created_at) DESC LIMIT ?
                     """,
-                    (temporal_at, max(20, bounded * 4)),
+                    (*retrieval_statuses, temporal_at, max(20, bounded * 4)),
                 ).fetchall()
             else:
                 temporal_rows = self._connection.execute(
-                    "SELECT id FROM memories WHERE status IN ('active','confirmed') ORDER BY COALESCE(valid_from, created_at) DESC LIMIT ?",
-                    (max(20, bounded * 4),),
+                    f"SELECT id FROM memories WHERE status IN ({','.join('?' for _ in retrieval_statuses)}) ORDER BY COALESCE(valid_from, created_at) DESC LIMIT ?",
+                    (*retrieval_statuses, max(20, bounded * 4)),
                 ).fetchall()
         temporal_ids = [str(row["id"]) for row in temporal_rows]
         if temporal_at:
@@ -2638,12 +2701,13 @@ class GraphStore:
                 return False
             return True
 
-        if allowed_statuses is not None or allowed_evidence_classes is not None or agent_filter:
-            lexical_ids = [m for m in lexical_ids if _passes_filters(m)]
-            vector_ids = [m for m in vector_ids if _passes_filters(m)]
-            graph_ids = [m for m in graph_ids if _passes_filters(m)]
-            temporal_ids = [m for m in temporal_ids if _passes_filters(m)]
-            exact_ids = [m for m in exact_ids if _passes_filters(m)]
+        # Apply the default active/confirmed policy to every channel, including
+        # exact IDs and graph evidence; candidate access requires an explicit filter.
+        lexical_ids = [m for m in lexical_ids if _passes_filters(m)]
+        vector_ids = [m for m in vector_ids if _passes_filters(m)]
+        graph_ids = [m for m in graph_ids if _passes_filters(m)]
+        temporal_ids = [m for m in temporal_ids if _passes_filters(m)]
+        exact_ids = [m for m in exact_ids if _passes_filters(m)]
 
         if not self.features["lexical"]:
             temporal_ids = []
@@ -3209,10 +3273,19 @@ class GraphStore:
                 "SELECT id, agent_id FROM sessions WHERE external_session_id = ?", (external_session_id,)
             ).fetchone()
             if existing:
-                if scoped_agent_id is not None and existing["agent_id"] not in (None, scoped_agent_id):
-                    raise PermissionError("session is bound to a different agent")
-                if scoped_agent_id is not None and existing["agent_id"] is None:
-                    self._connection.execute("UPDATE sessions SET agent_id = ? WHERE external_session_id = ?", (scoped_agent_id, external_session_id))
+                identities = self.session_agent_ids(external_session_id)
+                if scoped_agent_id is not None:
+                    if identities and identities != {scoped_agent_id}:
+                        raise PermissionError("session is attributed to a different or multiple agents")
+                    # An unowned legacy session can only be claimed when existing
+                    # source evidence independently identifies this same agent.
+                    if existing["agent_id"] is None and identities == {scoped_agent_id}:
+                        self._connection.execute(
+                            "UPDATE sessions SET agent_id = ? WHERE external_session_id = ?",
+                            (scoped_agent_id, external_session_id),
+                        )
+                    elif existing["agent_id"] is None and not identities:
+                        raise PermissionError("unattributed session cannot be claimed without source evidence")
                 return self.get_session(external_session_id)
 
             if self._atomic_depth == 0:
@@ -3252,6 +3325,25 @@ class GraphStore:
             "agent_id": row["agent_id"],
         }
 
+    def session_agent_ids(self, external_session_id: str) -> set[str | None]:
+        """Return exact identities on a session and sources, retaining unknown attribution.
+
+        More than one value means the session is mixed and must not be replayed
+        inside any individual agent namespace. A null value means at least one
+        linked source lacks identity and prevents claiming the whole transcript.
+        """
+        session = self.get_session(external_session_id)
+        values: set[str | None] = {str(session["agent_id"])} if session.get("agent_id") else set()
+        with self._lock:
+            rows = self._connection.execute(
+                "SELECT DISTINCT agent_id FROM sources WHERE session_id IN (?, ?)",
+                (session["external_session_id"], session["id"]),
+            ).fetchall()
+        for row in rows:
+            value = str(row["agent_id"]).strip() if row["agent_id"] is not None else ""
+            values.add(value or None)
+        return values
+
     def list_sessions(self, *, limit: int = 100, agent_id: str | None = None) -> list[dict[str, object]]:
         bounded_limit = max(1, min(int(limit), 1000))
         normalized_agent = str(agent_id or "").strip() or None
@@ -3259,14 +3351,15 @@ class GraphStore:
             if normalized_agent:
                 rows = self._connection.execute(
                     """SELECT external_session_id FROM sessions
-                       WHERE agent_id = ? OR external_session_id IN (
-                           SELECT DISTINCT session_id FROM sources
-                           WHERE agent_id = ? AND session_id IS NOT NULL
-                       )
-                       ORDER BY COALESCE(ended_at, started_at) DESC, started_at DESC
-                       LIMIT ?""",
-                    (normalized_agent, normalized_agent, bounded_limit),
+                       ORDER BY COALESCE(ended_at, started_at) DESC, started_at DESC"""
                 ).fetchall()
+                sessions = []
+                for row in rows:
+                    if self.session_agent_ids(row["external_session_id"]) == {normalized_agent}:
+                        sessions.append(self.get_session(row["external_session_id"]))
+                        if len(sessions) >= bounded_limit:
+                            break
+                return sessions
             else:
                 rows = self._connection.execute(
                     """SELECT external_session_id FROM sessions
@@ -3322,10 +3415,112 @@ class GraphStore:
         # Automatically build the Merkle-chained exchanges for the timeline.
         # This resolves the "empty sessions in timeline" issue by ensuring that
         # exchanges are constructed from unstructured memories upon session closure.
-        from .exchange_builder import build_session_exchanges
-        build_session_exchanges(self, external_session_id)
+        finalization_error = None
+        try:
+            from .exchange_builder import build_session_exchanges
+            build_session_exchanges(self, external_session_id)
+        except Exception as exc:
+            # Session closure is durable above; exchange/timeline finalization is
+            # best-effort and must not make callers believe the session was lost.
+            finalization_error = f"{type(exc).__name__}: {exc}"
 
-        return self.get_session(external_session_id)
+        if summary_content is None and finalization_error is None:
+            self.enqueue_session_summary(external_session_id)
+
+        session = self.get_session(external_session_id)
+        if finalization_error:
+            session["finalization_error"] = finalization_error
+        return session
+
+    def enqueue_session_summary(self, external_session_id: str) -> dict[str, object] | None:
+        """Queue an idempotent, evidence-bound summary task for a closed session."""
+        session = self.get_session(external_session_id)
+        # An unattached or mixed-identity session must not be summarized into an
+        # agent-visible memory partition without explicit provenance.
+        if session.get("summary_memory_id") or not session.get("agent_id") or not session.get("ended_at"):
+            return None
+        prior_tasks = self._read_connection().execute(
+            "SELECT status FROM memory_inference_tasks WHERE task_type = 'summarize_session' AND subject_type = 'session' AND subject_id = ? ORDER BY created_at",
+            (session["external_session_id"],),
+        ).fetchall()
+        if any(row["status"] in {"pending", "claimed"} for row in prior_tasks) or len(prior_tasks) >= 3:
+            return None
+        evidence = self.fetch_bounded_evidence(
+            subject_type="session", subject_id=str(session["external_session_id"]),
+            max_items=20, max_bytes=32_000, max_depth=1,
+        )
+        if not evidence["items"]:
+            return None
+        snapshot_hash = "sha256:" + hashlib.sha256(
+            self._canonical_json(evidence["items"]).encode("utf-8")
+        ).hexdigest()
+        input_payload = {
+            "_contract": {
+                "provider_id": "hermes",
+                "input_snapshot_hash": snapshot_hash,
+                "evidence_item_ids": [str(item["id"]) for item in evidence["items"]],
+                "evidence_limits": {"max_items": 20, "max_bytes": 32_000, "max_depth": 1},
+                "attach_summary": True,
+            }
+        }
+        return self.request_inference_task(
+            "summarize_session", subject_type="session",
+            subject_id=str(session["external_session_id"]), input_payload=input_payload,
+            requested_by="automatic-session-finalization",
+            idempotency_key=f"auto-summary:{session['id']}:v{len(prior_tasks) + 1}", provider_id="hermes",
+        )
+
+    def enqueue_missing_memory_classifications(self, *, limit: int = 5) -> int:
+        """Backfill bounded PARA tasks for eligible memories written before auto-queueing."""
+        bounded = max(1, min(int(limit), 100))
+        if not self.features["inference"]:
+            return 0
+        with self._lock:
+            rows = self._connection.execute(
+                """SELECT m.id, m.content_hash FROM memories m
+                   WHERE m.status IN ('candidate','active','confirmed')
+                     AND m.derivation_family != 'summary'
+                     AND NOT EXISTS (
+                         SELECT 1 FROM memory_inference_tasks t
+                         WHERE t.task_type = 'classify_para' AND t.subject_type = 'memory'
+                           AND t.subject_id = m.id
+                     )
+                   ORDER BY m.created_at, m.id LIMIT ?""",
+                (bounded,),
+            ).fetchall()
+            created = 0
+            for row in rows:
+                task_id = f"auto-classify:{row['id']}:{str(row['content_hash']).removeprefix('sha256:')}"
+                task_input = {"source_content_hash": row["content_hash"], "_contract": {"provider_id": "hermes"}}
+                cursor = self._connection.execute(
+                    """INSERT OR IGNORE INTO memory_inference_tasks(
+                        id, task_type, status, subject_type, subject_id, input_json, requested_by
+                    ) VALUES (?, 'classify_para', 'pending', 'memory', ?, ?, 'automatic-memory-backfill')""",
+                    (task_id, row["id"], self._canonical_json(task_input)),
+                )
+                created += int(cursor.rowcount == 1)
+        return created
+
+    def enqueue_missing_session_summaries(self, *, limit: int = 1) -> int:
+        """Backfill a small number of ended, identity-bound sessions without summaries."""
+        bounded = max(1, min(int(limit), 20))
+        with self._lock:
+            rows = self._connection.execute(
+                """SELECT s.external_session_id FROM sessions s
+                   WHERE s.ended_at IS NOT NULL AND s.summary_memory_id IS NULL
+                     AND s.agent_id IS NOT NULL
+                     AND (SELECT COUNT(*) FROM memory_inference_tasks t
+                          WHERE t.task_type = 'summarize_session' AND t.subject_type = 'session'
+                            AND t.subject_id = s.external_session_id) < 3
+                     AND NOT EXISTS (
+                         SELECT 1 FROM memory_inference_tasks t
+                         WHERE t.task_type = 'summarize_session' AND t.subject_type = 'session'
+                           AND t.subject_id = s.external_session_id AND t.status IN ('pending','claimed')
+                     )
+                   ORDER BY s.ended_at DESC LIMIT ?""",
+                (bounded,),
+            ).fetchall()
+        return sum(self.enqueue_session_summary(str(row["external_session_id"])) is not None for row in rows)
 
     def session_memories(
         self, external_session_id: str, *, limit: int = 1000
@@ -3533,7 +3728,7 @@ class GraphStore:
         with self._lock:
             rows = self._connection.execute(
                 "SELECT id, session_id, created_at FROM otel_events WHERE created_at < datetime('now', ?) "
-                "ORDER BY rowid LIMIT ?", (cutoff, bounded),
+                "ORDER BY created_at, rowid LIMIT ?", (cutoff, bounded),
             ).fetchall()
             ids = [row["id"] for row in rows]
             if apply and ids:
@@ -4987,6 +5182,7 @@ class GraphStore:
         # is the fail-closed gate.
         extraction_items: list[dict[str, object]] | None = None
         extraction_source_hash: str | None = None
+        summary_memory_id: str | None = None
         if error is None and task["task_type"] in _EXTRACTION_PROPOSAL_TASK_TYPES:
             kind = "entities" if task["task_type"] == "extract_entities" else "relations"
             try:
@@ -5044,6 +5240,32 @@ class GraphStore:
         elif task["task_type"] == "summarize_session" and error is None:
             try:
                 self._validate_session_summary_output(task, output_payload or {})
+                contract = (task.get("input") or {}).get("_contract") or {}
+                if contract.get("attach_summary"):
+                    session = self.get_session(str(task["subject_id"]))
+                    if not session.get("ended_at"):
+                        raise ValueError("session summaries can only attach to closed sessions")
+                    if not session.get("summary_memory_id"):
+                        summary = self.store_memory(
+                            str((output_payload or {})["summary"]).strip(),
+                            source={
+                                "kind": "inferred_session_summary",
+                                "session_id": str(session["external_session_id"]),
+                                "runtime": "cortex_inference",
+                                "task_id": task_id,
+                                "confidence": float((output_payload or {}).get("confidence", 0.0)),
+                                "evidence_ids": list((output_payload or {}).get("evidence_ids") or []),
+                            },
+                            status="candidate",
+                            idempotency_key=(
+                                f"session-summary-inference:{session['id']}:"
+                                f"{str(((task.get('input') or {}).get('_contract') or {}).get('input_snapshot_hash') or '')}"
+                            ),
+                            evidence_class="summary",
+                        )
+                        summary_memory_id = str(summary["id"])
+                    else:
+                        summary_memory_id = str(session["summary_memory_id"])
             except Exception as exc:
                 error = str(exc)
                 failure_class = failure_class or "validation"
@@ -5113,6 +5335,15 @@ class GraphStore:
                     self._insert_para_proposal(task, output_payload or {})
                 elif task["task_type"] == "extract_memory_metadata" and error is None:
                     self._merge_inferred_metadata(task, output_payload or {})
+                elif task["task_type"] == "summarize_session" and error is None and summary_memory_id:
+                    cursor = self._connection.execute(
+                        "UPDATE sessions SET summary_memory_id = ? WHERE external_session_id = ? AND ended_at IS NOT NULL AND summary_memory_id IS NULL",
+                        (summary_memory_id, str(task["subject_id"])),
+                    )
+                    if cursor.rowcount == 0:
+                        current_session = self.get_session(str(task["subject_id"]))
+                        if current_session.get("summary_memory_id") != summary_memory_id:
+                            raise ValueError("session summary could not be attached to its source session")
                 elif extraction_items is not None:
                     self._insert_extraction_proposals(task, extraction_items, source_content_hash=str(extraction_source_hash))
                 self._connection.execute("COMMIT")

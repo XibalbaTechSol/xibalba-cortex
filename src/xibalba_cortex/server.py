@@ -292,6 +292,9 @@ def memory_hybrid_retrieve(
         scoped_filters["agent_id"] = _storage_agent_id(bound)
     elif current_principal() is not None:
         scoped_filters.pop("agent_id", None)
+    if query_vector is None:
+        from .embedding_client import embed_query
+        query_vector = embed_query(query)
     return get_store().hybrid_retrieve(
         query, query_vector=query_vector, limit=limit, temporal_at=temporal_at,
         filters=scoped_filters, max_per_source=max_per_source, max_total_chars=max_total_chars,
@@ -312,6 +315,9 @@ def memory_context_assemble(
         scoped_filters["agent_id"] = _storage_agent_id(bound)
     elif current_principal() is not None:
         scoped_filters.pop("agent_id", None)
+    if query_vector is None:
+        from .embedding_client import embed_query
+        query_vector = embed_query(query)
     return get_store().assemble_context(
         query, query_vector=query_vector, limit=limit, temporal_at=temporal_at,
         max_total_chars=max_total_chars, filters=scoped_filters,
@@ -366,9 +372,12 @@ def memory_decide_extraction_proposal(
 
 @server.tool()
 def memory_recall(
-    query: str, query_vector: list[float] | None = None, limit: int = 10
+    query: str, query_vector: list[float] | None = None, limit: int = 10,
+    statuses: list[str] | None = None,
 ) -> list[dict[str, object]]:
-    f"""Recall active/confirmed memories. {_UNTRUSTED_EVIDENCE_NOTE}
+    f"""Recall active/confirmed memories by default. Set statuses=["candidate"] to explicitly
+    inspect newly written, unreviewed memories; quarantined and forgotten records are never
+    returned. {_UNTRUSTED_EVIDENCE_NOTE}
 
     Lexical-only (FTS5/BM25) unless query_vector is supplied, in which case it's fused with
     vector similarity via Reciprocal Rank Fusion. This server never computes embeddings itself
@@ -378,7 +387,10 @@ def memory_recall(
     fused rank, not just the rank itself.
     """
     bound = _bound_agent_id(require=current_principal() is not None)
-    return get_store().search(query, query_vector=query_vector, limit=limit, agent_id=_storage_agent_id(bound))
+    return get_store().search(
+        query, query_vector=query_vector, limit=limit, agent_id=_storage_agent_id(bound),
+        statuses=statuses,
+    )
 
 
 @server.tool()

@@ -84,11 +84,40 @@ class TelemetryOutbox:
             );
             CREATE INDEX IF NOT EXISTS idx_outbox_delivery_claim
                 ON outbox_deliveries(destination, status, available_at, updated_at);
+            CREATE INDEX IF NOT EXISTS idx_outbox_delivery_terminal
+                ON outbox_deliveries(status, updated_at, event_id);
             """
         )
+        self.prune_terminal(limit=1000)
 
     def close(self) -> None:
         self.connection.close()
+
+    def prune_terminal(self, *, max_age_days: int = 1, limit: int = 1000, now: float | None = None) -> dict[str, int]:
+        """Prune old terminal delivery receipts in bounded batches; retain active retries."""
+        if max_age_days < 1 or limit < 1:
+            raise ValueError("max_age_days and limit must be positive")
+        cutoff = (time.time() if now is None else now) - max_age_days * 86400
+        bounded = min(int(limit), 5000)
+        self.connection.execute("BEGIN IMMEDIATE")
+        try:
+            removed_deliveries = self.connection.execute(
+                "DELETE FROM outbox_deliveries WHERE rowid IN ("
+                "SELECT rowid FROM outbox_deliveries WHERE status IN ('acked','dead_letter') "
+                "AND updated_at < ? ORDER BY updated_at, rowid LIMIT ?)",
+                (cutoff, bounded),
+            ).rowcount
+            removed_events = self.connection.execute(
+                "DELETE FROM outbox_events WHERE event_id IN ("
+                "SELECT e.event_id FROM outbox_events e LEFT JOIN outbox_deliveries d "
+                "ON d.event_id=e.event_id WHERE d.event_id IS NULL LIMIT ?)",
+                (bounded,),
+            ).rowcount
+            self.connection.execute("COMMIT")
+        except Exception:
+            self.connection.execute("ROLLBACK")
+            raise
+        return {"deliveries": max(0, removed_deliveries), "events": max(0, removed_events)}
 
     def _validate_event(self, event: Mapping[str, Any]) -> tuple[str, str, int, str]:
         required = {"event_id", "schema_version", "session_id"}

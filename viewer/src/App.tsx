@@ -80,7 +80,7 @@ import { ProvenanceTab } from './ProvenancePanels'
 import { MermaidDiagram } from './components/MermaidDiagram'
 import './index.css'
 
-type Tab = 'overview' | 'agents' | 'explorer' | 'timeline' | 'graph' | 'recall' | 'inference' | 'audit' | 'operations' | 'settings'
+type Tab = 'overview' | 'agents' | 'explorer' | 'timeline' | 'graph' | 'recall' | 'inference' | 'provenance' | 'audit' | 'operations' | 'settings'
 type GraphFilterIntent = { nonce: number; status?: string; evidence?: string }
 // The API returns a bounded memory sample plus relation endpoints. Keep the canvas projection
 // intentionally small enough that session changes remain interactive; Recall remains the path
@@ -96,6 +96,7 @@ const tabs: Array<{ id: Tab; label: string; icon: React.ComponentType<{ size?: n
   { id: 'graph', label: 'Graph', icon: Network },
   { id: 'recall', label: 'Search & Retrieval', icon: Search },
   { id: 'inference', label: 'Inference', icon: Cpu },
+  { id: 'provenance', label: 'Provenance', icon: GitFork },
   { id: 'audit', label: 'Audit Log', icon: GitFork },
   { id: 'operations', label: 'Operations', icon: Sliders },
 ]
@@ -1060,7 +1061,7 @@ function CortexOverview({
             </div>
           </div>
           <b className="metric-number">
-            {stats ? stats.memories.toLocaleString() : <Skeleton width={64} height={32} />}
+            {stats ? (stats.memories === null ? 'Not counted' : stats.memories.toLocaleString()) : <Skeleton width={64} height={32} />}
           </b>
           <div className="metric-footer">
             <span className="metric-badge primary">
@@ -2156,7 +2157,7 @@ function AgentWorkspacesTab({ workspaces, selectedAgentId, onSelect, onRefresh, 
       const isBusy = busyDeviceId === workspace.device_id
       return <article className={`overview-card agent-workspace-card ${selectedAgentId === workspace.agent_id && (!selected || (selected.agentId === workspace.agent_id && selected.deviceId === workspace.device_id)) ? 'selected' : ''}`} key={`${workspace.agent_id}:${workspace.device_id || 'agent'}`}>
         <button type="button" className="workspace-select" onClick={() => choose(workspace)} aria-label={`View ${workspace.device_name || workspace.device_id || workspace.agent_id}`}>
-          <div className="card-icon"><ShieldCheck size={18} /></div><h3>{workspace.device_name || workspace.agent_name || 'Agent workspace'}</h3><p className="mono">{workspace.agent_id}</p><p>{workspace.device_id || 'Agent-wide historical namespace'}</p><div className="card-meta"><span>{workspace.memories} memories</span><span>{workspace.sessions} sessions</span>{workspace.pair_status && <Badge>{workspace.pair_status}</Badge>}{workspace.on_chain !== undefined && (workspace.identity_verified ? <Badge>{workspace.on_chain ? 'on-chain' : 'off-chain'}</Badge> : <span className="badge badge-unverified" title="Integrity oracle was unreachable; on-chain status could not be confirmed.">status unverified</span>)}{workspace.identity_verified && workspace.wallet_address && <span className="mono" title={workspace.wallet_address}>{workspace.wallet_address.slice(0, 6)}…{workspace.wallet_address.slice(-4)}</span>}</div>
+          <div className="card-icon"><ShieldCheck size={18} /></div><h3>{workspace.device_name || workspace.agent_name || 'Agent workspace'}</h3><p className="mono">{workspace.agent_id}</p><p>{workspace.device_id || 'Agent-wide historical namespace'}</p><div className="card-meta"><span>{workspace.memories_counted === false ? 'memory count not loaded' : `${workspace.memories} memories`}</span><span>{workspace.sessions} sessions</span>{workspace.pair_status && <Badge>{workspace.pair_status}</Badge>}{workspace.on_chain !== undefined && (workspace.identity_verified ? <Badge>{workspace.on_chain ? 'on-chain' : 'off-chain'}</Badge> : <span className="badge badge-unverified" title="Integrity oracle was unreachable; on-chain status could not be confirmed.">status unverified</span>)}{workspace.identity_verified && workspace.wallet_address && <span className="mono" title={workspace.wallet_address}>{workspace.wallet_address.slice(0, 6)}…{workspace.wallet_address.slice(-4)}</span>}</div>
         </button>
         {managed && <div className="pair-actions">
           {editingDeviceId === workspace.device_id ? <><input aria-label={`New name for ${workspace.device_id}`} value={nameDraft} onChange={(event) => setNameDraft(event.target.value)} /><button disabled={isBusy || !nameDraft.trim()} onClick={() => manage(workspace.device_id!, 'rename')}>Save</button><button onClick={() => setEditingDeviceId('')}>Cancel</button></> : <button onClick={() => { setEditingDeviceId(workspace.device_id!); setNameDraft(workspace.device_name || workspace.device_id!) }}>Rename</button>}
@@ -2234,12 +2235,15 @@ function AuthenticatedApp() {
   const [refreshing, setRefreshing] = useState(false)
 
   const agentOptions = useMemo(() => {
-    const agents = new Map<string, { label: string; memories: number }>()
+    const agents = new Map<string, { label: string; memories: number | null }>()
     agentWorkspaces.forEach((workspace) => {
       const current = agents.get(workspace.agent_id)
+      const counted = workspace.memories_counted !== false
       agents.set(workspace.agent_id, {
         label: current?.label || workspace.agent_name || workspace.agent_id,
-        memories: (current?.memories ?? 0) + workspace.memories,
+        memories: !counted || current?.memories === null
+          ? null
+          : (current?.memories ?? 0) + workspace.memories,
       })
     })
     return [...agents.entries()].map(([id, value]) => ({ id, ...value }))
@@ -2685,7 +2689,7 @@ function AuthenticatedApp() {
             {stats && selectedAgentId && (
               <div className="top-telemetry-badge">
                 <span className="telemetry-live-dot" />
-                <span>{(agentOptions.find((agent) => agent.id === selectedAgentId)?.memories ?? 0).toLocaleString()} memories</span>
+                <span>{agentOptions.find((agent) => agent.id === selectedAgentId)?.memories?.toLocaleString() ?? 'Memory count not loaded'}</span>
                 <span className="badge-divider">·</span>
                 <span>{sessions.length.toLocaleString()} sessions</span>
               </div>
@@ -2701,7 +2705,7 @@ function AuthenticatedApp() {
                 disabled={agentOptions.length === 0}
               >
                 {agentOptions.length === 0 ? <option value="">No registered agents</option> : agentOptions.map((agent) => (
-                  <option value={agent.id} key={agent.id}>{agent.label} · {agent.memories.toLocaleString()} memories</option>
+                  <option value={agent.id} key={agent.id}>{agent.label} · {agent.memories?.toLocaleString() ?? 'count not loaded'}</option>
                 ))}
               </select>
             </label>
@@ -2731,7 +2735,7 @@ function AuthenticatedApp() {
             <CortexOverview
               stats={stats ? {
                 ...stats,
-                memories: agentOptions.find((agent) => agent.id === selectedAgentId)?.memories ?? 0,
+                memories: agentOptions.find((agent) => agent.id === selectedAgentId)?.memories ?? null,
                 sessions: sessions.length,
               } : null}
               status={storeStatus}
@@ -2817,6 +2821,23 @@ function AuthenticatedApp() {
                 onSelectMemory={selectMemory}
               />
             </>
+          )}
+          {activeTab === 'provenance' && (
+            <ProvenanceTab
+              proposals={extractionProposals}
+              status={extractionProposalStatus}
+              onStatusChange={setExtractionProposalStatus}
+              onDecision={async (proposalId, decision) => {
+                try {
+                  await api.decideExtractionProposal(proposalId, decision, 'viewer')
+                  setExtractionProposals(await api.extractionProposals(extractionProposalStatus))
+                  setNotice(`Extraction proposal ${decision === 'accept' ? 'accepted' : 'dismissed'}.`)
+                } catch (e) {
+                  setError(String(e))
+                }
+              }}
+              onSelectMemory={selectMemory}
+            />
           )}
           {activeTab === 'operations' && (
             <OperationsTab operations={operations} onRefresh={() => api.operations().then(setOperations).catch((e) => setError(String(e)))} />

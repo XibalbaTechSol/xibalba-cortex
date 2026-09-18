@@ -76,6 +76,22 @@ def test_outbox_rejects_resource_limit_without_dropping_existing_data(tmp_path: 
     outbox.close()
 
 
+def test_terminal_retention_removes_old_acked_rows_but_keeps_pending(tmp_path: Path):
+    outbox = TelemetryOutbox(tmp_path / "retention.sqlite3")
+    outbox.enqueue(_event("acked"), destinations=("cortex",))
+    outbox.enqueue(_event("pending"), destinations=("cortex",))
+    claimed = outbox.claim("cortex", limit=1)
+    outbox.ack(claimed[0]["event_id"], "cortex", receipt={"stored": True})
+    outbox.connection.execute("UPDATE outbox_deliveries SET updated_at=0 WHERE event_id='acked'")
+
+    result = outbox.prune_terminal(now=2 * 86400)
+
+    assert result == {"deliveries": 1, "events": 1}
+    assert outbox.connection.execute("SELECT COUNT(*) FROM outbox_events WHERE event_id='pending'").fetchone()[0] == 1
+    assert outbox.connection.execute("SELECT COUNT(*) FROM outbox_deliveries WHERE event_id='pending' AND status='pending'").fetchone()[0] == 1
+    outbox.close()
+
+
 def test_failed_delivery_retries_then_dead_letters(tmp_path: Path):
     outbox = TelemetryOutbox(tmp_path / "outbox.sqlite3")
     outbox.enqueue(_event())

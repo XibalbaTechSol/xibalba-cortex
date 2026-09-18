@@ -89,7 +89,25 @@ def process_combined_tasks(
     claims: list[dict[str, Any]] = []
     entries: list[dict[str, Any]] = []
     for subject_id, tasks in list(grouped.items())[:limit]:
-        memory = store.get_memory(subject_id)
+        try:
+            memory = store.get_memory(subject_id)
+        except KeyError:
+            # Tasks intentionally have no FK to memories so audit history survives deletion.
+            # Permanently settle orphaned pending work instead of crashing the daemon cycle.
+            for task in tasks:
+                try:
+                    claimed = store.claim_inference_task(str(task["id"]), claimed_by=worker_id, provider_id="hermes")
+                except (KeyError, ValueError):
+                    continue
+                store.complete_inference_task(
+                    str(claimed["id"]),
+                    error=f"inference subject memory {subject_id!r} no longer exists",
+                    failure_class="permanent",
+                    dead_letter_reason="orphaned_memory_subject",
+                    claimed_by=worker_id,
+                    claim_token=str(claimed["claim_token"]),
+                )
+            continue
         subject_claims = []
         for task in tasks:
             try:

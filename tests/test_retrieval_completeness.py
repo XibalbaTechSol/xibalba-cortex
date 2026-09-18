@@ -48,6 +48,23 @@ def test_filters_narrow_results_by_evidence_class(tmp_path: Path):
     assert len(filtered["results"]) == 1
 
 
+def test_candidate_memories_are_readable_only_when_status_is_explicitly_requested(tmp_path: Path):
+    store = GraphStore(tmp_path)
+    target = store.store_memory(
+        "Read after write sentinel for candidate visibility.",
+        source={"kind": "test"}, status="candidate",
+    )
+    assert store.hybrid_retrieve("read after write sentinel", limit=5)["results"] == []
+    assert store.hybrid_retrieve(target["id"], limit=5)["results"] == []
+    result = store.hybrid_retrieve(
+        "read after write sentinel", limit=5, filters={"status": ["candidate"]},
+    )
+    assert result["results"][0]["id"] == target["id"]
+    assert result["results"][0]["status"] == "candidate"
+    assert store.search("read after write sentinel", statuses=["candidate"])[0]["id"] == target["id"]
+    assert store.search("read after write sentinel") == []
+
+
 def test_max_per_source_diversity_cap_records_degraded_drops(tmp_path: Path):
     store = GraphStore(tmp_path)
     for i in range(3):

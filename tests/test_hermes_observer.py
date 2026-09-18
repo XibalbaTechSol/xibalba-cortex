@@ -172,6 +172,21 @@ def test_extended_observer_hooks_capture_correlation_and_bound_payload_metadata(
     store.close()
 
 
+def test_observer_telemetry_alone_does_not_prove_native_prompt_response_capture(tmp_path):
+    store, adapter = _adapter(tmp_path)
+    adapter.on_session_start(session_id="observer-only")
+    adapter.pre_llm_call(session_id="observer-only", turn_id="turn-1", model="m", messages=[{"role": "user"}])
+    adapter.post_api_request(
+        session_id="observer-only", turn_id="turn-1", api_request_id="req-1",
+        model="m", provider="test", api_duration=0.01,
+    )
+
+    assert len(store.session_otel_events("observer-only")) == 2
+    assert store.session_memories("observer-only") == []
+    assert store.session_exchanges("observer-only") == []
+    store.close()
+
+
 def test_session_finalize_and_reset_are_observer_events_not_session_close(tmp_path):
     store, adapter = _adapter(tmp_path)
     adapter.on_session_start(session_id="s1")

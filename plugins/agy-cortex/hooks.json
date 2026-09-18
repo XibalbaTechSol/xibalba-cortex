@@ -1,8 +1,8 @@
 {
   "cortex-telemetry": {
-    "PreInvocation": [{"type": "command", "command": "XIBALBA_AGENT_ID=agy XIBALBA_CORTEX_HOME=/home/xibalba/.hermes/xibalba-cortex /home/xibalba/Projects/xibalba-cortex/.venv/bin/python -m xibalba_cortex.agy_hook_bridge PreInvocation", "timeout": 15}],
-    "PostInvocation": [{"type": "command", "command": "XIBALBA_AGENT_ID=agy XIBALBA_CORTEX_HOME=/home/xibalba/.hermes/xibalba-cortex /home/xibalba/Projects/xibalba-cortex/.venv/bin/python -m xibalba_cortex.agy_hook_bridge PostInvocation", "timeout": 15}],
-    "PostToolUse": [{"matcher": "*", "hooks": [{"type": "command", "command": "XIBALBA_AGENT_ID=agy XIBALBA_CORTEX_HOME=/home/xibalba/.hermes/xibalba-cortex /home/xibalba/Projects/xibalba-cortex/.venv/bin/python -m xibalba_cortex.agy_hook_bridge PostToolUse", "timeout": 15}]}],
-    "Stop": [{"type": "command", "command": "XIBALBA_AGENT_ID=agy XIBALBA_CORTEX_HOME=/home/xibalba/.hermes/xibalba-cortex /home/xibalba/Projects/xibalba-cortex/.venv/bin/python -m xibalba_cortex.agy_hook_bridge Stop", "timeout": 15}]
+    "PreInvocation": [{"type": "command", "command": "XIBALBA_AGENT_ID=did:integrity:b1a72980e8e45e97c7b92982a89b1963e470b45fa955c9bd245f046e1e32e39a XIBALBA_CORTEX_HOME=/home/xibalba/.hermes/xibalba-cortex-agy /home/xibalba/Projects/xibalba-cortex/.venv/bin/python -m xibalba_cortex.agy_hook_bridge PreInvocation", "timeout": 15}],
+    "PostInvocation": [{"type": "command", "command": "XIBALBA_AGENT_ID=did:integrity:b1a72980e8e45e97c7b92982a89b1963e470b45fa955c9bd245f046e1e32e39a XIBALBA_CORTEX_HOME=/home/xibalba/.hermes/xibalba-cortex-agy /home/xibalba/Projects/xibalba-cortex/.venv/bin/python -m xibalba_cortex.agy_hook_bridge PostInvocation", "timeout": 15}],
+    "PostToolUse": [{"matcher": "*", "hooks": [{"type": "command", "command": "XIBALBA_AGENT_ID=did:integrity:b1a72980e8e45e97c7b92982a89b1963e470b45fa955c9bd245f046e1e32e39a XIBALBA_CORTEX_HOME=/home/xibalba/.hermes/xibalba-cortex-agy /home/xibalba/Projects/xibalba-cortex/.venv/bin/python -m xibalba_cortex.agy_hook_bridge PostToolUse", "timeout": 15}]}],
+    "Stop": [{"type": "command", "command": "XIBALBA_AGENT_ID=did:integrity:b1a72980e8e45e97c7b92982a89b1963e470b45fa955c9bd245f046e1e32e39a XIBALBA_CORTEX_HOME=/home/xibalba/.hermes/xibalba-cortex-agy /home/xibalba/Projects/xibalba-cortex/.venv/bin/python -m xibalba_cortex.agy_hook_bridge Stop", "timeout": 15}]
   }
 }

@@ -7,6 +7,9 @@ from __future__ import annotations
 
 import argparse
 import logging
+import json
+import time
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from collections.abc import Iterable
 from typing import Any
 
@@ -109,19 +112,68 @@ def build_model(model_id: str = EMBEDDING_MODEL_ID) -> Any:
 def main(argv: Iterable[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Backfill xibalba-cortex memory embeddings")
     parser.add_argument("--home", default=None, help="xibalba-cortex home directory")
+    parser.add_argument("--additional-home", action="append", default=[], help="additional isolated profile store to index")
     parser.add_argument("--batch-size", type=int, default=16)
     parser.add_argument("--max-items", type=int, default=None)
     parser.add_argument("--dry-run", action="store_true")
+    parser.add_argument("--serve", action="store_true", help="serve query embeddings and continuously backfill")
+    parser.add_argument("--interval-seconds", type=int, default=60)
+    parser.add_argument("--port", type=int, default=8421)
     args = parser.parse_args(list(argv) if argv is not None else None)
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
-    store = GraphStore(args.home or __import__("pathlib").Path.home() / ".hermes" / "xibalba-cortex")
-    candidates = eligible_memories(store)
-    logger.info("eligible memories: %d", len(candidates))
+    homes = [args.home or __import__("pathlib").Path.home() / ".hermes" / "xibalba-cortex", *args.additional_home]
+    stores = [GraphStore(home) for home in homes]
+    candidates = sum(len(eligible_memories(store)) for store in stores)
+    logger.info("eligible memories across %d isolated stores: %d", len(stores), candidates)
     if args.dry_run:
         return 0
-    result = embed_memories(store, build_model(), batch_size=args.batch_size, max_items=args.max_items)
-    logger.info("embedding result: %s", result)
-    return 0 if result["failed"] == 0 else 1
+    model = build_model()
+    if args.serve:
+        if not 1 <= args.port <= 65535 or args.interval_seconds < 5:
+            parser.error("port must be valid and interval-seconds at least 5")
+        class Handler(BaseHTTPRequestHandler):
+            def do_POST(self) -> None:
+                if self.path != "/embed":
+                    self.send_error(404); return
+                try:
+                    size = int(self.headers.get("Content-Length", "0"))
+                    if size <= 0 or size > 32_768:
+                        self.send_error(413); return
+                    payload = json.loads(self.rfile.read(size))
+                    text = payload.get("text") if isinstance(payload, dict) else None
+                    if not isinstance(text, str) or not text or len(text) > 20_000:
+                        self.send_error(400); return
+                    vector = model.encode([text], normalize_embeddings=True)[0]
+                    vector = vector.tolist() if hasattr(vector, "tolist") else vector
+                    body = json.dumps({"vector": [float(v) for v in vector]}).encode()
+                    self.send_response(200); self.send_header("Content-Type", "application/json")
+                    self.send_header("Content-Length", str(len(body))); self.end_headers(); self.wfile.write(body)
+                except Exception:
+                    logger.exception("query embedding failed")
+                    self.send_error(503)
+            def log_message(self, fmt: str, *args: object) -> None:
+                logger.info("embedding http: " + fmt, *args)
+        httpd = ThreadingHTTPServer(("127.0.0.1", args.port), Handler)
+        import threading
+        def backfill() -> None:
+            while True:
+                try:
+                    for profile_store in stores:
+                        result = embed_memories(profile_store, model, batch_size=args.batch_size, max_items=args.max_items)
+                        logger.info("embedding backfill home=%s result=%s", profile_store.home, result)
+                except Exception:
+                    logger.exception("embedding backfill cycle failed")
+                time.sleep(args.interval_seconds)
+        threading.Thread(target=backfill, daemon=True, name="embedding-backfill").start()
+        logger.info("embedding sidecar listening on 127.0.0.1:%d", args.port)
+        try:
+            httpd.serve_forever()
+        except KeyboardInterrupt:
+            httpd.shutdown()
+        return 0
+    results = [embed_memories(profile_store, model, batch_size=args.batch_size, max_items=args.max_items) for profile_store in stores]
+    logger.info("embedding results: %s", results)
+    return 0 if all(result["failed"] == 0 for result in results) else 1
 
 
 if __name__ == "__main__":
