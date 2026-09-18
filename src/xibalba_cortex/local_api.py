@@ -745,7 +745,10 @@ def _make_handler(store: GraphStore, *, allowed_origins: frozenset[str],
                         # exchange.  This keeps the header selector a registration
                         # directory, rather than silently hiding an authorized
                         # namespace until memory ingestion happens.
-                        present = {str(item.get("agent_id")) for item in workspaces}
+                        present = {
+                            str(item.get("agent_id")) for item in workspaces
+                            if item.get("store_id") == _store_scope_id(store)
+                        }
                         for agent_id in authorized:
                             storage_id = store.storage_agent_id(agent_id) or agent_id
                             if storage_id in present:
@@ -981,6 +984,7 @@ def _make_handler(store: GraphStore, *, allowed_origins: frozenset[str],
                     if not attachment:
                         self._send_json(404, {"error": "attachment not found"})
                     else:
+                        _assert_memory_scope(attachment_store.get_memory(str(attachment["memory_id"])), principal, attachment_store)
                         locator = attachment["storage_locator"]
                         file_path = locator[7:] if locator.startswith("file://") else locator
                         import os

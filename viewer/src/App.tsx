@@ -82,7 +82,8 @@ import { ProvenanceTab } from './ProvenancePanels'
 import { MermaidDiagram } from './components/MermaidDiagram'
 import './index.css'
 
-type Tab = 'overview' | 'agents' | 'explorer' | 'timeline' | 'graph' | 'recall' | 'inference' | 'provenance' | 'audit' | 'operations' | 'settings'
+type Tab = 'overview' | 'agents' | 'explorer' | 'timeline' | 'graph' | 'recall' | 'inference' | 'audit' | 'operations' | 'settings'
+type WorkspaceArea = 'home' | 'memory' | 'sessions' | 'activity' | 'settings'
 type GraphFilterIntent = { nonce: number; status?: string; evidence?: string }
 // The API returns a bounded memory sample plus relation endpoints. Keep the canvas projection
 // intentionally small enough that session changes remain interactive; Recall remains the path
@@ -90,18 +91,31 @@ type GraphFilterIntent = { nonce: number; status?: string; evidence?: string }
 const GRAPH_RENDER_LIMIT = 1
 const GRAPH_SESSION_LIMIT = 20
 
-const tabs: Array<{ id: Tab; label: string; icon: React.ComponentType<{ size?: number; className?: string }> }> = [
-  { id: 'overview', label: 'Overview', icon: LayoutDashboard },
-  { id: 'agents', label: 'Agents', icon: ShieldCheck },
-  { id: 'explorer', label: 'Memory Explorer', icon: Database },
-  { id: 'timeline', label: 'Sessions', icon: MessageSquare },
-  { id: 'graph', label: 'Graph', icon: Network },
-  { id: 'recall', label: 'Search & Retrieval', icon: Search },
-  { id: 'inference', label: 'Inference', icon: Cpu },
-  { id: 'provenance', label: 'Provenance', icon: GitFork },
-  { id: 'audit', label: 'Audit Log', icon: GitFork },
-  { id: 'operations', label: 'Operations', icon: Sliders },
+const tabs: Array<{ id: WorkspaceArea; route: Tab; label: string; icon: React.ComponentType<{ size?: number; className?: string }> }> = [
+  { id: 'home', route: 'overview', label: 'Home', icon: LayoutDashboard },
+  { id: 'memory', route: 'explorer', label: 'Memory', icon: Database },
+  { id: 'sessions', route: 'timeline', label: 'Sessions', icon: MessageSquare },
+  { id: 'activity', route: 'inference', label: 'Activity', icon: Cpu },
+  { id: 'settings', route: 'agents', label: 'Settings', icon: Settings },
 ]
+
+const tabArea: Record<Tab, WorkspaceArea> = {
+  overview: 'home', agents: 'settings', explorer: 'memory', timeline: 'sessions', graph: 'memory', recall: 'memory',
+  inference: 'activity', audit: 'activity', operations: 'settings', settings: 'settings',
+}
+
+const areaViews: Partial<Record<WorkspaceArea, Array<{ route: Tab; label: string }>>> = {
+  memory: [{ route: 'explorer', label: 'Browse' }, { route: 'recall', label: 'Search' }, { route: 'graph', label: 'Graph' }],
+  activity: [{ route: 'inference', label: 'Inference' }, { route: 'audit', label: 'Integrity & review' }],
+  settings: [{ route: 'agents', label: 'Manage agents' }, { route: 'operations', label: 'Operations' }, { route: 'settings', label: 'Preferences' }],
+}
+
+const routeLabels: Record<Tab, string> = {
+  overview: 'Home', agents: 'Manage agents', explorer: 'Browse', timeline: 'Sessions', graph: 'Graph', recall: 'Search',
+  inference: 'Inference', audit: 'Integrity & review', operations: 'Operations', settings: 'Preferences',
+}
+
+const DEFAULT_GRAPH_FILTER_INTENT: GraphFilterIntent = { nonce: 0 }
 
 import { Badge, Hash, Skeleton, EmptyState, ToastContainer, useToast } from './components/shared'
 export { Badge, Hash, Skeleton, EmptyState, ToastContainer }
@@ -296,6 +310,8 @@ function Inspector({
 }) {
   const [memory, setMemory] = useState<Memory | null>(null)
   const [similar, setSimilar] = useState<SimilarHit[]>([])
+  const [similarError, setSimilarError] = useState<string | null>(null)
+  const [similarLoading, setSimilarLoading] = useState(false)
   const [neighbors, setNeighbors] = useState<EntityRelation[]>([])
   const [events, setEvents] = useState<MemoryEvent[]>([])
   const [otel, setOtel] = useState<OtelEvent[]>([])
@@ -309,6 +325,8 @@ function Inspector({
     if (!memoryId) return
     setMemory(null)
     setSimilar([])
+    setSimilarError(null)
+    setSimilarLoading(true)
     setNeighbors([])
     setEvents([])
     setOtel([])
@@ -317,7 +335,7 @@ function Inspector({
     setError(null)
     setConfirmingForget(false)
     api.memory(memoryId, scope).then(setMemory).catch((e) => setError(String(e)))
-    api.similar(memoryId, 10, scope).then(setSimilar).catch(() => setSimilar([]))
+    api.similar(memoryId, 10, scope).then(setSimilar).catch((e) => setSimilarError(String(e))).finally(() => setSimilarLoading(false))
     api.neighbors(memoryId, scope).then(setNeighbors).catch(() => setNeighbors([]))
     api.memoryEvents(memoryId, scope).then(setEvents).catch(() => setEvents([]))
     api.memoryOtel(memoryId, scope).then(setOtel).catch(() => setOtel([]))
@@ -434,8 +452,8 @@ function Inspector({
         ))}
       </Section>
 
-      <Section title="Similar" empty={similar.length === 0}>
-        {similar.map((hit) => (
+      <Section title="Similar" empty={!similarLoading && !similarError && similar.length === 0}>
+        {similarLoading ? <p className="small muted" role="status">Checking similar memories…</p> : similarError ? <p className="small muted" role="status">Similarity unavailable: {similarError.replace(/^Error:\s*/, '')}</p> : similar.map((hit) => (
           <button className="list-button" key={hit.memory.id} onClick={() => onSelectMemory(hit.memory.id)}>
             {hit.cosine_similarity.toFixed(2)} {hit.memory.content.slice(0, 90)}
           </button>
@@ -2121,6 +2139,8 @@ function SettingsTab({
 }
 
 function AgentWorkspacesTab({ workspaces, selectedAgentId, selectedStoreId, onSelect, onRefresh, onNotice, onError }: { workspaces: AgentWorkspace[]; selectedAgentId: string; selectedStoreId: string; onSelect: (agentId: string, storeId: string) => void; onRefresh: () => void; onNotice: (message: string) => void; onError: (message: string) => void }) {
+  const hasVerifiedStoreScope = (workspace: AgentWorkspace) => Boolean(workspace.store_id && workspace.profile_id && workspace.store_access && typeof workspace.writable === 'boolean')
+  const selectedWritable = workspaces.some(workspace => hasVerifiedStoreScope(workspace) && workspace.agent_id === selectedAgentId && workspace.store_id === selectedStoreId && workspace.writable === true)
   const [selected, setSelected] = useState<{ agentId: string; storeId: string; deviceId?: string | null } | null>(null)
   const [memories, setMemories] = useState<Memory[]>([])
   const [loading, setLoading] = useState(false)
@@ -2128,12 +2148,17 @@ function AgentWorkspacesTab({ workspaces, selectedAgentId, selectedStoreId, onSe
   const [nameDraft, setNameDraft] = useState('')
   const [busyDeviceId, setBusyDeviceId] = useState('')
   const choose = async (workspace: AgentWorkspace) => {
-    setSelected({ agentId: workspace.agent_id, storeId: workspace.store_id, deviceId: workspace.device_id })
+    if (!hasVerifiedStoreScope(workspace)) {
+      onError('This agent response is missing profile/store access metadata. Refresh the Cortex API before opening a scoped workspace.')
+      return
+    }
+    const storeId = workspace.store_id!
+    setSelected({ agentId: workspace.agent_id, storeId, deviceId: workspace.device_id })
     setLoading(true)
     try {
-      const result = await api.agentMemories(workspace.agent_id, workspace.device_id || undefined, 100, { agentId: workspace.agent_id, storeId: workspace.store_id })
+      const result = await api.agentMemories(workspace.agent_id, workspace.device_id || undefined, 100, { agentId: workspace.agent_id, storeId })
       setMemories(result.memories)
-      onSelect(workspace.agent_id, workspace.store_id)
+      onSelect(workspace.agent_id, storeId)
     } finally { setLoading(false) }
   }
   const manage = async (deviceId: string, action: 'rename' | 'detach' | 'revoke') => {
@@ -2160,19 +2185,20 @@ function AgentWorkspacesTab({ workspaces, selectedAgentId, selectedStoreId, onSe
   return <section className="resource agent-workspaces" aria-labelledby="agent-workspaces-title">
     <header className="section-heading"><div><p className="cortex-kicker">CANONICAL IDENTITY PARTITION</p><h2 id="agent-workspaces-title">Agent memory workspaces</h2><p>Every Cortex memory stays scoped by the exact registered agent ID and, when present, its Shield device. Historical records without that provenance remain unassigned.</p></div><span className="metric-badge info">{workspaces.length} namespaces</span></header>
     <form className="pair-association-form" onSubmit={associate}>
-      <label>Agent ID<input name="agent_id" required placeholder="did:integrity:…" /></label>
-      <label>Device ID<input name="device_id" required placeholder="device hostname or managed ID" /></label>
-      <label>Display name<input name="display_name" placeholder="Operator-friendly device name" /></label>
-      <button type="submit">Associate pair in primary profile</button>
+      <label>Agent ID<input name="agent_id" required placeholder="did:integrity:…" disabled={!selectedWritable} /></label>
+      <label>Device ID<input name="device_id" required placeholder="device hostname or managed ID" disabled={!selectedWritable} /></label>
+      <label>Display name<input name="display_name" placeholder="Operator-friendly device name" disabled={!selectedWritable} /></label>
+      <button type="submit" disabled={!selectedWritable}>Associate pair in primary profile</button>
+      {!selectedWritable && <p className="small muted" role="status">Select a writable primary-profile workspace with verified profile/store scope to manage agent/device pairs.</p>}
     </form>
     {workspaces.length === 0 ? <EmptyState icon="◈" title="No canonical agent memories yet" description="Associate a device above or ingest a memory carrying XIBALBA_AGENT_ID and XIBALBA_DEVICE_ID." /> : <div className="overview-card-grid">{workspaces.map((workspace) => {
       const managed = Boolean(workspace.device_id && workspace.pair_status)
       const isBusy = busyDeviceId === workspace.device_id
       return <article className={`overview-card agent-workspace-card ${selectedAgentId === workspace.agent_id && selectedStoreId === workspace.store_id ? 'selected' : ''}`} key={`${workspace.store_id}:${workspace.agent_id}:${workspace.device_id || 'agent'}`}>
-        <button type="button" className="workspace-select" onClick={() => choose(workspace)} aria-label={`View ${workspace.device_name || workspace.device_id || workspace.agent_id}`}>
-          <div className="card-icon"><ShieldCheck size={18} /></div><h3>{workspace.device_name || workspace.agent_name || 'Agent workspace'}</h3><p className="mono">{workspace.agent_id}</p><p>Profile store: {workspace.profile_id} · {workspace.store_access === 'read_only' ? 'read only' : 'writable'}</p><p>{workspace.device_id || 'Agent-wide historical namespace'}</p><div className="card-meta"><span>{workspace.memories_counted === false ? 'memory count not loaded' : `${workspace.memories} memories in this device partition`}</span><span>{workspace.sessions_counted === false ? 'session count not loaded' : `${workspace.sessions} sessions`}</span>{workspace.pair_status && <Badge>{workspace.pair_status}</Badge>}{workspace.on_chain !== undefined && (workspace.identity_verified ? <Badge>{workspace.on_chain ? 'on-chain' : 'off-chain'}</Badge> : <span className="badge badge-unverified" title="Integrity oracle was unreachable; on-chain status could not be confirmed.">status unverified</span>)}{workspace.identity_verified && workspace.wallet_address && <span className="mono" title={workspace.wallet_address}>{workspace.wallet_address.slice(0, 6)}…{workspace.wallet_address.slice(-4)}</span>}</div>
+        <button type="button" className="workspace-select" onClick={() => choose(workspace)} disabled={!hasVerifiedStoreScope(workspace)} aria-label={`View ${workspace.device_name || workspace.device_id || workspace.agent_id}`}>
+          <div className="card-icon"><ShieldCheck size={18} /></div><h3>{workspace.device_name || workspace.agent_name || 'Agent workspace'}</h3><p className="mono">{workspace.agent_id}</p><p>Profile store: {workspace.profile_id || 'unavailable'} · {workspace.store_access === 'read_only' || workspace.writable === false ? 'read only' : workspace.writable === true && hasVerifiedStoreScope(workspace) ? 'writable' : 'access unavailable'}</p><p>{workspace.device_id || 'Agent-wide historical namespace'}</p><div className="card-meta"><span>{workspace.memories_counted === true ? `${workspace.memories} memories · exact` : 'memory total not counted'}</span><span>{workspace.sessions_counted === true ? `${workspace.sessions} sessions · exact` : 'session total not counted'}</span>{workspace.pair_status && <Badge>{workspace.pair_status}</Badge>}{workspace.on_chain !== undefined && (workspace.identity_verified ? <Badge>{workspace.on_chain ? 'on-chain' : 'off-chain'}</Badge> : <span className="badge badge-unverified" title="Integrity oracle was unreachable; on-chain status could not be confirmed.">status unverified</span>)}{workspace.identity_verified && workspace.wallet_address && <span className="mono" title={workspace.wallet_address}>{workspace.wallet_address.slice(0, 6)}…{workspace.wallet_address.slice(-4)}</span>}</div>
         </button>
-        {managed && workspace.writable && <div className="pair-actions">
+        {managed && selectedWritable && selectedStoreId === workspace.store_id && hasVerifiedStoreScope(workspace) && workspace.writable === true && <div className="pair-actions">
           {editingDeviceId === workspace.device_id ? <><input aria-label={`New name for ${workspace.device_id}`} value={nameDraft} onChange={(event) => setNameDraft(event.target.value)} /><button disabled={isBusy || !nameDraft.trim()} onClick={() => manage(workspace.device_id!, 'rename')}>Save</button><button onClick={() => setEditingDeviceId('')}>Cancel</button></> : <button onClick={() => { setEditingDeviceId(workspace.device_id!); setNameDraft(workspace.device_name || workspace.device_id!) }}>Rename</button>}
           <button disabled={isBusy || workspace.pair_status === 'detached'} onClick={() => manage(workspace.device_id!, 'detach')}>Detach</button>
           <button className="danger" disabled={isBusy || workspace.pair_status === 'revoked'} onClick={() => { if (window.confirm(`Revoke ${workspace.device_name || workspace.device_id}? Existing memories remain preserved.`)) manage(workspace.device_id!, 'revoke') }}>Revoke</button>
@@ -2212,7 +2238,6 @@ function AuthenticatedApp() {
   const [sessionReplay, setSessionReplay] = useState<SessionReplay | null>(null)
   const [graph, setGraph] = useState<GraphPayload | null>(null)
   const [similarityThreshold, setSimilarityThreshold] = useState(0.75)
-  const [graphFilterIntent, setGraphFilterIntent] = useState<GraphFilterIntent>({ nonce: 0 })
   const [query, setQuery] = useState('')
   const [searchResults, setSearchResults] = useState<Memory[]>([])
   const [searchLoading, setSearchLoading] = useState(false)
@@ -2260,16 +2285,20 @@ function AuthenticatedApp() {
   const [refreshing, setRefreshing] = useState(false)
 
   const agentOptions = useMemo(() => {
-    const agents = new Map<string, { id: string; storeId: string; profileId: string; label: string; writable: boolean }>()
+    const agents = new Map<string, { id: string; storeId: string; profileId: string; label: string; writable: boolean; scopeVerified: boolean }>()
     agentWorkspaces.forEach((workspace) => {
-      const key = `${workspace.store_id}\0${workspace.agent_id}`
+      const storeId = workspace.store_id || ''
+      const profileId = workspace.profile_id || ''
+      const scopeVerified = Boolean(storeId && profileId && workspace.store_access && typeof workspace.writable === 'boolean')
+      const key = `${storeId}\0${workspace.agent_id}`
       const current = agents.get(key)
       agents.set(key, {
         id: workspace.agent_id,
-        storeId: workspace.store_id,
-        profileId: workspace.profile_id,
+        storeId,
+        profileId,
         label: current?.label || workspace.agent_name || workspace.agent_id,
-        writable: current?.writable === true || workspace.writable === true,
+        writable: scopeVerified && (current?.writable === true || workspace.writable === true),
+        scopeVerified: scopeVerified || current?.scopeVerified === true,
       })
     })
     return [...agents.values()]
@@ -2304,12 +2333,13 @@ function AuthenticatedApp() {
     api.integrityLinks().then(setIntegrityLinks).catch(() => setIntegrityLinks(null))
     api.agents().then((result) => {
       setAgentWorkspaces(result.agents)
-      const available = new Set(result.agents.map((item) => `${item.store_id}\0${item.agent_id}`))
+      const scopedAgents = result.agents.filter((item) => item.store_id && item.profile_id && item.store_access && typeof item.writable === 'boolean')
+      const available = new Set(scopedAgents.map((item) => `${item.store_id}\0${item.agent_id}`))
       const currentAgent = sessionStorage.getItem('xibalba-cortex.selected-agent') || ''
       const currentStore = sessionStorage.getItem('xibalba-cortex.selected-store') || ''
       const nextWorkspace = available.has(`${currentStore}\0${currentAgent}`)
-        ? result.agents.find((item) => item.store_id === currentStore && item.agent_id === currentAgent)
-        : result.agents[0]
+        ? scopedAgents.find((item) => item.store_id === currentStore && item.agent_id === currentAgent)
+        : scopedAgents[0]
       const nextAgent = nextWorkspace?.agent_id || ''
       const nextStore = nextWorkspace?.store_id || ''
       setSelectedAgentId(nextAgent)
@@ -2369,7 +2399,7 @@ function AuthenticatedApp() {
       setLastRefreshed(new Date())
     }).catch((e) => { if (!cancelled) setSessionsError(String(e)) })
     return () => { cancelled = true }
-  }, [selectedScope, similarityThreshold, refreshing])
+  }, [selectedAgentId, selectedScope, similarityThreshold, refreshing])
 
   const loadMoreSessions = useCallback(() => {
     if (!sessionsHasMore || !selectedAgentId) return
@@ -2487,22 +2517,6 @@ function AuthenticatedApp() {
     () => buildDemoGraph(graph, sessions, loadedSessionId, exchanges, root),
     [graph, sessions, loadedSessionId, exchanges, root],
   )
-  const railStatusCounts = useMemo(() => {
-    const counts = new Map<string, number>()
-    demoGraph.nodes.forEach((node) => {
-      const status = graphNodeStatus(node)
-      if (status) counts.set(status, (counts.get(status) ?? 0) + 1)
-    })
-    return [...counts.entries()].sort(([a], [b]) => a.localeCompare(b))
-  }, [demoGraph])
-  const railEvidenceCounts = useMemo(() => {
-    const counts = new Map<string, number>()
-    demoGraph.nodes.forEach((node) => {
-      const evidence = graphNodeEvidenceClass(node)
-      if (evidence) counts.set(evidence, (counts.get(evidence) ?? 0) + 1)
-    })
-    return [...counts.entries()].sort(([a], [b]) => a.localeCompare(b))
-  }, [demoGraph])
   const contradictionCounts = useMemo(() => {
     const counts = new Map<string, number>()
     demoGraph.edges.filter((edge) => edge.type === 'contradiction').forEach((edge) => {
@@ -2513,11 +2527,6 @@ function AuthenticatedApp() {
     })
     return counts
   }, [demoGraph])
-  const applyRailGraphFilter = (filter: Omit<GraphFilterIntent, 'nonce'>) => {
-    setGraphFilterIntent((current) => ({ ...filter, nonce: current.nonce + 1 }))
-    setActiveTab('graph')
-  }
-
   const selectMemory = (id: string) => {
     const rawId = id.startsWith('memory:') ? id.slice('memory:'.length) : id
     setSelectedMemoryId(rawId)
@@ -2658,6 +2667,10 @@ function AuthenticatedApp() {
     }
   }
 
+  const activeArea = tabArea[activeTab]
+  const activeAreaLabel = tabs.find((tab) => tab.id === activeArea)?.label ?? 'Home'
+  const activeAreaViews = areaViews[activeArea] ?? []
+
   return (
     <main className={`console ${isNavCollapsed ? 'nav-collapsed' : ''}`}>
       <aside className={`side ${isNavOpen ? 'open' : ''} ${isNavCollapsed ? 'collapsed' : ''}`}>
@@ -2677,15 +2690,15 @@ function AuthenticatedApp() {
           <button className="mobile-close-btn" onClick={() => setIsNavOpen(false)}>✕</button>
         </header>
         <nav className="side-nav">
-          <small className="nav-section-title">VIEWS</small>
+          <small className="nav-section-title">WORKSPACE</small>
           {tabs.map((tab) => {
             const Icon = tab.icon
-            const isActive = activeTab === tab.id
+            const isActive = activeArea === tab.id
             return (
               <button
                 key={tab.id}
                 className={`nav-tab-btn ${isActive ? 'active' : ''}`}
-                onClick={() => setActiveTab(tab.id)}
+                onClick={() => { setActiveTab(tab.route); setIsNavOpen(false) }}
                 title={tab.label}
               >
                 <Icon size={17} className="nav-icon" />
@@ -2693,34 +2706,6 @@ function AuthenticatedApp() {
               </button>
             )
           })}
-          <small className="nav-section-title">LIFECYCLE</small>
-          {railStatusCounts.map(([status, count]) => (
-            <button
-              className={`nav-rail-btn ${graphFilterIntent.status === status ? 'active' : ''}`}
-              key={status}
-              onClick={() => applyRailGraphFilter({ status })}
-              type="button"
-              title={`${status} (${count})`}
-            >
-              <span className={`rail-status-dot ${status}`} />
-              <span className="nav-label">{status}</span>
-              <i className="rail-count">{count}</i>
-            </button>
-          ))}
-          <small className="nav-section-title">EVIDENCE</small>
-          {railEvidenceCounts.map(([evidence, count]) => (
-            <button
-              className={`nav-rail-btn ${graphFilterIntent.evidence === evidence ? 'active' : ''}`}
-              key={evidence}
-              onClick={() => applyRailGraphFilter({ evidence })}
-              type="button"
-              title={`${evidence} (${count})`}
-            >
-              <span className="rail-evidence-icon">◇</span>
-              <span className="nav-label">{evidence}</span>
-              <i className="rail-count">{count}</i>
-            </button>
-          ))}
         </nav>
         <div className={`operator ${activeTab === 'settings' ? 'active' : ''}`}>
           <button
@@ -2737,15 +2722,6 @@ function AuthenticatedApp() {
             </div>
           </button>
           <div className="operator-actions">
-            <button
-              type="button"
-              className={`operator-action-btn ${activeTab === 'settings' ? 'active' : ''}`}
-              title="Settings"
-              aria-label="Settings"
-              onClick={() => setActiveTab('settings')}
-            >
-              <Settings size={14} />
-            </button>
             <button
               type="button"
               className="operator-action-btn signout"
@@ -2776,7 +2752,7 @@ function AuthenticatedApp() {
             <div className="top-breadcrumbs">
               <span className="breadcrumb-brand">Xibalba Cortex</span>
               <span className="breadcrumb-sep">/</span>
-              <span className="breadcrumb-tab">{tabs.find(t => t.id === activeTab)?.label || (activeTab === 'settings' ? 'Settings' : 'Overview')}</span>
+              <span className="breadcrumb-tab">{activeAreaLabel}{routeLabels[activeTab] !== activeAreaLabel ? ` · ${routeLabels[activeTab]}` : ''}</span>
             </div>
             {stats && selectedAgentId && (
               <div className="top-telemetry-badge">
@@ -2800,13 +2776,13 @@ function AuthenticatedApp() {
                 disabled={agentOptions.length === 0}
               >
                 {agentOptions.length === 0 ? <option value="">No registered agents</option> : agentOptions.map((agent) => (
-                  <option value={`${agent.storeId}\0${agent.id}`} key={`${agent.storeId}:${agent.id}`}>{agent.label} · {agent.profileId} · {agent.writable ? 'writable' : 'read only'}</option>
+                  <option value={`${agent.storeId}\0${agent.id}`} key={`${agent.storeId}:${agent.id}`} disabled={!agent.scopeVerified}>{agent.label} · {agent.profileId || 'scope unavailable'} · {!agent.scopeVerified ? 'scope unavailable' : agent.writable ? 'writable' : 'read only'}</option>
                 ))}
               </select>
             </label>
             {selectedAgentId && <span className="workspace-source-indicator" title={`Source profile ${agentOptions.find((agent) => agent.id === selectedAgentId && agent.storeId === selectedStoreId)?.profileId || 'unknown'}`}>
               {agentOptions.find((agent) => agent.id === selectedAgentId && agent.storeId === selectedStoreId)?.profileId || 'Profile unavailable'}
-              {canWriteSelectedAgent ? ' · writable' : ' · read only'}
+              {agentOptions.find((agent) => agent.id === selectedAgentId && agent.storeId === selectedStoreId)?.scopeVerified ? (canWriteSelectedAgent ? ' · writable' : ' · read only') : ' · store scope unavailable'}
             </span>}
             <button
               className="refresh-tool-btn"
@@ -2830,6 +2806,16 @@ function AuthenticatedApp() {
 
 
         <div className="content">
+          {activeAreaViews.length > 0 && <nav className="workspace-subnav" aria-label={`${activeAreaLabel} views`}>
+            {activeAreaViews.map((view) => <button
+              key={view.route}
+              type="button"
+              className={activeTab === view.route ? 'active' : ''}
+              aria-current={activeTab === view.route ? 'page' : undefined}
+              onClick={() => setActiveTab(view.route)}
+            >{view.label}</button>)}
+            {activeTab === 'inference' && operations?.features.inference === false && <span className="workspace-subnav-note">Inference disabled by policy</span>}
+          </nav>}
           {activeTab === 'overview' && (
             <CortexOverview
               stats={stats ? {
@@ -2872,7 +2858,7 @@ function AuthenticatedApp() {
               graph={demoGraph}
               selectedNodeId={selectedGraphNode?.id ?? null}
               similarityThreshold={similarityThreshold}
-              filterIntent={graphFilterIntent}
+              filterIntent={DEFAULT_GRAPH_FILTER_INTENT}
               onSimilarityThresholdChange={setSimilarityThreshold}
               onSelectNode={selectGraphNode}
               onSelectMemory={selectMemory}
@@ -2897,6 +2883,7 @@ function AuthenticatedApp() {
             <>
               <InferenceTab
                 manifest={manifest}
+                inferenceEnabled={operations?.features.inference ?? null}
                 tasks={tasks}
                 taskError={inferenceError}
                 taskLoading={inferenceLoading}
@@ -2929,23 +2916,6 @@ function AuthenticatedApp() {
                 onSelectMemory={selectMemory}
               />
             </>
-          )}
-          {activeTab === 'provenance' && (
-            <ProvenanceTab
-              proposals={extractionProposals}
-              status={extractionProposalStatus}
-              onStatusChange={setExtractionProposalStatus}
-              onDecision={async (proposalId, decision) => {
-                try {
-                  await api.decideExtractionProposal(proposalId, decision, 'viewer')
-                  setExtractionProposals(await api.extractionProposals(extractionProposalStatus))
-                  setNotice(`Extraction proposal ${decision === 'accept' ? 'accepted' : 'dismissed'}.`)
-                } catch (e) {
-                  setError(String(e))
-                }
-              }}
-              onSelectMemory={selectMemory}
-            />
           )}
           {activeTab === 'operations' && (
             <OperationsTab operations={operations} onRefresh={() => api.operations().then(setOperations).catch((e) => setError(String(e)))} />
@@ -3136,7 +3106,7 @@ function TimelineTab({
             </span>
           )}
 
-          {exchanges.length === 0 && selectedSessionId && (
+          {exchanges.length === 0 && selectedSessionId && canWrite && (
             <button
               type="button"
               className="build-exchanges-btn"
@@ -4336,6 +4306,7 @@ function ParaPanel({
 
 function InferenceTab({
   manifest,
+  inferenceEnabled,
   tasks,
   taskError,
   taskLoading,
@@ -4352,6 +4323,7 @@ function InferenceTab({
   onWriteBack,
 }: {
   manifest: InferenceManifest | null
+  inferenceEnabled: boolean | null
   tasks: InferenceTask[]
   taskError: string | null
   taskLoading: boolean
@@ -4444,7 +4416,7 @@ function InferenceTab({
         </div>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(320px, 1fr) minmax(420px, 1.5fr)', gap: '16px' }}>
+      <div className="inference-layout-grid">
         {/* Left Card: Manifest & Queue Actions */}
         <section className="overview-card">
           <header className="overview-card-header">
@@ -4467,6 +4439,7 @@ function InferenceTab({
             </select>
           </header>
           <div className="overview-card-body">
+            {inferenceEnabled === false && <div className="empty-state warning-state" role="status"><h4>Inference is disabled for this store</h4><p>Existing task records may still be reviewed, but new work cannot be queued. Check Operations → Features to understand the store setting.</p></div>}
             {manifest && (
               <div className="manifest" style={{ marginBottom: '16px' }}>
                 <p style={{ fontWeight: 600, color: '#fff', margin: '0 0 6px 0', fontSize: '13px' }}>{manifest.role}</p>
@@ -4566,8 +4539,8 @@ function InferenceTab({
               <div className="empty-state" role="status"><h4>Loading inference activity…</h4></div>
             ) : filteredTasks.length === 0 ? (
               <div className="empty-state">
-                <h4>No {taskStatus} tasks {taskSearch ? 'matching query' : ''}</h4>
-                <p>Use the queue controls on the left to dispatch a memory or session to background inference.</p>
+                <h4>{taskError ? 'No cached tasks match this filter' : `No ${taskStatus} tasks ${taskSearch ? 'matching query' : ''}`}</h4>
+                <p>{taskError ? `Refresh failed, so this result cannot establish that the store has no matching tasks. ${taskError}` : 'Use the queue controls on the left to dispatch a memory or session to background inference.'}</p>
               </div>
             ) : (
               <>
@@ -4605,7 +4578,7 @@ function InferenceTab({
                         Complete with operator-supplied demo output
                       </button>
                     </div>
-                    <WriteBackActions task={task} selectedMemoryId={selectedMemoryId} onWriteBack={onWriteBack} />
+                    <WriteBackActions task={task} selectedMemoryId={selectedMemoryId} canWrite={canWrite} onWriteBack={onWriteBack} />
                   </article>
                 ))}
               </div>
@@ -4621,10 +4594,12 @@ function InferenceTab({
 function WriteBackActions({
   task,
   selectedMemoryId,
+  canWrite,
   onWriteBack,
 }: {
   task: InferenceTask
   selectedMemoryId: string | null
+  canWrite: boolean
   onWriteBack: (action: string, payload: Record<string, unknown>) => void
 }) {
   const [isOpen, setIsOpen] = useState(false)
@@ -4688,6 +4663,7 @@ function WriteBackActions({
     setIsOpen(false)
   }
 
+  if (!canWrite) return null
   if (!isOpen) {
     return (
       <div style={{ marginTop: '6px' }}>
@@ -5023,15 +4999,14 @@ function AuditLogTab(props: {
   onDecision: (proposalId: string, decision: 'accept' | 'dismiss') => void
   onSelectMemory: (memoryId: string) => void
 }) {
-  const [section, setSection] = useState<'all' | 'chain' | 'extraction'>('all')
+  const [section, setSection] = useState<'chain' | 'extraction'>('chain')
   return (
     <div>
       <div className="settings-subnav" style={{ marginBottom: '20px' }}>
-        <button type="button" className={`settings-subnav-btn ${section === 'all' ? 'active' : ''}`} onClick={() => setSection('all')}>All</button>
-        <button type="button" className={`settings-subnav-btn ${section === 'chain' ? 'active' : ''}`} onClick={() => setSection('chain')}>Chain & Store Lineage</button>
-        <button type="button" className={`settings-subnav-btn ${section === 'extraction' ? 'active' : ''}`} onClick={() => setSection('extraction')}>Extraction & Retrieval Traces</button>
+        <button type="button" className={`settings-subnav-btn ${section === 'chain' ? 'active' : ''}`} onClick={() => setSection('chain')}>Store lineage</button>
+        <button type="button" className={`settings-subnav-btn ${section === 'extraction' ? 'active' : ''}`} onClick={() => setSection('extraction')}>Proposals & retrieval</button>
       </div>
-      {(section === 'all' || section === 'chain') && (
+      {section === 'chain' && (
         <IntegrityTab
           root={props.root}
           exchanges={props.exchanges}
@@ -5042,7 +5017,7 @@ function AuditLogTab(props: {
           setSelectedSessionId={props.setSelectedSessionId}
         />
       )}
-      {(section === 'all' || section === 'extraction') && (
+      {section === 'extraction' && (
         <ProvenanceTab
           proposals={props.proposals}
           status={props.status}

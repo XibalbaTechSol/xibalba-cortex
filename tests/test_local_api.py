@@ -501,6 +501,83 @@ def test_operator_can_view_memories_from_a_readonly_profile_store(tmp_path):
         _CURRENT_TOKEN = None
 
 
+def test_workspace_store_scope_pins_memory_session_and_inference_reads(tmp_path):
+    global _CURRENT_TOKEN
+    root = GraphStore(tmp_path / "root", identity_mode="full")
+    quant_writer = GraphStore(tmp_path / "quant", identity_mode="full")
+    did = "did:integrity:shared-agent"
+    root_memory = root.store_memory(
+        "Root profile scoped memory.", source={"kind": "test", "agent_id": did}, status="confirmed"
+    )
+    quant_memory = quant_writer.store_memory(
+        "Quant profile scoped memory.", source={"kind": "test", "agent_id": did}, status="confirmed"
+    )
+    root_turn = root.ingest_agent_turn(
+        "same-session", runtime="test", prompt="Root session prompt", response="Root session reply", agent_id=did
+    )
+    quant_turn = quant_writer.ingest_agent_turn(
+        "same-session", runtime="test", prompt="Quant session prompt", response="Quant session reply", agent_id=did
+    )
+    root.request_inference_task(
+        "extract_memory_metadata", subject_type="memory", subject_id=root_memory["id"],
+        input_payload={"memory_id": root_memory["id"]}, idempotency_key="root-task",
+    )
+    quant_writer.request_inference_task(
+        "extract_memory_metadata", subject_type="memory", subject_id=quant_memory["id"],
+        input_payload={"memory_id": quant_memory["id"]}, idempotency_key="quant-task",
+    )
+    quant_writer.close()
+    quant_reader = GraphStore(tmp_path / "quant", profile_id="quant", identity_mode="full", readonly=True)
+    _CURRENT_TOKEN = issue_token(root.home, "operator", roles=("admin",), scopes=("memory:read", "memory:write"))
+    port = _free_test_port()
+    thread = threading.Thread(
+        target=serve, kwargs={"store": root, "port": port, "agent_stores": (quant_reader,)}, daemon=True
+    )
+    thread.start()
+    time.sleep(0.3)
+    try:
+        status, directory = _get(port, "/api/agents")
+        assert status == 200
+        workspaces = [row for row in directory["agents"] if row["agent_id"] == did]
+        assert len(workspaces) == 2
+        root_scope = next(row for row in workspaces if row["writable"])
+        quant_scope = next(row for row in workspaces if not row["writable"])
+        assert root_scope["store_id"] != quant_scope["store_id"]
+        assert root_scope["profile_id"] == "default"
+        assert quant_scope["profile_id"] == "quant"
+        assert root_scope["store_access"] == "writable"
+        assert quant_scope["store_access"] == "read_only"
+
+        for scope, expected, other, session_text in (
+            (root_scope, root_memory, quant_memory, "Root session"),
+            (quant_scope, quant_memory, root_memory, "Quant session"),
+        ):
+            query = f"agent_id={did}&store_id={scope['store_id']}"
+            status, page = _get(port, f"/api/memories?{query}&status=confirmed")
+            assert status == 200
+            page_ids = [row["id"] for row in page["memories"]]
+            assert expected["id"] in page_ids and other["id"] not in page_ids
+            status, sessions = _get(port, f"/api/sessions/page?{query}")
+            assert status == 200 and sessions["sessions"][0]["external_session_id"] == "same-session"
+            status, replay = _get(port, f"/api/session/same-session/replay?{query}")
+            assert status == 200
+            replay_content = [event["content"] for event in replay["events"]]
+            assert any(session_text in content for content in replay_content)
+            assert not any(("Quant session" if session_text.startswith("Root") else "Root session") in content for content in replay_content)
+            status, tasks = _get(port, f"/api/inference/tasks?{query}&status=pending")
+            assert status == 200
+            task_memory_ids = [task["subject_id"] for task in tasks if task["subject_type"] == "memory"]
+            assert expected["id"] in task_memory_ids and other["id"] not in task_memory_ids
+
+        status, unscoped = _get(port, f"/api/memories?agent_id={did}&status=confirmed")
+        assert status == 400
+        assert "store_id is required" in unscoped["error"]
+    finally:
+        quant_reader.close()
+        root.close()
+        _CURRENT_TOKEN = None
+
+
 def test_registered_agent_without_memory_is_visible_in_directory(running_store):
     global _CURRENT_TOKEN
     store, port = running_store

@@ -533,9 +533,10 @@ export interface OperationsSnapshot {
 
 export interface AgentWorkspace {
   agent_id: string
-  store_id: string
-  profile_id: string
-  store_access: 'writable' | 'read_only'
+  /** Older local APIs may omit these scope fields; the viewer must fail closed. */
+  store_id?: string
+  profile_id?: string
+  store_access?: 'writable' | 'read_only'
   /** True only when this identity's workspace belongs to the API's writable primary store. */
   writable?: boolean
   device_id?: string | null
