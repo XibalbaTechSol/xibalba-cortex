@@ -147,6 +147,12 @@ def _principal_agent_id(principal: dict[str, object]) -> str | None:
     return values[0] if len(values) == 1 else None
 
 
+def _store_scope_id(store: GraphStore) -> str:
+    """Opaque, stable identifier for one mounted profile database."""
+    identity = f"{store.profile_id}\0{store.db_path.resolve()}".encode("utf-8")
+    return "store-" + hashlib.sha256(identity).hexdigest()[:16]
+
+
 def _agent_filter(store: GraphStore, principal: dict[str, object], requested: str | None) -> str | None:
     """Return the persisted agent partition for a principal-bound read."""
     authorized = _principal_agent_ids(principal)
@@ -420,19 +426,52 @@ def _make_handler(store: GraphStore, *, allowed_origins: frozenset[str],
     csrf_secret = _load_or_create_csrf_secret(store.home)
     readable_stores = (store, *agent_stores)
 
-    def _read_store_for_agent(principal: dict[str, object], requested: str | None) -> tuple[GraphStore, str | None]:
+    def _read_store_for_agent(
+        principal: dict[str, object],
+        requested: str | None,
+        requested_store_id: str | None = None,
+    ) -> tuple[GraphStore, str | None]:
         authorized = _principal_agent_ids(principal)
         selected = requested.strip() if isinstance(requested, str) and requested.strip() else None
         if authorized:
-            if selected and selected not in authorized:
+            persisted_authorized = {
+                persisted
+                for candidate in readable_stores
+                for agent_id in authorized
+                if (persisted := candidate.storage_agent_id(agent_id))
+            }
+            if selected and selected not in set(authorized) | persisted_authorized:
                 raise PermissionError("credential is not authorized for this agent")
             selected = selected or authorized[0]
-        if not selected:
-            return store, None
-        for candidate in readable_stores:
+        if requested_store_id:
+            candidate = next(
+                (item for item in readable_stores if _store_scope_id(item) == requested_store_id),
+                None,
+            )
+            if candidate is None:
+                raise KeyError(requested_store_id)
+            if selected is None:
+                return candidate, None
             if candidate.has_agent_partition(selected):
                 return candidate, selected
-        for candidate in readable_stores:
+            persisted = candidate.storage_agent_id(selected)
+            if persisted and candidate.has_agent_partition(persisted):
+                return candidate, persisted
+            raise KeyError(selected)
+        if not selected:
+            return store, None
+        matching = [candidate for candidate in readable_stores if candidate.has_agent_partition(selected)]
+        if not matching:
+            matching = [
+                candidate for candidate in readable_stores
+                if (persisted := candidate.storage_agent_id(selected)) and candidate.has_agent_partition(persisted)
+            ]
+        if len(matching) > 1:
+            raise ValueError("store_id is required when this agent exists in multiple profile stores")
+        for candidate in matching:
+            if candidate.has_agent_partition(selected):
+                return candidate, selected
+        for candidate in matching:
             persisted = candidate.storage_agent_id(selected)
             if persisted and candidate.has_agent_partition(persisted):
                 return candidate, persisted
@@ -677,7 +716,7 @@ def _make_handler(store: GraphStore, *, allowed_origins: frozenset[str],
                     self._send_json(200, store.counts())
                 elif len(parts) == 4 and parts[0] == "api" and parts[1] == "agent" and parts[3] == "summary":
                     limit = int(params.get("limit", 8))
-                    agent_store, agent_filter = _read_store_for_agent(principal, unquote(parts[2]))
+                    agent_store, agent_filter = _read_store_for_agent(principal, unquote(parts[2]), params.get("store_id"))
                     if agent_filter is None:
                         raise PermissionError("credential is not bound to an agent")
                     self._send_json(200, agent_store.agent_summary(agent_filter, limit=limit))
@@ -688,9 +727,14 @@ def _make_handler(store: GraphStore, *, allowed_origins: frozenset[str],
                     # with real memories but no device pairing silently disappears from
                     # the header selector (the common case, not an edge case).
                     limit = int(params.get("limit", 100))
-                    workspaces = store.agent_workspaces(limit=limit)
-                    for secondary in agent_stores:
-                        workspaces.extend(secondary.agent_workspaces(limit=limit))
+                    workspaces = []
+                    for candidate in readable_stores:
+                        for item in candidate.agent_workspaces(limit=limit):
+                            item["store_id"] = _store_scope_id(candidate)
+                            item["profile_id"] = candidate.profile_id
+                            item["store_access"] = "writable" if candidate is store else "read_only"
+                            item["writable"] = candidate is store
+                            workspaces.append(item)
                     authorized = _principal_agent_ids(principal)
                     if authorized:
                         allowed = set(authorized)
@@ -708,6 +752,10 @@ def _make_handler(store: GraphStore, *, allowed_origins: frozenset[str],
                                 continue
                             workspaces.append({
                                 "agent_id": storage_id,
+                                "store_id": _store_scope_id(store),
+                                "profile_id": store.profile_id,
+                                "store_access": "writable",
+                                "writable": True,
                                 "device_id": None,
                                 "agent_name": None,
                                 "device_name": None,
@@ -716,6 +764,7 @@ def _make_handler(store: GraphStore, *, allowed_origins: frozenset[str],
                                 "memories": 0,
                                 "memories_counted": False,
                                 "sessions": 0,
+                                "sessions_counted": False,
                                 "last_seen_at": None,
                             })
                         workspaces = workspaces[:max(1, min(limit, 500))]
@@ -758,15 +807,15 @@ def _make_handler(store: GraphStore, *, allowed_origins: frozenset[str],
                             # viewer change is needed, instead of leaving it permanently null.
                             item["agent_name"] = identity["display_name"]
                         item["identity_verified"] = oracle_reachable
-                    self._send_json(200, {"agents": workspaces, "oracle_reachable": oracle_reachable})
+                    self._send_json(200, {"agents": workspaces, "oracle_reachable": oracle_reachable, "primary_profile_id": store.profile_id})
                 elif parts == ["api", "agent-devices"]:
                     _assert_pair_manager(principal)
                     self._send_json(200, {"pairs": store.list_agent_devices(limit=int(params.get("limit", 500)))})
                 elif len(parts) == 4 and parts[0] == "api" and parts[1] == "agent" and parts[3] == "memories":
-                    agent_store, agent_id = _read_store_for_agent(principal, unquote(parts[2]))
+                    agent_store, agent_id = _read_store_for_agent(principal, unquote(parts[2]), params.get("store_id"))
                     if agent_id is None:
                         raise PermissionError("credential is not bound to an agent")
-                    self._send_json(200, {"agent_id": agent_id, "memories": agent_store.agent_memories(agent_id, device_id=params.get("device_id"), limit=int(params.get("limit", 100)))})
+                    self._send_json(200, {"agent_id": agent_id, "store_id": _store_scope_id(agent_store), "profile_id": agent_store.profile_id, "memories": agent_store.agent_memories(agent_id, device_id=params.get("device_id"), limit=int(params.get("limit", 100)))})
                 elif parts == ["api", "status"]:
                     self._send_json(200, store.status(fast=True))
                 elif parts == ["api", "operations"]:
@@ -784,11 +833,23 @@ def _make_handler(store: GraphStore, *, allowed_origins: frozenset[str],
                 elif parts == ["api", "sessions"]:
                     limit = int(params.get("limit", 100))
                     requested_agent = params.get("agent_id")
-                    agent_store, agent_filter = _read_store_for_agent(principal, requested_agent)
+                    agent_store, agent_filter = _read_store_for_agent(principal, requested_agent, params.get("store_id"))
                     self._send_json(200, agent_store.list_sessions(limit=limit, agent_id=agent_filter))
+                elif parts == ["api", "sessions", "page"]:
+                    limit = max(1, min(int(params.get("limit", 50)), 250))
+                    offset = max(0, int(params.get("offset", 0)))
+                    requested_agent = params.get("agent_id")
+                    agent_store, agent_filter = _read_store_for_agent(principal, requested_agent, params.get("store_id"))
+                    items = agent_store.list_sessions(limit=limit + 1, offset=offset, agent_id=agent_filter)
+                    self._send_json(200, {
+                        "sessions": items[:limit], "offset": offset, "limit": limit,
+                        "has_more": len(items) > limit, "count_status": "page_loaded",
+                        "store_id": _store_scope_id(agent_store), "profile_id": agent_store.profile_id,
+                    })
                 elif len(parts) == 4 and parts[0] == "api" and parts[1] == "session" and parts[3] == "replay":
-                    _assert_session_access(store, principal, parts[2])
-                    self._send_json(200, store.session_replay(parts[2]))
+                    session_store, _ = _read_store_for_agent(principal, params.get("agent_id"), params.get("store_id"))
+                    _assert_session_access(session_store, principal, parts[2])
+                    self._send_json(200, session_store.session_replay(parts[2]))
                 elif parts == ["api", "invocations"]:
                     limit = int(params.get("limit", 100))
                     self._send_json(200, store.invocation_correlations(limit=limit, agent_id=_principal_agent_id(principal)))
@@ -796,7 +857,7 @@ def _make_handler(store: GraphStore, *, allowed_origins: frozenset[str],
                     query = params.get("q", "")
                     limit = int(params.get("limit", 10))
                     requested_agent = params.get("agent_id")
-                    agent_store, agent_filter = _read_store_for_agent(principal, requested_agent)
+                    agent_store, agent_filter = _read_store_for_agent(principal, requested_agent, params.get("store_id"))
                     self._send_json(200, agent_store.search(query, limit=limit, agent_id=agent_filter))
                 elif parts == ["api", "memories"]:
                     limit = int(params.get("limit", 50))
@@ -806,14 +867,14 @@ def _make_handler(store: GraphStore, *, allowed_origins: frozenset[str],
                         "candidate", "active", "confirmed", "superseded", "forgotten",
                     )
                     requested_agent = params.get("agent_id")
-                    agent_store, agent_filter = _read_store_for_agent(principal, requested_agent)
-                    page = agent_store.list_memories(limit=limit + 1, offset=offset, statuses=statuses, agent_id=agent_filter)
+                    agent_store, agent_filter = _read_store_for_agent(principal, requested_agent, params.get("store_id"))
+                    page = agent_store.list_memories(limit=limit + 1, offset=offset, statuses=statuses, agent_id=agent_filter, query=params.get("q"))
                     self._send_json(200, {"memories": page[:limit], "has_more": len(page) > limit, "offset": offset, "limit": limit})
                 elif parts == ["api", "graph"]:
                     limit = int(params.get("limit", 500))
                     threshold = float(params.get("similarity_threshold", 0.75))
                     requested_agent = params.get("agent_id")
-                    agent_store, agent_filter = _read_store_for_agent(principal, requested_agent)
+                    agent_store, agent_filter = _read_store_for_agent(principal, requested_agent, params.get("store_id"))
                     self._send_json(200, agent_store.graph_payload(limit=limit, similarity_threshold=threshold, agent_id=agent_filter))
                 elif len(parts) == 4 and parts[0] == "api" and parts[1] == "entity" and parts[3] == "neighbors":
                     max_depth = int(params.get("max_depth", 1))
@@ -822,31 +883,43 @@ def _make_handler(store: GraphStore, *, allowed_origins: frozenset[str],
                     max_depth = int(params.get("max_depth", 3))
                     self._send_json(200, store.find_path(params.get("from", ""), params.get("to", ""), max_depth=max_depth, agent_id=_agent_filter(store, principal, None)))
                 elif len(parts) == 4 and parts[0] == "api" and parts[1] == "session" and parts[3] == "exchanges":
-                    _assert_session_access(store, principal, parts[2])
-                    self._send_json(200, store.session_exchanges(parts[2]))
+                    session_store, _ = _read_store_for_agent(principal, params.get("agent_id"), params.get("store_id"))
+                    _assert_session_access(session_store, principal, parts[2])
+                    self._send_json(200, session_store.session_exchanges(parts[2]))
                 elif len(parts) == 4 and parts[0] == "api" and parts[1] == "session" and parts[3] == "otel":
-                    _assert_session_access(store, principal, parts[2])
-                    self._send_json(200, store.session_otel_events(parts[2]))
+                    session_store, _ = _read_store_for_agent(principal, params.get("agent_id"), params.get("store_id"))
+                    _assert_session_access(session_store, principal, parts[2])
+                    self._send_json(200, session_store.session_otel_events(parts[2]))
                 elif len(parts) == 4 and parts[0] == "api" and parts[1] == "session" and parts[3] == "merkle-root":
-                    _assert_session_access(store, principal, parts[2])
-                    self._send_json(200, store.session_merkle_root(parts[2]))
+                    session_store, _ = _read_store_for_agent(principal, params.get("agent_id"), params.get("store_id"))
+                    _assert_session_access(session_store, principal, parts[2])
+                    self._send_json(200, session_store.session_merkle_root(parts[2]))
                 elif len(parts) == 4 and parts[0] == "api" and parts[1] == "session" and parts[3] == "merkle-proof":
-                    _assert_session_access(store, principal, parts[2])
-                    self._send_json(200, store.session_merkle_evidence(parts[2], exchange_index=int(params.get("index", "0"))))
+                    session_store, _ = _read_store_for_agent(principal, params.get("agent_id"), params.get("store_id"))
+                    _assert_session_access(session_store, principal, parts[2])
+                    self._send_json(200, session_store.session_merkle_evidence(parts[2], exchange_index=int(params.get("index", "0"))))
                 elif len(parts) == 4 and parts[0] == "api" and parts[1] == "session" and parts[3] == "kernel-intents":
-                    _assert_session_access(store, principal, parts[2])
-                    self._send_json(200, store.kernel_bridge_intents(parts[2]))
+                    session_store, _ = _read_store_for_agent(principal, params.get("agent_id"), params.get("store_id"))
+                    _assert_session_access(session_store, principal, parts[2])
+                    self._send_json(200, session_store.kernel_bridge_intents(parts[2]))
                 elif parts == ["api", "inference", "manifest"]:
                     self._send_json(200, MEMORY_INFERENCE_SUBAGENT_MANIFEST)
                 elif parts == ["api", "inference", "tasks"]:
                     status = params.get("status", "pending")
                     limit = int(params.get("limit", 50))
-                    tasks = store.list_inference_tasks(status=status, limit=limit)
+                    requested_agent = params.get("agent_id")
+                    task_store, agent_filter = _read_store_for_agent(principal, requested_agent, params.get("store_id"))
+                    tasks = task_store.list_inference_tasks(
+                        status=status,
+                        limit=limit,
+                        task_type=params.get("task_type"),
+                        agent_id=agent_filter,
+                    )
                     visible = []
                     for task in tasks:
                         if task.get("subject_type") == "memory":
                             try:
-                                _assert_memory_scope(store.get_memory(str(task.get("subject_id"))), principal, store)
+                                _assert_memory_scope(task_store.get_memory(str(task.get("subject_id"))), principal, task_store)
                             except (KeyError, PermissionError):
                                 continue
                         visible.append(task)
@@ -879,25 +952,32 @@ def _make_handler(store: GraphStore, *, allowed_origins: frozenset[str],
                 elif parts == ["api", "embedding", "models"]:
                     self._send_json(200, store.list_embedding_models())
                 elif len(parts) == 3 and parts[0] == "api" and parts[1] == "memory" and parts[2]:
-                    self._send_json(200, _assert_memory_scope(store.get_memory(parts[2]), principal, store))
+                    memory_store, _ = _read_store_for_agent(principal, params.get("agent_id"), params.get("store_id"))
+                    self._send_json(200, _assert_memory_scope(memory_store.get_memory(parts[2]), principal, memory_store))
                 elif len(parts) == 4 and parts[0] == "api" and parts[1] == "memory" and parts[3] == "similar":
                     limit = int(params.get("limit", 10))
-                    _assert_memory_scope(store.get_memory(parts[2]), principal, store)
-                    self._send_json(200, store.similar_memories(parts[2], limit=limit))
+                    memory_store, _ = _read_store_for_agent(principal, params.get("agent_id"), params.get("store_id"))
+                    _assert_memory_scope(memory_store.get_memory(parts[2]), principal, memory_store)
+                    self._send_json(200, memory_store.similar_memories(parts[2], limit=limit))
                 elif len(parts) == 4 and parts[0] == "api" and parts[1] == "memory" and parts[3] == "neighbors":
-                    _assert_memory_scope(store.get_memory(parts[2]), principal, store)
-                    self._send_json(200, store.memory_entity_relations(parts[2]))
+                    memory_store, _ = _read_store_for_agent(principal, params.get("agent_id"), params.get("store_id"))
+                    _assert_memory_scope(memory_store.get_memory(parts[2]), principal, memory_store)
+                    self._send_json(200, memory_store.memory_entity_relations(parts[2]))
                 elif len(parts) == 4 and parts[0] == "api" and parts[1] == "memory" and parts[3] == "events":
-                    _assert_memory_scope(store.get_memory(parts[2]), principal, store)
-                    self._send_json(200, store.memory_events(parts[2]))
+                    memory_store, _ = _read_store_for_agent(principal, params.get("agent_id"), params.get("store_id"))
+                    _assert_memory_scope(memory_store.get_memory(parts[2]), principal, memory_store)
+                    self._send_json(200, memory_store.memory_events(parts[2]))
                 elif len(parts) == 4 and parts[0] == "api" and parts[1] == "memory" and parts[3] == "otel":
-                    _assert_memory_scope(store.get_memory(parts[2]), principal, store)
-                    self._send_json(200, store.memory_otel_events(parts[2]))
+                    memory_store, _ = _read_store_for_agent(principal, params.get("agent_id"), params.get("store_id"))
+                    _assert_memory_scope(memory_store.get_memory(parts[2]), principal, memory_store)
+                    self._send_json(200, memory_store.memory_otel_events(parts[2]))
                 elif len(parts) == 4 and parts[0] == "api" and parts[1] == "memory" and parts[3] == "attachments":
-                    _assert_memory_scope(store.get_memory(parts[2]), principal, store)
-                    self._send_json(200, store.list_attachments(parts[2]))
+                    memory_store, _ = _read_store_for_agent(principal, params.get("agent_id"), params.get("store_id"))
+                    _assert_memory_scope(memory_store.get_memory(parts[2]), principal, memory_store)
+                    self._send_json(200, memory_store.list_attachments(parts[2]))
                 elif len(parts) == 4 and parts[0] == "api" and parts[1] == "attachment" and parts[3] == "file":
-                    attachment = store.get_attachment(parts[2])
+                    attachment_store, _ = _read_store_for_agent(principal, params.get("agent_id"), params.get("store_id"))
+                    attachment = attachment_store.get_attachment(parts[2])
                     if not attachment:
                         self._send_json(404, {"error": "attachment not found"})
                     else:
@@ -919,8 +999,9 @@ def _make_handler(store: GraphStore, *, allowed_origins: frozenset[str],
                             with open(file_path, "rb") as f:
                                 self.wfile.write(f.read())
                 elif len(parts) == 4 and parts[0] == "api" and parts[1] == "memory" and parts[3] == "contradictions":
-                    _assert_memory_scope(store.get_memory(parts[2]), principal, store)
-                    self._send_json(200, [_assert_memory_scope(memory, principal, store) for memory in store.contradictions(parts[2])])
+                    memory_store, _ = _read_store_for_agent(principal, params.get("agent_id"), params.get("store_id"))
+                    _assert_memory_scope(memory_store.get_memory(parts[2]), principal, memory_store)
+                    self._send_json(200, [_assert_memory_scope(memory, principal, memory_store) for memory in memory_store.contradictions(parts[2])])
                 else:
                     self._send_json(404, {"error": "not found"})
             except KeyError:
@@ -929,6 +1010,8 @@ def _make_handler(store: GraphStore, *, allowed_origins: frozenset[str],
                 self._send_json(400, {"error": str(exc)})
             except PermissionError as exc:
                 self._send_json(403, {"error": str(exc)})
+            except RuntimeError as exc:
+                self._send_json(409, {"error": str(exc)})
             except Exception:
                 logger.exception("local_api request failed: %s", self.path)
                 self._send_json(500, {"error": "internal error"})
@@ -1114,8 +1197,15 @@ def _make_handler(store: GraphStore, *, allowed_origins: frozenset[str],
                         raise ValueError("input_payload must be an object")
                     subject_type = str(payload.get("subject_type") or "")
                     subject_id = str(payload.get("subject_id") or "")
+                    task_store, _ = _read_store_for_agent(
+                        principal,
+                        payload.get("agent_id") if isinstance(payload.get("agent_id"), str) else None,
+                        payload.get("store_id") if isinstance(payload.get("store_id"), str) else None,
+                    )
+                    if task_store is not store:
+                        raise PermissionError("inference tasks cannot be written to a read-only profile store")
                     if subject_type == "memory" and str(payload.get("task_type") or "") in _INFERENCE_TASK_TYPES:
-                        _assert_memory_scope(store.get_memory(subject_id), principal, store)
+                        _assert_memory_scope(task_store.get_memory(subject_id), principal, task_store)
                     contract_raw = payload.get("contract")
                     contract = None
                     if contract_raw is not None:
@@ -1250,12 +1340,20 @@ def _make_handler(store: GraphStore, *, allowed_origins: frozenset[str],
                 elif len(parts) == 4 and parts[0] == "api" and parts[1] == "projections" and parts[3] == "rebuild":
                     self._send_json(200, store.rebuild_projection_checkpoint(unquote(parts[2])))
                 elif len(parts) == 5 and parts[:3] == ["api", "inference", "tasks"] and parts[4] == "claim":
-                    task = store.get_inference_task(unquote(parts[3]))
+                    query = parse_qs(parsed.query)
+                    task_store, _ = _read_store_for_agent(
+                        principal,
+                        (query.get("agent_id") or [None])[0],
+                        (query.get("store_id") or [None])[0],
+                    )
+                    if task_store is not store:
+                        raise PermissionError("inference tasks cannot be changed in a read-only profile store")
+                    task = task_store.get_inference_task(unquote(parts[3]))
                     if task.get("subject_type") == "memory":
-                        _assert_memory_scope(store.get_memory(str(task.get("subject_id"))), principal, store)
+                        _assert_memory_scope(task_store.get_memory(str(task.get("subject_id"))), principal, task_store)
                     self._send_json(
                         200,
-                        store.claim_inference_task(
+                        task_store.claim_inference_task(
                             unquote(parts[3]),
                             claimed_by=payload.get("claimed_by")
                             if isinstance(payload.get("claimed_by"), str)
@@ -1271,15 +1369,23 @@ def _make_handler(store: GraphStore, *, allowed_origins: frozenset[str],
                         ),
                     )
                 elif len(parts) == 5 and parts[:3] == ["api", "inference", "tasks"] and parts[4] == "complete":
-                    task = store.get_inference_task(unquote(parts[3]))
+                    query = parse_qs(parsed.query)
+                    task_store, _ = _read_store_for_agent(
+                        principal,
+                        (query.get("agent_id") or [None])[0],
+                        (query.get("store_id") or [None])[0],
+                    )
+                    if task_store is not store:
+                        raise PermissionError("inference tasks cannot be changed in a read-only profile store")
+                    task = task_store.get_inference_task(unquote(parts[3]))
                     if task.get("subject_type") == "memory":
-                        _assert_memory_scope(store.get_memory(str(task.get("subject_id"))), principal, store)
+                        _assert_memory_scope(task_store.get_memory(str(task.get("subject_id"))), principal, task_store)
                     output_payload = payload.get("output_payload")
                     if output_payload is not None and not isinstance(output_payload, dict):
                         raise ValueError("output_payload must be an object")
                     self._send_json(
                         200,
-                        store.complete_inference_task(
+                        task_store.complete_inference_task(
                             unquote(parts[3]),
                             output_payload=output_payload,
                             error=payload.get("error") if isinstance(payload.get("error"), str) else None,

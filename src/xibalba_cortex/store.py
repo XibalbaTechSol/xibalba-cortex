@@ -2309,6 +2309,10 @@ class GraphStore:
                 "memories": int(counts["memories"] or 0),
                 "memories_counted": True,
                 "sessions": int(counts["sessions"] or 0),
+                # This count is source-derived and can omit empty sessions or sessions
+                # that have no memory source rows. Keep it explicitly uncounted until a
+                # complete session attribution aggregate is available.
+                "sessions_counted": False,
                 "last_seen_at": counts["last_seen_at"] or pair["last_seen_at"],
             })
         present = {str(item["agent_id"]) for item in workspaces}
@@ -2324,7 +2328,7 @@ class GraphStore:
                 "agent_name": None, "device_name": None,
                 "pair_status": None, "pair_updated_at": None,
                 "memories": 0, "memories_counted": False,
-                "sessions": 0, "last_seen_at": None,
+                "sessions": 0, "sessions_counted": False, "last_seen_at": None,
             })
         with self._cache_lock:
             self._agent_workspaces_cache = (time.monotonic(), workspaces)
@@ -2355,6 +2359,7 @@ class GraphStore:
         offset: int = 0,
         statuses: tuple[str, ...] = ("active", "confirmed"),
         agent_id: str | None = None,
+        query: str | None = None,
     ) -> list[dict[str, object]]:
         """Bulk-paginated memory listing for the local graph API's node payload and the viewer's
         Memory Explorer -- distinct from search()/get_memory(), which are single-memory or
@@ -2365,15 +2370,22 @@ class GraphStore:
         placeholders = ",".join("?" * len(statuses))
         params: list[object] = [*statuses]
         join = ""
+        where_query = ""
+        if query and query.strip():
+            tokens = re.findall(r"[\w-]+", query, flags=re.UNICODE)
+            if tokens:
+                join = "JOIN memory_fts ON memory_fts.memory_id = memories.id"
+                where_query = " AND memory_fts MATCH ?"
+                params.append(" AND ".join(f'"{token.replace(chr(34), "")}"' for token in tokens))
         where_agent = ""
         if agent_id:
-            join = "JOIN sources ON sources.id = memories.source_id"
+            join += " JOIN sources ON sources.id = memories.source_id"
             where_agent = " AND sources.agent_id = ?"
             params.append(str(agent_id))
         params.extend([bounded_limit, max(0, int(offset))])
         with self._lock:
             rows = self._connection.execute(
-                f"SELECT memories.id FROM memories {join} WHERE memories.status IN ({placeholders}){where_agent} "
+                f"SELECT memories.id FROM memories {join} WHERE memories.status IN ({placeholders}){where_query}{where_agent} "
                 "ORDER BY memories.created_at DESC LIMIT ? OFFSET ?",
                 params,
             ).fetchall()
@@ -3344,8 +3356,9 @@ class GraphStore:
             values.add(value or None)
         return values
 
-    def list_sessions(self, *, limit: int = 100, agent_id: str | None = None) -> list[dict[str, object]]:
+    def list_sessions(self, *, limit: int = 100, agent_id: str | None = None, offset: int = 0) -> list[dict[str, object]]:
         bounded_limit = max(1, min(int(limit), 1000))
+        bounded_offset = max(0, int(offset))
         normalized_agent = str(agent_id or "").strip() or None
         with self._lock:
             if normalized_agent:
@@ -3357,15 +3370,13 @@ class GraphStore:
                 for row in rows:
                     if self.session_agent_ids(row["external_session_id"]) == {normalized_agent}:
                         sessions.append(self.get_session(row["external_session_id"]))
-                        if len(sessions) >= bounded_limit:
-                            break
-                return sessions
+                return sessions[bounded_offset : bounded_offset + bounded_limit]
             else:
                 rows = self._connection.execute(
                     """SELECT external_session_id FROM sessions
                        ORDER BY COALESCE(ended_at, started_at) DESC, started_at DESC
-                       LIMIT ?""",
-                    (bounded_limit,),
+                       LIMIT ? OFFSET ?""",
+                    (bounded_limit, bounded_offset),
                 ).fetchall()
         return [self.get_session(row["external_session_id"]) for row in rows]
 
@@ -4946,23 +4957,52 @@ class GraphStore:
         return self._inference_task_row_to_dict(row)
 
     def list_inference_tasks(
-        self, *, status: str = "pending", limit: int = 50, task_type: str | None = None
+        self, *, status: str = "pending", limit: int = 50, task_type: str | None = None,
+        agent_id: str | None = None,
     ) -> list[dict[str, object]]:
         # Read-only connection (2026-09-15): polled by the viewer's Inference panel every 20s;
         # fetches full rows directly instead of id-then-refetch through the locked
         # `get_inference_task`, so this no longer takes `self._lock` at all.
         bounded_limit = max(1, min(int(limit), 500))
         conn = self._read_connection()
-        if task_type is None:
-            rows = conn.execute(
-                "SELECT * FROM memory_inference_tasks WHERE status = ? AND (retry_after IS NULL OR retry_after <= CURRENT_TIMESTAMP) ORDER BY created_at LIMIT ?",
-                (status, bounded_limit),
-            ).fetchall()
-        else:
-            rows = conn.execute(
-                "SELECT * FROM memory_inference_tasks WHERE status = ? AND task_type = ? AND (retry_after IS NULL OR retry_after <= CURRENT_TIMESTAMP) ORDER BY created_at LIMIT ?",
-                (status, task_type, bounded_limit),
-            ).fetchall()
+        clauses = ["status = ?"]
+        params: list[object] = [status]
+        if task_type is not None:
+            clauses.append("task_type = ?")
+            params.append(task_type)
+        if agent_id:
+            # Include agent-owned memory/session/exchange tasks. Context bundles do not
+            # have a durable ownership relation and are intentionally omitted from an
+            # agent-scoped queue until that contract exists.
+            session_scope = """(
+                (ss.agent_id = ? OR (ss.agent_id IS NULL AND EXISTS (
+                    SELECT 1 FROM sources sx WHERE sx.session_id = ss.external_session_id AND sx.agent_id = ?
+                )))
+                AND NOT EXISTS (
+                    SELECT 1 FROM sources sx WHERE sx.session_id = ss.external_session_id
+                      AND (sx.agent_id IS NULL OR sx.agent_id != ?)
+                )
+            )"""
+            clauses.append(f"""(
+                (subject_type = 'memory' AND EXISTS (
+                    SELECT 1 FROM memories mm JOIN sources sm ON sm.id = mm.source_id
+                    WHERE mm.id = memory_inference_tasks.subject_id AND sm.agent_id = ?
+                )) OR
+                (subject_type = 'session' AND EXISTS (
+                    SELECT 1 FROM sessions ss WHERE ss.external_session_id = memory_inference_tasks.subject_id
+                      AND {session_scope}
+                )) OR
+                (subject_type = 'exchange' AND EXISTS (
+                    SELECT 1 FROM exchanges ex JOIN sessions ss ON ss.external_session_id = ex.session_id
+                    WHERE ex.id = memory_inference_tasks.subject_id AND {session_scope}
+                ))
+            )""")
+            params.extend([agent_id, agent_id, agent_id, agent_id, agent_id, agent_id, agent_id])
+        params.append(bounded_limit)
+        rows = conn.execute(
+            f"SELECT * FROM memory_inference_tasks WHERE {' AND '.join(clauses)} ORDER BY created_at LIMIT ?",
+            params,
+        ).fetchall()
         return [self._inference_task_row_to_dict(row) for row in rows]
 
     def claim_inference_task(self, task_id: str, *, claimed_by: str | None = None, provider_id: str | None = None) -> dict[str, object]:

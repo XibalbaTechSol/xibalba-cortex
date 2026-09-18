@@ -121,6 +121,7 @@ export interface MemorySource {
   role?: string | null
   session_id?: string | null
   prompt_id?: string | null
+  observed_at?: string | null
   metadata: Record<string, unknown>
 }
 
@@ -129,6 +130,7 @@ export interface Memory {
   content: string
   content_hash: string
   status: string
+  created_at?: string
   source: MemorySource
   quarantine_reasons: string[]
   supersedes_id: string | null
@@ -204,6 +206,19 @@ export interface Session {
   ended_at: string | null
   summary_memory_id: string | null
   agent_id?: string | null
+}
+
+export interface WorkspaceScope {
+  agentId?: string
+  storeId?: string
+}
+
+function scopeParams(scope: WorkspaceScope = {}): string {
+  const params = new URLSearchParams()
+  if (scope.agentId) params.set('agent_id', scope.agentId)
+  if (scope.storeId) params.set('store_id', scope.storeId)
+  const query = params.toString()
+  return query ? `&${query}` : ''
 }
 
 export interface MemoryEvent {
@@ -325,6 +340,11 @@ export interface InferenceTask {
   claim_token: string | null
   lease_expires_at: string | null
   attempt_count: number
+  retry_after?: string | null
+  failure_class?: string | null
+  dead_letter_reason?: string | null
+  requested_provider_id?: string | null
+  executing_provider_id?: string | null
   error: string | null
   created_at: string
   updated_at: string
@@ -513,6 +533,11 @@ export interface OperationsSnapshot {
 
 export interface AgentWorkspace {
   agent_id: string
+  store_id: string
+  profile_id: string
+  store_access: 'writable' | 'read_only'
+  /** True only when this identity's workspace belongs to the API's writable primary store. */
+  writable?: boolean
   device_id?: string | null
   agent_name?: string | null
   device_name?: string | null
@@ -522,6 +547,7 @@ export interface AgentWorkspace {
   /** False means the API skipped an expensive count; zero is not a measured total. */
   memories_counted?: boolean
   sessions: number
+  sessions_counted?: boolean
   last_seen_at?: string | null
   /** Standardized 2026-09-13 identity fields (integrity_sdk.agent_identity, same contract
    *  Shield and the dashboard use). integrity_sdk's resolver fails open on an unreachable
@@ -532,6 +558,15 @@ export interface AgentWorkspace {
   on_chain?: boolean
   wallet_address?: string | null
   identity_verified?: boolean
+}
+
+export interface AgentSummary {
+  agent_id: string
+  memories: number
+  sessions: number
+  sources: number
+  embedded_memories: number | null
+  recent_memories: Memory[]
 }
 
 async function getJson<T>(path: string): Promise<T> {
@@ -568,9 +603,13 @@ export const api = {
   status: () => getJson<StoreStatus>('/api/status'),
   operations: () => getJson<OperationsSnapshot>('/api/operations'),
   integrityLinks: (limit = 50) => getJson<IntegrityLinksStatus>(`/api/integrity-links?limit=${limit}`),
-  sessions: (limit = 100, agentId?: string) => getJson<Session[]>(`/api/sessions?limit=${limit}${agentId ? `&agent_id=${encodeURIComponent(agentId)}` : ''}`),
+  sessions: (limit = 100, scope: WorkspaceScope = {}) => getJson<Session[]>(`/api/sessions?limit=${limit}${scopeParams(scope)}`),
+  sessionsPage: (limit = 50, offset = 0, scope: WorkspaceScope = {}) =>
+    getJson<{sessions: Session[]; offset: number; limit: number; has_more: boolean; count_status: string; store_id: string; profile_id: string}>(`/api/sessions/page?limit=${limit}&offset=${offset}${scopeParams(scope)}`),
   agents: (limit = 100) => getJson<{agents: AgentWorkspace[]; oracle_reachable: boolean}>(`/api/agents?limit=${limit}`),
-  agentMemories: (agentId: string, deviceId?: string, limit = 100) => getJson<{agent_id: string; memories: Memory[]}>(`/api/agent/${encodeURIComponent(agentId)}/memories?limit=${limit}${deviceId ? `&device_id=${encodeURIComponent(deviceId)}` : ''}`),
+  agentSummary: (agentId: string, storeId: string) =>
+    getJson<AgentSummary>(`/api/agent/${encodeURIComponent(agentId)}/summary?limit=0&store_id=${encodeURIComponent(storeId)}`),
+  agentMemories: (agentId: string, deviceId?: string, limit = 100, scope: WorkspaceScope = {}) => getJson<{agent_id: string; memories: Memory[]}>(`/api/agent/${encodeURIComponent(agentId)}/memories?limit=${limit}${deviceId ? `&device_id=${encodeURIComponent(deviceId)}` : ''}${scopeParams(scope)}`),
   associateAgentDevice: (agentId: string, deviceId: string, displayName?: string) =>
     postJson<AgentWorkspace>('/api/agent-devices/associate', { agent_id: agentId, device_id: deviceId, display_name: displayName || deviceId }),
   renameAgentDevice: (deviceId: string, displayName: string) =>
@@ -579,37 +618,39 @@ export const api = {
     postJson<AgentWorkspace>(`/api/agent-devices/${encodeURIComponent(deviceId)}/detach`, {}),
   revokeAgentDevice: (deviceId: string) =>
     postJson<AgentWorkspace>(`/api/agent-devices/${encodeURIComponent(deviceId)}/revoke`, {}),
-  graph: (limit = 500, similarityThreshold = 0.75, agentId?: string) =>
-    getJson<GraphPayload>(`/api/graph?limit=${limit}&similarity_threshold=${similarityThreshold}${agentId ? `&agent_id=${encodeURIComponent(agentId)}` : ''}`),
-  search: (query: string, limit = 20, agentId?: string) =>
-    getJson<Memory[]>(`/api/search?q=${encodeURIComponent(query)}&limit=${limit}${agentId ? `&agent_id=${encodeURIComponent(agentId)}` : ''}`),
-  memories: (opts: { limit?: number; offset?: number; statuses?: string[]; agentId?: string } = {}) => {
-    const { limit = 50, offset = 0, statuses, agentId } = opts
+  graph: (limit = 500, similarityThreshold = 0.75, scope: WorkspaceScope = {}) =>
+    getJson<GraphPayload>(`/api/graph?limit=${limit}&similarity_threshold=${similarityThreshold}${scopeParams(scope)}`),
+  search: (query: string, limit = 20, scope: WorkspaceScope = {}) =>
+    getJson<Memory[]>(`/api/search?q=${encodeURIComponent(query)}&limit=${limit}${scopeParams(scope)}`),
+  memories: (opts: { limit?: number; offset?: number; statuses?: string[]; agentId?: string; storeId?: string; query?: string } = {}) => {
+    const { limit = 50, offset = 0, statuses, agentId, storeId, query } = opts
     const params = new URLSearchParams({ limit: String(limit), offset: String(offset) })
     if (statuses?.length) params.set('status', statuses.join(','))
     if (agentId) params.set('agent_id', agentId)
+    if (storeId) params.set('store_id', storeId)
+    if (query?.trim()) params.set('q', query.trim())
     return getJson<{ memories: Memory[]; has_more: boolean; offset: number; limit: number }>(`/api/memories?${params.toString()}`)
   },
-  memory: (id: string) => getJson<Memory>(`/api/memory/${encodeURIComponent(id)}`),
-  similar: (id: string, limit = 10) =>
-    getJson<SimilarHit[]>(`/api/memory/${encodeURIComponent(id)}/similar?limit=${limit}`),
-  neighbors: (id: string) => getJson<EntityRelation[]>(`/api/memory/${encodeURIComponent(id)}/neighbors`),
-  memoryEvents: (id: string) => getJson<MemoryEvent[]>(`/api/memory/${encodeURIComponent(id)}/events`),
-  memoryOtel: (id: string) => getJson<OtelEvent[]>(`/api/memory/${encodeURIComponent(id)}/otel`),
-  attachments: (id: string) => getJson<Attachment[]>(`/api/memory/${encodeURIComponent(id)}/attachments`),
-  attachmentFile: (id: string) => getBlob(`/api/attachment/${encodeURIComponent(id)}/file`),
-  contradictions: (id: string) => getJson<Memory[]>(`/api/memory/${encodeURIComponent(id)}/contradictions`),
+  memory: (id: string, scope: WorkspaceScope = {}) => getJson<Memory>(`/api/memory/${encodeURIComponent(id)}?${scopeParams(scope).slice(1)}`),
+  similar: (id: string, limit = 10, scope: WorkspaceScope = {}) =>
+    getJson<SimilarHit[]>(`/api/memory/${encodeURIComponent(id)}/similar?limit=${limit}${scopeParams(scope)}`),
+  neighbors: (id: string, scope: WorkspaceScope = {}) => getJson<EntityRelation[]>(`/api/memory/${encodeURIComponent(id)}/neighbors?${scopeParams(scope).slice(1)}`),
+  memoryEvents: (id: string, scope: WorkspaceScope = {}) => getJson<MemoryEvent[]>(`/api/memory/${encodeURIComponent(id)}/events?${scopeParams(scope).slice(1)}`),
+  memoryOtel: (id: string, scope: WorkspaceScope = {}) => getJson<OtelEvent[]>(`/api/memory/${encodeURIComponent(id)}/otel?${scopeParams(scope).slice(1)}`),
+  attachments: (id: string, scope: WorkspaceScope = {}) => getJson<Attachment[]>(`/api/memory/${encodeURIComponent(id)}/attachments?${scopeParams(scope).slice(1)}`),
+  attachmentFile: (id: string, scope: WorkspaceScope = {}) => getBlob(`/api/attachment/${encodeURIComponent(id)}/file?${scopeParams(scope).slice(1)}`),
+  contradictions: (id: string, scope: WorkspaceScope = {}) => getJson<Memory[]>(`/api/memory/${encodeURIComponent(id)}/contradictions?${scopeParams(scope).slice(1)}`),
   entityNeighbors: (name: string, maxDepth = 1) =>
     getJson<TraversalResult>(`/api/entity/${encodeURIComponent(name)}/neighbors?max_depth=${maxDepth}`),
   entityPath: (from: string, to: string, maxDepth = 3) =>
     getJson<TraversalResult>(`/api/entity/path?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}&max_depth=${maxDepth}`),
-  sessionReplay: (id: string) => getJson<SessionReplay>(`/api/session/${encodeURIComponent(id)}/replay`),
-  sessionExchanges: (id: string) => getJson<Exchange[]>(`/api/session/${encodeURIComponent(id)}/exchanges`),
+  sessionReplay: (id: string, scope: WorkspaceScope = {}) => getJson<SessionReplay>(`/api/session/${encodeURIComponent(id)}/replay?${scopeParams(scope).slice(1)}`),
+  sessionExchanges: (id: string, scope: WorkspaceScope = {}) => getJson<Exchange[]>(`/api/session/${encodeURIComponent(id)}/exchanges?${scopeParams(scope).slice(1)}`),
   buildSessionExchanges: (id: string) => postJson(`/api/session/${encodeURIComponent(id)}/exchanges/build`, {}),
-  sessionMerkleRoot: (id: string) => getJson<MerkleRoot>(`/api/session/${encodeURIComponent(id)}/merkle-root`),
+  sessionMerkleRoot: (id: string, scope: WorkspaceScope = {}) => getJson<MerkleRoot>(`/api/session/${encodeURIComponent(id)}/merkle-root?${scopeParams(scope).slice(1)}`),
   inferenceManifest: () => getJson<InferenceManifest>('/api/inference/manifest'),
-  inferenceTasks: (status = 'pending', limit = 50) =>
-    getJson<InferenceTask[]>(`/api/inference/tasks?status=${encodeURIComponent(status)}&limit=${limit}`),
+  inferenceTasks: (status = 'pending', limit = 50, scope: WorkspaceScope = {}) =>
+    getJson<InferenceTask[]>(`/api/inference/tasks?status=${encodeURIComponent(status)}&limit=${limit}${scopeParams(scope)}`),
   recordModelExchange: (payload: RecordModelExchangePayload) =>
     postJson<RecordModelExchangeResult>('/api/exchanges/model', payload as unknown as Record<string, unknown>),
   requestInferenceTask: (payload: Record<string, unknown>) =>
@@ -624,10 +665,10 @@ export const api = {
     postJson<Memory>(`/api/memory/${encodeURIComponent(id)}/supersede`, payload),
   forgetMemory: (id: string) =>
     postJson<Memory & { content_hash_retained: boolean; deletion_receipt: Record<string, unknown> }>(`/api/memory/${encodeURIComponent(id)}/forget`, {}),
-  claimInferenceTask: (id: string, claimedBy: string) =>
-    postJson<InferenceTask>(`/api/inference/tasks/${encodeURIComponent(id)}/claim`, { claimed_by: claimedBy }),
-  completeInferenceTask: (id: string, outputPayload: Record<string, unknown>, error?: string, claimedBy?: string | null, claimToken?: string | null) =>
-    postJson<InferenceTask>(`/api/inference/tasks/${encodeURIComponent(id)}/complete`, {
+  claimInferenceTask: (id: string, claimedBy: string, scope: WorkspaceScope = {}) =>
+    postJson<InferenceTask>(`/api/inference/tasks/${encodeURIComponent(id)}/claim?${scopeParams(scope).slice(1)}`, { claimed_by: claimedBy }),
+  completeInferenceTask: (id: string, outputPayload: Record<string, unknown>, error?: string, claimedBy?: string | null, claimToken?: string | null, scope: WorkspaceScope = {}) =>
+    postJson<InferenceTask>(`/api/inference/tasks/${encodeURIComponent(id)}/complete?${scopeParams(scope).slice(1)}`, {
       output_payload: outputPayload,
       ...(error ? { error } : {}),
       ...(claimedBy ? { claimed_by: claimedBy } : {}),

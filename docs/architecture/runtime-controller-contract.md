@@ -65,6 +65,13 @@ Core methods:
 
 The controller is the only component allowed to decide how runtime events become memory, telemetry, or policy records.
 
+`open_session(..., agent_id=...)` persists the resolved agent partition on the session when it
+creates the session, as well as recording the runtime binding. If `ingest_event()` implicitly
+opens a session after a prior identity bind, it carries that bound `agent_id` into session
+creation. This keeps the session row and subsequent event attribution in the same agent
+namespace. An event without a binding remains unattributed; adapters must not infer an agent
+from a profile label or session identifier.
+
 ## Adapter responsibilities
 
 ### Claude Code

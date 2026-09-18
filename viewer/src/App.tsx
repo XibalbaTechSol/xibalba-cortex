@@ -52,6 +52,7 @@ import {
   setApiBaseUrl,
   type Attachment,
   type AgentWorkspace,
+  type AgentSummary,
   type EntityRelation,
   type Exchange,
   type ExtractionProposal,
@@ -73,6 +74,7 @@ import {
   type Stats,
   type StoreStatus,
   type TraversalResult,
+  type WorkspaceScope,
 } from './api'
 import { Graph3DView, type DemoEdge, type DemoGraph, type DemoNode, type DemoNodeType, type GraphBackground, type GraphViewOptions } from './Graph3DView'
 import { Graph2DView } from './Graph2DView'
@@ -277,12 +279,16 @@ function MemorySnippet({
 
 function Inspector({
   memoryId,
+  scope,
+  canWrite,
   onSelectMemory,
   onClose,
   onNotice,
   onError: onErrorProp,
 }: {
   memoryId: string | null
+  scope: WorkspaceScope
+  canWrite: boolean
   onSelectMemory: (id: string) => void
   onClose: () => void
   onNotice?: (msg: string) => void
@@ -310,19 +316,20 @@ function Inspector({
     setContradictions([])
     setError(null)
     setConfirmingForget(false)
-    api.memory(memoryId).then(setMemory).catch((e) => setError(String(e)))
-    api.similar(memoryId).then(setSimilar).catch(() => setSimilar([]))
-    api.neighbors(memoryId).then(setNeighbors).catch(() => setNeighbors([]))
-    api.memoryEvents(memoryId).then(setEvents).catch(() => setEvents([]))
-    api.memoryOtel(memoryId).then(setOtel).catch(() => setOtel([]))
-    api.attachments(memoryId).then(setAttachments).catch(() => setAttachments([]))
-    api.contradictions(memoryId).then(setContradictions).catch(() => setContradictions([]))
-  }, [memoryId])
+    api.memory(memoryId, scope).then(setMemory).catch((e) => setError(String(e)))
+    api.similar(memoryId, 10, scope).then(setSimilar).catch(() => setSimilar([]))
+    api.neighbors(memoryId, scope).then(setNeighbors).catch(() => setNeighbors([]))
+    api.memoryEvents(memoryId, scope).then(setEvents).catch(() => setEvents([]))
+    api.memoryOtel(memoryId, scope).then(setOtel).catch(() => setOtel([]))
+    api.attachments(memoryId, scope).then(setAttachments).catch(() => setAttachments([]))
+    api.contradictions(memoryId, scope).then(setContradictions).catch(() => setContradictions([]))
+  }, [memoryId, scope])
 
   const confirmForget = async () => {
     if (!memoryId) return
     setForgetting(true)
     try {
+      if (!canWrite) throw new Error('This profile is mounted read-only.')
       const updated = await api.forgetMemory(memoryId)
       setMemory(updated)
       setConfirmingForget(false)
@@ -365,6 +372,10 @@ function Inspector({
             </dd>
             <dt>Session</dt>
             <dd>{memory.source.session_id ?? 'none'}</dd>
+            <dt>Observed</dt>
+            <dd>{memory.source.observed_at ?? 'Not recorded'}</dd>
+            <dt>Created</dt>
+            <dd>{memory.created_at}</dd>
             <dt>Prompt</dt>
             <dd>{memory.source.prompt_id ?? 'none'}</dd>
             <dt>Locator</dt>
@@ -373,6 +384,8 @@ function Inspector({
           <div className="inspector-lifecycle-actions">
             {memory.status === 'forgotten' ? (
               <p className="small muted">Forgotten — content removed, content hash retained for chain verification.</p>
+            ) : !canWrite ? (
+              <p className="small muted">Lifecycle changes are disabled because this profile store is read-only.</p>
             ) : confirmingForget ? (
               <div className="forget-confirm">
                 <p className="small warning">
@@ -2107,20 +2120,20 @@ function SettingsTab({
   )
 }
 
-function AgentWorkspacesTab({ workspaces, selectedAgentId, onSelect, onRefresh, onNotice, onError }: { workspaces: AgentWorkspace[]; selectedAgentId: string; onSelect: (agentId: string, deviceId?: string | null) => void; onRefresh: () => void; onNotice: (message: string) => void; onError: (message: string) => void }) {
-  const [selected, setSelected] = useState<{ agentId: string; deviceId?: string | null } | null>(null)
+function AgentWorkspacesTab({ workspaces, selectedAgentId, selectedStoreId, onSelect, onRefresh, onNotice, onError }: { workspaces: AgentWorkspace[]; selectedAgentId: string; selectedStoreId: string; onSelect: (agentId: string, storeId: string) => void; onRefresh: () => void; onNotice: (message: string) => void; onError: (message: string) => void }) {
+  const [selected, setSelected] = useState<{ agentId: string; storeId: string; deviceId?: string | null } | null>(null)
   const [memories, setMemories] = useState<Memory[]>([])
   const [loading, setLoading] = useState(false)
   const [editingDeviceId, setEditingDeviceId] = useState('')
   const [nameDraft, setNameDraft] = useState('')
   const [busyDeviceId, setBusyDeviceId] = useState('')
   const choose = async (workspace: AgentWorkspace) => {
-    setSelected({ agentId: workspace.agent_id, deviceId: workspace.device_id })
+    setSelected({ agentId: workspace.agent_id, storeId: workspace.store_id, deviceId: workspace.device_id })
     setLoading(true)
     try {
-      const result = await api.agentMemories(workspace.agent_id, workspace.device_id || undefined)
+      const result = await api.agentMemories(workspace.agent_id, workspace.device_id || undefined, 100, { agentId: workspace.agent_id, storeId: workspace.store_id })
       setMemories(result.memories)
-      onSelect(workspace.agent_id, workspace.device_id)
+      onSelect(workspace.agent_id, workspace.store_id)
     } finally { setLoading(false) }
   }
   const manage = async (deviceId: string, action: 'rename' | 'detach' | 'revoke') => {
@@ -2150,23 +2163,23 @@ function AgentWorkspacesTab({ workspaces, selectedAgentId, onSelect, onRefresh, 
       <label>Agent ID<input name="agent_id" required placeholder="did:integrity:…" /></label>
       <label>Device ID<input name="device_id" required placeholder="device hostname or managed ID" /></label>
       <label>Display name<input name="display_name" placeholder="Operator-friendly device name" /></label>
-      <button type="submit">Associate pair</button>
+      <button type="submit">Associate pair in primary profile</button>
     </form>
     {workspaces.length === 0 ? <EmptyState icon="◈" title="No canonical agent memories yet" description="Associate a device above or ingest a memory carrying XIBALBA_AGENT_ID and XIBALBA_DEVICE_ID." /> : <div className="overview-card-grid">{workspaces.map((workspace) => {
       const managed = Boolean(workspace.device_id && workspace.pair_status)
       const isBusy = busyDeviceId === workspace.device_id
-      return <article className={`overview-card agent-workspace-card ${selectedAgentId === workspace.agent_id && (!selected || (selected.agentId === workspace.agent_id && selected.deviceId === workspace.device_id)) ? 'selected' : ''}`} key={`${workspace.agent_id}:${workspace.device_id || 'agent'}`}>
+      return <article className={`overview-card agent-workspace-card ${selectedAgentId === workspace.agent_id && selectedStoreId === workspace.store_id ? 'selected' : ''}`} key={`${workspace.store_id}:${workspace.agent_id}:${workspace.device_id || 'agent'}`}>
         <button type="button" className="workspace-select" onClick={() => choose(workspace)} aria-label={`View ${workspace.device_name || workspace.device_id || workspace.agent_id}`}>
-          <div className="card-icon"><ShieldCheck size={18} /></div><h3>{workspace.device_name || workspace.agent_name || 'Agent workspace'}</h3><p className="mono">{workspace.agent_id}</p><p>{workspace.device_id || 'Agent-wide historical namespace'}</p><div className="card-meta"><span>{workspace.memories_counted === false ? 'memory count not loaded' : `${workspace.memories} memories`}</span><span>{workspace.sessions} sessions</span>{workspace.pair_status && <Badge>{workspace.pair_status}</Badge>}{workspace.on_chain !== undefined && (workspace.identity_verified ? <Badge>{workspace.on_chain ? 'on-chain' : 'off-chain'}</Badge> : <span className="badge badge-unverified" title="Integrity oracle was unreachable; on-chain status could not be confirmed.">status unverified</span>)}{workspace.identity_verified && workspace.wallet_address && <span className="mono" title={workspace.wallet_address}>{workspace.wallet_address.slice(0, 6)}…{workspace.wallet_address.slice(-4)}</span>}</div>
+          <div className="card-icon"><ShieldCheck size={18} /></div><h3>{workspace.device_name || workspace.agent_name || 'Agent workspace'}</h3><p className="mono">{workspace.agent_id}</p><p>Profile store: {workspace.profile_id} · {workspace.store_access === 'read_only' ? 'read only' : 'writable'}</p><p>{workspace.device_id || 'Agent-wide historical namespace'}</p><div className="card-meta"><span>{workspace.memories_counted === false ? 'memory count not loaded' : `${workspace.memories} memories in this device partition`}</span><span>{workspace.sessions_counted === false ? 'session count not loaded' : `${workspace.sessions} sessions`}</span>{workspace.pair_status && <Badge>{workspace.pair_status}</Badge>}{workspace.on_chain !== undefined && (workspace.identity_verified ? <Badge>{workspace.on_chain ? 'on-chain' : 'off-chain'}</Badge> : <span className="badge badge-unverified" title="Integrity oracle was unreachable; on-chain status could not be confirmed.">status unverified</span>)}{workspace.identity_verified && workspace.wallet_address && <span className="mono" title={workspace.wallet_address}>{workspace.wallet_address.slice(0, 6)}…{workspace.wallet_address.slice(-4)}</span>}</div>
         </button>
-        {managed && <div className="pair-actions">
+        {managed && workspace.writable && <div className="pair-actions">
           {editingDeviceId === workspace.device_id ? <><input aria-label={`New name for ${workspace.device_id}`} value={nameDraft} onChange={(event) => setNameDraft(event.target.value)} /><button disabled={isBusy || !nameDraft.trim()} onClick={() => manage(workspace.device_id!, 'rename')}>Save</button><button onClick={() => setEditingDeviceId('')}>Cancel</button></> : <button onClick={() => { setEditingDeviceId(workspace.device_id!); setNameDraft(workspace.device_name || workspace.device_id!) }}>Rename</button>}
           <button disabled={isBusy || workspace.pair_status === 'detached'} onClick={() => manage(workspace.device_id!, 'detach')}>Detach</button>
           <button className="danger" disabled={isBusy || workspace.pair_status === 'revoked'} onClick={() => { if (window.confirm(`Revoke ${workspace.device_name || workspace.device_id}? Existing memories remain preserved.`)) manage(workspace.device_id!, 'revoke') }}>Revoke</button>
         </div>}
       </article>
     })}</div>}
-    {selected && <section className="overview-card workspace-memory-preview"><div className="section-heading"><div><h3>Scoped memory</h3><p className="mono">{selected.agentId}{selected.deviceId ? ` · ${selected.deviceId}` : ''}</p></div><span className="metric-badge info">{memories.length} loaded</span></div>{loading ? <Skeleton width={180} height={18} /> : memories.length === 0 ? <p className="small muted">No memories in this exact namespace.</p> : <div className="item-list">{memories.slice(0, 8).map((memory) => <button type="button" className="item" key={memory.id} onClick={() => onSelect(selected.agentId, selected.deviceId)}><b>{memory.content.slice(0, 140)}</b><div className="badges"><Badge>{memory.source.kind}</Badge><Badge>{String(memory.source.metadata?.device_id || 'device-unattributed')}</Badge><Badge>{memory.status}</Badge></div></button>)}</div>}</section>}
+    {selected && <section className="overview-card workspace-memory-preview"><div className="section-heading"><div><h3>Scoped memory</h3><p className="mono">{selected.agentId}{selected.deviceId ? ` · ${selected.deviceId}` : ''}</p></div><span className="metric-badge info">{memories.length} loaded</span></div>{loading ? <Skeleton width={180} height={18} /> : memories.length === 0 ? <p className="small muted">No memories in this exact namespace.</p> : <div className="item-list">{memories.slice(0, 8).map((memory) => <button type="button" className="item" key={memory.id} onClick={() => onSelect(selected.agentId, selected.storeId)}><b>{memory.content.slice(0, 140)}</b><div className="badges"><Badge>{memory.source.kind}</Badge><Badge>{String(memory.source.metadata?.device_id || 'device-unattributed')}</Badge><Badge>{memory.status}</Badge></div></button>)}</div>}</section>}
   </section>
 }
 
@@ -2176,10 +2189,22 @@ function AuthenticatedApp() {
   const [operations, setOperations] = useState<OperationsSnapshot | null>(null)
   const [integrityLinks, setIntegrityLinks] = useState<IntegrityLinksStatus | null>(null)
   const [sessions, setSessions] = useState<Session[]>([])
+  const [sessionsHasMore, setSessionsHasMore] = useState(false)
+  const [sessionsOffset, setSessionsOffset] = useState(0)
+  const [sessionsError, setSessionsError] = useState<string | null>(null)
+  const [sessionDetailError, setSessionDetailError] = useState<string | null>(null)
+  const [sessionDetailLoading, setSessionDetailLoading] = useState(false)
+  const [inferenceLoading, setInferenceLoading] = useState(true)
   const [agentWorkspaces, setAgentWorkspaces] = useState<AgentWorkspace[]>([])
   const [selectedAgentId, setSelectedAgentId] = useState(() => {
     try { return sessionStorage.getItem('xibalba-cortex.selected-agent') ?? '' } catch { return '' }
   })
+  const [selectedStoreId, setSelectedStoreId] = useState(() => {
+    try { return sessionStorage.getItem('xibalba-cortex.selected-store') ?? '' } catch { return '' }
+  })
+  const [agentSummary, setAgentSummary] = useState<AgentSummary | null>(null)
+  const [agentSummaryError, setAgentSummaryError] = useState<string | null>(null)
+  const [inferenceError, setInferenceError] = useState<string | null>(null)
   const [selectedSessionId, setSelectedSessionId] = useState('')
   const [loadedSessionId, setLoadedSessionId] = useState('')
   const [root, setRoot] = useState<MerkleRoot | null>(null)
@@ -2235,26 +2260,40 @@ function AuthenticatedApp() {
   const [refreshing, setRefreshing] = useState(false)
 
   const agentOptions = useMemo(() => {
-    const agents = new Map<string, { label: string; memories: number | null }>()
+    const agents = new Map<string, { id: string; storeId: string; profileId: string; label: string; writable: boolean }>()
     agentWorkspaces.forEach((workspace) => {
-      const current = agents.get(workspace.agent_id)
-      const counted = workspace.memories_counted !== false
-      agents.set(workspace.agent_id, {
+      const key = `${workspace.store_id}\0${workspace.agent_id}`
+      const current = agents.get(key)
+      agents.set(key, {
+        id: workspace.agent_id,
+        storeId: workspace.store_id,
+        profileId: workspace.profile_id,
         label: current?.label || workspace.agent_name || workspace.agent_id,
-        memories: !counted || current?.memories === null
-          ? null
-          : (current?.memories ?? 0) + workspace.memories,
+        writable: current?.writable === true || workspace.writable === true,
       })
     })
-    return [...agents.entries()].map(([id, value]) => ({ id, ...value }))
+    return [...agents.values()]
   }, [agentWorkspaces])
+  const canWriteSelectedAgent = agentOptions.some(
+    (agent) => agent.id === selectedAgentId && agent.storeId === selectedStoreId && agent.writable,
+  )
+  const selectedScope = useMemo<WorkspaceScope>(
+    () => ({ agentId: selectedAgentId || undefined, storeId: selectedStoreId || undefined }),
+    [selectedAgentId, selectedStoreId],
+  )
 
-  const chooseAgent = useCallback((agentId: string) => {
+  const chooseAgent = useCallback((agentId: string, storeId: string) => {
     setSelectedAgentId(agentId)
+    setSelectedStoreId(storeId)
     try { sessionStorage.setItem('xibalba-cortex.selected-agent', agentId) } catch {}
+    try { sessionStorage.setItem('xibalba-cortex.selected-store', storeId) } catch {}
     setSelectedMemoryId(null)
     setSelectedGraphNode(null)
     setContextBundle([])
+    setSelectedSessionId('')
+    setExchanges([])
+    setSessionReplay(null)
+    setRoot(null)
   }, [])
 
   const refreshOverview = () => {
@@ -2265,14 +2304,20 @@ function AuthenticatedApp() {
     api.integrityLinks().then(setIntegrityLinks).catch(() => setIntegrityLinks(null))
     api.agents().then((result) => {
       setAgentWorkspaces(result.agents)
-      const available = new Set(result.agents.map((item) => item.agent_id))
-      setSelectedAgentId((current) => {
-        const next = available.has(current) ? current : result.agents[0]?.agent_id || ''
-        if (next) {
-          try { sessionStorage.setItem('xibalba-cortex.selected-agent', next) } catch {}
-        }
-        return next
-      })
+      const available = new Set(result.agents.map((item) => `${item.store_id}\0${item.agent_id}`))
+      const currentAgent = sessionStorage.getItem('xibalba-cortex.selected-agent') || ''
+      const currentStore = sessionStorage.getItem('xibalba-cortex.selected-store') || ''
+      const nextWorkspace = available.has(`${currentStore}\0${currentAgent}`)
+        ? result.agents.find((item) => item.store_id === currentStore && item.agent_id === currentAgent)
+        : result.agents[0]
+      const nextAgent = nextWorkspace?.agent_id || ''
+      const nextStore = nextWorkspace?.store_id || ''
+      setSelectedAgentId(nextAgent)
+      setSelectedStoreId(nextStore)
+      if (nextAgent) {
+        try { sessionStorage.setItem('xibalba-cortex.selected-agent', nextAgent) } catch {}
+        try { sessionStorage.setItem('xibalba-cortex.selected-store', nextStore) } catch {}
+      }
     }).catch(() => setAgentWorkspaces([]))
     setLastRefreshed(new Date())
     window.setTimeout(() => setRefreshing(false), 350)
@@ -2304,23 +2349,51 @@ function AuthenticatedApp() {
   useEffect(() => {
     if (!selectedAgentId) {
       setSessions([])
+      setSessionsHasMore(false)
       setGraph(null)
       setSelectedSessionId('')
       return
     }
     let cancelled = false
+    setSessionsError(null)
     Promise.all([
-      api.sessions(100, selectedAgentId),
-      api.graph(GRAPH_RENDER_LIMIT, similarityThreshold, selectedAgentId),
-    ]).then(([items, nextGraph]) => {
+      api.sessionsPage(50, 0, selectedScope),
+      api.graph(GRAPH_RENDER_LIMIT, similarityThreshold, selectedScope),
+    ]).then(([page, nextGraph]) => {
       if (cancelled) return
-      setSessions(items)
+      setSessions(page.sessions)
+      setSessionsOffset(page.offset + page.sessions.length)
+      setSessionsHasMore(page.has_more)
       setGraph(nextGraph)
-      setSelectedSessionId((current) => items.some((item) => item.external_session_id === current) ? current : items[0]?.external_session_id || '')
+      setSelectedSessionId((current) => page.sessions.some((item) => item.external_session_id === current) ? current : page.sessions[0]?.external_session_id || '')
       setLastRefreshed(new Date())
-    }).catch((e) => setError(String(e)))
+    }).catch((e) => { if (!cancelled) setSessionsError(String(e)) })
     return () => { cancelled = true }
-  }, [selectedAgentId, similarityThreshold, refreshing, setError])
+  }, [selectedScope, similarityThreshold, refreshing])
+
+  const loadMoreSessions = useCallback(() => {
+    if (!sessionsHasMore || !selectedAgentId) return
+    api.sessionsPage(50, sessionsOffset, selectedScope).then((page) => {
+      setSessions((current) => [...current, ...page.sessions])
+      setSessionsOffset(page.offset + page.sessions.length)
+      setSessionsHasMore(page.has_more)
+    }).catch((e) => setSessionsError(String(e)))
+  }, [sessionsHasMore, sessionsOffset, selectedAgentId, selectedScope])
+
+  useEffect(() => {
+    if (!selectedAgentId || !selectedStoreId) {
+      setAgentSummary(null)
+      setAgentSummaryError(null)
+      return
+    }
+    let cancelled = false
+    setAgentSummary(null)
+    setAgentSummaryError(null)
+    api.agentSummary(selectedAgentId, selectedStoreId)
+      .then((summary) => { if (!cancelled) setAgentSummary(summary) })
+      .catch((error) => { if (!cancelled) setAgentSummaryError(String(error)) })
+    return () => { cancelled = true }
+  }, [selectedAgentId, selectedStoreId])
 
   useEffect(() => {
     // Keep the rendered graph stable while the three session projections load. Replacing
@@ -2338,25 +2411,34 @@ function AuthenticatedApp() {
       setExchanges([])
       setSessionReplay(null)
       setRoot(null)
+      setSessionDetailError(null)
+      setSessionDetailLoading(false)
       return
     }
 
     let cancelled = false
-    Promise.all([
-      api.sessionExchanges(selectedSessionId).catch(() => [] as Exchange[]),
-      api.sessionReplay(selectedSessionId).catch(() => null),
-      api.sessionMerkleRoot(selectedSessionId).catch(() => null),
-    ]).then(([nextExchanges, nextReplay, nextRoot]) => {
+    setSessionDetailLoading(true)
+    setSessionDetailError(null)
+    Promise.allSettled([
+      api.sessionExchanges(selectedSessionId, selectedScope),
+      api.sessionReplay(selectedSessionId, selectedScope),
+      api.sessionMerkleRoot(selectedSessionId, selectedScope),
+    ]).then(([exchangeResult, replayResult, rootResult]) => {
       if (cancelled) return
-      setExchanges(nextExchanges)
-      setSessionReplay(nextReplay)
-      setRoot(nextRoot)
+      const errors: string[] = []
+      if (exchangeResult.status === 'fulfilled') setExchanges(exchangeResult.value)
+      else { setExchanges([]); errors.push(`Exchanges: ${String(exchangeResult.reason)}`) }
+      if (replayResult.status === 'fulfilled') setSessionReplay(replayResult.value)
+      else { setSessionReplay(null); errors.push(`Replay: ${String(replayResult.reason)}`) }
+      if (rootResult.status === 'fulfilled') setRoot(rootResult.value)
+      else { setRoot(null); errors.push(`Lineage: ${String(rootResult.reason)}`) }
+      setSessionDetailError(errors.length ? errors.join(' · ') : null)
       setLoadedSessionId(selectedSessionId)
-    })
+    }).finally(() => { if (!cancelled) setSessionDetailLoading(false) })
     return () => {
       cancelled = true
     }
-  }, [selectedSessionId])
+  }, [selectedSessionId, selectedScope])
 
   useEffect(() => {
     if (!query.trim()) {
@@ -2368,20 +2450,23 @@ function AuthenticatedApp() {
     setSearchLoading(true)
     setSearchError(null)
     const timeout = setTimeout(() => {
-      api.search(query, 20, selectedAgentId).then(setSearchResults).catch((error) => {
+      api.search(query, 20, selectedScope).then(setSearchResults).catch((error) => {
         setSearchResults([])
         setSearchError(String(error))
       }).finally(() => setSearchLoading(false))
     }, 200)
     return () => clearTimeout(timeout)
-  }, [query, selectedAgentId])
+  }, [query, selectedScope])
 
   useEffect(() => {
     let cancelled = false
-    const refresh = () => api.inferenceTasks(taskStatus).then(value => { if (!cancelled) setTasks(value) }).catch(() => { if (!cancelled) setTasks([]) })
+    const refresh = () => api.inferenceTasks(taskStatus, 50, selectedScope)
+      .then(value => { if (!cancelled) { setTasks(value); setInferenceError(null) } })
+      .catch(error => { if (!cancelled) setInferenceError(String(error)) })
+      .finally(() => { if (!cancelled) setInferenceLoading(false) })
     refresh(); const timer = window.setInterval(refresh, BACKGROUND_POLL_INTERVAL_MS)
     return () => { cancelled = true; window.clearInterval(timer) }
-  }, [taskStatus])
+  }, [taskStatus, selectedScope])
 
   useEffect(() => {
     let cancelled = false
@@ -2457,6 +2542,10 @@ function AuthenticatedApp() {
 
   const handleRecordExchange = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
+    if (!canWriteSelectedAgent) {
+      setError('The selected agent profile is read-only in this viewer. Switch to a writable profile to record an exchange.')
+      return
+    }
     const form = new FormData(event.currentTarget)
     const sessionId = String(form.get('session') || selectedSessionId || 'mvp-demo-session')
     const prompt = String(form.get('prompt') || '')
@@ -2482,6 +2571,7 @@ function AuthenticatedApp() {
     try {
       const result = await api.recordModelExchange({
         external_session_id: sessionId,
+        agent_id: selectedAgentId,
         user_prompt: prompt,
         model_response: response,
         context: [...selectedContext, ...extraContext],
@@ -2506,7 +2596,7 @@ function AuthenticatedApp() {
     try {
       const inputPayload: Record<string, unknown> = { subject_type: subjectType, subject_id: subjectId }
       if (taskType === 'classify_para' && subjectType === 'memory') {
-        const memory = await api.memory(subjectId)
+        const memory = await api.memory(subjectId, selectedScope)
         inputPayload.source_content_hash = memory.content_hash
       }
       const task = await api.requestInferenceTask({
@@ -2515,11 +2605,13 @@ function AuthenticatedApp() {
         subject_id: subjectId,
         input_payload: inputPayload,
         requested_by: 'viewer',
+        agent_id: selectedAgentId,
+        store_id: selectedStoreId,
         idempotency_key: `viewer:${taskType}:${subjectType}:${subjectId}:${Date.now()}`,
       })
       setTaskStatus(task.status)
       setNotice(`Queued inference task ${task.id}.`)
-      api.inferenceTasks(task.status).then(setTasks)
+      api.inferenceTasks(task.status, 50, selectedScope).then(setTasks)
     } catch (e) {
       setError(String(e))
     }
@@ -2531,9 +2623,9 @@ function AuthenticatedApp() {
         demo_output: true,
         subject_id: task.subject_id,
         note: 'Operator-supplied MVP demo output.',
-      }, undefined, task.claim_owner, task.claim_token)
+      }, undefined, task.claim_owner, task.claim_token, selectedScope)
       setNotice(`Completed task ${completed.id}.`)
-      api.inferenceTasks(taskStatus).then(setTasks)
+      api.inferenceTasks(taskStatus, 50, selectedScope).then(setTasks)
     } catch (e) {
       setError(String(e))
     }
@@ -2560,7 +2652,7 @@ function AuthenticatedApp() {
         throw new Error(`unknown write-back action: ${action}`)
       }
       refreshOverview()
-      api.inferenceTasks(taskStatus).then(setTasks)
+      api.inferenceTasks(taskStatus, 50, selectedScope).then(setTasks)
     } catch (e) {
       setError(String(e))
     }
@@ -2689,26 +2781,33 @@ function AuthenticatedApp() {
             {stats && selectedAgentId && (
               <div className="top-telemetry-badge">
                 <span className="telemetry-live-dot" />
-                <span>{agentOptions.find((agent) => agent.id === selectedAgentId)?.memories?.toLocaleString() ?? 'Memory count not loaded'}</span>
+                <span>{agentSummary?.memories.toLocaleString() ?? (agentSummaryError ? 'Memory count unavailable' : 'Memory count not loaded')}</span>
                 <span className="badge-divider">·</span>
-                <span>{sessions.length.toLocaleString()} sessions</span>
+                <span>{sessions.length.toLocaleString()} sessions loaded</span>
               </div>
             )}
           </div>
           <div className="tools">
             <label className="agent-switcher">
-              <span>Memory agent</span>
+              <span>Agent workspace</span>
               <select
                 aria-label="Active memory agent"
-                value={selectedAgentId}
-                onChange={(event) => chooseAgent(event.target.value)}
+                value={`${selectedStoreId}\0${selectedAgentId}`}
+                onChange={(event) => {
+                  const selected = agentOptions.find((agent) => `${agent.storeId}\0${agent.id}` === event.target.value)
+                  if (selected) chooseAgent(selected.id, selected.storeId)
+                }}
                 disabled={agentOptions.length === 0}
               >
                 {agentOptions.length === 0 ? <option value="">No registered agents</option> : agentOptions.map((agent) => (
-                  <option value={agent.id} key={agent.id}>{agent.label} · {agent.memories?.toLocaleString() ?? 'count not loaded'}</option>
+                  <option value={`${agent.storeId}\0${agent.id}`} key={`${agent.storeId}:${agent.id}`}>{agent.label} · {agent.profileId} · {agent.writable ? 'writable' : 'read only'}</option>
                 ))}
               </select>
             </label>
+            {selectedAgentId && <span className="workspace-source-indicator" title={`Source profile ${agentOptions.find((agent) => agent.id === selectedAgentId && agent.storeId === selectedStoreId)?.profileId || 'unknown'}`}>
+              {agentOptions.find((agent) => agent.id === selectedAgentId && agent.storeId === selectedStoreId)?.profileId || 'Profile unavailable'}
+              {canWriteSelectedAgent ? ' · writable' : ' · read only'}
+            </span>}
             <button
               className="refresh-tool-btn"
               aria-label="Refresh data"
@@ -2735,7 +2834,7 @@ function AuthenticatedApp() {
             <CortexOverview
               stats={stats ? {
                 ...stats,
-                memories: agentOptions.find((agent) => agent.id === selectedAgentId)?.memories ?? null,
+                memories: agentSummary?.memories ?? null,
                 sessions: sessions.length,
               } : null}
               status={storeStatus}
@@ -2748,14 +2847,20 @@ function AuthenticatedApp() {
               }}
             />
           )}
-          {activeTab === 'agents' && <AgentWorkspacesTab workspaces={agentWorkspaces} selectedAgentId={selectedAgentId} onSelect={(agentId) => chooseAgent(agentId)} onRefresh={refreshOverview} onNotice={setNotice} onError={setError} />}
-          {activeTab === 'explorer' && <MemoryExplorerTab selectedAgentId={selectedAgentId} onSelectMemory={selectMemory} />}
+          {activeTab === 'agents' && <AgentWorkspacesTab workspaces={agentWorkspaces} selectedAgentId={selectedAgentId} selectedStoreId={selectedStoreId} onSelect={chooseAgent} onRefresh={refreshOverview} onNotice={setNotice} onError={setError} />}
+          {activeTab === 'explorer' && <MemoryExplorerTab scope={selectedScope} profileId={agentOptions.find((agent) => agent.id === selectedAgentId && agent.storeId === selectedStoreId)?.profileId || 'Unavailable'} onSelectMemory={selectMemory} />}
           {activeTab === 'timeline' && (
-            <TimelineTab
+              <TimelineTab
               exchanges={exchanges}
               sessionReplay={sessionReplay}
+              sessionsError={sessionsError}
+              detailError={sessionDetailError}
+              detailLoading={sessionDetailLoading}
+              hasMoreSessions={sessionsHasMore}
+              onLoadMoreSessions={loadMoreSessions}
               contextBundle={contextBundle}
               selectedSessionId={selectedSessionId}
+              canWrite={canWriteSelectedAgent}
               onRecord={handleRecordExchange}
               onSelectMemory={selectMemory}
               sessions={sessions}
@@ -2793,16 +2898,19 @@ function AuthenticatedApp() {
               <InferenceTab
                 manifest={manifest}
                 tasks={tasks}
+                taskError={inferenceError}
+                taskLoading={inferenceLoading}
                 taskStatus={taskStatus}
                 selectedMemoryId={selectedMemoryId}
                 selectedSessionId={selectedSessionId}
+                canWrite={canWriteSelectedAgent}
                 sessions={sessions}
                 setSelectedSessionId={setSelectedSessionId}
                 onStatus={setTaskStatus}
                 onQueue={queueInference}
                 onClaim={async (task) => {
-                  await api.claimInferenceTask(task.id, 'viewer')
-                  api.inferenceTasks(taskStatus).then(setTasks)
+                  await api.claimInferenceTask(task.id, 'viewer', selectedScope)
+                  api.inferenceTasks(taskStatus, 50, selectedScope).then(setTasks)
                 }}
                 onComplete={completeTask}
                 onWriteBack={applyWriteBack}
@@ -2880,6 +2988,8 @@ function AuthenticatedApp() {
 
       <Inspector
         memoryId={selectedMemoryId}
+        scope={selectedScope}
+        canWrite={canWriteSelectedAgent}
         onSelectMemory={selectMemory}
         onClose={() => setSelectedMemoryId(null)}
         onNotice={setNotice}
@@ -2903,7 +3013,13 @@ function TimelineTab({
   exchanges,
   contextBundle,
   sessionReplay,
+  sessionsError,
+  detailError,
+  detailLoading,
+  hasMoreSessions,
+  onLoadMoreSessions,
   selectedSessionId,
+  canWrite,
   onRecord,
   onSelectMemory,
   sessions,
@@ -2911,8 +3027,14 @@ function TimelineTab({
 }: {
   exchanges: Exchange[]
   sessionReplay: SessionReplay | null
+  sessionsError: string | null
+  detailError: string | null
+  detailLoading: boolean
+  hasMoreSessions: boolean
+  onLoadMoreSessions: () => void
   contextBundle: Memory[]
   selectedSessionId: string
+  canWrite: boolean
   onRecord: (event: FormEvent<HTMLFormElement>) => void
   onSelectMemory: (id: string) => void
   sessions: Session[]
@@ -2922,10 +3044,17 @@ function TimelineTab({
   const [showAdvancedComposer, setShowAdvancedComposer] = useState(false)
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null)
   const [expandedTools, setExpandedTools] = useState<Record<number, boolean>>({})
+  const [sessionQuery, setSessionQuery] = useState('')
 
   const selectedSession = useMemo(() => {
     return sessions.find(s => s.external_session_id === selectedSessionId)
   }, [sessions, selectedSessionId])
+  const filteredSessions = useMemo(() => {
+    const needle = sessionQuery.trim().toLowerCase()
+    if (!needle) return sessions
+    return sessions.filter((session) => [session.external_session_id, session.started_at, session.retention_tier, session.ended_at || 'active']
+      .some((value) => value.toLowerCase().includes(needle)))
+  }, [sessions, sessionQuery])
 
   const toggleToolExpand = (idx: number) => {
     setExpandedTools(prev => ({ ...prev, [idx]: !prev[idx] }))
@@ -2959,13 +3088,18 @@ function TimelineTab({
               onChange={(event) => setSelectedSessionId(event.target.value)}
             >
               <option value="">Select an Agent Session…</option>
-              {sessions.map((session) => (
+              {filteredSessions.map((session) => (
                 <option key={session.id} value={session.external_session_id}>
                   {formatSessionLabel(session)}
                 </option>
               ))}
             </select>
           </div>
+          <label className="session-search-control">
+            <Search size={14} aria-hidden="true" />
+            <input aria-label="Search sessions" value={sessionQuery} onChange={(event) => setSessionQuery(event.target.value)} placeholder="Filter loaded sessions" />
+          </label>
+          {hasMoreSessions && <button type="button" className="small-button" onClick={onLoadMoreSessions}>Load more sessions</button>}
 
           {selectedSession && (
             <div className="session-status-chips">
@@ -3019,7 +3153,13 @@ function TimelineTab({
 
       {/* Main Chat Conversation Scroll Area */}
       <div className="chat-conversation-viewport">
-        {!hasContent ? (
+        {sessionsError && sessions.length === 0 ? (
+          <div className="chat-empty-state" role="alert"><h3>Sessions unavailable</h3><p>{sessionsError}</p></div>
+        ) : detailLoading ? (
+          <div className="chat-empty-state" role="status"><h3>Loading session detail…</h3></div>
+        ) : detailError && !hasContent ? (
+          <div className="chat-empty-state" role="alert"><h3>Session detail is unavailable</h3><p>{detailError}</p></div>
+        ) : !hasContent ? (
           <div className="chat-empty-state">
             <div className="empty-chat-icon">
               <MessageSquare size={32} />
@@ -3033,6 +3173,7 @@ function TimelineTab({
           </div>
         ) : (
           <div className="chat-turns-stream">
+            {detailError && <div className="session-partial-warning" role="status"><b>Partial session detail</b><span>{detailError}</span></div>}
             {replayEvents.length > 0 ? (
               replayEvents.map((event, idx) => {
                 const isUser = event.role === 'user' || event.event_type === 'prompt'
@@ -3210,7 +3351,7 @@ function TimelineTab({
 
       {/* Modern Fixed Chat Composer Dock */}
       <footer className="chat-composer-dock">
-        <form className="chat-composer-form" onSubmit={onRecord}>
+        {canWrite ? <form className="chat-composer-form" onSubmit={onRecord}>
           <input
             type="hidden"
             name="session"
@@ -3282,7 +3423,7 @@ function TimelineTab({
               </div>
             </div>
           )}
-        </form>
+        </form> : <p className="chat-composer-readonly" role="status">This agent profile is mounted read-only. Select a writable profile to record exchanges.</p>}
       </footer>
     </section>
   )
@@ -3858,17 +3999,20 @@ function NodePopup({
   )
 }
 
-const MEMORY_EXPLORER_STATUSES = ['candidate', 'active', 'confirmed', 'superseded', 'forgotten'] as const
+const MEMORY_EXPLORER_STATUSES = ['candidate', 'active', 'confirmed', 'disputed', 'quarantined', 'superseded', 'forgotten'] as const
 
 function MemoryExplorerTab({
-  selectedAgentId,
+  scope,
+  profileId,
   onSelectMemory,
 }: {
-  selectedAgentId: string
+  scope: WorkspaceScope
+  profileId: string
   onSelectMemory: (id: string) => void
 }) {
   const PAGE_SIZE = 25
-  const [statusFilter, setStatusFilter] = useState<string[]>(['candidate', 'active', 'confirmed', 'superseded'])
+  const [statusFilter, setStatusFilter] = useState<string[]>(['candidate', 'active', 'confirmed', 'disputed', 'quarantined', 'superseded'])
+  const [query, setQuery] = useState('')
   const [offset, setOffset] = useState(0)
   const [memories, setMemories] = useState<Memory[]>([])
   const [hasMore, setHasMore] = useState(false)
@@ -3876,9 +4020,17 @@ function MemoryExplorerTab({
   const [loadError, setLoadError] = useState<string | null>(null)
 
   const load = useCallback((nextOffset: number) => {
+    if (statusFilter.length === 0) {
+      setMemories([])
+      setHasMore(false)
+      setOffset(0)
+      setLoading(false)
+      setLoadError(null)
+      return
+    }
     setLoading(true)
     setLoadError(null)
-    api.memories({ limit: PAGE_SIZE, offset: nextOffset, statuses: statusFilter, agentId: selectedAgentId || undefined })
+    api.memories({ limit: PAGE_SIZE, offset: nextOffset, statuses: statusFilter, agentId: scope.agentId, storeId: scope.storeId, query })
       .then((page) => {
         setMemories(page.memories)
         setHasMore(page.has_more)
@@ -3886,7 +4038,7 @@ function MemoryExplorerTab({
       })
       .catch((e) => setLoadError(String(e)))
       .finally(() => setLoading(false))
-  }, [statusFilter, selectedAgentId])
+  }, [statusFilter, scope.agentId, scope.storeId, query])
 
   useEffect(() => { load(0) }, [load])
 
@@ -3910,10 +4062,10 @@ function MemoryExplorerTab({
           <div className="overview-meta-strip">
             <span className="meta-chip">
               <Database size={13} />
-              <span>Canonical SQLite store, browsed directly</span>
+              <span>Profile store: {profileId}</span>
             </span>
             <span className="meta-chip">
-              <span>{selectedAgentId ? `Scoped to ${selectedAgentId}` : 'All agents (operator view)'}</span>
+              <span>{scope.agentId ? `Agent: ${scope.agentId}` : 'All agents (operator view)'}</span>
             </span>
           </div>
         </div>
@@ -3933,8 +4085,14 @@ function MemoryExplorerTab({
         ))}
       </div>
 
+      <label className="memory-explorer-search">
+        <Search size={15} aria-hidden="true" />
+        <input aria-label="Search memories" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search memory text" />
+        {query && <button type="button" onClick={() => setQuery('')} aria-label="Clear memory search">Clear</button>}
+      </label>
+
       {loadError ? (
-        <div className="empty-state error-state" role="alert"><h4>Memory Explorer unavailable</h4><p>{loadError}</p></div>
+        <div className="empty-state error-state" role="alert"><h4>Memory Explorer unavailable</h4><p>{loadError}</p><button className="small-button" onClick={() => load(0)}>Retry</button></div>
       ) : loading ? (
         <div className="empty-state" role="status"><h4>Loading memories…</h4></div>
       ) : memories.length === 0 ? (
@@ -4179,9 +4337,12 @@ function ParaPanel({
 function InferenceTab({
   manifest,
   tasks,
+  taskError,
+  taskLoading,
   taskStatus,
   selectedMemoryId,
   selectedSessionId,
+  canWrite,
   sessions,
   setSelectedSessionId,
   onStatus,
@@ -4192,9 +4353,12 @@ function InferenceTab({
 }: {
   manifest: InferenceManifest | null
   tasks: InferenceTask[]
+  taskError: string | null
+  taskLoading: boolean
   taskStatus: string
   selectedMemoryId: string | null
   selectedSessionId: string
+  canWrite: boolean
   sessions: Session[]
   setSelectedSessionId: (id: string) => void
   onStatus: (status: string) => void
@@ -4229,11 +4393,11 @@ function InferenceTab({
           <div className="overview-meta-strip">
             <span className="meta-chip">
               <Cpu size={13} />
-              <span>Manifest: <b>{manifest?.name ?? 'xibalba-memory-inference'}</b></span>
+              <span>Manifest: <b>{manifest?.name ?? 'unavailable'}</b></span>
             </span>
-            <span className="meta-chip status-chip good">
-              <span className="mini-dot pulse" />
-              <span>{tasks.length} {taskStatus} tasks</span>
+            <span className={`meta-chip status-chip ${taskError ? 'error' : taskLoading ? '' : 'good'}`}>
+              <span className="mini-dot" />
+              <span>{taskError ? 'Task activity unavailable' : taskLoading ? 'Loading task activity' : `${tasks.length} ${taskStatus} tasks in this loaded page`}</span>
             </span>
             {selectedSessionId && (
               <span className="meta-chip">
@@ -4335,7 +4499,7 @@ function InferenceTab({
               <button
                 type="button"
                 className="small-button"
-                disabled={!selectedMemoryId}
+                disabled={!canWrite || !selectedMemoryId}
                 onClick={() => selectedMemoryId && onQueue('memory', selectedMemoryId, selectedTaskType)}
                 title={selectedMemoryId ? 'Queue selected memory for inference' : 'Select a memory record first'}
               >
@@ -4344,7 +4508,7 @@ function InferenceTab({
               <button
                 type="button"
                 className="small-button"
-                disabled={!selectedSessionId}
+                disabled={!canWrite || !selectedSessionId}
                 onClick={() => onQueue('session', selectedSessionId, selectedTaskType)}
                 title={selectedSessionId ? 'Queue selected session for inference' : 'Select a session first'}
               >
@@ -4396,12 +4560,18 @@ function InferenceTab({
               )}
             </div>
 
-            {filteredTasks.length === 0 ? (
+            {taskError && tasks.length === 0 ? (
+              <div className="empty-state error-state" role="alert"><h4>Task activity unavailable</h4><p>{taskError}</p><p>Last successful results, if any, remain visible only after a successful refresh.</p></div>
+            ) : taskLoading && tasks.length === 0 ? (
+              <div className="empty-state" role="status"><h4>Loading inference activity…</h4></div>
+            ) : filteredTasks.length === 0 ? (
               <div className="empty-state">
                 <h4>No {taskStatus} tasks {taskSearch ? 'matching query' : ''}</h4>
                 <p>Use the queue controls on the left to dispatch a memory or session to background inference.</p>
               </div>
             ) : (
+              <>
+              {taskError && <p className="session-partial-warning" role="status">Refresh failed; showing the last successfully loaded task page. {taskError}</p>}
               <div className="item-list" style={{ maxHeight: '520px', overflowY: 'auto' }}>
                 {filteredTasks.map((task) => (
                   <article className="item" key={task.id} style={{ padding: '12px 14px' }}>
@@ -4414,18 +4584,32 @@ function InferenceTab({
                     <p className="small muted" style={{ margin: '4px 0' }}>
                       {task.subject_type} · <code>{task.subject_id}</code>
                     </p>
+                    <p className="small muted" style={{ margin: '4px 0' }}>
+                      Created {new Date(task.created_at).toLocaleString()} · Updated {new Date(task.updated_at).toLocaleString()} · Attempt {task.attempt_count}
+                      {task.requested_provider_id ? ` · requested ${task.requested_provider_id}` : ''}
+                      {task.executing_provider_id ? ` · ran ${task.executing_provider_id}` : ''}
+                    </p>
+                    {task.retry_after && <p className="small warning-text">Retry scheduled after {new Date(task.retry_after).toLocaleString()}</p>}
+                    {task.failure_class && <p className="small warning-text">Failure class: {task.failure_class}{task.dead_letter_reason ? ` · dead letter: ${task.dead_letter_reason}` : ''}</p>}
+                    {task.error && <p className="small error-text">{task.error}</p>}
+                    <details className="inference-payload-details">
+                      <summary>{task.output ? 'View available output' : 'No output recorded · view input'}</summary>
+                      <h4>Input</h4><pre>{JSON.stringify(task.input, null, 2)}</pre>
+                      <h4>Output</h4><pre>{task.output ? JSON.stringify(task.output, null, 2) : 'No output recorded.'}</pre>
+                    </details>
                     <div className="action-row" style={{ marginTop: '8px' }}>
-                      <button className="small-button" disabled={task.status !== 'pending'} onClick={() => onClaim(task)}>
+                      <button className="small-button" disabled={!canWrite || task.status !== 'pending'} onClick={() => onClaim(task)}>
                         Claim Task
                       </button>
-                      <button className="small-button" disabled={task.status === 'completed'} onClick={() => onComplete(task)}>
-                        Complete demo output
+                      <button className="small-button" disabled={!canWrite || task.status === 'completed'} onClick={() => onComplete(task)}>
+                        Complete with operator-supplied demo output
                       </button>
                     </div>
                     <WriteBackActions task={task} selectedMemoryId={selectedMemoryId} onWriteBack={onWriteBack} />
                   </article>
                 ))}
               </div>
+              </>
             )}
           </div>
         </section>

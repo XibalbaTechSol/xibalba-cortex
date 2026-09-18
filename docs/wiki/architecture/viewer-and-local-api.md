@@ -2,7 +2,7 @@
 title: Viewer and Local API
 acronyms: [MCP, FTS5, WAL]
 created: 2026-08-13
-updated: 2026-09-15
+updated: 2026-09-18
 type: architecture
 tags: [infrastructure, storage, provenance]
 confidence: high
@@ -20,9 +20,9 @@ source_files:
 
 # Viewer and Local API
 
-The reviewed viewer and local-API implementation described on this page exists on main.
-Account/email changes that are still uncommitted in a working tree are not promoted to
-released capability by this documentation.
+This page describes the implementation in the current Cortex worktree. The 2026-09-18
+profile-store routing and read-only viewer work is on a feature branch until merged and
+deployed; documenting it here does not make it a released capability.
 
 The local API exposes read and operator-oriented surfaces over the canonical `GraphStore`. It is a local operator API, not a read-only API: bounded `POST` routes can record exchanges, create propositions, link entities, apply lifecycle changes (including forgetting a memory), manage inference tasks, and record PARA decisions. The React viewer presents memory browsing, the session/graph timeline, retrieval, inference, PARA review, and audit/integrity state without treating the viewer as the source of truth.
 
@@ -30,6 +30,7 @@ The local API exposes read and operator-oriented surfaces over the canonical `Gr
 
 - [Surfaces](#surfaces)
 - [Agent workspaces](#agent-workspaces)
+- [Profile-store routing](#profile-store-routing)
 - [PARA and inference integration](#para-and-inference-integration)
 - [Integrity presentation](#integrity-presentation)
 - [Headless verification](#headless-verification)
@@ -101,6 +102,28 @@ The Agents view is a read-only operator surface over the exact `sources.agent_id
 a workspace calls `GET /api/agent/{agent_id}/memories` and optionally adds `device_id`; it never
 falls back to the global memory list. This makes agent comparison safe even when multiple Shield
 devices share one registered agent or when historical records have no canonical identity.
+
+## Profile-store routing
+
+The local API can mount additional profile databases as read-only agent stores. `GET
+/api/agents` identifies each workspace with an opaque, stable `store_id` derived from its
+profile ID and resolved database path, and returns its `profile_id`, `store_access`, and
+`writable` flag. The same agent DID may occur in more than one mounted profile; callers must
+pass `store_id` when the selected agent is ambiguous. Reads stay in that database and do not
+merge or copy records across stores.
+
+Viewer requests carry both `agent_id` and `store_id` for agent-scoped memories, search, graph,
+session pages and details, and inference task listing. `GET /api/sessions/page` provides bounded
+pagination (`limit` capped at 250, with `offset` and `has_more`) and returns the selected store
+and profile. Counts marked as not counted remain unknown, not zero. The primary profile store
+is writable; mounted secondary profile stores are read-only. The viewer disables write-back
+controls for a read-only selection, and write endpoints remain bound to the API's primary store
+and authorization checks.
+
+These controls prevent a selected workspace from silently switching to another profile's data
+or presenting an unknown session count as a measured zero. They do not prove that a running
+deployment has mounted the intended profile directories; verify the live `/api/agents` response
+and selected store before relying on a rendered view.
 
 ## PARA and inference integration
 

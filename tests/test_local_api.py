@@ -485,6 +485,8 @@ def test_operator_can_view_memories_from_a_readonly_profile_store(tmp_path):
         status, agents = _get(port, "/api/agents")
         assert status == 200
         assert did in {row["agent_id"] for row in agents["agents"]}
+        workspace = next(row for row in agents["agents"] if row["agent_id"] == did)
+        assert workspace["writable"] is False
 
         status, page = _get(port, f"/api/memories?agent_id={did}&status=confirmed")
         assert status == 200
@@ -513,19 +515,18 @@ def test_registered_agent_without_memory_is_visible_in_directory(running_store):
 
     status, payload = _get(port, "/api/agents")
     assert status == 200
-    assert payload["agents"] == [{
-        "agent_id": "did:integrity:registered-but-empty",
-        "device_id": None,
-        "agent_name": None,
-        "device_name": None,
-        "pair_status": None,
-        "pair_updated_at": None,
-        "memories": 0,
-        "memories_counted": False,
-        "sessions": 0,
-        "last_seen_at": None,
-        "identity_verified": False,
-    }]
+    assert len(payload["agents"]) == 1
+    workspace = payload["agents"][0]
+    assert workspace["agent_id"] == "did:integrity:registered-but-empty"
+    assert workspace["store_id"].startswith("store-")
+    assert workspace["profile_id"] == "default"
+    assert workspace["store_access"] == "writable"
+    assert workspace["writable"] is True
+    assert workspace["memories"] == 0
+    assert workspace["memories_counted"] is False
+    assert workspace["sessions"] == 0
+    assert workspace["sessions_counted"] is False
+    assert workspace["identity_verified"] is False
 
 
 def test_account_session_carries_synced_registered_agent_set(running_store):
