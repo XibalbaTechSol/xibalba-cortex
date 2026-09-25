@@ -91,6 +91,27 @@ type GraphFilterIntent = { nonce: number; status?: string; evidence?: string }
 const GRAPH_RENDER_LIMIT = 1
 const GRAPH_SESSION_LIMIT = 20
 
+// The three local UIs run on different origins, so browser storage cannot carry
+// the selected workspace between them. Keep the exact Cortex namespace in the
+// URL handoff: {store_id, agent_id}; an agent ID by itself is ambiguous.
+function sharedScopeFromUrl(): { agentId: string; storeId: string } {
+  try {
+    const params = new URLSearchParams(window.location.search)
+    return { agentId: params.get('agent_id') || '', storeId: params.get('store_id') || '' }
+  } catch {
+    return { agentId: '', storeId: '' }
+  }
+}
+
+function writeSharedScope(agentId: string, storeId: string): void {
+  try {
+    const url = new URL(window.location.href)
+    if (agentId) url.searchParams.set('agent_id', agentId); else url.searchParams.delete('agent_id')
+    if (storeId) url.searchParams.set('store_id', storeId); else url.searchParams.delete('store_id')
+    window.history.replaceState({}, '', `${url.pathname}${url.search}${url.hash}`)
+  } catch {}
+}
+
 const tabs: Array<{ id: WorkspaceArea; route: Tab; label: string; icon: React.ComponentType<{ size?: number; className?: string }> }> = [
   { id: 'home', route: 'overview', label: 'Home', icon: LayoutDashboard },
   { id: 'memory', route: 'explorer', label: 'Memory', icon: Database },
@@ -875,13 +896,9 @@ export default function App() {
   }
   if (entry === 'landing') return <CortexLanding connect={() => {
     sessionStorage.removeItem('xibalba-cortex.auth-notice')
-    if (import.meta.env.DEV) {
-      setToken(true)
-      return
-    }
     setEntry('signin')
   }} />
-  return <main className="cortex-auth"><button className="cortex-auth-back" onClick={()=>setEntry('landing')}>← Back to Cortex</button><section className="cortex-auth-story"><CortexBrand compact/><div><p className="cortex-kicker">PRIVATE BY ARCHITECTURE</p><h1>Your agents' memory.<br/>Under your control.</h1><p>Connect to a local Cortex profile and inspect the provenance behind every remembered fact.</p></div><aside><span>⌁</span><div><b>Session-scoped access</b><small>Your session is held in a secure cookie the browser cannot read.</small></div></aside></section><section className="cortex-auth-form"><form onSubmit={submit}><span className="cortex-lock">⌘</span><div className="auth-tabs"><button type="button" className={mode==='login'?'active':''} onClick={()=>setMode('login')}>Sign in</button><button type="button" className={mode==='signup'?'active':''} onClick={()=>setMode('signup')}>Create account</button></div><h2>{mode==='signup'?'Create your Cortex account':'Connect to Cortex'}</h2><p>{mode==='signup'?'Create a local operator account for this Cortex profile.':'Sign in with your account credentials.'}</p><label>Profile endpoint <small>(optional)</small><input name="endpoint" type="url" defaultValue={getApiBaseUrl()} placeholder="This site (recommended)"/></label><label>Email<input name="email" type="email" autoFocus required/></label>{mode==='signup'&&<label>Display name<input name="displayName" required/></label>}<label>Password<input name="password" type="password" minLength={10} required/></label>{authError&&<div className="auth-error">{authError}</div>}<button className="cortex-cta auth-submit" type="submit" disabled={authenticating}>{authenticating?'Connecting…':mode==='signup'?'Create account':'Enter workspace'} <span>→</span></button><small className="auth-security">◇ HttpOnly session cookie · <button type="button" className="link-button" onClick={()=>setAuthError('Password reset is not configured for this local deployment yet.')}>Forgot password?</button></small></form><small className="auth-page-footer">© 2026 Xibalba Technology Solutions · Local-first memory infrastructure</small></section></main>
+  return <main className="cortex-auth"><button className="cortex-auth-back" onClick={()=>setEntry('landing')}>← Back to Cortex</button><section className="cortex-auth-story"><CortexBrand compact/><div><p className="cortex-kicker">PRIVATE BY ARCHITECTURE</p><h1>Your agents' memory.<br/>Under your control.</h1><p>Connect to a local Cortex profile and inspect the provenance behind every remembered fact.</p></div><aside><span>⌁</span><div><b>Session-scoped access</b><small>Your session is held in a secure cookie the browser cannot read.</small></div></aside></section><section className="cortex-auth-form"><form onSubmit={submit}><span className="cortex-lock">⌘</span><div className="auth-tabs"><button type="button" className={mode==='login'?'active':''} onClick={()=>setMode('login')}>Sign in</button><button type="button" className={mode==='signup'?'active':''} onClick={()=>setMode('signup')}>Create account</button></div><h2>{mode==='signup'?'Create your Cortex account':'Connect to Cortex'}</h2><p>{mode==='signup'?'Create a local operator account for this Cortex profile.':'Sign in with your account credentials.'}</p><label>Profile endpoint <small>(optional)</small><input name="endpoint" type="text" inputMode="url" autoCapitalize="none" autoCorrect="off" defaultValue={getApiBaseUrl()} placeholder="/cortex-api (recommended)"/></label><label>Email<input name="email" type="email" autoFocus required/></label>{mode==='signup'&&<label>Display name<input name="displayName" required/></label>}<label>Password<input name="password" type="password" minLength={10} required/></label>{authError&&<div className="auth-error">{authError}</div>}<button className="cortex-cta auth-submit" type="submit" disabled={authenticating}>{authenticating?'Connecting…':mode==='signup'?'Create account':'Enter workspace'} <span>→</span></button><small className="auth-security">◇ HttpOnly session cookie · <button type="button" className="link-button" onClick={()=>setAuthError('Password reset is not configured for this local deployment yet.')}>Forgot password?</button></small></form><small className="auth-page-footer">© 2026 Xibalba Technology Solutions · Local-first memory infrastructure</small></section></main>
 }
 function CortexLanding({ connect }: { connect: () => void }) {
   const memoryFlow = `flowchart LR
@@ -2138,9 +2155,27 @@ function SettingsTab({
   )
 }
 
+const hasVerifiedStoreScope = (workspace: AgentWorkspace) => Boolean(workspace.store_id && workspace.profile_id && workspace.store_access && typeof workspace.writable === 'boolean')
+
+function canonicalAgentWorkspaces(workspaces: AgentWorkspace[]): AgentWorkspace[] {
+  const canonical = new Map<string, AgentWorkspace>()
+  workspaces.forEach((workspace) => {
+    if (!hasVerifiedStoreScope(workspace)) return
+    const key = `${workspace.store_id}\0${workspace.agent_id}`
+    const current = canonical.get(key)
+    // The dashboard must expose the same scoped agent namespaces as the
+    // selector. Prefer a writable/exact-count row when duplicate API rows
+    // describe the same {store_id, agent_id} namespace.
+    if (!current || (workspace.writable === true && current.writable !== true) || (workspace.memories_counted === true && current.memories_counted !== true)) {
+      canonical.set(key, workspace)
+    }
+  })
+  return [...canonical.values()]
+}
+
 function AgentWorkspacesTab({ workspaces, selectedAgentId, selectedStoreId, onSelect, onRefresh, onNotice, onError }: { workspaces: AgentWorkspace[]; selectedAgentId: string; selectedStoreId: string; onSelect: (agentId: string, storeId: string) => void; onRefresh: () => void; onNotice: (message: string) => void; onError: (message: string) => void }) {
-  const hasVerifiedStoreScope = (workspace: AgentWorkspace) => Boolean(workspace.store_id && workspace.profile_id && workspace.store_access && typeof workspace.writable === 'boolean')
-  const selectedWritable = workspaces.some(workspace => hasVerifiedStoreScope(workspace) && workspace.agent_id === selectedAgentId && workspace.store_id === selectedStoreId && workspace.writable === true)
+  const visibleWorkspaces = useMemo(() => canonicalAgentWorkspaces(workspaces), [workspaces])
+  const selectedWritable = visibleWorkspaces.some(workspace => workspace.agent_id === selectedAgentId && workspace.store_id === selectedStoreId && workspace.writable === true)
   const [selected, setSelected] = useState<{ agentId: string; storeId: string; deviceId?: string | null } | null>(null)
   const [memories, setMemories] = useState<Memory[]>([])
   const [loading, setLoading] = useState(false)
@@ -2183,7 +2218,7 @@ function AgentWorkspacesTab({ workspaces, selectedAgentId, selectedStoreId, onSe
     } catch (error) { onError(String(error)) }
   }
   return <section className="resource agent-workspaces" aria-labelledby="agent-workspaces-title">
-    <header className="section-heading"><div><p className="cortex-kicker">CANONICAL IDENTITY PARTITION</p><h2 id="agent-workspaces-title">Agent memory workspaces</h2><p>Every Cortex memory stays scoped by the exact registered agent ID and, when present, its Shield device. Historical records without that provenance remain unassigned.</p></div><span className="metric-badge info">{workspaces.length} namespaces</span></header>
+    <header className="section-heading"><div><p className="cortex-kicker">CANONICAL IDENTITY PARTITION</p><h2 id="agent-workspaces-title">Agent memory workspaces</h2><p>Every Cortex memory stays scoped by the exact registered agent ID and, when present, its Shield device. Historical records without that provenance remain unassigned.</p></div><span className="metric-badge info">{visibleWorkspaces.length} namespaces</span></header>
     <form className="pair-association-form" onSubmit={associate}>
       <label>Agent ID<input name="agent_id" required placeholder="did:integrity:…" disabled={!selectedWritable} /></label>
       <label>Device ID<input name="device_id" required placeholder="device hostname or managed ID" disabled={!selectedWritable} /></label>
@@ -2191,11 +2226,12 @@ function AgentWorkspacesTab({ workspaces, selectedAgentId, selectedStoreId, onSe
       <button type="submit" disabled={!selectedWritable}>Associate pair in primary profile</button>
       {!selectedWritable && <p className="small muted" role="status">Select a writable primary-profile workspace with verified profile/store scope to manage agent/device pairs.</p>}
     </form>
-    {workspaces.length === 0 ? <EmptyState icon="◈" title="No canonical agent memories yet" description="Associate a device above or ingest a memory carrying XIBALBA_AGENT_ID and XIBALBA_DEVICE_ID." /> : <div className="overview-card-grid">{workspaces.map((workspace) => {
+    {workspaces.length > visibleWorkspaces.length && <p className="small muted" role="status">{workspaces.length - visibleWorkspaces.length} API row{workspaces.length - visibleWorkspaces.length === 1 ? '' : 's'} omitted because the agent lacks verified profile/store scope or duplicates an existing namespace.</p>}
+    {visibleWorkspaces.length === 0 ? <EmptyState icon="◈" title="No canonical agent memories yet" description="Associate a device above or ingest a memory carrying XIBALBA_AGENT_ID and XIBALBA_DEVICE_ID." /> : <div className="overview-card-grid">{visibleWorkspaces.map((workspace) => {
       const managed = Boolean(workspace.device_id && workspace.pair_status)
       const isBusy = busyDeviceId === workspace.device_id
       return <article className={`overview-card agent-workspace-card ${selectedAgentId === workspace.agent_id && selectedStoreId === workspace.store_id ? 'selected' : ''}`} key={`${workspace.store_id}:${workspace.agent_id}:${workspace.device_id || 'agent'}`}>
-        <button type="button" className="workspace-select" onClick={() => choose(workspace)} disabled={!hasVerifiedStoreScope(workspace)} aria-label={`View ${workspace.device_name || workspace.device_id || workspace.agent_id}`}>
+        <button type="button" className="workspace-select" onClick={() => choose(workspace)} aria-label={`View ${workspace.device_name || workspace.device_id || workspace.agent_id}`}>
           <div className="card-icon"><ShieldCheck size={18} /></div><h3>{workspace.device_name || workspace.agent_name || 'Agent workspace'}</h3><p className="mono">{workspace.agent_id}</p><p>Profile store: {workspace.profile_id || 'unavailable'} · {workspace.store_access === 'read_only' || workspace.writable === false ? 'read only' : workspace.writable === true && hasVerifiedStoreScope(workspace) ? 'writable' : 'access unavailable'}</p><p>{workspace.device_id || 'Agent-wide historical namespace'}</p><div className="card-meta"><span>{workspace.memories_counted === true ? `${workspace.memories} memories · exact` : 'memory total not counted'}</span><span>{workspace.sessions_counted === true ? `${workspace.sessions} sessions · exact` : 'session total not counted'}</span>{workspace.pair_status && <Badge>{workspace.pair_status}</Badge>}{workspace.on_chain !== undefined && (workspace.identity_verified ? <Badge>{workspace.on_chain ? 'on-chain' : 'off-chain'}</Badge> : <span className="badge badge-unverified" title="Integrity oracle was unreachable; on-chain status could not be confirmed.">status unverified</span>)}{workspace.identity_verified && workspace.wallet_address && <span className="mono" title={workspace.wallet_address}>{workspace.wallet_address.slice(0, 6)}…{workspace.wallet_address.slice(-4)}</span>}</div>
         </button>
         {managed && selectedWritable && selectedStoreId === workspace.store_id && hasVerifiedStoreScope(workspace) && workspace.writable === true && <div className="pair-actions">
@@ -2223,9 +2259,13 @@ function AuthenticatedApp() {
   const [inferenceLoading, setInferenceLoading] = useState(true)
   const [agentWorkspaces, setAgentWorkspaces] = useState<AgentWorkspace[]>([])
   const [selectedAgentId, setSelectedAgentId] = useState(() => {
+    const shared = sharedScopeFromUrl()
+    if (shared.agentId && shared.storeId) return shared.agentId
     try { return sessionStorage.getItem('xibalba-cortex.selected-agent') ?? '' } catch { return '' }
   })
   const [selectedStoreId, setSelectedStoreId] = useState(() => {
+    const shared = sharedScopeFromUrl()
+    if (shared.agentId && shared.storeId) return shared.storeId
     try { return sessionStorage.getItem('xibalba-cortex.selected-store') ?? '' } catch { return '' }
   })
   const [agentSummary, setAgentSummary] = useState<AgentSummary | null>(null)
@@ -2285,23 +2325,15 @@ function AuthenticatedApp() {
   const [refreshing, setRefreshing] = useState(false)
 
   const agentOptions = useMemo(() => {
-    const agents = new Map<string, { id: string; storeId: string; profileId: string; label: string; writable: boolean; scopeVerified: boolean }>()
-    agentWorkspaces.forEach((workspace) => {
-      const storeId = workspace.store_id || ''
-      const profileId = workspace.profile_id || ''
-      const scopeVerified = Boolean(storeId && profileId && workspace.store_access && typeof workspace.writable === 'boolean')
-      const key = `${storeId}\0${workspace.agent_id}`
-      const current = agents.get(key)
-      agents.set(key, {
+    const agents = canonicalAgentWorkspaces(agentWorkspaces).map((workspace) => ({
         id: workspace.agent_id,
-        storeId,
-        profileId,
-        label: current?.label || workspace.agent_name || workspace.agent_id,
-        writable: scopeVerified && (current?.writable === true || workspace.writable === true),
-        scopeVerified: scopeVerified || current?.scopeVerified === true,
-      })
-    })
-    return [...agents.values()]
+        storeId: workspace.store_id!,
+        profileId: workspace.profile_id!,
+        label: workspace.agent_name || workspace.agent_id,
+        writable: workspace.writable === true,
+        scopeVerified: true,
+      }))
+    return agents
   }, [agentWorkspaces])
   const canWriteSelectedAgent = agentOptions.some(
     (agent) => agent.id === selectedAgentId && agent.storeId === selectedStoreId && agent.writable,
@@ -2314,6 +2346,7 @@ function AuthenticatedApp() {
   const chooseAgent = useCallback((agentId: string, storeId: string) => {
     setSelectedAgentId(agentId)
     setSelectedStoreId(storeId)
+    writeSharedScope(agentId, storeId)
     try { sessionStorage.setItem('xibalba-cortex.selected-agent', agentId) } catch {}
     try { sessionStorage.setItem('xibalba-cortex.selected-store', storeId) } catch {}
     setSelectedMemoryId(null)
@@ -2335,8 +2368,9 @@ function AuthenticatedApp() {
       setAgentWorkspaces(result.agents)
       const scopedAgents = result.agents.filter((item) => item.store_id && item.profile_id && item.store_access && typeof item.writable === 'boolean')
       const available = new Set(scopedAgents.map((item) => `${item.store_id}\0${item.agent_id}`))
-      const currentAgent = sessionStorage.getItem('xibalba-cortex.selected-agent') || ''
-      const currentStore = sessionStorage.getItem('xibalba-cortex.selected-store') || ''
+      const shared = sharedScopeFromUrl()
+      const currentAgent = shared.agentId || sessionStorage.getItem('xibalba-cortex.selected-agent') || ''
+      const currentStore = shared.storeId || sessionStorage.getItem('xibalba-cortex.selected-store') || ''
       const nextWorkspace = available.has(`${currentStore}\0${currentAgent}`)
         ? scopedAgents.find((item) => item.store_id === currentStore && item.agent_id === currentAgent)
         : scopedAgents[0]
@@ -2345,10 +2379,17 @@ function AuthenticatedApp() {
       setSelectedAgentId(nextAgent)
       setSelectedStoreId(nextStore)
       if (nextAgent) {
+        writeSharedScope(nextAgent, nextStore)
         try { sessionStorage.setItem('xibalba-cortex.selected-agent', nextAgent) } catch {}
         try { sessionStorage.setItem('xibalba-cortex.selected-store', nextStore) } catch {}
       }
-    }).catch(() => setAgentWorkspaces([]))
+    }).catch((error) => {
+      setAgentWorkspaces([])
+      if (/401|authentication required|unauthorized|expired/i.test(String(error))) {
+        sessionStorage.setItem('xibalba-cortex.auth-notice', 'Session expired. Sign in again to reconnect to this Cortex profile.')
+        accountLogout().catch(() => {}).finally(() => window.location.reload())
+      }
+    })
     setLastRefreshed(new Date())
     window.setTimeout(() => setRefreshing(false), 350)
   }

@@ -384,7 +384,10 @@ def _session_cookie(token: str, *, max_age: int) -> str:
         f"{SESSION_COOKIE_NAME}={token}",
         "Path=/",
         "HttpOnly",
-        "SameSite=None",
+        # SameSite=None is rejected by browsers without Secure. Plain-HTTP loopback
+        # development therefore stays same-site and uses Lax; TLS deployments retain
+        # cross-origin credential support with None + Secure below.
+        f"SameSite={'Lax' if _INSECURE_COOKIES else 'None'}",
         f"Max-Age={max_age}",
     ]
     if not _INSECURE_COOKIES:

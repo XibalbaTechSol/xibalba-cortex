@@ -19,7 +19,12 @@ const URL_STORAGE_KEY = 'xibalba-cortex.local-api-url'
 // read. This just lets the app render the authenticated shell without a round-trip first; any
 // stale value is corrected by the next 401.
 let signedIn = sessionStorage.getItem(SIGNED_IN_KEY) === '1'
-let apiBaseUrl = sessionStorage.getItem(URL_STORAGE_KEY) ?? DEFAULT_BASE_URL
+const storedApiBaseUrl = sessionStorage.getItem(URL_STORAGE_KEY) ?? DEFAULT_BASE_URL
+// Never persist a cross-origin loopback API URL in the browser viewer. It bypasses
+// the Vite proxy and makes the HttpOnly cookie host/samesite boundary inconsistent.
+let apiBaseUrl = import.meta.env.DEV && /https?:\/\/(127\.0\.0\.1|localhost):8420/.test(storedApiBaseUrl)
+  ? '/cortex-api'
+  : storedApiBaseUrl
 
 export function isSignedIn(): boolean {
   return signedIn
@@ -36,7 +41,10 @@ export function getApiBaseUrl(): string {
 }
 
 export function setApiBaseUrl(value: string): void {
-  const normalized = value.trim().replace(/\/+$/, '') || DEFAULT_BASE_URL
+  const candidate = value.trim().replace(/\/+$/, '') || DEFAULT_BASE_URL
+  const normalized = import.meta.env.DEV && /https?:\/\/(127\.0\.0\.1|localhost):8420/.test(candidate)
+    ? '/cortex-api'
+    : candidate
   apiBaseUrl = normalized
   sessionStorage.setItem(URL_STORAGE_KEY, normalized)
 }
