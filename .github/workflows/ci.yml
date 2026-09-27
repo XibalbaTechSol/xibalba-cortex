@@ -36,10 +36,8 @@ jobs:
         with:
           repository: XibalbaTechSol/integrity-core
           # Keep the local path dependency deterministic; update deliberately when SDK changes are needed.
-          # integrity-core main as of 2026-09-27 (390a42e predated integrity_sdk.normalize_hook,
-          # which this branch imports). Verified: Cortex tests fail identically against this
-          # SDK and the local development SDK.
-          ref: a91bdc37dad6e80d1c6ff32292daa9064f0b380a
+          # integrity-core main after #99 merged (2026-09-27). Bump deliberately when SDK changes are needed.
+          ref: 01723868c69610675cabf744d4a180b8bc48b179
           path: integrity-core
           persist-credentials: false
       - uses: astral-sh/setup-uv@v3
