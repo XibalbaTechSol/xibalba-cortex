@@ -1,5 +1,12 @@
 # Xibalba Cortex Production-Readiness Plan
 
+> **Sequencing note (2026-09-26):** Not the active execution order. Work is currently
+> sequenced by the local-first simplification milestone (operator plan, approved
+> 2026-09-25): one Shield event → Cortex write → locally accepted Integrity evidence →
+> independent UI views → resource report. Items here outside that milestone are
+> deferred until the milestone demo has been rerun and is stable. This file remains
+> a reference for scope and gaps; it is not an authority over this repo's `SPECIFICATION.md`.
+
 **Status:** Active implementation baseline; profile-bound bearer authorization is locally implemented, no SaaS tenant lifecycle
 **Updated:** 2026-09-08
 **Target:** Multi-tenant AI-memory SaaS built on the existing hash-chained MCP server
