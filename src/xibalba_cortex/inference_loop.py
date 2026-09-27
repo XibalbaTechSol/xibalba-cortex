@@ -20,6 +20,7 @@ from .combined_worker import process_combined_tasks
 from .contradiction_worker import process_contradiction_tasks
 from .hermes_worker import process_extraction_tasks
 from .metadata_worker import process_metadata_tasks
+from .summary_worker import process_session_summary_tasks
 from .para_worker import process_para_tasks
 from .store import GraphStore
 from .providers import NativeHarnessInferenceProvider
@@ -55,6 +56,18 @@ def process_inference_cycle(
     runner = lambda prompt: provider.infer(prompt, timeout=policy.timeout_seconds)
     enabled = set(policy.task_types)
 
+    backfill = {"classifications_queued": 0, "session_summaries_queued": 0}
+    if "classify_para" in enabled and hasattr(store, "enqueue_missing_memory_classifications"):
+        try:
+            backfill["classifications_queued"] = store.enqueue_missing_memory_classifications(limit=limit)
+        except Exception as exc:
+            backfill["classification_error"] = f"{type(exc).__name__}: {exc}"
+    if "summarize_session" in enabled and hasattr(store, "enqueue_missing_session_summaries"):
+        try:
+            backfill["session_summaries_queued"] = store.enqueue_missing_session_summaries(limit=1)
+        except Exception as exc:
+            backfill["summary_error"] = f"{type(exc).__name__}: {exc}"
+
     try:
         legacy = store.reconcile_legacy_claimed_tasks()
     except Exception as exc:
@@ -66,6 +79,7 @@ def process_inference_cycle(
         expired = {"error": f"{type(exc).__name__}: {exc}"}
 
     result: dict[str, Any] = {
+        "backfill": backfill,
         "recovery": {
             "legacy_dead_lettered": int(legacy.get("dead_lettered", 0)),
             **expired,
@@ -87,6 +101,8 @@ def process_inference_cycle(
         jobs["contradiction"] = lambda: _run_safely(lambda current, limit: process_contradiction_tasks(current, limit=limit, runner=runner), store, limit=limit)
     if "extract_memory_metadata" in enabled:
         jobs["metadata"] = lambda: _run_safely(lambda current, limit: process_metadata_tasks(current, limit=limit, runner=runner), store, limit=limit)
+    if "summarize_session" in enabled:
+        jobs["summaries"] = lambda: _run_safely(lambda current, limit: process_session_summary_tasks(current, limit=limit, runner=runner), store, limit=limit)
 
     if config is None:
         result["extraction"] = _run_safely(process_extraction_tasks, store, limit=limit)
@@ -96,7 +112,7 @@ def process_inference_cycle(
         cycle_started = time.perf_counter()
         with ThreadPoolExecutor(max_workers=min(policy.max_parallel_families, len(jobs) or 1), thread_name_prefix="cortex-inference") as executor:
             futures = {name: executor.submit(job) for name, job in jobs.items()}
-            for name in ("combined", "extraction", "para", "contradiction", "metadata"):
+            for name in ("combined", "extraction", "para", "contradiction", "metadata", "summaries"):
                 result[name] = futures[name].result() if name in futures else {"disabled": True}
         result["enabled"] = True
         result["duration_seconds"] = round(time.perf_counter() - cycle_started, 3)

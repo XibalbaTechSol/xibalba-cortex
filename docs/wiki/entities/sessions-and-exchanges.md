@@ -2,7 +2,7 @@
 title: Sessions and Exchanges
 acronyms: []
 created: 2026-08-12
-updated: 2026-09-08
+updated: 2026-09-18
 type: entity
 tags: [storage, provenance]
 confidence: high
@@ -16,6 +16,7 @@ source_files:
 - [Tables](#tables)
 - [How one exchange gets built](#how-one-exchange-gets-built)
 - [Identifiers, empty sessions, and summaries](#identifiers-empty-sessions-and-summaries)
+- [Agent attribution and profile stores](#agent-attribution-and-profile-stores)
 
 ## Overview
 
@@ -61,3 +62,16 @@ An exchange build now returns `status="built"`, `status="unchanged"` with `dedup
 
 `memory_build_session_exchanges` / `memory_session_exchanges` (MCP tools) expose building and
 reading this structure; see [MCP Tool Surface](../concepts/mcp-tool-surface.md).
+
+## Agent attribution and profile stores
+
+The runtime controller persists the bound agent partition when `open_session()` creates a
+session. Its event-ingest path also reuses an existing session binding when it must create the
+session implicitly. Without a binding, the session remains unattributed; profile names and
+external session IDs are not identity evidence.
+
+The local viewer may read sessions from mounted profile databases. Each page and session-detail
+request is scoped by both agent and store where needed; profile databases remain separate and
+secondary mounts are read-only. `GET /api/sessions/page` reports the selected `store_id` and
+`profile_id`, and `count_status="page_loaded"` describes pagination only, not a total session
+count. See [Viewer and Local API](../architecture/viewer-and-local-api.md).

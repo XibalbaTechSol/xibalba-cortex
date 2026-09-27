@@ -202,7 +202,7 @@ def load_config(*, home: Path | str | None = None, environ: dict[str, str] | Non
         promotion_policy=str(inference_raw.get("promotion_policy", "confidence_gated")),
         contradictions_require_review=bool(inference_raw.get("contradictions_require_review", True)),
     )
-    supported_inference_tasks = {"extract_memory_metadata", "extract_entities", "extract_relations", "classify_para", "detect_contradictions"}
+    supported_inference_tasks = {"extract_memory_metadata", "extract_entities", "extract_relations", "classify_para", "detect_contradictions", "summarize_session"}
     unknown_tasks = set(inference.task_types) - supported_inference_tasks
     if inference.provider != "native_harness":
         raise ValueError("inference.provider must currently be native_harness")

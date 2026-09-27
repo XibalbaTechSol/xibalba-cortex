@@ -5,6 +5,28 @@ import pytest
 from xibalba_cortex.store import GraphStore
 
 
+def test_memory_ingest_automatically_enqueues_para_classification(tmp_path: Path):
+    store = GraphStore(tmp_path)
+    memory = store.store_memory("Ship the release by Friday.", source={"kind": "test"})
+    tasks = store.list_inference_tasks(status="pending", task_type="classify_para")
+    assert len(tasks) == 1
+    assert tasks[0]["subject_id"] == memory["id"]
+    assert tasks[0]["input"]["source_content_hash"] == memory["content_hash"]
+    store.close()
+
+
+def test_missing_classification_backfill_is_bounded_and_idempotent(tmp_path: Path):
+    store = GraphStore(tmp_path)
+    memory = store.store_memory("Historical memory to classify.", source={"kind": "test"})
+    with store._lock:
+        store._connection.execute("DELETE FROM memory_inference_tasks WHERE subject_id = ?", (memory["id"],))
+    assert store.enqueue_missing_memory_classifications(limit=1) == 1
+    assert store.enqueue_missing_memory_classifications(limit=1) == 0
+    task = store.list_inference_tasks(status="pending", task_type="classify_para")[0]
+    assert task["subject_id"] == memory["id"]
+    store.close()
+
+
 def test_para_task_is_accepted_and_is_idempotent(tmp_path: Path):
     store = GraphStore(tmp_path)
     memory = store.store_memory("Launch the new website by Friday.", source={"kind": "test"}, status="active")

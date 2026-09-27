@@ -13,7 +13,8 @@ def test_combined_worker_uses_one_call_and_completes_independent_tasks(tmp_path)
         store.store_memory("Ship the inference dashboard by Friday.", source={"kind": "test"}, status="confirmed"),
     ]
     for memory in memories:
-        for task_type in ("classify_para", "extract_entities", "extract_relations"):
+        # classify_para is automatically queued for confirmed memories.
+        for task_type in ("extract_entities", "extract_relations"):
             store.request_inference_task(task_type, subject_type="memory", subject_id=memory["id"], input_payload={"source_content_hash": memory["content_hash"]})
 
     calls: list[str] = []
@@ -52,7 +53,7 @@ def test_combined_worker_uses_one_call_and_completes_independent_tasks(tmp_path)
 def test_combined_worker_fails_each_claim_when_batch_json_is_invalid(tmp_path):
     store = GraphStore(tmp_path)
     memory = store.store_memory("Bounded evidence.", source={"kind": "test"}, status="confirmed")
-    for task_type in ("classify_para", "extract_entities"):
+    for task_type in ("extract_entities",):
         store.request_inference_task(task_type, subject_type="memory", subject_id=memory["id"], input_payload={"source_content_hash": memory["content_hash"]})
     result = process_combined_tasks(store, runner=lambda _: "not-json", enabled_task_types={"classify_para", "extract_entities"})
     assert result["processed"] == result["failed"] == 2
@@ -64,7 +65,6 @@ def test_combined_worker_fails_each_claim_when_batch_json_is_invalid(tmp_path):
 def test_combined_worker_repairs_a_missing_results_envelope(tmp_path):
     store = GraphStore(tmp_path)
     memory = store.store_memory("Ship the dashboard by Friday.", source={"kind": "test"}, status="confirmed")
-    store.request_inference_task("classify_para", subject_type="memory", subject_id=memory["id"], input_payload={"source_content_hash": memory["content_hash"]})
     responses = iter([
         '{"memory_id":"wrong-shape"}',
         json.dumps({"results": [{"memory_id": memory["id"], "para": {"category": "project", "confidence": 0.9, "rationale": "deadline"}}]}),
@@ -73,3 +73,19 @@ def test_combined_worker_repairs_a_missing_results_envelope(tmp_path):
     assert result["model_calls"] == 2
     assert result["completed"] == 1
     assert result["failed"] == 0
+
+
+def test_combined_worker_dead_letters_tasks_for_deleted_memory_without_crashing(tmp_path):
+    store = GraphStore(tmp_path)
+    task = store.request_inference_task(
+        "classify_para", subject_type="memory", subject_id="deleted-memory",
+        input_payload={"source_content_hash": "sha256:" + "a" * 64},
+    )
+    result = process_combined_tasks(
+        store, runner=lambda _: (_ for _ in ()).throw(AssertionError("must not call model")),
+        enabled_task_types={"classify_para"},
+    )
+    failed = store.get_inference_task(task["id"])
+    assert result["memories"] == result["model_calls"] == 0
+    assert failed["status"] == "failed"
+    assert failed["dead_letter_reason"] == "orphaned_memory_subject"

@@ -35,6 +35,7 @@ def test_cycle_reconciles_claims_and_services_all_inference_workers(monkeypatch)
 
     assert calls == [("legacy", 0), ("requeue", 5), ("extraction", 5), ("para", 5), ("contradiction", 5)]
     assert result == {
+        "backfill": {"classifications_queued": 0, "session_summaries_queued": 0},
         "recovery": {"legacy_dead_lettered": 2, "expired": 1, "requeued": 1, "failed": 0, "dead_lettered": 0},
         "extraction": {"processed": 1, "completed": 1, "failed": 0},
         "para": {"processed": 1, "completed": 1, "failed": 0},

@@ -166,12 +166,14 @@ def _hermes_end(session_id: str, reason: str) -> None:
 
 
 def finalize(*, session_id: str, runtime: str, transcript_path: Path | None = None,
-              reason: str = "explicit_end", source_home: Path = DEFAULT_HOME) -> dict[str, Any]:
+              reason: str = "explicit_end", source_home: Path = DEFAULT_HOME,
+              agent_id: str | None = None, identity_mode: str = "pseudonymous") -> dict[str, Any]:
     source_home.mkdir(parents=True, exist_ok=True)
     config = load_config(home=source_home)
-    store = GraphStore(config.storage.home, profile_id=config.profile_id, quotas=config.quotas.as_dict())
+    store = GraphStore(config.storage.home, profile_id=config.profile_id, quotas=config.quotas.as_dict(),
+                       identity_mode=identity_mode)
     try:
-        store.start_session(session_id, retention_tier="verbatim")
+        store.start_session(session_id, retention_tier="verbatim", agent_id=agent_id)
         if runtime == "hermes":
             messages = _hermes_messages(session_id)
             hermes_result = {"existing": True, "messages_seen": len(messages)}
@@ -189,7 +191,7 @@ def finalize(*, session_id: str, runtime: str, transcript_path: Path | None = No
         _hermes_end(session_id, reason)
 
         if runtime == "claude" and transcript_path and transcript_path.is_file():
-            ingest_result = ingest_claude(store, source_home, transcript_path)
+            ingest_result = ingest_claude(store, source_home, transcript_path, agent_id=agent_id)
             raw = transcript_path.read_text(encoding="utf-8", errors="replace")
         else:
             ingest_result = {"messages_seen": len(messages)}
@@ -208,6 +210,7 @@ def finalize(*, session_id: str, runtime: str, transcript_path: Path | None = No
             raw or f"No transcript content was available; finalization reason: {reason}",
             source={
                 "kind": "runtime_transcript",
+                "agent_id": agent_id,
                 "locator": str(transcript_path) if transcript_path else f"hermes://session/{session_id}",
                 "session_id": session_id,
                 "role": "session",
@@ -232,7 +235,7 @@ def finalize(*, session_id: str, runtime: str, transcript_path: Path | None = No
         ended = store.end_session(
             session_id,
             summary_content=summary,
-            source={"kind": "session_finalization", "session_id": session_id, "runtime": runtime, "reason": reason},
+            source={"kind": "session_finalization", "agent_id": agent_id, "session_id": session_id, "runtime": runtime, "reason": reason},
             idempotency_key=f"session-summary:{session_id}:{digest}",
             summary_status="candidate",
         )
@@ -254,10 +257,13 @@ def main() -> int:
     parser.add_argument("--transcript", type=Path)
     parser.add_argument("--reason", default="explicit_end")
     parser.add_argument("--home", type=Path, default=DEFAULT_HOME)
+    parser.add_argument("--agent-id", help="exact runtime identity for session and source attribution")
+    parser.add_argument("--identity-mode", choices=("full", "pseudonymous", "omit"), default="pseudonymous")
     args = parser.parse_args()
     print(json.dumps(finalize(session_id=args.session_id, runtime=args.runtime,
                               transcript_path=args.transcript, reason=args.reason,
-                              source_home=args.home), default=str))
+                              source_home=args.home, agent_id=args.agent_id,
+                              identity_mode=args.identity_mode), default=str))
     return 0
 
 

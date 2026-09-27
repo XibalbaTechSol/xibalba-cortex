@@ -74,6 +74,20 @@ def test_ingest_links_tool_use_and_tool_result_via_shared_span_id(tmp_path):
     store.close()
 
 
+def test_ingest_binds_session_and_memories_to_exact_agent(tmp_path):
+    store = GraphStore(tmp_path / "graph", identity_mode="full")
+    transcript = tmp_path / "s.jsonl"
+    _write_transcript(transcript, _RECORDS)
+    agent_id = "did:integrity:claude-test"
+
+    ingest_transcript(store, transcript, agent_id=agent_id)
+
+    assert store.get_session("sess-xyz")["agent_id"] == agent_id
+    assert store.session_agent_ids("sess-xyz") == {agent_id}
+    assert all(memory["source"]["agent_id"] == agent_id for memory in store.session_memories("sess-xyz"))
+    store.close()
+
+
 def test_ingest_stamps_tool_call_spans_with_the_real_transcript_timestamp(tmp_path):
     """Regression test: tool_use/tool_result otel_events used to be stored with no
     start_time/end_time at all (the transcript record's real timestamp was available but

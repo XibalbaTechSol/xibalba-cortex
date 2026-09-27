@@ -15,10 +15,16 @@ def test_para_worker_completes_a_claimed_task_with_hash_bound_output(tmp_path: P
         return '{"category":"project","confidence":0.93,"rationale":"A concrete deliverable has a deadline.","signals":["deliverable","deadline"],"alternatives":[]}'
 
     result = process_para_tasks(store, runner=runner, worker_id="test-worker")
-    assert result == {"processed": 1, "completed": 1, "failed": 0}
-    task = store.list_inference_tasks(status="completed")[0]
-    assert task["output"]["source_memory_id"] == memory["id"]
-    assert task["output"]["source_content_hash"] == memory["content_hash"]
+    # Storing an active memory auto-enqueues its own classify_para task (7cfdf67), so the
+    # explicit request above is a second task for the same memory: both must complete,
+    # and every output must stay bound to that memory's content hash.
+    assert result == {"processed": 2, "completed": 2, "failed": 0}
+    completed = store.list_inference_tasks(status="completed")
+    assert len(completed) == 2
+    for done in completed:
+        assert done["output"]["source_memory_id"] == memory["id"]
+        assert done["output"]["source_content_hash"] == memory["content_hash"]
+    task = completed[0]
     assert store.get_para_classification(task["id"])["status"] == "proposed"
     assert "category (project|area|resource|archive)" in prompts[0]
     assert "Prepare the quarterly launch plan by Friday." in prompts[0]

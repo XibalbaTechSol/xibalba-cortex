@@ -36,7 +36,8 @@ jobs:
         with:
           repository: XibalbaTechSol/integrity-core
           # Keep the local path dependency deterministic; update deliberately when SDK changes are needed.
-          ref: 390a42e52c97b0f0a62881fc2db68ff21f6a90a0
+          # integrity-core main after #99 merged (2026-09-27). Bump deliberately when SDK changes are needed.
+          ref: 01723868c69610675cabf744d4a180b8bc48b179
           path: integrity-core
           persist-credentials: false
       - uses: astral-sh/setup-uv@v3
@@ -50,5 +51,5 @@ jobs:
       # --extra drive: tests/test_drive_ingest.py's missing-token-file test only reaches its
       # real assertion once the optional Drive deps are installed -- a plain `uv sync` leaves
       # `_require_drive_extra()` raising first, failing the test for an unrelated reason.
-      - run: uv sync --extra drive
+      - run: uv sync --extra drive --extra otel
       - run: uv run pytest -q

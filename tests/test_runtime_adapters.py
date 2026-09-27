@@ -77,6 +77,18 @@ def test_controller_facade_registers_binds_and_records_events(controller):
     assert attrs["token_usage"] is None
 
 
+def test_open_session_persists_bound_agent_id(controller):
+    ctl, store = controller
+
+    opened = ctl.open_session(
+        "codex", session_id="agent-scoped-session", agent_id="did:integrity:codex"
+    )
+
+    expected_agent_id, _ = store._resolve_agent_id("did:integrity:codex")
+    assert opened["session"]["agent_id"] == expected_agent_id
+    assert store.get_session("agent-scoped-session")["agent_id"] == expected_agent_id
+
+
 def test_controller_auto_anchors_when_session_closes(controller, monkeypatch):
     ctl, store = controller
     ctl.auto_anchor_on_session_end = True

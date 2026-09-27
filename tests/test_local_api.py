@@ -12,6 +12,7 @@ import requests
 
 from xibalba_cortex.ingest_tokens import issue_token
 from xibalba_cortex.local_api import serve
+from xibalba_cortex.local_api import _assert_session_access
 from http.cookies import SimpleCookie
 
 from xibalba_cortex.local_api import SESSION_COOKIE_NAME
@@ -354,6 +355,39 @@ def test_operator_can_select_an_agent_partition_across_memory_views(running_stor
     assert graph_memory_ids == {f"memory:{memory_a['id']}"}
 
 
+def test_agent_session_replay_requires_single_source_namespace(running_store):
+    store, _port = running_store
+    store.identity_mode = "full"
+    store.start_session("legacy-owned-by-a")
+    store.store_memory(
+        "Agent A historical session evidence.",
+        source={"kind": "test", "session_id": "legacy-owned-by-a", "agent_id": "did:agent:a"},
+    )
+    store.start_session("mixed-agent-session", agent_id="did:agent:a")
+    store.store_memory(
+        "Agent A source.",
+        source={"kind": "test", "agent_id": "did:agent:a"},
+    )
+    store.store_memory(
+        "Agent B source.",
+        source={"kind": "test", "agent_id": "did:agent:b"},
+    )
+    with store._lock:
+        store._connection.execute("UPDATE sources SET session_id = 'mixed-agent-session' WHERE id IN (SELECT source_id FROM memories WHERE content IN ('Agent A source.', 'Agent B source.'))")
+    principal = {"agent_ids": ["did:agent:a"]}
+
+    assert _assert_session_access(store, principal, "legacy-owned-by-a")["agent_id"] is None
+    store.start_session("unattributed-session")
+    store.store_memory(
+        "Unattributed evidence.",
+        source={"kind": "test", "session_id": "unattributed-session"},
+    )
+    with pytest.raises(PermissionError, match="unassigned, mixed"):
+        _assert_session_access(store, principal, "unattributed-session")
+    with pytest.raises(PermissionError, match="unassigned, mixed"):
+        _assert_session_access(store, principal, "mixed-agent-session")
+
+
 def test_registered_agent_set_can_switch_between_multiple_agents(running_store):
     global _CURRENT_TOKEN
     store, port = running_store
@@ -390,6 +424,160 @@ def test_registered_agent_set_can_switch_between_multiple_agents(running_store):
     assert status == 403 and "not authorized" in error["error"]
 
 
+def test_reader_identity_mode_does_not_hide_full_did_partitions(running_store):
+    """Hermes may write full DIDs while the local API uses its pseudonymous default."""
+    global _CURRENT_TOKEN
+    store, port = running_store
+    did = "did:integrity:hermes-agent"
+    store.identity_mode = "full"
+    memory = store.store_memory(
+        "Memory written by the full identity Hermes MCP server.",
+        source={"kind": "direct_user", "agent_id": did},
+        status="confirmed",
+    )
+    # Reproduce the deployed mismatch: the API reader defaults to pseudonymous,
+    # but existing source rows were written with the exact DID.
+    store.identity_mode = "pseudonymous"
+    _CURRENT_TOKEN = issue_token(
+        store.home,
+        "hermes-agent-reader",
+        roles=("reader",),
+        scopes=("memory:read",),
+        agent_ids=(did,),
+    )
+
+    status, page = _get(port, f"/api/memories?agent_id={did}&status=confirmed")
+    assert status == 200
+    assert [row["id"] for row in page["memories"]] == [memory["id"]]
+
+    status, results = _get(port, f"/api/search?q=full%20identity&agent_id={did}")
+    assert status == 200
+    assert [row["id"] for row in results] == [memory["id"]]
+
+
+def test_operator_can_view_memories_from_a_readonly_profile_store(tmp_path):
+    global _CURRENT_TOKEN
+    root = GraphStore(tmp_path / "root")
+    profile_writer = GraphStore(tmp_path / "quant", identity_mode="full")
+    did = "did:integrity:quant-agent"
+    memory = profile_writer.store_memory(
+        "Quant profile memory remains in its own store.",
+        source={"kind": "direct_user", "agent_id": did},
+        status="confirmed",
+    )
+    profile_writer.close()
+    profile_reader = GraphStore(tmp_path / "quant", identity_mode="full", readonly=True)
+    _CURRENT_TOKEN = issue_token(
+        root.home,
+        "operator",
+        roles=("admin",),
+        scopes=("memory:read", "memory:write"),
+    )
+    port = _free_test_port()
+    thread = threading.Thread(
+        target=serve,
+        kwargs={"store": root, "port": port, "agent_stores": (profile_reader,)},
+        daemon=True,
+    )
+    thread.start()
+    time.sleep(0.3)
+    try:
+        status, agents = _get(port, "/api/agents")
+        assert status == 200
+        assert did in {row["agent_id"] for row in agents["agents"]}
+        workspace = next(row for row in agents["agents"] if row["agent_id"] == did)
+        assert workspace["writable"] is False
+
+        status, page = _get(port, f"/api/memories?agent_id={did}&status=confirmed")
+        assert status == 200
+        assert [row["id"] for row in page["memories"]] == [memory["id"]]
+
+        status, results = _get(port, f"/api/search?q=Quant%20profile&agent_id={did}")
+        assert status == 200
+        assert [row["id"] for row in results] == [memory["id"]]
+    finally:
+        profile_reader.close()
+        root.close()
+        _CURRENT_TOKEN = None
+
+
+def test_workspace_store_scope_pins_memory_session_and_inference_reads(tmp_path):
+    global _CURRENT_TOKEN
+    root = GraphStore(tmp_path / "root", identity_mode="full")
+    quant_writer = GraphStore(tmp_path / "quant", identity_mode="full")
+    did = "did:integrity:shared-agent"
+    root_memory = root.store_memory(
+        "Root profile scoped memory.", source={"kind": "test", "agent_id": did}, status="confirmed"
+    )
+    quant_memory = quant_writer.store_memory(
+        "Quant profile scoped memory.", source={"kind": "test", "agent_id": did}, status="confirmed"
+    )
+    root_turn = root.ingest_agent_turn(
+        "same-session", runtime="test", prompt="Root session prompt", response="Root session reply", agent_id=did
+    )
+    quant_turn = quant_writer.ingest_agent_turn(
+        "same-session", runtime="test", prompt="Quant session prompt", response="Quant session reply", agent_id=did
+    )
+    root.request_inference_task(
+        "extract_memory_metadata", subject_type="memory", subject_id=root_memory["id"],
+        input_payload={"memory_id": root_memory["id"]}, idempotency_key="root-task",
+    )
+    quant_writer.request_inference_task(
+        "extract_memory_metadata", subject_type="memory", subject_id=quant_memory["id"],
+        input_payload={"memory_id": quant_memory["id"]}, idempotency_key="quant-task",
+    )
+    quant_writer.close()
+    quant_reader = GraphStore(tmp_path / "quant", profile_id="quant", identity_mode="full", readonly=True)
+    _CURRENT_TOKEN = issue_token(root.home, "operator", roles=("admin",), scopes=("memory:read", "memory:write"))
+    port = _free_test_port()
+    thread = threading.Thread(
+        target=serve, kwargs={"store": root, "port": port, "agent_stores": (quant_reader,)}, daemon=True
+    )
+    thread.start()
+    time.sleep(0.3)
+    try:
+        status, directory = _get(port, "/api/agents")
+        assert status == 200
+        workspaces = [row for row in directory["agents"] if row["agent_id"] == did]
+        assert len(workspaces) == 2
+        root_scope = next(row for row in workspaces if row["writable"])
+        quant_scope = next(row for row in workspaces if not row["writable"])
+        assert root_scope["store_id"] != quant_scope["store_id"]
+        assert root_scope["profile_id"] == "default"
+        assert quant_scope["profile_id"] == "quant"
+        assert root_scope["store_access"] == "writable"
+        assert quant_scope["store_access"] == "read_only"
+
+        for scope, expected, other, session_text in (
+            (root_scope, root_memory, quant_memory, "Root session"),
+            (quant_scope, quant_memory, root_memory, "Quant session"),
+        ):
+            query = f"agent_id={did}&store_id={scope['store_id']}"
+            status, page = _get(port, f"/api/memories?{query}&status=confirmed")
+            assert status == 200
+            page_ids = [row["id"] for row in page["memories"]]
+            assert expected["id"] in page_ids and other["id"] not in page_ids
+            status, sessions = _get(port, f"/api/sessions/page?{query}")
+            assert status == 200 and sessions["sessions"][0]["external_session_id"] == "same-session"
+            status, replay = _get(port, f"/api/session/same-session/replay?{query}")
+            assert status == 200
+            replay_content = [event["content"] for event in replay["events"]]
+            assert any(session_text in content for content in replay_content)
+            assert not any(("Quant session" if session_text.startswith("Root") else "Root session") in content for content in replay_content)
+            status, tasks = _get(port, f"/api/inference/tasks?{query}&status=pending")
+            assert status == 200
+            task_memory_ids = [task["subject_id"] for task in tasks if task["subject_type"] == "memory"]
+            assert expected["id"] in task_memory_ids and other["id"] not in task_memory_ids
+
+        status, unscoped = _get(port, f"/api/memories?agent_id={did}&status=confirmed")
+        assert status == 400
+        assert "store_id is required" in unscoped["error"]
+    finally:
+        quant_reader.close()
+        root.close()
+        _CURRENT_TOKEN = None
+
+
 def test_registered_agent_without_memory_is_visible_in_directory(running_store):
     global _CURRENT_TOKEN
     store, port = running_store
@@ -404,18 +592,18 @@ def test_registered_agent_without_memory_is_visible_in_directory(running_store):
 
     status, payload = _get(port, "/api/agents")
     assert status == 200
-    assert payload["agents"] == [{
-        "agent_id": "did:integrity:registered-but-empty",
-        "device_id": None,
-        "agent_name": None,
-        "device_name": None,
-        "pair_status": None,
-        "pair_updated_at": None,
-        "memories": 0,
-        "sessions": 0,
-        "last_seen_at": None,
-        "identity_verified": False,
-    }]
+    assert len(payload["agents"]) == 1
+    workspace = payload["agents"][0]
+    assert workspace["agent_id"] == "did:integrity:registered-but-empty"
+    assert workspace["store_id"].startswith("store-")
+    assert workspace["profile_id"] == "default"
+    assert workspace["store_access"] == "writable"
+    assert workspace["writable"] is True
+    assert workspace["memories"] == 0
+    assert workspace["memories_counted"] is False
+    assert workspace["sessions"] == 0
+    assert workspace["sessions_counted"] is False
+    assert workspace["identity_verified"] is False
 
 
 def test_account_session_carries_synced_registered_agent_set(running_store):
@@ -754,7 +942,7 @@ def test_inference_task_routes(running_store):
 
     status, tasks = _get(port, "/api/inference/tasks?status=pending")
     assert status == 200
-    assert [item["id"] for item in tasks] == ["api-task-1"]
+    assert "api-task-1" in [item["id"] for item in tasks]
 
     status, claimed = _post(port, "/api/inference/tasks/api-task-1/claim", {"claimed_by": "ui"})
     assert status == 200

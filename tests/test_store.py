@@ -826,6 +826,43 @@ def test_session_lifecycle_is_idempotent_and_links_a_summary(tmp_path):
     store.close()
 
 
+def test_agent_session_listing_requires_one_consistent_source_namespace(tmp_path):
+    store = GraphStore(tmp_path / "agent-sessions", identity_mode="full")
+    store.start_session("legacy-agent-a")
+    store.store_memory(
+        "Only agent A evidence.",
+        source={"kind": "test", "session_id": "legacy-agent-a", "agent_id": "agent-a"},
+    )
+    store.start_session("unattributed-session")
+    store.store_memory(
+        "Unattributed transcript evidence.",
+        source={"kind": "test", "session_id": "unattributed-session"},
+    )
+    store.start_session("mixed-session", agent_id="agent-a")
+    store.store_memory(
+        "Agent A evidence.",
+        source={"kind": "test", "agent_id": "agent-a"},
+    )
+    store.store_memory(
+        "Agent B evidence.",
+        source={"kind": "test", "agent_id": "agent-b"},
+    )
+    with store._lock:
+        store._connection.execute("UPDATE sources SET session_id = 'mixed-session' WHERE id IN (SELECT source_id FROM memories WHERE content IN ('Agent A evidence.', 'Agent B evidence.'))")
+
+    assert store.session_agent_ids("legacy-agent-a") == {"agent-a"}
+    assert store.session_agent_ids("unattributed-session") == {None}
+    assert [row["external_session_id"] for row in store.list_sessions(agent_id="agent-a")] == [
+        "legacy-agent-a"
+    ]
+    assert "mixed-session" not in {
+        row["external_session_id"] for row in store.list_sessions(agent_id="agent-a")
+    }
+    with pytest.raises(PermissionError, match="different or multiple agents"):
+        store.start_session("mixed-session", agent_id="agent-a")
+    store.close()
+
+
 def test_identity_mode_defaults_to_pseudonymous(tmp_path):
     store = GraphStore(tmp_path / "graph")
     assert store.identity_mode == "pseudonymous"
@@ -1383,7 +1420,7 @@ def test_memory_inference_task_lifecycle_is_harness_facing(tmp_path):
     assert duplicate["deduplicated"] is True
     assert duplicate["input_reused"] is True
     assert duplicate["id"] == task["id"]
-    assert [item["id"] for item in store.list_inference_tasks()] == [task["id"]]
+    assert [item["id"] for item in store.list_inference_tasks() if item["task_type"] == "extract_memory_metadata"] == [task["id"]]
 
     claimed = store.claim_inference_task(task["id"], claimed_by="xibalba-memory-inference")
     assert claimed["status"] == "claimed"
@@ -1396,7 +1433,7 @@ def test_memory_inference_task_lifecycle_is_harness_facing(tmp_path):
     )
     assert completed["status"] == "completed"
     assert completed["output"]["metadata"]["type"] == "user_preference"
-    assert store.list_inference_tasks(status="pending") == []
+    assert all(item["task_type"] == "classify_para" for item in store.list_inference_tasks(status="pending"))
     store.close()
 
 

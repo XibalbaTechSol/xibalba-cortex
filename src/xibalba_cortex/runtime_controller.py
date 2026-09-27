@@ -111,7 +111,9 @@ class XibalbaRuntimeController:
         agent_id: str | None = None,
         provenance: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
-        session = self.store.start_session(session_id, retention_tier=retention_tier)
+        session = self.store.start_session(
+            session_id, retention_tier=retention_tier, agent_id=agent_id
+        )
         self._bindings.setdefault(session_id, {})
         self._bindings[session_id].update(
             {
@@ -160,7 +162,12 @@ class XibalbaRuntimeController:
         }
 
     def ingest_event(self, event: RuntimeEvent) -> dict[str, Any]:
-        self.store.start_session(event.session_id, retention_tier=_retention_tier())
+        binding = self._bindings.get(event.session_id, {})
+        self.store.start_session(
+            event.session_id,
+            retention_tier=_retention_tier(),
+            agent_id=binding.get("agent_id"),
+        )
         result = self.store.record_otel_batch(
             event.session_id,
             [
