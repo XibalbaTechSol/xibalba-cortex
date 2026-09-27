@@ -253,11 +253,16 @@ async def ingest_turns_via_mcp(
         "XIBALBA_CORTEX_HOME": str(cortex_home),
         "XIBALBA_CORTEX_RETENTION_TIER": os.environ.get("XIBALBA_CORTEX_RETENTION_TIER", "verbatim"),
         "XIBALBA_CORTEX_IDENTITY_MODE": os.environ.get("XIBALBA_CORTEX_IDENTITY_MODE", "full"),
-        # The local Codex MCP principal is `codex`; using a separate default
-        # label causes the server's authenticated-principal check to reject
-        # otherwise valid backfill requests. Callers can still override this
-        # for explicitly provisioned identities.
-        "XIBALBA_AGENT_ID": os.environ.get("XIBALBA_AGENT_ID", "codex"),
+        # Defaults to Codex's real harness-root DID (see ~/.codex/.integrity/identity.json)
+        # rather than the bare "codex" label this used to hardcode -- that label and the
+        # DID are both accepted by the spawned server's profile-identity check (either
+        # matches the identity.json binding), but only the DID is a genuine, on-chain-
+        # capable identity. Callers can still override this for explicitly provisioned
+        # identities.
+        "XIBALBA_AGENT_ID": os.environ.get(
+            "XIBALBA_AGENT_ID",
+            "did:integrity:d73b98dd869948c27c7cc16d53683779a23c46daf3020e221955d67d1a8723c5",
+        ),
     }
     params = StdioServerParameters(command=server_command, env=env)
     async with stdio_client(params) as (read, write):
@@ -292,7 +297,7 @@ async def ingest_turns_via_mcp(
                         "prompt": turn.prompt,
                         "response": turn.response,
                         "tool_calls": turn.tool_calls,
-                        "agent_id": "codex",
+                        "agent_id": env["XIBALBA_AGENT_ID"],
                         "prompt_id": turn.turn_id,
                         "prompt_time": turn.prompt_time,
                         "response_time": turn.response_time,
