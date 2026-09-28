@@ -9,6 +9,7 @@ from pathlib import Path
 from .agy_adapter import AgyNativeHookAdapter
 from .runtime_controller import XibalbaRuntimeController
 from .store import GraphStore
+from .identity import resolve_agent_id
 
 
 def normalize(hook: str, payload: dict) -> dict:
@@ -21,7 +22,7 @@ def normalize(hook: str, payload: dict) -> dict:
     # Use the profile-bound DID supplied by the installed hook. A short harness
     # label is not an authenticated identity and would split attribution from
     # the local Cortex API's DID-bound profile.
-    agent_id = os.environ.get("XIBALBA_AGENT_ID", "").strip()
+    agent_id = resolve_agent_id(profile_root=os.environ.get("XIBALBA_CORTEX_HOME")) or ""
     if not agent_id.startswith("did:integrity:"):
         raise ValueError("missing or invalid profile DID")
     event = {"session_id": session, "agent_id": agent_id}

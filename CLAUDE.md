@@ -63,7 +63,6 @@ sync` will fail if that path doesn't resolve.
 
 ```bash
 uv sync                       # install deps
-uv sync --extra drive         # + Google Drive ingestion extras (pypdf, Google API client)
 uv run pytest -q              # tests/ — canonical full Python suite
 uv run xibalba-cortex          # MCP server, stdio by default
 uv run xibalba-cortex --transport streamable-http
@@ -72,7 +71,7 @@ uv run xibalba-cortex --transport streamable-http
 xibalba-cortex-operator, xibalba-cortex-embedding-worker, xibalba-cortex-para-worker,
 xibalba-cortex-contradiction-worker, xibalba-cortex-ingest-tokens, xibalba-cortex-session-sync,
 xibalba-cortex-session-open, xibalba-cortex-transcript-ingest, xibalba-cortex-demo-seed,
-xibalba-cortex-wiki-ingest, xibalba-cortex-drive-ingest, xibalba-cortex-otlp-receiver,
+xibalba-cortex-wiki-ingest, xibalba-cortex-otlp-receiver,
 xibalba-cortex-raw-ingest
 
 # viewer/ (npm)

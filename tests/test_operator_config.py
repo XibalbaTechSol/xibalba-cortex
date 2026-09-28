@@ -23,4 +23,3 @@ def test_operator_doctor_reports_provider_mode(tmp_path):
     assert result["inference_provider"] == "native_harness"
     assert result["embedding_provider"] == "local"
     assert result["connectors"]["webhook"]["state"] == "implemented"
-    assert result["connectors"]["google_drive"]["state"] == "optional_dependency"

@@ -6,7 +6,10 @@ import hashlib
 import json
 from typing import Any
 
+from integrity_sdk.core.jcs import canonical_bytes as sdk_canonical_bytes
+
 CANONICAL_JSON_V1 = "xibalba.canonical-json.v1"
+CANONICAL_JSON_V2 = "xibalba.canonical-json.v2"
 
 
 def canonical_json_bytes(value: Any) -> bytes:
@@ -22,6 +25,15 @@ def canonical_json_bytes(value: Any) -> bytes:
 
 def canonical_json(value: Any) -> str:
     return canonical_json_bytes(value).decode("utf-8")
+
+
+def canonical_json_v2_bytes(value: Any) -> bytes:
+    """Return SDK JCS/RFC 8785 bytes for new versioned store data."""
+    return sdk_canonical_bytes(value)
+
+
+def canonical_json_v2(value: Any) -> str:
+    return canonical_json_v2_bytes(value).decode("utf-8")
 
 
 def sha256_prefixed(value: bytes | str) -> str:

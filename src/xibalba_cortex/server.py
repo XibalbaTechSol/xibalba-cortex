@@ -24,6 +24,7 @@ from xibalba_cortex.agy_adapter import AgyNativeHookAdapter, AgyWrapperShim
 from xibalba_cortex.config import load_config
 from xibalba_cortex.auth_middleware import current_principal, set_local_principal
 from xibalba_cortex.ingest_tokens import ROLE_SCOPES
+from xibalba_cortex.identity import resolve_agent_id
 from xibalba_cortex.claude_adapter import ClaudeAdapter
 from xibalba_cortex.codex_probe import CodexAdapter, CodexLauncher, CodexLauncherProbe
 from xibalba_cortex.cursor_adapter import CursorAdapter
@@ -140,14 +141,9 @@ def _bound_agent_id(requested: str | None = None, *, require: bool = False) -> s
     if principal is None:
         if requested_value is not None:
             return requested_value
-        # Local stdio callers (Claude Code, Hermes, agy) carry no HTTP principal, but the
-        # launching harness already sets XIBALBA_AGENT_ID in this process's own environment
-        # (see server.py's other direct reads of it, e.g. the CORE memory-anchor path) -- it
-        # was just never consulted here, so every session/write tool that relies solely on
-        # _bound_agent_id() silently landed unscoped (agent_id=None) even when the harness
-        # correctly identified itself. 2477 sessions back to 2026-08-05 confirmed this gap.
-        env_agent_id = str(os.environ.get("XIBALBA_AGENT_ID") or "").strip()
-        return env_agent_id or None
+        # Local stdio callers carry no HTTP principal. Use the explicit override when one is
+        # supplied, otherwise resolve the profile's validated public DID file.
+        return resolve_agent_id(profile_root=_default_home())
     principal_agent = str(principal.get("agent_id") or "").strip() or None
     if principal_agent is None:
         if requested_value is not None:
@@ -1566,23 +1562,22 @@ def _install_stdio_principal() -> None:
 
     Without this, `current_principal()` is None for every stdio call and every agent-scope check
     in this module returns unchecked — authorization exists in code but not on the transport in
-    use. `XIBALBA_AGENT_ID` is what the harness already passes to identify the agent whose memory
-    this process is serving (see store.py's storage_agent_id and hermes_observer.py).
+    use. The profile's validated `agent.did.json` is the primary identity source; an explicit
+    `XIBALBA_AGENT_ID` remains supported for legacy harness launchers.
 
     Fails closed when it is unset, because the alternative is to keep silently serving every
     agent's namespace to whoever spawned the process. `XIBALBA_CORTEX_ALLOW_UNSCOPED_STDIO=1` is
     the deliberate, visible escape hatch for a single-agent local setup that has not configured an
     identity yet; it restores the historical unscoped behavior and nothing else.
     """
-    agent_id = str(os.environ.get("XIBALBA_AGENT_ID") or "").strip()
+    agent_id = resolve_agent_id(profile_root=_default_home())
     if not agent_id:
         if os.environ.get("XIBALBA_CORTEX_ALLOW_UNSCOPED_STDIO") == "1":
             return
         raise SystemExit(
-            "XIBALBA_AGENT_ID is required: without it this server cannot scope memory access to "
-            "an agent, and every agent-scope check would silently pass. Set it to the agent's "
-            "canonical DID, or set XIBALBA_CORTEX_ALLOW_UNSCOPED_STDIO=1 to accept unscoped "
-            "local access deliberately."
+            "a Cortex agent DID is required: provision agent.did.json or set XIBALBA_AGENT_ID "
+            "as an explicit override. To accept unscoped local access deliberately, set "
+            "XIBALBA_CORTEX_ALLOW_UNSCOPED_STDIO=1."
         )
     set_local_principal({
         "label": "local-stdio",

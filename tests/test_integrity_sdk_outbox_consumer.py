@@ -81,5 +81,6 @@ def test_integrity_acceptance_is_recorded_as_cortex_protocol_receipt_before_ack(
     assert len(memories) == 1
     assert "oracle_telemetry_acceptance" in memories[0]["content"]
     assert memories[0]["evidence_class"] == "protocol_receipt"
+    assert memories[0]["content"].find('"schema_version":"xibalba.protocol_receipt.v2"') >= 0
     store.close()
     outbox.close()

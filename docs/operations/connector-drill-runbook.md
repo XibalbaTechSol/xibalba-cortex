@@ -8,8 +8,7 @@ bearer credentials into the evidence.
 
 ```bash
 cd /home/xibalba/Projects/xibalba-cortex
-uv sync --extra drive
-uv run pytest -q tests/test_connector_policy.py tests/test_drive_ingest.py \
+uv run pytest -q tests/test_connector_policy.py \
   tests/test_otlp_receiver.py tests/test_local_api.py
 ```
 
@@ -49,25 +48,9 @@ invalid token, and send a burst above the documented rate. Verify:
 Use the response status and `/metrics` counters as evidence. Never record the raw
 token.
 
-## 3. Google Drive
+## 3. Gate decision
 
-Install the Drive extra and place the OAuth file at
-`<profile-home>/credentials/google_token.json` with mode `0600`. Run:
-
-```bash
-uv run xibalba-cortex-drive-ingest --home ~/.hermes/cortex-drill/drill-drive
-```
-
-Verify the token path is inside that profile, the query is repeatable without
-duplicates, modified documents supersede their prior memory, and transient 429/5xx
-responses retry with bounded backoff. A successful API call with a real Google
-account is required for the real-transport evidence class; mocked Drive tests do
-not close that requirement.
-
-## 4. Gate decision
-
-Gate 4 closes only when all six implemented connectors have a dated drill result:
-local-file boundary/idempotency evidence for the four local connectors, real
-authenticated ingress evidence for OTLP/webhook, and real authenticated Drive
-evidence. Synthetic tests must remain labeled `local` or `synthetic`; they cannot
-be promoted to external-traffic proof.
+Gate 4 closes only when the six implemented connectors have a dated drill result:
+local-file boundary/idempotency evidence for the four local connectors and real
+authenticated ingress evidence for OTLP/webhook. Synthetic tests must remain labeled
+`local` or `synthetic`; they cannot be promoted to external-traffic proof.

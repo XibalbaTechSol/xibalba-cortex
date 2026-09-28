@@ -83,7 +83,7 @@ content and the graph).
 
 ### L3 — Ecosystem expansion
 
-Google Drive connector promoted out of `optional_dependency`, additional connectors,
+Additional connectors,
 and any Tier-3/cloud-inference expansion beyond today's local/hybrid/remote-inference
 modes are separate deliverables, not implied by an L1/L2 pilot.
 
@@ -152,7 +152,7 @@ backup/restore drill that succeeds.
 
 Five of seven connectors report `state: implemented` in the readiness gate
 (`claude_transcripts`, `codex_mcp`, `hermes_sessions`, `integrity_wiki`, `otel`,
-`webhook`); `google_drive` remains `optional_dependency`. "Implemented" today means
+`webhook`). "Implemented" today means
 functionally correct in a single-tenant local deployment, not rate-limited, retried, or
 credential-isolated per tenant — none of those exist yet for any connector.
 
@@ -216,7 +216,7 @@ implemented as billing logic:
 |---|---|---|---|
 | Individual | bounded `max_memories` | `hermes_sessions`, `claude_transcripts`, `webhook` | standard |
 | Team | higher/negotiated quota | + `codex_mcp`, `integrity_wiki`, `otel` | standard |
-| Enterprise | negotiated/unbounded | all connectors incl. `google_drive` | configurable via `XIBALBA_CORTEX_RETENTION_TIER` |
+| Enterprise | negotiated/unbounded | all implemented connectors | configurable via `XIBALBA_CORTEX_RETENTION_TIER` |
 
 **Gap:** no tier is enforced in code today; `quotas.max_memories` exists in the schema
 but nothing rejects writes past a quota.
@@ -304,7 +304,7 @@ holding under that load (Workstream G).
 5. Harden the six `implemented` connectors with rate limiting, retry/backoff, and
    per-tenant credential storage. **In progress:** `connector_policy.py` now provides
    bounded retry/backoff, per-profile token-bucket limiting, and credential-path
-   confinement; Google Drive uses it and defaults OAuth storage to the tenant profile.
+   confinement for profile-local connector state.
    Remaining work is inbound OTLP/webhook throttling and equivalent evidence for the
    local-file connectors.
 6. Run the evaluation harness against a first real pilot tenant and record a real
