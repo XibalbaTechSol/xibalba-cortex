@@ -19,6 +19,8 @@ from collections.abc import Iterable, Mapping
 from pathlib import Path
 from typing import Any
 
+from .canonical import canonical_json_v2
+
 
 OUTBOX_SCHEMA_VERSION = "xibalba.telemetry.outbox.v1"
 EVENT_SCHEMA_VERSION = "xibalba.runtime.event.v3"
@@ -35,7 +37,15 @@ class OutboxStateError(RuntimeError):
 
 
 def _canonical_json(value: Mapping[str, Any]) -> str:
-    return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False, default=str)
+    """SDK JCS (RFC 8785), same convention as `store.py`'s new-store default.
+
+    An event may carry non-JSON-native values (e.g. datetimes) that JCS itself
+    cannot encode, so it is round-tripped through `json.dumps(default=str)`
+    first -- the same pattern `integrity_sdk.harness_hooks._hash` already uses
+    ahead of the same JCS call, kept here rather than re-derived.
+    """
+    normalized = json.loads(json.dumps(value, default=str))
+    return canonical_json_v2(normalized)
 
 
 class TelemetryOutbox:
