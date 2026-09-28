@@ -6,6 +6,7 @@ from typing import Any
 
 from google.protobuf.json_format import MessageToDict
 
+from .ingest_tokens import verify_token_record
 from .otel_core import ingest_metric_records, parse_otlp_metrics_json
 from .otlp_receiver import ingest_gen_ai_spans, ingest_log_records, parse_otlp_logs_json, parse_otlp_spans_json
 from .config import load_config
@@ -14,6 +15,35 @@ from .store import GraphStore
 
 def _dict(message: Any) -> dict[str, Any]:
     return MessageToDict(message, preserving_proto_field_name=False)
+
+
+def _auth_interceptor(store: GraphStore):
+    """Same ingest-token check as otlp_receiver.py's HTTP path (`Authorization: Bearer
+    <token>`, `memory:write` scope) -- Gate A's "unauthenticated OTLP is rejected"
+    requirement applies to this transport too, not just the default HTTP one."""
+    import grpc
+
+    class _AuthInterceptor(grpc.ServerInterceptor):
+        def intercept_service(self, continuation, handler_call_details):
+            metadata = dict(handler_call_details.invocation_metadata or ())
+            auth = metadata.get("authorization", "")
+            scheme, _, credentials = auth.partition(" ")
+            token = credentials.strip() if scheme.lower() == "bearer" else ""
+            principal = verify_token_record(store.home, token) if token else None
+            if principal is None:
+                return _deny(grpc.StatusCode.UNAUTHENTICATED, "missing, invalid, or revoked token")
+            if principal["profile_id"] != store.profile_id:
+                return _deny(grpc.StatusCode.PERMISSION_DENIED, "credential is not authorized for this profile")
+            if "memory:write" not in principal["scopes"]:
+                return _deny(grpc.StatusCode.PERMISSION_DENIED, "credential lacks required scope: memory:write")
+            return continuation(handler_call_details)
+
+    def _deny(code, message):
+        def _unauthenticated(request, context):
+            context.abort(code, message)
+        return grpc.unary_unary_rpc_method_handler(_unauthenticated)
+
+    return _AuthInterceptor()
 
 
 def _services(store: GraphStore):
@@ -47,7 +77,7 @@ def serve_grpc(store: GraphStore, *, host: str = "localhost", port: int = 4317,
                max_workers: int = 8) -> None:
     """Serve OTLP traces, metrics, and logs over the standard gRPC port."""
     grpc, traces, metrics, logs, trace_rpc, metric_rpc, log_rpc = _services(store)
-    server = grpc.server(ThreadPoolExecutor(max_workers=max_workers))
+    server = grpc.server(ThreadPoolExecutor(max_workers=max_workers), interceptors=[_auth_interceptor(store)])
     trace_rpc.add_TraceServiceServicer_to_server(traces, server)
     metric_rpc.add_MetricsServiceServicer_to_server(metrics, server)
     log_rpc.add_LogsServiceServicer_to_server(logs, server)
