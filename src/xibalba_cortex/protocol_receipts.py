@@ -6,11 +6,11 @@ is not treated as a replacement for Cortex's raw session or provenance record.
 from __future__ import annotations
 
 import hashlib
-import json
 from collections.abc import Mapping
 from datetime import datetime, timezone
 from typing import Any
 
+from .canonical import CANONICAL_JSON_V2, canonical_json_v2
 from .store import GraphStore
 
 
@@ -26,7 +26,8 @@ def record_oracle_receipt(
     if not isinstance(receipt, Mapping):
         raise ValueError("accepted reporter result has no structured Oracle receipt")
     receipt_payload = {
-        "schema_version": "xibalba.protocol_receipt.v1",
+        "schema_version": "xibalba.protocol_receipt.v2",
+        "canonicalization": CANONICAL_JSON_V2,
         "receipt_type": "oracle_telemetry_acceptance",
         "event_id": str(event["event_id"]),
         "event_payload_hash": str(event.get("payload_hash") or ""),
@@ -35,10 +36,10 @@ def record_oracle_receipt(
         "oracle_response": dict(receipt),
         "score_reconciliation": reporter_result.get("score_reconciliation"),
     }
-    content = json.dumps(receipt_payload, sort_keys=True, separators=(",", ":"), default=str)
+    content = canonical_json_v2(receipt_payload)
     receipt_hash = "sha256:" + hashlib.sha256(content.encode("utf-8")).hexdigest()
     receipt_payload["receipt_hash"] = receipt_hash
-    content = json.dumps(receipt_payload, sort_keys=True, separators=(",", ":"), default=str)
+    content = canonical_json_v2(receipt_payload)
     memory = store.store_memory(
         content,
         source={
