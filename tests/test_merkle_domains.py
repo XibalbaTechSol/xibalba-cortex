@@ -96,3 +96,20 @@ def test_unknown_domain_is_rejected():
 
     with pytest.raises(ValueError, match="unknown Merkle domain"):
         domain_merkle_root(LEAVES, domain="not-a-real-domain")
+
+
+def test_provider_telemetry_export_domain_is_registered_and_round_trips():
+    # Regression guard: `store.export_provider_telemetry` calls
+    # `domain_merkle_root(..., domain="provider_telemetry_export")` unconditionally, so a
+    # missing registration here means every call to that method raises -- this was previously
+    # true for every leaf count, including zero test coverage catching it (see
+    # docs/EXECUTION_PLAN.md A3).
+    root = domain_merkle_root(LEAVES, domain="provider_telemetry_export")
+    assert root is not None
+    # A distinct tag from every other registered domain, over the identical leaf set.
+    for other in ("projection_checkpoint", "retrieval_trace", "provenance_export", "exchange_batch"):
+        assert root != domain_merkle_root(LEAVES, domain=other)
+    for index in range(len(LEAVES)):
+        proof = domain_merkle_proof(LEAVES, index, domain="provider_telemetry_export")
+        assert verify_domain_merkle_proof(proof)
+        assert proof["root"] == root

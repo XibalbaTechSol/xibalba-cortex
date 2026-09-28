@@ -162,6 +162,11 @@ MERKLE_DOMAINS: dict[str, bytes] = {
     "projection_checkpoint": b"xibalba.projection_checkpoint.v1",
     "retrieval_trace": b"xibalba.retrieval_trace.v1",
     "provenance_export": b"xibalba.provenance_export.v1",
+    # Was missing entirely (integrity-core docs/EXECUTION_PLAN.md A3): `store.py`'s
+    # `export_provider_telemetry` has called `domain_merkle_root(..., domain="provider_telemetry_export")`
+    # since it was added, so every call raised `ValueError: unknown Merkle domain` -- this tag
+    # matches the `schema_version` string that same method's return value already carries.
+    "provider_telemetry_export": b"xibalba.provider_telemetry_export.v1",
     "exchange_batch": b"xibalba.exchange_batch.v2",
     # docs/plans/2026-08-18-phase-h5-backup-reconciliation-proposal.md: same canonical
     # (table, columns) sources projection_checkpoint already uses, but a DISTINCT domain

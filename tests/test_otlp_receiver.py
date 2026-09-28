@@ -1,10 +1,12 @@
 import json
 import socket
 import threading
+import urllib.error
 import urllib.request
 
 import pytest
 
+from xibalba_cortex.ingest_tokens import issue_token
 from xibalba_cortex.otlp_receiver import (
     UNATTRIBUTED_SESSION_ID,
     ingest_gen_ai_spans,
@@ -21,6 +23,17 @@ def _free_test_port():
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as probe:
         probe.bind(("localhost", 0))
         return probe.getsockname()[1]
+
+
+def _auth_headers(store: GraphStore, *, roles=("writer",)) -> dict[str, str]:
+    """A real, verifiable token for the receiver's mandatory auth check.
+
+    `issue_token`'s own `scopes` default is `("memory:read",)` regardless of `roles` -- an
+    operator omitting `--scope` must not silently get `memory:write` -- so a role alone is not
+    enough here; request every scope the role can grant and let `effective_scopes` narrow it.
+    """
+    token = issue_token(store.home, "test-exporter", roles=roles, scopes=("memory:read", "memory:write"))
+    return {"Authorization": f"Bearer {token}"}
 
 
 def _sval(v):
@@ -196,7 +209,7 @@ def test_serve_accepts_a_real_http_post_end_to_end(tmp_path):
     request = urllib.request.Request(
         f"http://localhost:{port}/v1/logs",
         data=json.dumps(payload).encode(),
-        headers={"Content-Type": "application/json"},
+        headers={"Content-Type": "application/json", **_auth_headers(store)},
         method="POST",
     )
     with urllib.request.urlopen(request, timeout=5) as response:
@@ -234,7 +247,7 @@ def test_metrics_endpoint_accepts_otlp_metrics_json(tmp_path):
     }
     request = urllib.request.Request(
         f"http://localhost:{port}/v1/metrics", data=json.dumps(payload).encode(),
-        headers={"Content-Type": "application/json"}, method="POST"
+        headers={"Content-Type": "application/json", **_auth_headers(store)}, method="POST"
     )
     with urllib.request.urlopen(request, timeout=5) as response:
         assert response.status == 200
@@ -481,7 +494,7 @@ def test_traces_endpoint_accepts_a_real_http_post_end_to_end(tmp_path):
     request = urllib.request.Request(
         f"http://localhost:{port}/v1/traces",
         data=json.dumps(payload).encode(),
-        headers={"Content-Type": "application/json"},
+        headers={"Content-Type": "application/json", **_auth_headers(store)},
         method="POST",
     )
     with urllib.request.urlopen(request, timeout=5) as response:
@@ -490,4 +503,92 @@ def test_traces_endpoint_accepts_a_real_http_post_end_to_end(tmp_path):
 
     memories = store.session_memories("http-gen-ai-session")
     assert any(m["content"] == "hello from a real gen_ai http request" for m in memories)
+    store.close()
+
+
+def _post_without_urlopen_retry(url: str, *, headers: dict[str, str]) -> tuple[int, dict]:
+    """`urllib.request.urlopen` raises `HTTPError` on 4xx instead of returning it -- unwrap it
+    into the same (status, body) shape a successful response would give the test."""
+    request = urllib.request.Request(
+        url, data=json.dumps(_payload({"eventName": "claude_code.user_prompt", "attributes": []})).encode(),
+        headers={"Content-Type": "application/json", **headers}, method="POST",
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=5) as response:
+            return response.status, json.loads(response.read())
+    except urllib.error.HTTPError as exc:
+        return exc.code, json.loads(exc.read())
+
+
+def test_missing_bearer_token_is_rejected(tmp_path):
+    store = GraphStore(tmp_path / "graph")
+    port = _free_test_port()
+    thread = threading.Thread(target=serve, kwargs={"store": store, "port": port}, daemon=True)
+    thread.start()
+    import time
+    time.sleep(0.3)
+
+    status, body = _post_without_urlopen_retry(f"http://localhost:{port}/v1/logs", headers={})
+    assert status == 401
+    assert "authentication required" in body["error"]
+    assert store.session_memories(UNATTRIBUTED_SESSION_ID) == []  # nothing was ingested
+    store.close()
+
+
+def test_invalid_bearer_token_is_rejected(tmp_path):
+    store = GraphStore(tmp_path / "graph")
+    port = _free_test_port()
+    thread = threading.Thread(target=serve, kwargs={"store": store, "port": port}, daemon=True)
+    thread.start()
+    import time
+    time.sleep(0.3)
+
+    status, body = _post_without_urlopen_retry(
+        f"http://localhost:{port}/v1/logs", headers={"Authorization": "Bearer not-a-real-token"}
+    )
+    assert status == 401
+    assert body["error"] == "invalid or revoked token"
+    store.close()
+
+
+def test_read_only_token_is_rejected_for_ingestion():
+    """A `memory:read`-scoped token (issued for e.g. a dashboard) must not double as a write
+    credential for this receiver -- scope, not just validity, is enforced."""
+    import tempfile
+    from pathlib import Path
+
+    with tempfile.TemporaryDirectory() as d:
+        store = GraphStore(Path(d) / "graph")
+        port = _free_test_port()
+        thread = threading.Thread(target=serve, kwargs={"store": store, "port": port}, daemon=True)
+        thread.start()
+        import time
+        time.sleep(0.3)
+
+        status, body = _post_without_urlopen_retry(
+            f"http://localhost:{port}/v1/logs", headers=_auth_headers(store, roles=("reader",))
+        )
+        assert status == 401
+        assert "memory:write" in body["error"]
+        store.close()
+
+
+def test_revoked_token_is_rejected(tmp_path):
+    from xibalba_cortex.ingest_tokens import issue_token, list_tokens, revoke_token
+
+    store = GraphStore(tmp_path / "graph")
+    raw_token = issue_token(store.home, "revoke-me", roles=("writer",))
+    token_id = next(row["id"] for row in list_tokens(store.home) if row["label"] == "revoke-me")
+    assert revoke_token(store.home, token_id) is True
+
+    port = _free_test_port()
+    thread = threading.Thread(target=serve, kwargs={"store": store, "port": port}, daemon=True)
+    thread.start()
+    import time
+    time.sleep(0.3)
+
+    status, _body = _post_without_urlopen_retry(
+        f"http://localhost:{port}/v1/logs", headers={"Authorization": f"Bearer {raw_token}"}
+    )
+    assert status == 401
     store.close()
