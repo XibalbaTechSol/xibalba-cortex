@@ -22,6 +22,7 @@ import sqlite_vec
 from eth_hash.auto import keccak
 from integrity_sdk.crypto.merkle import compute_node_hash
 
+from .canonical import CANONICAL_JSON_V1, CANONICAL_JSON_V2, canonical_json_v2
 from .events import domain_merkle_proof, domain_merkle_root, merkle_proof, merkle_root
 from . import projection_reconcile
 from .providers import InferenceTaskContract, validate_contradiction_result, validate_extraction_result, validate_metadata_result
@@ -30,7 +31,7 @@ from .identity import resolve_agent_id
 
 logger = logging.getLogger("xibalba_cortex.store")
 
-_SCHEMA_VERSION = 15
+_SCHEMA_VERSION = 16
 
 # Generous default cap on a single attachment -- not a policy decision, just a guard against
 # accidentally ingesting something absurd (e.g. a whole video library) into the blob store.
@@ -130,19 +131,24 @@ _RETRIEVAL_SCORE_SEMANTICS = (
     "Reciprocal-rank-fusion relevance used only for ordering retrieval candidates. "
     "It is not model confidence, source trust, or probability of truth."
 )
-def _compute_leaves(connection: sqlite3.Connection, table: str, columns: tuple[str, ...], order_column: str) -> list[str]:
+def _compute_leaves(
+    connection: sqlite3.Connection,
+    table: str,
+    columns: tuple[str, ...],
+    order_column: str,
+    *,
+    canonicalization: str = CANONICAL_JSON_V1,
+) -> list[str]:
     """Recompute canonical leaf hashes for one (table, columns) source against an explicit
     connection, rather than `self._connection` -- so the same computation can run against a
     backup/restored SQLite file (docs/plans/2026-08-18-phase-h5-backup-reconciliation-
     proposal.md's `GraphStore.reconcile_backup`) as well as the live store
-    (`compute_projection_leaves`). `GraphStore._canonical_json` is a `@staticmethod`, callable
-    without an instance."""
+    (`compute_projection_leaves`). The serializer is passed explicitly so legacy backups can
+    continue using v1 while new profiles use SDK JCS v2."""
     column_list = ", ".join(columns)
     rows = connection.execute(f"SELECT {column_list} FROM {table} ORDER BY {order_column}").fetchall()
-    return [
-        "sha256:" + hashlib.sha256(GraphStore._canonical_json({col: row[col] for col in columns}).encode()).hexdigest()
-        for row in rows
-    ]
+    serializer = canonical_json_v2 if canonicalization == CANONICAL_JSON_V2 else GraphStore._canonical_json_v1
+    return ["sha256:" + hashlib.sha256(serializer({col: row[col] for col in columns}).encode()).hexdigest() for row in rows]
 
 
 # Projections this store can checkpoint and reconcile. Each entry names the canonical table
@@ -199,6 +205,7 @@ CREATE TABLE IF NOT EXISTS schema_migrations (
 CREATE TABLE IF NOT EXISTS deployment_profile (
     id INTEGER PRIMARY KEY CHECK (id = 1),
     profile_id TEXT NOT NULL,
+    canonicalization TEXT NOT NULL DEFAULT 'xibalba.canonical-json.v1',
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -730,6 +737,7 @@ class GraphStore:
             raise ValueError("max_memories quota must be positive or None")
         self.home = Path(home).expanduser().resolve()
         self.db_path = self.home / "graph-memory.sqlite3"
+        self._canonicalization = CANONICAL_JSON_V1
         if self.readonly:
             if not self.db_path.is_file():
                 raise FileNotFoundError(f"read-only Cortex database does not exist: {self.db_path}")
@@ -768,6 +776,13 @@ class GraphStore:
             self._connection.enable_load_extension(False)
             salt_path = self.home / "identity_salt"
             self._identity_salt = salt_path.read_bytes() if salt_path.is_file() else b""
+            profile = self._connection.execute(
+                "SELECT canonicalization FROM deployment_profile WHERE id = 1"
+            ).fetchone()
+            if profile is not None:
+                self._canonicalization = str(profile["canonicalization"])
+            if self._canonicalization not in {CANONICAL_JSON_V1, CANONICAL_JSON_V2}:
+                raise RuntimeError(f"unsupported store canonicalization: {self._canonicalization!r}")
         else:
             self._configure()
             self._migrate()
@@ -1067,14 +1082,33 @@ class GraphStore:
     def _migrate(self) -> None:
         with self._lock:
             self._connection.executescript(_SCHEMA)
-            profile = self._connection.execute("SELECT profile_id FROM deployment_profile WHERE id = 1").fetchone()
-            if profile is None:
-                self._connection.execute("INSERT INTO deployment_profile(id, profile_id) VALUES (1, ?)", (self.profile_id,))
-            elif profile["profile_id"] != self.profile_id:
-                raise RuntimeError(f"store profile mismatch: database belongs to {profile['profile_id']!r}, requested {self.profile_id!r}")
             current_version = self._connection.execute(
                 "SELECT COALESCE(MAX(version), 0) FROM schema_migrations"
             ).fetchone()[0]
+            columns = {
+                row[1]
+                for row in self._connection.execute("PRAGMA table_info(deployment_profile)").fetchall()
+            }
+            if "canonicalization" not in columns:
+                self._connection.execute(
+                    "ALTER TABLE deployment_profile ADD COLUMN canonicalization TEXT NOT NULL "
+                    "DEFAULT 'xibalba.canonical-json.v1'"
+                )
+            profile = self._connection.execute(
+                "SELECT profile_id, canonicalization FROM deployment_profile WHERE id = 1"
+            ).fetchone()
+            if profile is None:
+                self._connection.execute(
+                    "INSERT INTO deployment_profile(id, profile_id, canonicalization) VALUES (1, ?, ?)",
+                    (self.profile_id, CANONICAL_JSON_V2 if current_version == 0 else CANONICAL_JSON_V1),
+                )
+                self._canonicalization = CANONICAL_JSON_V2 if current_version == 0 else CANONICAL_JSON_V1
+            elif profile["profile_id"] != self.profile_id:
+                raise RuntimeError(f"store profile mismatch: database belongs to {profile['profile_id']!r}, requested {self.profile_id!r}")
+            else:
+                self._canonicalization = str(profile["canonicalization"])
+            if self._canonicalization not in {CANONICAL_JSON_V1, CANONICAL_JSON_V2}:
+                raise RuntimeError(f"unsupported store canonicalization: {self._canonicalization!r}")
             self._migrate_entities_agent_scoping_locked()
             self._migrate_relations_agent_scoping_locked()
             vectors_table_exists = self._connection.execute(
@@ -1380,6 +1414,7 @@ class GraphStore:
             "fts5": fts5,
             "integrity_check": integrity_check,
             "profile_id": self.profile_id,
+            "canonicalization": self._canonicalization,
             "identity_mode": self.identity_mode,
             "db_path": str(self.db_path),
             "memory_count": memory_count,
@@ -1648,8 +1683,14 @@ class GraphStore:
                     raise ValueError(f"unknown domain: {name!r}")
                 table, columns, order_column = _PROJECTION_LEAF_SOURCES[name]
                 with self._lock:
-                    live_leaves = _compute_leaves(self._connection, table, columns, order_column)
-                dest_leaves = _compute_leaves(dest_connection, table, columns, order_column)
+                    live_leaves = _compute_leaves(
+                        self._connection, table, columns, order_column,
+                        canonicalization=self._canonicalization,
+                    )
+                dest_leaves = _compute_leaves(
+                    dest_connection, table, columns, order_column,
+                    canonicalization=self._canonicalization,
+                )
                 live_root = domain_merkle_root(live_leaves, domain=f"backup.{name}")
                 dest_root = domain_merkle_root(dest_leaves, domain=f"backup.{name}")
                 equal = live_root == dest_root and live_leaves == dest_leaves
@@ -1775,8 +1816,13 @@ class GraphStore:
         return row["id"] if row else None
 
     @staticmethod
-    def _canonical_json(value: object) -> str:
+    def _canonical_json_v1(value: object) -> str:
         return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
+
+    def _canonical_json(self, value: object) -> str:
+        if self._canonicalization == CANONICAL_JSON_V2:
+            return canonical_json_v2(value)
+        return self._canonical_json_v1(value)
 
     @staticmethod
     def _quarantine_reasons(content: str, source_kind: str) -> list[str]:
@@ -5748,7 +5794,10 @@ class GraphStore:
             raise ValueError(f"unknown projection_id: {projection_id!r}")
         table, columns, order_column = _PROJECTION_LEAF_SOURCES[projection_id]
         with self._lock:
-            return _compute_leaves(self._connection, table, columns, order_column)
+            return _compute_leaves(
+                self._connection, table, columns, order_column,
+                canonicalization=self._canonicalization,
+            )
 
     def create_projection_checkpoint(
         self, projection_id: str, *, metadata: dict[str, object] | None = None
