@@ -407,7 +407,7 @@ Cortex works standalone as a generic MCP memory server with any MCP-speaking age
 |---|---|---|
 | **`xibalba-cortex`** | 🧠 The Brain | Local cognitive store — memories, context, reasoning provenance, session Merkle roots |
 | `xibalba-shield` | 🛡️ The Immune System | Endpoint enforcement, kernel sensing, policy gating, semantic guardrails |
-| `integrity-core` | 🦴 The Backbone + 👁️ Control Center | On-chain identity, BCC, Oracle scoring, smart contracts, plus the operator dashboard |
+| `integrity-core` | 🦴 The Backbone | On-chain identity, BCC, Oracle scoring, smart contracts. Since its 2026-09-28 restructure (Phase A1), the operator dashboard lives in [`integrity-console`](https://github.com/XibalbaTechSol/integrity-console) |
 
 `integrity-core`'s [current explanatory whitepaper](../integrity-core/docs/WHITEPAPER.md)
 names `xibalba-cortex` explicitly as **the reference implementation** of the protocol's memory
@@ -422,7 +422,7 @@ to — v3.2 revised the spec to match the real, working construction instead.
 flowchart LR
     Agent["🤖 Agent"] <-->|"MCP tools<br/>(80 operations)"| Brain["🧠 xibalba-cortex<br/>(This repo)"]
     Brain -->|"Session Merkle roots<br/>(XIBALBA_ANCHOR_URL)"| Backbone["🦴 integrity-core<br/>(BCC → StateAnchor)"]
-    Brain -.->|"Local API"| Eyes["👁️ integrity-core/integrity-dashboard<br/>(Memory page)"]
+    Brain -.->|"Local API"| Eyes["👁️ integrity-console/integrity-dashboard<br/>(Memory page)"]
     Immune["🛡️ xibalba-shield"] -->|"Signed telemetry"| Backbone
     Backbone -->|"AIS, identity, evidence"| Eyes
     Eyes -->|"Operator interventions"| Agent
@@ -431,6 +431,26 @@ flowchart LR
 Session Merkle roots MAY be anchored into Integrity Protocol's oracle. Cortex is not the Integrity oracle and MUST NOT be described as a second verifier. Protocol specification: [`integrity-core` `docs/SPEC.md`](https://github.com/XibalbaTechSol/integrity-core/blob/main/docs/SPEC.md).
 
 Anchoring is opt-in: set `XIBALBA_ANCHOR_URL` and call `memory_anchor_session_root` manually, or set `XIBALBA_AUTO_ANCHOR_ON_SESSION_END=1` to anchor automatically on session close (anchor failures never block session teardown). See [`integrity-core/docs/architecture/ecosystem-dependencies.md`](https://github.com/XibalbaTechSol/integrity-core/blob/main/docs/architecture/ecosystem-dependencies.md) for ownership boundaries.
+
+### Shield's memories in Cortex
+
+Xibalba Shield's DID belongs to the Hermes `xibalba-shield` agent. Its memory is a separate
+Cortex profile store, `~/.hermes/xibalba-cortex-shield`, and every write carries Shield's DID.
+Shield writes two source kinds, both through `POST /api/memory/propositions` on the profile's
+local API:
+
+| `source.kind` | `evidence_class` | Written by | Content |
+|---|---|---|---|
+| `shield_event` | `observed_event` | the sensor's Cortex outbox worker | One material decision (by default `contain`, `deny` or `escalate`; set by `SHIELD_CORTEX_PUBLISH_ACTIONS`), allowlisted and redacted |
+| `shield_advisory` | `inference` | Shield's Hermes analyst (`xibalba-shield/shield/hermes_analyst.py`) | A model's advisory about one of those events: `classification`, `confidence`, `evidence_refs` and `recommendation` only |
+
+The advisory's locator is `shield-advisory://<device>/<event_id>`. Its metadata links the
+event's `shield://<device>/<event_id>` locator. The model's free-text `uncertainty` stays in
+Shield's local ledger and never reaches Cortex. Shield's interactive profile has tools and
+recalls from this store, so model prose must not become future context. Each new memory gets
+at most one automatic `classify_para` task; the analyst caps itself at 40 advisories a day.
+Routine `log_only` memories written before Shield's publish filter shipped were removed with
+the audited `memory_forget` path, which keeps deletion receipts.
 
 ## Privacy and Retention
 
