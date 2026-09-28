@@ -12,6 +12,19 @@ deliberate stability commitment, made because Cortex is a standalone product oth
 integrate against — a breaking change to `record_model_exchange`'s shape, for example, would
 break every existing integration silently.
 
+**Scope note (2026-09-28), added to resolve a real ambiguity, not a retraction:** "the hash-chain/
+Merkle model is frozen" means the *shape* §3/§4 describe — append-only events with `prior_hash`/
+`event_hash`, a Merkle-style root over hashes, the fields a caller reads — not the specific
+canonicalization function (`GraphStore._canonical_json`) that turns a value into the bytes a hash
+is computed over. That function is an internal implementation detail behind the frozen shape, the
+same way a frozen HTTP API's freeze doesn't pin its server's internal string-formatting library.
+A canonicalization change is compatible with this freeze only if done as a version-tagged
+migration — a schema/domain version bump, the prior version's already-computed hashes kept valid
+and verifiable as historical, never silently reinterpreted — the same discipline
+`integrity-core`'s `docs/EXECUTION_PLAN.md` A3 phase already applied to its own `telemetry.envelope`
+and `memory_dag` schemas. A drop-in swap that reinterprets already-stored hashes in place would
+violate the freeze; a versioned migration does not.
+
 Freezing v1 does not mean the surface stops growing. Three extension points are explicitly
 **not** frozen, and are exactly where v1 growth is expected to happen without touching the frozen
 core:
