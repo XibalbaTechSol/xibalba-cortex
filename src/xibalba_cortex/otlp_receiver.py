@@ -1,5 +1,17 @@
 """A local OTLP receiver for traces, metrics, and logs.
 
+**Authentication (docs/EXECUTION_PLAN.md A3).** Every POST requires
+`Authorization: Bearer <token>` against this profile's own `ingest_tokens` store (the same one
+`xibalba-cortex-ingest-tokens` and the streamable-HTTP MCP transport already use) with a
+`memory:write`-scoped token -- there is no unauthenticated fallback, matching `local_api.py`'s
+posture. Issue one with:
+
+    uv run xibalba-cortex-ingest-tokens --home <profile home> issue --label otlp-exporter --role writer
+
+Then pass it via the standard OTel SDK header env var every exporter respects:
+
+    OTEL_EXPORTER_OTLP_HEADERS=Authorization=Bearer%20<token>
+
 **/v1/logs -- Path B, Claude-Code-specific.** claude_code.user_prompt / assistant_response /
 api_request / tool_result, all carrying prompt.id, message.uuid, session.id -- closes the
 attribution gap Path A (raw_body_ingest.py) states honestly it can't close alone.
@@ -38,6 +50,7 @@ from typing import Any
 
 from .config import load_config
 from .connector_policy import ConnectorRateLimiter
+from .ingest_tokens import verify_token_record
 from .otel_core import (
     canonical_gen_ai_attributes,
     ingest_metric_records,
@@ -390,12 +403,44 @@ _TRACES_PATH = "/v1/traces"
 _METRICS_PATH = "/v1/metrics"
 
 
+def _authenticate(headers: Any, home: Any) -> str | None:
+    """Bearer-token check matching local_api.py's `_authenticate` (same `ingest_tokens` store,
+    same "no unauthenticated fallback" posture). Returns an error message to send as a 401, or
+    None if `headers` carries a valid, unrevoked, unexpired `memory:write`-scoped token.
+
+    Every write into this receiver becomes real provenance evidence (memories, otel_events) --
+    an unauthenticated OTLP receiver let any local process, or (with a non-default `--host`)
+    any network caller, inject that evidence with no way to attribute or exclude it later. This
+    was the receiver's own "no silent gaps" gap (docs/EXECUTION_PLAN.md A3).
+    """
+    auth = headers.get("Authorization", "")
+    scheme, _, credentials = auth.partition(" ")
+    token = credentials.strip() if scheme.lower() == "bearer" else ""
+    if not token:
+        return "authentication required: Authorization: Bearer <token> (see xibalba-cortex-ingest-tokens)"
+    principal = verify_token_record(home, token)
+    if principal is None:
+        return "invalid or revoked token"
+    if "memory:write" not in principal["scopes"]:
+        return "token lacks the memory:write scope this receiver requires"
+    return None
+
+
 def _make_handler(store: GraphStore):
     request_limiter = ConnectorRateLimiter(rate_per_second=20.0, burst=40)
 
     class Handler(BaseHTTPRequestHandler):
         def do_POST(self) -> None:  # noqa: N802 -- BaseHTTPRequestHandler's naming convention
             request_limiter.wait()
+            auth_error = _authenticate(self.headers, store.home)
+            if auth_error is not None:
+                body = json.dumps({"error": auth_error}).encode()
+                self.send_response(401)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Content-Length", str(len(body)))
+                self.end_headers()
+                self.wfile.write(body)
+                return
             if self.path == _LOGS_PATH:
                 signal, parse_fn, ingest_fn, label = "logs", parse_otlp_logs_json, ingest_log_records, "log"
             elif self.path == _TRACES_PATH:

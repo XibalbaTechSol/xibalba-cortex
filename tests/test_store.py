@@ -1038,6 +1038,46 @@ def test_memory_otel_events_returns_empty_when_no_correlation_exists(tmp_path):
     store.close()
 
 
+def test_export_provider_telemetry_returns_a_verifiable_merkle_export(tmp_path):
+    # Regression guard (docs/EXECUTION_PLAN.md A3): this method calls
+    # domain_merkle_root(..., domain="provider_telemetry_export") unconditionally, and that
+    # domain was never registered in events.MERKLE_DOMAINS -- every call raised
+    # `ValueError: unknown Merkle domain` before the registration was added.
+    from xibalba_cortex.events import verify_domain_merkle_proof, domain_merkle_proof
+
+    store = GraphStore(tmp_path / "graph")
+    store.start_session("s1")
+    store.record_otel_batch("s1", [
+        {"kind": "span", "name": "provider_call", "attributes": {"provider": "test-provider", "n": 1}},
+        {"kind": "span", "name": "provider_call", "attributes": {"provider": "test-provider", "n": 2}},
+        {"kind": "span", "name": "other_provider_call", "attributes": {"provider": "unrelated-provider"}},
+    ])
+
+    export = store.export_provider_telemetry("test-provider")
+    assert export["schema_version"] == "xibalba.provider_telemetry_export.v1"
+    assert export["provider"] == "test-provider"
+    assert export["count"] == 2
+    assert len(export["leaf_hashes"]) == 2
+    assert export["root_hash"]
+
+    # The returned commitment is independently checkable, not just self-reported.
+    for index in range(len(export["leaf_hashes"])):
+        proof = domain_merkle_proof(export["leaf_hashes"], index, domain="provider_telemetry_export")
+        assert verify_domain_merkle_proof(proof)
+        assert proof["root"] == export["root_hash"]
+    store.close()
+
+
+def test_export_provider_telemetry_of_unknown_provider_is_an_empty_verifiable_export(tmp_path):
+    store = GraphStore(tmp_path / "graph")
+    store.start_session("s1")
+    export = store.export_provider_telemetry("no-such-provider")
+    assert export["count"] == 0
+    assert export["leaf_hashes"] == []
+    assert export["root_hash"]  # the documented "empty" sentinel, not an exception
+    store.close()
+
+
 def test_record_otel_batch_rejects_unknown_memory_id_atomically(tmp_path):
     store = GraphStore(tmp_path / "graph")
     store.start_session("s1")

@@ -9,7 +9,11 @@ dependencies = [
   "eth-hash[pycryptodome]>=0.7.0",
   "sqlite-vec>=0.1.9",
   "pyyaml>=6.0",
-  "integrity-sdk",
+  # `[connector]` (docs/EXECUTION_PLAN.md A2/A3): Cortex's own `agent_identity.resolve_agent_identities`
+  # import needs `requests`, which is not in the dependency-light SDK core -- explicitly requesting
+  # the extra is what lets the SDK drop it (and the rest of the connector stack) from its own base
+  # `dependencies`. Cortex's `normalize_hook`/`crypto.merkle` imports are already core-safe.
+  "integrity-sdk[connector]",
   "uvicorn>=0.30",
   "sentence-transformers>=5.7.0",
   "pyjwt[crypto]>=2.13.0",

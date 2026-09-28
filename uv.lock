@@ -1243,6 +1243,20 @@ dependencies = [
     { name = "web3" },
 ]
 
+[package.optional-dependencies]
+connector = [
+    { name = "cbor2" },
+    { name = "eth-account" },
+    { name = "eth-utils" },
+    { name = "httpx" },
+    { name = "opentelemetry-api" },
+    { name = "opentelemetry-exporter-otlp-proto-grpc" },
+    { name = "opentelemetry-sdk" },
+    { name = "psutil" },
+    { name = "requests" },
+    { name = "web3" },
+]
+
 [package.metadata]
 requires-dist = [
     { name = "anthropic", marker = "extra == 'anthropic'", specifier = ">=0.40.0" },
@@ -3119,7 +3133,7 @@ version = "0.1.0"
 source = { editable = "." }
 dependencies = [
     { name = "eth-hash", extra = ["pycryptodome"] },
-    { name = "integrity-sdk" },
+    { name = "integrity-sdk", extra = ["connector"] },
     { name = "mcp" },
     { name = "protobuf" },
     { name = "pyjwt", extra = ["crypto"] },
@@ -3157,7 +3171,7 @@ requires-dist = [
     { name = "google-api-python-client", marker = "extra == 'drive'", specifier = ">=2.0" },
     { name = "google-auth", marker = "extra == 'drive'", specifier = ">=2.0" },
     { name = "grpcio", marker = "extra == 'otel'", specifier = ">=1.70.0" },
-    { name = "integrity-sdk", editable = "../integrity-core/integrity-sdk" },
+    { name = "integrity-sdk", extras = ["connector"], editable = "../integrity-core/integrity-sdk" },
     { name = "mcp", specifier = ">=1.0.0" },
     { name = "opentelemetry-api", marker = "extra == 'otel'", specifier = ">=1.35.0" },
     { name = "opentelemetry-exporter-otlp-proto-grpc", marker = "extra == 'otel'", specifier = ">=1.35.0" },
