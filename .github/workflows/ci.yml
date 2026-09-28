@@ -36,8 +36,8 @@ jobs:
         with:
           repository: XibalbaTechSol/integrity-core
           # Keep the local path dependency deterministic; update deliberately when SDK changes are needed.
-          # integrity-core main after #99 merged (2026-09-27). Bump deliberately when SDK changes are needed.
-          ref: 01723868c69610675cabf744d4a180b8bc48b179
+          # integrity-core main after A3 SDK/JCS integration (2026-09-28). Bump deliberately when SDK changes are needed.
+          ref: ef5bf607
           path: integrity-core
           persist-credentials: false
       - uses: astral-sh/setup-uv@v3
