@@ -18,6 +18,8 @@ from typing import Any
 from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
 
+from .identity import resolve_agent_id
+
 
 DEFAULT_CODEX_SESSIONS = Path("~/.codex/sessions").expanduser()
 DEFAULT_CORTEX_HOME = Path(os.environ.get("XIBALBA_CORTEX_HOME", "~/.hermes/xibalba-cortex")).expanduser()
@@ -253,16 +255,9 @@ async def ingest_turns_via_mcp(
         "XIBALBA_CORTEX_HOME": str(cortex_home),
         "XIBALBA_CORTEX_RETENTION_TIER": os.environ.get("XIBALBA_CORTEX_RETENTION_TIER", "verbatim"),
         "XIBALBA_CORTEX_IDENTITY_MODE": os.environ.get("XIBALBA_CORTEX_IDENTITY_MODE", "full"),
-        # Defaults to Codex's real harness-root DID (see ~/.codex/.integrity/identity.json)
-        # rather than the bare "codex" label this used to hardcode -- that label and the
-        # DID are both accepted by the spawned server's profile-identity check (either
-        # matches the identity.json binding), but only the DID is a genuine, on-chain-
-        # capable identity. Callers can still override this for explicitly provisioned
-        # identities.
-        "XIBALBA_AGENT_ID": os.environ.get(
-            "XIBALBA_AGENT_ID",
-            "did:integrity:d73b98dd869948c27c7cc16d53683779a23c46daf3020e221955d67d1a8723c5",
-        ),
+        # An explicit override remains compatible with managed launchers; otherwise the
+        # spawned server resolves the profile's validated public DID file.
+        **({"XIBALBA_AGENT_ID": agent_id} if (agent_id := resolve_agent_id(profile_root=cortex_home)) else {}),
     }
     params = StdioServerParameters(command=server_command, env=env)
     async with stdio_client(params) as (read, write):

@@ -66,6 +66,7 @@ import json
 import os
 
 from .store import GraphStore
+from .identity import resolve_agent_id
 
 
 class HermesObserverAdapter:
@@ -92,8 +93,7 @@ class HermesObserverAdapter:
         The observer must never invent a legacy agent label: an absent identity is
         safer than attributing telemetry to the wrong protocol agent.
         """
-        value = os.environ.get("XIBALBA_AGENT_ID", "").strip()
-        return value or None
+        return resolve_agent_id()
 
     def _identity_attributes(self) -> dict[str, str]:
         agent_id = self._agent_id()

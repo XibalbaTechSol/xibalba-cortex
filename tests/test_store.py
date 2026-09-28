@@ -233,7 +233,7 @@ def test_supersession_contradiction_and_forgetting_preserve_history(tmp_path):
     store = GraphStore(tmp_path / "graph")
     old = store.store_memory(
         "Xibalba Shield is a healthcare vertical.",
-        source={"kind": "imported_document", "locator": "drive://legacy"},
+        source={"kind": "imported_document", "locator": "wiki://legacy"},
         status="active",
     )
     current = store.supersede_memory(
@@ -249,7 +249,7 @@ def test_supersession_contradiction_and_forgetting_preserve_history(tmp_path):
 
     other = store.store_memory(
         "Xibalba Shield remains a healthcare product.",
-        source={"kind": "imported_document", "locator": "drive://conflict"},
+        source={"kind": "imported_document", "locator": "wiki://conflict"},
         status="active",
     )
     conflict = store.mark_contradiction(current["id"], other["id"], "Product naming conflict")
@@ -396,7 +396,7 @@ def test_event_chain_is_hash_linked_and_tamper_evident(tmp_path):
     store = GraphStore(tmp_path / "graph")
     old = store.store_memory(
         "Xibalba Shield is a healthcare vertical.",
-        source={"kind": "imported_document", "locator": "drive://legacy"},
+        source={"kind": "imported_document", "locator": "wiki://legacy"},
         status="active",
     )
     store.supersede_memory(

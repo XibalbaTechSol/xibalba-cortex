@@ -7,11 +7,18 @@ from __future__ import annotations
 
 import pytest
 
-from xibalba_cortex.auth_middleware import current_principal
+from xibalba_cortex.auth_middleware import _current_principal, current_principal
 from xibalba_cortex.server import _install_stdio_principal
 
 
 AGENT = "did:integrity:2ea17967f7a65589d570ca7e800844701fb36e6aa7374243e8766de8651f6bc4"
+
+
+@pytest.fixture(autouse=True)
+def _reset_principal():
+    token = _current_principal.set(None)
+    yield
+    _current_principal.reset(token)
 
 
 def test_stdio_binds_the_launched_agent_identity(monkeypatch, tmp_path):

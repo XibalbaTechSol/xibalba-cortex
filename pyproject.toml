@@ -22,11 +22,6 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-drive = [
-  "google-api-python-client>=2.0",
-  "google-auth>=2.0",
-  "pypdf>=4.0",
-]
 otel = [
   "opentelemetry-api>=1.35.0",
   "opentelemetry-sdk>=1.35.0",
@@ -46,7 +41,6 @@ xibalba-cortex-session-sync = "xibalba_cortex.session_sync:main"
 xibalba-cortex-codex-mcp-backfill = "xibalba_cortex.codex_mcp_backfill:main"
 xibalba-cortex-session-open = "xibalba_cortex.session_open:main"
 xibalba-cortex-wiki-ingest = "xibalba_cortex.wiki_ingest:main"
-xibalba-cortex-drive-ingest = "xibalba_cortex.drive_ingest:main"
 xibalba-cortex-demo-seed = "xibalba_cortex.demo_seed:main"
 xibalba-cortex-embedding-worker = "xibalba_cortex.embedding_worker:main"
 xibalba-cortex-para-worker = "xibalba_cortex.para_worker:main"

@@ -167,16 +167,13 @@ are real local/CI results, not a production deployment claim:
 - Two-profile backup/restore drill passed `PRAGMA integrity_check` and canonical
   Merkle reconciliation. Evidence is at
   `/home/xibalba/Documents/CORTEX_STORAGE_DRILL_2026-09-04.json`.
-- Full backend tests pass with the Drive extra installed (`uv sync --extra drive`)
-  and the viewer build passes. The authenticated Operations view visibly shows the
+- Full backend tests and the viewer build pass. The authenticated Operations view visibly shows the
   Production readiness card.
 
 ### Test Cortex locally on this computer
 
 ```bash
 # Baseline suite and viewer build
-# The full test suite includes Google Drive import tests.
-uv sync --extra drive
 uv run pytest -q
 npm --prefix viewer install
 npm --prefix viewer run build
@@ -250,13 +247,6 @@ same checkpoint as a Cortex `summary` memory.
 
 ```bash
 uv sync
-uv run pytest -q
-```
-
-Drive ingestion is optional (Google Drive imports only):
-
-```bash
-uv sync --extra drive
 uv run pytest -q
 ```
 

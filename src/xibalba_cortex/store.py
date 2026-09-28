@@ -26,6 +26,7 @@ from .events import domain_merkle_proof, domain_merkle_root, merkle_proof, merkl
 from . import projection_reconcile
 from .providers import InferenceTaskContract, validate_contradiction_result, validate_extraction_result, validate_metadata_result
 from .redaction import redact
+from .identity import resolve_agent_id
 
 logger = logging.getLogger("xibalba_cortex.store")
 
@@ -873,11 +874,12 @@ class GraphStore:
         return str(os.environ.get("XIBALBA_DEVICE_ID") or socket.gethostname()).strip()
 
     def _register_configured_device(self) -> None:
-        agent_id = str(os.environ.get("XIBALBA_AGENT_ID") or "").strip()
+        agent_id = resolve_agent_id(profile_root=self.home)
         device_id = self.local_device_id()
         if not agent_id or not device_id:
             return
-        # XIBALBA_AGENT_ID is often a raw local label (e.g. "xibalba.agent"), not the DID --
+        # The explicit XIBALBA_AGENT_ID override may be a raw local label (e.g. "xibalba.agent"),
+        # not the DID --
         # resolve it through the AgentSubject SAME_SUBJECT mapping first, or a heartbeat that
         # re-runs this on every store open clobbers a device's DID pairing back to the label.
         # resolve_subject()'s own docstring warns its return value (the lexicographically
@@ -885,7 +887,7 @@ class GraphStore:
         # as one -- only accept it here when it's actually DID-shaped, so a future mapping
         # edge that happens to sort below the DID can't silently repoint this device's agent_id
         # back to a non-DID label. Any other outcome (resolution unavailable, or the group's
-        # smallest label isn't a DID) keeps the raw XIBALBA_AGENT_ID value, same as before.
+        # smallest label isn't a DID) keeps the resolved override value, same as before.
         try:
             from integrity_sdk.agent_subject import resolve_subject
 
@@ -1755,7 +1757,7 @@ class GraphStore:
 
     def find_memory_id_by_locator(self, locator: str) -> str | None:
         """Look up the current (non-superseded) memory for a given source.locator, if any --
-        the re-sync primitive for document-ingestion paths (wiki_ingest, drive_ingest): a
+        the re-sync primitive for document-ingestion paths (wiki_ingest): a
         locator identifies "this specific document" independent of its content, so a changed
         document's re-ingestion can find its own prior version to supersede_memory rather than
         creating an unrelated duplicate. Distinct from find_memory_id_by_content, which matches
@@ -4369,7 +4371,7 @@ class GraphStore:
         This does not implement a parallel chain anchor, it only delegates the anchoring task.
 
         Default-deny on registration: before sending anything, this checks
-        `XIBALBA_ORACLE_URL`'s `GET /v1/agent/{XIBALBA_AGENT_ID}` (the same endpoint
+        `XIBALBA_ORACLE_URL`'s `GET /v1/agent/{agent_id}` (the same endpoint
         `integrity_sdk.client.IntegrityClient._sync_nonce_from_oracle` reads) and only
         proceeds if the oracle confirms that agent_id is registered. This matters more
         here than it might look: unlike the SDK's telemetry path, this method has no
@@ -4407,7 +4409,7 @@ class GraphStore:
             raise ValueError("XIBALBA_ANCHOR_URL environment variable is not configured.")
 
         oracle_url = os.environ.get("XIBALBA_ORACLE_URL")
-        agent_id = os.environ.get("XIBALBA_AGENT_ID")
+        agent_id = resolve_agent_id(profile_root=self.home)
         if oracle_url and agent_id:
             check_url = f"{oracle_url.rstrip('/')}/v1/agent/{agent_id}"
 
@@ -4448,7 +4450,7 @@ class GraphStore:
         anchor_headers = {"Content-Type": "application/json"}
         if core_memory_anchor:
             if not agent_id:
-                return {"anchored": False, "session_id": external_session_id, "error": "XIBALBA_AGENT_ID is required for CORE memory anchoring"}
+                return {"anchored": False, "session_id": external_session_id, "error": "a Cortex agent identity is required for CORE memory anchoring"}
             anchor_token = os.environ.get("XIBALBA_ANCHOR_TOKEN")
             if not anchor_token:
                 return {"anchored": False, "session_id": external_session_id, "error": "XIBALBA_ANCHOR_TOKEN is required for CORE memory anchoring"}

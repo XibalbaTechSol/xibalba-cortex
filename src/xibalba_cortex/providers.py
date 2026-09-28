@@ -331,7 +331,6 @@ def connector_manifest() -> dict[str, Any]:
         "codex_mcp": {"entrypoint": "xibalba-cortex-codex-mcp-backfill", "state": "implemented", "idempotency": "prompt-id"},
         "otel": {"entrypoint": "xibalba-cortex-otlp-receiver", "state": "implemented", "idempotency": "event-correlation"},
         "webhook": {"entrypoint": "memory_ingest_connector_event", "state": "implemented", "idempotency": "connector-and-event-id"},
-        "google_drive": {"entrypoint": "xibalba-cortex-drive-ingest", "state": "optional_dependency", "requirement": "uv sync --extra drive and OAuth credentials"},
         "integrity_wiki": {"entrypoint": "xibalba-cortex-wiki-ingest", "state": "implemented", "idempotency": "document-locator"},
     }
 

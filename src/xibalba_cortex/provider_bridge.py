@@ -20,6 +20,7 @@ from .server import (
     memory_session_start,
 )
 from .store import GraphStore
+from .identity import resolve_agent_id
 
 
 _LEGACY_PROFILE_ALIASES = {
@@ -59,10 +60,10 @@ def _legacy_agent_ids(store: GraphStore, profile: str, agent_id: str) -> list[st
 def dispatch(request: dict[str, Any]) -> dict[str, Any]:
     operation = str(request.get("operation") or "")
     requested_agent = str(request.get("agent_id") or "").strip()
-    bound_agent = str(os.environ.get("XIBALBA_AGENT_ID") or "").strip()
+    store = get_store()
+    bound_agent = resolve_agent_id(profile_root=store.home)
     if not bound_agent or requested_agent != bound_agent:
         raise PermissionError("provider bridge identity does not match its bound agent")
-    store = get_store()
     if store.identity_mode != "full":
         raise PermissionError("provider bridge requires full identity attribution")
     if store.storage_agent_id(requested_agent) != requested_agent:

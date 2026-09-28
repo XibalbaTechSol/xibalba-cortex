@@ -48,8 +48,5 @@ jobs:
           python-version: ${{ env.PYTHON_VERSION }}
       # Fail with an explicit layout error before uv reports an opaque missing-distribution failure.
       - run: test -f ../integrity-core/integrity-sdk/pyproject.toml
-      # --extra drive: tests/test_drive_ingest.py's missing-token-file test only reaches its
-      # real assertion once the optional Drive deps are installed -- a plain `uv sync` leaves
-      # `_require_drive_extra()` raising first, failing the test for an unrelated reason.
-      - run: uv sync --extra drive --extra otel
+      - run: uv sync --extra otel
       - run: uv run pytest -q

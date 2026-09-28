@@ -117,7 +117,6 @@ The viewer should expose recall, graph traversal, provenance, contradiction, for
 - Profile isolation is required.
 - Backup and restore must preserve hash-chain verifiability.
 - Forgetting must document residual hash disclosure and restore semantics.
-- Drive ingestion dependencies must be either a supported default, optional extra, or cleanly skipped test group.
 - MCP discovery should be verified through an isolated Hermes profile before operational use.
 - Only a bearer token's hash is ever stored (`ingest_tokens.py`); the raw value is shown once at
   issuance and cannot be recovered later — rotation, not recovery, is the intended path.
@@ -154,7 +153,6 @@ This repository may cite future Integrity Memory DAG or protocol anchors. It mus
 
 - Store can be created, migrated, backed up, restored, and verified.
 - Tests pass under the documented install command.
-- Optional Drive dependencies have deterministic test behavior.
 - Runtime adapters and viewer changes are reviewed and committed as a clean baseline.
 - README, SPECIFICATION, implementation plan, and v1 normative spec agree on status and boundaries.
 
