@@ -11,6 +11,14 @@ material; its gate IDs map to this state.
 **Commit:** `ccaccdd` (CORE sync account binding, guarded setup script, and systemd service fix)
 **Local-only residue:** pre-existing untracked `LICENSE` (preserve; do not stage)
 
+## Documentation sync — 2026-10-04
+
+The active DecisionTrace/Jev implementation is documented in
+`docs/wiki/concepts/decision-trace-and-jev.md`, `README.md`, and §12.8 of
+`SPECIFICATION.md`. This feature remains local/dirty implementation evidence on the current
+branch, not a production, external-pilot, or compliance certification claim. The canonical
+cross-product execution authority remains `/home/xibalba/Projects/integrity-core/docs/EXECUTION_PLAN.md`.
+
 ## Resume in one sentence
 
 Gates 4 and 6 are now closed for everything locally closable — the previously

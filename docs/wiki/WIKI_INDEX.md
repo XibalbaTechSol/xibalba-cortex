@@ -4,7 +4,7 @@
 > now — see the schema's "no aspirational content" rule. This is a focused core set covering
 > Cortex's actual architecture, not an exhaustive catalog — contributions adding more pages are
 > welcome.
-> Last updated: 2026-09-08 | Total pages: 21 (12 concepts, 5 architecture, 3 entities, 1 query)
+> Last updated: 2026-10-04 | Total pages: 24 (15 concepts, 5 architecture, 3 entities, 1 query)
 
 ## Acronym glossary
 - [MCP](concepts/mcp-tool-surface.md) — Model Context Protocol
@@ -12,6 +12,7 @@
 - [WAL](architecture/store-schema-overview.md) — SQLite Write-Ahead Logging journal mode
 
 ## Concepts
+- [DecisionTrace and Jev Advisory Correlation](concepts/decision-trace-and-jev.md) — redacted observable event correlation, advisory probabilities, local verification, and explicit non-causality boundary
 - [Graph Store](concepts/graph-store.md) — `GraphStore`: the SQLite (WAL + FTS5 + sqlite-vec) canonical store and its object model
 - [Hash Chain and Merkle Roots](concepts/hash-chain-and-merkle-roots.md) — the per-memory event hash chain and the session exchange Merkle-style root; local tamper evidence, not a blockchain
 - [MCP Tool Surface](concepts/mcp-tool-surface.md) — the ~40+ MCP tools exposed by `server.py`, and the stdio/streamable-HTTP transports
@@ -20,6 +21,8 @@
 - [Redaction](concepts/redaction.md) — `redact()`: shared secret-scrubbing logic used across every ingestion path
 - [Lifecycle and Forgetting](concepts/lifecycle-and-forgetting.md) — memory lifecycle states, contradiction, supersession, quarantine, and forgetting's residual-hash tradeoff
 - [PARA Classification](concepts/para-classification.md) — reviewable Projects/Areas/Resources/Archives proposals with stale-source protection
+- [Provider Telemetry](concepts/provider-telemetry.md) — bounded provider usage and latency metadata with redaction and tenant/profile scope
+- [Runtime Adapter Research](concepts/runtime-adapter-research.md) — source-backed comparison and limits of supported harness adapters
 - [Integrity and Merkle Evidence](concepts/integrity-and-merkle-evidence.md) — local roots, hash chains, and evidence boundaries
 - [Embedding Worker](concepts/embedding-worker.md) — bounded, hash-protected vector backfill with strict validation
 - [Contradiction Worker and Proposal Lifecycle](concepts/contradiction-worker.md) — bounded contradiction detection and reviewable proposal acceptance

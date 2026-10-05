@@ -29,6 +29,8 @@ The local API exposes read and operator-oriented surfaces over the canonical `Gr
 ## Table of contents
 
 - [Surfaces](#surfaces)
+- [Memory lifecycle: forget](#memory-lifecycle-forget)
+- [On-chain identity honesty](#on-chain-identity-honesty)
 - [Agent workspaces](#agent-workspaces)
 - [Profile-store routing](#profile-store-routing)
 - [PARA and inference integration](#para-and-inference-integration)

@@ -24,6 +24,11 @@ All provider adapters now also emit canonical `gen_ai.*` attributes and
 extensions such as `integrity.agent.did`, `integrity.consent.granted`, and
 `integrity.retention.tier`.
 
+## Table of contents
+
+- [OpenTelemetry compatibility](#opentelemetry-compatibility)
+- [Privacy and authorization](#privacy-and-authorization)
+
 ## OpenTelemetry compatibility
 
 `xibalba-cortex-otlp-receiver` accepts OTLP/HTTP JSON and OTLP/HTTP protobuf on `/v1/traces`,

@@ -29,6 +29,7 @@ flowchart LR
 ## Table of contents
 
 ### Concepts
+- [DecisionTrace and Jev Advisory Correlation](concepts/decision-trace-and-jev.md) — observable event correlation and advisory Jev probabilities without causal claims
 - [Graph Store](concepts/graph-store.md) — the canonical SQLite store and its object model
 - [Hash Chain and Merkle Roots](concepts/hash-chain-and-merkle-roots.md) — the per-memory event chain and session exchange Merkle root
 - [MCP Tool Surface](concepts/mcp-tool-surface.md) — the ~40+ MCP tools and two transports
@@ -37,6 +38,9 @@ flowchart LR
 - [Redaction](concepts/redaction.md) — shared secret-scrubbing logic
 - [Lifecycle and Forgetting](concepts/lifecycle-and-forgetting.md) — memory states, contradiction, supersession, and forgetting
 - [PARA Classification](concepts/para-classification.md) — reviewable PARA proposals and stale-source safety
+- [DecisionTrace and Jev Advisory Correlation](concepts/decision-trace-and-jev.md) — observable event correlation and bounded advisory probabilities
+- [Provider Telemetry](concepts/provider-telemetry.md) — bounded provider usage and latency metadata
+- [Runtime Adapter Research](concepts/runtime-adapter-research.md) — supported harness adapter limits and comparison
 - [Embedding Worker](concepts/embedding-worker.md) — bounded, hash-protected vector backfill
 - [Contradiction Worker and Proposal Lifecycle](concepts/contradiction-worker.md) — bounded contradiction detection and reviewable proposal acceptance
 

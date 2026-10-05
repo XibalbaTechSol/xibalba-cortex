@@ -16,6 +16,13 @@ This page records the evidence boundary for the three adapters. A shared event s
 turn a wrapper into a native hook integration: every adapter reports the strongest surface that
 has actually been observed.
 
+## Table of contents
+
+- [Claude Code](#claude-code)
+- [Codex](#codex)
+- [Antigravity / agy](#antigravity-agy)
+- [Normalized implementation boundary](#normalized-implementation-boundary)
+
 ## Claude Code
 
 Claude Code's official hook reference documents JSON hook input over stdin and a broad lifecycle:

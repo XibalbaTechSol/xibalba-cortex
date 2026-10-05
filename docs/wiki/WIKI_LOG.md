@@ -176,4 +176,12 @@
   retained the workspace sidebar and top bar as the authenticated application shell.
 - Added development-only bearer automation. Vite creates a dedicated local operator token once,
   stores it mode `0600` outside the repository, and injects it through a loopback proxy without
-  exposing the secret to browser JavaScript. Production authentication remains explicit.
+exposing the secret to browser JavaScript. Production authentication remains explicit.
+
+## [2026-10-04] update | DecisionTrace and Jev advisory correlation
+
+- Added `concepts/decision-trace-and-jev.md`, documenting the gateway, bounded HTTP provider,
+  rendered audit view, profile/store API boundary, and non-causality evidence limits.
+- Updated `WIKI_INDEX.md` and `index.md` to expose the new page.
+- Source review covers `src/xibalba_cortex/jev_gateway.py`, `decision_trace_view.py`,
+  `hermes_observer.py`, and `local_api.py`.
