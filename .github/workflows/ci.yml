@@ -36,8 +36,12 @@ jobs:
         with:
           repository: XibalbaTechSol/integrity-core
           # Keep the local path dependency deterministic; update deliberately when SDK changes are needed.
-          # integrity-core main after A3 SDK/JCS integration (2026-09-28). Bump deliberately when SDK changes are needed.
-          ref: ef5bf6072eb66183372e3ba78a4bc5d4a8542bf9
+          # integrity-core main after #160 merged (2026-10-05) -- bumped because #36's
+          # store.py/scripts/decision_trace_e2e.py import integrity_sdk.core.decision_trace,
+          # added by integrity-core#160's A7 SDK work. #36 merged via this repo's auto-merge
+          # before this bump landed, so main's CI has been broken since; this is the
+          # immediate fix, not new feature work.
+          ref: e5f301b2804595160d1e51fbe3cebe40ae910584
           path: integrity-core
           persist-credentials: false
       - uses: astral-sh/setup-uv@v3
