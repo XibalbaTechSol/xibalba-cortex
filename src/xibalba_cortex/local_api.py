@@ -58,6 +58,8 @@ Routes:
   GET /api/session/{id}/otel               -> GraphStore.session_otel_events()
   GET /api/session/{id}/merkle-root        -> GraphStore.session_merkle_root()
   GET /api/session/{id}/merkle-proof?index= -> GraphStore.session_merkle_evidence()
+  GET /api/session/{id}/decision-trace?trace_id= -> GraphStore.session_decision_trace()
+  GET /api/session/{id}/decision-trace.html?trace_id= -> local rendered audit view
   GET /api/inference/manifest              -> MEMORY_INFERENCE_SUBAGENT_MANIFEST
   GET /api/inference/tasks?status=&limit=  -> GraphStore.list_inference_tasks()
   GET /api/extraction-proposals?status=&task_id=&source_memory_id=&limit= -> GraphStore.list_extraction_proposals()
@@ -116,6 +118,7 @@ from .connector_policy import ConnectorRateLimiter
 from .ingest_tokens import _connect, list_tokens, verify_token_record
 from .accounts import account_for_token, approve_account, change_account_password, create_account, issue_account_session, request_password_reset, reset_password, revoke_account_session, revoke_account_session_by_id
 from .providers import InferenceTaskContract, connector_manifest
+from .decision_trace_view import render_decision_trace_html
 from integrity_sdk.agent_identity import resolve_agent_identities
 from .store import MEMORY_INFERENCE_SUBAGENT_MANIFEST, GraphStore, _INFERENCE_TASK_TYPES
 
@@ -541,6 +544,18 @@ def _make_handler(store: GraphStore, *, allowed_origins: frozenset[str],
             self.end_headers()
             self.wfile.write(body)
 
+        def _send_html(self, status: int, body: str) -> None:
+            encoded = body.encode("utf-8")
+            with _REQUEST_METRICS_LOCK:
+                _REQUEST_METRICS["requests_total"] += 1
+                _REQUEST_METRICS[f"responses_{status}"] += 1
+            self.send_response(status)
+            self.send_header("Content-Type", "text/html; charset=utf-8")
+            self.send_header("Content-Security-Policy", "default-src 'none'; style-src 'unsafe-inline'")
+            self.send_header("Content-Length", str(len(encoded)))
+            self.end_headers()
+            self.wfile.write(encoded)
+
         def _cookie_session_token(self) -> str:
             """Read the session token from the HttpOnly cookie.
 
@@ -904,6 +919,20 @@ def _make_handler(store: GraphStore, *, allowed_origins: frozenset[str],
                     session_store, _ = _read_store_for_agent(principal, params.get("agent_id"), params.get("store_id"))
                     _assert_session_access(session_store, principal, parts[2])
                     self._send_json(200, session_store.session_merkle_evidence(parts[2], exchange_index=int(params.get("index", "0"))))
+                elif len(parts) == 4 and parts[0] == "api" and parts[1] == "session" and parts[3] == "decision-trace":
+                    session_store, _ = _read_store_for_agent(principal, params.get("agent_id"), params.get("store_id"))
+                    _assert_session_access(session_store, principal, parts[2])
+                    trace_id = params.get("trace_id", "").strip()
+                    if not trace_id:
+                        raise ValueError("trace_id is required")
+                    self._send_json(200, session_store.session_decision_trace(parts[2], trace_id))
+                elif len(parts) == 4 and parts[0] == "api" and parts[1] == "session" and parts[3] == "decision-trace.html":
+                    session_store, _ = _read_store_for_agent(principal, params.get("agent_id"), params.get("store_id"))
+                    _assert_session_access(session_store, principal, parts[2])
+                    trace_id = params.get("trace_id", "").strip()
+                    if not trace_id:
+                        raise ValueError("trace_id is required")
+                    self._send_html(200, render_decision_trace_html(session_store.session_decision_trace(parts[2], trace_id)))
                 elif len(parts) == 4 and parts[0] == "api" and parts[1] == "session" and parts[3] == "kernel-intents":
                     session_store, _ = _read_store_for_agent(principal, params.get("agent_id"), params.get("store_id"))
                     _assert_session_access(session_store, principal, parts[2])

@@ -28,7 +28,7 @@ correlation claim.
 ## Table of contents
 
 - [Overview](#overview)
-- [The eight adapters](#the-eight-adapters)
+- [The runtime adapters](#the-runtime-adapters)
 - [Enforcement boundary is looser than the type](#enforcement-boundary-is-looser-than-the-type)
 - [Controller interface](#controller-interface)
 - [Operator correlation view](#operator-correlation-view)

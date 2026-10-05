@@ -64,7 +64,11 @@ from typing import Any
 import hashlib
 import json
 import os
+from datetime import datetime, timezone
 
+from integrity_sdk.core.decision_trace import DecisionEnvelope, DecisionTraceError
+
+from .jev_gateway import JevGateway, local_jev_gateway
 from .store import GraphStore
 from .identity import resolve_agent_id
 
@@ -75,8 +79,9 @@ class HermesObserverAdapter:
     matching the observer contract's own "additive fields remain backward-compatible" rule.
     """
 
-    def __init__(self, store: GraphStore):
+    def __init__(self, store: GraphStore, *, jev_gateway: JevGateway | None = None):
         self.store = store
+        self.jev_gateway = jev_gateway or local_jev_gateway()
 
     @staticmethod
     def _retention_tier() -> str:
@@ -124,6 +129,65 @@ class HermesObserverAdapter:
             "parent_span_id": parent_span_id, "prompt_id": prompt_id,
             "attributes": {**self._identity_attributes(), **(attributes or {})},
         }])
+        self._record_decision_event(
+            session_id,
+            name=name,
+            trace_id=trace_id,
+            span_id=span_id,
+            prompt_id=prompt_id,
+            attributes=attributes or {},
+        )
+
+    def _record_decision_event(
+        self, session_id: str, *, name: str, trace_id: str | None = None,
+        span_id: str | None = None, prompt_id: str | None = None,
+        attributes: dict[str, Any] | None = None,
+    ) -> None:
+        """Project one Hermes observation into the shared redacted DecisionTrace.
+
+        The OTel event remains the existing local diagnostic record. This projection retains only
+        bounded correlation metadata and a commitment to the hook payload; it cannot reconstruct
+        the prompt, completion, tool arguments or approval text.
+        """
+        safe_identity = self._agent_id() or f"profile:{self.store.profile_id}"
+        tenant_id = os.environ.get("XIBALBA_TENANT_ID", "local").strip() or "local"
+        correlation = {
+            "session_id": session_id, "trace_id": trace_id, "span_id": span_id,
+            "prompt_id": prompt_id, "name": name, "attributes": attributes or {},
+        }
+        event_id = "hermes:" + hashlib.sha256(
+            json.dumps(correlation, sort_keys=True, default=str).encode("utf-8")
+        ).hexdigest()
+        envelope = {
+            "tenant_id": tenant_id,
+            "agent_id": safe_identity,
+            # The DecisionTrace is session-scoped so multiple LLM turns, tools, approvals and
+            # subagent transitions form one auditable chain. The source span/turn IDs remain in
+            # metadata for correlation with the existing OTel projection.
+            "trace_id": session_id,
+            "event_id": event_id,
+            "event_type": "observed_event",
+            "timestamp": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+            "session_id": session_id,
+            "turn_id": prompt_id or trace_id,
+            "invocation_id": span_id,
+            "tool_call_id": span_id if name.startswith("tool_call.") else None,
+            "parent_event_hash": self.store.decision_trace_head(session_id, session_id),
+            "metadata": {
+                "source": "hermes",
+                "hook": name,
+                "trace_id": trace_id,
+                "span_id": span_id,
+                "prompt_id": prompt_id,
+                "payload_commitment": self._digest(attributes or {}),
+            },
+        }
+        try:
+            analysis = self.jev_gateway.analyze(DecisionEnvelope(**envelope))
+            self.store.record_decision_trace_event(session_id, envelope, advisory=analysis)
+        except (DecisionTraceError, ValueError) as exc:
+            # Observer failure must not change Hermes execution or the existing OTel path.
+            self.store.record_telemetry_health("decision_trace", rejected=1, error=str(exc))
 
     def _store_text(self, session_id: str, text: Any, *, role: str, prompt_id: str | None) -> str | None:
         if not isinstance(text, str) or not text.strip():
@@ -192,6 +256,12 @@ class HermesObserverAdapter:
                 prompt_id=turn_id,
                 idempotency_key=f"hermes:{session_id}:{turn_id}",
             )
+        self._event(session_id, "hermes.llm_call", trace_id=turn_id, prompt_id=turn_id, attributes={
+            "user_message_hash": self._digest(user_message),
+            "assistant_response_hash": self._digest(assistant_response),
+            "prompt_memory_id": prompt_memory_id,
+            "response_memory_id": response_memory_id,
+        })
 
     def pre_llm_call(self, *, session_id: str | None = None, turn_id: str | None = None,
                      model: str | None = None, provider: str | None = None, **kwargs: Any) -> None:
@@ -323,15 +393,10 @@ class HermesObserverAdapter:
     ) -> None:
         if not parent_session_id:
             return
-        self.store.start_session(parent_session_id, retention_tier=self._retention_tier())
-        self.store.record_otel_batch(parent_session_id, [{
-            "kind": "log",
-            "name": "hermes.subagent_start",
-            "attributes": {
-                "child_session_id": child_session_id, "child_subagent_id": child_subagent_id,
-                "child_role": child_role, "child_goal": child_goal,
-            },
-        }])
+        self._event(parent_session_id, "hermes.subagent_start", attributes={
+            "child_session_id": child_session_id, "child_subagent_id": child_subagent_id,
+            "child_role": child_role, "child_goal_hash": self._digest(child_goal),
+        })
 
     def subagent_stop(
         self, *, parent_session_id: str | None = None, child_session_id: str | None = None,
@@ -343,12 +408,7 @@ class HermesObserverAdapter:
         # (only subagent_start does).
         if not parent_session_id:
             return
-        self.store.start_session(parent_session_id, retention_tier=self._retention_tier())
-        self.store.record_otel_batch(parent_session_id, [{
-            "kind": "log",
-            "name": "hermes.subagent_stop",
-            "attributes": {
-                "child_session_id": child_session_id,
-                "child_status": child_status, "child_summary": child_summary, "duration_ms": duration_ms,
-            },
-        }])
+        self._event(parent_session_id, "hermes.subagent_stop", attributes={
+            "child_session_id": child_session_id, "child_status": child_status,
+            "child_summary_hash": self._digest(child_summary), "duration_ms": duration_ms,
+        })

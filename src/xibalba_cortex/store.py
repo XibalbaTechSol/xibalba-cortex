@@ -21,6 +21,7 @@ from pathlib import Path
 import sqlite_vec
 from eth_hash.auto import keccak
 from integrity_sdk.crypto.merkle import compute_node_hash
+from integrity_sdk.core.decision_trace import DecisionEnvelope, DecisionTrace, DecisionTraceError, JevAnalysis
 
 from .canonical import CANONICAL_JSON_V1, CANONICAL_JSON_V2, canonical_json_v2
 from .events import domain_merkle_proof, domain_merkle_root, merkle_proof, merkle_root
@@ -436,6 +437,28 @@ CREATE TABLE IF NOT EXISTS exchanges (
 );
 
 CREATE INDEX IF NOT EXISTS idx_exchanges_session ON exchanges(session_id, sequence_number);
+
+-- Redacted, parent-linked decision observations. This is deliberately separate from the
+-- transcript/exchange tables: a trace commits to bounded metadata and policy outcomes, not raw
+-- prompts, completions, tool arguments or chain-of-thought. Jev annotations are advisory only.
+CREATE TABLE IF NOT EXISTS decision_trace_events (
+    event_id TEXT PRIMARY KEY,
+    trace_id TEXT NOT NULL,
+    tenant_id TEXT NOT NULL,
+    agent_id TEXT NOT NULL,
+    session_id TEXT NOT NULL REFERENCES sessions(external_session_id) ON DELETE CASCADE,
+    sequence_number INTEGER NOT NULL,
+    event_hash TEXT NOT NULL,
+    parent_event_hash TEXT NOT NULL,
+    envelope_json TEXT NOT NULL,
+    advisory_json TEXT,
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(trace_id, sequence_number),
+    UNIQUE(trace_id, event_hash)
+);
+
+CREATE INDEX IF NOT EXISTS idx_decision_trace_session ON decision_trace_events(session_id, sequence_number);
+CREATE INDEX IF NOT EXISTS idx_decision_trace_trace ON decision_trace_events(trace_id, sequence_number);
 
 -- Many-to-many, not two FK columns on exchanges: a single prompt can produce several response
 -- memories (thinking blocks, text, in Path C's terms -- verified against real transcript
@@ -4272,6 +4295,119 @@ class GraphStore:
             "unit": e["unit"], "start_time": e["start_time"], "end_time": e["end_time"],
             "attributes": json.loads(e["attributes_json"]), "created_at": e["created_at"],
         }
+
+    def record_decision_trace_event(
+        self,
+        external_session_id: str,
+        envelope: DecisionEnvelope | dict[str, object],
+        *,
+        advisory: JevAnalysis | dict[str, object] | None = None,
+    ) -> dict[str, object]:
+        """Persist one redacted DecisionTrace event and optional Jev projection.
+
+        The existing profile database is the tenant boundary for local Cortex. The event's
+        tenant/agent namespace is still stored and checked on every append so hosted adapters can
+        enforce the same contract. Idempotent replays return the original event; conflicting
+        replays are rejected without changing the accepted trace.
+        """
+        self.get_session(external_session_id)
+        if isinstance(envelope, dict):
+            body = dict(envelope)
+            body.pop("envelope_version", None)
+            envelope = DecisionEnvelope(**body)
+        if not isinstance(envelope, DecisionEnvelope):
+            raise TypeError("envelope must be a DecisionEnvelope or mapping")
+        advisory_payload: dict[str, object] | None = None
+        if advisory is not None:
+            if isinstance(advisory, JevAnalysis):
+                advisory_payload = {
+                    "provider_id": advisory.provider_id,
+                    "status": advisory.status,
+                    "risk_category": advisory.risk_category,
+                    "transition_probabilities": dict(advisory.transition_probabilities),
+                    "recommended_escalation": advisory.recommended_escalation,
+                    "observed_event_hash": advisory.observed_event_hash,
+                    "causal_claim": False,
+                }
+            else:
+                advisory_payload = dict(advisory)
+                if advisory_payload.get("causal_claim", False):
+                    raise DecisionTraceError("Jev advisory cannot make causal claims")
+        with self._lock:
+            existing = self._connection.execute(
+                "SELECT * FROM decision_trace_events WHERE event_id = ?", (envelope.event_id,)
+            ).fetchone()
+            if existing is not None:
+                if existing["event_hash"] != envelope.event_hash:
+                    raise DecisionTraceError("event_id replay has a different event hash")
+                return self._decision_trace_row(existing)
+            last = self._connection.execute(
+                "SELECT event_hash, sequence_number, tenant_id, agent_id FROM decision_trace_events "
+                "WHERE trace_id = ? ORDER BY sequence_number DESC LIMIT 1", (envelope.trace_id,)
+            ).fetchone()
+            expected_parent = last["event_hash"] if last is not None else "0x" + "00" * 32
+            if envelope.parent_event_hash != expected_parent:
+                raise DecisionTraceError("trace parent link mismatch")
+            if last is not None and (last["tenant_id"] != envelope.tenant_id or last["agent_id"] != envelope.agent_id):
+                raise DecisionTraceError("trace namespace mismatch")
+            sequence = int(last["sequence_number"]) + 1 if last is not None else 0
+            self._connection.execute(
+                """INSERT INTO decision_trace_events
+                (event_id, trace_id, tenant_id, agent_id, session_id, sequence_number, event_hash,
+                 parent_event_hash, envelope_json, advisory_json)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                (envelope.event_id, envelope.trace_id, envelope.tenant_id, envelope.agent_id,
+                 external_session_id, sequence, envelope.event_hash, envelope.parent_event_hash,
+                 self._canonical_json(envelope.body()),
+                 self._canonical_json(advisory_payload) if advisory_payload is not None else None),
+            )
+            self._connection.commit()
+            row = self._connection.execute(
+                "SELECT * FROM decision_trace_events WHERE event_id = ?", (envelope.event_id,)
+            ).fetchone()
+        return self._decision_trace_row(row)
+
+    @staticmethod
+    def _decision_trace_row(row: sqlite3.Row) -> dict[str, object]:
+        return {
+            "event_id": row["event_id"], "trace_id": row["trace_id"], "tenant_id": row["tenant_id"],
+            "agent_id": row["agent_id"], "session_id": row["session_id"],
+            "sequence_number": row["sequence_number"], "event_hash": row["event_hash"],
+            "parent_event_hash": row["parent_event_hash"], "envelope": json.loads(row["envelope_json"]),
+            "advisory": json.loads(row["advisory_json"]) if row["advisory_json"] else None,
+            "created_at": row["created_at"],
+        }
+
+    def session_decision_trace(self, external_session_id: str, trace_id: str) -> dict[str, object]:
+        """Return a read-only trace projection with its local Merkle root and proofs."""
+        self.get_session(external_session_id)
+        with self._lock:
+            rows = self._connection.execute(
+                "SELECT * FROM decision_trace_events WHERE session_id = ? AND trace_id = ? ORDER BY sequence_number",
+                (external_session_id, trace_id),
+            ).fetchall()
+        events = [self._decision_trace_row(row) for row in rows]
+        if not events:
+            return {"trace_id": trace_id, "session_id": external_session_id, "events": [], "root": None, "valid": True}
+        trace = DecisionTrace(trace_id, events[0]["tenant_id"], events[0]["agent_id"])
+        for item in events:
+            trace = trace.append(DecisionEnvelope(**{k: v for k, v in item["envelope"].items() if k != "envelope_version"}))
+        return {
+            "trace_id": trace_id, "session_id": external_session_id, "events": events,
+            "root": trace.root, "valid": trace.verify(),
+            "proofs": {str(index): trace.proof(index) for index in range(len(trace.events))},
+            "disclaimer": "Observational correlation only; probabilities do not prove causality or execution.",
+        }
+
+    def decision_trace_head(self, external_session_id: str, trace_id: str) -> str:
+        """Return the append parent for a trace without exposing mutable writer state."""
+        self.get_session(external_session_id)
+        with self._lock:
+            row = self._connection.execute(
+                "SELECT event_hash FROM decision_trace_events WHERE session_id = ? AND trace_id = ? "
+                "ORDER BY sequence_number DESC LIMIT 1", (external_session_id, trace_id)
+            ).fetchone()
+        return str(row["event_hash"]) if row is not None else "0x" + "00" * 32
 
     def session_exchanges(self, external_session_id: str) -> list[dict[str, object]]:
         """A session's complete memory, walked in order -- the point of this whole mechanism:

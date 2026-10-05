@@ -442,6 +442,21 @@ at most one automatic `classify_para` task; the analyst caps itself at 40 adviso
 Routine `log_only` memories written before Shield's publish filter shipped were removed with
 the audited `memory_forget` path, which keeps deletion receipts.
 
+## DecisionTrace and Jev advisory correlation
+
+Cortex stores and renders a redacted, parent-linked projection of observable agent transitions for
+auditors and operators. The local `JevGateway` accepts the deterministic fixture provider for
+offline operation or an optional bounded JSON HTTP provider. A provider can return risk categories,
+transition probabilities, and escalation advice, but it cannot authorize an action, change Shield
+policy, or establish causality.
+
+The read-only projection is available through the local API at
+`GET /api/session/{id}/decision-trace?trace_id=...` and includes provider status, observed event
+hashes, parent links, the domain-separated trace root, and inclusion proofs when available. Raw
+prompts, completions, tool arguments, and chain-of-thought remain outside the projection. See the
+canonical [DecisionTrace and Jev wiki page](docs/wiki/concepts/decision-trace-and-jev.md) and the
+[cross-product execution plan](../integrity-core/docs/EXECUTION_PLAN.md#b2a-jev-assisted-decisiontrace-m).
+
 ## Privacy and Retention
 
 The store is local SQLite under the configured profile home. Agent identity is controlled by `XIBALBA_CORTEX_IDENTITY_MODE`: `pseudonymous` by default, `full` for raw agent IDs, `omit` for none. Forgetting removes user-visible content while retaining a residual tamper-evidence hash — see [`docs/operations/store-contract.md`](docs/operations/store-contract.md).

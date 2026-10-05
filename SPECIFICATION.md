@@ -292,3 +292,23 @@ separate verification dimension.
 - Provider failures leave capture, lexical recall, graph traversal, and queue evidence available
   in degraded mode.
 - No documentation calls a root proof of truth, authorization, completeness, or ownership.
+
+### 12.8 DecisionTrace and Jev advisory correlation
+
+Cortex also stores a redacted `integrity.decision-trace/1` projection for agent sessions. Each
+event is parent-linked and carries tenant/agent/session/turn/invocation identifiers, policy
+references, the observed local outcome, bounded metadata, and a payload commitment. Raw prompts,
+completions, tool arguments and chain-of-thought are outside this projection.
+
+Jev is an optional advisory provider behind a local gateway. Its risk category and transition
+probabilities are stored as an annotation linked to the observed event hash. They are explicitly
+observational and never prove causality, model intent, authorization, or execution. A timeout,
+malformed response, or unavailable provider leaves the trace and existing session evidence valid
+and marks only the advisory projection unavailable.
+
+The local API exposes `GET /api/session/{id}/decision-trace?trace_id=...` for a read-only timeline,
+advisory annotations, domain-separated Merkle root, and inclusion proofs. Profile and tenant
+scope checks are applied before the projection is returned. Integrity receipt/checkpoint semantics
+remain the authority for signed policy evidence; this feature does not create a second receipt log.
+The implementation and provider boundary are maintained in
+[`docs/wiki/concepts/decision-trace-and-jev.md`](docs/wiki/concepts/decision-trace-and-jev.md).
