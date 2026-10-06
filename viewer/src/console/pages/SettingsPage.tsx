@@ -1,13 +1,24 @@
-// Settings. This slice holds the one preference that lives in the browser (the shell layout);
-// the sections that configure the Cortex profile itself are added with the surfaces that own them.
+// Settings. "Layout" is the one preference that lives in this browser; Inference, Embeddings,
+// Account and Developer read and write the Cortex profile through the local API, each in its own
+// file under ./settings so a section can change without touching the others.
 
 import { useState } from 'react'
 import { useSettings } from '../settingsContext'
 import { DEFAULT_SETTINGS, type ShellLayout } from '../settings'
 import { Page } from './Page'
+import { InferenceSection } from './settings/InferenceSection'
+import { EmbeddingsSection } from './settings/EmbeddingsSection'
+import { AccountSection } from './settings/AccountSection'
+import { DeveloperSection } from './settings/DeveloperSection'
 
-type Section = 'layout'
-const SECTIONS: Array<[Section, string]> = [['layout', 'Layout']]
+type Section = 'layout' | 'inference' | 'embeddings' | 'account' | 'developer'
+const SECTIONS: Array<[Section, string]> = [
+  ['layout', 'Layout'],
+  ['inference', 'Inference'],
+  ['embeddings', 'Embeddings'],
+  ['account', 'Account'],
+  ['developer', 'Developer'],
+]
 
 const LAYOUTS: Array<{ id: ShellLayout; title: string; body: string }> = [
   { id: 'rail', title: 'Left rail', body: 'Every destination in a rail down the left edge, grouped, with the workspace beside it. The default.' },
@@ -31,7 +42,7 @@ export function SettingsPage() {
   const isDefault = settings.shell === DEFAULT_SETTINGS.shell && settings.railCollapsed === DEFAULT_SETTINGS.railCollapsed
 
   return (
-    <Page eyebrow="System" title="Settings" note="Preferences for this browser. They are not stored in the Cortex profile.">
+    <Page eyebrow="System" title="Settings" note={section === 'layout' ? 'Layout is a preference of this browser and is not stored in the Cortex profile. The other sections read and change the profile itself.' : 'These sections read and change the Cortex profile through the local API.'}>
       <div className="xc-tabs" role="tablist" aria-label="Settings sections">
         {SECTIONS.map(([id, label]) => (
           <button key={id} type="button" role="tab" id={`st-${id}`} className="xc-tab" aria-selected={section === id} aria-controls="st-panel" onClick={() => setSection(id)}>{label}</button>
@@ -39,6 +50,11 @@ export function SettingsPage() {
       </div>
 
       <section id="st-panel" role="tabpanel" aria-labelledby={`st-${section}`} className="xc-win xc-settings-panel">
+        {section === 'inference' && <InferenceSection />}
+        {section === 'embeddings' && <EmbeddingsSection />}
+        {section === 'account' && <AccountSection />}
+        {section === 'developer' && <DeveloperSection />}
+        {section === 'layout' && (<>
         <p className="xc-eyebrow">Shell layout</p>
         <div className="xc-choice" role="radiogroup" aria-label="Shell layout">
           {LAYOUTS.map((l) => (
@@ -62,6 +78,7 @@ export function SettingsPage() {
         <div className="xc-actions-row">
           <button type="button" className="xc-btn" disabled={isDefault} onClick={reset}>Restore defaults</button>
         </div>
+        </>)}
       </section>
     </Page>
   )

@@ -32,8 +32,44 @@ export function isSignedIn(): boolean {
 
 function markSignedIn(value: boolean): void {
   signedIn = value
+  // the CSRF token is derived from the session cookie, so a new session means a new token
+  csrfToken = undefined
   if (value) sessionStorage.setItem(SIGNED_IN_KEY, '1')
   else sessionStorage.removeItem(SIGNED_IN_KEY)
+}
+
+// local_api.py requires `X-Cortex-CSRF-Token` on every state-changing request that authenticates
+// with the session cookie (_verify_csrf), and hands the token out at GET /api/auth/csrf. A bearer
+// credential (the dev proxy, machine callers) has no cookie to ride, so that route answers 400 and
+// no header is needed. `undefined` = not asked yet; `null` = asked, none required.
+let csrfToken: string | null | undefined
+
+async function csrfHeader(): Promise<Record<string, string>> {
+  if (csrfToken === undefined) {
+    const response = await fetch(`${getApiBaseUrl()}/api/auth/csrf`, { credentials: 'include' })
+    if (response.ok) {
+      const body = (await response.json().catch(() => ({}))) as { csrf_token?: string }
+      csrfToken = body.csrf_token ?? null
+    } else if (response.status === 400) {
+      csrfToken = null // not cookie-authenticated: nothing to forge, nothing to send
+    } else {
+      // 401 etc.: leave it unset so the next write asks again, and let that request report the real error
+      return {}
+    }
+  }
+  return csrfToken ? { 'X-Cortex-CSRF-Token': csrfToken } : {}
+}
+
+/** fetch for a state-changing route: attaches the CSRF header and retries once if the token went stale. */
+async function mutatingFetch(path: string, init: RequestInit): Promise<Response> {
+  const send = async () => fetch(`${getApiBaseUrl()}${path}`, { ...init, credentials: 'include', headers: { ...(init.headers as Record<string, string> | undefined), ...(await csrfHeader()) } })
+  const response = await send()
+  if (response.status === 403 && csrfToken) {
+    // the session may have been replaced since the token was fetched; ask again exactly once
+    csrfToken = undefined
+    return send()
+  }
+  return response
 }
 
 /**
@@ -72,6 +108,9 @@ export async function accountMe(): Promise<{account: Record<string, unknown>; se
   const response = await fetch(getApiBaseUrl() + "/api/auth/me", { credentials: "include" })
   const payload = await response.json().catch(() => ({}))
   if (!response.ok) throw new Error(payload.error || response.status + " " + response.statusText)
+  // a valid bearer credential that is not an account session gets HTTP 200 with `{"error": ...}`
+  // and no `account`; treat that as the failure it is rather than returning a value of the wrong shape
+  if (!payload.account) throw new Error(payload.error || "no account for this credential")
   return payload
 }
 
@@ -83,7 +122,7 @@ export async function accountSessions(): Promise<{sessions: Array<Record<string,
 }
 
 export async function accountRevokeSession(sessionId: string): Promise<void> {
-  const response = await fetch(getApiBaseUrl() + "/api/auth/sessions/revoke", { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ session_id: sessionId }) })
+  const response = await mutatingFetch("/api/auth/sessions/revoke", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ session_id: sessionId }) })
   const payload = await response.json().catch(() => ({}))
   if (!response.ok) throw new Error(payload.error || response.status + " " + response.statusText)
 }
@@ -103,7 +142,7 @@ export async function accountLogout(): Promise<void> {
 }
 
 export async function accountChangePassword(currentPassword: string, newPassword: string): Promise<void> {
-  const response = await fetch(getApiBaseUrl() + "/api/auth/password", { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ current_password: currentPassword, new_password: newPassword }) })
+  const response = await mutatingFetch("/api/auth/password", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ current_password: currentPassword, new_password: newPassword }) })
   const payload = await response.json().catch(() => ({}))
   if (!response.ok) throw new Error(payload.error || response.status + " " + response.statusText)
 }
@@ -598,6 +637,19 @@ export interface InferenceSettings {
   contradictions_require_review: boolean
 }
 
+/** One on-chain verdict from IntegrityKernel for a self-test UserOperation (kernel_bridge.KernelDecision.to_dict). */
+export interface KernelBridgeDecision {
+  user_op_hash: string
+  success: boolean | null
+  actual_gas_cost: number | string | null
+  revert_reason_hex: string | null
+  adapter_note: string | null
+}
+
+export type KernelBridgeSelfTest =
+  | { ok: false; error: string }
+  | { ok: true; matched: KernelBridgeDecision; kernel_exceeding: KernelBridgeDecision; passed: boolean }
+
 export interface RecordModelExchangePayload {
   external_session_id: string
   user_prompt: string
@@ -726,9 +778,8 @@ async function getJson<T>(path: string): Promise<T> {
 }
 
 async function postJson<T>(path: string, payload: Record<string, unknown>): Promise<T> {
-  const response = await fetch(`${getApiBaseUrl()}${path}`, {
+  const response = await mutatingFetch(path, {
     method: 'POST',
-    credentials: 'include',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
   })
@@ -888,6 +939,13 @@ export const api = {
   rebuildProjectionCheckpoint: (projectionId: string) =>
     postJson<ProjectionCheckpoint & { verified: boolean }>(`/api/projections/${encodeURIComponent(projectionId)}/rebuild`, {}),
   embeddingModels: () => getJson<EmbeddingModel[]>('/api/embedding/models'),
+  /**
+   * Guided System Test for the kernel bridge. Without a session id it only submits the two
+   * UserOperations and reports the decisions; with one it also records them as real
+   * pre/post_tool_call events in that session. A bridge that is not deployed answers 200 with
+   * `ok: false` and the reason in `error`, which callers must show, not swallow.
+   */
+  kernelBridgeSelfTest: (sessionId?: string) => postJson<KernelBridgeSelfTest>('/api/kernel-bridge/self-test', sessionId ? { session_id: sessionId } : {}),
   inferenceSettings: () => getJson<InferenceSettings>('/api/settings/inference'),
   updateInferenceSettings: (settings: InferenceSettings) => postJson<{ok: boolean; inference: InferenceSettings; message: string}>('/api/settings/inference', settings as unknown as Record<string, unknown>),
 }

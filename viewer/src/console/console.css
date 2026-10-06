@@ -2190,3 +2190,69 @@ select.xc-input {
   padding: 10px 12px;
   border: 1px solid var(--hairline);
 }
+
+/* ── Settings sections (Inference, Embeddings, Account, Developer) ───────────────────────── */
+.xc-settings-form {
+  gap: 18px;
+}
+.xc-fieldset {
+  display: grid;
+  gap: 12px;
+  margin: 0;
+  padding: 14px var(--window-padding) 16px;
+  border: 1px solid var(--hairline);
+  min-width: 0;
+}
+.xc-fieldset > legend {
+  padding: 0 6px;
+}
+.xc-formgrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+  gap: 12px;
+  /* a field with hint text is taller than its neighbours; without this its input stretches to match */
+  align-items: start;
+}
+.xc-taskgrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+  gap: 4px 16px;
+}
+/* the generic .xc-check ellipsises its label; task names and descriptions here must wrap whole */
+.xc-settings-form .xc-check span:not(.xc-swatch) {
+  white-space: normal;
+  overflow: visible;
+}
+.xc-field-error {
+  font: 500 12px/1.3 var(--font-body);
+  color: var(--status-conflict);
+}
+.xc-field input[aria-invalid='true'] {
+  border-color: var(--status-conflict);
+}
+.xc-modellist {
+  display: grid;
+  gap: 12px;
+}
+.xc-list {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.xc-listrow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 9px 0;
+  border-top: 1px solid var(--hairline);
+  font-size: 13px;
+}
+.xc-listrow:first-child {
+  border-top: 0;
+}
+.xc-listrow > span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
