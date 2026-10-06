@@ -345,6 +345,17 @@ export interface MerkleRoot {
   root_kind: string
 }
 
+export interface SessionMerkleProof {
+  session_id: string
+  tree_kind: string
+  leaf: string
+  leaf_index: number
+  exchange_count: number
+  root: string
+  proof: MerkleInclusionProof
+  disclaimer: string
+}
+
 export interface InferenceManifest {
   name: string
   role: string
@@ -675,6 +686,9 @@ export const api = {
   sessionReplay: (id: string, scope: WorkspaceScope = {}) => getJson<SessionReplay>(`/api/session/${encodeURIComponent(id)}/replay?${scopeParams(scope).slice(1)}`),
   sessionExchanges: (id: string, scope: WorkspaceScope = {}) => getJson<Exchange[]>(`/api/session/${encodeURIComponent(id)}/exchanges?${scopeParams(scope).slice(1)}`),
   buildSessionExchanges: (id: string) => postJson(`/api/session/${encodeURIComponent(id)}/exchanges/build`, {}),
+  /** Inclusion proof for the exchange at `index`, in the `exchange_batch` domain. */
+  sessionMerkleProof: (id: string, index: number, scope: WorkspaceScope = {}) =>
+    getJson<SessionMerkleProof>(`/api/session/${encodeURIComponent(id)}/merkle-proof?index=${index}${scopeParams(scope)}`),
   sessionMerkleRoot: (id: string, scope: WorkspaceScope = {}) => getJson<MerkleRoot>(`/api/session/${encodeURIComponent(id)}/merkle-root?${scopeParams(scope).slice(1)}`),
   inferenceManifest: () => getJson<InferenceManifest>('/api/inference/manifest'),
   inferenceTasks: (status = 'pending', limit = 50, scope: WorkspaceScope = {}) =>

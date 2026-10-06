@@ -65,8 +65,12 @@ Honesty rules the console follows:
   and inference tasks: accepting a proposal is a two-step action that first says what it will
   write, the task tab is read-only, and items whose source memory is not in the selected
   workspace are hidden and counted (the queue endpoints take no agent scope, so the console
-  matches them against the workspace's own memory listing). The Integrity drawer is marked
-  "soon" in the top bar and is not wired.
+  matches them against the workspace's own memory listing). The Integrity drawer verifies in the browser what the browser can:
+  every exchange's inclusion proof for a session (and the batch root recomputed from all leaves),
+  and each projection checkpoint's root recomputed from its own leaf hashes (`merkleVerify.ts`,
+  pinned to Python-built vectors). It labels anything the server computed as "server reports",
+  states what a Merkle check does not prove, and gates checkpoint, reconcile and rebuild on a
+  writable workspace and labels them store-wide.
 
 The previous viewer is still available at `?ui=legacy` (link in the console status bar).
 

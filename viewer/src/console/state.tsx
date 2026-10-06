@@ -30,7 +30,7 @@ import {
 import { useWorkspace, type Workspace } from './workspace'
 
 export type Lens = 'graph' | 'timeline'
-export type Overlay = 'recall' | 'review' | null
+export type Overlay = 'recall' | 'review' | 'integrity' | null
 export type Preset = RangePreset | 'custom'
 
 export interface ConsoleValue {

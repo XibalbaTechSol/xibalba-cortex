@@ -1,8 +1,7 @@
 // Top bar (brand, connection, scope, lens navigation) and the status bar.
 //
-// Navigation lists only what exists. Integrity is a drawer overlay that is not built yet, so it
-// renders disabled and says so -- a control that looks live but does nothing would be a silent
-// stub.
+// Navigation lists only what exists: the two lenses, and Recall, Review and Integrity, which open
+// as overlays over the current lens.
 
 import { useConsole } from './state'
 import { IconGraph, IconRefresh, IconSearch, IconSignOut, IconTimeline } from './icons'
@@ -79,8 +78,8 @@ export function TopBar() {
           <button type="button" className="xc-nav-btn" onClick={() => setOverlay('review')} aria-haspopup="dialog">
             Review
           </button>
-          <button type="button" className="xc-nav-btn" disabled title="Planned: opens as a drawer over the current lens. Use the legacy viewer's Integrity tab meanwhile.">
-            Integrity <span className="xc-soon">soon</span>
+          <button type="button" className="xc-nav-btn" onClick={() => setOverlay('integrity')} aria-haspopup="dialog">
+            Integrity
           </button>
         </div>
       </nav>
