@@ -32,6 +32,7 @@ otel = [
 ]
 
 [project.scripts]
+xibalba-cortex-hosted-connector = "xibalba_cortex.hosted_connector:main"
 xibalba-cortex-observer = "xibalba_cortex.observer_capture:main"
 xibalba-cortex-observer-install = "xibalba_cortex.observer_install:main"
 xibalba-cortex = "xibalba_cortex.server:main"
