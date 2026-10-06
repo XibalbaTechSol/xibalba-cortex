@@ -366,6 +366,21 @@ def test_graph_payload_includes_memory_entity_and_similarity_nodes(tmp_path):
     store.close()
 
 
+def test_entity_neighbors_and_paths_name_the_subject_of_every_edge(tmp_path):
+    # Without a subject a depth-2 result is a flat bag of (predicate, object) pairs and the tree it
+    # came from cannot be drawn.
+    store = GraphStore(tmp_path / "graph")
+    mem = store.store_memory("A chain of relations.", source={"kind": "direct_user"}, status="confirmed")
+    store.link_entities("alpha", "feeds", "beta", evidence_memory_id=mem["id"])
+    store.link_entities("beta", "feeds", "gamma", evidence_memory_id=mem["id"])
+
+    edges = store.neighbors("alpha", max_depth=2)["edges"]
+    assert [(e["subject"], e["predicate"], e["object"]) for e in edges] == [("alpha", "feeds", "beta"), ("beta", "feeds", "gamma")]
+    path = store.find_path("alpha", "gamma", max_depth=3)["edges"]
+    assert [(e["subject"], e["predicate"], e["object"]) for e in path] == [("alpha", "feeds", "beta"), ("beta", "feeds", "gamma")]
+    store.close()
+
+
 def test_memory_payload_and_graph_node_carry_the_stores_own_write_time(tmp_path):
     # The store stamps every memory row with created_at; it used to stay in SQLite and never reach
     # the payload, so a client had no honest way to place a memory in time unless the writing agent

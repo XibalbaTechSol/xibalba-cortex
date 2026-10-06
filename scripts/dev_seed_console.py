@@ -194,7 +194,11 @@ def seed_agent(store: GraphStore) -> None:
     store.start_session("sess-w1", retention_tier="verbatim", agent_id=AGENT)
     a = store.store_memory("The relay retries a failed submission three times before spooling it.", source=src("dev://agent/relay-retry", "sess-w1"), status="confirmed", evidence_class="observed_event", idempotency_key="dev:w:1")
     store.store_memory("The relay never retries; failed submissions are dropped.", source=src("dev://agent/relay-drop", "sess-w1"), status="active", evidence_class="observed_event", idempotency_key="dev:w:2")
-    store.store_memory("Spooled submissions are replayed in order on reconnect.", source=src("dev://agent/relay-replay", "sess-w1"), status="confirmed", evidence_class="observed_event", idempotency_key="dev:w:3")
+    replay = store.store_memory("Spooled submissions are replayed in order on reconnect.", source=src("dev://agent/relay-replay", "sess-w1"), status="confirmed", evidence_class="observed_event", idempotency_key="dev:w:3")
+    # a short chain of relations, private to the agent, so the Entities page has something to walk
+    store.link_entities("relay", "retries", "failed submission", evidence_memory_id=a["id"])
+    store.link_entities("failed submission", "falls back to", "spool", evidence_memory_id=a["id"])
+    store.link_entities("spool", "replays on", "reconnect", evidence_memory_id=replay["id"])
     for k in range(5):
         store.record_model_exchange(
             "sess-w1", user_prompt=f"turn {k} question", model_response=f"turn {k} answer",

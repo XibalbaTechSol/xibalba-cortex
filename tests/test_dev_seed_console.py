@@ -54,6 +54,9 @@ def test_agent_scenario_alone_is_small_and_has_one_open_session(seed, tmp_path):
     try:
         assert {s["external_session_id"] for s in store.list_sessions(limit=50)} == {"sess-w1"}
         assert sum(1 for n in store.graph_payload()["nodes"] if n["type"] == "exchange") == 5
+        # the agent's private relation chain is walkable, and only inside that workspace
+        walked = store.neighbors("relay", max_depth=3, agent_id=store.storage_agent_id("agent-demo"))["edges"]
+        assert [(e["subject"], e["object"]) for e in walked] == [("relay", "failed submission"), ("failed submission", "spool"), ("spool", "reconnect")]
     finally:
         store.close()
 

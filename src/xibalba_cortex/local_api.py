@@ -926,10 +926,12 @@ def _make_handler(store: GraphStore, *, allowed_origins: frozenset[str],
                     self._send_json(200, agent_store.graph_payload(limit=limit, similarity_threshold=threshold, agent_id=agent_filter))
                 elif len(parts) == 4 and parts[0] == "api" and parts[1] == "entity" and parts[3] == "neighbors":
                     max_depth = int(params.get("max_depth", 1))
-                    self._send_json(200, store.neighbors(unquote(parts[2]), max_depth=max_depth, agent_id=_agent_filter(store, principal, None)))
+                    entity_store, agent_filter = _read_store_for_agent(principal, params.get("agent_id"), params.get("store_id"))
+                    self._send_json(200, entity_store.neighbors(unquote(parts[2]), max_depth=max_depth, agent_id=agent_filter))
                 elif parts == ["api", "entity", "path"]:
                     max_depth = int(params.get("max_depth", 3))
-                    self._send_json(200, store.find_path(params.get("from", ""), params.get("to", ""), max_depth=max_depth, agent_id=_agent_filter(store, principal, None)))
+                    entity_store, agent_filter = _read_store_for_agent(principal, params.get("agent_id"), params.get("store_id"))
+                    self._send_json(200, entity_store.find_path(params.get("from", ""), params.get("to", ""), max_depth=max_depth, agent_id=agent_filter))
                 elif len(parts) == 4 and parts[0] == "api" and parts[1] == "session" and parts[3] == "exchanges":
                     session_store, _ = _read_store_for_agent(principal, params.get("agent_id"), params.get("store_id"))
                     _assert_session_access(session_store, principal, parts[2])

@@ -6454,8 +6454,9 @@ class GraphStore:
                 rows = self._connection.execute(
                     f"""
                     SELECT r.predicate, r.object_entity_id, r.object_literal, r.evidence_memory_id,
-                           oe.canonical_name AS object_name
+                           oe.canonical_name AS object_name, se.canonical_name AS subject_name
                     FROM relations r
+                    JOIN entities se ON se.id = r.subject_entity_id
                     LEFT JOIN entities oe ON oe.id = r.object_entity_id
                     WHERE r.subject_entity_id IN ({placeholders}) AND r.status = 'active'
                       AND (? IS NULL OR r.agent_id IN (?, ''))
@@ -6469,6 +6470,8 @@ class GraphStore:
                         break
                     edges.append(
                         {
+                            # additive: which entity the edge leaves, so a multi-hop result can be drawn as a tree
+                            "subject": row["subject_name"],
                             "predicate": row["predicate"],
                             "object": row["object_name"] or row["object_literal"],
                             "evidence_memory_id": row["evidence_memory_id"],
@@ -6496,6 +6499,7 @@ class GraphStore:
             if start is None or goal is None or start["id"] == goal["id"]:
                 return {"edges": []}
             visited = {start["id"]}
+            names = {start["id"]: start["canonical_name"]}
             queue: list[tuple[str, list[dict[str, object]]]] = [(start["id"], [])]
             while queue:
                 current_id, path = queue.pop(0)
@@ -6515,6 +6519,7 @@ class GraphStore:
                 ).fetchall()
                 for row in rows:
                     edge = {
+                        "subject": names[current_id],
                         "predicate": row["predicate"],
                         "object": row["object_name"] or row["object_literal"],
                     }
@@ -6524,6 +6529,7 @@ class GraphStore:
                         return {"edges": new_path}
                     if target_id and target_id not in visited:
                         visited.add(target_id)
+                        names[target_id] = row["object_name"]
                         queue.append((target_id, new_path))
         return {"edges": []}
 

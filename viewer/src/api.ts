@@ -194,6 +194,8 @@ export interface EntityRelation {
 }
 
 export interface TraversalEdge {
+  /** the entity the edge leaves (backend 2026-10-06+; older servers omit it) */
+  subject?: string
   predicate: string
   object: string
   evidence_memory_id?: string
@@ -742,10 +744,10 @@ export const api = {
   attachments: (id: string, scope: WorkspaceScope = {}) => getJson<Attachment[]>(`/api/memory/${encodeURIComponent(id)}/attachments?${scopeParams(scope).slice(1)}`),
   attachmentFile: (id: string, scope: WorkspaceScope = {}) => getBlob(`/api/attachment/${encodeURIComponent(id)}/file?${scopeParams(scope).slice(1)}`),
   contradictions: (id: string, scope: WorkspaceScope = {}) => getJson<Memory[]>(`/api/memory/${encodeURIComponent(id)}/contradictions?${scopeParams(scope).slice(1)}`),
-  entityNeighbors: (name: string, maxDepth = 1) =>
-    getJson<TraversalResult>(`/api/entity/${encodeURIComponent(name)}/neighbors?max_depth=${maxDepth}`),
-  entityPath: (from: string, to: string, maxDepth = 3) =>
-    getJson<TraversalResult>(`/api/entity/path?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}&max_depth=${maxDepth}`),
+  entityNeighbors: (name: string, maxDepth = 1, scope: WorkspaceScope = {}) =>
+    getJson<TraversalResult>(`/api/entity/${encodeURIComponent(name)}/neighbors?max_depth=${maxDepth}${scopeParams(scope)}`),
+  entityPath: (from: string, to: string, maxDepth = 3, scope: WorkspaceScope = {}) =>
+    getJson<TraversalResult>(`/api/entity/path?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}&max_depth=${maxDepth}${scopeParams(scope)}`),
   sessionReplay: (id: string, scope: WorkspaceScope = {}) => getJson<SessionReplay>(`/api/session/${encodeURIComponent(id)}/replay?${scopeParams(scope).slice(1)}`),
   sessionOtel: (id: string, scope: WorkspaceScope = {}) => getJson<OtelEvent[]>(`/api/session/${encodeURIComponent(id)}/otel?${scopeParams(scope).slice(1)}`),
   kernelIntents: (id: string, scope: WorkspaceScope = {}) => getJson<KernelIntent[]>(`/api/session/${encodeURIComponent(id)}/kernel-intents?${scopeParams(scope).slice(1)}`),

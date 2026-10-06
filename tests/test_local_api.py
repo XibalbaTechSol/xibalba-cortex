@@ -408,6 +408,32 @@ def test_a_non_operator_credential_cannot_choose_the_workspace_it_writes_to(runn
     assert status == 403, refused
 
 
+def test_entity_neighbors_and_paths_honour_the_requested_workspace(running_store):
+    # The entity routes used to ignore agent_id for an operator, so one workspace's private entity
+    # showed up in another's lookup.
+    store, port = running_store
+    a = store.store_memory("A knows B.", source={"kind": "direct_user", "agent_id": "agent-a"}, status="confirmed")
+    b = store.store_memory("A knows C.", source={"kind": "direct_user", "agent_id": "agent-b"}, status="confirmed")
+    store.link_entities("hub", "knows", "only-a", evidence_memory_id=a["id"])
+    store.link_entities("hub", "knows", "only-b", evidence_memory_id=b["id"])
+    agent_a = a["source"]["agent_id"]
+
+    status, scoped = _get(port, f"/api/entity/hub/neighbors?agent_id={agent_a}")
+    assert status == 200
+    assert {e["object"] for e in scoped["edges"]} == {"only-a"}
+    # the two agents' "hub" are distinct private entities; each workspace sees only its own
+    agent_b = b["source"]["agent_id"]
+    status, scoped_b = _get(port, f"/api/entity/hub/neighbors?agent_id={agent_b}")
+    assert {e["object"] for e in scoped_b["edges"]} == {"only-b"}
+    status, everything = _get(port, "/api/entity/hub/neighbors")
+    assert status == 200 and everything["edges"]  # the unscoped operator lookup still answers
+
+    status, path = _get(port, f"/api/entity/path?from=hub&to=only-b&agent_id={agent_a}")
+    assert status == 200 and path["edges"] == []
+    status, path = _get(port, f"/api/entity/path?from=hub&to=only-a&agent_id={agent_a}")
+    assert [e["object"] for e in path["edges"]] == ["only-a"]
+
+
 def test_agent_session_replay_requires_single_source_namespace(running_store):
     store, _port = running_store
     store.identity_mode = "full"

@@ -1,4 +1,5 @@
 import type { PageId } from '../nav'
+import { EntitiesPage } from './EntitiesPage'
 import { MemoriesPage } from './MemoriesPage'
 import { SessionsPage } from './SessionsPage'
 import { SettingsPage } from './SettingsPage'
@@ -9,6 +10,8 @@ export function PageHost({ page }: { page: PageId }) {
   switch (page) {
     case 'memories':
       return <MemoriesPage />
+    case 'entities':
+      return <EntitiesPage />
     case 'sessions':
       return <SessionsPage />
     case 'settings':
