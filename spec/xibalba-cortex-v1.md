@@ -818,3 +818,17 @@ Not attempted in v1; recorded so the bar is explicit rather than discovered ad h
 This is v1. Breaking schema changes (column removal, hash-boundary changes, event-node shape
 changes) require a new spec version and an explicit migration note — never a silent edit to this
 document that changes what already-hashed data means.
+
+## 13. Additive observer capture envelope
+
+`xibalba.observer.capture.v1` is an optional local diagnostic envelope persisted
+through the existing OTel table, not a change to canonical memory events, exchange
+hashes, receipts, or MCP tools. It carries occurrence ID, runtime, session, optional
+turn/tool IDs, event type, source-or-callback timestamp with an explicit origin,
+receipt time, bounded metadata, capture mode and content state/hash/length.
+Content states are `omitted_by_policy`, `redacted`, and `omitted_size_limit`.
+Identical text can belong to distinct occurrences; delivery retry deduplicates by
+occurrence ID. Source time is never inferred from receipt time without a label.
+These diagnostic records confer no execution/approval authority and no signature
+or anchoring claim. See `docs/architecture/claude-codex-observers.md` for installation,
+interface coverage, delivery semantics and outstanding recorder gates.
