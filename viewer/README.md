@@ -61,8 +61,12 @@ Honesty rules the console follows:
   footer and are offered only in a verified, writable `{store, agent}` workspace; anywhere else
   the footer says the workspace is read-only. Nothing is optimistic: the UI changes after the
   server confirms and the graph is reloaded. Forget is a two-step confirm, and contradictions
-  are recorded, never resolved. The Review and Integrity drawers are marked "soon" in the top bar
-  and are not wired.
+  are recorded, never resolved. The Review drawer lists extraction proposals, PARA classifications
+  and inference tasks: accepting a proposal is a two-step action that first says what it will
+  write, the task tab is read-only, and items whose source memory is not in the selected
+  workspace are hidden and counted (the queue endpoints take no agent scope, so the console
+  matches them against the workspace's own memory listing). The Integrity drawer is marked
+  "soon" in the top bar and is not wired.
 
 The previous viewer is still available at `?ui=legacy` (link in the console status bar).
 

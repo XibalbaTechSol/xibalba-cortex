@@ -1194,3 +1194,84 @@ select.xc-input {
 .xc-notice {
   margin: 0;
 }
+
+/* ---------- review drawer --------------------------------------------------------------------- */
+.xc-drawer {
+  position: fixed;
+  z-index: 41;
+  top: 20px;
+  right: 20px;
+  bottom: 20px;
+  width: min(560px, calc(100vw - 40px));
+  display: flex;
+  flex-direction: column;
+  box-shadow: var(--shadow-overlay);
+}
+.xc-drawer-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 18px var(--window-padding) 14px;
+  border-bottom: 1px solid var(--hairline);
+}
+.xc-drawer-note {
+  padding: 10px var(--window-padding) 0;
+}
+.xc-drawer-body {
+  display: grid;
+  gap: 14px;
+  padding: var(--window-padding);
+  align-content: start;
+}
+.xc-cards {
+  display: grid;
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.xc-card {
+  display: grid;
+  gap: 10px;
+  padding: 14px 16px;
+  border: 1px solid var(--hairline);
+}
+.xc-card-top {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+.xc-card-title {
+  font: 600 18px/1.2 var(--font-condensed);
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.xc-card-facts {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+}
+.xc-quote {
+  margin: 0;
+  padding: 2px 0 2px 12px;
+  border-left: 2px solid var(--hairline-strong);
+  color: var(--ink-muted);
+  font-size: 13px;
+}
+.xc-effect {
+  padding: 8px 10px;
+  border: 1px solid var(--hairline);
+  background: var(--accent-soft);
+  color: var(--ink);
+}
+@media (max-width: 760px) {
+  .xc-drawer {
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: 100vw;
+  }
+}

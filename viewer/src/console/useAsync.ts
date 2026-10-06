@@ -10,7 +10,7 @@ export interface AsyncState<T> {
  * Run `load` when `deps` change; a response from a superseded run is ignored, so a fast click
  * through several memories can never show one memory's data under another's header.
  */
-export function useAsync<T>(load: () => Promise<T>, deps: readonly unknown[]): AsyncState<T> {
+export function useAsync<T>(load: () => Promise<T>, deps: readonly unknown[], options: { keepData?: boolean } = {}): AsyncState<T> {
   const [state, setState] = useState<AsyncState<T>>({ data: null, error: null, loading: true })
   // deps are ids and plain scope objects, so a serialized key is a faithful change signal and
   // gives the effect a literal dependency array
@@ -18,9 +18,11 @@ export function useAsync<T>(load: () => Promise<T>, deps: readonly unknown[]): A
   // the effect runs on `key`, but must call the newest closure
   const loadRef = useRef(load)
   loadRef.current = load
+  const keepData = useRef(options.keepData ?? false)
   useEffect(() => {
     let live = true
-    setState({ data: null, error: null, loading: true })
+    // keepData: show the last good result while the next one loads (used by the review queue)
+    setState((prev) => ({ data: keepData.current ? prev.data : null, error: null, loading: true }))
     loadRef.current()
       .then((data) => {
         if (live) setState({ data, error: null, loading: false })

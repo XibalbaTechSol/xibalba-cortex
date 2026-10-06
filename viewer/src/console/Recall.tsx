@@ -8,10 +8,11 @@
 // "Inclusion proof" recomputes the Merkle path in this browser (merkleVerify.ts) rather than
 // believing a server flag. Memory content is rendered as plain text and labelled untrusted.
 
-import { useEffect, useRef, useState, type FormEvent } from 'react'
+import { useRef, useState, type FormEvent } from 'react'
 import { api, type HybridRetrieveResult, type Memory, type RetrievalTrace, type RetrievalTraceResultRecord } from '../api'
 import { verifyDomainMerkleProof } from '../merkleVerify'
 import { useConsole } from './state'
+import { useDialog } from './useDialog'
 import { elideHash } from './model'
 import { IconCheck, IconClose, IconSearch, IconWarn } from './icons'
 
@@ -44,33 +45,11 @@ export function Recall() {
 
   const inputRef = useRef<HTMLInputElement>(null)
   const dialogRef = useRef<HTMLDivElement>(null)
-  const opener = useRef<Element | null>(document.activeElement)
   // a slow earlier query must not overwrite a newer one
   const runId = useRef(0)
 
   const close = () => setOverlay(null)
-
-  useEffect(() => {
-    inputRef.current?.focus()
-    const previous = opener.current
-    return () => { if (previous instanceof HTMLElement) previous.focus() }
-  }, [])
-
-  // Escape closes; Tab is kept inside the dialog so focus cannot fall into the page behind it.
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') { e.preventDefault(); setOverlay(null); return }
-      if (e.key !== 'Tab' || !dialogRef.current) return
-      const items = Array.from(dialogRef.current.querySelectorAll<HTMLElement>('button:not([disabled]), input, [href]'))
-      if (items.length === 0) return
-      const first = items[0]
-      const last = items[items.length - 1]
-      if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus() }
-      else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus() }
-    }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [setOverlay])
+  useDialog(dialogRef, close, inputRef)
 
   const run = async (event?: FormEvent) => {
     event?.preventDefault()

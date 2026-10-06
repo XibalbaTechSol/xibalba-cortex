@@ -15,6 +15,7 @@ import { TimelineLens } from './TimelineLens'
 import { Inspector } from './Inspector'
 import { ChainRail } from './ChainRail'
 import { Recall } from './Recall'
+import { Review } from './Review'
 
 // A 401 from any call means the cookie session ended; send the user back to sign-in with a reason.
 const EXPIRED = /\b401\b|authentication required|unauthorized|expired/i
@@ -54,6 +55,7 @@ function Workspace() {
       </div>
       <StatusBar />
       {overlay === 'recall' && <Recall />}
+      {overlay === 'review' && <Review />}
     </>
   )
 }
