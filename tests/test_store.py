@@ -366,6 +366,35 @@ def test_graph_payload_includes_memory_entity_and_similarity_nodes(tmp_path):
     store.close()
 
 
+def test_agent_scoped_graph_payload_keeps_entities_and_relations_for_that_agent(tmp_path):
+    # Regression: the scoped branch read `subject_entity_id`/`object_entity_id` from rows that
+    # list_relations() keys as `subject_id`/`object_id`, so an agent-scoped graph silently dropped
+    # every entity and relation edge while the unscoped graph showed them.
+    store = GraphStore(tmp_path / "graph")
+    mine = store.store_memory(
+        "Relay retries failed submissions.",
+        source={"kind": "explicit_memory", "agent_id": "agent-a", "locator": "test://scoped-a"},
+        status="confirmed",
+    )
+    theirs = store.store_memory(
+        "Offsite is in Madison.",
+        source={"kind": "explicit_memory", "agent_id": "agent-b", "locator": "test://scoped-b"},
+        status="confirmed",
+    )
+    store.link_entities("relay", "retries", "failed submission", evidence_memory_id=mine["id"])
+    store.link_entities("offsite", "located_in", "Madison", evidence_memory_id=theirs["id"])
+
+    payload = store.graph_payload(agent_id="agent-a")
+
+    labels = {node["label"] for node in payload["nodes"] if node["type"] == "entity"}
+    assert labels == {"relay", "failed submission"}
+    relations = [e for e in payload["edges"] if e["type"] == "relation"]
+    assert [(e["predicate"], e["evidence_memory_id"]) for e in relations] == [("retries", mine["id"])]
+    # the other agent's memory and its entities stay out
+    assert f"memory:{theirs['id']}" not in {node["id"] for node in payload["nodes"]}
+    store.close()
+
+
 def test_graph_payload_includes_contradiction_edges(tmp_path):
     store = GraphStore(tmp_path / "graph")
     current = store.store_memory(

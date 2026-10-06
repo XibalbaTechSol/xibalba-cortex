@@ -6539,7 +6539,9 @@ class GraphStore:
         relations = self.list_relations()
         if scoped_agent_id:
             relations = [r for r in relations if str(r.get("evidence_memory_id") or "") in memory_ids]
-            entity_ids = {str(r.get("subject_entity_id")) for r in relations} | {str(r.get("object_entity_id")) for r in relations}
+            # list_relations() keys these `subject_id` / `object_id`; object_id is None for a
+            # literal-valued relation, which has no object entity to include.
+            entity_ids = {str(r["subject_id"]) for r in relations} | {str(r["object_id"]) for r in relations if r.get("object_id")}
             entities = [entity for entity in entities if str(entity.get("id")) in entity_ids]
 
         nodes: list[dict[str, object]] = [
