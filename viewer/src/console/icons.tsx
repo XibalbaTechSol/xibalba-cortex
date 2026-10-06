@@ -103,3 +103,65 @@ export const IconArrowRight = (p: IconProps) => (
     <path d="M4 12h15M13 6l6 6-6 6" />
   </svg>
 )
+
+export const IconMemories = (p: IconProps) => (
+  <svg {...base} {...p}>
+    <path d="M4 6h16M4 12h16M4 18h10" />
+  </svg>
+)
+
+export const IconEntities = (p: IconProps) => (
+  <svg {...base} {...p}>
+    <circle cx="12" cy="12" r="2.4" />
+    <circle cx="5" cy="6" r="1.8" />
+    <circle cx="19" cy="7" r="1.8" />
+    <circle cx="6" cy="19" r="1.8" />
+    <path d="M10 10.6L6.3 7.4M14 10.8l3.6-2.5M10.5 14l-3.4 3.4" />
+  </svg>
+)
+
+export const IconSessions = (p: IconProps) => (
+  <svg {...base} {...p}>
+    <path d="M12 4l8 4-8 4-8-4 8-4z" />
+    <path d="M4 12l8 4 8-4M4 16l8 4 8-4" />
+  </svg>
+)
+
+export const IconOperations = (p: IconProps) => (
+  <svg {...base} {...p}>
+    <path d="M3 12h4l2-6 4 12 2-6h6" />
+  </svg>
+)
+
+export const IconAgents = (p: IconProps) => (
+  <svg {...base} {...p}>
+    <rect x="6" y="6" width="12" height="12" />
+    <path d="M9 3v3M15 3v3M9 18v3M15 18v3M3 9h3M3 15h3M18 9h3M18 15h3" />
+  </svg>
+)
+
+export const IconSettings = (p: IconProps) => (
+  <svg {...base} {...p}>
+    <path d="M4 7h10M18 7h2M4 17h2M10 17h10" />
+    <rect x="14" y="5" width="4" height="4" />
+    <rect x="6" y="15" width="4" height="4" />
+  </svg>
+)
+
+export const IconChevronLeft = (p: IconProps) => (
+  <svg {...base} {...p}>
+    <path d="M15 5l-7 7 7 7" />
+  </svg>
+)
+
+export const IconChevronRight = (p: IconProps) => (
+  <svg {...base} {...p}>
+    <path d="M9 5l7 7-7 7" />
+  </svg>
+)
+
+export const IconMore = (p: IconProps) => (
+  <svg {...base} {...p}>
+    <path d="M5 12h.01M12 12h.01M19 12h.01" strokeWidth={3} />
+  </svg>
+)

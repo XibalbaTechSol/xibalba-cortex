@@ -18,7 +18,7 @@ export function TopBar() {
     <header className="xc-top">
       <div className="xc-top-row">
         <a className="xc-brand" href="#" onClick={(e) => { e.preventDefault(); setLens('graph') }}>
-          <span className="xc-brand-mark"><img src="/cortex-icon-dark.png" alt="" /></span>
+          <span className="xc-brand-mark"><img src="/cortex-mark.png" alt="" /></span>
           <b>Xibalba <i>Cortex</i></b>
         </a>
 

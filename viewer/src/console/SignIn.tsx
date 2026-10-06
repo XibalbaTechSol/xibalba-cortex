@@ -64,7 +64,7 @@ export function SignIn({ onSignedIn }: { onSignedIn: () => void }) {
     <main className="xc-auth">
       <section className="xc-auth-story">
         <a className="xc-brand" href="#" onClick={(e) => e.preventDefault()}>
-          <span className="xc-brand-mark"><img src="/cortex-icon-dark.png" alt="" /></span>
+          <span className="xc-brand-mark"><img src="/cortex-mark.png" alt="" /></span>
           <b>Xibalba <i>Cortex</i></b>
         </a>
         <div className="xc-auth-story-body">

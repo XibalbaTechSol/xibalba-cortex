@@ -28,9 +28,10 @@ import {
   type TimeWindow,
 } from './model'
 import { useWorkspace, type Workspace } from './workspace'
+import { ALL_DESTINATIONS, parseRoute, routeHash, type DestinationId, type Lens, type OverlayId, type PageId } from './nav'
 
-export type Lens = 'graph' | 'timeline'
-export type Overlay = 'recall' | 'review' | 'integrity' | null
+export type { Lens } from './nav'
+export type Overlay = OverlayId | null
 export type Preset = RangePreset | 'custom'
 
 export interface ConsoleValue {
@@ -53,6 +54,11 @@ export interface ConsoleValue {
   // ui
   lens: Lens
   setLens: (lens: Lens) => void
+  /** null = the workspace; otherwise a full-page surface (Memories, Settings, ...) */
+  page: PageId | null
+  setPage: (page: PageId | null) => void
+  /** open any destination by id, whatever its kind */
+  go: (id: DestinationId) => void
   selectedId: string | null
   select: (id: string | null) => void
   /** Select a node AND ask the graph to centre on it (used by Recall and the timeline). */
@@ -82,9 +88,6 @@ export function useConsole(): ConsoleValue {
   return value
 }
 
-function lensFromHash(): Lens {
-  return window.location.hash === '#timeline' ? 'timeline' : 'graph'
-}
 
 export function ConsoleProvider({ children, onSignOut }: { children: ReactNode; onSignOut: () => void }) {
   const workspace = useWorkspace()
@@ -101,7 +104,9 @@ export function ConsoleProvider({ children, onSignOut }: { children: ReactNode; 
   const [timingNote, setTimingNote] = useState<string | null>(null)
   const [nonce, setNonce] = useState(0)
 
-  const [lens, setLensState] = useState<Lens>(lensFromHash)
+  const [route, setRouteState] = useState(() => parseRoute(window.location.hash))
+  const lens = route.lens
+  const page = route.page
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [focus, setFocus] = useState<{ id: string; nonce: number } | null>(null)
   const [facets, setFacets] = useState<Facets | null>(null)
@@ -158,15 +163,34 @@ export function ConsoleProvider({ children, onSignOut }: { children: ReactNode; 
   }, [scope])
 
   useEffect(() => {
-    const onHash = () => setLensState(lensFromHash())
+    const onHash = () => setRouteState(parseRoute(window.location.hash))
     window.addEventListener('hashchange', onHash)
     return () => window.removeEventListener('hashchange', onHash)
   }, [])
 
-  const setLens = useCallback((next: Lens) => {
-    window.location.hash = next === 'graph' ? '' : `#${next}`
-    setLensState(next)
+  const applyRoute = useCallback((next: { lens: Lens; page: PageId | null }) => {
+    window.location.hash = routeHash(next)
+    setRouteState(next)
   }, [])
+  // choosing a lens leaves any page; choosing a page remembers which lens it was opened from
+  const setLens = useCallback((next: Lens) => applyRoute({ lens: next, page: null }), [applyRoute])
+  const setPage = useCallback((next: PageId | null) => applyRoute({ lens: route.lens, page: next }), [applyRoute, route.lens])
+  const go = useCallback(
+    (id: DestinationId) => {
+      const dest = ALL_DESTINATIONS.find((d) => d.id === id)
+      if (!dest) return
+      if (dest.kind === 'lens') {
+        setOverlay(null)
+        setLens(id as Lens)
+      } else if (dest.kind === 'page') {
+        setOverlay(null)
+        setPage(id as PageId)
+      } else {
+        setOverlay(id as OverlayId)
+      }
+    },
+    [setLens, setPage],
+  )
 
   const select = useCallback((id: string | null) => setSelectedId(id), [])
   const reveal = useCallback((id: string) => {
@@ -192,13 +216,13 @@ export function ConsoleProvider({ children, onSignOut }: { children: ReactNode; 
   const value = useMemo<ConsoleValue>(
     () => ({
       workspace, model, memoryInfo, sessionEnds, sessions, stats, status, loading, error, timingNote, reload,
-      lens, setLens, selectedId, select, reveal, focus, facets, setFacets,
+      lens, setLens, page, setPage, go, selectedId, select, reveal, focus, facets, setFacets,
       window: window_, preset, setWindow, applyPreset, similarity, setSimilarity, overlay, setOverlay,
       revision: nonce, notice, setNotice,
       signOut: onSignOut,
     }),
     [workspace, model, memoryInfo, sessionEnds, sessions, stats, status, loading, error, timingNote, reload,
-      lens, setLens, selectedId, select, reveal, focus, facets, window_, preset, setWindow, applyPreset,
+      lens, setLens, page, setPage, go, selectedId, select, reveal, focus, facets, window_, preset, setWindow, applyPreset,
       similarity, overlay, onSignOut, nonce, notice],
   )
 

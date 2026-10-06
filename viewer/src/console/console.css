@@ -1218,8 +1218,8 @@ select.xc-input {
 
 /* ---------- additions: brand image, ring swatch, table ----------------------------------------- */
 .xc-brand-mark img {
-  width: 34px;
-  height: 34px;
+  width: 40px;
+  height: 40px;
   object-fit: contain;
 }
 .xc-swatch--ring {
