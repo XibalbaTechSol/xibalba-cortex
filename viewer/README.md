@@ -42,6 +42,30 @@ For a production build or an explicitly authenticated operator flow:
 `CORTEX_HOME`, `CORTEX_DEV_TOKEN_FILE`, and `CORTEX_LOCAL_API_URL` configure the profile,
 protected token file, and Vite proxy target respectively.
 
+## Console (default UI)
+
+The default screen is the redesigned **Cortex console** (`src/console/`): two lenses, Graph and
+Timeline, over one shared state (selection, facets and time window survive a lens switch), a
+facet rail, a single inspector, a chain rail that windows both lenses, and Recall (`Ctrl/Cmd+K`).
+It is dark-only and shares the Xibalba Console design language with Shield (graphite surface,
+registration crosses on every window, Barlow / Barlow Condensed / JetBrains Mono) with Cortex's
+lavender accent.
+
+Honesty rules the console follows:
+
+- A node is placed in time only from a timestamp the API really returns; everything else is
+  counted as "untimed" and never hidden by the time window.
+- Session Merkle root validity is shown as *server-reported*. Retrieval inclusion proofs are the
+  one thing verified in the browser (`merkleVerify.ts`).
+- This first slice is read-only. Mutations, the Review drawer and the Integrity drawer are
+  marked "soon" in the top bar and are not wired.
+
+The previous viewer is still available at `?ui=legacy` (link in the console status bar).
+
+```bash
+npm test      # vitest: pure model logic (time resolution, facets, histogram, lanes)
+```
+
 ## Graph rendering behavior
 
 The 3D Graph view is an interactive overview, not a full-store renderer. To keep session selection and navigation responsive, the canvas requests one sampled memory page and renders the 20 newest sessions, always including the selected session. Recall, memory inspection, session Timeline, Replay, and Integrity views continue to query the complete API projections.

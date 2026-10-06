@@ -1,0 +1,65 @@
+/* Design tokens for the Cortex console.
+ *
+ * Source: the "Xibalba Console" design system (tokens.json), which follows the Industry mock as
+ * measured in xibalba-shield/docs/audits/UI_MOCK_COMPARISON_MATRIX.md -- NOT Shield's current CSS,
+ * which drifted from the mock in commit 7e36a2d. Dark only, by decision.
+ *
+ * Tokens marked DERIVED are not from the mock.
+ */
+:root {
+  /* surfaces: one graphite for the page, every window and the top bar */
+  --ground: #14171a;
+  --chrome: var(--ground);
+  --panel: #1b1f23;
+  --elevated: #262b30;
+
+  /* rules */
+  --hairline: rgba(255, 255, 255, 0.14);
+  --hairline-strong: rgba(255, 255, 255, 0.35);
+  --hairline-faint: rgba(255, 255, 255, 0.08); /* DERIVED */
+  --frame-line: rgba(92, 100, 106, 0.28);
+  --frame-tick: rgba(171, 181, 188, 0.72);
+
+  /* ink */
+  --ink: #eef0f1;
+  --ink-muted: #b7bcc1;
+  --ink-dim: #9aa1a8;
+  --ink-on-accent: #102027;
+
+  /* Cortex accent: derived in OKLCH from Shield's #9fc3df at identical lightness 0.800 and
+     chroma 0.055, hue 242 -> 300. DERIVED. */
+  --cortex-accent: #c3b6dd;
+  --cortex-accent-hover: #e3dcf2;
+  --cortex-accent-soft: rgba(195, 182, 221, 0.16);
+  --cortex-accent-glow: rgba(195, 182, 221, 0.2);
+
+  /* shared status vocabulary: identical in Shield and Cortex */
+  --status-anchored: #9fc3df;
+  --status-anchored-soft: rgba(159, 195, 223, 0.12);
+  --status-review: #d7aa6c;
+  --status-review-soft: rgba(215, 170, 108, 0.16);
+  --status-conflict: #d88383;
+  --status-conflict-soft: rgba(216, 131, 131, 0.16);
+
+  /* type */
+  --font-condensed: 'Barlow Condensed', sans-serif;
+  --font-body: 'Barlow', system-ui, -apple-system, sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+
+  /* geometry */
+  --window-padding: 20px;
+  --window-gap: 20px;
+  --control-height: 38px;
+  --tab-height: 40px;
+  --content-max: 1440px;
+  --gutter: 42px; /* mock content padding, desktop: 34px 42px 72px */
+
+  --shadow-overlay: 0 24px 64px rgba(0, 0, 0, 0.6); /* CORTEX: not from Shield */
+  --shadow-focus: 0 0 0 4px var(--cortex-accent-glow);
+}
+
+@media (max-width: 760px) {
+  :root {
+    --gutter: 16px; /* mock mobile content padding: 26px 16px 56px */
+  }
+}

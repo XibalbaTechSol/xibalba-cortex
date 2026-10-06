@@ -97,20 +97,37 @@ export async function accountChangePassword(currentPassword: string, newPassword
   if (!response.ok) throw new Error(payload.error || response.status + " " + response.statusText)
 }
 
+// `GET /api/graph` (GraphStore.graph_payload) returns five node classes and eight edge types.
+// This used to declare only `memory | entity` and `relation | similarity | contradiction`, which
+// understated the payload: session/exchange/merkle nodes and the structural edges have always
+// been sent, and the legacy graph code reads them through its own DemoNode adapter. Widened so
+// the types match the wire. Every added field is optional, so existing readers are unaffected.
+export type GraphNodeType = 'memory' | 'entity' | 'session' | 'exchange' | 'merkle'
+export type GraphEdgeType =
+  | 'relation' | 'similarity' | 'contradiction'
+  | 'contains' | 'prompt' | 'response' | 'context' | 'merkle_root'
+
 export interface GraphNode {
   id: string
-  type: 'memory' | 'entity'
+  type: GraphNodeType
   label: string
   status?: string
   evidence_class?: string
   source_kind?: string
   entity_type?: string
+  /** exchange nodes: ISO prompt time. */
+  timestamp?: string
+  /** session nodes: "YYYY-MM-DD HH:MM:SS" (UTC, no zone marker). */
+  started_at?: string
+  /** merkle nodes: whether the server-computed root is valid. */
+  valid?: boolean
+  agent_id?: string
 }
 
 export interface GraphEdge {
   source: string
   target: string
-  type: 'relation' | 'similarity' | 'contradiction'
+  type: GraphEdgeType
   predicate?: string
   cosine_similarity?: number
   evidence_memory_id?: string
@@ -179,6 +196,8 @@ export interface Stats {
 
 export interface StoreStatus {
   schema_version: number
+  /** Returned by GET /api/status; not declared before the console needed it. */
+  profile_id?: string
   journal_mode: string
   foreign_keys: boolean
   fts5: boolean
