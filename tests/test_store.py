@@ -366,6 +366,40 @@ def test_graph_payload_includes_memory_entity_and_similarity_nodes(tmp_path):
     store.close()
 
 
+def test_memory_payload_and_graph_node_carry_the_stores_own_write_time(tmp_path):
+    # The store stamps every memory row with created_at; it used to stay in SQLite and never reach
+    # the payload, so a client had no honest way to place a memory in time unless the writing agent
+    # happened to set source.observed_at.
+    store = GraphStore(tmp_path / "graph")
+    memory = store.store_memory(
+        "A memory with no observed_at.",
+        source={"kind": "direct_user", "locator": "test://created-at", "session_id": None},
+        status="confirmed",
+    )
+    loaded = store.get_memory(memory["id"])
+    assert isinstance(loaded["created_at"], str) and len(loaded["created_at"]) == 19  # "YYYY-MM-DD HH:MM:SS"
+    assert loaded["source"]["observed_at"] is None  # the two stay distinct: write time is not event time
+    assert "valid_from" in loaded and "valid_to" in loaded
+
+    node = next(n for n in store.graph_payload()["nodes"] if n["id"] == f"memory:{memory['id']}")
+    assert node["created_at"] == loaded["created_at"]
+    assert node["observed_at"] is None
+    store.close()
+
+
+def test_exchange_node_carries_write_time_when_it_has_no_event_time(tmp_path):
+    store = GraphStore(tmp_path / "graph")
+    store.start_session("sess-time")
+    store.record_model_exchange(
+        "sess-time", user_prompt="q", model_response="a", context=[], runtime="test", prompt_id="p1",
+        idempotency_key="time-ex-1",
+    )
+    node = next(n for n in store.graph_payload()["nodes"] if n["type"] == "exchange")
+    assert node["timestamp"] is None  # no prompt_time/response_time was supplied
+    assert isinstance(node["created_at"], str) and len(node["created_at"]) == 19
+    store.close()
+
+
 def test_agent_scoped_graph_payload_keeps_entities_and_relations_for_that_agent(tmp_path):
     # Regression: the scoped branch read `subject_entity_id`/`object_entity_id` from rows that
     # list_relations() keys as `subject_id`/`object_id`, so an agent-scoped graph silently dropped

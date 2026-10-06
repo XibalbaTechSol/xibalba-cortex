@@ -2144,6 +2144,13 @@ class GraphStore:
             "quarantine_reasons": details.get("quarantine_reasons", []),
             "supersedes_id": row["supersedes_id"],
             "evidence_class": row["derivation_family"],
+            # Additive (2026-10-06): the store's own write time (UTC "YYYY-MM-DD HH:MM:SS", no zone
+            # marker) and the validity window. created_at is when this store recorded the memory,
+            # not when the event happened -- that is source.observed_at, which stays separate and
+            # may be absent.
+            "created_at": row["created_at"],
+            "valid_from": row["valid_from"],
+            "valid_to": row["valid_to"],
         }
 
     def counts(self) -> dict[str, int]:
@@ -4266,6 +4273,9 @@ class GraphStore:
             "latency_ms": row["latency_ms"],
             "node_id": row["node_id"],
             "parent_node_id": row["parent_node_id"],
+            # Additive: when the store recorded the exchange (UTC, no zone marker). prompt_time and
+            # response_time are the event times and may be absent; this one never is.
+            "created_at": row["created_at"],
             "prompt_memories": [self.get_memory(mid) for mid in prompt_memory_ids],
             "response_memories": [self.get_memory(mid) for mid in response_memory_ids],
             "context_contributions": [
@@ -6552,6 +6562,10 @@ class GraphStore:
                 "status": memory["status"],
                 "evidence_class": memory["evidence_class"],
                 "source_kind": memory["source"]["kind"],
+                # Additive: lets a timeline place the node without paging /api/memories.
+                "created_at": memory["created_at"],
+                "observed_at": memory["source"]["observed_at"],
+                "session_id": memory["source"]["session_id"],
             }
             for memory in memories
         ]
@@ -6595,6 +6609,7 @@ class GraphStore:
                 "type": "exchange",
                 "label": f"Exchange {exchange['sequence_number']}",
                 "timestamp": exchange.get("prompt_time") or exchange.get("response_time"),
+                "created_at": exchange.get("created_at"),
             }
             for exchange in exchanges
         )
