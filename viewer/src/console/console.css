@@ -2137,3 +2137,42 @@ select.xc-input {
     min-height: 0;
   }
 }
+
+/* ---------- operations page -------------------------------------------------------------------------- */
+.xc-opsgrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+  gap: var(--window-gap);
+  align-items: start;
+}
+.xc-opscard {
+  display: grid;
+  gap: 12px;
+  padding: var(--window-padding);
+  min-width: 0;
+}
+.xc-opscard p {
+  margin: 0;
+}
+.xc-checks {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  overflow-wrap: anywhere;
+}
+.xc-meter {
+  height: 6px;
+  background: var(--hairline);
+}
+.xc-meter i {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+}
+@media (max-width: 760px) {
+  .xc-opsgrid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

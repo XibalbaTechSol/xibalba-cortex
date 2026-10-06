@@ -4791,7 +4791,7 @@ function OperationsTab({ operations, onRefresh }: { operations: OperationsSnapsh
   }
 
   const status = operations.health.status
-  const coverage = operations.embedding_coverage as Record<string, unknown>
+  const coverage = operations.embedding_coverage as unknown as Record<string, unknown>
   const audit = operations.audit as Record<string, unknown>
   const taskStates = (audit.inference_task_states as Record<string, number> | undefined) || {}
   const proposalStates = (audit.proposal_states as Record<string, number> | undefined) || {}

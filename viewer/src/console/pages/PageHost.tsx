@@ -1,6 +1,7 @@
 import type { PageId } from '../nav'
 import { EntitiesPage } from './EntitiesPage'
 import { MemoriesPage } from './MemoriesPage'
+import { OperationsPage } from './OperationsPage'
 import { SessionsPage } from './SessionsPage'
 import { SettingsPage } from './SettingsPage'
 
@@ -12,6 +13,8 @@ export function PageHost({ page }: { page: PageId }) {
       return <MemoriesPage />
     case 'entities':
       return <EntitiesPage />
+    case 'operations':
+      return <OperationsPage />
     case 'sessions':
       return <SessionsPage />
     case 'settings':

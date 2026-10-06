@@ -620,6 +620,34 @@ export interface RecordModelExchangeResult {
   context_memory_ids: string[]
 }
 
+export interface ReadinessReport {
+  schema_version: string
+  ready: boolean
+  profile_id: string
+  checks: Record<string, boolean | string>
+}
+
+export interface OperationsAudit {
+  schema_version: string
+  memory_event_counts: Record<string, number>
+  inference_task_states: Record<string, number>
+  proposal_states: Record<string, number>
+  session_count: number
+  forgotten_memory_count: number
+  integrity_links: { total_memories: number; linked_records: number; states: Record<string, number> }
+  [key: string]: unknown
+}
+
+export interface EmbeddingCoverage {
+  model: EmbeddingModel | null
+  eligible: number
+  current: number
+  missing: number
+  stale: number
+  failed: number
+  coverage_ratio: number
+}
+
 export interface OperationsSnapshot {
   schema_version: string
   profile_id: string
@@ -627,8 +655,8 @@ export interface OperationsSnapshot {
   readiness: { state: string; checks: Record<string, boolean> }
   features: Record<string, boolean>
   quotas: Record<string, number | null>
-  embedding_coverage: Record<string, unknown>
-  audit: Record<string, unknown>
+  embedding_coverage: EmbeddingCoverage
+  audit: OperationsAudit
   connectors: Record<string, { entrypoint: string; state: string; idempotency?: string; requirement?: string }>
   production: { state: string; active_tokens: number; token_lifecycle: string; tenant_onboarding: string; isolation_model: string; open_gates: string[] }
   disclaimer: string
@@ -706,6 +734,19 @@ export const api = {
   stats: () => getJson<Stats>('/api/stats'),
   status: () => getJson<StoreStatus>('/api/status'),
   operations: () => getJson<OperationsSnapshot>('/api/operations'),
+  /** /readyz answers 503 with the same body when not ready, so a 503 is a result, not an error. */
+  readiness: async (): Promise<ReadinessReport> => {
+    const response = await fetch(`${getApiBaseUrl()}/readyz`, { credentials: 'include' })
+    const body = (await response.json().catch(() => null)) as ReadinessReport | null
+    if (!body || typeof body.ready !== 'boolean') throw new Error(`readiness check failed: ${response.status} ${response.statusText}`)
+    return body
+  },
+  /** Prometheus text exposition, unauthenticated by design. */
+  metrics: async (): Promise<string> => {
+    const response = await fetch(`${getApiBaseUrl()}/metrics`, { credentials: 'include' })
+    if (!response.ok) throw new Error(`metrics unavailable: ${response.status}`)
+    return response.text()
+  },
   integrityLinks: (limit = 50) => getJson<IntegrityLinksStatus>(`/api/integrity-links?limit=${limit}`),
   sessions: (limit = 100, scope: WorkspaceScope = {}) => getJson<Session[]>(`/api/sessions?limit=${limit}${scopeParams(scope)}`),
   sessionsPage: (limit = 50, offset = 0, scope: WorkspaceScope = {}) =>
