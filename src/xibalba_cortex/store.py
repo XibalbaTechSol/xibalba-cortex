@@ -1957,7 +1957,14 @@ class GraphStore:
         status: str = "candidate",
         idempotency_key: str | None = None,
         evidence_class: str = "observed_event",
+        persisted_agent_id: str | None = None,
     ) -> dict[str, object]:
+        """persisted_agent_id writes into an EXISTING agent partition by its stored value, bypassing
+        identity resolution (which would hash an already-persisted pseudonym a second time and land
+        in a different partition). It is for two trusted callers only: supersede_memory, so a
+        replacement stays in the namespace of the memory it replaces, and the local API's
+        operator-selected workspace write. It can only name a partition that already has source
+        rows -- it cannot create one -- and is mutually exclusive with source["agent_id"]."""
         content = content.strip()
         if not content:
             raise ValueError("content must not be empty")
@@ -1975,6 +1982,15 @@ class GraphStore:
         stored_agent_id, identity_mode_in_effect = self._resolve_agent_id(
             source.get("agent_id") if isinstance(source.get("agent_id"), str) else None
         )
+        if persisted_agent_id is not None:
+            if source.get("agent_id") is not None:
+                raise ValueError("persisted_agent_id and source.agent_id are mutually exclusive")
+            partition = self._read_connection().execute(
+                "SELECT identity_mode FROM sources WHERE agent_id = ? LIMIT 1", (persisted_agent_id,)
+            ).fetchone()
+            if partition is None:
+                raise PermissionError("no such agent partition")
+            stored_agent_id, identity_mode_in_effect = persisted_agent_id, partition["identity_mode"]
         source = dict(source)
         if stored_agent_id and not source.get("device_id"):
             configured_device = self.local_device_id()
@@ -6078,13 +6094,19 @@ class GraphStore:
         idempotency_key: str | None = None,
         evidence_class: str = "observed_event",
     ) -> dict[str, object]:
-        self.get_memory(old_id)  # raises KeyError if missing
+        old = self.get_memory(old_id)  # raises KeyError if missing
+        # A replacement belongs to the namespace of the memory it replaces. Without this an edit made
+        # by a caller that carries no agent (an operator in the console) lands in the no-agent
+        # partition and silently leaves the workspace it was made in. A caller that names its own
+        # agent, or a session that already scopes one, is left to the normal rules.
+        inherited = old["source"].get("agent_id")
         new = self.store_memory(
             new_content,
             source=source,
             status=status,
             idempotency_key=idempotency_key,
             evidence_class=evidence_class,
+            persisted_agent_id=inherited if inherited and source.get("agent_id") is None else None,
         )
         with self._lock:
             self._connection.execute("BEGIN IMMEDIATE")

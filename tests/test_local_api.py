@@ -355,6 +355,59 @@ def test_operator_can_select_an_agent_partition_across_memory_views(running_stor
     assert graph_memory_ids == {f"memory:{memory_a['id']}"}
 
 
+def test_superseding_an_agent_memory_keeps_the_replacement_in_that_agents_namespace(running_store):
+    # Regression: an operator's supersede carries no agent, so the replacement used to land in the
+    # no-agent partition and the edit vanished from the agent workspace it was made in.
+    store, port = running_store
+    old = store.store_memory("Relay retries twice.", source={"kind": "direct_user", "agent_id": "agent-a"}, status="confirmed")
+    agent = old["source"]["agent_id"]
+
+    status, new = _post(port, f"/api/memory/{old['id']}/supersede", {
+        "new_content": "Relay retries three times.",
+        "source": {"kind": "direct_user", "locator": "console://test"},
+    })
+    assert status == 200
+    assert new["source"]["agent_id"] == agent
+    assert new["source"]["identity_mode"] == old["source"]["identity_mode"]
+    status, scoped = _get(port, f"/api/memories?agent_id={agent}")
+    assert new["id"] in {m["id"] for m in scoped["memories"]}
+
+
+def test_an_unbound_memory_supersede_stays_unbound(running_store):
+    store, port = running_store
+    old = store.store_memory("No agent here.", source={"kind": "direct_user"}, status="confirmed")
+    status, new = _post(port, f"/api/memory/{old['id']}/supersede", {"new_content": "Still no agent.", "source": {"kind": "direct_user"}})
+    assert status == 200
+    assert new["source"]["agent_id"] is None
+
+
+def test_operator_can_create_a_memory_in_an_existing_agent_workspace_and_only_there(running_store):
+    store, port = running_store
+    seed = store.store_memory("Seed for the partition.", source={"kind": "direct_user", "agent_id": "agent-a"}, status="confirmed")
+    agent = seed["source"]["agent_id"]
+
+    status, created = _post(port, "/api/memory/propositions", {"content": "Added from the console.", "workspace_agent_id": agent, "source": {"kind": "direct_user", "locator": "console://test"}})
+    assert status == 200
+    assert created["source"]["agent_id"] == agent
+
+    # a partition that does not exist cannot be manufactured
+    status, refused = _post(port, "/api/memory/propositions", {"content": "Into the void.", "workspace_agent_id": "pseudonym:" + "0" * 64, "source": {"kind": "direct_user"}})
+    assert status == 403, refused
+
+    # and without the field the write stays unbound, exactly as before
+    status, plain = _post(port, "/api/memory/propositions", {"content": "No workspace given.", "source": {"kind": "direct_user"}})
+    assert status == 200 and plain["source"]["agent_id"] is None
+
+
+def test_a_non_operator_credential_cannot_choose_the_workspace_it_writes_to(running_store):
+    global _CURRENT_TOKEN
+    store, port = running_store
+    seed = store.store_memory("Seed.", source={"kind": "direct_user", "agent_id": "agent-a"}, status="confirmed")
+    _CURRENT_TOKEN = issue_token(store.home, "plain-writer", roles=("writer",), scopes=("memory:read", "memory:write"))
+    status, refused = _post(port, "/api/memory/propositions", {"content": "Sneaking in.", "workspace_agent_id": seed["source"]["agent_id"], "source": {"kind": "direct_user"}})
+    assert status == 403, refused
+
+
 def test_agent_session_replay_requires_single_source_namespace(running_store):
     store, _port = running_store
     store.identity_mode = "full"

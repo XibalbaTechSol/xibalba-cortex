@@ -245,6 +245,33 @@ def _scoped_source(store: GraphStore, principal: dict[str, object], source: dict
     return value
 
 
+def _operator_workspace_agent(
+    store: GraphStore, principal: dict[str, object], requested: object, source: dict[str, object]
+) -> str | None:
+    """The persisted agent partition an operator chose to write a new memory into, or None.
+
+    The console writes on behalf of whichever agent workspace is selected. A credential that is
+    bound to an agent already writes as that agent (_scoped_source), and an unbound one used to be
+    unable to name a partition at all, so its writes landed in no workspace. This allows exactly one
+    thing: an operator or admin credential naming a partition that ALREADY has source rows. It
+    cannot create a partition, cannot be used by a bound or plain-writer credential, and cannot be
+    combined with an agent in the source (which would be two answers to "who wrote this").
+    """
+    if requested is None or requested == "":
+        return None
+    if not isinstance(requested, str):
+        raise ValueError("workspace_agent_id must be a string")
+    roles = set(principal.get("roles") or [])
+    if _principal_agent_ids(principal) or not roles.intersection({"operator", "admin"}):
+        raise PermissionError("only an unbound operator or admin credential may choose the workspace a memory is written to")
+    if source.get("agent_id") is not None:
+        raise ValueError("workspace_agent_id and source.agent_id are mutually exclusive")
+    value = requested.strip()
+    if not store.has_agent_partition(value):
+        raise PermissionError("no such agent workspace")
+    return value
+
+
 def _assert_pair_manager(principal: dict[str, object]) -> None:
     roles = set(principal.get("roles") or [])
     if not roles.intersection({"operator", "admin"}):
@@ -1276,6 +1303,7 @@ def _make_handler(store: GraphStore, *, allowed_origins: frozenset[str],
                     if source is not None and not isinstance(source, dict):
                         raise ValueError("source must be an object")
                     source = _scoped_source(store, principal, source if isinstance(source, dict) else None)
+                    workspace_agent = _operator_workspace_agent(store, principal, payload.get("workspace_agent_id"), source)
                     self._send_json(
                         200,
                         store.store_memory(
@@ -1286,6 +1314,7 @@ def _make_handler(store: GraphStore, *, allowed_origins: frozenset[str],
                             idempotency_key=payload.get("idempotency_key")
                             if isinstance(payload.get("idempotency_key"), str)
                             else None,
+                            persisted_agent_id=workspace_agent,
                         ),
                     )
                 elif parts == ["api", "memory", "link-entities"]:
