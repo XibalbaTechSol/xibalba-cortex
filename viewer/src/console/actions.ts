@@ -134,3 +134,30 @@ export function buildNewMemory(form: NewMemoryForm, workspaceAgentId: string | u
     },
   }
 }
+
+// --- recording an exchange into an existing session -------------------------------------------------
+
+export interface ExchangeForm {
+  sessionId: string
+  prompt: string
+  response: string
+}
+
+export type ExchangePayload = {
+  external_session_id: string
+  user_prompt: string
+  model_response: string
+  runtime: string
+}
+
+/** Recording an exchange is how a prompt/response pair joins a session's hash chain. The session
+ *  must already exist (the server refuses an unknown one), so it is chosen, not invented here. */
+export function buildExchange(form: ExchangeForm): Built<ExchangePayload> {
+  const sessionId = form.sessionId.trim()
+  const prompt = form.prompt.trim()
+  const response = form.response.trim()
+  if (!sessionId) return fail('Choose the session to record into.')
+  if (!prompt) return fail('Write the prompt.')
+  if (!response) return fail('Write the model response.')
+  return { ok: true, payload: { external_session_id: sessionId, user_prompt: prompt, model_response: response, runtime: 'console' } }
+}

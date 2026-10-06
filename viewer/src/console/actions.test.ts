@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { buildContradiction, buildLink, buildNewMemory, buildSupersede, canForget, canSupersede } from './actions'
+import { buildContradiction, buildExchange, buildLink, buildNewMemory, buildSupersede, canForget, canSupersede } from './actions'
 
 describe('buildSupersede', () => {
   it('trims and returns the payload', () => {
@@ -79,5 +79,19 @@ describe('buildNewMemory', () => {
     expect(buildNewMemory({ ...form, content: '   ' }, undefined).ok).toBe(false)
     expect(buildNewMemory({ ...form, status: 'forgotten' as never }, undefined).ok).toBe(false)
     expect(buildNewMemory({ ...form, evidenceClass: 'policy' as never }, undefined).ok).toBe(false)
+  })
+})
+
+describe('buildExchange', () => {
+  it('trims and tags the runtime as the console', () => {
+    expect(buildExchange({ sessionId: ' sess-1 ', prompt: ' q ', response: ' a ' })).toEqual({
+      ok: true,
+      payload: { external_session_id: 'sess-1', user_prompt: 'q', model_response: 'a', runtime: 'console' },
+    })
+  })
+  it('refuses a missing session, prompt or response', () => {
+    expect(buildExchange({ sessionId: '', prompt: 'q', response: 'a' }).ok).toBe(false)
+    expect(buildExchange({ sessionId: 's', prompt: ' ', response: 'a' }).ok).toBe(false)
+    expect(buildExchange({ sessionId: 's', prompt: 'q', response: '' }).ok).toBe(false)
   })
 })

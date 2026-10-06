@@ -202,6 +202,23 @@ def seed_agent(store: GraphStore) -> None:
             runtime="dev-seed", prompt_id=f"w1-{k}", idempotency_key=f"dev:w:ex:{k}",
         )
 
+    # runtime telemetry through the real batch path: one complete tool invocation with a kernel
+    # decision (so kernel intents and the invocations list have a correlated triple), one that is
+    # still awaiting its outcome, and one metric
+    def tool_event(invocation: str, call: str, hook: str, **attrs: object) -> dict[str, object]:
+        base = {"invocation_id": invocation, "runtime": "dev-seed", "tool_name": "write_file", "agent_id": AGENT,
+                "metadata": {"hook": hook, "tool_call_id": call, **attrs.pop("metadata", {})}}
+        return {"kind": "span", "name": f"tool.{hook}", "trace_id": "trace-dev-1", "attributes": {**base, **attrs}}
+
+    store.record_otel_batch("sess-w1", [
+        tool_event("inv-1", "call-1", "pre_tool_call", intent_rationale="Persist the retry policy note", tool_input_hash="sha256:" + "a1" * 32,
+                   metadata={"kernel_decision": {"verdict": "allow", "matched_case": "within_budget"}, "policy_reason": "within budget"}),
+        tool_event("inv-1", "call-1", "post_tool_call", tool_outcome="success", metadata={"duration_ms": 42, "result": "ok"}),
+        tool_event("inv-2", "call-2", "pre_tool_call", intent_rationale="Delete the spool", tool_input_hash="sha256:" + "b2" * 32,
+                   metadata={"kernel_decision": {"verdict": "deny", "matched_case": "destructive"}, "policy_reason": "destructive action"}),
+        {"kind": "metric", "name": "relay.retry_count", "value": 3, "unit": "1", "attributes": {"agent_id": AGENT}},
+    ])
+
     # the review queue, through the real task path
     m1 = store.store_memory("Xibalba Solutions LLC operates Xibalba Shield from Texas.", source=src("dev://agent/review-1"), status="active", evidence_class="observed_event", idempotency_key="dev:r:1")
     m2 = store.store_memory("Xibalba Shield ships in Q3.", source=src("dev://agent/review-2"), status="active", evidence_class="observed_event", idempotency_key="dev:r:2")

@@ -1,5 +1,6 @@
 import type { PageId } from '../nav'
 import { MemoriesPage } from './MemoriesPage'
+import { SessionsPage } from './SessionsPage'
 import { SettingsPage } from './SettingsPage'
 
 /** Renders the page a PageId names. A page that is in the registry but has no surface here is a
@@ -8,6 +9,8 @@ export function PageHost({ page }: { page: PageId }) {
   switch (page) {
     case 'memories':
       return <MemoriesPage />
+    case 'sessions':
+      return <SessionsPage />
     case 'settings':
       return <SettingsPage />
     default:

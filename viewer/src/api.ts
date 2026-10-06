@@ -374,6 +374,51 @@ export interface SessionMerkleProof {
   disclaimer: string
 }
 
+export interface KernelIntent {
+  invocation_id: string | null
+  tool_call_id: string | null
+  correlation_mode: 'invocation_id' | 'legacy_tool_call_id'
+  tool_name: string | null
+  declared_intent: { intent_rationale: string | null; tool_input_hash: string | null }
+  kernel_decision: Record<string, unknown>
+  actual_outcome: Record<string, unknown>
+  [key: string]: unknown
+}
+
+export interface Invocation {
+  invocation_id: string
+  session_id: string
+  agent_id: string | null
+  runtime: string | null
+  tool_name: string | null
+  tool_call_id: string | null
+  first_seen_at: string
+  last_seen_at: string
+  pre_tool: { intent_rationale: string | null; tool_input_hash: string | null; policy_reason: string | null; kernel_decision: Record<string, unknown> | null } | null
+  post_tool: { outcome: string | null; result: unknown; duration_ms: number | null } | null
+  runtime_status: 'complete' | 'awaiting_outcome' | 'orphan_outcome'
+}
+
+export interface DecisionTraceEvent {
+  event_id: string
+  trace_id: string
+  sequence_number: number
+  event_hash: string
+  parent_event_hash: string | null
+  envelope: Record<string, unknown>
+  advisory: Record<string, unknown> | null
+  created_at: string
+}
+
+export interface DecisionTrace {
+  trace_id: string
+  session_id: string
+  events: DecisionTraceEvent[]
+  root: string | null
+  valid: boolean
+  disclaimer?: string
+}
+
 export interface InferenceManifest {
   name: string
   role: string
@@ -702,6 +747,14 @@ export const api = {
   entityPath: (from: string, to: string, maxDepth = 3) =>
     getJson<TraversalResult>(`/api/entity/path?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}&max_depth=${maxDepth}`),
   sessionReplay: (id: string, scope: WorkspaceScope = {}) => getJson<SessionReplay>(`/api/session/${encodeURIComponent(id)}/replay?${scopeParams(scope).slice(1)}`),
+  sessionOtel: (id: string, scope: WorkspaceScope = {}) => getJson<OtelEvent[]>(`/api/session/${encodeURIComponent(id)}/otel?${scopeParams(scope).slice(1)}`),
+  kernelIntents: (id: string, scope: WorkspaceScope = {}) => getJson<KernelIntent[]>(`/api/session/${encodeURIComponent(id)}/kernel-intents?${scopeParams(scope).slice(1)}`),
+  decisionTrace: (id: string, traceId: string, scope: WorkspaceScope = {}) =>
+    getJson<DecisionTrace>(`/api/session/${encodeURIComponent(id)}/decision-trace?trace_id=${encodeURIComponent(traceId)}${scopeParams(scope)}`),
+  /** URL of the server-rendered audit view; opened in a new tab, so it carries the session cookie. */
+  decisionTraceHtmlUrl: (id: string, traceId: string, scope: WorkspaceScope = {}) =>
+    `${getApiBaseUrl()}/api/session/${encodeURIComponent(id)}/decision-trace.html?trace_id=${encodeURIComponent(traceId)}${scopeParams(scope)}`,
+  invocations: (limit = 100) => getJson<Invocation[]>(`/api/invocations?limit=${limit}`),
   sessionExchanges: (id: string, scope: WorkspaceScope = {}) => getJson<Exchange[]>(`/api/session/${encodeURIComponent(id)}/exchanges?${scopeParams(scope).slice(1)}`),
   buildSessionExchanges: (id: string) => postJson(`/api/session/${encodeURIComponent(id)}/exchanges/build`, {}),
   /** Inclusion proof for the exchange at `index`, in the `exchange_batch` domain. */

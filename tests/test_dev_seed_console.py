@@ -58,6 +58,20 @@ def test_agent_scenario_alone_is_small_and_has_one_open_session(seed, tmp_path):
         store.close()
 
 
+def test_agent_scenario_records_runtime_telemetry_the_sessions_page_reads(seed, tmp_path):
+    home = tmp_path / "telemetry"
+    seed.main(["--home", str(home), "--scenario", "agent"])
+    store = GraphStore(home)
+    try:
+        assert len(store.session_otel_events("sess-w1")) == 4
+        intents = store.kernel_bridge_intents("sess-w1")
+        assert {i["invocation_id"] for i in intents} == {"inv-1", "inv-2"}
+        invocations = {i["invocation_id"]: i["runtime_status"] for i in store.invocation_correlations(limit=10)}
+        assert invocations == {"inv-1": "complete", "inv-2": "awaiting_outcome"}
+    finally:
+        store.close()
+
+
 def test_refuses_an_existing_profile_and_the_default_profile(seed, tmp_path):
     home = tmp_path / "profile"
     seed.main(["--home", str(home), "--scenario", "agent"])
