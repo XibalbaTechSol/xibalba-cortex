@@ -12,12 +12,13 @@ import { useAsync, type AsyncState } from '../useAsync'
 import { buildExchange } from '../actions'
 import { elideHash, parseServerTime, shortStamp } from '../model'
 import { INVOCATION_STATUS, describeKernelDecision, exchangeSummary, type Tone } from '../sessions'
+import { kindCounts, metricRows } from '../verify'
 import { IconWarn } from '../icons'
 import { Page } from './Page'
 
 const PAGE_SIZE = 30
-type Tab = 'exchanges' | 'replay' | 'telemetry' | 'trace' | 'kernel'
-const TABS: Array<[Tab, string]> = [['exchanges', 'Exchanges'], ['replay', 'Replay'], ['telemetry', 'Telemetry'], ['trace', 'Decision trace'], ['kernel', 'Kernel intents']]
+type Tab = 'exchanges' | 'memories' | 'replay' | 'telemetry' | 'trace' | 'kernel'
+const TABS: Array<[Tab, string]> = [['exchanges', 'Exchanges'], ['memories', 'Memories'], ['replay', 'Replay'], ['telemetry', 'Telemetry'], ['trace', 'Decision trace'], ['kernel', 'Kernel intents']]
 
 const stamp = (value: string | null | undefined): string => {
   const ms = parseServerTime(value)
@@ -133,6 +134,7 @@ function SessionDetail({ session, onVerify }: { session: Session; onVerify: () =
       </div>
       <div className="xc-scroll"><div className="xc-inspector-body">
         {tab === 'exchanges' && <ExchangesTab id={id} />}
+        {tab === 'memories' && <MemoriesTab id={id} />}
         {tab === 'replay' && <ReplayTab id={id} />}
         {tab === 'telemetry' && <TelemetryTab id={id} />}
         {tab === 'trace' && <TraceTab id={id} />}
@@ -235,12 +237,48 @@ function ReplayTab({ id }: { id: string }) {
   )
 }
 
-function TelemetryTab({ id }: { id: string }) {
-  const { workspace, revision } = useConsole()
-  const list = useAsync(() => api.sessionOtel(id, workspace.scope), [id, workspace.scope, revision])
+/** Every memory whose source cites this session, oldest first (GET /api/session/{id}/memories). */
+function MemoriesTab({ id }: { id: string }) {
+  const { workspace, revision, select, go } = useConsole()
+  const list = useAsync(() => api.sessionMemories(id, workspace.scope), [id, workspace.scope, revision])
   return (
     <Loading state={list} empty={(l) => l.length === 0}>
       {(items) => (
+        <>
+          <p className="xc-note">{items.length} memor{items.length === 1 ? 'y' : 'ies'} written under this session. Open one to see its history and provenance.</p>
+          <div className="xc-rows">
+            {items.map((m) => (
+              <div className="xc-row" key={m.id}><i className="xc-row-dot" /><div className="xc-row-main">
+                <div className="xc-row-top"><button type="button" className="xc-link" onClick={() => { select(`memory:${m.id}`); go('graph') }}>{truncate(m.content, 110)}</button></div>
+                <p className="xc-meta">{m.status} · {m.evidence_class.replace(/_/g, ' ')} · {stamp(m.created_at)}</p>
+              </div></div>
+            ))}
+          </div>
+        </>
+      )}
+    </Loading>
+  )
+}
+
+function TelemetryTab({ id }: { id: string }) {
+  const { workspace, revision } = useConsole()
+  const list = useAsync(() => api.sessionOtel(id, workspace.scope), [id, workspace.scope, revision])
+  const summary = useAsync(() => api.sessionOtelSummary(id, workspace.scope), [id, workspace.scope, revision])
+  return (
+    <Loading state={list} empty={(l) => l.length === 0}>
+      {(items) => (
+        <>
+        {summary.data && (
+          <section aria-label="Telemetry summary">
+            <p className="xc-eyebrow xc-eyebrow--dim xc-section-title">Summary</p>
+            <p className="xc-meta">{kindCounts(summary.data)}</p>
+            {metricRows(summary.data).length > 0 && (
+              <dl className="xc-kv" style={{ marginTop: 8 }}>
+                {metricRows(summary.data).map((r) => <div key={r.name}><dt>{r.name}</dt><dd>{r.total} <span className="xc-meta">over {r.count}</span></dd></div>)}
+              </dl>
+            )}
+          </section>
+        )}
         <div className="xc-rows">
           {items.map((o) => (
             <div className="xc-row" key={o.id}><i className="xc-row-dot" /><div className="xc-row-main">
@@ -249,6 +287,7 @@ function TelemetryTab({ id }: { id: string }) {
             </div></div>
           ))}
         </div>
+        </>
       )}
     </Loading>
   )

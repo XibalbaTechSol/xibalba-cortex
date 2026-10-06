@@ -993,6 +993,83 @@ def test_memory_detail_supporting_routes(running_store):
         assert isinstance(body, list)
 
 
+def test_verify_provenance_and_session_read_routes(running_store):
+    """The MCP-only verify/export tools are reachable over HTTP and agree with the store."""
+    store, port = running_store
+    memory = store.store_memory(
+        "Verification target.",
+        source={"kind": "direct_user", "locator": "hermes://session/verify-routes", "session_id": "verify-routes"},
+        status="confirmed",
+    )
+    status, chain = _get(port, f"/api/memory/{memory['id']}/verify-chain")
+    assert status == 200
+    assert chain == store.verify_chain(memory["id"])
+    assert chain["valid"] is True and chain["length"] >= 1
+
+    status, bundle = _get(port, f"/api/memory/{memory['id']}/provenance")
+    assert status == 200
+    assert bundle["schema_version"] == "xibalba.provenance_export.v1"
+    assert bundle["memory_ids"] == [memory["id"]]
+    assert bundle["root_hash"] == store.export_memory_bundle(memory_ids=[memory["id"]])["root_hash"]
+
+    # a forgotten memory exports empty unless the caller asks for it, exactly as the MCP tool does
+    store.forget_memory(memory["id"])
+    status, empty = _get(port, f"/api/memory/{memory['id']}/provenance")
+    assert status == 200 and empty["count"] == 0
+    status, included = _get(port, f"/api/memory/{memory['id']}/provenance?include_forgotten=1")
+    assert status == 200 and included["count"] == 1
+
+    status, _ = _get(port, "/api/memory/does-not-exist/verify-chain")
+    assert status == 404
+
+    status, exchange = _post(
+        port, "/api/exchanges/model",
+        {"external_session_id": "verify-routes", "user_prompt": "hello", "model_response": "hi"},
+    )
+    assert status == 200
+    status, session_chain = _get(port, "/api/session/verify-routes/verify-chain")
+    assert status == 200
+    assert session_chain == store.verify_exchange_chain("verify-routes")
+    assert session_chain["valid"] is True and session_chain["length"] == 1
+
+    status, memories = _get(port, "/api/session/verify-routes/memories")
+    assert status == 200
+    assert {m["id"] for m in memories} >= {exchange["prompt_memory"]["id"], exchange["response_memory"]["id"]}
+
+    status, summary = _get(port, "/api/session/verify-routes/otel-summary")
+    assert status == 200 and summary == store.session_otel_summary("verify-routes")
+
+    status, _ = _get(port, "/api/session/no-such-session/verify-chain")
+    assert status == 404
+
+
+def test_context_assemble_route_is_read_scoped_and_agent_scoped(running_store):
+    store, port = running_store
+    store.store_memory(
+        "The deployment window is Tuesday evening.",
+        source={"kind": "direct_user", "locator": "hermes://session/ctx", "agent_id": "agent-ctx"},
+        status="confirmed",
+    )
+    status, block = _post(port, "/api/context/assemble", {"query": "deployment window", "limit": 5})
+    assert status == 200
+
+    # the route and the store tool agree on the block's shape (no embedding model runs in tests,
+    # so both fall back to the lexical channel)
+    expected = store.assemble_context("deployment window", query_vector=None, limit=5)
+    assert set(block) == set(expected)
+    assert block["schema_version"] == expected["schema_version"]
+
+    # a credential that can only read may still assemble context: it is a read, not a write
+    reader = issue_token(store.home, "reader-only", roles=("reader",), scopes=("memory:read",))
+    request = urllib.request.Request(
+        f"http://localhost:{port}/api/context/assemble",
+        data=json.dumps({"query": "deployment window"}).encode(), method="POST",
+        headers={"Content-Type": "application/json", "Authorization": f"Bearer {reader}"},
+    )
+    with urllib.request.urlopen(request, timeout=5) as response:
+        assert response.status == 200
+
+
 def test_inference_task_routes(running_store):
     store, port = running_store
     memory = store.store_memory(

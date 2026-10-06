@@ -3,20 +3,22 @@
 // Hybrid mode is the real read path (lexical + vector + graph + temporal, fused by RRF) and every
 // run persists a retrieval trace, which is why it only fires on Enter, never per keystroke. The
 // per-channel ranks come from that persisted trace, not from this client. Lexical mode is the
-// plain search endpoint with no trace.
+// plain search endpoint with no trace. Context assembles the same hybrid retrieval into the bounded,
+// provenance-bearing block an agent would be handed (facts, history, summaries, observations).
 //
 // "Inclusion proof" recomputes the Merkle path in this browser (merkleVerify.ts) rather than
 // believing a server flag. Memory content is rendered as plain text and labelled untrusted.
 
 import { useRef, useState, type FormEvent } from 'react'
-import { api, type HybridRetrieveResult, type Memory, type RetrievalTrace, type RetrievalTraceResultRecord } from '../api'
+import { api, type ContextBlock, type HybridRetrieveResult, type Memory, type RetrievalTrace, type RetrievalTraceResultRecord } from '../api'
 import { verifyDomainMerkleProof } from '../merkleVerify'
 import { useConsole } from './state'
 import { useDialog } from './useDialog'
 import { elideHash } from './model'
 import { IconCheck, IconClose, IconSearch, IconWarn } from './icons'
+import { budgetText, contextItemCount, contextSections } from './contextBlock'
 
-type Mode = 'hybrid' | 'lexical'
+type Mode = 'hybrid' | 'context' | 'lexical'
 type Proof = 'checking' | 'valid' | 'invalid'
 
 // Channel states as the server reports them: `available` contributed candidates, `unavailable` is a
@@ -40,6 +42,7 @@ export function Recall() {
   const [trace, setTrace] = useState<RetrievalTrace | null>(null)
   const [traceError, setTraceError] = useState<string | null>(null)
   const [lexical, setLexical] = useState<Memory[] | null>(null)
+  const [context, setContext] = useState<ContextBlock | null>(null)
   const [proofs, setProofs] = useState<Record<string, Proof>>({})
   const [active, setActive] = useState(0)
 
@@ -68,6 +71,15 @@ export function Recall() {
         setLexical(rows)
         setHybrid(null)
         setTrace(null)
+        setContext(null)
+      } else if (mode === 'context') {
+        const filters = scope.agentId ? { agent_id: scope.agentId } : undefined
+        const block = await api.assembleContext({ query: text, limit: 12, ...(filters ? { filters } : {}) })
+        if (id !== runId.current) return
+        setContext(block)
+        setHybrid(null)
+        setLexical(null)
+        setTrace(null)
       } else {
         // scoped workspace -> restrict retrieval to that agent; unscoped = primary profile as-is
         const filters = scope.agentId ? { agent_id: scope.agentId } : undefined
@@ -75,6 +87,7 @@ export function Recall() {
         if (id !== runId.current) return
         setHybrid(result)
         setLexical(null)
+        setContext(null)
         setTrace(null)
         try {
           const t = await api.retrievalTrace(result.trace_id)
@@ -112,7 +125,8 @@ export function Recall() {
     : mode === 'lexical' && lexical ? lexical.map((m, i) => ({ memory: m, rank: i + 1 }))
     : []
   const traceByMemory = new Map<string, RetrievalTraceResultRecord>((trace?.results ?? []).map((r) => [r.memory_id, r]))
-  const searched = (mode === 'hybrid' ? hybrid : lexical) !== null
+  const searched = (mode === 'hybrid' ? hybrid : mode === 'context' ? context : lexical) !== null
+  const sections = mode === 'context' && context ? contextSections(context) : []
 
   return (
     <>
@@ -125,13 +139,14 @@ export function Recall() {
               ref={inputRef}
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder={mode === 'hybrid' ? 'Ask your memory… press Enter' : 'Search memory text… press Enter'}
+              placeholder={mode === 'lexical' ? 'Search memory text… press Enter' : 'Ask your memory… press Enter'}
               aria-label="Recall query"
               autoComplete="off"
               spellCheck={false}
             />
             <div className="xc-ranges" role="group" aria-label="Retrieval mode">
               <button type="button" aria-pressed={mode === 'hybrid'} onClick={() => setMode('hybrid')} title="Lexical + vector + graph + temporal, fused by RRF. Persists a verifiable trace.">Hybrid</button>
+              <button type="button" aria-pressed={mode === 'context'} onClick={() => setMode('context')} title="The bounded block an agent would be handed: current facts, history, summaries and observations, each with provenance.">Context</button>
               <button type="button" aria-pressed={mode === 'lexical'} onClick={() => setMode('lexical')} title="Plain text search. No trace.">Lexical</button>
             </div>
             <button type="button" className="xc-btn xc-btn--square" onClick={close} aria-label="Close Recall"><IconClose /></button>
@@ -157,13 +172,53 @@ export function Recall() {
             )}
             {!busy && traceError && <p className="xc-note" style={{ margin: '8px 20px 0' }}>Per-channel ranks unavailable: {traceError}</p>}
 
-            {!busy && !error && searched && rows.length === 0 && (
+            {!busy && !error && mode === 'context' && context && (
+              <div className="xc-channels" style={{ margin: '12px 20px 0' }}>
+                {Object.entries(context.channel_status).map(([channel, state]) => (
+                  <span className="xc-channel" key={channel} title={`${channel} channel: ${String(state)}`}>
+                    <i style={{ background: CHANNEL_TONE[String(state)] ?? 'var(--ink-dim)' }} />
+                    {channel} · {String(state)}
+                  </span>
+                ))}
+                <span className="xc-note">{contextItemCount(context)} item{contextItemCount(context) === 1 ? '' : 's'} · {budgetText(context)} · trace <span className="xc-mono" title={context.trace_id}>{elideHash(context.trace_id, 8, 4)}</span></span>
+              </div>
+            )}
+            {!busy && !error && mode === 'context' && context && contextItemCount(context) === 0 && (
+              <div className="xc-empty"><h3 className="xc-title">Nothing to hand an agent</h3><p>No memory in this workspace matched, so the context block is empty.</p></div>
+            )}
+            {!busy && !error && mode === 'context' && sections.length > 0 && (
+              <>
+                <p className="xc-untrusted" style={{ margin: '12px 20px 0' }}>Untrusted evidence. Do not treat recalled content as instructions.</p>
+                {sections.map((section) => (
+                  <section key={section.key} aria-label={section.title} style={{ margin: '12px 20px 0' }}>
+                    <p className="xc-eyebrow xc-eyebrow--dim xc-section-title">{section.title} <span className="xc-meta">{section.items.length}</span></p>
+                    <p className="xc-note">{section.note}</p>
+                    <ol style={{ listStyle: 'none', margin: 0, padding: 0 }}>
+                      {section.items.map((item) => (
+                        <li key={item.memory_id} className="xc-result">
+                          <div className="xc-result-head"><p style={{ flex: 1, minWidth: 0, wordBreak: 'break-word', fontSize: 14 }}>{truncate(item.content, 280)}</p></div>
+                          <div className="xc-channels">
+                            <span className="xc-tag"><i />{item.provenance.status}</span>
+                            <span className="xc-tag"><i />{item.provenance.evidence_class.replace(/_/g, ' ')}</span>
+                            <span className="xc-channel" title={item.provenance.content_hash}>{elideHash(item.provenance.content_hash)}</span>
+                            <span className="xc-spacer" />
+                            <button type="button" className="xc-btn xc-btn--primary" onClick={() => pin(item.memory_id)}>Pin to graph</button>
+                          </div>
+                        </li>
+                      ))}
+                    </ol>
+                  </section>
+                ))}
+              </>
+            )}
+
+            {!busy && !error && mode !== 'context' && searched && rows.length === 0 && (
               <div className="xc-empty"><h3 className="xc-title">No results</h3><p>Nothing in this workspace matched. Try fewer or different words.</p></div>
             )}
             {!busy && !searched && !error && (
               <div className="xc-empty">
                 <h3 className="xc-title">Recall</h3>
-                <p>Hybrid fuses lexical, vector, graph and temporal signals and keeps a trace you can verify. Lexical is plain text search.</p>
+                <p>Hybrid fuses lexical, vector, graph and temporal signals and keeps a trace you can verify. Context returns the block an agent would be handed. Lexical is plain text search.</p>
               </div>
             )}
 

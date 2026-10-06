@@ -650,6 +650,67 @@ export type KernelBridgeSelfTest =
   | { ok: false; error: string }
   | { ok: true; matched: KernelBridgeDecision; kernel_exceeding: KernelBridgeDecision; passed: boolean }
 
+/** GET /api/memory/{id}/verify-chain (GraphStore.verify_chain). */
+export interface ChainVerification {
+  valid: boolean
+  length: number
+  broken_at_event_id: number | null
+  head_node_id: string | null
+}
+
+/** GET /api/session/{id}/verify-chain (GraphStore.verify_exchange_chain). */
+export interface ExchangeChainVerification {
+  valid: boolean
+  length: number
+  broken_at_sequence_number: number | null
+  head_node_id: string | null
+  /** present when a mismatch was explained by an older commitment format rather than tampering */
+  legacy_commitment?: boolean
+}
+
+/** GET /api/memory/{id}/provenance (GraphStore.export_memory_bundle). */
+export interface ProvenanceBundle {
+  schema_version: string
+  count: number
+  memory_ids: string[]
+  memories: Memory[]
+  leaf_hashes: string[]
+  root_hash: string
+  include_forgotten: boolean
+  disclaimer: string
+}
+
+/** GET /api/session/{id}/otel-summary (GraphStore.session_otel_summary). */
+export interface OtelSummary {
+  session_id: string
+  counts_by_kind: Record<string, number>
+  metric_totals: Record<string, { total: number | null; count: number }>
+}
+
+export interface ContextItem {
+  memory_id: string
+  content: string
+  valid_from: string | null
+  valid_to: string | null
+  provenance: { content_hash: string; source: Record<string, unknown>; evidence_class: string; status: string }
+  retrieval: Record<string, unknown>
+}
+
+/** POST /api/context/assemble (GraphStore.assemble_context). */
+export interface ContextBlock {
+  schema_version: string
+  query: string
+  trace_id: string
+  budget: { max_total_chars: number; used_chars: number }
+  current_facts: ContextItem[]
+  historical_facts: ContextItem[]
+  summaries: ContextItem[]
+  observations: ContextItem[]
+  degraded: unknown
+  channel_status: Record<string, unknown>
+  score_semantics: unknown
+}
+
 export interface RecordModelExchangePayload {
   external_session_id: string
   user_prompt: string
@@ -871,6 +932,18 @@ export const api = {
   /** Inclusion proof for the exchange at `index`, in the `exchange_batch` domain. */
   sessionMerkleProof: (id: string, index: number, scope: WorkspaceScope = {}) =>
     getJson<SessionMerkleProof>(`/api/session/${encodeURIComponent(id)}/merkle-proof?index=${index}${scopeParams(scope)}`),
+  /** The server recomputes a memory's event hash chain. Local consistency only, not on-chain anchoring. */
+  memoryVerifyChain: (id: string, scope: WorkspaceScope = {}) => getJson<ChainVerification>(`/api/memory/${encodeURIComponent(id)}/verify-chain?${scopeParams(scope).slice(1)}`),
+  /** A bounded provenance bundle for one memory, with the server's Merkle commitment over it. */
+  memoryProvenance: (id: string, includeForgotten = false, scope: WorkspaceScope = {}) =>
+    getJson<ProvenanceBundle>(`/api/memory/${encodeURIComponent(id)}/provenance?include_forgotten=${includeForgotten ? 1 : 0}${scopeParams(scope)}`),
+  /** The server recomputes a session's exchange chain (node hashes and parent linkage). */
+  sessionVerifyChain: (id: string, scope: WorkspaceScope = {}) => getJson<ExchangeChainVerification>(`/api/session/${encodeURIComponent(id)}/verify-chain?${scopeParams(scope).slice(1)}`),
+  sessionMemories: (id: string, scope: WorkspaceScope = {}) => getJson<Memory[]>(`/api/session/${encodeURIComponent(id)}/memories?${scopeParams(scope).slice(1)}`),
+  sessionOtelSummary: (id: string, scope: WorkspaceScope = {}) => getJson<OtelSummary>(`/api/session/${encodeURIComponent(id)}/otel-summary?${scopeParams(scope).slice(1)}`),
+  /** The bounded, provenance-bearing context block hybrid retrieval would hand an agent. Read-only. */
+  assembleContext: (payload: { query: string; limit?: number; max_total_chars?: number; temporal_at?: string; filters?: Record<string, unknown> }) =>
+    postJson<ContextBlock>('/api/context/assemble', payload),
   sessionMerkleRoot: (id: string, scope: WorkspaceScope = {}) => getJson<MerkleRoot>(`/api/session/${encodeURIComponent(id)}/merkle-root?${scopeParams(scope).slice(1)}`),
   inferenceManifest: () => getJson<InferenceManifest>('/api/inference/manifest'),
   inferenceTasks: (status = 'pending', limit = 50, scope: WorkspaceScope = {}) =>

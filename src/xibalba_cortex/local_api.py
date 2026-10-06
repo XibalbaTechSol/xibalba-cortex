@@ -50,11 +50,16 @@ Routes:
   GET /api/memory/{id}/otel                -> GraphStore.memory_otel_events()
   GET /api/memory/{id}/attachments         -> GraphStore.list_attachments()
   GET /api/memory/{id}/contradictions      -> GraphStore.contradictions()
+  GET /api/memory/{id}/verify-chain        -> GraphStore.verify_chain() (local hash-chain recompute)
+  GET /api/memory/{id}/provenance?include_forgotten= -> GraphStore.export_memory_bundle([id])
   GET /api/memory/{id}/similar?limit=      -> GraphStore.similar_memories()
   GET /api/memory/{id}/neighbors           -> GraphStore.memory_entity_relations()
   GET /api/entity/{name}/neighbors?max_depth= -> GraphStore.neighbors()
   GET /api/entity/path?from=&to=&max_depth=   -> GraphStore.find_path()
   GET /api/session/{id}/exchanges          -> GraphStore.session_exchanges()
+  GET /api/session/{id}/verify-chain       -> GraphStore.verify_exchange_chain()
+  GET /api/session/{id}/memories           -> GraphStore.session_memories()
+  GET /api/session/{id}/otel-summary       -> GraphStore.session_otel_summary()
   GET /api/session/{id}/otel               -> GraphStore.session_otel_events()
   GET /api/session/{id}/merkle-root        -> GraphStore.session_merkle_root()
   GET /api/session/{id}/merkle-proof?index= -> GraphStore.session_merkle_evidence()
@@ -79,6 +84,7 @@ Routes:
   POST /api/inference/tasks/{id}/complete  -> GraphStore.complete_inference_task()
   POST /api/extraction-proposals/{id}/decision -> GraphStore.decide_extraction_proposal()
   POST /api/retrieval/hybrid               -> GraphStore.hybrid_retrieve()
+  POST /api/context/assemble               -> GraphStore.assemble_context() (read-only; memory:read)
   POST /api/projections/{id}/checkpoint    -> GraphStore.create_projection_checkpoint()
   POST /api/projections/{id}/reconcile     -> GraphStore.reconcile_projection_checkpoint()
   POST /api/projections/{id}/rebuild       -> GraphStore.rebuild_projection_checkpoint()
@@ -940,6 +946,18 @@ def _make_handler(store: GraphStore, *, allowed_origins: frozenset[str],
                     session_store, _ = _read_store_for_agent(principal, params.get("agent_id"), params.get("store_id"))
                     _assert_session_access(session_store, principal, parts[2])
                     self._send_json(200, session_store.session_otel_events(parts[2]))
+                elif len(parts) == 4 and parts[0] == "api" and parts[1] == "session" and parts[3] == "verify-chain":
+                    session_store, _ = _read_store_for_agent(principal, params.get("agent_id"), params.get("store_id"))
+                    _assert_session_access(session_store, principal, parts[2])
+                    self._send_json(200, session_store.verify_exchange_chain(parts[2]))
+                elif len(parts) == 4 and parts[0] == "api" and parts[1] == "session" and parts[3] == "memories":
+                    session_store, _ = _read_store_for_agent(principal, params.get("agent_id"), params.get("store_id"))
+                    _assert_session_access(session_store, principal, parts[2])
+                    self._send_json(200, [_assert_memory_scope(m, principal, session_store) for m in session_store.session_memories(parts[2])])
+                elif len(parts) == 4 and parts[0] == "api" and parts[1] == "session" and parts[3] == "otel-summary":
+                    session_store, _ = _read_store_for_agent(principal, params.get("agent_id"), params.get("store_id"))
+                    _assert_session_access(session_store, principal, parts[2])
+                    self._send_json(200, session_store.session_otel_summary(parts[2]))
                 elif len(parts) == 4 and parts[0] == "api" and parts[1] == "session" and parts[3] == "merkle-root":
                     session_store, _ = _read_store_for_agent(principal, params.get("agent_id"), params.get("store_id"))
                     _assert_session_access(session_store, principal, parts[2])
@@ -1018,6 +1036,18 @@ def _make_handler(store: GraphStore, *, allowed_origins: frozenset[str],
                 elif len(parts) == 3 and parts[0] == "api" and parts[1] == "memory" and parts[2]:
                     memory_store, _ = _read_store_for_agent(principal, params.get("agent_id"), params.get("store_id"))
                     self._send_json(200, _assert_memory_scope(memory_store.get_memory(parts[2]), principal, memory_store))
+                elif len(parts) == 4 and parts[0] == "api" and parts[1] == "memory" and parts[3] == "verify-chain":
+                    # Local recomputation of this memory's event hash chain. It proves the history is
+                    # internally consistent; it says nothing about on-chain anchoring (see verify_chain).
+                    memory_store, _ = _read_store_for_agent(principal, params.get("agent_id"), params.get("store_id"))
+                    _assert_memory_scope(memory_store.get_memory(parts[2]), principal, memory_store)
+                    self._send_json(200, memory_store.verify_chain(parts[2]))
+                elif len(parts) == 4 and parts[0] == "api" and parts[1] == "memory" and parts[3] == "provenance":
+                    memory_store, _ = _read_store_for_agent(principal, params.get("agent_id"), params.get("store_id"))
+                    _assert_memory_scope(memory_store.get_memory(parts[2]), principal, memory_store)
+                    self._send_json(200, memory_store.export_memory_bundle(
+                        memory_ids=[parts[2]], include_forgotten=params.get("include_forgotten") in ("1", "true"),
+                    ))
                 elif len(parts) == 4 and parts[0] == "api" and parts[1] == "memory" and parts[3] == "similar":
                     limit = int(params.get("limit", 10))
                     memory_store, _ = _read_store_for_agent(principal, params.get("agent_id"), params.get("store_id"))
@@ -1090,7 +1120,7 @@ def _make_handler(store: GraphStore, *, allowed_origins: frozenset[str],
                 (len(parts) == 5 and parts[:3] == ["api", "para", "classifications"] and parts[4] == "decision")
                 or (len(parts) == 4 and parts[:2] == ["api", "extraction-proposals"] and parts[3] == "decision")
             )
-            is_read_route = parts == ["api", "retrieval", "hybrid"]
+            is_read_route = parts in (["api", "retrieval", "hybrid"], ["api", "context", "assemble"])
             required_scope = "proposal:decide" if is_decision_route else "memory:read" if is_read_route else "memory:write"
             if parts == ["api", "settings", "inference"]:
                 try:
@@ -1395,6 +1425,27 @@ def _make_handler(store: GraphStore, *, allowed_origins: frozenset[str],
                             filters=filters,
                             max_per_source=payload.get("max_per_source") if isinstance(payload.get("max_per_source"), int) else None,
                             max_total_chars=payload.get("max_total_chars") if isinstance(payload.get("max_total_chars"), int) else None,
+                        ),
+                    )
+                elif parts == ["api", "context", "assemble"]:
+                    # Same scoping and query embedding as /api/retrieval/hybrid; the result is the
+                    # bounded, provenance-bearing context block MCP's memory_context_assemble returns.
+                    filters = payload.get("filters")
+                    if filters is not None and not isinstance(filters, dict):
+                        raise ValueError("filters must be an object")
+                    filters = dict(filters or {})
+                    filters["agent_id"] = _agent_filter(store, principal, filters.get("agent_id"))
+                    query = str(payload.get("query") or "")
+                    from .embedding_client import embed_query
+                    self._send_json(
+                        200,
+                        store.assemble_context(
+                            query,
+                            query_vector=embed_query(query),
+                            limit=int(payload.get("limit", 12)),
+                            temporal_at=payload.get("temporal_at") if isinstance(payload.get("temporal_at"), str) else None,
+                            max_total_chars=int(payload.get("max_total_chars", 12000)),
+                            filters=filters,
                         ),
                     )
                 elif len(parts) == 4 and parts[0] == "api" and parts[1] == "projections" and parts[3] == "checkpoint":

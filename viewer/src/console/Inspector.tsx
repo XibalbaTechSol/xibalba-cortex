@@ -11,6 +11,7 @@ import { useAsync, type AsyncState } from './useAsync'
 import { elideHash, parseServerTime, shortStamp, type CEdge, type CNode, type GraphModel } from './model'
 import { IconCheck, IconClose, IconWarn } from './icons'
 import { MemoryActions } from './MemoryActions'
+import { MemoryChainCheck, ProvenanceExport } from './VerifyPanel'
 
 type MemoryTab = 'chain' | 'content' | 'provenance' | 'neighbors' | 'contradictions' | 'telemetry' | 'files'
 const MEMORY_TABS: Array<[MemoryTab, string]> = [
@@ -131,7 +132,7 @@ function MemoryInspector({ memoryId, node }: { memoryId: string; node: CNode | u
         <div className="xc-inspector-body" key={revision}>
           {m && tab === 'chain' && <ChainTab memory={m} scope={scope} />}
           {m && tab === 'content' && <ContentTab memory={m} onOpen={(id) => select(`memory:${id}`)} />}
-          {m && tab === 'provenance' && <ProvenanceTab memory={m} node={node} />}
+          {m && tab === 'provenance' && <ProvenanceTab memory={m} node={node} scope={scope} />}
           {m && tab === 'neighbors' && <NeighborsTab memoryId={memoryId} scope={scope} />}
           {m && tab === 'contradictions' && <ContradictionsTab memoryId={memoryId} scope={scope} />}
           {m && tab === 'telemetry' && <TelemetryTab memoryId={memoryId} scope={scope} />}
@@ -153,6 +154,8 @@ function ChainTab({ memory, scope }: { memory: Memory; scope: WorkspaceScope }) 
 
   return (
     <>
+      <MemoryChainCheck memoryId={memory.id} scope={scope} />
+
       <section>
         <p className="xc-eyebrow xc-eyebrow--dim xc-section-title">Session Merkle root</p>
         {!sessionId ? (
@@ -228,7 +231,7 @@ const PLACED_BY: Record<string, string> = {
   recorded: 'when the store recorded it',
 }
 
-function ProvenanceTab({ memory, node }: { memory: Memory; node: CNode | undefined }) {
+function ProvenanceTab({ memory, node, scope }: { memory: Memory; node: CNode | undefined; scope: WorkspaceScope }) {
   const s = memory.source
   const placedBy = node?.timeSource ? (PLACED_BY[node.timeSource] ?? node.timeSource) : node ? 'not placed (no timestamp)' : null
   const rows: Array<[string, string | null | undefined]> = [
@@ -245,12 +248,15 @@ function ProvenanceTab({ memory, node }: { memory: Memory; node: CNode | undefin
     ['Placed on timeline by', placedBy],
   ]
   return (
-    <dl className="xc-kv">
-      {rows.map(([k, v]) => (
-        <div key={k}><dt>{k}</dt><dd>{v ?? '—'}</dd></div>
-      ))}
-      <div><dt>Content hash</dt><dd className="xc-hash" title={memory.content_hash}>{elideHash(memory.content_hash)}</dd></div>
-    </dl>
+    <>
+      <dl className="xc-kv">
+        {rows.map(([k, v]) => (
+          <div key={k}><dt>{k}</dt><dd>{v ?? '—'}</dd></div>
+        ))}
+        <div><dt>Content hash</dt><dd className="xc-hash" title={memory.content_hash}>{elideHash(memory.content_hash)}</dd></div>
+      </dl>
+      <ProvenanceExport memory={memory} scope={scope} />
+    </>
   )
 }
 

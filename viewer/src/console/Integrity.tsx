@@ -13,7 +13,7 @@
 // reconciling or rebuilding one is labelled store-wide and needs a writable workspace.
 
 import { useEffect, useId, useRef, useState } from 'react'
-import { api, type ProjectionCheckpoint, type ProjectionReconciliation, type Session } from '../api'
+import { api, type ExchangeChainVerification, type ProjectionCheckpoint, type ProjectionReconciliation, type Session } from '../api'
 import { useConsole } from './state'
 import { loadMemoryIndex } from './data'
 import { useAsync } from './useAsync'
@@ -21,6 +21,8 @@ import { useDialog } from './useDialog'
 import { describeBatch, isProblemState, orderStates, verifyCheckpoint, verifySessionBatch, type CheckpointCheck, type SessionBatchResult } from './integrity'
 import { elideHash, parseServerTime, shortStamp } from './model'
 import { IconCheck, IconClose, IconWarn } from './icons'
+import { VerdictCallout } from './VerifyPanel'
+import { describeExchangeChain } from './verify'
 
 type Tab = 'sessions' | 'checkpoints' | 'links'
 const PROJECTIONS = ['memories', 'entities', 'relations'] as const
@@ -78,6 +80,8 @@ interface SessionState {
   serverValid: boolean | null
   head: string | null
   batch: SessionBatchResult | null
+  /** the server's recomputation of node hashes and parent links (a different check from the Merkle root) */
+  chain: ExchangeChainVerification | null
 }
 
 function SessionsTab() {
@@ -87,13 +91,14 @@ function SessionsTab() {
 
   const verify = async (session: Session) => {
     const id = session.external_session_id
-    setState((s) => ({ ...s, [id]: { busy: true, error: null, serverValid: null, head: null, batch: null } }))
+    setState((s) => ({ ...s, [id]: { busy: true, error: null, serverValid: null, head: null, batch: null, chain: null } }))
     try {
       const root = await api.sessionMerkleRoot(id, scope)
+      const chain = await api.sessionVerifyChain(id, scope)
       const batch = await verifySessionBatch(root.exchange_count, async (i) => (await api.sessionMerkleProof(id, i, scope)).proof)
-      setState((s) => ({ ...s, [id]: { busy: false, error: null, serverValid: root.valid, head: root.root_node_id, batch } }))
+      setState((s) => ({ ...s, [id]: { busy: false, error: null, serverValid: root.valid, head: root.root_node_id, batch, chain } }))
     } catch (e) {
-      setState((s) => ({ ...s, [id]: { busy: false, error: e instanceof Error ? e.message : String(e), serverValid: null, head: null, batch: null } }))
+      setState((s) => ({ ...s, [id]: { busy: false, error: e instanceof Error ? e.message : String(e), serverValid: null, head: null, batch: null, chain: null } }))
     }
   }
 
@@ -120,6 +125,7 @@ function SessionsTab() {
                 </div>
               </div>
             )}
+            {st?.chain && <VerdictCallout verdict={describeExchangeChain(st.chain)} hash={st.chain.head_node_id} />}
             {outcome && (
               <div className={`xc-callout ${outcome.tone === 'ok' ? 'xc-callout--anchored' : outcome.tone === 'bad' ? 'xc-callout--conflict' : 'xc-callout--review'}`} role="status">
                 {outcome.tone === 'ok' ? <IconCheck /> : <IconWarn />}
