@@ -8,7 +8,9 @@ import { useCallback, useEffect, useState } from 'react'
 import { accountLogout, isSignedIn } from '../api'
 import { ConsoleProvider, useConsole } from './state'
 import { SignIn } from './SignIn'
-import { StatusBar, TopBar } from './Shell'
+import { Rail, StatusBar, TopBar } from './Shell'
+import { SettingsProvider, useSettings } from './settingsContext'
+import { PageHost } from './pages/PageHost'
 import { FacetRail } from './FacetRail'
 import { GraphLens } from './GraphLens'
 import { TimelineLens } from './TimelineLens'
@@ -24,7 +26,7 @@ import { useMediaQuery } from './useMediaQuery'
 const EXPIRED = /\b401\b|authentication required|unauthorized|expired/i
 
 function Workspace() {
-  const { lens, overlay, setOverlay, error, model, signOut } = useConsole()
+  const { lens, page, overlay, setOverlay, error, model, signOut } = useConsole()
 
   // ⌘K / Ctrl+K toggles Recall from anywhere, including inside inputs.
   useEffect(() => {
@@ -46,23 +48,41 @@ function Workspace() {
   }, [error, model, signOut])
 
   const phone = useMediaQuery('(max-width: 760px)')
+  const { settings } = useSettings()
+
+  // what sits to the right of (or below) the navigation: a full page, or the three-column workspace
+  const content = page ? (
+    <>
+      <PageHost page={page} />
+      <StatusBar />
+    </>
+  ) : (
+    <>
+      <main className="xc-workspace">
+        <FacetRail />
+        {lens === 'graph' ? <GraphLens /> : <TimelineLens />}
+        <Inspector />
+      </main>
+      <div style={{ padding: '0 var(--gutter) 22px' }}>
+        <ChainRail />
+      </div>
+      <StatusBar />
+    </>
+  )
 
   return (
     <>
       {phone ? (
         <PhoneWorkspace />
+      ) : settings.shell === 'rail' ? (
+        <div className="xc-shell" data-collapsed={settings.railCollapsed}>
+          <Rail />
+          <div className="xc-main">{content}</div>
+        </div>
       ) : (
         <>
           <TopBar />
-          <main className="xc-workspace">
-            <FacetRail />
-            {lens === 'graph' ? <GraphLens /> : <TimelineLens />}
-            <Inspector />
-          </main>
-          <div style={{ padding: '0 var(--gutter) 22px' }}>
-            <ChainRail />
-          </div>
-          <StatusBar />
+          {content}
         </>
       )}
       {overlay === 'recall' && <Recall />}
@@ -81,14 +101,16 @@ export function ConsoleApp() {
   }, [])
 
   return (
-    <div className="xc">
-      {signedIn ? (
-        <ConsoleProvider onSignOut={signOut}>
-          <Workspace />
-        </ConsoleProvider>
-      ) : (
-        <SignIn onSignedIn={() => setSignedIn(true)} />
-      )}
-    </div>
+    <SettingsProvider>
+      <div className="xc">
+        {signedIn ? (
+          <ConsoleProvider onSignOut={signOut}>
+            <Workspace />
+          </ConsoleProvider>
+        ) : (
+          <SignIn onSignedIn={() => setSignedIn(true)} />
+        )}
+      </div>
+    </SettingsProvider>
   )
 }

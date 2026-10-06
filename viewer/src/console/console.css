@@ -1532,3 +1532,353 @@ select.xc-input {
     margin-left: 8px;
   }
 }
+
+/* ---------- left rail shell (default) ------------------------------------------------------------ */
+.xc-shell {
+  flex: 1;
+  display: grid;
+  grid-template-columns: 240px minmax(0, 1fr);
+  min-height: 100vh;
+}
+.xc-shell[data-collapsed='true'] {
+  grid-template-columns: 68px minmax(0, 1fr);
+}
+.xc-main {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+.xc-rail-shell {
+  position: sticky;
+  top: 0;
+  align-self: start;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  padding: 18px 14px 14px;
+  border-right: 1px solid var(--hairline);
+  background: var(--ground);
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+.xc-rail-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.xc-rail-head .xc-brand {
+  margin-right: auto;
+  min-width: 0;
+}
+.xc-rail-head .xc-brand b {
+  font-size: 19px;
+  white-space: nowrap;
+}
+.xc-rail-toggle {
+  flex: none;
+  width: 30px;
+  min-height: 30px;
+  height: 30px;
+}
+.xc-rail-scope .xc-scope {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
+}
+.xc-rail-scope .xc-scope select,
+.xc-rail-scope .xc-scope .xc-input {
+  max-width: none;
+  width: 100%;
+  font-size: 13px;
+}
+.xc-scope-static {
+  display: inline-flex;
+  align-items: center;
+  color: var(--ink-muted);
+  text-transform: none;
+  letter-spacing: 0;
+}
+.xc-rail-badge {
+  display: none;
+  align-self: center;
+  padding: 3px 7px;
+  border: 1px solid var(--hairline-strong);
+  color: var(--ink-muted);
+  font: 600 12px var(--font-condensed);
+  letter-spacing: 0.08em;
+}
+.xc-rail-nav {
+  flex: 1;
+  display: grid;
+  align-content: start;
+  gap: 16px;
+}
+.xc-rail-group {
+  display: grid;
+  gap: 2px;
+}
+.xc-rail-kicker {
+  margin: 0 0 4px 10px;
+  color: var(--ink-dim);
+  font: 700 11px var(--font-body);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+/* in the rail a nav button is a row, and the current one is marked on the left edge */
+.xc-rail-shell .xc-nav-btn {
+  width: 100%;
+  padding: 9px 10px;
+  border: 0;
+  border-left: 2px solid transparent;
+  font-size: 17px;
+}
+.xc-rail-shell .xc-nav-btn:hover:not(:disabled),
+.xc-rail-shell .xc-nav-btn[aria-current='page'] {
+  border-bottom-color: transparent;
+  border-left-color: var(--accent);
+  background: var(--accent-soft);
+}
+.xc-rail-shell .xc-nav-btn svg {
+  width: 18px;
+  height: 18px;
+  flex: none;
+}
+.xc-rail-shell .xc-nav-btn .xc-kbd {
+  margin-left: auto;
+}
+.xc-rail-foot {
+  display: grid;
+  gap: 10px;
+  padding-top: 12px;
+  border-top: 1px solid var(--hairline);
+}
+.xc-rail-foot .xc-top-actions {
+  justify-content: flex-start;
+}
+.xc-shell[data-collapsed='true'] .xc-rail-shell {
+  padding-inline: 10px;
+  align-items: center;
+}
+.xc-shell[data-collapsed='true'] .xc-nav-label,
+.xc-shell[data-collapsed='true'] .xc-rail-kicker,
+.xc-shell[data-collapsed='true'] .xc-rail-scope .xc-scope {
+  display: none;
+}
+.xc-shell[data-collapsed='true'] .xc-rail-badge {
+  display: inline-block;
+}
+.xc-shell[data-collapsed='true'] .xc-rail-head {
+  flex-direction: column;
+}
+.xc-shell[data-collapsed='true'] .xc-rail-shell .xc-nav-btn {
+  justify-content: center;
+  padding-inline: 0;
+}
+.xc-shell[data-collapsed='true'] .xc-rail-foot .xc-top-actions {
+  flex-direction: column;
+}
+/* narrow desktop windows collapse the rail by themselves; the workspace needs the room */
+@media (max-width: 1280px) and (min-width: 761px) {
+  .xc-shell {
+    grid-template-columns: 68px minmax(0, 1fr);
+  }
+  .xc-shell .xc-rail-shell {
+    padding-inline: 10px;
+    align-items: center;
+  }
+  .xc-shell .xc-nav-label,
+  .xc-shell .xc-rail-kicker,
+  .xc-shell .xc-rail-scope .xc-scope,
+  .xc-shell .xc-rail-toggle {
+    display: none;
+  }
+  .xc-shell .xc-rail-badge {
+    display: inline-block;
+  }
+  .xc-shell .xc-rail-shell .xc-nav-btn {
+    justify-content: center;
+    padding-inline: 0;
+  }
+  .xc-shell .xc-rail-foot .xc-top-actions {
+    flex-direction: column;
+  }
+}
+
+/* ---------- pages ---------------------------------------------------------------------------------- */
+.xc-page {
+  flex: 1;
+  display: grid;
+  align-content: start;
+  gap: 20px;
+  padding: 34px var(--gutter) 48px;
+  width: 100%;
+  max-width: var(--content-max);
+}
+.xc-page-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+.xc-page-title {
+  margin: 6px 0 0;
+  font: 600 40px/1 var(--font-condensed);
+}
+.xc-page-note {
+  max-width: 640px;
+  margin-top: 8px;
+}
+.xc-page-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+/* ---------- settings --------------------------------------------------------------------------------- */
+.xc-settings-panel {
+  display: grid;
+  gap: 18px;
+  padding: var(--window-padding);
+}
+.xc-choice {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 14px;
+}
+.xc-choice-card {
+  display: grid;
+  grid-template-columns: 112px minmax(0, 1fr);
+  gap: 16px;
+  align-items: center;
+  padding: 14px;
+  border: 1px solid var(--hairline);
+  cursor: pointer;
+}
+.xc-choice-card:hover {
+  border-color: var(--hairline-strong);
+}
+.xc-choice-card[data-selected='true'] {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+.xc-choice-card input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+.xc-choice-card:has(input:focus-visible) {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.xc-choice-text {
+  display: grid;
+  gap: 4px;
+}
+.xc-choice-text b {
+  font: 600 20px/1.1 var(--font-condensed);
+}
+/* two wireframes, drawn from the same proportions as the real shells */
+.xc-wire {
+  position: relative;
+  display: block;
+  width: 112px;
+  height: 76px;
+  border: 1px solid var(--hairline-strong);
+  background: var(--ground);
+}
+.xc-wire i {
+  position: absolute;
+  display: block;
+  background: var(--hairline);
+}
+.xc-wire--rail .xc-wire-nav {
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 22px;
+  border-right: 1px solid var(--hairline-strong);
+  background: var(--accent-soft);
+}
+.xc-wire--rail .xc-wire-main {
+  left: 28px;
+  top: 6px;
+  right: 30px;
+  bottom: 6px;
+}
+.xc-wire--rail .xc-wire-side {
+  top: 6px;
+  right: 4px;
+  bottom: 6px;
+  width: 22px;
+}
+.xc-wire--top .xc-wire-nav {
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 14px;
+  border-bottom: 1px solid var(--hairline-strong);
+  background: var(--accent-soft);
+}
+.xc-wire--top .xc-wire-main {
+  left: 4px;
+  top: 20px;
+  right: 30px;
+  bottom: 4px;
+}
+.xc-wire--top .xc-wire-side {
+  top: 20px;
+  right: 4px;
+  bottom: 4px;
+  width: 22px;
+}
+.xc-settings-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.xc-settings-row[data-disabled='true'] {
+  opacity: 0.55;
+}
+
+/* ---------- phone "More" sheet ----------------------------------------------------------------------- */
+.xc-more {
+  display: grid;
+  gap: 14px;
+  padding: 12px 8px 18px;
+}
+.xc-more section {
+  display: grid;
+  gap: 2px;
+}
+.xc-more .xc-nav-btn {
+  width: 100%;
+  padding: 11px 10px;
+  border: 0;
+  border-left: 2px solid transparent;
+  font-size: 18px;
+}
+.xc-more .xc-nav-btn[aria-current='page'] {
+  border-left-color: var(--accent);
+  background: var(--accent-soft);
+}
+.xc-more .xc-nav-btn .xc-note {
+  margin-left: auto;
+  font: 400 12px var(--font-body);
+  text-align: right;
+}
+@media (max-width: 760px) {
+  .xc-page {
+    padding: 20px 16px 28px;
+  }
+  .xc-page-title {
+    font-size: 32px;
+  }
+  .xc-phone-main[data-page='true'] {
+    overflow-y: auto;
+    padding: 0;
+  }
+}

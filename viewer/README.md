@@ -86,8 +86,12 @@ Honesty rules the console follows:
   states what a Merkle check does not prove, and gates checkpoint, reconcile and rebuild on a
   writable workspace and labels them store-wide.
 
+Navigation is a left rail by default; Settings (in the rail) switches it to a top bar and can collapse
+the rail to icons. Both layouts, and the phone tab bar, render one destination registry (`nav.ts`), so
+a surface added there appears everywhere. A destination is listed only once its surface exists.
+
 On a phone (<= 760px) the same components are laid out differently: the lens fills the screen,
-a tab bar switches Graph / Timeline / Recall / Review / Integrity, Filters and Time open as bottom
+a tab bar switches Graph / Timeline / Recall / Review, and More lists every other destination, Filters and Time open as bottom
 sheets (their buttons show how many switches are off their defaults), and the inspector rises as a
 sheet when something is selected. Selection and filters survive crossing the breakpoint.
 

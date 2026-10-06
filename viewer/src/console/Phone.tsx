@@ -10,7 +10,9 @@
 
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
 import { useConsole } from './state'
-import { TopBar, StatusBar } from './Shell'
+import { Actions, Brand, DESTINATION_ICON, ScopePicker, StatusBar, useIsCurrent } from './Shell'
+import { DESTINATIONS, GROUP_LABEL, NAV_GROUPS, destinationsIn, type Destination, type DestinationId } from './nav'
+import { PageHost } from './pages/PageHost'
 import { FacetRail } from './FacetRail'
 import { GraphLens } from './GraphLens'
 import { TimelineLens } from './TimelineLens'
@@ -18,9 +20,9 @@ import { Inspector } from './Inspector'
 import { ChainRail } from './ChainRail'
 import { useDialog } from './useDialog'
 import { changedFacetCount } from './model'
-import { IconClose, IconGraph, IconIntegrity, IconReview, IconSearch, IconTimeline } from './icons'
+import { IconClose, IconMore } from './icons'
 
-type SheetName = 'filters' | 'time' | null
+type SheetName = 'filters' | 'time' | 'more' | null
 
 function Sheet({ title, onClose, children, modal = true }: { title: string; onClose: () => void; children: ReactNode; modal?: boolean }) {
   const ref = useRef<HTMLDivElement>(null)
@@ -50,50 +52,92 @@ function Sheet({ title, onClose, children, modal = true }: { title: string; onCl
   )
 }
 
-function TabBar() {
-  const { lens, setLens, overlay, setOverlay } = useConsole()
-  const tabs = [
-    { id: 'graph', label: 'Graph', icon: <IconGraph />, current: lens === 'graph' && !overlay, go: () => { setOverlay(null); setLens('graph') } },
-    { id: 'timeline', label: 'Timeline', icon: <IconTimeline />, current: lens === 'timeline' && !overlay, go: () => { setOverlay(null); setLens('timeline') } },
-    { id: 'recall', label: 'Recall', icon: <IconSearch />, current: overlay === 'recall', go: () => setOverlay('recall') },
-    { id: 'review', label: 'Review', icon: <IconReview />, current: overlay === 'review', go: () => setOverlay('review') },
-    { id: 'integrity', label: 'Integrity', icon: <IconIntegrity />, current: overlay === 'integrity', go: () => setOverlay('integrity') },
-  ]
+/** The phone's tab bar shows the four destinations used most; everything else is under More, which
+ *  lists the whole registry so nothing reachable on a desktop is unreachable here. */
+const PRIMARY: DestinationId[] = ['graph', 'timeline', 'recall', 'review']
+
+function TabBar({ onMore, moreOpen }: { onMore: () => void; moreOpen: boolean }) {
+  const { go } = useConsole()
+  const isCurrent = useIsCurrent()
+  const tabs = PRIMARY.map((id) => DESTINATIONS.find((d) => d.id === id)).filter((d): d is Destination => !!d)
+  const secondaryCurrent = DESTINATIONS.some((d) => !PRIMARY.includes(d.id) && isCurrent(d))
   return (
     <nav className="xc-tabbar" aria-label="Lenses and workflows">
-      {tabs.map((t) => (
-        <button key={t.id} type="button" className="xc-tabbar-btn" aria-current={t.current ? 'page' : undefined} onClick={t.go}>
-          {t.icon}
-          <span>{t.label}</span>
+      {tabs.map((d) => (
+        <button key={d.id} type="button" className="xc-tabbar-btn" aria-current={isCurrent(d) && !moreOpen ? 'page' : undefined} onClick={() => go(d.id)}>
+          {DESTINATION_ICON[d.id]}
+          <span>{d.label}</span>
         </button>
       ))}
+      <button type="button" className="xc-tabbar-btn" aria-haspopup="dialog" aria-current={moreOpen || secondaryCurrent ? 'page' : undefined} onClick={onMore}>
+        <IconMore />
+        <span>More</span>
+      </button>
     </nav>
   )
 }
 
+function MoreList({ onPick }: { onPick: () => void }) {
+  const { go } = useConsole()
+  const isCurrent = useIsCurrent()
+  return (
+    <div className="xc-more">
+      {NAV_GROUPS.map((group) => {
+        const items = destinationsIn(group).filter((d) => !PRIMARY.includes(d.id))
+        if (items.length === 0) return null
+        return (
+          <section key={group}>
+            <p className="xc-rail-kicker">{GROUP_LABEL[group]}</p>
+            {items.map((d) => (
+              <button key={d.id} type="button" className="xc-nav-btn" aria-current={isCurrent(d) ? 'page' : undefined} onClick={() => { onPick(); go(d.id) }}>
+                {DESTINATION_ICON[d.id]}
+                <span>{d.label}</span>
+                <span className="xc-note">{d.hint}</span>
+              </button>
+            ))}
+          </section>
+        )
+      })}
+    </div>
+  )
+}
+
 export function PhoneWorkspace() {
-  const { lens, selectedId, select, facets, model, window: timeWindow } = useConsole()
+  const { lens, page, selectedId, select, facets, model, window: timeWindow } = useConsole()
   const [sheet, setSheet] = useState<SheetName>(null)
 
   // anything that narrows the view is worth telling the user about while the controls are hidden
   const activeFilters = facets && model ? changedFacetCount(facets, model) : 0
   const windowed = timeWindow !== null
+  const onWorkspace = page === null
 
   return (
     <div className="xc-phone">
-      <TopBar />
-      <main className="xc-phone-main">
-        <div className="xc-phone-actions">
-          <button type="button" className="xc-btn" onClick={() => setSheet('filters')} aria-haspopup="dialog">
-            Filters{activeFilters > 0 ? <b className="xc-count">{activeFilters}</b> : null}
-          </button>
-          <button type="button" className="xc-btn" onClick={() => setSheet('time')} aria-haspopup="dialog">
-            Time{windowed ? <b className="xc-count">1</b> : null}
-          </button>
+      <header className="xc-top">
+        <div className="xc-top-row">
+          <Brand />
+          <ScopePicker />
+          <Actions />
         </div>
-        {lens === 'graph' ? <GraphLens /> : <TimelineLens />}
+      </header>
+      <main className="xc-phone-main" data-page={!onWorkspace}>
+        {onWorkspace ? (
+          <>
+            <div className="xc-phone-actions">
+              <button type="button" className="xc-btn" onClick={() => setSheet('filters')} aria-haspopup="dialog">
+                Filters{activeFilters > 0 ? <b className="xc-count">{activeFilters}</b> : null}
+              </button>
+              <button type="button" className="xc-btn" onClick={() => setSheet('time')} aria-haspopup="dialog">
+                Time{windowed ? <b className="xc-count">1</b> : null}
+              </button>
+            </div>
+            {lens === 'graph' ? <GraphLens /> : <TimelineLens />}
+          </>
+        ) : (
+          <PageHost page={page} />
+        )}
       </main>
-      <TabBar />
+      <TabBar moreOpen={sheet === 'more'} onMore={() => setSheet('more')} />
 
       {sheet === 'filters' && (
         <Sheet title="Filters" onClose={() => setSheet(null)}>
@@ -106,7 +150,12 @@ export function PhoneWorkspace() {
           <ChainRail />
         </Sheet>
       )}
-      {selectedId && sheet === null && (
+      {sheet === 'more' && (
+        <Sheet title="More" onClose={() => setSheet(null)}>
+          <MoreList onPick={() => setSheet(null)} />
+        </Sheet>
+      )}
+      {selectedId && sheet === null && onWorkspace && (
         <Sheet title="Inspector" modal={false} onClose={() => select(null)}>
           <Inspector />
         </Sheet>
