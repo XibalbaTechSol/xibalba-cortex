@@ -848,3 +848,21 @@ with `call_id`, `tool`, `phase` (start/end), `outcome` and configured `provider`
 `capture_scope=cortex_tool_calls` explicitly excludes hosted internal events.
 See `docs/operations/hosted-memory-connectors.md` for OAuth prerequisites,
 onboarding, recording limits and canary requirements.
+
+### Perplexity application-owned stream recorder (additive)
+
+The optional `PerplexityAdapter.recorder()` implements the existing runtime bridge
+contract for background Agent API streams. A profile-local sidecar journal commits
+normalized events and provider resume cursor atomically; existing GraphStore
+telemetry receives idempotent mirrored events. No frozen store schema changes.
+Local replay positions are distinct from provider sequence numbers. Snapshot
+fallback marks a capture gap and never reconstructs missing historical events.
+Cancellation remains pending until the provider confirms a terminal status.
+
+Provider policy requires explicit consent and a session-bound Integrity DID.
+Default capture contains metadata/hashes; optional redacted content is limited to
+complete supported text fields. Streaming deltas never retain raw text, and hidden
+reasoning/thought bodies are excluded. Automatic tool execution, extraction commit,
+consumer-app observation and runtime enforcement are not supplied by this adapter.
+See `docs/operations/perplexity-runtime-recorder.md` for the implemented CLI,
+retention/durability limits and live provider validation requirements.

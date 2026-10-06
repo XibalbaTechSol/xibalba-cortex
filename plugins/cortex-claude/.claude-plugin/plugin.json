@@ -1,0 +1,9 @@
+{
+  "name": "cortex-claude",
+  "version": "0.1.0",
+  "description": "Cortex memory tools and opt-in local agent-event recording",
+  "author": {
+    "name": "Xibalba Solutions"
+  },
+  "repository": "https://github.com/XibalbaTechSol/xibalba-cortex"
+}

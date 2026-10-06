@@ -30,6 +30,15 @@ Cortex sits underneath your agent harness as a local Model Context Protocol serv
 
 **[Quick Start](#quick-start)** · **[Why Cortex](#why-cortex)** · **[Architecture](#architecture)** · **[Provenance & Evidence](#provenance--evidence)** · **[Hybrid Retrieval](#hybrid-retrieval-with-verifiable-traces)** · **[Reviewable Extraction](#reviewable-extraction-pipeline)** · **[Recipe](#recipe-verifiable-entity-extraction-from-a-session)** · **[MCP Operations](#mcp-operations)** · **[CLI](#cli)** · **[Ecosystem Role](#ecosystem-role)**
 
+## Hosted sessions and plugin installation
+
+Pilot packages for Claude Code, Codex and Gemini CLI are documented in
+[Plugin distribution](docs/operations/cortex-plugin-distribution.md).
+For Perplexity API sessions, see the [runtime recorder guide](docs/operations/perplexity-runtime-recorder.md).
+For Perplexity/Spark consumer memory access, see [hosted memory connectors](docs/operations/hosted-memory-connectors.md).
+GitHub packages are separate from official directory approval; recorder coverage is
+limited to events the selected runtime exposes.
+
 ## Why Cortex
 
 | | Plain vector-store agent memory | **Xibalba Cortex** |

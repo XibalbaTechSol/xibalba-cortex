@@ -1,0 +1,4 @@
+interface:
+  display_name: "Cortex connection check"
+  short_description: "Check Cortex memory and recorder setup"
+  default_prompt: "Use $cortex-connect to check my Cortex connection."

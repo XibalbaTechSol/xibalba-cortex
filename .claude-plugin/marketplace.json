@@ -1,0 +1,13 @@
+{
+  "name": "xibalba-cortex",
+  "owner": {
+    "name": "Xibalba Solutions"
+  },
+  "plugins": [
+    {
+      "name": "cortex-claude",
+      "source": "./plugins/cortex-claude",
+      "description": "Cortex memory and local Claude Code observer"
+    }
+  ]
+}

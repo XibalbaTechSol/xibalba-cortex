@@ -1,0 +1,10 @@
+{
+  "name": "cortex-codex",
+  "version": "0.1.0",
+  "description": "Cortex memory tools and opt-in local agent-event recording",
+  "author": {
+    "name": "Xibalba Solutions"
+  },
+  "repository": "https://github.com/XibalbaTechSol/xibalba-cortex",
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json"
+}

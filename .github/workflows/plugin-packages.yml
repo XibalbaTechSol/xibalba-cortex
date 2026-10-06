@@ -1,0 +1,35 @@
+name: Cortex plugin packages
+on:
+  pull_request:
+    paths:
+      - 'plugins/cortex-*/**'
+      - 'integrations/plugin-distribution/**'
+      - 'scripts/build_cortex_plugins.py'
+      - 'gemini-extension.json'
+      - '.agents/plugins/**'
+      - '.claude-plugin/**'
+      - '.github/workflows/plugin-packages.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'plugins/cortex-*/**'
+      - 'scripts/build_cortex_plugins.py'
+      - 'gemini-extension.json'
+  workflow_dispatch: {}
+permissions:
+  contents: read
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python scripts/build_cortex_plugins.py --archives dist/plugins
+      - run: git diff --exit-code -- plugins .agents .claude-plugin gemini-extension.json integrations
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cortex-plugins-0.1.0
+          path: dist/plugins/*
+          if-no-files-found: error

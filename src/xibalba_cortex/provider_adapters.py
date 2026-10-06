@@ -283,6 +283,11 @@ class PerplexityAdapter(_BaseProviderAdapter):
         return await asyncio.to_thread(self.run, session_id=session_id, agent_id=agent_id,
                                        api_key=api_key, payload=payload, turn_id=turn_id)
 
+    def recorder(self, *, http=None):
+        """Create a durable stream recorder using this adapter's consent policy."""
+        from .perplexity_runtime import PerplexityRuntimeRecorder
+        return PerplexityRuntimeRecorder(self, http=http)
+
     def _record_response(self, *, session_id: str, agent_id: str, response: Any,
                          turn_id: str | None) -> dict[str, Any]:
         if not isinstance(response, dict):
