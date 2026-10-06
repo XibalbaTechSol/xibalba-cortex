@@ -32,6 +32,8 @@ otel = [
 ]
 
 [project.scripts]
+xibalba-cortex-observer = "xibalba_cortex.observer_capture:main"
+xibalba-cortex-observer-install = "xibalba_cortex.observer_install:main"
 xibalba-cortex = "xibalba_cortex.server:main"
 xibalba-cortex-raw-ingest = "xibalba_cortex.raw_body_ingest:main"
 xibalba-cortex-otlp-receiver = "xibalba_cortex.otlp_receiver:main"

@@ -154,6 +154,16 @@ store.decide_extraction_proposal(proposals[0]["id"], decision="accept", decided_
 
 ## Installation and Tests
 
+### Claude and Codex recorder observers
+
+Local observer capture includes observation-only Claude and local Codex hook installers, plus a
+Codex app-server copied-event adapter, with a bounded queue, recoverable worker
+and profile-local diagnostic storage. See
+[`docs/architecture/claude-codex-observers.md`](docs/architecture/claude-codex-observers.md)
+for setup, recording policy, supported events and validation boundaries. Codex native hooks require explicit user trust; streaming deltas require
+integration with the client owning its app-server event stream. Live harness canaries, recorder streaming
+UI and timed playback remain open.
+
 ## Production status (2026-09-04)
 
 **Current level: L1 controlled-pilot foundation, locally verified.** This checkout is

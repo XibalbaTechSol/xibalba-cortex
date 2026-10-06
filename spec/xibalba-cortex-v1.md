@@ -167,20 +167,7 @@ memory_id, event_type, detail, parent_event_id}))`, and `GraphStore.verify_chain
 recomputes the whole chain with zero external dependency. `memories.id` is the stable ref; the
 event chain is the immutable object history behind it — the git object/ref split.
 
-### 4.5 Entity graph: `entities`, `entity_aliases`, `relations`
-
-Entities are resolved by `(agent_id, normalized_name, entity_type)`, created conservatively on
-first reference (`GraphStore._get_or_create_entity`). `entities.agent_id` scopes the knowledge
-graph per asserting agent: by default a new entity is private to the agent whose memory first
-asserted it (agent_id = that agent's storage id), so two agents mentioning the same name get two
-independent entity nodes unless a caller explicitly opts in to the shared graph (`shared=True`
-on `link_entities`/`memory_link_entities`, which stores `agent_id = ''`). The `''` scope is also
-where every entity created before schema v14 lives — the agent-scoping migration placed all
-pre-existing entities there rather than guessing an owner, so old data stays fully visible to
-every agent exactly as before. Entity lookups (`_find_entity`, `neighbors`, `find_path`) resolve
-a name against the calling agent's own private scope first, falling back to the shared `''`
-scope; `agent_id=None` (internal/admin use only) sees every entity regardless of scope. The
-asserting agent for a new entity/relation is always derived server-side from the evidence
+### 4.5 Entity graph: `entit…276 tokens truncated…ing agent for a new entity/relation is always derived server-side from the evidence
 memory's source (`sources.agent_id`), never accepted as caller input, so scope can't be forged.
 `relations` are typed, evidence-linked (`evidence_memory_id` is required, not optional),
 subject→predicate→object triples where the object is either another entity or a literal
@@ -818,3 +805,17 @@ Not attempted in v1; recorded so the bar is explicit rather than discovered ad h
 This is v1. Breaking schema changes (column removal, hash-boundary changes, event-node shape
 changes) require a new spec version and an explicit migration note — never a silent edit to this
 document that changes what already-hashed data means.
+
+## 13. Additive observer capture envelope
+
+`xibalba.observer.capture.v1` is an optional local diagnostic envelope persisted
+through the existing OTel table, not a change to canonical memory events, exchange
+hashes, receipts, or MCP tools. It carries occurrence ID, runtime, session, optional
+turn/tool IDs, event type, source-or-callback timestamp with an explicit origin,
+receipt time, bounded metadata, capture mode and content state/hash/length.
+Content states are `omitted_by_policy`, `redacted`, and `omitted_size_limit`.
+Identical text can belong to distinct occurrences; delivery retry deduplicates by
+occurrence ID. Source time is never inferred from receipt time without a label.
+These diagnostic records confer no execution/approval authority and no signature
+or anchoring claim. See `docs/architecture/claude-codex-observers.md` for installation,
+interface coverage, delivery semantics and outstanding recorder gates.
