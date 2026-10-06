@@ -832,3 +832,19 @@ occurrence ID. Source time is never inferred from receipt time without a label.
 These diagnostic records confer no execution/approval authority and no signature
 or anchoring claim. See `docs/architecture/claude-codex-observers.md` for installation,
 interface coverage, delivery semantics and outstanding recorder gates.
+
+### Hosted personal-assistant resource (additive)
+
+The optional hosted connector exposes only `cortex_connection_status`,
+`cortex_remember(content, idempotency_key)` and `cortex_recall(query, limit)`.
+Credentials bind one agent/profile; read is mandatory and writes additionally
+require `memory:write`. Writes retain candidate status, secret redaction and the
+existing hash-chain contract. Recall may include candidate memories and returns
+existing provenance/status. No frozen core tool or store schema changes.
+
+Tool execution telemetry uses existing OTel logs named `xibalba.hosted.tool`,
+with `call_id`, `tool`, `phase` (start/end), `outcome` and configured `provider`
+(`perplexity` or `spark`). Sessions carry the credential-bound agent identity.
+`capture_scope=cortex_tool_calls` explicitly excludes hosted internal events.
+See `docs/operations/hosted-memory-connectors.md` for OAuth prerequisites,
+onboarding, recording limits and canary requirements.
