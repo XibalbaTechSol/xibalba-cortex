@@ -234,6 +234,28 @@ export interface Facets {
 /** Statuses hidden until asked for: they are history, not current belief. */
 const HIDDEN_BY_DEFAULT = new Set(['superseded', 'forgotten'])
 
+/**
+ * How many facet switches differ from the defaults for this model. It is what the phone layout
+ * shows on its Filters button while the facet rail itself is hidden, so a hidden narrowing is
+ * never a surprise. Counts switches, not nodes, and a switch the user turned back to its default
+ * does not count.
+ */
+export function changedFacetCount(facets: Facets, model: GraphModel): number {
+  const base = defaultFacets(model)
+  let n = 0
+  const compare = (now: Record<string, boolean>, was: Record<string, boolean>) => {
+    for (const key of new Set([...Object.keys(now), ...Object.keys(was)])) {
+      // absent means shown, as in isNodeVisible
+      if ((now[key] ?? true) !== (was[key] ?? true)) n += 1
+    }
+  }
+  compare(facets.classes, base.classes)
+  compare(facets.statuses, base.statuses)
+  compare(facets.evidence, base.evidence)
+  compare(facets.edges, base.edges)
+  return n
+}
+
 export function defaultFacets(model: GraphModel): Facets {
   const statuses: Record<string, boolean> = {}
   const evidence: Record<string, boolean> = {}

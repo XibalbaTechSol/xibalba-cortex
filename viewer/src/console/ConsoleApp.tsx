@@ -17,6 +17,8 @@ import { ChainRail } from './ChainRail'
 import { Recall } from './Recall'
 import { Review } from './Review'
 import { Integrity } from './Integrity'
+import { PhoneWorkspace } from './Phone'
+import { useMediaQuery } from './useMediaQuery'
 
 // A 401 from any call means the cookie session ended; send the user back to sign-in with a reason.
 const EXPIRED = /\b401\b|authentication required|unauthorized|expired/i
@@ -43,18 +45,26 @@ function Workspace() {
     }
   }, [error, model, signOut])
 
+  const phone = useMediaQuery('(max-width: 760px)')
+
   return (
     <>
-      <TopBar />
-      <main className="xc-workspace">
-        <FacetRail />
-        {lens === 'graph' ? <GraphLens /> : <TimelineLens />}
-        <Inspector />
-      </main>
-      <div style={{ padding: '0 var(--gutter) 22px' }}>
-        <ChainRail />
-      </div>
-      <StatusBar />
+      {phone ? (
+        <PhoneWorkspace />
+      ) : (
+        <>
+          <TopBar />
+          <main className="xc-workspace">
+            <FacetRail />
+            {lens === 'graph' ? <GraphLens /> : <TimelineLens />}
+            <Inspector />
+          </main>
+          <div style={{ padding: '0 var(--gutter) 22px' }}>
+            <ChainRail />
+          </div>
+          <StatusBar />
+        </>
+      )}
       {overlay === 'recall' && <Recall />}
       {overlay === 'review' && <Review />}
       {overlay === 'integrity' && <Integrity />}

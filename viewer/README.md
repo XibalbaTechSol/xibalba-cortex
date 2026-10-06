@@ -72,6 +72,11 @@ Honesty rules the console follows:
   states what a Merkle check does not prove, and gates checkpoint, reconcile and rebuild on a
   writable workspace and labels them store-wide.
 
+On a phone (<= 760px) the same components are laid out differently: the lens fills the screen,
+a tab bar switches Graph / Timeline / Recall / Review / Integrity, Filters and Time open as bottom
+sheets (their buttons show how many switches are off their defaults), and the inspector rises as a
+sheet when something is selected. Selection and filters survive crossing the breakpoint.
+
 The previous viewer is still available at `?ui=legacy` (link in the console status bar).
 
 ```bash

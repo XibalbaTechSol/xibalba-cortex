@@ -51,7 +51,7 @@ export function TopBar() {
           )}
         </label>
 
-        <div style={{ display: 'flex', gap: 9 }}>
+        <div className="xc-top-actions">
           <button type="button" className="xc-btn xc-btn--square" aria-label="Reload data" title="Reload data" onClick={reload}>
             <IconRefresh />
           </button>

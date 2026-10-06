@@ -441,6 +441,10 @@ select.xc-input {
 .xc-scope select {
   max-width: 280px;
 }
+.xc-top-actions {
+  display: flex;
+  gap: 9px;
+}
 .xc-nav {
   display: flex;
   align-items: stretch;
@@ -1273,5 +1277,169 @@ select.xc-input {
     right: 0;
     bottom: 0;
     width: 100vw;
+  }
+}
+
+/* ---------- phone layout (<= 760px): lens fills the screen, tab bar, bottom sheets ------------ */
+.xc-phone {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  /* dvh so the browser's collapsing address bar does not leave a gap or hide the tab bar */
+  height: 100dvh;
+  min-height: 0;
+}
+.xc-phone .xc-nav,
+.xc-phone .xc-conn,
+.xc-phone .xc-nav-kicker {
+  display: none;
+}
+.xc-phone .xc-top {
+  padding-bottom: 12px;
+}
+.xc-phone-main {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 12px;
+}
+.xc-phone-main > .xc-win {
+  flex: 1;
+  min-height: 0;
+  height: auto;
+}
+.xc-phone-actions {
+  display: flex;
+  gap: 8px;
+  padding-bottom: 12px;
+}
+.xc-phone-actions .xc-btn {
+  flex: 1;
+}
+.xc-tabbar {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  border-top: 1px solid var(--hairline);
+  background: var(--ground);
+  padding-bottom: env(safe-area-inset-bottom);
+  z-index: 30;
+}
+.xc-tabbar-btn {
+  display: grid;
+  justify-items: center;
+  gap: 3px;
+  min-height: 56px;
+  padding: 8px 2px 6px;
+  border: 0;
+  border-top: 2px solid transparent;
+  background: transparent;
+  color: var(--ink-muted);
+  font: 600 14px/1 var(--font-condensed);
+  cursor: pointer;
+}
+.xc-tabbar-btn svg {
+  width: 20px;
+  height: 20px;
+}
+.xc-tabbar-btn[aria-current='page'] {
+  color: var(--ink);
+  border-top-color: var(--accent);
+}
+.xc-scrim--sheet {
+  z-index: 34;
+}
+.xc-sheet {
+  position: fixed;
+  left: 8px;
+  right: 8px;
+  bottom: calc(60px + env(safe-area-inset-bottom));
+  z-index: 35;
+  display: flex;
+  flex-direction: column;
+  max-height: min(72dvh, 640px);
+  box-shadow: var(--shadow-overlay);
+  /* the inspector sheet leaves the lens above it usable, so it is shorter */
+}
+.xc-sheet[data-modal='false'] {
+  max-height: 52dvh;
+}
+.xc-sheet-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 8px 8px var(--window-padding);
+  border-bottom: 1px solid var(--hairline);
+}
+.xc-sheet-head h2 {
+  flex: 1;
+}
+.xc-sheet-grip {
+  position: absolute;
+  top: 5px;
+  left: 50%;
+  width: 36px;
+  height: 3px;
+  margin-left: -18px;
+  background: var(--hairline-strong);
+}
+.xc-sheet-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+/* components keep their own window chrome on desktop; inside a sheet the sheet is the window */
+.xc-sheet-body > .xc-win,
+.xc-sheet-body > .xc-status {
+  border: 0;
+  box-shadow: none;
+  background: transparent;
+  height: auto;
+  max-height: none;
+}
+.xc-sheet-body > .xc-win::before {
+  content: none;
+}
+.xc-sheet-body .xc-scroll {
+  overflow: visible;
+}
+.xc-sheet-body > .xc-inspector {
+  flex: 1;
+}
+@media (max-width: 760px) {
+  .xc-top {
+    padding-inline: 16px;
+  }
+  .xc-status {
+    border-top: 1px solid var(--hairline);
+  }
+  /* the desktop rule gave the lens a fixed 560px; on a phone it takes the screen */
+  .xc-canvas-win {
+    height: auto;
+  }
+}
+
+@media (max-width: 760px) {
+  /* brand and the two icon buttons share the first row; the scope picker gets a full row below */
+  .xc-phone .xc-top-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 10px 12px;
+  }
+  .xc-phone .xc-scope {
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
+  .xc-phone .xc-scope select,
+  .xc-phone .xc-scope .xc-input {
+    flex: 1;
+    max-width: none;
+    min-width: 0;
+  }
+  .xc-phone-actions .xc-count {
+    margin-left: 8px;
   }
 }

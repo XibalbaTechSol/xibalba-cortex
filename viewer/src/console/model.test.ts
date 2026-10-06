@@ -3,6 +3,7 @@ import type { GraphPayload } from '../api'
 import {
   buildLanes,
   buildModel,
+  changedFacetCount,
   countFacets,
   defaultFacets,
   edgeGroup,
@@ -299,5 +300,30 @@ describe('elideHash', () => {
   })
   it('leaves a short value untouched', () => {
     expect(elideHash('sha256:abcd')).toBe('sha256:abcd')
+  })
+})
+
+describe('changedFacetCount', () => {
+  const model = buildModel(payload, new Map())
+  it('is zero at the defaults, so a fresh view shows no badge', () => {
+    expect(changedFacetCount(defaultFacets(model), model)).toBe(0)
+  })
+  it('counts each switch that differs from its default', () => {
+    const f = defaultFacets(model)
+    f.classes.entity = false
+    f.edges.similarity = false
+    expect(changedFacetCount(f, model)).toBe(2)
+  })
+  it('counts turning a hidden-by-default status on as a change too', () => {
+    const f = defaultFacets(model)
+    expect(f.statuses.superseded).toBe(false)
+    f.statuses.superseded = true
+    expect(changedFacetCount(f, model)).toBe(1)
+  })
+  it('does not count a switch the user put back', () => {
+    const f = defaultFacets(model)
+    f.classes.entity = false
+    f.classes.entity = true
+    expect(changedFacetCount(f, model)).toBe(0)
   })
 })

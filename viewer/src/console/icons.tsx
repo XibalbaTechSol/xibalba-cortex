@@ -74,3 +74,19 @@ export const IconClose = (p: IconProps) => (
     <path d="M18 6 6 18M6 6l12 12" />
   </svg>
 )
+
+export const IconReview = (p: IconProps) => (
+  <svg {...base} {...p}>
+    <path d="M4 6.5l1.6 1.6L8.4 5" />
+    <path d="M4 12.5l1.6 1.6 2.8-3.1" />
+    <path d="M4 18.5l1.6 1.6 2.8-3.1" />
+    <path d="M12 7h8M12 13h8M12 19h8" />
+  </svg>
+)
+
+export const IconIntegrity = (p: IconProps) => (
+  <svg {...base} {...p}>
+    <path d="M12 3l7 3v5c0 4.4-2.9 7.9-7 10-4.1-2.1-7-5.6-7-10V6l7-3z" />
+    <path d="M9 12l2.2 2.2L15.2 10" />
+  </svg>
+)
