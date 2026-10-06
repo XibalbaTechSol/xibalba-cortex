@@ -16,11 +16,14 @@ def main():
     backend = shutil.which('xibalba-cortex-observer')
     home = os.environ.get('XIBALBA_CORTEX_HOME')
     if args.action == 'doctor':
+        identity_configured = bool(os.environ.get('XIBALBA_AGENT_ID', '').strip()) or bool(
+            home and (Path(home).expanduser()/'agent.did.json').is_file())
         checks = {'backend_available': bool(backend), 'mcp_available': bool(shutil.which('xibalba-cortex')),
                   'explicit_profile_configured': bool(home), 'capture_mode': os.environ.get('XIBALBA_CORTEX_CAPTURE_MODE', 'metadata'),
+                  'identity_source_configured': identity_configured,
                   'native_hook_runtime': args.runtime, 'live_callback_verified': False}
         print(json.dumps(checks))
-        return 0 if all(checks[k] for k in ['backend_available', 'mcp_available', 'explicit_profile_configured']) else 1
+        return 0 if all(checks[k] for k in ['backend_available', 'mcp_available', 'explicit_profile_configured', 'identity_source_configured']) else 1
     # Observation-only fail-open behavior. No package installation, downloads,
     # daemon spawning or settings mutations inside callbacks.
     if not args.runtime or not backend or not home:

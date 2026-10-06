@@ -29,6 +29,14 @@ content; do not enable it implicitly. The backend remains a pilot source install
 not a claimed standalone `pip install` product. Linux/POSIX hook commands are tested;
 Windows/native desktop installation needs a separate canary.
 
+The selected profile must contain a validated `agent.did.json`, provisioned with
+the Integrity SDK, before the stdio MCP server can start. Claude/Codex launchers
+may alternatively inherit an explicit `XIBALBA_AGENT_ID`. For Gemini prefer the
+profile DID file: its environment filtering need not preserve arbitrary variables.
+Keep stdio agent scoping enabled. The bridge doctor checks that an identity source
+exists; the backend validates the public DID binding during startup, and a successful
+`memory_status` invocation remains the actual connectivity check.
+
 ## Install from the repository
 
 The commands below select the published pilot branch until it is merged/released.
@@ -45,10 +53,11 @@ Codex:
 
 ```bash
 codex plugin marketplace add XibalbaTechSol/xibalba-cortex --ref feat/cortex-runtime-and-plugins
+codex plugin add cortex-codex@xibalba-cortex
 ```
 
-Open the supported local client's Plugins directory, select **Xibalba Cortex** and
-install **cortex-codex**. Review/trust the hooks through `/hooks` before expecting
+Alternatively open the supported local client's Plugins directory, select
+**Xibalba Cortex** and install **cortex-codex**. Review/trust the hooks through `/hooks` before expecting
 callbacks. Installation does not bypass Codex hook trust or administrator policies.
 This local stdio package cannot run on hosted ChatGPT surfaces. A hosted ChatGPT
 plugin requires a deployed OAuth MCP endpoint and registered plugin mapping, then

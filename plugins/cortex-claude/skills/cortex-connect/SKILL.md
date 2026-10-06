@@ -7,6 +7,9 @@ Invoke the connected Cortex `memory_status` tool and report the actual result.
 If the tool is absent or the call fails, explain that installation is not a successful
 connection check. Check that the installed Cortex environment's bin directory is
 on the host application's PATH and `XIBALBA_CORTEX_HOME` selects the intended profile.
+The profile needs a validated `agent.did.json`, or the launcher must inherit an
+explicit `XIBALBA_AGENT_ID`; missing identity prevents stdio startup. Keep agent
+scoping enabled. The bridge doctor checks presence, not validity, of this source.
 Use `xibalba-cortex-operator doctor` for local backend diagnostics; do not invent a
 successful connection based on a plugin manifest or settings card.
 

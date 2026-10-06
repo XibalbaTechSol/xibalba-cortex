@@ -17,6 +17,7 @@ def test_packaged_hook_executes_installed_observer(tmp_path, runtime, events):
     hooks = json.loads((plugin/'hooks/hooks.json').read_text())['hooks']
     assert set(hooks) == set(events)
     env = dict(os.environ, XIBALBA_CORTEX_HOME=str(tmp_path/'profile'),
+               XIBALBA_AGENT_ID='did:integrity:plugin-fixture',
                PATH=str(Path(sys.executable).parent)+os.pathsep+os.environ['PATH'])
     result = subprocess.run([sys.executable, str(plugin/'scripts/bridge.py'), 'hook', '--runtime', runtime],
         input=json.dumps({'hook_event_name': 'SessionStart', 'session_id': 'plugin-canary'}),
@@ -29,6 +30,17 @@ def test_packaged_hook_executes_installed_observer(tmp_path, runtime, events):
                            env=env, capture_output=True, text=True)
     assert check.returncode == 0
     assert json.loads(check.stdout)['live_callback_verified'] is False
+    assert json.loads(check.stdout)['identity_source_configured'] is True
+
+
+def test_plugin_doctor_requires_an_identity_source(tmp_path):
+    env = dict(os.environ, XIBALBA_CORTEX_HOME=str(tmp_path),
+               PATH=str(Path(sys.executable).parent)+os.pathsep+os.environ['PATH'])
+    env.pop('XIBALBA_AGENT_ID', None)
+    script = ROOT/'plugins/cortex-codex/scripts/bridge.py'
+    result = subprocess.run([sys.executable, str(script), 'doctor'], env=env, capture_output=True, text=True)
+    assert result.returncode == 1
+    assert json.loads(result.stdout)['identity_source_configured'] is False
 
 
 def test_missing_backend_fails_open_without_creating_profile(tmp_path):

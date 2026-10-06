@@ -21,18 +21,44 @@ from urllib.parse import quote
 import requests
 
 from .provider_adapters import _payload_metadata, _usage
+from .observer_capture import _scrub
 from .redaction import redact
 from .runtime_bridge_contract import RuntimeEvent
 
 TERMINAL = {"completed", "failed", "cancelled", "incomplete"}
+PROVIDER_STATES = TERMINAL | {"queued", "in_progress", "cancelling"}
 MAX_EVENT_BYTES = 1_048_576
 MAX_CONTENT_CHARS = 16000
+
+
+def _bounded_lines(response):
+    # requests.iter_lines buffers an entire unterminated line before yielding it.
+    # Bound that buffer ourselves. One-byte reads preserve delivery before EOF on
+    # non-chunked background streams; bytearray avoids quadratic concatenation.
+    pending = bytearray()
+    after_cr = False
+    for chunk in response.iter_content(chunk_size=1):
+        for byte in chunk:
+            if after_cr:
+                after_cr = False
+                if byte == 10:
+                    continue
+            if byte in (10, 13):
+                yield bytes(pending)
+                pending.clear()
+                after_cr = byte == 13
+            else:
+                pending.append(byte)
+                if len(pending) > MAX_EVENT_BYTES:
+                    raise ValueError("provider event exceeds capture limit")
+    if pending:
+        yield bytes(pending)
 
 
 def sse_events(response, pulse=None):
     """Parse SSE data frames, including multi-line data and keepalive comments."""
     lines, size = [], 0
-    for line in response.iter_lines(chunk_size=1, decode_unicode=False):
+    for line in _bounded_lines(response):
         if pulse:
             pulse()
         if isinstance(line, bytes):
@@ -68,17 +94,26 @@ def _capture(value, raw):
     """Never retain arbitrary structures: only selected text is eligible for capture."""
     result = _payload_metadata(value, allow_raw=False)
     if raw and isinstance(value, str):
-        result["redacted"] = redact(value)[:MAX_CONTENT_CHARS]
-        result["truncated"] = len(redact(value)) > MAX_CONTENT_CHARS
+        try:
+            structured = json.loads(value)
+        except ValueError:
+            structured = None
+        # Complete tool arguments/results are often JSON strings. Text regexes
+        # alone don't redact quoted keys such as {"password":"value"}.
+        safe = json.dumps(_scrub(structured), ensure_ascii=False) if isinstance(structured, (dict, list)) else redact(value)
+        result["redacted"] = safe[:MAX_CONTENT_CHARS]
+        result["truncated"] = len(safe) > MAX_CONTENT_CHARS
     return result
 
 
 def _safe_response(response, raw):
+    _validate_object(response, ("id", "model", "status"))
     result = {"status": response.get("status"), "model": response.get("model"),
               "usage": _usage(response.get("usage")), "outputs": []}
     for index, item in enumerate(response.get("output", [])[:100]):
         if not isinstance(item, dict):
             continue
+        _validate_object(item, ("id", "type", "name", "call_id", "status"))
         kind = str(item.get("type", "unknown"))
         # Hidden reasoning and reasoning summaries are deliberately omitted.
         if "reason" in kind or "thought" in kind:
@@ -87,10 +122,12 @@ def _safe_response(response, raw):
         if kind == "message":
             entry["content"] = []
             for part in item.get("content", [])[:100]:
+                if not isinstance(part, dict):
+                    continue
                 if part.get("type") == "output_text":
                     entry["content"].append(_capture(part.get("text", ""), raw))
                     entry["citations"] = [_capture(a.get("url", ""), raw)
-                        for a in part.get("annotations", [])[:100] if a.get("url")]
+                        for a in part.get("annotations", [])[:100] if isinstance(a, dict) and a.get("url")]
         elif kind == "mcp_call" or kind == "function_call" or kind.endswith("_call"):
             entry.update({"name": item.get("name"), "call_id": item.get("call_id"),
                           "status": item.get("status"), "failed": bool(item.get("error")),
@@ -105,6 +142,25 @@ def _safe_response(response, raw):
                           if key in {"input_cost", "output_cost", "total_cost", "cache_creation_cost", "cache_read_cost", "tool_calls_cost"}
                           and type(value) in {float, int} and math.isfinite(value)}
     return result
+
+
+def _validate_object(value, scalar_keys):
+    if not isinstance(value, dict):
+        raise ValueError("invalid provider object")
+    for key in scalar_keys:
+        field = value.get(key)
+        if field is not None and (not isinstance(field, str) or not field or len(field) > 200):
+            raise ValueError("invalid provider metadata field")
+
+
+def _next_status(current, incoming):
+    if incoming is None:
+        return None
+    if current in TERMINAL:
+        return current
+    if current == "cancelling" and incoming not in TERMINAL:
+        return current
+    return incoming
 
 
 class PerplexityRuntimeRecorder:
@@ -175,12 +231,21 @@ class PerplexityRuntimeRecorder:
             inserted = self.db.execute("INSERT OR IGNORE INTO events(run_id,event_key,payload) VALUES(?,?,?)",
                 (run["id"], key, json.dumps(event))).rowcount
             if inserted:
+                # Snapshots/cancellation can race with a stream, so read state
+                # inside this write transaction instead of using its stale copy.
+                current = self.db.execute("SELECT status FROM runs WHERE id=?", (run["id"],)).fetchone()[0]
+                status = _next_status(current, status)
                 self.db.execute("UPDATE runs SET cursor=CASE WHEN ? IS NULL THEN cursor ELSE MAX(COALESCE(cursor,-1),?) END, "
                     "response_id=COALESCE(?,response_id), status=COALESCE(?,status), gap=MAX(gap,?), "
                     "lease_until=CASE WHEN lease IS NULL THEN 0 ELSE ? END WHERE id=?",
                     (cursor, cursor, response_id, status, int(gap), time.time()+180, run["id"]))
         self.flush(run["id"], agent_id)
-        return inserted
+        return self._event_row(run["id"], key) if inserted else None
+
+    def _event_row(self, run_id, key):
+        row = self.db.execute("SELECT position,payload FROM events WHERE run_id=? AND event_key=?",
+                              (run_id, key)).fetchone()
+        return {"position": row["position"], "event": json.loads(row["payload"])}
 
     def flush(self, run_id, agent_id):
         run = self._run(run_id, agent_id)
@@ -199,7 +264,18 @@ class PerplexityRuntimeRecorder:
 
     def _provider_event(self, run_id, agent_id, event, occurrence):
         run = self._run(run_id, agent_id)
+        _validate_object(event, ("type", "response_id", "item_id"))
+        if not isinstance(event.get("type"), str) or not re.fullmatch(r"[A-Za-z0-9_.-]{1,150}", event["type"]):
+            raise ValueError("invalid provider event type")
+        if len(json.dumps(event).encode()) > MAX_EVENT_BYTES:
+            raise ValueError("provider event exceeds capture limit")
         response = event.get("response") or {}
+        _validate_object(response, ("id", "model", "status"))
+        _validate_object(event.get("item") or {}, ("id", "type", "name", "call_id", "status"))
+        if response.get("status") is not None and response["status"] not in PROVIDER_STATES:
+            raise ValueError("invalid provider status")
+        if event.get("output_index") is not None and (type(event["output_index"]) is not int or event["output_index"] < 0):
+            raise ValueError("invalid output index")
         response_id = response.get("id") or event.get("response_id")
         if response_id is not None and (not isinstance(response_id, str) or len(response_id) > 200):
             raise ValueError("invalid provider response id")
@@ -318,8 +394,9 @@ class PerplexityRuntimeRecorder:
                 if "text/event-stream" not in response.headers.get("Content-Type", ""):
                     raise ValueError("expected provider SSE stream")
                 for index, event in enumerate(sse_events(response, pulse=pulse)):
-                    if self._provider_event(run_id, agent_id, event, f"{occurrence}:{index}"):
-                        yield self.replay(run_id=run_id, agent_id=agent_id, after=0, limit=1, newest=True)[0]
+                    accepted = self._provider_event(run_id, agent_id, event, f"{occurrence}:{index}")
+                    if accepted:
+                        yield accepted
                 latest = self._run(run_id, agent_id)
                 if latest["status"] not in TERMINAL:
                     self._append(latest, agent_id, "interrupted:"+occurrence, "cortex.stream_interrupted",
@@ -374,13 +451,16 @@ class PerplexityRuntimeRecorder:
             self._check(response)
             body = self._json_body(response)
         status = body.get("status")
+        if not isinstance(status, str) or status not in PROVIDER_STATES:
+            raise ValueError("unexpected snapshot status")
         if body.get("id") != run["response_id"]:
             raise ValueError("snapshot response id mismatch")
         packet = _safe_response(body, bool(run["raw"]))
-        self._append(run, agent_id, "snapshot:"+hashlib.sha256(json.dumps(packet, sort_keys=True).encode()).hexdigest(),
+        key = "snapshot:"+hashlib.sha256(json.dumps(packet, sort_keys=True).encode()).hexdigest()
+        self._append(run, agent_id, key,
             "cortex.response_snapshot", {"response": packet, "usage": packet["usage"],
             "historical_events_reconstructed": False}, status=status)
-        yield self.replay(run_id=run_id, agent_id=agent_id, after=0, limit=1, newest=True)[0]
+        yield self._event_row(run_id, key)
 
     def cancel(self, *, run_id, agent_id, api_key):
         run = self._run(run_id, agent_id)
@@ -444,8 +524,12 @@ def main():
                 parser.error("--payload is required")
             run_id = args.run_id or str(uuid.uuid4())
             print(json.dumps({"run_id": run_id}), flush=True)
+            with args.payload.open("rb") as source:
+                raw = source.read(MAX_EVENT_BYTES + 1)
+            if len(raw) > MAX_EVENT_BYTES:
+                raise ValueError("request exceeds size limit")
             events = recorder.start(agent_id=args.agent_id, api_key=os.environ["PERPLEXITY_API_KEY"],
-                run_id=run_id, payload=json.loads(args.payload.read_text()), memory_query=args.memory_query)
+                run_id=run_id, payload=json.loads(raw), memory_query=args.memory_query)
             for event in events:
                 print(json.dumps(event), flush=True)
         elif args.action in {"resume", "snapshot"}:

@@ -6,6 +6,13 @@ which includes hosted memory connector PR #42 and observer foundation PR #39.
 No provider account call, cloud deployment, official directory submission or merge
 of this implementation branch has been performed.
 
+Continuation evidence and remaining release gates are recorded in
+[`runtime-plugin-canaries.md`](runtime-plugin-canaries.md). The 2026-10-06 pass
+verified native manifest/install checks and a scoped local MCP invocation, fixed
+recorder review findings and the documented identity prerequisite, and passed
+603 tests with 2 opt-in skips. Live model-host callbacks, Perplexity billing/API
+and consumer OAuth/HTTPS dispatch remain outstanding.
+
 ## Implemented
 
 - `PerplexityAdapter.recorder()` and `xibalba-cortex-perplexity`: launch background

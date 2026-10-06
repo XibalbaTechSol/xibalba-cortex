@@ -36,7 +36,12 @@ class Response:
     def __enter__(self): return self
     def __exit__(self, *args): pass
     def json(self): return self.body
-    def iter_content(self, **kwargs): yield json.dumps(self.body).encode()
+    def iter_content(self, **kwargs):
+        if self.events is None:
+            yield json.dumps(self.body).encode()
+        else:
+            for line in self.iter_lines(**kwargs):
+                yield line + b'\n'
     def iter_lines(self, **kwargs):
         for event in self.events:
             yield b': heartbeat'
@@ -201,6 +206,86 @@ def test_sse_multiline_and_oversize():
     response.iter_lines = lambda **kw: iter([b'data: '+b'x'*1_048_577])
     with pytest.raises(ValueError, match='limit'):
         list(sse_events(response))
+
+
+def test_unterminated_sse_line_is_rejected_before_reading_unbounded_input():
+    response = Response([])
+    consumed = 0
+    def chunks(**kwargs):
+        nonlocal consumed
+        # No newline: iter_lines would retain the whole response before yielding.
+        for _ in range(300):
+            consumed += 8192
+            yield b'x' * 8192
+    response.iter_content = chunks
+    with pytest.raises(ValueError, match='limit'):
+        list(sse_events(response))
+    assert consumed < 2 * 1_048_576
+
+
+def test_sse_crlf_split_unicode_and_frame_bounds():
+    response = Response([])
+    wire = ': heartbeat\r\ndata: {"type":"test","text":"héllo"}\r\n\r\ndata: [DONE]\r\n\r\n'.encode()
+    response.iter_content = lambda **kwargs: (bytes([byte]) for byte in wire)
+    assert list(sse_events(response)) == [{'type': 'test', 'text': 'héllo'}]
+    response.iter_content = lambda **kwargs: iter([b'data: '+b' ' * 600000+b'\n',
+                                                   b'data: '+b' ' * 600000+b'\n'])
+    with pytest.raises(ValueError, match='limit'):
+        list(sse_events(response))
+
+
+def test_complete_json_tool_arguments_and_results_use_key_redaction(tmp_path):
+    events = stream_fixture()[:1] + [{'type': 'response.output_item.done', 'sequence_number': 1,
+        'item': {'type': 'mcp_call', 'id': 'tool', 'arguments': '{"password":"PRIVATE_PASSWORD","nested":{"api-key":"PRIVATE_API_KEY"}}',
+                 'output': '{"authorization":"PRIVATE_AUTHORIZATION","answer":"safe"}'}}]
+    with recorder(tmp_path, Transport(Response(events)), raw=True) as (runtime, store):
+        list(runtime.start(agent_id=AGENT, api_key='key', payload={'input': 'x'}, run_id='json'))
+        saved = json.dumps(runtime.replay(run_id='json', agent_id=AGENT))
+        assert 'PRIVATE_' not in saved
+        assert 'safe' in saved and '[REDACTED]' in saved
+        assert 'PRIVATE_' not in json.dumps(store.session_otel_events('perplexity:json'))
+
+
+def test_stale_snapshots_do_not_regress_cancellation_or_terminal_status(tmp_path):
+    transport = Transport(Response(stream_fixture()[:1]), Response(body={'status': 'cancelling'}),
+        Response(body={'id': 'resp_1', 'status': 'in_progress', 'output': []}),
+        Response(body={'id': 'resp_1', 'status': 'cancelled', 'output': []}),
+        Response(body={'id': 'resp_1', 'status': 'in_progress', 'output': []}))
+    with recorder(tmp_path, transport) as (runtime, store):
+        list(runtime.start(agent_id=AGENT, api_key='key', payload={'input': 'x'}, run_id='stale'))
+        runtime.cancel(run_id='stale', agent_id=AGENT, api_key='key')
+        list(runtime.snapshot(run_id='stale', agent_id=AGENT, api_key='key'))
+        assert runtime.status(run_id='stale', agent_id=AGENT)['status'] == 'cancelling'
+        list(runtime.snapshot(run_id='stale', agent_id=AGENT, api_key='key'))
+        assert runtime.status(run_id='stale', agent_id=AGENT)['status'] == 'cancelled'
+        list(runtime.snapshot(run_id='stale', agent_id=AGENT, api_key='key'))
+        assert runtime.status(run_id='stale', agent_id=AGENT)['status'] == 'cancelled'
+
+
+@pytest.mark.parametrize('extra', [{'item_id': {'secret': 'PRIVATE'}},
+    {'response': {'id': 'resp_1', 'model': {'secret': 'PRIVATE'}}},
+    {'item': {'id': {'secret': 'PRIVATE'}}}, {'output_index': True}])
+def test_structured_metadata_is_rejected_before_journal_capture(tmp_path, extra):
+    events = stream_fixture()[:1] + [{'type': 'response.output_text.delta', 'sequence_number': 1, **extra}]
+    with recorder(tmp_path, Transport(Response(events))) as (runtime, store):
+        with pytest.raises(RuntimeError, match='capture interrupted'):
+            list(runtime.start(agent_id=AGENT, api_key='key', payload={'input': 'x'}, run_id='bad-metadata'))
+        assert runtime.status(run_id='bad-metadata', agent_id=AGENT)['cursor'] == 0
+        assert 'PRIVATE' not in json.dumps(runtime.replay(run_id='bad-metadata', agent_id=AGENT))
+
+
+def test_live_yield_corresponds_to_accepted_event_despite_other_append(tmp_path, monkeypatch):
+    with recorder(tmp_path, Transport(Response(stream_fixture()))) as (runtime, store):
+        original = runtime._provider_event
+        def concurrent_append(run_id, agent_id, event, occurrence):
+            accepted = original(run_id, agent_id, event, occurrence)
+            if event['type'] == 'response.output_text.delta':
+                runtime._append(runtime._run(run_id, agent_id), agent_id, 'other:'+occurrence,
+                                'cortex.concurrent_observation', {})
+            return accepted
+        monkeypatch.setattr(runtime, '_provider_event', concurrent_append)
+        live = list(runtime.start(agent_id=AGENT, api_key='key', payload={'input': 'x'}, run_id='live'))
+        assert [row['event']['tool_name'] for row in live] == [event['type'] for event in stream_fixture()]
 
 
 def test_real_http_stream(tmp_path):

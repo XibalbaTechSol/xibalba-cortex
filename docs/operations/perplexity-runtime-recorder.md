@@ -88,6 +88,13 @@ is 1 MiB; selected text capture is capped at 16,000 characters per field. Unknow
 event types retain envelope identity, not their raw body. Missing provider fields
 remain missing rather than being inferred.
 
+SSE line buffers are bounded before a newline arrives, including comment-only and
+unterminated frames. Complete JSON string tool arguments/results receive recursive
+secret-key redaction before text capture. Provider correlation metadata must be
+bounded scalar values. Cancellation and terminal run state do not regress when
+a stale snapshot or stream event arrives. Live delivery returns the specific
+accepted journal row even when another operation appends concurrently.
+
 The profile-local `perplexity-runtime.sqlite3` WAL journal commits each normalized
 event and cursor atomically before the live event is returned. GraphStore receives
 idempotent runtime events afterward. Resume/flush can deliver pending journal events
