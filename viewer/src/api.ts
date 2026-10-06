@@ -36,6 +36,17 @@ function markSignedIn(value: boolean): void {
   else sessionStorage.removeItem(SIGNED_IN_KEY)
 }
 
+/**
+ * Dev only: the Vite dev server's proxy attaches a local operator token to every /cortex-api
+ * request, so there is no cookie to sign in for. Prove the proxy reaches a Cortex profile, then
+ * mark the viewer signed in. A production build has no such proxy and this just fails honestly.
+ */
+export async function connectLocalDev(): Promise<void> {
+  const response = await fetch(`${getApiBaseUrl()}/api/status`, { credentials: 'include' })
+  if (!response.ok) throw new Error('No local Cortex profile is reachable through the dev proxy. Start the local API, or sign in with an account.')
+  markSignedIn(true)
+}
+
 export function getApiBaseUrl(): string {
   return apiBaseUrl
 }

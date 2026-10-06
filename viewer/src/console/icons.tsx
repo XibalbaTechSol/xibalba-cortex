@@ -90,3 +90,16 @@ export const IconIntegrity = (p: IconProps) => (
     <path d="M9 12l2.2 2.2L15.2 10" />
   </svg>
 )
+
+export const IconLock = (p: IconProps) => (
+  <svg {...base} {...p}>
+    <rect x="5" y="11" width="14" height="9" />
+    <path d="M8 11V8a4 4 0 018 0v3" />
+  </svg>
+)
+
+export const IconArrowRight = (p: IconProps) => (
+  <svg {...base} {...p}>
+    <path d="M4 12h15M13 6l6 6-6 6" />
+  </svg>
+)

@@ -1048,30 +1048,112 @@ select.xc-input {
   height: 7px;
 }
 
-/* ---------- sign-in ---------------------------------------------------------------------------- */
+/* ---------- sign-in: Shield's layout (story panel | form panel) --------------------------------- */
 .xc-auth {
   flex: 1;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 480px);
-  gap: 56px;
-  align-items: center;
-  max-width: 1160px;
-  width: 100%;
-  margin: 0 auto;
-  padding: 56px var(--gutter);
+  grid-template-columns: minmax(0, 1fr) minmax(420px, 520px);
+  min-height: 100vh;
 }
 .xc-auth-story {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 40px;
+  padding: 72px clamp(32px, 7vw, 96px);
+}
+.xc-auth-story-body {
   display: grid;
   gap: 18px;
 }
-.xc-auth-story h1 {
-  font: 600 52px/0.98 var(--font-condensed);
+.xc-auth-story-body h1 {
+  max-width: 560px;
+  font: 600 clamp(46px, 5vw, 64px) / 0.98 var(--font-condensed);
   letter-spacing: -0.02em;
+}
+.xc-auth-story-body p:not(.xc-eyebrow) {
+  max-width: 460px;
+  color: var(--ink-muted);
+  font-size: 16px;
+  line-height: 1.55;
+}
+.xc-auth-story aside {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  max-width: 460px;
+  padding: 16px 18px;
+  border: 1px solid var(--hairline);
+  background: var(--panel);
+}
+.xc-auth-story aside svg {
+  width: 24px;
+  height: 24px;
+  color: var(--accent);
+}
+.xc-auth-story aside span {
+  display: grid;
+  gap: 3px;
+}
+.xc-auth-story aside small {
+  color: var(--ink-muted);
+  font-size: 13px;
+}
+.xc-auth-formwrap {
+  display: grid;
+  place-items: center;
+  padding: 48px clamp(28px, 5vw, 64px);
+  background: var(--panel);
+  border-left: 1px solid var(--hairline);
 }
 .xc-auth-form {
   display: grid;
   gap: 16px;
-  padding: 28px;
+  width: min(440px, 100%);
+}
+.xc-lock {
+  width: 52px;
+  height: 52px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--accent);
+  color: var(--accent);
+}
+.xc-lock svg {
+  width: 24px;
+  height: 24px;
+}
+.xc-auth-title {
+  margin: 0;
+  font: 600 38px / 1 var(--font-condensed);
+}
+.xc-auth-lede {
+  margin: -6px 0 0;
+  color: var(--ink-muted);
+}
+.xc-auth-advanced summary {
+  cursor: pointer;
+  color: var(--ink-dim);
+  font-size: 12px;
+}
+.xc-auth-advanced .xc-field {
+  margin-top: 10px;
+}
+.xc-auth-submit {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+}
+.xc-auth-note {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--ink-dim);
+}
+.xc-auth-note svg {
+  width: 14px;
+  height: 14px;
 }
 
 /* ---------- responsive ------------------------------------------------------------------------- */
@@ -1116,11 +1198,18 @@ select.xc-input {
   }
   .xc-auth {
     grid-template-columns: minmax(0, 1fr);
-    gap: 28px;
-    padding-top: 28px;
   }
-  .xc-auth-story h1 {
+  .xc-auth-story {
+    padding: 28px 20px;
+    gap: 24px;
+  }
+  .xc-auth-story-body h1 {
     font-size: 38px;
+  }
+  .xc-auth-formwrap {
+    border-left: 0;
+    border-top: 1px solid var(--hairline);
+    padding: 32px 20px;
   }
   .xc-overlay {
     padding: 12px;
