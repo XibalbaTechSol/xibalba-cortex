@@ -42,6 +42,20 @@ For a production build or an explicitly authenticated operator flow:
 `CORTEX_HOME`, `CORTEX_DEV_TOKEN_FILE`, and `CORTEX_LOCAL_API_URL` configure the profile,
 protected token file, and Vite proxy target respectively.
 
+## Try it on a fixture
+
+`scripts/dev_seed_console.py` (repo root) builds a scratch profile through the real store API, so
+every screen has something genuine to show: backdated sessions, entities and relations, a
+supersession, a contradiction, a forgotten memory, a writable agent workspace with a review queue,
+and a proposal belonging to a different workspace that the console must hide. It refuses to touch
+an existing or default profile.
+
+```bash
+uv run python scripts/dev_seed_console.py --home /tmp/cortex-dev
+uv run python -m xibalba_cortex.local_api --home /tmp/cortex-dev
+cd viewer && CORTEX_HOME=/tmp/cortex-dev npm run dev     # then "Connect to local Cortex"
+```
+
 ## Console (default UI)
 
 The default screen is the redesigned **Cortex console** (`src/console/`): two lenses, Graph and
