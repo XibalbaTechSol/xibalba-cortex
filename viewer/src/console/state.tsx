@@ -48,6 +48,8 @@ export interface ConsoleValue {
   /** Set when timing had to fall back to exchange timestamps only. */
   timingNote: string | null
   reload: () => void
+  /** Bumps on every reload; per-item fetches key on it so they refresh after a write. */
+  revision: number
   // ui
   lens: Lens
   setLens: (lens: Lens) => void
@@ -66,6 +68,9 @@ export interface ConsoleValue {
   setSimilarity: (value: number) => void
   overlay: Overlay
   setOverlay: (overlay: Overlay) => void
+  /** Outcome of the last write, kept across selection changes (a supersede selects a new memory). */
+  notice: string | null
+  setNotice: (notice: string | null) => void
   signOut: () => void
 }
 
@@ -104,6 +109,7 @@ export function ConsoleProvider({ children, onSignOut }: { children: ReactNode; 
   const [preset, setPreset] = useState<Preset>('all')
   const [similarity, setSimilarity] = useState(0.75)
   const [overlay, setOverlay] = useState<Overlay>(null)
+  const [notice, setNotice] = useState<string | null>(null)
 
   // Responses can arrive out of order when the scope or threshold changes quickly; only the
   // newest request may write state.
@@ -188,11 +194,12 @@ export function ConsoleProvider({ children, onSignOut }: { children: ReactNode; 
       workspace, model, memoryInfo, sessionEnds, sessions, stats, status, loading, error, timingNote, reload,
       lens, setLens, selectedId, select, reveal, focus, facets, setFacets,
       window: window_, preset, setWindow, applyPreset, similarity, setSimilarity, overlay, setOverlay,
+      revision: nonce, notice, setNotice,
       signOut: onSignOut,
     }),
     [workspace, model, memoryInfo, sessionEnds, sessions, stats, status, loading, error, timingNote, reload,
       lens, setLens, selectedId, select, reveal, focus, facets, window_, preset, setWindow, applyPreset,
-      similarity, overlay, onSignOut],
+      similarity, overlay, onSignOut, nonce, notice],
   )
 
   return <ConsoleContext.Provider value={value}>{children}</ConsoleContext.Provider>

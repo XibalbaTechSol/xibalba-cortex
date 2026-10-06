@@ -1154,3 +1154,43 @@ select.xc-input {
 .xc-table tr:hover td {
   background: rgba(255, 255, 255, 0.02);
 }
+
+/* ---------- write actions (inspector footer) -------------------------------------------------- */
+.xc-inspector-foot {
+  display: grid;
+  gap: 12px;
+  padding: 14px var(--window-padding);
+  border-top: 1px solid var(--hairline);
+  max-height: 60%;
+  overflow-y: auto;
+}
+.xc-form {
+  display: grid;
+  gap: 12px;
+}
+.xc-form textarea.xc-input {
+  resize: vertical;
+  min-height: 96px;
+  line-height: 1.45;
+}
+.xc-actions-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+/* destructive stays outlined until it is the confirm step: red is a state, not decoration */
+.xc-btn--danger-quiet {
+  color: var(--status-conflict);
+  border-color: color-mix(in srgb, var(--status-conflict) 45%, transparent);
+}
+.xc-btn--danger {
+  background: var(--status-conflict);
+  border-color: var(--status-conflict);
+  color: var(--ink-on-accent);
+}
+.xc-btn--danger:hover:not(:disabled) {
+  filter: brightness(1.1);
+}
+.xc-notice {
+  margin: 0;
+}

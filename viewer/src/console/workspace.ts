@@ -136,9 +136,14 @@ export function useWorkspace(): Workspace {
 
   const refresh = useCallback(() => setNonce((n) => n + 1), [])
 
+  // Keyed on the two ids, not on `selected`: a refresh re-fetches the agent list and yields a new
+  // `selected` object for the SAME namespace, and a new scope identity would reset the selection
+  // and re-fetch the graph for nothing.
+  const selectedAgent = selected?.agentId
+  const selectedStore = selected?.storeId
   const scope = useMemo<WorkspaceScope>(
-    () => (selected ? { agentId: selected.agentId, storeId: selected.storeId } : {}),
-    [selected],
+    () => (selectedAgent && selectedStore ? { agentId: selectedAgent, storeId: selectedStore } : {}),
+    [selectedAgent, selectedStore],
   )
 
   return useMemo(

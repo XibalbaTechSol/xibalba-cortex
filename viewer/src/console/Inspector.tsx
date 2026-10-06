@@ -9,7 +9,8 @@ import { api, type Memory, type WorkspaceScope } from '../api'
 import { useConsole } from './state'
 import { useAsync, type AsyncState } from './useAsync'
 import { elideHash, parseServerTime, shortStamp, type CEdge, type CNode, type GraphModel } from './model'
-import { IconCheck, IconWarn } from './icons'
+import { IconCheck, IconClose, IconWarn } from './icons'
+import { MemoryActions } from './MemoryActions'
 
 type MemoryTab = 'chain' | 'content' | 'provenance' | 'neighbors' | 'contradictions' | 'telemetry' | 'files'
 const MEMORY_TABS: Array<[MemoryTab, string]> = [
@@ -46,7 +47,7 @@ const statusTone = (status: string | undefined) =>
 // ---------------------------------------------------------------------------------------------------
 
 export function Inspector() {
-  const { selectedId, model } = useConsole()
+  const { selectedId, model, notice, setNotice } = useConsole()
   const node = selectedId ? model?.byId.get(selectedId) : undefined
 
   let body: ReactNode
@@ -75,15 +76,27 @@ export function Inspector() {
       </div>
     )
   }
-  return <aside className="xc-win xc-pane xc-inspector" aria-label="Inspector">{body}</aside>
+  return (
+    <aside className="xc-win xc-pane xc-inspector" aria-label="Inspector">
+      {notice && (
+        <div className="xc-callout xc-callout--anchored xc-notice" role="status">
+          <IconCheck />
+          <span style={{ flex: 1 }}>{notice}</span>
+          <button type="button" className="xc-link" aria-label="Dismiss" onClick={() => setNotice(null)}><IconClose /></button>
+        </div>
+      )}
+      {body}
+    </aside>
+  )
 }
 
 // --- memory ----------------------------------------------------------------------------------------
 
 function MemoryInspector({ memoryId, node }: { memoryId: string; node: CNode | undefined }) {
-  const { workspace, select } = useConsole()
+  const { workspace, select, revision } = useConsole()
   const scope = workspace.scope
-  const memory = useAsync(() => api.memory(memoryId, scope), [memoryId, scope])
+  // `revision` bumps after a write, so the memory and every tab under it are fetched fresh
+  const memory = useAsync(() => api.memory(memoryId, scope), [memoryId, scope, revision])
   const [tab, setTab] = useState<MemoryTab>('chain')
   const m = memory.data
 
@@ -115,7 +128,7 @@ function MemoryInspector({ memoryId, node }: { memoryId: string; node: CNode | u
       </div>
 
       <div className="xc-scroll" role="tabpanel" id="memory-panel" aria-labelledby={`tab-${tab}`}>
-        <div className="xc-inspector-body">
+        <div className="xc-inspector-body" key={revision}>
           {m && tab === 'chain' && <ChainTab memory={m} scope={scope} />}
           {m && tab === 'content' && <ContentTab memory={m} onOpen={(id) => select(`memory:${id}`)} />}
           {m && tab === 'provenance' && <ProvenanceTab memory={m} />}
@@ -126,6 +139,7 @@ function MemoryInspector({ memoryId, node }: { memoryId: string; node: CNode | u
           {!m && memory.loading && <p className="xc-note" role="status">Loading…</p>}
         </div>
       </div>
+      {m && <MemoryActions key={`${m.id}:${m.status}`} memory={m} />}
     </>
   )
 }

@@ -57,8 +57,12 @@ Honesty rules the console follows:
   counted as "untimed" and never hidden by the time window.
 - Session Merkle root validity is shown as *server-reported*. Retrieval inclusion proofs are the
   one thing verified in the browser (`merkleVerify.ts`).
-- This first slice is read-only. Mutations, the Review drawer and the Integrity drawer are
-  marked "soon" in the top bar and are not wired.
+- Writes (supersede, link entities, mark contradiction, forget) live in the memory inspector's
+  footer and are offered only in a verified, writable `{store, agent}` workspace; anywhere else
+  the footer says the workspace is read-only. Nothing is optimistic: the UI changes after the
+  server confirms and the graph is reloaded. Forget is a two-step confirm, and contradictions
+  are recorded, never resolved. The Review and Integrity drawers are marked "soon" in the top bar
+  and are not wired.
 
 The previous viewer is still available at `?ui=legacy` (link in the console status bar).
 
