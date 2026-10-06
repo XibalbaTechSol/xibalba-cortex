@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { buildContradiction, buildLink, buildSupersede, canForget, canSupersede } from './actions'
+import { buildContradiction, buildLink, buildNewMemory, buildSupersede, canForget, canSupersede } from './actions'
 
 describe('buildSupersede', () => {
   it('trims and returns the payload', () => {
@@ -62,5 +62,22 @@ describe('action availability', () => {
     expect(canSupersede('superseded')).toBe(false)
     expect(canSupersede('forgotten')).toBe(false)
     expect(canSupersede('active')).toBe(true)
+  })
+})
+
+describe('buildNewMemory', () => {
+  const form = { content: '  The relay retries twice.  ', status: 'active', evidenceClass: 'observed_event' } as const
+  it('trims, records a console provenance, and names the workspace only when there is one', () => {
+    expect(buildNewMemory(form, undefined)).toEqual({
+      ok: true,
+      payload: { content: 'The relay retries twice.', status: 'active', evidence_class: 'observed_event', source: { kind: 'direct_user', locator: 'console://memories/new' } },
+    })
+    const scoped = buildNewMemory(form, 'pseudonym:abc')
+    expect(scoped.ok && scoped.payload.workspace_agent_id).toBe('pseudonym:abc')
+  })
+  it('refuses empty content and values outside the offered sets', () => {
+    expect(buildNewMemory({ ...form, content: '   ' }, undefined).ok).toBe(false)
+    expect(buildNewMemory({ ...form, status: 'forgotten' as never }, undefined).ok).toBe(false)
+    expect(buildNewMemory({ ...form, evidenceClass: 'policy' as never }, undefined).ok).toBe(false)
   })
 })

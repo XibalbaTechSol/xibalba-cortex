@@ -91,3 +91,46 @@ export function canForget(status: string): boolean {
 export function canSupersede(status: string): boolean {
   return status !== 'forgotten' && status !== 'superseded'
 }
+
+// --- a new memory, written from the Memories page ---------------------------------------------------
+
+export const NEW_MEMORY_STATUSES = ['candidate', 'active', 'confirmed'] as const
+export type NewMemoryStatus = (typeof NEW_MEMORY_STATUSES)[number]
+
+/** The evidence classes a person can claim for something they type in. `summary`, `policy` and
+ *  `protocol_receipt` are produced by other mechanisms, so they are not offered. */
+export const NEW_MEMORY_CLASSES = ['declared_intent', 'observed_event', 'extracted_proposition', 'inference'] as const
+export type NewMemoryClass = (typeof NEW_MEMORY_CLASSES)[number]
+
+export interface NewMemoryForm {
+  content: string
+  status: NewMemoryStatus
+  evidenceClass: NewMemoryClass
+}
+
+export type NewMemoryPayload = {
+  content: string
+  status: NewMemoryStatus
+  evidence_class: NewMemoryClass
+  source: { kind: 'direct_user'; locator: string }
+  /** the persisted agent id of the selected workspace; omitted for the primary profile */
+  workspace_agent_id?: string
+}
+
+export function buildNewMemory(form: NewMemoryForm, workspaceAgentId: string | undefined): Built<NewMemoryPayload> {
+  const content = form.content.trim()
+  if (!content) return fail('Write the memory.')
+  if (!NEW_MEMORY_STATUSES.includes(form.status)) return fail('Choose a status.')
+  if (!NEW_MEMORY_CLASSES.includes(form.evidenceClass)) return fail('Choose an evidence class.')
+  return {
+    ok: true,
+    payload: {
+      content,
+      status: form.status,
+      evidence_class: form.evidenceClass,
+      // a person typed it in the console, so that is the provenance it is recorded with
+      source: { kind: 'direct_user', locator: 'console://memories/new' },
+      ...(workspaceAgentId ? { workspace_agent_id: workspaceAgentId } : {}),
+    },
+  }
+}

@@ -1882,3 +1882,117 @@ select.xc-input {
     padding: 0;
   }
 }
+
+/* ---------- memories page ---------------------------------------------------------------------------- */
+.xc-memories {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 400px;
+  gap: var(--window-gap);
+  align-items: start;
+}
+.xc-memories-list {
+  min-height: 0;
+  height: calc(100vh - 220px);
+  min-height: 520px;
+}
+.xc-memories-detail {
+  position: sticky;
+  top: 20px;
+  height: calc(100vh - 220px);
+  min-height: 520px;
+  display: flex;
+  flex-direction: column;
+}
+.xc-memories-detail > .xc-win {
+  flex: 1;
+  min-height: 0;
+}
+.xc-memories-filters {
+  display: grid;
+  gap: 12px;
+  padding: 14px var(--window-padding);
+  border-bottom: 1px solid var(--hairline);
+}
+.xc-memories-search {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.xc-memories-search svg {
+  color: var(--ink-dim);
+}
+.xc-memories-search .xc-input {
+  flex: 1;
+  min-width: 0;
+}
+.xc-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.xc-memories-table td,
+.xc-memories-table th {
+  padding-left: var(--window-padding);
+}
+.xc-memories-table tbody tr {
+  cursor: pointer;
+}
+.xc-memories-table tbody tr[data-selected='true'] td {
+  background: var(--accent-soft);
+}
+.xc-memories-table td {
+  vertical-align: top;
+}
+.xc-memories-table td:first-child {
+  white-space: nowrap;
+}
+.xc-memories-open {
+  display: block;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  text-align: left;
+  font: 400 13px/1.45 var(--font-body);
+  color: var(--ink);
+  cursor: pointer;
+}
+.xc-memories-table .xc-hash {
+  display: block;
+  margin-top: 3px;
+}
+.xc-pager {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px var(--window-padding);
+  border-top: 1px solid var(--hairline);
+}
+.xc-newmemory {
+  display: grid;
+  gap: 14px;
+  padding: var(--window-padding);
+  max-width: 760px;
+}
+.xc-newmemory-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+@media (max-width: 1180px) {
+  .xc-memories {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .xc-memories-detail {
+    position: static;
+    height: 560px;
+  }
+}
+@media (max-width: 760px) {
+  .xc-memories-list {
+    height: auto;
+    min-height: 0;
+  }
+  .xc-memories-table thead {
+    display: none;
+  }
+}

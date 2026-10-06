@@ -1,10 +1,13 @@
 import type { PageId } from '../nav'
+import { MemoriesPage } from './MemoriesPage'
 import { SettingsPage } from './SettingsPage'
 
 /** Renders the page a PageId names. A page that is in the registry but has no surface here is a
  *  bug, so it says so instead of rendering a blank screen. */
 export function PageHost({ page }: { page: PageId }) {
   switch (page) {
+    case 'memories':
+      return <MemoriesPage />
     case 'settings':
       return <SettingsPage />
     default:

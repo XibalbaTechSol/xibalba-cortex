@@ -45,7 +45,7 @@ export const ALL_DESTINATIONS: readonly Destination[] = [
 /** Pages whose surface exists. A page is added here in the same change that builds it. */
 export const BUILT: ReadonlySet<DestinationId> = new Set<DestinationId>([
   'graph', 'timeline', 'recall', 'review', 'integrity',
-  'settings',
+  'memories', 'settings',
 ])
 
 export const DESTINATIONS: readonly Destination[] = ALL_DESTINATIONS.filter((d) => BUILT.has(d.id))
