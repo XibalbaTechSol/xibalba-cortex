@@ -327,3 +327,81 @@ describe('changedFacetCount', () => {
     expect(changedFacetCount(f, model)).toBe(0)
   })
 })
+
+describe('memory time from the backend write time (created_at)', () => {
+  const base = (nodes: GraphPayload['nodes'], edges: GraphPayload['edges'] = []): GraphPayload => ({ nodes, edges })
+  const mem = (id: string, extra: Record<string, unknown> = {}) => ({ id: `memory:${id}`, type: 'memory' as const, label: id, status: 'active', evidence_class: 'observed_event', source_kind: 'direct_user', ...extra })
+
+  it('times a memory by created_at and says it is the store write time, not the event time', () => {
+    const m = buildModel(base([mem('a', { created_at: sqlite(5) })]))
+    const n = m.byId.get('memory:a')!
+    expect(n.time).toBe(T0 + 5 * 60_000)
+    expect(n.timeSource).toBe('recorded')
+    expect(m.untimed).toBe(0)
+  })
+  it('prefers the writer-supplied observed_at over created_at', () => {
+    const n = buildModel(base([mem('a', { created_at: sqlite(50), observed_at: iso(7) })])).byId.get('memory:a')!
+    expect(n.time).toBe(T0 + 7 * 60_000)
+    expect(n.timeSource).toBe('observed')
+  })
+  it('prefers the exchange the memory was part of over created_at', () => {
+    const nodes = [{ id: 'exchange:e', type: 'exchange' as const, label: 'x', timestamp: iso(12) }, mem('a', { created_at: sqlite(60) })]
+    const n = buildModel(base(nodes, [{ source: 'exchange:e', target: 'memory:a', type: 'prompt' }])).byId.get('memory:a')!
+    expect(n.time).toBe(T0 + 12 * 60_000)
+    expect(n.timeSource).toBe('exchange')
+  })
+  it('reads created_at as UTC even though SQLite sends no zone marker', () => {
+    const n = buildModel(base([mem('a', { created_at: '2026-09-30 11:00:00' })])).byId.get('memory:a')!
+    expect(n.time).toBe(Date.parse('2026-09-30T11:00:00Z'))
+  })
+  it('still falls back to the paged listing for a backend that does not send created_at on nodes', () => {
+    const n = buildModel(base([mem('a')]), new Map([['a', { createdAt: sqlite(9) }]])).byId.get('memory:a')!
+    expect(n.time).toBe(T0 + 9 * 60_000)
+    expect(n.timeSource).toBe('recorded')
+  })
+  it('leaves a memory with no signal at all untimed', () => {
+    const m = buildModel(base([mem('a')]))
+    expect(m.byId.get('memory:a')!.time).toBeNull()
+    expect(m.untimed).toBe(1)
+  })
+})
+
+describe('the No session lane', () => {
+  const nodes: GraphPayload['nodes'] = [
+    { id: 'session:s1', type: 'session', label: 's1', status: 'closed', started_at: sqlite(0) },
+    { id: 'memory:in', type: 'memory', label: 'in', status: 'active', evidence_class: 'observed_event', source_kind: 'direct_user', created_at: sqlite(5), session_id: 's1' },
+    { id: 'memory:loose', type: 'memory', label: 'loose', status: 'active', evidence_class: 'observed_event', source_kind: 'direct_user', created_at: sqlite(30) },
+    { id: 'memory:untimed', type: 'memory', label: 'untimed', status: 'active', evidence_class: 'observed_event', source_kind: 'direct_user' },
+  ]
+  const lanes = buildLanes(buildModel({ nodes, edges: [] }))
+  it('places a memory in the session the graph payload says wrote it', () => {
+    expect(lanes.find((l) => l.session.id === 'session:s1')!.marks.map((m) => m.nodeId)).toEqual(['memory:in'])
+  })
+  it('gives timed memories that no session wrote a lane of their own instead of dropping them', () => {
+    const none = lanes.find((l) => l.synthetic)!
+    expect(none.marks.map((m) => m.nodeId)).toEqual(['memory:loose'])
+  })
+  it('does not place an untimed memory anywhere', () => {
+    expect(lanes.flatMap((l) => l.marks).some((m) => m.nodeId === 'memory:untimed')).toBe(false)
+  })
+  it('has no such lane when every timed memory belongs to a session', () => {
+    const only = buildLanes(buildModel({ nodes: nodes.filter((n) => n.id !== 'memory:loose'), edges: [] }))
+    expect(only.some((l) => l.synthetic)).toBe(false)
+  })
+})
+
+describe('exchange time', () => {
+  it('uses the event time when there is one, and the store write time (labelled) when there is not', () => {
+    const m = buildModel({
+      nodes: [
+        { id: 'exchange:a', type: 'exchange', label: 'a', timestamp: iso(3), created_at: sqlite(9) },
+        { id: 'exchange:b', type: 'exchange', label: 'b', timestamp: null, created_at: sqlite(9) },
+        { id: 'exchange:c', type: 'exchange', label: 'c', timestamp: null },
+      ],
+      edges: [],
+    })
+    expect(m.byId.get('exchange:a')).toMatchObject({ time: T0 + 3 * 60_000, timeSource: 'exchange' })
+    expect(m.byId.get('exchange:b')).toMatchObject({ time: T0 + 9 * 60_000, timeSource: 'recorded' })
+    expect(m.byId.get('exchange:c')).toMatchObject({ time: null, timeSource: null })
+  })
+})

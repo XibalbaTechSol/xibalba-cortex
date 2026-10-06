@@ -131,7 +131,7 @@ function MemoryInspector({ memoryId, node }: { memoryId: string; node: CNode | u
         <div className="xc-inspector-body" key={revision}>
           {m && tab === 'chain' && <ChainTab memory={m} scope={scope} />}
           {m && tab === 'content' && <ContentTab memory={m} onOpen={(id) => select(`memory:${id}`)} />}
-          {m && tab === 'provenance' && <ProvenanceTab memory={m} />}
+          {m && tab === 'provenance' && <ProvenanceTab memory={m} node={node} />}
           {m && tab === 'neighbors' && <NeighborsTab memoryId={memoryId} scope={scope} />}
           {m && tab === 'contradictions' && <ContradictionsTab memoryId={memoryId} scope={scope} />}
           {m && tab === 'telemetry' && <TelemetryTab memoryId={memoryId} scope={scope} />}
@@ -222,8 +222,15 @@ function ContentTab({ memory, onOpen }: { memory: Memory; onOpen: (id: string) =
   )
 }
 
-function ProvenanceTab({ memory }: { memory: Memory }) {
+const PLACED_BY: Record<string, string> = {
+  observed: 'event time the writer supplied',
+  exchange: 'the exchange it was part of',
+  recorded: 'when the store recorded it',
+}
+
+function ProvenanceTab({ memory, node }: { memory: Memory; node: CNode | undefined }) {
   const s = memory.source
+  const placedBy = node?.timeSource ? (PLACED_BY[node.timeSource] ?? node.timeSource) : node ? 'not placed (no timestamp)' : null
   const rows: Array<[string, string | null | undefined]> = [
     ['Source kind', s.kind],
     ['Locator', s.locator],
@@ -231,8 +238,11 @@ function ProvenanceTab({ memory }: { memory: Memory }) {
     ['Agent', s.agent_id],
     ['Session', s.session_id],
     ['Prompt', s.prompt_id],
-    ['Observed', s.observed_at ? stamp(s.observed_at) : null],
-    ['Created', memory.created_at ? stamp(memory.created_at) : null],
+    ['Event time (observed)', s.observed_at ? stamp(s.observed_at) : null],
+    ['Recorded by store', memory.created_at ? stamp(memory.created_at) : null],
+    ['Valid from', memory.valid_from ? stamp(memory.valid_from) : null],
+    ['Valid to', memory.valid_to ? stamp(memory.valid_to) : null],
+    ['Placed on timeline by', placedBy],
   ]
   return (
     <dl className="xc-kv">

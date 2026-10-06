@@ -21,7 +21,7 @@ export async function loadMemoryIndex(scope: WorkspaceScope): Promise<MemoryInde
   for (let page = 0; page < MAX_PAGES; page += 1) {
     const res = await api.memories({ limit: PAGE, offset: page * PAGE, agentId: scope.agentId, storeId: scope.storeId })
     for (const m of res.memories) {
-      info.set(m.id, { observedAt: m.source?.observed_at ?? null, sessionId: m.source?.session_id ?? null })
+      info.set(m.id, { observedAt: m.source?.observed_at ?? null, createdAt: m.created_at ?? null, sessionId: m.source?.session_id ?? null })
     }
     if (!res.has_more) return { info, complete: true }
   }

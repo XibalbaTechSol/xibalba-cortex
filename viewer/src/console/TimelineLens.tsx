@@ -112,14 +112,22 @@ export function TimelineLens() {
                 return node && facets && isNodeVisible(node, facets, null) && inDomain(m.time)
               })
               const rootAt = lane.root && lane.root.time !== null ? (lane.end ?? lane.marks.at(-1)?.time ?? lane.start) : null
-              const selected = selectedId === lane.session.id
+              const selected = !lane.synthetic && selectedId === lane.session.id
               return (
                 <div className="xc-lane" key={lane.session.id} data-selected={selected} role="row">
-                  <button type="button" className="xc-lane-label" onClick={() => select(lane.session.id)} aria-pressed={selected}>
-                    <b title={lane.session.sessionId}>{lane.session.sessionId}</b>
+                  <button
+                    type="button"
+                    className="xc-lane-label"
+                    onClick={lane.synthetic ? undefined : () => select(lane.session.id)}
+                    aria-pressed={lane.synthetic ? undefined : selected}
+                    disabled={lane.synthetic}
+                    title={lane.synthetic ? 'Memories written outside any session, placed by when the store recorded them' : undefined}
+                  >
+                    <b title={lane.session.sessionId}>{lane.synthetic ? 'No session' : lane.session.sessionId}</b>
                     <span>
-                      {lane.marks.filter((m) => m.cls === 'exchange').length} exchanges ·{' '}
-                      {lane.end === null ? 'open' : `${Math.max(1, Math.round((lane.end - lane.start) / 60_000))} min`}
+                      {lane.synthetic
+                        ? `${lane.marks.length} memor${lane.marks.length === 1 ? 'y' : 'ies'}`
+                        : `${lane.marks.filter((m) => m.cls === 'exchange').length} exchanges · ${lane.end === null ? 'open' : `${Math.max(1, Math.round((lane.end - lane.start) / 60_000))} min`}`}
                     </span>
                   </button>
                   <div className="xc-lane-track">

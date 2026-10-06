@@ -116,12 +116,16 @@ export interface GraphNode {
   source_kind?: string
   entity_type?: string
   /** exchange nodes: ISO prompt time. */
-  timestamp?: string
+  timestamp?: string | null
   /** session nodes: "YYYY-MM-DD HH:MM:SS" (UTC, no zone marker). */
   started_at?: string
   /** merkle nodes: whether the server-computed root is valid. */
   valid?: boolean
   agent_id?: string
+  /** memory nodes (backend 2026-10-06+): the store's write time, and the event time if the writer set one. */
+  created_at?: string
+  observed_at?: string | null
+  session_id?: string | null
 }
 
 export interface GraphEdge {
@@ -155,7 +159,10 @@ export interface Memory {
   content: string
   content_hash: string
   status: string
+  /** UTC, the store's own write time; not the event time (source.observed_at). */
   created_at?: string
+  valid_from?: string | null
+  valid_to?: string | null
   source: MemorySource
   quarantine_reasons: string[]
   supersedes_id: string | null

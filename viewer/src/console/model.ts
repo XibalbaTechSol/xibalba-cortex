@@ -5,10 +5,13 @@
 // tested against the exact payload shapes the local API returns.
 //
 // One rule governs the time model: a node only gets a time if the API supplied a real signal for
-// it. `GET /api/memories` and `/api/memory/{id}` do not expose `created_at`, so a memory is
-// timed by (1) `source.observed_at` when the writing agent set it, otherwise (2) the exchange it
-// was part of. A memory with neither is UNTIMED and is reported as such -- never given a guessed
-// timestamp.
+// it. A memory is timed by (1) `observed_at`, the event time, when the writing agent set it;
+// otherwise (2) the earliest exchange it was part of; otherwise (3) `created_at`, the time this
+// store recorded it. (3) is a real timestamp but a different thing from (1): it is when the store
+// wrote the row, and the time source says so. Backends before 2026-10-06 do not send `created_at`
+// or `observed_at` on graph nodes, so those memories fall back to (1)/(2) via the paged memory
+// listing, and a memory with none of the three is UNTIMED and is reported as such -- never given
+// a guessed timestamp.
 
 import type { GraphEdge, GraphEdgeType, GraphNode, GraphPayload } from '../api'
 
@@ -24,7 +27,8 @@ export function edgeGroup(type: GraphEdgeType): EdgeGroup {
   return type === 'relation' || type === 'contradiction' || type === 'similarity' ? type : 'structure'
 }
 
-export type TimeSource = 'observed' | 'exchange' | 'session' | 'evidence'
+/** observed = event time set by the writer; recorded = when this store wrote the row. */
+export type TimeSource = 'observed' | 'exchange' | 'session' | 'evidence' | 'recorded'
 
 export interface CNode {
   id: string
@@ -40,6 +44,8 @@ export interface CNode {
   memoryId?: string
   /** session nodes: external_session_id. */
   sessionId?: string
+  /** memory nodes: the session that wrote it, when the graph payload says so. */
+  writerSessionId?: string
   /** merkle nodes: the server-computed root validity. */
   valid?: boolean
   degree: number
@@ -70,6 +76,7 @@ export interface GraphModel {
 /** What `/api/memories` can tell us about a memory that the graph payload cannot. */
 export interface MemoryTimeInfo {
   observedAt?: string | null
+  createdAt?: string | null
   sessionId?: string | null
 }
 
@@ -105,12 +112,16 @@ export function buildModel(payload: GraphPayload, memoryInfo: ReadonlyMap<string
       timeSource: null,
       degree: 0,
     }
-    if (cls === 'memory') node.memoryId = stripPrefix(raw.id, 'memory:')
+    if (cls === 'memory') {
+      node.memoryId = stripPrefix(raw.id, 'memory:')
+      if (raw.session_id) node.writerSessionId = raw.session_id
+    }
     if (cls === 'session') node.sessionId = stripPrefix(raw.id, 'session:')
     if (cls === 'merkle') node.valid = raw.valid
     return node
   })
   const byId = new Map(nodes.map((n) => [n.id, n]))
+  const rawById = new Map<string, GraphNode>(payload.nodes.map((n) => [n.id, n]))
 
   const edges: CEdge[] = payload.edges
     .filter((e: GraphEdge) => byId.has(e.source) && byId.has(e.target))
@@ -141,6 +152,11 @@ export function buildModel(payload: GraphPayload, memoryInfo: ReadonlyMap<string
     if (node.cls === 'exchange') {
       node.time = parseServerTime(raw.timestamp)
       node.timeSource = node.time === null ? null : 'exchange'
+      if (node.time === null) {
+        // no prompt/response time was supplied: use when the store recorded the exchange, and say so
+        node.time = parseServerTime(raw.created_at)
+        node.timeSource = node.time === null ? null : 'recorded'
+      }
     } else if (node.cls === 'session') {
       node.time = parseServerTime(raw.started_at)
       node.timeSource = node.time === null ? null : 'session'
@@ -159,7 +175,9 @@ export function buildModel(payload: GraphPayload, memoryInfo: ReadonlyMap<string
   }
   for (const node of nodes) {
     if (node.cls !== 'memory') continue
-    const observed = node.memoryId ? parseServerTime(memoryInfo.get(node.memoryId)?.observedAt) : null
+    const info = node.memoryId ? memoryInfo.get(node.memoryId) : undefined
+    const raw = rawById.get(node.id)
+    const observed = parseServerTime(raw?.observed_at) ?? parseServerTime(info?.observedAt)
     if (observed !== null) {
       node.time = observed
       node.timeSource = 'observed'
@@ -169,6 +187,12 @@ export function buildModel(payload: GraphPayload, memoryInfo: ReadonlyMap<string
     if (viaExchange && viaExchange.length > 0) {
       node.time = Math.min(...viaExchange)
       node.timeSource = 'exchange'
+      continue
+    }
+    const recorded = parseServerTime(raw?.created_at) ?? parseServerTime(info?.createdAt)
+    if (recorded !== null) {
+      node.time = recorded
+      node.timeSource = 'recorded'
     }
   }
 
@@ -391,8 +415,14 @@ export interface Mark {
   status?: string
 }
 
+/** Id of the synthetic lane for memories that no session wrote. */
+export const NO_SESSION_LANE = 'lane:no-session'
+
 export interface Lane {
+  /** The session node, or a synthetic one (id NO_SESSION_LANE) for memories written outside any session. */
   session: CNode
+  /** True for the "No session" lane: it is not a selectable session. */
+  synthetic?: boolean
   start: number
   /** null = the session is still open; the lane runs to "now". */
   end: number | null
@@ -434,13 +464,26 @@ export function buildLanes(
   for (const edge of model.edges) if (edge.type === 'contains') exchangeSession.set(edge.target, edge.source)
   for (const node of model.nodes) {
     if (node.cls !== 'memory') continue
-    const writer = node.memoryId ? memoryInfo.get(node.memoryId)?.sessionId : null
+    const writer = (node.memoryId ? memoryInfo.get(node.memoryId)?.sessionId : null) ?? node.writerSessionId
     if (writer) add(`session:${writer}`, node)
   }
   for (const edge of model.edges) {
     if (edge.type !== 'prompt' && edge.type !== 'response' && edge.type !== 'context') continue
     const laneId = exchangeSession.get(edge.source)
     if (laneId) add(laneId, model.byId.get(edge.target))
+  }
+
+  // Timed memories that no lane took were written outside a session (or by a session this sample
+  // does not include). They are real events with a real time, so they get a lane of their own
+  // rather than silently vanishing from the timeline.
+  const placed = new Set<string>()
+  for (const lane of lanes.values()) for (const mark of lane.marks) placed.add(mark.nodeId)
+  const loose = model.nodes.filter((n) => n.cls === 'memory' && n.time !== null && !placed.has(n.id))
+  if (loose.length > 0) {
+    const synthetic: CNode = { id: NO_SESSION_LANE, cls: 'session', label: 'No session', time: null, timeSource: null, degree: 0 }
+    const lane: Lane = { session: synthetic, synthetic: true, start: Math.min(...loose.map((n) => n.time as number)), end: Math.max(...loose.map((n) => n.time as number)), marks: [], root: null }
+    for (const node of loose) lane.marks.push({ nodeId: node.id, cls: 'memory', time: node.time as number, status: node.status })
+    lanes.set(NO_SESSION_LANE, lane)
   }
 
   const result = [...lanes.values()]
