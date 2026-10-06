@@ -2176,3 +2176,17 @@ select.xc-input {
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+.xc-pairs {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.xc-pair {
+  display: grid;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--hairline);
+}

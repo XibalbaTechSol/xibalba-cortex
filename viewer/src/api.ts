@@ -690,6 +690,21 @@ export interface AgentWorkspace {
   on_chain?: boolean
   wallet_address?: string | null
   identity_verified?: boolean
+  /** the identity registry's own label, or a shortened pseudonym */
+  display_name?: string | null
+  did?: string | null
+  handle?: string | null
+  seen?: boolean
+}
+
+export interface AgentDevicePair {
+  device_id: string
+  agent_id: string
+  display_name: string
+  status: 'active' | 'detached' | 'revoked'
+  created_at: string
+  updated_at: string
+  last_seen_at: string | null
 }
 
 export interface AgentSummary {
@@ -755,14 +770,16 @@ export const api = {
   agentSummary: (agentId: string, storeId: string) =>
     getJson<AgentSummary>(`/api/agent/${encodeURIComponent(agentId)}/summary?limit=0&store_id=${encodeURIComponent(storeId)}`),
   agentMemories: (agentId: string, deviceId?: string, limit = 100, scope: WorkspaceScope = {}) => getJson<{agent_id: string; memories: Memory[]}>(`/api/agent/${encodeURIComponent(agentId)}/memories?limit=${limit}${deviceId ? `&device_id=${encodeURIComponent(deviceId)}` : ''}${scopeParams(scope)}`),
+  /** Pairings, newest first. /api/agents lists workspaces; this lists which devices are paired to them. */
+  agentDevices: () => getJson<{ pairs: AgentDevicePair[] }>('/api/agent-devices'),
   associateAgentDevice: (agentId: string, deviceId: string, displayName?: string) =>
-    postJson<AgentWorkspace>('/api/agent-devices/associate', { agent_id: agentId, device_id: deviceId, display_name: displayName || deviceId }),
+    postJson<AgentDevicePair>('/api/agent-devices/associate', { agent_id: agentId, device_id: deviceId, display_name: displayName || deviceId }),
   renameAgentDevice: (deviceId: string, displayName: string) =>
-    postJson<AgentWorkspace>(`/api/agent-devices/${encodeURIComponent(deviceId)}/rename`, { display_name: displayName }),
+    postJson<AgentDevicePair>(`/api/agent-devices/${encodeURIComponent(deviceId)}/rename`, { display_name: displayName }),
   detachAgentDevice: (deviceId: string) =>
-    postJson<AgentWorkspace>(`/api/agent-devices/${encodeURIComponent(deviceId)}/detach`, {}),
+    postJson<AgentDevicePair>(`/api/agent-devices/${encodeURIComponent(deviceId)}/detach`, {}),
   revokeAgentDevice: (deviceId: string) =>
-    postJson<AgentWorkspace>(`/api/agent-devices/${encodeURIComponent(deviceId)}/revoke`, {}),
+    postJson<AgentDevicePair>(`/api/agent-devices/${encodeURIComponent(deviceId)}/revoke`, {}),
   graph: (limit = 500, similarityThreshold = 0.75, scope: WorkspaceScope = {}) =>
     getJson<GraphPayload>(`/api/graph?limit=${limit}&similarity_threshold=${similarityThreshold}${scopeParams(scope)}`),
   search: (query: string, limit = 20, scope: WorkspaceScope = {}) =>
