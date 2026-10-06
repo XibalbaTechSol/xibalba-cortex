@@ -32,6 +32,7 @@ otel = [
 ]
 
 [project.scripts]
+xibalba-cortex-perplexity = "xibalba_cortex.perplexity_runtime:main"
 xibalba-cortex-hosted-connector = "xibalba_cortex.hosted_connector:main"
 xibalba-cortex-observer = "xibalba_cortex.observer_capture:main"
 xibalba-cortex-observer-install = "xibalba_cortex.observer_install:main"

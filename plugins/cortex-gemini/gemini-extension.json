@@ -1,0 +1,20 @@
+{
+  "name": "cortex-gemini",
+  "version": "0.1.0",
+  "description": "Cortex memory for Gemini CLI; no full native observer bundled",
+  "contextFileName": "GEMINI.md",
+  "settings": [
+    {
+      "name": "Cortex home",
+      "description": "Absolute path to your Cortex profile directory",
+      "envVar": "XIBALBA_CORTEX_HOME",
+      "sensitive": false
+    }
+  ],
+  "mcpServers": {
+    "cortex": {
+      "command": "xibalba-cortex",
+      "args": []
+    }
+  }
+}

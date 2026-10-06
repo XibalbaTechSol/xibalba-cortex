@@ -191,9 +191,11 @@ OPENCLAW_ADAPTER = RuntimeAdapterResponsibilities(
 
 PERPLEXITY_ADAPTER = RuntimeAdapterResponsibilities(
     runtime="perplexity", transport="wrapper", status="implemented",
-    responsibilities=("direct_agent_api", "request_response_telemetry", "usage_and_citation_capture"),
+    responsibilities=("direct_agent_api", "request_response_telemetry", "usage_and_citation_capture",
+                      "background_stream_capture", "durable_resume", "local_event_replay"),
     guarantees=("explicit_consent_gate", "did_session_binding", "privacy_bounded_payloads"),
-    limitations=("provider_api_response_is_the_observable_boundary",),
+    limitations=("provider_api_response_is_the_observable_boundary", "metadata_only_stream_deltas",
+                 "custom_functions_are_not_executed", "live_provider_canary_required"),
     notes="Direct Agent API integration; provider-internal reasoning remains unavailable.",
 )
 

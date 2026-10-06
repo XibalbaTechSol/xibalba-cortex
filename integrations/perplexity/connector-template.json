@@ -1,0 +1,13 @@
+{
+  "surface": "perplexity",
+  "transport": "streamable-http",
+  "mcp_url": "https://YOUR-CORTEX-HOST/mcp",
+  "authentication": "oauth",
+  "scopes": [
+    "memory:read",
+    "memory:write"
+  ],
+  "validation_tool": "cortex_connection_status",
+  "capture_scope": "cortex_tool_calls",
+  "template_only": true
+}
