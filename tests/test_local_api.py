@@ -1070,6 +1070,28 @@ def test_context_assemble_route_is_read_scoped_and_agent_scoped(running_store):
         assert response.status == 200
 
 
+def test_structural_extraction_route_produces_proposals_not_graph_facts(running_store):
+    store, port = running_store
+    memory = store.store_memory(
+        "See https://example.com/docs and the file /etc/relay/config.yaml for the relay settings.",
+        source={"kind": "direct_user", "locator": "dev://structural"}, status="confirmed",
+    )
+    status, task = _post(port, f"/api/memory/{memory['id']}/extract-structural", {})
+    assert status == 200
+    assert task["status"] == "completed" and task["task_type"] == "extract_entities"
+
+    # the matches are proposals waiting for a person, not entities in the graph
+    proposals = store.list_extraction_proposals(status="proposed", source_memory_id=memory["id"])
+    assert proposals, "regex extraction found nothing in a memory that names a URL and a path"
+    assert all(p["status"] == "proposed" for p in proposals)
+    assert store.graph_payload(limit=100)["nodes"] and not [
+        n for n in store.graph_payload(limit=100)["nodes"] if n["type"] == "entity" and "example.com" in n["label"]
+    ]
+
+    status, _ = _post(port, "/api/memory/does-not-exist/extract-structural", {})
+    assert status == 404
+
+
 def test_inference_task_routes(running_store):
     store, port = running_store
     memory = store.store_memory(

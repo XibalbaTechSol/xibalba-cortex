@@ -13,14 +13,15 @@ deployment with no credentials issued simply has no working API, which is the fa
 
 Two credential types, by caller kind:
 
-  * Browsers get an HttpOnly, Secure, SameSite=Strict session cookie (`cortex_session`) set by
+  * Browsers get an HttpOnly, Secure, SameSite=None session cookie (`cortex_session`) set by
     /api/auth/login and /api/auth/signup. The raw token is never returned in a response body and
     is never readable from JavaScript, so an XSS bug cannot exfiltrate it -- which the previous
-    sessionStorage-held bearer token could not prevent. `SameSite=Strict` is what makes this safe
-    without a separate CSRF token. Because the cookie is `Secure`, this path requires TLS; the
-    packaged Caddyfile terminates it and serves the viewer and API on one origin, so no CORS
-    credentials dance is needed. Set XIBALBA_CORTEX_INSECURE_COOKIES=1 to drop `Secure` for a
-    plain-HTTP loopback dev server.
+    sessionStorage-held bearer token could not prevent. SameSite=None lets a cross-origin
+    browser caller (the dashboard apps) attach it, so every state-changing request that
+    authenticates by cookie must also carry `X-Cortex-CSRF-Token` (fetch it from GET
+    /api/auth/csrf); bearer callers have no cookie to ride and are exempt. Because the cookie is
+    `Secure`, this path requires TLS; the packaged Caddyfile terminates it. Set
+    XIBALBA_CORTEX_INSECURE_COOKIES=1 to drop `Secure` for a plain-HTTP loopback dev server.
   * Machine callers (the streamable-HTTP MCP transport, CLI, workers) continue to present
     `Authorization: Bearer <token>` against the same ingest-token store (auth_middleware.py /
     ingest_tokens.py). Issue tokens with `xibalba-cortex-ingest-tokens issue`. These callers have
@@ -79,6 +80,8 @@ Routes:
   POST /api/memory/contradictions          -> GraphStore.mark_contradiction()
   POST /api/memory/{id}/supersede          -> GraphStore.supersede_memory()
   POST /api/memory/{id}/forget             -> GraphStore.forget_memory()
+  POST /api/memory/{id}/extract-structural -> GraphStore.run_structural_extraction() (regex only, no model;
+                                               produces extraction proposals that still wait for review)
   POST /api/inference/tasks                -> GraphStore.request_inference_task()
   POST /api/inference/tasks/{id}/claim     -> GraphStore.claim_inference_task()
   POST /api/inference/tasks/{id}/complete  -> GraphStore.complete_inference_task()
@@ -1393,6 +1396,11 @@ def _make_handler(store: GraphStore, *, allowed_origins: frozenset[str],
                 elif len(parts) == 4 and parts[0] == "api" and parts[1] == "memory" and parts[3] == "forget":
                     _assert_memory_scope(store.get_memory(unquote(parts[2])), principal, store)
                     self._send_json(200, store.forget_memory(unquote(parts[2])))
+                elif len(parts) == 4 and parts[0] == "api" and parts[1] == "memory" and parts[3] == "extract-structural":
+                    # Deterministic (regex) entity extraction. It goes through the same proposal gate as
+                    # every extraction path, so this writes proposals for review, never graph facts.
+                    _assert_memory_scope(store.get_memory(unquote(parts[2])), principal, store)
+                    self._send_json(200, store.run_structural_extraction(unquote(parts[2]), claimed_by=f"console:{principal['label']}"))
                 elif len(parts) == 5 and parts[:3] == ["api", "para", "classifications"] and parts[4] == "decision":
                     decision = str(payload.get("decision") or "")
                     note = payload.get("note") if isinstance(payload.get("note"), str) else None

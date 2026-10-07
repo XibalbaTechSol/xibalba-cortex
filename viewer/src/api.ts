@@ -952,6 +952,8 @@ export const api = {
     postJson<RecordModelExchangeResult>('/api/exchanges/model', payload as unknown as Record<string, unknown>),
   requestInferenceTask: (payload: Record<string, unknown>) =>
     postJson<InferenceTask>('/api/inference/tasks', payload),
+  /** Rule-based (regex, no model) entity extraction over one memory. Its matches are proposals that wait in Review. */
+  extractStructural: (memoryId: string) => postJson<InferenceTask>(`/api/memory/${encodeURIComponent(memoryId)}/extract-structural`, {}),
   createProposition: (payload: Record<string, unknown>) =>
     postJson<Memory>('/api/memory/propositions', payload),
   linkEntities: (payload: Record<string, unknown>) =>

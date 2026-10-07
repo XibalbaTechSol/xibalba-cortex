@@ -98,6 +98,10 @@ export function canSupersede(status: string): boolean {
 export const EXTRACTION_TASKS = ['extract_entities', 'extract_relations', 'classify_para', 'detect_contradictions', 'extract_memory_metadata'] as const
 export type ExtractionTask = (typeof EXTRACTION_TASKS)[number]
 
+/** Not a queued task: a synchronous, rule-based run with no model, offered next to the queued ones. */
+export const STRUCTURAL = 'structural_entities' as const
+export type ExtractionChoice = ExtractionTask | typeof STRUCTURAL
+
 export type InferenceRequestPayload = {
   task_type: ExtractionTask
   subject_type: 'memory'

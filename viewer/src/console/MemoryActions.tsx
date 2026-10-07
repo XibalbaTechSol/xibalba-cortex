@@ -14,6 +14,7 @@ import { api, type Memory } from '../api'
 import { useConsole } from './state'
 import {
   EXTRACTION_TASKS,
+  STRUCTURAL,
   SUPERSEDE_STATUSES,
   buildContradiction,
   buildInferenceRequest,
@@ -22,7 +23,7 @@ import {
   canForget,
   canSupersede,
   type Built,
-  type ExtractionTask,
+  type ExtractionChoice,
   type SupersedeStatus,
 } from './actions'
 import { elideHash } from './model'
@@ -53,7 +54,7 @@ export function MemoryActions({ memory }: { memory: Memory }) {
   const [otherId, setOtherId] = useState('')
   const [reason, setReason] = useState('')
   // extraction
-  const [taskType, setTaskType] = useState<ExtractionTask>('extract_entities')
+  const [taskType, setTaskType] = useState<ExtractionChoice>('extract_entities')
 
   if (!workspace.canWrite) {
     return (
@@ -118,6 +119,13 @@ export function MemoryActions({ memory }: { memory: Memory }) {
 
   const submitExtract = (event: FormEvent) => {
     event.preventDefault()
+    if (taskType === STRUCTURAL) {
+      // synchronous and rule-based: it has already run by the time the call returns
+      return run({ ok: true, payload: null }, async () => {
+        const task = await api.extractStructural(memory.id)
+        return `Rule-based extraction ${task.status}. Anything it matched is a proposal waiting in Review; nothing is written to the graph.`
+      })
+    }
     const built = buildInferenceRequest(memory, taskType, { agentId: workspace.scope.agentId, storeId: workspace.scope.storeId })
     return run(built, async (payload) => {
       const task = await api.requestInferenceTask(payload)
@@ -186,8 +194,9 @@ export function MemoryActions({ memory }: { memory: Memory }) {
               <p className="xc-eyebrow" id={`${formId}-title`}>Request extraction</p>
               <p className="xc-note">Queues a task for the extraction worker. What it finds becomes proposals that wait in Review for a person to accept or reject; the graph is not changed by this request.</p>
               <Field label="Task">
-                <select className="xc-input" value={taskType} onChange={(e) => setTaskType(e.target.value as ExtractionTask)} autoFocus>
+                <select className="xc-input" value={taskType} onChange={(e) => setTaskType(e.target.value as ExtractionChoice)} autoFocus>
                   {EXTRACTION_TASKS.map((t) => <option key={t} value={t}>{t.replace(/_/g, ' ')}</option>)}
+                  <option value={STRUCTURAL}>structural entities — rule-based, no model, runs now</option>
                 </select>
               </Field>
             </>
@@ -205,7 +214,7 @@ export function MemoryActions({ memory }: { memory: Memory }) {
           <div className="xc-actions-row">
             <button type="button" className="xc-btn" onClick={() => setMode(null)} disabled={busy}>Cancel</button>
             <button type="submit" className={mode === 'forget' ? 'xc-btn xc-btn--danger' : 'xc-btn xc-btn--primary'} disabled={busy}>
-              {busy ? 'Working…' : mode === 'forget' ? 'Forget this memory' : mode === 'supersede' ? 'Supersede' : mode === 'link' ? 'Link entities' : mode === 'extract' ? 'Queue task' : 'Record contradiction'}
+              {busy ? 'Working…' : mode === 'forget' ? 'Forget this memory' : mode === 'supersede' ? 'Supersede' : mode === 'link' ? 'Link entities' : mode === 'extract' ? (taskType === STRUCTURAL ? 'Run now' : 'Queue task') : 'Record contradiction'}
             </button>
           </div>
         </form>
