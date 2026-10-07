@@ -5,13 +5,14 @@
 // contradiction, forget) are the next slice and are deliberately absent rather than shown inert.
 
 import { useState, type ReactNode } from 'react'
-import { api, type Memory, type WorkspaceScope } from '../api'
+import { api, type Attachment, type Memory, type WorkspaceScope } from '../api'
 import { useConsole } from './state'
 import { useAsync, type AsyncState } from './useAsync'
 import { elideHash, parseServerTime, shortStamp, type CEdge, type CNode, type GraphModel } from './model'
 import { IconCheck, IconClose, IconWarn } from './icons'
 import { MemoryActions } from './MemoryActions'
 import { MemoryChainCheck, ProvenanceExport } from './VerifyPanel'
+import { attachmentFilename, saveBlob } from './download'
 
 type MemoryTab = 'chain' | 'content' | 'provenance' | 'neighbors' | 'contradictions' | 'telemetry' | 'files'
 const MEMORY_TABS: Array<[MemoryTab, string]> = [
@@ -355,6 +356,22 @@ function TelemetryTab({ memoryId, scope }: { memoryId: string; scope: WorkspaceS
 
 function FilesTab({ memoryId, scope }: { memoryId: string; scope: WorkspaceScope }) {
   const list = useAsync(() => api.attachments(memoryId, scope), [memoryId, scope])
+  const [downloading, setDownloading] = useState<string | null>(null)
+  const [downloadError, setDownloadError] = useState<string | null>(null)
+
+  /** Fetch with the session credential (a plain link would not carry a bearer token) and hand the bytes to the browser. */
+  const download = async (attachment: Attachment) => {
+    setDownloading(attachment.id)
+    setDownloadError(null)
+    try {
+      saveBlob(attachmentFilename(attachment), await api.attachmentFile(attachment.id, scope))
+    } catch (e) {
+      setDownloadError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setDownloading(null)
+    }
+  }
+
   return (
     <Async state={list} empty={(l) => l.length === 0}>
       {(items) => (
@@ -365,9 +382,13 @@ function FilesTab({ memoryId, scope }: { memoryId: string; scope: WorkspaceScope
               <div className="xc-row-main">
                 <div className="xc-row-top"><span className="xc-mono">{a.media_type}</span><span className="xc-meta">{a.byte_size.toLocaleString()} B</span></div>
                 <p className="xc-hash" title={a.content_hash}>{elideHash(a.content_hash)}</p>
+                <div className="xc-actions-row" style={{ marginTop: 4 }}>
+                  <button type="button" className="xc-btn" disabled={downloading === a.id} onClick={() => void download(a)}>{downloading === a.id ? 'Downloading…' : 'Download'}</button>
+                </div>
               </div>
             </div>
           ))}
+          {downloadError && <div className="xc-callout xc-callout--conflict" role="alert"><IconWarn />{downloadError}</div>}
         </div>
       )}
     </Async>

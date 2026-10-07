@@ -1,4 +1,5 @@
-// Write actions for one memory: supersede, link entities, mark a contradiction, forget.
+// Write actions for one memory: supersede, link entities, mark a contradiction, forget, and ask the
+// extraction worker to look at it.
 //
 // Only offered in a verified, writable {store, agent} workspace (`workspace.canWrite`); anywhere
 // else the footer says why there are no buttons rather than showing dead ones. Every action goes
@@ -12,19 +13,22 @@ import { useId, useState, type FormEvent, type ReactNode } from 'react'
 import { api, type Memory } from '../api'
 import { useConsole } from './state'
 import {
+  EXTRACTION_TASKS,
   SUPERSEDE_STATUSES,
   buildContradiction,
+  buildInferenceRequest,
   buildLink,
   buildSupersede,
   canForget,
   canSupersede,
   type Built,
+  type ExtractionTask,
   type SupersedeStatus,
 } from './actions'
 import { elideHash } from './model'
 import { IconWarn } from './icons'
 
-type Mode = 'supersede' | 'link' | 'contradiction' | 'forget'
+type Mode = 'supersede' | 'link' | 'contradiction' | 'forget' | 'extract'
 
 function Field({ label, children }: { label: string; children: ReactNode }) {
   return <label className="xc-field"><span>{label}</span>{children}</label>
@@ -48,6 +52,8 @@ export function MemoryActions({ memory }: { memory: Memory }) {
   // contradiction
   const [otherId, setOtherId] = useState('')
   const [reason, setReason] = useState('')
+  // extraction
+  const [taskType, setTaskType] = useState<ExtractionTask>('extract_entities')
 
   if (!workspace.canWrite) {
     return (
@@ -110,6 +116,16 @@ export function MemoryActions({ memory }: { memory: Memory }) {
     })
   }
 
+  const submitExtract = (event: FormEvent) => {
+    event.preventDefault()
+    const built = buildInferenceRequest(memory, taskType, { agentId: workspace.scope.agentId, storeId: workspace.scope.storeId })
+    return run(built, async (payload) => {
+      const task = await api.requestInferenceTask(payload)
+      // an identical earlier request returns the existing task, so say what state it is in
+      return `Extraction task “${taskType.replace(/_/g, ' ')}” is ${task.status}. Proposals will wait in Review; nothing is written to the graph.`
+    })
+  }
+
   const confirmForget = () =>
     run({ ok: true, payload: null }, async () => {
       const done = await api.forgetMemory(memory.id)
@@ -126,7 +142,7 @@ export function MemoryActions({ memory }: { memory: Memory }) {
         <form
           className="xc-form"
           aria-labelledby={`${formId}-title`}
-          onSubmit={mode === 'supersede' ? submitSupersede : mode === 'link' ? submitLink : mode === 'contradiction' ? submitContradiction : (e) => { e.preventDefault(); confirmForget() }}
+          onSubmit={mode === 'supersede' ? submitSupersede : mode === 'link' ? submitLink : mode === 'contradiction' ? submitContradiction : mode === 'extract' ? submitExtract : (e) => { e.preventDefault(); confirmForget() }}
         >
           {mode === 'supersede' && (
             <>
@@ -165,6 +181,17 @@ export function MemoryActions({ memory }: { memory: Memory }) {
               <Field label="Why they conflict"><input className="xc-input" value={reason} onChange={(e) => setReason(e.target.value)} /></Field>
             </>
           )}
+          {mode === 'extract' && (
+            <>
+              <p className="xc-eyebrow" id={`${formId}-title`}>Request extraction</p>
+              <p className="xc-note">Queues a task for the extraction worker. What it finds becomes proposals that wait in Review for a person to accept or reject; the graph is not changed by this request.</p>
+              <Field label="Task">
+                <select className="xc-input" value={taskType} onChange={(e) => setTaskType(e.target.value as ExtractionTask)} autoFocus>
+                  {EXTRACTION_TASKS.map((t) => <option key={t} value={t}>{t.replace(/_/g, ' ')}</option>)}
+                </select>
+              </Field>
+            </>
+          )}
           {mode === 'forget' && (
             <>
               <p className="xc-eyebrow" id={`${formId}-title`}>Forget memory</p>
@@ -178,7 +205,7 @@ export function MemoryActions({ memory }: { memory: Memory }) {
           <div className="xc-actions-row">
             <button type="button" className="xc-btn" onClick={() => setMode(null)} disabled={busy}>Cancel</button>
             <button type="submit" className={mode === 'forget' ? 'xc-btn xc-btn--danger' : 'xc-btn xc-btn--primary'} disabled={busy}>
-              {busy ? 'Working…' : mode === 'forget' ? 'Forget this memory' : mode === 'supersede' ? 'Supersede' : mode === 'link' ? 'Link entities' : 'Record contradiction'}
+              {busy ? 'Working…' : mode === 'forget' ? 'Forget this memory' : mode === 'supersede' ? 'Supersede' : mode === 'link' ? 'Link entities' : mode === 'extract' ? 'Queue task' : 'Record contradiction'}
             </button>
           </div>
         </form>
@@ -188,6 +215,7 @@ export function MemoryActions({ memory }: { memory: Memory }) {
           <button type="button" className="xc-btn" disabled={!canSupersede(memory.status)} onClick={() => open('supersede')} title={canSupersede(memory.status) ? undefined : `A ${memory.status} memory cannot be superseded`}>Supersede</button>
           <button type="button" className="xc-btn" onClick={() => open('link')}>Link entities</button>
           <button type="button" className="xc-btn" onClick={() => open('contradiction')}>Contradiction</button>
+          <button type="button" className="xc-btn" disabled={memory.status === 'forgotten'} onClick={() => open('extract')} title="Ask the extraction worker to propose entities, relations or a PARA label">Request extraction</button>
           <button type="button" className="xc-btn xc-btn--danger-quiet" disabled={!canForget(memory.status)} onClick={() => open('forget')}>Forget</button>
         </div>
       )}

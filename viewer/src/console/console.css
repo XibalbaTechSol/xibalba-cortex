@@ -2256,3 +2256,21 @@ select.xc-input {
   min-width: 0;
   overflow-wrap: anywhere;
 }
+
+/* a collapsed read-only reference block, e.g. the worker contract under Settings → Inference */
+.xc-disclosure {
+  border: 1px solid var(--hairline);
+  padding: 10px var(--window-padding);
+}
+.xc-disclosure > summary {
+  cursor: pointer;
+  font: 600 12px/1.4 var(--font-body);
+  color: var(--ink-muted);
+}
+.xc-disclosure[open] > summary {
+  margin-bottom: 10px;
+  color: var(--ink);
+}
+.xc-disclosure > summary .xc-meta {
+  margin-left: 8px;
+}

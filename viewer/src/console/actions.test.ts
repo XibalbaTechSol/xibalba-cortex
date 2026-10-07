@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { buildContradiction, buildExchange, buildLink, buildNewMemory, buildSupersede, canForget, canSupersede } from './actions'
+import { EXTRACTION_TASKS, buildContradiction, buildExchange, buildInferenceRequest, buildLink, buildNewMemory, buildSupersede, canForget, canSupersede } from './actions'
 
 describe('buildSupersede', () => {
   it('trims and returns the payload', () => {
@@ -93,5 +93,44 @@ describe('buildExchange', () => {
     expect(buildExchange({ sessionId: '', prompt: 'q', response: 'a' }).ok).toBe(false)
     expect(buildExchange({ sessionId: 's', prompt: ' ', response: 'a' }).ok).toBe(false)
     expect(buildExchange({ sessionId: 's', prompt: 'q', response: '' }).ok).toBe(false)
+  })
+})
+
+
+describe('buildInferenceRequest', () => {
+  const memory = { id: 'm-1', content_hash: 'sha256:abc' }
+  it('anchors the task to the memory and its exact content hash', () => {
+    const built = buildInferenceRequest(memory, 'extract_entities', { agentId: 'agent-a', storeId: 'store-1' })
+    expect(built).toEqual({
+      ok: true,
+      payload: {
+        task_type: 'extract_entities',
+        subject_type: 'memory',
+        subject_id: 'm-1',
+        input_payload: { source_content_hash: 'sha256:abc' },
+        requested_by: 'cortex-console',
+        idempotency_key: 'console:extract_entities:m-1:sha256:abc',
+        agent_id: 'agent-a',
+        store_id: 'store-1',
+      },
+    })
+  })
+  it('omits scope fields it was not given instead of sending empty strings', () => {
+    const built = buildInferenceRequest(memory, 'classify_para', {})
+    expect(built.ok && 'agent_id' in built.payload).toBe(false)
+    expect(built.ok && 'store_id' in built.payload).toBe(false)
+  })
+  it('makes the same request twice produce the same key, and an edited memory a new one', () => {
+    const a = buildInferenceRequest(memory, 'extract_relations', {})
+    const b = buildInferenceRequest(memory, 'extract_relations', {})
+    const edited = buildInferenceRequest({ ...memory, content_hash: 'sha256:def' }, 'extract_relations', {})
+    expect(a.ok && b.ok && edited.ok && a.payload.idempotency_key === b.payload.idempotency_key && a.payload.idempotency_key !== edited.payload.idempotency_key).toBe(true)
+  })
+  it('refuses an unknown task type and a memory with no hash', () => {
+    expect(buildInferenceRequest(memory, 'write_everything', {}).ok).toBe(false)
+    expect(buildInferenceRequest({ id: 'm', content_hash: '' }, 'extract_entities', {}).ok).toBe(false)
+  })
+  it('offers only task types the worker contract lists as extraction', () => {
+    expect(EXTRACTION_TASKS).not.toContain('summarize_session')
   })
 })

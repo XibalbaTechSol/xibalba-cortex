@@ -43,6 +43,11 @@ def test_both_scenarios_produce_the_documented_data(seed, tmp_path):
         labels = " | ".join(n["label"] for n in scoped["nodes"] if n["type"] == "memory")
         assert "relay" in labels and "Madison" not in labels and "Merkle roots are domain-separated" not in labels
         assert {n["id"] for n in scoped["nodes"] if n["type"] == "session"} == {"session:sess-w1"}
+        # the Files tab has a real, downloadable attachment on the agent's first memory
+        relay = next(m for m in store.list_memories(limit=500, statuses=("confirmed",)) if "retries a failed submission" in m["content"])
+        attachments = store.list_attachments(relay["id"])
+        assert [a["media_type"] for a in attachments] == ["text/plain"]
+        assert Path(str(attachments[0]["storage_locator"]).removeprefix("file://")).read_text().startswith("Relay retry notes")
     finally:
         store.close()
 

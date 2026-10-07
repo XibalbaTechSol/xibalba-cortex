@@ -9,6 +9,7 @@ import { api, type ChainVerification, type Memory, type ProvenanceBundle, type W
 import { elideHash } from './model'
 import { IconCheck, IconWarn } from './icons'
 import { describeMemoryChain, provenanceFilename, type Verdict } from './verify'
+import { saveBlob } from './download'
 
 export function VerdictCallout({ verdict, hash, hashLabel = 'head' }: { verdict: Verdict; hash?: string | null; hashLabel?: string }) {
   const tone = verdict.tone === 'ok' ? 'anchored' : verdict.tone === 'bad' ? 'conflict' : 'review'
@@ -57,16 +58,9 @@ export function MemoryChainCheck({ memoryId, scope }: { memoryId: string; scope:
   )
 }
 
-/** Hand `data` to the browser as a file. Revoked on the next tick; the download has already started. */
+/** Hand `data` to the browser as a JSON file. */
 export function downloadJson(filename: string, data: unknown): void {
-  const url = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }))
-  const a = document.createElement('a')
-  a.href = url
-  a.download = filename
-  document.body.appendChild(a)
-  a.click()
-  a.remove()
-  setTimeout(() => URL.revokeObjectURL(url), 0)
+  saveBlob(filename, new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }))
 }
 
 /** Fetch one memory's provenance bundle and save it, showing the commitment the server computed. */

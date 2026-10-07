@@ -17,6 +17,8 @@ const label = (task: string) => task.replace(/_/g, ' ')
 export function InferenceSection() {
   const [rev, setRev] = useState(0)
   const saved = useAsync(() => api.inferenceSettings(), [rev])
+  // the worker's published contract, read-only: what it may read, what it must return, which tools it has
+  const manifest = useAsync(() => api.inferenceManifest(), [])
   const [draft, setDraft] = useState<InferenceDraft | null>(null)
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState<{ tone: 'anchored' | 'conflict'; text: string } | null>(null)
@@ -73,6 +75,19 @@ export function InferenceSection() {
         Controls the extraction worker that proposes entities, relations and PARA labels from memories. Proposals are never written to the
         graph by themselves: they wait in Review unless this policy lets a confident one through.
       </p>
+
+      {manifest.data && (
+        <details className="xc-disclosure">
+          <summary>Worker contract <span className="xc-meta">{manifest.data.name}</span></summary>
+          <dl className="xc-kv">
+            <div><dt>Role</dt><dd>{manifest.data.role}</dd></div>
+            <div><dt>Input rule</dt><dd>{manifest.data.input_rule}</dd></div>
+            <div><dt>Output rule</dt><dd>{manifest.data.output_rule}</dd></div>
+            <div><dt>Task types</dt><dd>{manifest.data.task_types.join(', ')}</dd></div>
+            <div><dt>Tools</dt><dd>{manifest.data.tools.length === 0 ? 'none (analysis only)' : manifest.data.tools.join(', ')}</dd></div>
+          </dl>
+        </details>
+      )}
 
       <fieldset className="xc-fieldset">
         <legend className="xc-eyebrow">Worker</legend>

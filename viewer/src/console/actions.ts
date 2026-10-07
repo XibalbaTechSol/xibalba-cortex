@@ -92,6 +92,50 @@ export function canSupersede(status: string): boolean {
   return status !== 'forgotten' && status !== 'superseded'
 }
 
+// --- asking the extraction worker to look at a memory ----------------------------------------------
+
+/** Task types a person can queue from a memory. Their results are proposals that wait in Review. */
+export const EXTRACTION_TASKS = ['extract_entities', 'extract_relations', 'classify_para', 'detect_contradictions', 'extract_memory_metadata'] as const
+export type ExtractionTask = (typeof EXTRACTION_TASKS)[number]
+
+export type InferenceRequestPayload = {
+  task_type: ExtractionTask
+  subject_type: 'memory'
+  subject_id: string
+  input_payload: { source_content_hash: string }
+  requested_by: string
+  idempotency_key: string
+  agent_id?: string
+  store_id?: string
+}
+
+/**
+ * Queue one extraction task for one memory. The idempotency key names the task type, the memory and
+ * its exact content hash, so pressing the button twice returns the same task instead of queueing a
+ * duplicate, while a superseded memory (new hash) is a new request.
+ */
+export function buildInferenceRequest(
+  memory: { id: string; content_hash: string },
+  taskType: string,
+  scope: { agentId?: string; storeId?: string },
+): Built<InferenceRequestPayload> {
+  if (!(EXTRACTION_TASKS as readonly string[]).includes(taskType)) return { ok: false, error: 'Choose a task type.' }
+  if (!memory.id || !memory.content_hash) return { ok: false, error: 'This memory has no content hash to anchor the task to.' }
+  return {
+    ok: true,
+    payload: {
+      task_type: taskType as ExtractionTask,
+      subject_type: 'memory',
+      subject_id: memory.id,
+      input_payload: { source_content_hash: memory.content_hash },
+      requested_by: 'cortex-console',
+      idempotency_key: `console:${taskType}:${memory.id}:${memory.content_hash}`,
+      ...(scope.agentId ? { agent_id: scope.agentId } : {}),
+      ...(scope.storeId ? { store_id: scope.storeId } : {}),
+    },
+  }
+}
+
 // --- a new memory, written from the Memories page ---------------------------------------------------
 
 export const NEW_MEMORY_STATUSES = ['candidate', 'active', 'confirmed'] as const

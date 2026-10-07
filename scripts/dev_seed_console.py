@@ -195,6 +195,11 @@ def seed_agent(store: GraphStore) -> None:
     a = store.store_memory("The relay retries a failed submission three times before spooling it.", source=src("dev://agent/relay-retry", "sess-w1"), status="confirmed", evidence_class="observed_event", idempotency_key="dev:w:1")
     store.store_memory("The relay never retries; failed submissions are dropped.", source=src("dev://agent/relay-drop", "sess-w1"), status="active", evidence_class="observed_event", idempotency_key="dev:w:2")
     replay = store.store_memory("Spooled submissions are replayed in order on reconnect.", source=src("dev://agent/relay-replay", "sess-w1"), status="confirmed", evidence_class="observed_event", idempotency_key="dev:w:3")
+    # one real attachment (content-addressed on disk by the store) so the Files tab has something to download
+    notes = Path(store.home) / "fixture-assets" / "relay-notes.txt"
+    notes.parent.mkdir(parents=True, exist_ok=True)
+    notes.write_text("Relay retry notes (dev fixture).\nThree attempts, then spool; replay in order on reconnect.\n")
+    store.attach_media(a["id"], notes, media_type="text/plain")
     # a short chain of relations, private to the agent, so the Entities page has something to walk
     store.link_entities("relay", "retries", "failed submission", evidence_memory_id=a["id"])
     store.link_entities("failed submission", "falls back to", "spool", evidence_memory_id=a["id"])
