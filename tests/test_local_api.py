@@ -355,6 +355,85 @@ def test_operator_can_select_an_agent_partition_across_memory_views(running_stor
     assert graph_memory_ids == {f"memory:{memory_a['id']}"}
 
 
+def test_superseding_an_agent_memory_keeps_the_replacement_in_that_agents_namespace(running_store):
+    # Regression: an operator's supersede carries no agent, so the replacement used to land in the
+    # no-agent partition and the edit vanished from the agent workspace it was made in.
+    store, port = running_store
+    old = store.store_memory("Relay retries twice.", source={"kind": "direct_user", "agent_id": "agent-a"}, status="confirmed")
+    agent = old["source"]["agent_id"]
+
+    status, new = _post(port, f"/api/memory/{old['id']}/supersede", {
+        "new_content": "Relay retries three times.",
+        "source": {"kind": "direct_user", "locator": "console://test"},
+    })
+    assert status == 200
+    assert new["source"]["agent_id"] == agent
+    assert new["source"]["identity_mode"] == old["source"]["identity_mode"]
+    status, scoped = _get(port, f"/api/memories?agent_id={agent}")
+    assert new["id"] in {m["id"] for m in scoped["memories"]}
+
+
+def test_an_unbound_memory_supersede_stays_unbound(running_store):
+    store, port = running_store
+    old = store.store_memory("No agent here.", source={"kind": "direct_user"}, status="confirmed")
+    status, new = _post(port, f"/api/memory/{old['id']}/supersede", {"new_content": "Still no agent.", "source": {"kind": "direct_user"}})
+    assert status == 200
+    assert new["source"]["agent_id"] is None
+
+
+def test_operator_can_create_a_memory_in_an_existing_agent_workspace_and_only_there(running_store):
+    store, port = running_store
+    seed = store.store_memory("Seed for the partition.", source={"kind": "direct_user", "agent_id": "agent-a"}, status="confirmed")
+    agent = seed["source"]["agent_id"]
+
+    status, created = _post(port, "/api/memory/propositions", {"content": "Added from the console.", "workspace_agent_id": agent, "source": {"kind": "direct_user", "locator": "console://test"}})
+    assert status == 200
+    assert created["source"]["agent_id"] == agent
+
+    # a partition that does not exist cannot be manufactured
+    status, refused = _post(port, "/api/memory/propositions", {"content": "Into the void.", "workspace_agent_id": "pseudonym:" + "0" * 64, "source": {"kind": "direct_user"}})
+    assert status == 403, refused
+
+    # and without the field the write stays unbound, exactly as before
+    status, plain = _post(port, "/api/memory/propositions", {"content": "No workspace given.", "source": {"kind": "direct_user"}})
+    assert status == 200 and plain["source"]["agent_id"] is None
+
+
+def test_a_non_operator_credential_cannot_choose_the_workspace_it_writes_to(running_store):
+    global _CURRENT_TOKEN
+    store, port = running_store
+    seed = store.store_memory("Seed.", source={"kind": "direct_user", "agent_id": "agent-a"}, status="confirmed")
+    _CURRENT_TOKEN = issue_token(store.home, "plain-writer", roles=("writer",), scopes=("memory:read", "memory:write"))
+    status, refused = _post(port, "/api/memory/propositions", {"content": "Sneaking in.", "workspace_agent_id": seed["source"]["agent_id"], "source": {"kind": "direct_user"}})
+    assert status == 403, refused
+
+
+def test_entity_neighbors_and_paths_honour_the_requested_workspace(running_store):
+    # The entity routes used to ignore agent_id for an operator, so one workspace's private entity
+    # showed up in another's lookup.
+    store, port = running_store
+    a = store.store_memory("A knows B.", source={"kind": "direct_user", "agent_id": "agent-a"}, status="confirmed")
+    b = store.store_memory("A knows C.", source={"kind": "direct_user", "agent_id": "agent-b"}, status="confirmed")
+    store.link_entities("hub", "knows", "only-a", evidence_memory_id=a["id"])
+    store.link_entities("hub", "knows", "only-b", evidence_memory_id=b["id"])
+    agent_a = a["source"]["agent_id"]
+
+    status, scoped = _get(port, f"/api/entity/hub/neighbors?agent_id={agent_a}")
+    assert status == 200
+    assert {e["object"] for e in scoped["edges"]} == {"only-a"}
+    # the two agents' "hub" are distinct private entities; each workspace sees only its own
+    agent_b = b["source"]["agent_id"]
+    status, scoped_b = _get(port, f"/api/entity/hub/neighbors?agent_id={agent_b}")
+    assert {e["object"] for e in scoped_b["edges"]} == {"only-b"}
+    status, everything = _get(port, "/api/entity/hub/neighbors")
+    assert status == 200 and everything["edges"]  # the unscoped operator lookup still answers
+
+    status, path = _get(port, f"/api/entity/path?from=hub&to=only-b&agent_id={agent_a}")
+    assert status == 200 and path["edges"] == []
+    status, path = _get(port, f"/api/entity/path?from=hub&to=only-a&agent_id={agent_a}")
+    assert [e["object"] for e in path["edges"]] == ["only-a"]
+
+
 def test_agent_session_replay_requires_single_source_namespace(running_store):
     store, _port = running_store
     store.identity_mode = "full"
@@ -912,6 +991,105 @@ def test_memory_detail_supporting_routes(running_store):
         status, body = _get(port, f"/api/memory/{memory['id']}/{suffix}")
         assert status == 200
         assert isinstance(body, list)
+
+
+def test_verify_provenance_and_session_read_routes(running_store):
+    """The MCP-only verify/export tools are reachable over HTTP and agree with the store."""
+    store, port = running_store
+    memory = store.store_memory(
+        "Verification target.",
+        source={"kind": "direct_user", "locator": "hermes://session/verify-routes", "session_id": "verify-routes"},
+        status="confirmed",
+    )
+    status, chain = _get(port, f"/api/memory/{memory['id']}/verify-chain")
+    assert status == 200
+    assert chain == store.verify_chain(memory["id"])
+    assert chain["valid"] is True and chain["length"] >= 1
+
+    status, bundle = _get(port, f"/api/memory/{memory['id']}/provenance")
+    assert status == 200
+    assert bundle["schema_version"] == "xibalba.provenance_export.v1"
+    assert bundle["memory_ids"] == [memory["id"]]
+    assert bundle["root_hash"] == store.export_memory_bundle(memory_ids=[memory["id"]])["root_hash"]
+
+    # a forgotten memory exports empty unless the caller asks for it, exactly as the MCP tool does
+    store.forget_memory(memory["id"])
+    status, empty = _get(port, f"/api/memory/{memory['id']}/provenance")
+    assert status == 200 and empty["count"] == 0
+    status, included = _get(port, f"/api/memory/{memory['id']}/provenance?include_forgotten=1")
+    assert status == 200 and included["count"] == 1
+
+    status, _ = _get(port, "/api/memory/does-not-exist/verify-chain")
+    assert status == 404
+
+    status, exchange = _post(
+        port, "/api/exchanges/model",
+        {"external_session_id": "verify-routes", "user_prompt": "hello", "model_response": "hi"},
+    )
+    assert status == 200
+    status, session_chain = _get(port, "/api/session/verify-routes/verify-chain")
+    assert status == 200
+    assert session_chain == store.verify_exchange_chain("verify-routes")
+    assert session_chain["valid"] is True and session_chain["length"] == 1
+
+    status, memories = _get(port, "/api/session/verify-routes/memories")
+    assert status == 200
+    assert {m["id"] for m in memories} >= {exchange["prompt_memory"]["id"], exchange["response_memory"]["id"]}
+
+    status, summary = _get(port, "/api/session/verify-routes/otel-summary")
+    assert status == 200 and summary == store.session_otel_summary("verify-routes")
+
+    status, _ = _get(port, "/api/session/no-such-session/verify-chain")
+    assert status == 404
+
+
+def test_context_assemble_route_is_read_scoped_and_agent_scoped(running_store):
+    store, port = running_store
+    store.store_memory(
+        "The deployment window is Tuesday evening.",
+        source={"kind": "direct_user", "locator": "hermes://session/ctx", "agent_id": "agent-ctx"},
+        status="confirmed",
+    )
+    status, block = _post(port, "/api/context/assemble", {"query": "deployment window", "limit": 5})
+    assert status == 200
+
+    # the route and the store tool agree on the block's shape (no embedding model runs in tests,
+    # so both fall back to the lexical channel)
+    expected = store.assemble_context("deployment window", query_vector=None, limit=5)
+    assert set(block) == set(expected)
+    assert block["schema_version"] == expected["schema_version"]
+
+    # a credential that can only read may still assemble context: it is a read, not a write
+    reader = issue_token(store.home, "reader-only", roles=("reader",), scopes=("memory:read",))
+    request = urllib.request.Request(
+        f"http://localhost:{port}/api/context/assemble",
+        data=json.dumps({"query": "deployment window"}).encode(), method="POST",
+        headers={"Content-Type": "application/json", "Authorization": f"Bearer {reader}"},
+    )
+    with urllib.request.urlopen(request, timeout=5) as response:
+        assert response.status == 200
+
+
+def test_structural_extraction_route_produces_proposals_not_graph_facts(running_store):
+    store, port = running_store
+    memory = store.store_memory(
+        "See https://example.com/docs and the file /etc/relay/config.yaml for the relay settings.",
+        source={"kind": "direct_user", "locator": "dev://structural"}, status="confirmed",
+    )
+    status, task = _post(port, f"/api/memory/{memory['id']}/extract-structural", {})
+    assert status == 200
+    assert task["status"] == "completed" and task["task_type"] == "extract_entities"
+
+    # the matches are proposals waiting for a person, not entities in the graph
+    proposals = store.list_extraction_proposals(status="proposed", source_memory_id=memory["id"])
+    assert proposals, "regex extraction found nothing in a memory that names a URL and a path"
+    assert all(p["status"] == "proposed" for p in proposals)
+    assert store.graph_payload(limit=100)["nodes"] and not [
+        n for n in store.graph_payload(limit=100)["nodes"] if n["type"] == "entity" and "example.com" in n["label"]
+    ]
+
+    status, _ = _post(port, "/api/memory/does-not-exist/extract-structural", {})
+    assert status == 404
 
 
 def test_inference_task_routes(running_store):

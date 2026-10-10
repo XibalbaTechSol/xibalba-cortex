@@ -6,6 +6,7 @@
 const DOMAIN_TAGS: Record<string, Uint8Array> = {
   projection_checkpoint: new TextEncoder().encode('xibalba.projection_checkpoint.v1'),
   retrieval_trace: new TextEncoder().encode('xibalba.retrieval_trace.v1'),
+  exchange_batch: new TextEncoder().encode('xibalba.exchange_batch.v2'),
 }
 
 function hexToBytes(hex: string): Uint8Array {
@@ -80,4 +81,22 @@ export async function verifyDomainMerkleProof(proof: MerkleInclusionProofLike): 
   } catch {
     return false
   }
+}
+
+/**
+ * Recompute a domain root from its payload hashes, mirroring `events.domain_merkle_root`: wrap each
+ * hash with its domain and position, fold pairs upward (the odd last node carries up unchanged),
+ * then wrap the result. Returns null for no leaves, as the server does.
+ */
+export async function domainMerkleRoot(domain: string, payloadHashes: readonly string[]): Promise<string | null> {
+  if (payloadHashes.length === 0) return null
+  let level: Uint8Array[] = []
+  for (let i = 0; i < payloadHashes.length; i += 1) level.push(await domainLeaf(domain, i, payloadHashes[i]))
+  while (level.length > 1) {
+    const next: Uint8Array[] = []
+    for (let i = 0; i + 1 < level.length; i += 2) next.push(await merkleParent(level[i], level[i + 1]))
+    if (level.length % 2) next.push(level[level.length - 1])
+    level = next
+  }
+  return `sha256:${bytesToHex(await wrapDomainRoot(domain, level[0]))}`
 }

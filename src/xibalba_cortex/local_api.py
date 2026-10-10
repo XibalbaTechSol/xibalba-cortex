@@ -13,14 +13,15 @@ deployment with no credentials issued simply has no working API, which is the fa
 
 Two credential types, by caller kind:
 
-  * Browsers get an HttpOnly, Secure, SameSite=Strict session cookie (`cortex_session`) set by
+  * Browsers get an HttpOnly, Secure, SameSite=None session cookie (`cortex_session`) set by
     /api/auth/login and /api/auth/signup. The raw token is never returned in a response body and
     is never readable from JavaScript, so an XSS bug cannot exfiltrate it -- which the previous
-    sessionStorage-held bearer token could not prevent. `SameSite=Strict` is what makes this safe
-    without a separate CSRF token. Because the cookie is `Secure`, this path requires TLS; the
-    packaged Caddyfile terminates it and serves the viewer and API on one origin, so no CORS
-    credentials dance is needed. Set XIBALBA_CORTEX_INSECURE_COOKIES=1 to drop `Secure` for a
-    plain-HTTP loopback dev server.
+    sessionStorage-held bearer token could not prevent. SameSite=None lets a cross-origin
+    browser caller (the dashboard apps) attach it, so every state-changing request that
+    authenticates by cookie must also carry `X-Cortex-CSRF-Token` (fetch it from GET
+    /api/auth/csrf); bearer callers have no cookie to ride and are exempt. Because the cookie is
+    `Secure`, this path requires TLS; the packaged Caddyfile terminates it. Set
+    XIBALBA_CORTEX_INSECURE_COOKIES=1 to drop `Secure` for a plain-HTTP loopback dev server.
   * Machine callers (the streamable-HTTP MCP transport, CLI, workers) continue to present
     `Authorization: Bearer <token>` against the same ingest-token store (auth_middleware.py /
     ingest_tokens.py). Issue tokens with `xibalba-cortex-ingest-tokens issue`. These callers have
@@ -50,11 +51,16 @@ Routes:
   GET /api/memory/{id}/otel                -> GraphStore.memory_otel_events()
   GET /api/memory/{id}/attachments         -> GraphStore.list_attachments()
   GET /api/memory/{id}/contradictions      -> GraphStore.contradictions()
+  GET /api/memory/{id}/verify-chain        -> GraphStore.verify_chain() (local hash-chain recompute)
+  GET /api/memory/{id}/provenance?include_forgotten= -> GraphStore.export_memory_bundle([id])
   GET /api/memory/{id}/similar?limit=      -> GraphStore.similar_memories()
   GET /api/memory/{id}/neighbors           -> GraphStore.memory_entity_relations()
   GET /api/entity/{name}/neighbors?max_depth= -> GraphStore.neighbors()
   GET /api/entity/path?from=&to=&max_depth=   -> GraphStore.find_path()
   GET /api/session/{id}/exchanges          -> GraphStore.session_exchanges()
+  GET /api/session/{id}/verify-chain       -> GraphStore.verify_exchange_chain()
+  GET /api/session/{id}/memories           -> GraphStore.session_memories()
+  GET /api/session/{id}/otel-summary       -> GraphStore.session_otel_summary()
   GET /api/session/{id}/otel               -> GraphStore.session_otel_events()
   GET /api/session/{id}/merkle-root        -> GraphStore.session_merkle_root()
   GET /api/session/{id}/merkle-proof?index= -> GraphStore.session_merkle_evidence()
@@ -74,11 +80,14 @@ Routes:
   POST /api/memory/contradictions          -> GraphStore.mark_contradiction()
   POST /api/memory/{id}/supersede          -> GraphStore.supersede_memory()
   POST /api/memory/{id}/forget             -> GraphStore.forget_memory()
+  POST /api/memory/{id}/extract-structural -> GraphStore.run_structural_extraction() (regex only, no model;
+                                               produces extraction proposals that still wait for review)
   POST /api/inference/tasks                -> GraphStore.request_inference_task()
   POST /api/inference/tasks/{id}/claim     -> GraphStore.claim_inference_task()
   POST /api/inference/tasks/{id}/complete  -> GraphStore.complete_inference_task()
   POST /api/extraction-proposals/{id}/decision -> GraphStore.decide_extraction_proposal()
   POST /api/retrieval/hybrid               -> GraphStore.hybrid_retrieve()
+  POST /api/context/assemble               -> GraphStore.assemble_context() (read-only; memory:read)
   POST /api/projections/{id}/checkpoint    -> GraphStore.create_projection_checkpoint()
   POST /api/projections/{id}/reconcile     -> GraphStore.reconcile_projection_checkpoint()
   POST /api/projections/{id}/rebuild       -> GraphStore.rebuild_projection_checkpoint()
@@ -242,6 +251,33 @@ def _scoped_source(store: GraphStore, principal: dict[str, object], source: dict
         value["agent_id"] = bound
     else:
         value.pop("agent_id", None)
+    return value
+
+
+def _operator_workspace_agent(
+    store: GraphStore, principal: dict[str, object], requested: object, source: dict[str, object]
+) -> str | None:
+    """The persisted agent partition an operator chose to write a new memory into, or None.
+
+    The console writes on behalf of whichever agent workspace is selected. A credential that is
+    bound to an agent already writes as that agent (_scoped_source), and an unbound one used to be
+    unable to name a partition at all, so its writes landed in no workspace. This allows exactly one
+    thing: an operator or admin credential naming a partition that ALREADY has source rows. It
+    cannot create a partition, cannot be used by a bound or plain-writer credential, and cannot be
+    combined with an agent in the source (which would be two answers to "who wrote this").
+    """
+    if requested is None or requested == "":
+        return None
+    if not isinstance(requested, str):
+        raise ValueError("workspace_agent_id must be a string")
+    roles = set(principal.get("roles") or [])
+    if _principal_agent_ids(principal) or not roles.intersection({"operator", "admin"}):
+        raise PermissionError("only an unbound operator or admin credential may choose the workspace a memory is written to")
+    if source.get("agent_id") is not None:
+        raise ValueError("workspace_agent_id and source.agent_id are mutually exclusive")
+    value = requested.strip()
+    if not store.has_agent_partition(value):
+        raise PermissionError("no such agent workspace")
     return value
 
 
@@ -899,10 +935,12 @@ def _make_handler(store: GraphStore, *, allowed_origins: frozenset[str],
                     self._send_json(200, agent_store.graph_payload(limit=limit, similarity_threshold=threshold, agent_id=agent_filter))
                 elif len(parts) == 4 and parts[0] == "api" and parts[1] == "entity" and parts[3] == "neighbors":
                     max_depth = int(params.get("max_depth", 1))
-                    self._send_json(200, store.neighbors(unquote(parts[2]), max_depth=max_depth, agent_id=_agent_filter(store, principal, None)))
+                    entity_store, agent_filter = _read_store_for_agent(principal, params.get("agent_id"), params.get("store_id"))
+                    self._send_json(200, entity_store.neighbors(unquote(parts[2]), max_depth=max_depth, agent_id=agent_filter))
                 elif parts == ["api", "entity", "path"]:
                     max_depth = int(params.get("max_depth", 3))
-                    self._send_json(200, store.find_path(params.get("from", ""), params.get("to", ""), max_depth=max_depth, agent_id=_agent_filter(store, principal, None)))
+                    entity_store, agent_filter = _read_store_for_agent(principal, params.get("agent_id"), params.get("store_id"))
+                    self._send_json(200, entity_store.find_path(params.get("from", ""), params.get("to", ""), max_depth=max_depth, agent_id=agent_filter))
                 elif len(parts) == 4 and parts[0] == "api" and parts[1] == "session" and parts[3] == "exchanges":
                     session_store, _ = _read_store_for_agent(principal, params.get("agent_id"), params.get("store_id"))
                     _assert_session_access(session_store, principal, parts[2])
@@ -911,6 +949,18 @@ def _make_handler(store: GraphStore, *, allowed_origins: frozenset[str],
                     session_store, _ = _read_store_for_agent(principal, params.get("agent_id"), params.get("store_id"))
                     _assert_session_access(session_store, principal, parts[2])
                     self._send_json(200, session_store.session_otel_events(parts[2]))
+                elif len(parts) == 4 and parts[0] == "api" and parts[1] == "session" and parts[3] == "verify-chain":
+                    session_store, _ = _read_store_for_agent(principal, params.get("agent_id"), params.get("store_id"))
+                    _assert_session_access(session_store, principal, parts[2])
+                    self._send_json(200, session_store.verify_exchange_chain(parts[2]))
+                elif len(parts) == 4 and parts[0] == "api" and parts[1] == "session" and parts[3] == "memories":
+                    session_store, _ = _read_store_for_agent(principal, params.get("agent_id"), params.get("store_id"))
+                    _assert_session_access(session_store, principal, parts[2])
+                    self._send_json(200, [_assert_memory_scope(m, principal, session_store) for m in session_store.session_memories(parts[2])])
+                elif len(parts) == 4 and parts[0] == "api" and parts[1] == "session" and parts[3] == "otel-summary":
+                    session_store, _ = _read_store_for_agent(principal, params.get("agent_id"), params.get("store_id"))
+                    _assert_session_access(session_store, principal, parts[2])
+                    self._send_json(200, session_store.session_otel_summary(parts[2]))
                 elif len(parts) == 4 and parts[0] == "api" and parts[1] == "session" and parts[3] == "merkle-root":
                     session_store, _ = _read_store_for_agent(principal, params.get("agent_id"), params.get("store_id"))
                     _assert_session_access(session_store, principal, parts[2])
@@ -989,6 +1039,18 @@ def _make_handler(store: GraphStore, *, allowed_origins: frozenset[str],
                 elif len(parts) == 3 and parts[0] == "api" and parts[1] == "memory" and parts[2]:
                     memory_store, _ = _read_store_for_agent(principal, params.get("agent_id"), params.get("store_id"))
                     self._send_json(200, _assert_memory_scope(memory_store.get_memory(parts[2]), principal, memory_store))
+                elif len(parts) == 4 and parts[0] == "api" and parts[1] == "memory" and parts[3] == "verify-chain":
+                    # Local recomputation of this memory's event hash chain. It proves the history is
+                    # internally consistent; it says nothing about on-chain anchoring (see verify_chain).
+                    memory_store, _ = _read_store_for_agent(principal, params.get("agent_id"), params.get("store_id"))
+                    _assert_memory_scope(memory_store.get_memory(parts[2]), principal, memory_store)
+                    self._send_json(200, memory_store.verify_chain(parts[2]))
+                elif len(parts) == 4 and parts[0] == "api" and parts[1] == "memory" and parts[3] == "provenance":
+                    memory_store, _ = _read_store_for_agent(principal, params.get("agent_id"), params.get("store_id"))
+                    _assert_memory_scope(memory_store.get_memory(parts[2]), principal, memory_store)
+                    self._send_json(200, memory_store.export_memory_bundle(
+                        memory_ids=[parts[2]], include_forgotten=params.get("include_forgotten") in ("1", "true"),
+                    ))
                 elif len(parts) == 4 and parts[0] == "api" and parts[1] == "memory" and parts[3] == "similar":
                     limit = int(params.get("limit", 10))
                     memory_store, _ = _read_store_for_agent(principal, params.get("agent_id"), params.get("store_id"))
@@ -1061,7 +1123,7 @@ def _make_handler(store: GraphStore, *, allowed_origins: frozenset[str],
                 (len(parts) == 5 and parts[:3] == ["api", "para", "classifications"] and parts[4] == "decision")
                 or (len(parts) == 4 and parts[:2] == ["api", "extraction-proposals"] and parts[3] == "decision")
             )
-            is_read_route = parts == ["api", "retrieval", "hybrid"]
+            is_read_route = parts in (["api", "retrieval", "hybrid"], ["api", "context", "assemble"])
             required_scope = "proposal:decide" if is_decision_route else "memory:read" if is_read_route else "memory:write"
             if parts == ["api", "settings", "inference"]:
                 try:
@@ -1276,6 +1338,7 @@ def _make_handler(store: GraphStore, *, allowed_origins: frozenset[str],
                     if source is not None and not isinstance(source, dict):
                         raise ValueError("source must be an object")
                     source = _scoped_source(store, principal, source if isinstance(source, dict) else None)
+                    workspace_agent = _operator_workspace_agent(store, principal, payload.get("workspace_agent_id"), source)
                     self._send_json(
                         200,
                         store.store_memory(
@@ -1286,6 +1349,7 @@ def _make_handler(store: GraphStore, *, allowed_origins: frozenset[str],
                             idempotency_key=payload.get("idempotency_key")
                             if isinstance(payload.get("idempotency_key"), str)
                             else None,
+                            persisted_agent_id=workspace_agent,
                         ),
                     )
                 elif parts == ["api", "memory", "link-entities"]:
@@ -1332,6 +1396,11 @@ def _make_handler(store: GraphStore, *, allowed_origins: frozenset[str],
                 elif len(parts) == 4 and parts[0] == "api" and parts[1] == "memory" and parts[3] == "forget":
                     _assert_memory_scope(store.get_memory(unquote(parts[2])), principal, store)
                     self._send_json(200, store.forget_memory(unquote(parts[2])))
+                elif len(parts) == 4 and parts[0] == "api" and parts[1] == "memory" and parts[3] == "extract-structural":
+                    # Deterministic (regex) entity extraction. It goes through the same proposal gate as
+                    # every extraction path, so this writes proposals for review, never graph facts.
+                    _assert_memory_scope(store.get_memory(unquote(parts[2])), principal, store)
+                    self._send_json(200, store.run_structural_extraction(unquote(parts[2]), claimed_by=f"console:{principal['label']}"))
                 elif len(parts) == 5 and parts[:3] == ["api", "para", "classifications"] and parts[4] == "decision":
                     decision = str(payload.get("decision") or "")
                     note = payload.get("note") if isinstance(payload.get("note"), str) else None
@@ -1364,6 +1433,27 @@ def _make_handler(store: GraphStore, *, allowed_origins: frozenset[str],
                             filters=filters,
                             max_per_source=payload.get("max_per_source") if isinstance(payload.get("max_per_source"), int) else None,
                             max_total_chars=payload.get("max_total_chars") if isinstance(payload.get("max_total_chars"), int) else None,
+                        ),
+                    )
+                elif parts == ["api", "context", "assemble"]:
+                    # Same scoping and query embedding as /api/retrieval/hybrid; the result is the
+                    # bounded, provenance-bearing context block MCP's memory_context_assemble returns.
+                    filters = payload.get("filters")
+                    if filters is not None and not isinstance(filters, dict):
+                        raise ValueError("filters must be an object")
+                    filters = dict(filters or {})
+                    filters["agent_id"] = _agent_filter(store, principal, filters.get("agent_id"))
+                    query = str(payload.get("query") or "")
+                    from .embedding_client import embed_query
+                    self._send_json(
+                        200,
+                        store.assemble_context(
+                            query,
+                            query_vector=embed_query(query),
+                            limit=int(payload.get("limit", 12)),
+                            temporal_at=payload.get("temporal_at") if isinstance(payload.get("temporal_at"), str) else None,
+                            max_total_chars=int(payload.get("max_total_chars", 12000)),
+                            filters=filters,
                         ),
                     )
                 elif len(parts) == 4 and parts[0] == "api" and parts[1] == "projections" and parts[3] == "checkpoint":

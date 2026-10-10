@@ -1957,7 +1957,14 @@ class GraphStore:
         status: str = "candidate",
         idempotency_key: str | None = None,
         evidence_class: str = "observed_event",
+        persisted_agent_id: str | None = None,
     ) -> dict[str, object]:
+        """persisted_agent_id writes into an EXISTING agent partition by its stored value, bypassing
+        identity resolution (which would hash an already-persisted pseudonym a second time and land
+        in a different partition). It is for two trusted callers only: supersede_memory, so a
+        replacement stays in the namespace of the memory it replaces, and the local API's
+        operator-selected workspace write. It can only name a partition that already has source
+        rows -- it cannot create one -- and is mutually exclusive with source["agent_id"]."""
         content = content.strip()
         if not content:
             raise ValueError("content must not be empty")
@@ -1975,6 +1982,15 @@ class GraphStore:
         stored_agent_id, identity_mode_in_effect = self._resolve_agent_id(
             source.get("agent_id") if isinstance(source.get("agent_id"), str) else None
         )
+        if persisted_agent_id is not None:
+            if source.get("agent_id") is not None:
+                raise ValueError("persisted_agent_id and source.agent_id are mutually exclusive")
+            partition = self._read_connection().execute(
+                "SELECT identity_mode FROM sources WHERE agent_id = ? LIMIT 1", (persisted_agent_id,)
+            ).fetchone()
+            if partition is None:
+                raise PermissionError("no such agent partition")
+            stored_agent_id, identity_mode_in_effect = persisted_agent_id, partition["identity_mode"]
         source = dict(source)
         if stored_agent_id and not source.get("device_id"):
             configured_device = self.local_device_id()
@@ -2144,6 +2160,13 @@ class GraphStore:
             "quarantine_reasons": details.get("quarantine_reasons", []),
             "supersedes_id": row["supersedes_id"],
             "evidence_class": row["derivation_family"],
+            # Additive (2026-10-06): the store's own write time (UTC "YYYY-MM-DD HH:MM:SS", no zone
+            # marker) and the validity window. created_at is when this store recorded the memory,
+            # not when the event happened -- that is source.observed_at, which stays separate and
+            # may be absent.
+            "created_at": row["created_at"],
+            "valid_from": row["valid_from"],
+            "valid_to": row["valid_to"],
         }
 
     def counts(self) -> dict[str, int]:
@@ -4266,6 +4289,9 @@ class GraphStore:
             "latency_ms": row["latency_ms"],
             "node_id": row["node_id"],
             "parent_node_id": row["parent_node_id"],
+            # Additive: when the store recorded the exchange (UTC, no zone marker). prompt_time and
+            # response_time are the event times and may be absent; this one never is.
+            "created_at": row["created_at"],
             "prompt_memories": [self.get_memory(mid) for mid in prompt_memory_ids],
             "response_memories": [self.get_memory(mid) for mid in response_memory_ids],
             "context_contributions": [
@@ -6068,13 +6094,19 @@ class GraphStore:
         idempotency_key: str | None = None,
         evidence_class: str = "observed_event",
     ) -> dict[str, object]:
-        self.get_memory(old_id)  # raises KeyError if missing
+        old = self.get_memory(old_id)  # raises KeyError if missing
+        # A replacement belongs to the namespace of the memory it replaces. Without this an edit made
+        # by a caller that carries no agent (an operator in the console) lands in the no-agent
+        # partition and silently leaves the workspace it was made in. A caller that names its own
+        # agent, or a session that already scopes one, is left to the normal rules.
+        inherited = old["source"].get("agent_id")
         new = self.store_memory(
             new_content,
             source=source,
             status=status,
             idempotency_key=idempotency_key,
             evidence_class=evidence_class,
+            persisted_agent_id=inherited if inherited and source.get("agent_id") is None else None,
         )
         with self._lock:
             self._connection.execute("BEGIN IMMEDIATE")
@@ -6422,8 +6454,9 @@ class GraphStore:
                 rows = self._connection.execute(
                     f"""
                     SELECT r.predicate, r.object_entity_id, r.object_literal, r.evidence_memory_id,
-                           oe.canonical_name AS object_name
+                           oe.canonical_name AS object_name, se.canonical_name AS subject_name
                     FROM relations r
+                    JOIN entities se ON se.id = r.subject_entity_id
                     LEFT JOIN entities oe ON oe.id = r.object_entity_id
                     WHERE r.subject_entity_id IN ({placeholders}) AND r.status = 'active'
                       AND (? IS NULL OR r.agent_id IN (?, ''))
@@ -6437,6 +6470,8 @@ class GraphStore:
                         break
                     edges.append(
                         {
+                            # additive: which entity the edge leaves, so a multi-hop result can be drawn as a tree
+                            "subject": row["subject_name"],
                             "predicate": row["predicate"],
                             "object": row["object_name"] or row["object_literal"],
                             "evidence_memory_id": row["evidence_memory_id"],
@@ -6464,6 +6499,7 @@ class GraphStore:
             if start is None or goal is None or start["id"] == goal["id"]:
                 return {"edges": []}
             visited = {start["id"]}
+            names = {start["id"]: start["canonical_name"]}
             queue: list[tuple[str, list[dict[str, object]]]] = [(start["id"], [])]
             while queue:
                 current_id, path = queue.pop(0)
@@ -6483,6 +6519,7 @@ class GraphStore:
                 ).fetchall()
                 for row in rows:
                     edge = {
+                        "subject": names[current_id],
                         "predicate": row["predicate"],
                         "object": row["object_name"] or row["object_literal"],
                     }
@@ -6492,6 +6529,7 @@ class GraphStore:
                         return {"edges": new_path}
                     if target_id and target_id not in visited:
                         visited.add(target_id)
+                        names[target_id] = row["object_name"]
                         queue.append((target_id, new_path))
         return {"edges": []}
 
@@ -6539,7 +6577,9 @@ class GraphStore:
         relations = self.list_relations()
         if scoped_agent_id:
             relations = [r for r in relations if str(r.get("evidence_memory_id") or "") in memory_ids]
-            entity_ids = {str(r.get("subject_entity_id")) for r in relations} | {str(r.get("object_entity_id")) for r in relations}
+            # list_relations() keys these `subject_id` / `object_id`; object_id is None for a
+            # literal-valued relation, which has no object entity to include.
+            entity_ids = {str(r["subject_id"]) for r in relations} | {str(r["object_id"]) for r in relations if r.get("object_id")}
             entities = [entity for entity in entities if str(entity.get("id")) in entity_ids]
 
         nodes: list[dict[str, object]] = [
@@ -6550,6 +6590,10 @@ class GraphStore:
                 "status": memory["status"],
                 "evidence_class": memory["evidence_class"],
                 "source_kind": memory["source"]["kind"],
+                # Additive: lets a timeline place the node without paging /api/memories.
+                "created_at": memory["created_at"],
+                "observed_at": memory["source"]["observed_at"],
+                "session_id": memory["source"]["session_id"],
             }
             for memory in memories
         ]
@@ -6593,6 +6637,7 @@ class GraphStore:
                 "type": "exchange",
                 "label": f"Exchange {exchange['sequence_number']}",
                 "timestamp": exchange.get("prompt_time") or exchange.get("response_time"),
+                "created_at": exchange.get("created_at"),
             }
             for exchange in exchanges
         )

@@ -366,6 +366,84 @@ def test_graph_payload_includes_memory_entity_and_similarity_nodes(tmp_path):
     store.close()
 
 
+def test_entity_neighbors_and_paths_name_the_subject_of_every_edge(tmp_path):
+    # Without a subject a depth-2 result is a flat bag of (predicate, object) pairs and the tree it
+    # came from cannot be drawn.
+    store = GraphStore(tmp_path / "graph")
+    mem = store.store_memory("A chain of relations.", source={"kind": "direct_user"}, status="confirmed")
+    store.link_entities("alpha", "feeds", "beta", evidence_memory_id=mem["id"])
+    store.link_entities("beta", "feeds", "gamma", evidence_memory_id=mem["id"])
+
+    edges = store.neighbors("alpha", max_depth=2)["edges"]
+    assert [(e["subject"], e["predicate"], e["object"]) for e in edges] == [("alpha", "feeds", "beta"), ("beta", "feeds", "gamma")]
+    path = store.find_path("alpha", "gamma", max_depth=3)["edges"]
+    assert [(e["subject"], e["predicate"], e["object"]) for e in path] == [("alpha", "feeds", "beta"), ("beta", "feeds", "gamma")]
+    store.close()
+
+
+def test_memory_payload_and_graph_node_carry_the_stores_own_write_time(tmp_path):
+    # The store stamps every memory row with created_at; it used to stay in SQLite and never reach
+    # the payload, so a client had no honest way to place a memory in time unless the writing agent
+    # happened to set source.observed_at.
+    store = GraphStore(tmp_path / "graph")
+    memory = store.store_memory(
+        "A memory with no observed_at.",
+        source={"kind": "direct_user", "locator": "test://created-at", "session_id": None},
+        status="confirmed",
+    )
+    loaded = store.get_memory(memory["id"])
+    assert isinstance(loaded["created_at"], str) and len(loaded["created_at"]) == 19  # "YYYY-MM-DD HH:MM:SS"
+    assert loaded["source"]["observed_at"] is None  # the two stay distinct: write time is not event time
+    assert "valid_from" in loaded and "valid_to" in loaded
+
+    node = next(n for n in store.graph_payload()["nodes"] if n["id"] == f"memory:{memory['id']}")
+    assert node["created_at"] == loaded["created_at"]
+    assert node["observed_at"] is None
+    store.close()
+
+
+def test_exchange_node_carries_write_time_when_it_has_no_event_time(tmp_path):
+    store = GraphStore(tmp_path / "graph")
+    store.start_session("sess-time")
+    store.record_model_exchange(
+        "sess-time", user_prompt="q", model_response="a", context=[], runtime="test", prompt_id="p1",
+        idempotency_key="time-ex-1",
+    )
+    node = next(n for n in store.graph_payload()["nodes"] if n["type"] == "exchange")
+    assert node["timestamp"] is None  # no prompt_time/response_time was supplied
+    assert isinstance(node["created_at"], str) and len(node["created_at"]) == 19
+    store.close()
+
+
+def test_agent_scoped_graph_payload_keeps_entities_and_relations_for_that_agent(tmp_path):
+    # Regression: the scoped branch read `subject_entity_id`/`object_entity_id` from rows that
+    # list_relations() keys as `subject_id`/`object_id`, so an agent-scoped graph silently dropped
+    # every entity and relation edge while the unscoped graph showed them.
+    store = GraphStore(tmp_path / "graph")
+    mine = store.store_memory(
+        "Relay retries failed submissions.",
+        source={"kind": "explicit_memory", "agent_id": "agent-a", "locator": "test://scoped-a"},
+        status="confirmed",
+    )
+    theirs = store.store_memory(
+        "Offsite is in Madison.",
+        source={"kind": "explicit_memory", "agent_id": "agent-b", "locator": "test://scoped-b"},
+        status="confirmed",
+    )
+    store.link_entities("relay", "retries", "failed submission", evidence_memory_id=mine["id"])
+    store.link_entities("offsite", "located_in", "Madison", evidence_memory_id=theirs["id"])
+
+    payload = store.graph_payload(agent_id="agent-a")
+
+    labels = {node["label"] for node in payload["nodes"] if node["type"] == "entity"}
+    assert labels == {"relay", "failed submission"}
+    relations = [e for e in payload["edges"] if e["type"] == "relation"]
+    assert [(e["predicate"], e["evidence_memory_id"]) for e in relations] == [("retries", mine["id"])]
+    # the other agent's memory and its entities stay out
+    assert f"memory:{theirs['id']}" not in {node["id"] for node in payload["nodes"]}
+    store.close()
+
+
 def test_graph_payload_includes_contradiction_edges(tmp_path):
     store = GraphStore(tmp_path / "graph")
     current = store.store_memory(

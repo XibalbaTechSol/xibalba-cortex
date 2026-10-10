@@ -32,8 +32,55 @@ export function isSignedIn(): boolean {
 
 function markSignedIn(value: boolean): void {
   signedIn = value
+  // the CSRF token is derived from the session cookie, so a new session means a new token
+  csrfToken = undefined
   if (value) sessionStorage.setItem(SIGNED_IN_KEY, '1')
   else sessionStorage.removeItem(SIGNED_IN_KEY)
+}
+
+// local_api.py requires `X-Cortex-CSRF-Token` on every state-changing request that authenticates
+// with the session cookie (_verify_csrf), and hands the token out at GET /api/auth/csrf. A bearer
+// credential (the dev proxy, machine callers) has no cookie to ride, so that route answers 400 and
+// no header is needed. `undefined` = not asked yet; `null` = asked, none required.
+let csrfToken: string | null | undefined
+
+async function csrfHeader(): Promise<Record<string, string>> {
+  if (csrfToken === undefined) {
+    const response = await fetch(`${getApiBaseUrl()}/api/auth/csrf`, { credentials: 'include' })
+    if (response.ok) {
+      const body = (await response.json().catch(() => ({}))) as { csrf_token?: string }
+      csrfToken = body.csrf_token ?? null
+    } else if (response.status === 400) {
+      csrfToken = null // not cookie-authenticated: nothing to forge, nothing to send
+    } else {
+      // 401 etc.: leave it unset so the next write asks again, and let that request report the real error
+      return {}
+    }
+  }
+  return csrfToken ? { 'X-Cortex-CSRF-Token': csrfToken } : {}
+}
+
+/** fetch for a state-changing route: attaches the CSRF header and retries once if the token went stale. */
+async function mutatingFetch(path: string, init: RequestInit): Promise<Response> {
+  const send = async () => fetch(`${getApiBaseUrl()}${path}`, { ...init, credentials: 'include', headers: { ...(init.headers as Record<string, string> | undefined), ...(await csrfHeader()) } })
+  const response = await send()
+  if (response.status === 403 && csrfToken) {
+    // the session may have been replaced since the token was fetched; ask again exactly once
+    csrfToken = undefined
+    return send()
+  }
+  return response
+}
+
+/**
+ * Dev only: the Vite dev server's proxy attaches a local operator token to every /cortex-api
+ * request, so there is no cookie to sign in for. Prove the proxy reaches a Cortex profile, then
+ * mark the viewer signed in. A production build has no such proxy and this just fails honestly.
+ */
+export async function connectLocalDev(): Promise<void> {
+  const response = await fetch(`${getApiBaseUrl()}/api/status`, { credentials: 'include' })
+  if (!response.ok) throw new Error('No local Cortex profile is reachable through the dev proxy. Start the local API, or sign in with an account.')
+  markSignedIn(true)
 }
 
 export function getApiBaseUrl(): string {
@@ -61,6 +108,9 @@ export async function accountMe(): Promise<{account: Record<string, unknown>; se
   const response = await fetch(getApiBaseUrl() + "/api/auth/me", { credentials: "include" })
   const payload = await response.json().catch(() => ({}))
   if (!response.ok) throw new Error(payload.error || response.status + " " + response.statusText)
+  // a valid bearer credential that is not an account session gets HTTP 200 with `{"error": ...}`
+  // and no `account`; treat that as the failure it is rather than returning a value of the wrong shape
+  if (!payload.account) throw new Error(payload.error || "no account for this credential")
   return payload
 }
 
@@ -72,7 +122,7 @@ export async function accountSessions(): Promise<{sessions: Array<Record<string,
 }
 
 export async function accountRevokeSession(sessionId: string): Promise<void> {
-  const response = await fetch(getApiBaseUrl() + "/api/auth/sessions/revoke", { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ session_id: sessionId }) })
+  const response = await mutatingFetch("/api/auth/sessions/revoke", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ session_id: sessionId }) })
   const payload = await response.json().catch(() => ({}))
   if (!response.ok) throw new Error(payload.error || response.status + " " + response.statusText)
 }
@@ -92,25 +142,46 @@ export async function accountLogout(): Promise<void> {
 }
 
 export async function accountChangePassword(currentPassword: string, newPassword: string): Promise<void> {
-  const response = await fetch(getApiBaseUrl() + "/api/auth/password", { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ current_password: currentPassword, new_password: newPassword }) })
+  const response = await mutatingFetch("/api/auth/password", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ current_password: currentPassword, new_password: newPassword }) })
   const payload = await response.json().catch(() => ({}))
   if (!response.ok) throw new Error(payload.error || response.status + " " + response.statusText)
 }
 
+// `GET /api/graph` (GraphStore.graph_payload) returns five node classes and eight edge types.
+// This used to declare only `memory | entity` and `relation | similarity | contradiction`, which
+// understated the payload: session/exchange/merkle nodes and the structural edges have always
+// been sent, and the legacy graph code reads them through its own DemoNode adapter. Widened so
+// the types match the wire. Every added field is optional, so existing readers are unaffected.
+export type GraphNodeType = 'memory' | 'entity' | 'session' | 'exchange' | 'merkle'
+export type GraphEdgeType =
+  | 'relation' | 'similarity' | 'contradiction'
+  | 'contains' | 'prompt' | 'response' | 'context' | 'merkle_root'
+
 export interface GraphNode {
   id: string
-  type: 'memory' | 'entity'
+  type: GraphNodeType
   label: string
   status?: string
   evidence_class?: string
   source_kind?: string
   entity_type?: string
+  /** exchange nodes: ISO prompt time. */
+  timestamp?: string | null
+  /** session nodes: "YYYY-MM-DD HH:MM:SS" (UTC, no zone marker). */
+  started_at?: string
+  /** merkle nodes: whether the server-computed root is valid. */
+  valid?: boolean
+  agent_id?: string
+  /** memory nodes (backend 2026-10-06+): the store's write time, and the event time if the writer set one. */
+  created_at?: string
+  observed_at?: string | null
+  session_id?: string | null
 }
 
 export interface GraphEdge {
   source: string
   target: string
-  type: 'relation' | 'similarity' | 'contradiction'
+  type: GraphEdgeType
   predicate?: string
   cosine_similarity?: number
   evidence_memory_id?: string
@@ -138,7 +209,10 @@ export interface Memory {
   content: string
   content_hash: string
   status: string
+  /** UTC, the store's own write time; not the event time (source.observed_at). */
   created_at?: string
+  valid_from?: string | null
+  valid_to?: string | null
   source: MemorySource
   quarantine_reasons: string[]
   supersedes_id: string | null
@@ -159,6 +233,8 @@ export interface EntityRelation {
 }
 
 export interface TraversalEdge {
+  /** the entity the edge leaves (backend 2026-10-06+; older servers omit it) */
+  subject?: string
   predicate: string
   object: string
   evidence_memory_id?: string
@@ -179,6 +255,8 @@ export interface Stats {
 
 export interface StoreStatus {
   schema_version: number
+  /** Returned by GET /api/status; not declared before the console needed it. */
+  profile_id?: string
   journal_mode: string
   foreign_keys: boolean
   fts5: boolean
@@ -324,6 +402,62 @@ export interface MerkleRoot {
   exchange_count: number
   valid: boolean
   root_kind: string
+}
+
+export interface SessionMerkleProof {
+  session_id: string
+  tree_kind: string
+  leaf: string
+  leaf_index: number
+  exchange_count: number
+  root: string
+  proof: MerkleInclusionProof
+  disclaimer: string
+}
+
+export interface KernelIntent {
+  invocation_id: string | null
+  tool_call_id: string | null
+  correlation_mode: 'invocation_id' | 'legacy_tool_call_id'
+  tool_name: string | null
+  declared_intent: { intent_rationale: string | null; tool_input_hash: string | null }
+  kernel_decision: Record<string, unknown>
+  actual_outcome: Record<string, unknown>
+  [key: string]: unknown
+}
+
+export interface Invocation {
+  invocation_id: string
+  session_id: string
+  agent_id: string | null
+  runtime: string | null
+  tool_name: string | null
+  tool_call_id: string | null
+  first_seen_at: string
+  last_seen_at: string
+  pre_tool: { intent_rationale: string | null; tool_input_hash: string | null; policy_reason: string | null; kernel_decision: Record<string, unknown> | null } | null
+  post_tool: { outcome: string | null; result: unknown; duration_ms: number | null } | null
+  runtime_status: 'complete' | 'awaiting_outcome' | 'orphan_outcome'
+}
+
+export interface DecisionTraceEvent {
+  event_id: string
+  trace_id: string
+  sequence_number: number
+  event_hash: string
+  parent_event_hash: string | null
+  envelope: Record<string, unknown>
+  advisory: Record<string, unknown> | null
+  created_at: string
+}
+
+export interface DecisionTrace {
+  trace_id: string
+  session_id: string
+  events: DecisionTraceEvent[]
+  root: string | null
+  valid: boolean
+  disclaimer?: string
 }
 
 export interface InferenceManifest {
@@ -503,6 +637,80 @@ export interface InferenceSettings {
   contradictions_require_review: boolean
 }
 
+/** One on-chain verdict from IntegrityKernel for a self-test UserOperation (kernel_bridge.KernelDecision.to_dict). */
+export interface KernelBridgeDecision {
+  user_op_hash: string
+  success: boolean | null
+  actual_gas_cost: number | string | null
+  revert_reason_hex: string | null
+  adapter_note: string | null
+}
+
+export type KernelBridgeSelfTest =
+  | { ok: false; error: string }
+  | { ok: true; matched: KernelBridgeDecision; kernel_exceeding: KernelBridgeDecision; passed: boolean }
+
+/** GET /api/memory/{id}/verify-chain (GraphStore.verify_chain). */
+export interface ChainVerification {
+  valid: boolean
+  length: number
+  broken_at_event_id: number | null
+  head_node_id: string | null
+}
+
+/** GET /api/session/{id}/verify-chain (GraphStore.verify_exchange_chain). */
+export interface ExchangeChainVerification {
+  valid: boolean
+  length: number
+  broken_at_sequence_number: number | null
+  head_node_id: string | null
+  /** present when a mismatch was explained by an older commitment format rather than tampering */
+  legacy_commitment?: boolean
+}
+
+/** GET /api/memory/{id}/provenance (GraphStore.export_memory_bundle). */
+export interface ProvenanceBundle {
+  schema_version: string
+  count: number
+  memory_ids: string[]
+  memories: Memory[]
+  leaf_hashes: string[]
+  root_hash: string
+  include_forgotten: boolean
+  disclaimer: string
+}
+
+/** GET /api/session/{id}/otel-summary (GraphStore.session_otel_summary). */
+export interface OtelSummary {
+  session_id: string
+  counts_by_kind: Record<string, number>
+  metric_totals: Record<string, { total: number | null; count: number }>
+}
+
+export interface ContextItem {
+  memory_id: string
+  content: string
+  valid_from: string | null
+  valid_to: string | null
+  provenance: { content_hash: string; source: Record<string, unknown>; evidence_class: string; status: string }
+  retrieval: Record<string, unknown>
+}
+
+/** POST /api/context/assemble (GraphStore.assemble_context). */
+export interface ContextBlock {
+  schema_version: string
+  query: string
+  trace_id: string
+  budget: { max_total_chars: number; used_chars: number }
+  current_facts: ContextItem[]
+  historical_facts: ContextItem[]
+  summaries: ContextItem[]
+  observations: ContextItem[]
+  degraded: unknown
+  channel_status: Record<string, unknown>
+  score_semantics: unknown
+}
+
 export interface RecordModelExchangePayload {
   external_session_id: string
   user_prompt: string
@@ -525,6 +733,34 @@ export interface RecordModelExchangeResult {
   context_memory_ids: string[]
 }
 
+export interface ReadinessReport {
+  schema_version: string
+  ready: boolean
+  profile_id: string
+  checks: Record<string, boolean | string>
+}
+
+export interface OperationsAudit {
+  schema_version: string
+  memory_event_counts: Record<string, number>
+  inference_task_states: Record<string, number>
+  proposal_states: Record<string, number>
+  session_count: number
+  forgotten_memory_count: number
+  integrity_links: { total_memories: number; linked_records: number; states: Record<string, number> }
+  [key: string]: unknown
+}
+
+export interface EmbeddingCoverage {
+  model: EmbeddingModel | null
+  eligible: number
+  current: number
+  missing: number
+  stale: number
+  failed: number
+  coverage_ratio: number
+}
+
 export interface OperationsSnapshot {
   schema_version: string
   profile_id: string
@@ -532,8 +768,8 @@ export interface OperationsSnapshot {
   readiness: { state: string; checks: Record<string, boolean> }
   features: Record<string, boolean>
   quotas: Record<string, number | null>
-  embedding_coverage: Record<string, unknown>
-  audit: Record<string, unknown>
+  embedding_coverage: EmbeddingCoverage
+  audit: OperationsAudit
   connectors: Record<string, { entrypoint: string; state: string; idempotency?: string; requirement?: string }>
   production: { state: string; active_tokens: number; token_lifecycle: string; tenant_onboarding: string; isolation_model: string; open_gates: string[] }
   disclaimer: string
@@ -567,6 +803,21 @@ export interface AgentWorkspace {
   on_chain?: boolean
   wallet_address?: string | null
   identity_verified?: boolean
+  /** the identity registry's own label, or a shortened pseudonym */
+  display_name?: string | null
+  did?: string | null
+  handle?: string | null
+  seen?: boolean
+}
+
+export interface AgentDevicePair {
+  device_id: string
+  agent_id: string
+  display_name: string
+  status: 'active' | 'detached' | 'revoked'
+  created_at: string
+  updated_at: string
+  last_seen_at: string | null
 }
 
 export interface AgentSummary {
@@ -588,9 +839,8 @@ async function getJson<T>(path: string): Promise<T> {
 }
 
 async function postJson<T>(path: string, payload: Record<string, unknown>): Promise<T> {
-  const response = await fetch(`${getApiBaseUrl()}${path}`, {
+  const response = await mutatingFetch(path, {
     method: 'POST',
-    credentials: 'include',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
   })
@@ -611,6 +861,19 @@ export const api = {
   stats: () => getJson<Stats>('/api/stats'),
   status: () => getJson<StoreStatus>('/api/status'),
   operations: () => getJson<OperationsSnapshot>('/api/operations'),
+  /** /readyz answers 503 with the same body when not ready, so a 503 is a result, not an error. */
+  readiness: async (): Promise<ReadinessReport> => {
+    const response = await fetch(`${getApiBaseUrl()}/readyz`, { credentials: 'include' })
+    const body = (await response.json().catch(() => null)) as ReadinessReport | null
+    if (!body || typeof body.ready !== 'boolean') throw new Error(`readiness check failed: ${response.status} ${response.statusText}`)
+    return body
+  },
+  /** Prometheus text exposition, unauthenticated by design. */
+  metrics: async (): Promise<string> => {
+    const response = await fetch(`${getApiBaseUrl()}/metrics`, { credentials: 'include' })
+    if (!response.ok) throw new Error(`metrics unavailable: ${response.status}`)
+    return response.text()
+  },
   integrityLinks: (limit = 50) => getJson<IntegrityLinksStatus>(`/api/integrity-links?limit=${limit}`),
   sessions: (limit = 100, scope: WorkspaceScope = {}) => getJson<Session[]>(`/api/sessions?limit=${limit}${scopeParams(scope)}`),
   sessionsPage: (limit = 50, offset = 0, scope: WorkspaceScope = {}) =>
@@ -619,14 +882,16 @@ export const api = {
   agentSummary: (agentId: string, storeId: string) =>
     getJson<AgentSummary>(`/api/agent/${encodeURIComponent(agentId)}/summary?limit=0&store_id=${encodeURIComponent(storeId)}`),
   agentMemories: (agentId: string, deviceId?: string, limit = 100, scope: WorkspaceScope = {}) => getJson<{agent_id: string; memories: Memory[]}>(`/api/agent/${encodeURIComponent(agentId)}/memories?limit=${limit}${deviceId ? `&device_id=${encodeURIComponent(deviceId)}` : ''}${scopeParams(scope)}`),
+  /** Pairings, newest first. /api/agents lists workspaces; this lists which devices are paired to them. */
+  agentDevices: () => getJson<{ pairs: AgentDevicePair[] }>('/api/agent-devices'),
   associateAgentDevice: (agentId: string, deviceId: string, displayName?: string) =>
-    postJson<AgentWorkspace>('/api/agent-devices/associate', { agent_id: agentId, device_id: deviceId, display_name: displayName || deviceId }),
+    postJson<AgentDevicePair>('/api/agent-devices/associate', { agent_id: agentId, device_id: deviceId, display_name: displayName || deviceId }),
   renameAgentDevice: (deviceId: string, displayName: string) =>
-    postJson<AgentWorkspace>(`/api/agent-devices/${encodeURIComponent(deviceId)}/rename`, { display_name: displayName }),
+    postJson<AgentDevicePair>(`/api/agent-devices/${encodeURIComponent(deviceId)}/rename`, { display_name: displayName }),
   detachAgentDevice: (deviceId: string) =>
-    postJson<AgentWorkspace>(`/api/agent-devices/${encodeURIComponent(deviceId)}/detach`, {}),
+    postJson<AgentDevicePair>(`/api/agent-devices/${encodeURIComponent(deviceId)}/detach`, {}),
   revokeAgentDevice: (deviceId: string) =>
-    postJson<AgentWorkspace>(`/api/agent-devices/${encodeURIComponent(deviceId)}/revoke`, {}),
+    postJson<AgentDevicePair>(`/api/agent-devices/${encodeURIComponent(deviceId)}/revoke`, {}),
   graph: (limit = 500, similarityThreshold = 0.75, scope: WorkspaceScope = {}) =>
     getJson<GraphPayload>(`/api/graph?limit=${limit}&similarity_threshold=${similarityThreshold}${scopeParams(scope)}`),
   search: (query: string, limit = 20, scope: WorkspaceScope = {}) =>
@@ -649,13 +914,36 @@ export const api = {
   attachments: (id: string, scope: WorkspaceScope = {}) => getJson<Attachment[]>(`/api/memory/${encodeURIComponent(id)}/attachments?${scopeParams(scope).slice(1)}`),
   attachmentFile: (id: string, scope: WorkspaceScope = {}) => getBlob(`/api/attachment/${encodeURIComponent(id)}/file?${scopeParams(scope).slice(1)}`),
   contradictions: (id: string, scope: WorkspaceScope = {}) => getJson<Memory[]>(`/api/memory/${encodeURIComponent(id)}/contradictions?${scopeParams(scope).slice(1)}`),
-  entityNeighbors: (name: string, maxDepth = 1) =>
-    getJson<TraversalResult>(`/api/entity/${encodeURIComponent(name)}/neighbors?max_depth=${maxDepth}`),
-  entityPath: (from: string, to: string, maxDepth = 3) =>
-    getJson<TraversalResult>(`/api/entity/path?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}&max_depth=${maxDepth}`),
+  entityNeighbors: (name: string, maxDepth = 1, scope: WorkspaceScope = {}) =>
+    getJson<TraversalResult>(`/api/entity/${encodeURIComponent(name)}/neighbors?max_depth=${maxDepth}${scopeParams(scope)}`),
+  entityPath: (from: string, to: string, maxDepth = 3, scope: WorkspaceScope = {}) =>
+    getJson<TraversalResult>(`/api/entity/path?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}&max_depth=${maxDepth}${scopeParams(scope)}`),
   sessionReplay: (id: string, scope: WorkspaceScope = {}) => getJson<SessionReplay>(`/api/session/${encodeURIComponent(id)}/replay?${scopeParams(scope).slice(1)}`),
+  sessionOtel: (id: string, scope: WorkspaceScope = {}) => getJson<OtelEvent[]>(`/api/session/${encodeURIComponent(id)}/otel?${scopeParams(scope).slice(1)}`),
+  kernelIntents: (id: string, scope: WorkspaceScope = {}) => getJson<KernelIntent[]>(`/api/session/${encodeURIComponent(id)}/kernel-intents?${scopeParams(scope).slice(1)}`),
+  decisionTrace: (id: string, traceId: string, scope: WorkspaceScope = {}) =>
+    getJson<DecisionTrace>(`/api/session/${encodeURIComponent(id)}/decision-trace?trace_id=${encodeURIComponent(traceId)}${scopeParams(scope)}`),
+  /** URL of the server-rendered audit view; opened in a new tab, so it carries the session cookie. */
+  decisionTraceHtmlUrl: (id: string, traceId: string, scope: WorkspaceScope = {}) =>
+    `${getApiBaseUrl()}/api/session/${encodeURIComponent(id)}/decision-trace.html?trace_id=${encodeURIComponent(traceId)}${scopeParams(scope)}`,
+  invocations: (limit = 100) => getJson<Invocation[]>(`/api/invocations?limit=${limit}`),
   sessionExchanges: (id: string, scope: WorkspaceScope = {}) => getJson<Exchange[]>(`/api/session/${encodeURIComponent(id)}/exchanges?${scopeParams(scope).slice(1)}`),
   buildSessionExchanges: (id: string) => postJson(`/api/session/${encodeURIComponent(id)}/exchanges/build`, {}),
+  /** Inclusion proof for the exchange at `index`, in the `exchange_batch` domain. */
+  sessionMerkleProof: (id: string, index: number, scope: WorkspaceScope = {}) =>
+    getJson<SessionMerkleProof>(`/api/session/${encodeURIComponent(id)}/merkle-proof?index=${index}${scopeParams(scope)}`),
+  /** The server recomputes a memory's event hash chain. Local consistency only, not on-chain anchoring. */
+  memoryVerifyChain: (id: string, scope: WorkspaceScope = {}) => getJson<ChainVerification>(`/api/memory/${encodeURIComponent(id)}/verify-chain?${scopeParams(scope).slice(1)}`),
+  /** A bounded provenance bundle for one memory, with the server's Merkle commitment over it. */
+  memoryProvenance: (id: string, includeForgotten = false, scope: WorkspaceScope = {}) =>
+    getJson<ProvenanceBundle>(`/api/memory/${encodeURIComponent(id)}/provenance?include_forgotten=${includeForgotten ? 1 : 0}${scopeParams(scope)}`),
+  /** The server recomputes a session's exchange chain (node hashes and parent linkage). */
+  sessionVerifyChain: (id: string, scope: WorkspaceScope = {}) => getJson<ExchangeChainVerification>(`/api/session/${encodeURIComponent(id)}/verify-chain?${scopeParams(scope).slice(1)}`),
+  sessionMemories: (id: string, scope: WorkspaceScope = {}) => getJson<Memory[]>(`/api/session/${encodeURIComponent(id)}/memories?${scopeParams(scope).slice(1)}`),
+  sessionOtelSummary: (id: string, scope: WorkspaceScope = {}) => getJson<OtelSummary>(`/api/session/${encodeURIComponent(id)}/otel-summary?${scopeParams(scope).slice(1)}`),
+  /** The bounded, provenance-bearing context block hybrid retrieval would hand an agent. Read-only. */
+  assembleContext: (payload: { query: string; limit?: number; max_total_chars?: number; temporal_at?: string; filters?: Record<string, unknown> }) =>
+    postJson<ContextBlock>('/api/context/assemble', payload),
   sessionMerkleRoot: (id: string, scope: WorkspaceScope = {}) => getJson<MerkleRoot>(`/api/session/${encodeURIComponent(id)}/merkle-root?${scopeParams(scope).slice(1)}`),
   inferenceManifest: () => getJson<InferenceManifest>('/api/inference/manifest'),
   inferenceTasks: (status = 'pending', limit = 50, scope: WorkspaceScope = {}) =>
@@ -664,6 +952,8 @@ export const api = {
     postJson<RecordModelExchangeResult>('/api/exchanges/model', payload as unknown as Record<string, unknown>),
   requestInferenceTask: (payload: Record<string, unknown>) =>
     postJson<InferenceTask>('/api/inference/tasks', payload),
+  /** Rule-based (regex, no model) entity extraction over one memory. Its matches are proposals that wait in Review. */
+  extractStructural: (memoryId: string) => postJson<InferenceTask>(`/api/memory/${encodeURIComponent(memoryId)}/extract-structural`, {}),
   createProposition: (payload: Record<string, unknown>) =>
     postJson<Memory>('/api/memory/propositions', payload),
   linkEntities: (payload: Record<string, unknown>) =>
@@ -724,6 +1014,13 @@ export const api = {
   rebuildProjectionCheckpoint: (projectionId: string) =>
     postJson<ProjectionCheckpoint & { verified: boolean }>(`/api/projections/${encodeURIComponent(projectionId)}/rebuild`, {}),
   embeddingModels: () => getJson<EmbeddingModel[]>('/api/embedding/models'),
+  /**
+   * Guided System Test for the kernel bridge. Without a session id it only submits the two
+   * UserOperations and reports the decisions; with one it also records them as real
+   * pre/post_tool_call events in that session. A bridge that is not deployed answers 200 with
+   * `ok: false` and the reason in `error`, which callers must show, not swallow.
+   */
+  kernelBridgeSelfTest: (sessionId?: string) => postJson<KernelBridgeSelfTest>('/api/kernel-bridge/self-test', sessionId ? { session_id: sessionId } : {}),
   inferenceSettings: () => getJson<InferenceSettings>('/api/settings/inference'),
   updateInferenceSettings: (settings: InferenceSettings) => postJson<{ok: boolean; inference: InferenceSettings; message: string}>('/api/settings/inference', settings as unknown as Record<string, unknown>),
 }
