@@ -2397,6 +2397,10 @@ select.xc-input {
   overflow: hidden;
   user-select: none;
 }
+.xc-3d-host canvas:focus-visible {
+  outline: 1px solid var(--accent);
+  outline-offset: -1px;
+}
 .xc-3d-labels {
   position: absolute;
   inset: 0;
@@ -2427,4 +2431,40 @@ select.xc-input {
   border-bottom: 1px solid var(--hairline);
   background: var(--status-review-soft);
   color: var(--ink);
+}
+
+/* ---------- designer pass ---------------------------------------------------------------------------- */
+/* status filter chips: all seven fit one row in the memories pane */
+.xc-chips .xc-chip {
+  padding: 8px 10px;
+  font-size: 12px;
+}
+.xc-chips {
+  gap: 6px;
+}
+/* settings: nothing inside a panel may be wider than the panel, so a long option never pushes a phone sideways */
+.xc-settings-panel > *,
+.xc-choice-card,
+.xc-choice-text {
+  min-width: 0;
+}
+.xc-choice {
+  grid-template-columns: repeat(auto-fit, minmax(min(300px, 100%), 1fr));
+}
+.xc-settings-panel .xc-input,
+.xc-settings-panel select {
+  max-width: 100%;
+}
+.xc-settings-panel .xc-note {
+  overflow-wrap: anywhere;
+}
+@media (max-width: 760px) {
+  .xc-choice-card {
+    grid-template-columns: 84px minmax(0, 1fr);
+    gap: 12px;
+  }
+  .xc-wire {
+    width: 84px;
+    height: 60px;
+  }
 }

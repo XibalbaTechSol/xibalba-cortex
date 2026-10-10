@@ -56,12 +56,7 @@ export function Inspector() {
 
   let body: ReactNode
   if (!selectedId) {
-    body = (
-      <div className="xc-empty" style={{ flex: 1 }}>
-        <h3 className="xc-title">Nothing selected</h3>
-        <p>Select a node on the graph, a mark on the timeline, or a Recall result to inspect it.</p>
-      </div>
-    )
+    body = <WorkspaceSummary />
   } else if (edge) {
     body = <EdgeInspector key={selectedId} edge={edge} />
   } else if (selectedId.startsWith('memory:')) {
@@ -396,6 +391,66 @@ function FilesTab({ memoryId, scope }: { memoryId: string; scope: WorkspaceScope
         </div>
       )}
     </Async>
+  )
+}
+
+// --- nothing selected: the workspace itself ---------------------------------------------------------------
+
+/** What the inspector shows before anything is selected: the workspace, so the pane is never dead space. */
+function WorkspaceSummary() {
+  const { model, stats, status, sessions, select, workspace, go, setOverlay } = useConsole()
+  const recent = sessions.slice(0, 4)
+  return (
+    <>
+      <div className="xc-inspector-head">
+        <p className="xc-eyebrow">Workspace</p>
+        <h3 className="xc-title">Nothing selected</h3>
+        <p className="xc-note">Select a node or an edge on the graph, a mark on the timeline, or a Recall result to inspect it.</p>
+      </div>
+      <div className="xc-scroll"><div className="xc-inspector-body">
+        <section>
+          <p className="xc-eyebrow xc-eyebrow--dim xc-section-title">{workspace.selected ? workspace.selected.label : workspace.primary ? 'Primary profile' : 'Workspace'}{workspace.canWrite ? '' : ' · read only'}</p>
+          <dl className="xc-kv">
+            <div><dt>Memories</dt><dd>{stats?.memories == null ? '—' : stats.memories.toLocaleString()}</dd></div>
+            <div><dt>Entities</dt><dd>{stats ? stats.entities.toLocaleString() : '—'}</dd></div>
+            <div><dt>Sessions</dt><dd>{stats ? stats.sessions.toLocaleString() : '—'}</dd></div>
+            <div><dt>Schema</dt><dd>{status ? `v${status.schema_version}` : '—'}</dd></div>
+            <div><dt>Identity</dt><dd>{status?.identity_mode ?? '—'}</dd></div>
+            <div><dt>Integrity check</dt><dd>{status?.integrity_check ?? '—'}</dd></div>
+          </dl>
+        </section>
+        {recent.length > 0 && (
+          <section>
+            <p className="xc-eyebrow xc-eyebrow--dim xc-section-title">Latest sessions</p>
+            <div className="xc-rows">
+              {recent.map((row) => {
+                const node = model?.nodes.find((n) => n.cls === 'session' && n.sessionId === row.external_session_id)
+                return (
+                  <div className="xc-row" key={row.id}>
+                    <i className="xc-row-dot" style={{ background: 'var(--status-anchored)' }} />
+                    <div className="xc-row-main">
+                      {node
+                        ? <button type="button" className="xc-link" onClick={() => select(node.id)}>{row.external_session_id}</button>
+                        : <span style={{ fontSize: 13 }}>{row.external_session_id}</span>}
+                      <p className="xc-meta">{stamp(row.started_at)} · {row.ended_at ? 'ended' : 'open'}</p>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </section>
+        )}
+        <section>
+          <p className="xc-eyebrow xc-eyebrow--dim xc-section-title">Go to</p>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+            <button type="button" className="xc-btn" onClick={() => setOverlay('recall')}>Recall</button>
+            <button type="button" className="xc-btn" onClick={() => setOverlay('review')}>Review</button>
+            <button type="button" className="xc-btn" onClick={() => setOverlay('integrity')}>Verify chains</button>
+            <button type="button" className="xc-btn" onClick={() => go('sessions')}>All sessions</button>
+          </div>
+        </section>
+      </div></div>
+    </>
   )
 }
 
