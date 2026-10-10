@@ -14,6 +14,8 @@ import {
   mergeFacets,
   parseServerTime,
   presetWindow,
+  isEdgeVisible,
+  selectionHidden,
 } from './model'
 
 // The fixture mirrors what GET /api/graph actually returned from a live local API (one node per
@@ -420,5 +422,84 @@ describe('thinTicks', () => {
   it('never returns fewer than one label, and keeps all when the width is unknown', () => {
     expect(thinTicks(ticks, 10).length).toBe(1)
     expect(thinTicks(ticks, 0)).toEqual(ticks)
+  })
+})
+
+
+describe('finer facets', () => {
+  const model = buildModel(payload, info)
+
+  it('lists each session-structure edge type, each relation predicate and each memory source kind', () => {
+    const f = defaultFacets(model)
+    expect(Object.keys(f.edgeTypes).sort()).toEqual(['contains', 'context', 'merkle_root', 'prompt', 'response'])
+    expect(Object.keys(f.predicates)).toEqual(['computes'])
+    expect(Object.keys(f.sources).sort()).toEqual(['direct_model_response', 'direct_user', 'explicit_memory', 'imported_document'])
+  })
+
+  it('hides one structure edge type without hiding the others', () => {
+    const f = defaultFacets(model)
+    f.edgeTypes.prompt = false
+    const types = new Set(filterModel(model, f, null).edges.map((e) => e.type))
+    expect(types.has('prompt')).toBe(false)
+    expect(types.has('response')).toBe(true)
+    expect(types.has('contains')).toBe(true)
+  })
+
+  it('hides a relation by predicate, and a memory by source kind', () => {
+    const f = defaultFacets(model)
+    f.predicates.computes = false
+    expect(filterModel(model, f, null).edges.some((e) => e.type === 'relation')).toBe(false)
+    const g = defaultFacets(model)
+    g.sources.direct_user = false
+    expect(filterModel(model, g, null).nodes.some((n) => n.id === 'memory:m-observed')).toBe(false)
+  })
+
+  it('counts them, and counts a switch away from default as a changed facet', () => {
+    const c = countFacets(model)
+    expect(c.edgeTypes.contains).toBe(2)
+    expect(c.predicates.computes).toBe(1)
+    expect(c.sources.imported_document).toBe(2)
+    const f = defaultFacets(model)
+    f.edgeTypes.prompt = false
+    f.sources.direct_user = false
+    expect(changedFacetCount(f, model)).toBe(2)
+  })
+
+  it('keeps them across a reload, and adopts ones never seen', () => {
+    const prev = defaultFacets(model)
+    prev.edgeTypes.prompt = false
+    const next = defaultFacets(model)
+    next.sources.brand_new = true
+    const merged = mergeFacets(prev, next)
+    expect(merged.edgeTypes.prompt).toBe(false)
+    expect(merged.sources.brand_new).toBe(true)
+  })
+
+  it('treats facets saved before these existed as everything shown', () => {
+    const old = defaultFacets(model)
+    // an object from before the fields were added
+    const legacy = { classes: old.classes, statuses: old.statuses, evidence: old.evidence, edges: old.edges } as unknown as ReturnType<typeof defaultFacets>
+    expect(model.edges.every((e) => isEdgeVisible(e, legacy) || !legacy.edges[e.group])).toBe(true)
+  })
+})
+
+describe('selectionHidden', () => {
+  const model = buildModel(payload, info)
+  it('is false with no selection, and false while the selection is drawn', () => {
+    const visible = filterModel(model, defaultFacets(model), null)
+    expect(selectionHidden(model, visible, null)).toBe(false)
+    expect(selectionHidden(model, visible, 'memory:m-observed')).toBe(false)
+  })
+  it('is true when a filter removes the selected node', () => {
+    const f = defaultFacets(model)
+    f.classes.memory = false
+    expect(selectionHidden(model, filterModel(model, f, null), 'memory:m-observed')).toBe(true)
+  })
+  it('is true when a filter removes the selected edge, and false for an id the model does not know', () => {
+    const edge = model.edges.find((e) => e.type === 'relation')!
+    const f = defaultFacets(model)
+    f.edges.relation = false
+    expect(selectionHidden(model, filterModel(model, f, null), edge.id)).toBe(true)
+    expect(selectionHidden(model, filterModel(model, f, null), 'memory:not-here')).toBe(false)
   })
 })

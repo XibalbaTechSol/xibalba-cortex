@@ -8,7 +8,7 @@ import { useState, type ReactNode } from 'react'
 import { api, type Attachment, type Memory, type WorkspaceScope } from '../api'
 import { useConsole } from './state'
 import { useAsync, type AsyncState } from './useAsync'
-import { elideHash, parseServerTime, shortStamp, type CEdge, type CNode, type GraphModel } from './model'
+import { EDGE_TYPE_LABEL, elideHash, parseServerTime, shortStamp, type CEdge, type CNode, type GraphModel } from './model'
 import { IconCheck, IconClose, IconWarn } from './icons'
 import { MemoryActions } from './MemoryActions'
 import { MemoryChainCheck, ProvenanceExport } from './VerifyPanel'
@@ -51,6 +51,8 @@ const statusTone = (status: string | undefined) =>
 export function Inspector() {
   const { selectedId, model, notice, setNotice } = useConsole()
   const node = selectedId ? model?.byId.get(selectedId) : undefined
+  // an edge is selectable too; its ids start with the edge type, never with a node-class prefix
+  const edge = selectedId && !node ? model?.edges.find((e) => e.id === selectedId) : undefined
 
   let body: ReactNode
   if (!selectedId) {
@@ -60,6 +62,8 @@ export function Inspector() {
         <p>Select a node on the graph, a mark on the timeline, or a Recall result to inspect it.</p>
       </div>
     )
+  } else if (edge) {
+    body = <EdgeInspector key={selectedId} edge={edge} />
   } else if (selectedId.startsWith('memory:')) {
     body = <MemoryInspector key={selectedId} memoryId={selectedId.slice('memory:'.length)} node={node} />
   } else if (node?.cls === 'entity') {
@@ -392,6 +396,56 @@ function FilesTab({ memoryId, scope }: { memoryId: string; scope: WorkspaceScope
         </div>
       )}
     </Async>
+  )
+}
+
+// --- edge ------------------------------------------------------------------------------------------
+
+/** What an edge of each kind means, said once, so the graph never has to explain itself in a tooltip. */
+const EDGE_MEANING: Record<string, string> = {
+  relation: 'A subject–predicate–object fact extracted from a memory. The arrow runs from subject to object.',
+  contradiction: 'Two memories that disagree. It stays on the graph until one is superseded or the dispute is resolved.',
+  similarity: 'Two memories whose embeddings are close. The server computes the score; the slider only sets the cut-off.',
+  contains: 'The session this exchange belongs to.',
+  prompt: 'The memory written from the prompt of this exchange.',
+  response: 'The memory written from the response of this exchange.',
+  context: 'Context the exchange drew on.',
+  merkle_root: 'The Merkle root the session committed to.',
+}
+
+function EdgeInspector({ edge }: { edge: CEdge }) {
+  const { model, select, reveal } = useConsole()
+  const end = (id: string) => model?.byId.get(id)
+  const row = (label: string, id: string) => {
+    const n = end(id)
+    return (
+      <div><dt>{label}</dt><dd>{n ? <button type="button" className="xc-link" onClick={() => (id.startsWith('memory:') ? reveal(id) : select(id))}>{n.label}</button> : id}</dd></div>
+    )
+  }
+  return (
+    <>
+      <div className="xc-inspector-head">
+        <p className="xc-eyebrow">Selected edge</p>
+        <h3 className="xc-title">{EDGE_TYPE_LABEL[edge.type] ?? edge.type}{edge.predicate ? ` · ${edge.predicate}` : ''}</h3>
+        <p className="xc-meta" style={{ wordBreak: 'break-all' }}>{edge.id}</p>
+      </div>
+      <div className="xc-scroll"><div className="xc-inspector-body">
+        <section>
+          <p className="xc-eyebrow xc-eyebrow--dim xc-section-title">Ends</p>
+          <dl className="xc-kv">
+            {row(edge.type === 'relation' ? 'Subject' : 'From', edge.source)}
+            {row(edge.type === 'relation' ? 'Object' : 'To', edge.target)}
+            {edge.predicate && <div><dt>Predicate</dt><dd>{edge.predicate}</dd></div>}
+            {edge.similarity !== undefined && <div><dt>Similarity</dt><dd>{edge.similarity.toFixed(3)}</dd></div>}
+            {edge.reason && <div><dt>Reason</dt><dd>{edge.reason}</dd></div>}
+            {edge.evidenceMemoryId && (
+              <div><dt>Evidence</dt><dd><button type="button" className="xc-link" onClick={() => reveal(`memory:${edge.evidenceMemoryId}`)}>{edge.evidenceMemoryId.slice(0, 8)}…</button></dd></div>
+            )}
+          </dl>
+        </section>
+        <p className="xc-note">{EDGE_MEANING[edge.type] ?? 'An edge in the projected graph.'}</p>
+      </div></div>
+    </>
   )
 }
 

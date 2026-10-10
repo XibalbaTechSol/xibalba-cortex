@@ -3,15 +3,20 @@
 // falls back to its own default independently.
 
 export type ShellLayout = 'rail' | 'top'
+export type GraphMode = '2d' | '3d'
 
 export interface ConsoleSettings {
   /** left rail (default) or the top bar with a tab row */
   shell: ShellLayout
   /** rail only: icons without labels */
   railCollapsed: boolean
+  /** the Graph lens as a 3D layout you can orbit (default), or a flat 2D force layout */
+  graphMode: GraphMode
+  /** graph nodes sit on the lattice (default) instead of wherever the force layout leaves them */
+  graphSnap: boolean
 }
 
-export const DEFAULT_SETTINGS: ConsoleSettings = { shell: 'rail', railCollapsed: false }
+export const DEFAULT_SETTINGS: ConsoleSettings = { shell: 'rail', railCollapsed: false, graphMode: '3d', graphSnap: true }
 export const SETTINGS_KEY = 'xibalba-cortex.console-settings'
 
 export function parseSettings(raw: string | null | undefined): ConsoleSettings {
@@ -27,6 +32,8 @@ export function parseSettings(raw: string | null | undefined): ConsoleSettings {
   return {
     shell: v.shell === 'rail' || v.shell === 'top' ? v.shell : DEFAULT_SETTINGS.shell,
     railCollapsed: typeof v.railCollapsed === 'boolean' ? v.railCollapsed : DEFAULT_SETTINGS.railCollapsed,
+    graphMode: v.graphMode === '2d' || v.graphMode === '3d' ? v.graphMode : DEFAULT_SETTINGS.graphMode,
+    graphSnap: typeof v.graphSnap === 'boolean' ? v.graphSnap : DEFAULT_SETTINGS.graphSnap,
   }
 }
 
