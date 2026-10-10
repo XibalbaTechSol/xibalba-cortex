@@ -10,6 +10,9 @@ import { api, type AgentWorkspace, type WorkspaceScope } from '../api'
 
 const AGENT_KEY = 'xibalba-cortex.selected-agent'
 const STORE_KEY = 'xibalba-cortex.selected-store'
+// the person chose the profile's own memories (no agent namespace) on purpose; without this the
+// first agent workspace is selected automatically whenever one exists
+const PRIMARY_KEY = 'xibalba-cortex.selected-primary'
 
 export const hasVerifiedStoreScope = (w: AgentWorkspace): boolean =>
   Boolean(w.store_id && w.profile_id && w.store_access && typeof w.writable === 'boolean')
@@ -60,6 +63,21 @@ function readInitial(): { agentId: string; storeId: string } {
   }
 }
 
+function readPrimary(): boolean {
+  try {
+    return sessionStorage.getItem(PRIMARY_KEY) === '1'
+  } catch {
+    return false
+  }
+}
+
+function persistPrimary(value: boolean): void {
+  try {
+    if (value) sessionStorage.setItem(PRIMARY_KEY, '1')
+    else sessionStorage.removeItem(PRIMARY_KEY)
+  } catch { /* storage may be blocked */ }
+}
+
 function persist(agentId: string, storeId: string): void {
   try {
     const url = new URL(window.location.href)
@@ -80,7 +98,10 @@ export interface Workspace {
   canWrite: boolean
   loaded: boolean
   error: string | null
+  /** The profile's own memories, with no agent namespace, chosen on purpose. Always read-only. */
+  primary: boolean
   choose: (agentId: string, storeId: string) => void
+  choosePrimary: () => void
   refresh: () => void
 }
 
@@ -90,6 +111,7 @@ export function useWorkspace(): Workspace {
   const [error, setError] = useState<string | null>(null)
   const [nonce, setNonce] = useState(0)
   const [chosen, setChosen] = useState(readInitial)
+  const [primary, setPrimary] = useState(readPrimary)
 
   useEffect(() => {
     let live = true
@@ -116,22 +138,31 @@ export function useWorkspace(): Workspace {
   const options = useMemo(() => toOptions(workspaces), [workspaces])
 
   const selected = useMemo(
-    () => options.find((o) => o.agentId === chosen.agentId && o.storeId === chosen.storeId) ?? null,
-    [options, chosen],
+    () => (primary ? null : options.find((o) => o.agentId === chosen.agentId && o.storeId === chosen.storeId) ?? null),
+    [options, chosen, primary],
   )
 
   // Nothing valid selected but namespaces exist: take the first rather than leave the user in a
   // scope the server does not recognise. Nothing exists: stay unscoped (primary profile, read-only).
   useEffect(() => {
-    if (!loaded || selected || options.length === 0) return
+    if (!loaded || selected || primary || options.length === 0) return
     const first = options[0]
     persist(first.agentId, first.storeId)
     setChosen({ agentId: first.agentId, storeId: first.storeId })
-  }, [loaded, selected, options])
+  }, [loaded, selected, primary, options])
 
   const choose = useCallback((agentId: string, storeId: string) => {
+    persistPrimary(false)
+    setPrimary(false)
     persist(agentId, storeId)
     setChosen({ agentId, storeId })
+  }, [])
+
+  const choosePrimary = useCallback(() => {
+    persistPrimary(true)
+    setPrimary(true)
+    persist('', '')
+    setChosen({ agentId: '', storeId: '' })
   }, [])
 
   const refresh = useCallback(() => setNonce((n) => n + 1), [])
@@ -147,7 +178,7 @@ export function useWorkspace(): Workspace {
   )
 
   return useMemo(
-    () => ({ options, scope, selected, canWrite: selected?.writable === true, loaded, error, choose, refresh }),
-    [options, scope, selected, loaded, error, choose, refresh],
+    () => ({ options, scope, selected, primary, canWrite: selected?.writable === true, loaded, error, choose, choosePrimary, refresh }),
+    [options, scope, selected, primary, loaded, error, choose, choosePrimary, refresh],
   )
 }

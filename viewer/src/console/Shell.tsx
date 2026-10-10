@@ -74,17 +74,21 @@ function useConnection() {
   return { state, text }
 }
 
+/** Not a store/agent pair, so it cannot collide with one (those join their ids with a NUL). */
+const PRIMARY_VALUE = '__primary__'
+
 export function ScopePicker() {
   const { workspace } = useConsole()
-  const { options, selected, choose } = workspace
+  const { options, selected, primary, choose, choosePrimary } = workspace
   return (
     <label className="xc-scope">
       <span className="xc-scope-label">Scope</span>
       {options.length > 0 ? (
         <select
           className="xc-input"
-          value={selected ? `${selected.storeId}\0${selected.agentId}` : ''}
+          value={primary ? PRIMARY_VALUE : selected ? `${selected.storeId}\0${selected.agentId}` : ''}
           onChange={(e) => {
+            if (e.target.value === PRIMARY_VALUE) { choosePrimary(); return }
             const [storeId, agentId] = e.target.value.split('\0')
             choose(agentId, storeId)
           }}
@@ -94,6 +98,7 @@ export function ScopePicker() {
               {o.label} · {o.storeId.slice(0, 6)} · {o.writable ? 'writable' : 'read only'}
             </option>
           ))}
+          <option value={PRIMARY_VALUE}>Primary profile · all memories · read only</option>
         </select>
       ) : (
         <span className="xc-input xc-scope-static">Primary profile · read only</span>

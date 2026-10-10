@@ -518,3 +518,15 @@ export function elideHash(hash: string, head = 6, tail = 4): string {
   if (body.length <= head + tail + 1) return hash
   return `${prefix}${body.slice(0, head)}…${body.slice(-tail)}`
 }
+
+
+/**
+ * Keep every Nth tick so neighbouring labels are at least `minPx` apart. A day axis over ten days in
+ * a narrow lens otherwise prints its labels on top of each other. The first tick is always kept.
+ */
+export function thinTicks<T>(ticks: readonly T[], axisPx: number, minPx = 56): T[] {
+  if (ticks.length <= 1 || axisPx <= 0) return [...ticks]
+  const room = Math.max(1, Math.floor(axisPx / minPx))
+  const every = Math.max(1, Math.ceil(ticks.length / room))
+  return ticks.filter((_, i) => i % every === 0)
+}

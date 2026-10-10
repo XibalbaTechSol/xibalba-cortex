@@ -3,9 +3,9 @@
 // Shares the selection, the facets and the window with the Graph lens. Memories with no timestamp
 // signal in the API are not placed: the footer says how many were left out rather than guessing.
 
-import { useMemo } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useConsole } from './state'
-import { buildLanes, isNodeVisible, shortDay, shortStamp, type Lane } from './model'
+import { buildLanes, isNodeVisible, shortDay, shortStamp, thinTicks, type Lane } from './model'
 
 interface Domain {
   from: number
@@ -38,6 +38,18 @@ function ticksFor(domain: Domain): { at: number; label: string }[] {
 
 export function TimelineLens() {
   const { model, facets, window: timeWindow, sessionEnds, memoryInfo, selectedId, select, loading, error, reload } = useConsole()
+
+  // the axis width decides how many date labels fit, so measure it
+  const axisRef = useRef<HTMLDivElement>(null)
+  const [axisPx, setAxisPx] = useState(0)
+  useEffect(() => {
+    const el = axisRef.current
+    if (!el || typeof ResizeObserver === 'undefined') return
+    const ro = new ResizeObserver(() => setAxisPx(el.clientWidth))
+    ro.observe(el)
+    setAxisPx(el.clientWidth)
+    return () => ro.disconnect()
+  })
 
   const lanes = useMemo<Lane[]>(() => (model ? buildLanes(model, sessionEnds, memoryInfo) : []), [model, sessionEnds, memoryInfo])
   // re-read the clock when the data reloads so an open session's span grows with it
@@ -96,8 +108,8 @@ export function TimelineLens() {
           <div className="xc-tl-grid" role="table" aria-label="Sessions on a time axis">
             <div className="xc-tl-head">
               <div>SESSION</div>
-              <div className="xc-tl-ticks" aria-hidden="true">
-                {ticksFor(domain).filter((t) => pct(t.at) < 94).map((t) => (
+              <div className="xc-tl-ticks" aria-hidden="true" ref={axisRef}>
+                {thinTicks(ticksFor(domain).filter((t) => pct(t.at) < 94), axisPx).map((t) => (
                   <span key={t.at} style={{ left: `${pct(t.at)}%` }}>{t.label}</span>
                 ))}
               </div>

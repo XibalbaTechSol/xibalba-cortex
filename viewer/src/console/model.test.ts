@@ -9,6 +9,7 @@ import {
   edgeGroup,
   elideHash,
   filterModel,
+  thinTicks,
   histogram,
   mergeFacets,
   parseServerTime,
@@ -403,5 +404,21 @@ describe('exchange time', () => {
     expect(m.byId.get('exchange:a')).toMatchObject({ time: T0 + 3 * 60_000, timeSource: 'exchange' })
     expect(m.byId.get('exchange:b')).toMatchObject({ time: T0 + 9 * 60_000, timeSource: 'recorded' })
     expect(m.byId.get('exchange:c')).toMatchObject({ time: null, timeSource: null })
+  })
+})
+
+
+describe('thinTicks', () => {
+  const ticks = Array.from({ length: 10 }, (_, i) => i)
+  it('keeps everything when there is room', () => {
+    expect(thinTicks(ticks, 1000)).toEqual(ticks)
+  })
+  it('drops labels evenly when the axis is narrow, keeping the first', () => {
+    const out = thinTicks(ticks, 280, 56) // room for 5
+    expect(out).toEqual([0, 2, 4, 6, 8])
+  })
+  it('never returns fewer than one label, and keeps all when the width is unknown', () => {
+    expect(thinTicks(ticks, 10).length).toBe(1)
+    expect(thinTicks(ticks, 0)).toEqual(ticks)
   })
 })
