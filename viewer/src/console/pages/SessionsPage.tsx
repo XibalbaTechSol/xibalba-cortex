@@ -14,6 +14,7 @@ import { elideHash, parseServerTime, shortStamp } from '../model'
 import { INVOCATION_STATUS, describeKernelDecision, exchangeSummary, type Tone } from '../sessions'
 import { kindCounts, metricRows } from '../verify'
 import { IconWarn } from '../icons'
+import { useMediaQuery } from '../useMediaQuery'
 import { Page } from './Page'
 
 const PAGE_SIZE = 30
@@ -59,9 +60,14 @@ function SessionList() {
   const list = useAsync(() => api.sessionsPage(PAGE_SIZE, offset, scope), [scope, offset, revision], { keepData: true })
   const sessions = list.data?.sessions ?? []
   const current = sessions.find((s) => s.external_session_id === selected) ?? null
+  // On a phone the list and the detail take turns: choosing a session opens it, Back returns to the list.
+  const phone = useMediaQuery('(max-width: 760px)')
+  const showList = !phone || !current
+  const showDetail = !phone || current !== null
 
   return (
     <div className="xc-sessions">
+      {showList && (
       <section className="xc-win xc-pane xc-sessions-list" aria-label="Session list">
         {list.error && <div className="xc-callout xc-callout--conflict" role="alert" style={{ margin: 16 }}><IconWarn />{list.error}</div>}
         <div className="xc-scroll">
@@ -85,15 +91,18 @@ function SessionList() {
           <button type="button" className="xc-btn" disabled={!list.data?.has_more} onClick={() => setOffset(offset + PAGE_SIZE)}>Next</button>
         </div>
       </section>
+      )}
 
+      {showDetail && (
       <section className="xc-win xc-pane xc-sessions-detail" aria-label="Session detail">
-        {current ? <SessionDetail session={current} onVerify={() => go('integrity')} /> : <div className="xc-empty"><h3 className="xc-title">Select a session</h3><p>Pick one on the left to see its exchanges, replay and telemetry.</p></div>}
+        {current ? <SessionDetail session={current} onVerify={() => go('integrity')} onBack={phone ? () => setSelected(null) : undefined} /> : <div className="xc-empty"><h3 className="xc-title">Select a session</h3><p>Pick one on the left to see its exchanges, replay and telemetry.</p></div>}
       </section>
+      )}
     </div>
   )
 }
 
-function SessionDetail({ session, onVerify }: { session: Session; onVerify: () => void }) {
+function SessionDetail({ session, onVerify, onBack }: { session: Session; onVerify: () => void; onBack?: () => void }) {
   const { workspace, reload, setNotice } = useConsole()
   const [tab, setTab] = useState<Tab>('exchanges')
   const [recording, setRecording] = useState(false)
@@ -118,6 +127,7 @@ function SessionDetail({ session, onVerify }: { session: Session; onVerify: () =
   return (
     <>
       <div className="xc-inspector-head">
+        {onBack && <div><button type="button" className="xc-btn" onClick={onBack}>← All sessions</button></div>}
         <p className="xc-eyebrow">Session</p>
         <h3 className="xc-title xc-mono" style={{ wordBreak: 'break-all' }}>{id}</h3>
         <p className="xc-meta">{stamp(session.started_at)} → {session.ended_at ? stamp(session.ended_at) : 'open'} · {session.retention_tier} retention</p>

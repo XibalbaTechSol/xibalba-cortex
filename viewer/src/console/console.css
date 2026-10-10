@@ -1992,8 +1992,54 @@ select.xc-input {
     height: auto;
     min-height: 0;
   }
+  /* A five-column table leaves the memory text a sliver on a phone, so each row becomes a card:
+     time and status on the first line, the text across the full width, source and evidence last. */
+  .xc-memories-table,
+  .xc-memories-table tbody {
+    display: block;
+  }
   .xc-memories-table thead {
     display: none;
+  }
+  .xc-memories-table tbody tr {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 6px 10px;
+    padding: 12px var(--window-padding);
+    border-bottom: 1px solid var(--hairline-faint);
+  }
+  .xc-memories-table tbody tr[data-selected='true'] {
+    background: var(--accent-soft);
+  }
+  .xc-memories-table td {
+    display: block;
+    padding: 0;
+    border: 0;
+    background: transparent;
+  }
+  .xc-memories-table tbody tr[data-selected='true'] td {
+    background: transparent;
+  }
+  .xc-memories-table td:nth-child(2) {
+    justify-self: end;
+  }
+  .xc-memories-table td:nth-child(3) {
+    grid-column: 1 / -1;
+  }
+  .xc-memories-table td:nth-child(4),
+  .xc-memories-table td:nth-child(5) {
+    font: 400 11px/1.4 var(--font-body);
+    color: var(--ink-dim);
+    text-transform: capitalize;
+  }
+  .xc-memories-table td:nth-child(5) {
+    justify-self: end;
+  }
+  /* sessions: the list and the detail take turns instead of stacking (see SessionList) */
+  .xc-sessions-list,
+  .xc-sessions-detail {
+    height: auto;
+    min-height: 60vh;
   }
 }
 
