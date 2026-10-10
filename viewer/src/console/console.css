@@ -2320,3 +2320,42 @@ select.xc-input {
 .xc-disclosure > summary .xc-meta {
   margin-left: 8px;
 }
+
+
+/* ---------- 3D graph ------------------------------------------------------------------------------ */
+.xc-3d-host {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+}
+.xc-3d-labels {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+.xc-3d-label {
+  position: absolute;
+  left: 0;
+  top: 0;
+  max-width: 280px;
+  padding: 3px 5px;
+  border: 1px solid var(--hairline);
+  background: var(--ground);
+  color: var(--ink);
+  font: 400 11px/1.3 var(--font-body);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.xc-3d-label[data-selected='true'] {
+  border-color: var(--accent);
+}
+
+.xc-3d-notice {
+  margin: 0;
+  padding: 8px var(--window-padding);
+  border-bottom: 1px solid var(--hairline);
+  background: var(--status-review-soft);
+  color: var(--ink);
+}

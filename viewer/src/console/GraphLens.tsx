@@ -7,7 +7,11 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import ForceGraph2D, { type ForceGraphMethods } from 'react-force-graph-2d'
+import { forceX, forceY } from 'd3-force'
 import { useConsole } from './state'
+import { useSettings } from './settingsContext'
+import { Graph3D, type Graph3DHandle } from './Graph3D'
+import { FADE, LINK_ALPHA, linkWidth, nodeHalf } from './graphStyle'
 import { defaultFacets, filterModel, type CNode, type EdgeGroup, type NodeClass } from './model'
 import { palette, withAlpha } from './palette'
 import { IconFit } from './icons'
@@ -42,6 +46,13 @@ export function GraphLens() {
   const { model, facets, setFacets, window: timeWindow, selectedId, select, focus, loading, error, reload } = useConsole()
 
   const visible = useMemo(() => (model && facets ? filterModel(model, facets, timeWindow) : null), [model, facets, timeWindow])
+
+  // 2D or 3D. If the browser cannot make a WebGL context the 3D lens says so and this falls back to 2D.
+  const { settings, update } = useSettings()
+  const [no3d, setNo3d] = useState(false)
+  const mode3d = settings.graphMode === '3d' && !no3d
+  const g3Ref = useRef<Graph3DHandle>(null)
+  const zoomRef = useRef(1)
 
   // --- stable node objects -------------------------------------------------------------------------
   const objects = useRef(new Map<string, FGNode>())
@@ -99,23 +110,31 @@ export function GraphLens() {
     const link = fg.d3Force('link') as { distance?: (fn: (l: FGLink) => number) => void } | undefined
     link?.distance?.((l) => (l.group === 'structure' ? 22 : l.group === 'relation' ? 55 : 80))
     const charge = fg.d3Force('charge') as { strength?: (n: number) => void } | undefined
-    charge?.strength?.(-48)
+    charge?.strength?.(-70)
+    // a weak pull toward the middle keeps disconnected clusters (one per session) in view together,
+    // so fit-to-screen is not forced to zoom out to a dust of dots
+    fg.d3Force('x', forceX(0).strength(0.02))
+    fg.d3Force('y', forceY(0).strength(0.02))
   }, [graphData])
 
   useEffect(() => {
-    if (!focus) return
+    if (!focus || mode3d) return
     const obj = objects.current.get(focus.id)
     const fg = fgRef.current
     if (!obj || obj.x === undefined || obj.y === undefined || !fg) return
     fg.centerAt(obj.x, obj.y, 600)
     fg.zoom(Math.max(fg.zoom(), 2.4), 600)
-  }, [focus])
+  }, [focus, mode3d])
 
-  const fit = useCallback(() => fgRef.current?.zoomToFit(400, 70), [])
+  const fit = useCallback(() => {
+    if (mode3d) g3Ref.current?.fit()
+    else fgRef.current?.zoomToFit(400, 70)
+  }, [mode3d])
   const zoomBy = useCallback((k: number) => {
+    if (mode3d) { g3Ref.current?.zoomBy(k); return }
     const fg = fgRef.current
     if (fg) fg.zoom(fg.zoom() * k, 200)
-  }, [])
+  }, [mode3d])
 
   // --- painting ----------------------------------------------------------------------------------------
   const colors = palette()
@@ -124,12 +143,13 @@ export function GraphLens() {
     (node: FGNode, ctx: CanvasRenderingContext2D, scale: number) => {
       const x = node.x ?? 0
       const y = node.y ?? 0
-      const h = HALF[node.cls]
+      // never smaller than a few screen pixels, however far out the fit-to-screen zoom is
+      const h = nodeHalf(HALF[node.cls], node.degree, scale)
       const isSelected = node.id === selectedId
       const isHover = node.id === hoverId
       const dimmed = near ? !near.has(node.id) : false
       const history = node.status ? DIM_STATUS.has(node.status) : false
-      ctx.globalAlpha = dimmed ? 0.18 : history ? 0.4 : 1
+      ctx.globalAlpha = dimmed ? FADE.node : history ? 0.4 : 1
 
       const fill =
         node.cls === 'memory' ? colors.accent
@@ -161,9 +181,11 @@ export function GraphLens() {
       }
 
       // labels earn their place: zoomed in, selected, hovered, or a hub
-      const showLabel = isSelected || isHover || (!dimmed && (scale >= 1.8 || (scale >= 1.0 && node.degree >= 6)))
+      // sessions are the cluster anchors, so they are named at any zoom
+      const showLabel = isSelected || isHover || (!dimmed && (node.cls === 'session' || scale >= 1.8 || (scale >= 1.0 && node.degree >= 6)))
       if (showLabel) {
-        const text = node.label.length > 46 ? `${node.label.slice(0, 45)}…` : node.label
+        const name = node.cls === 'session' ? node.label.replace(/^Session /, '') : node.label
+        const text = name.length > 46 ? `${name.slice(0, 45)}…` : name
         const fontSize = 11 / scale
         ctx.font = `400 ${fontSize}px Barlow, system-ui, sans-serif`
         const w = ctx.measureText(text).width
@@ -197,13 +219,13 @@ export function GraphLens() {
   )
   const linkColor = useCallback(
     (l: FGLink) => {
-      const lit = linkTouchesSelection(l)
-      const a = lit ? 1 : 0.1
+      // lit = no selection, or an edge of the selected node; the rest recede but stay visible
+      const a = linkTouchesSelection(l) ? 1 : FADE.link / 0.4
       switch (l.group) {
-        case 'relation': return withAlpha(colors.accent, 0.5 * a)
-        case 'contradiction': return withAlpha(colors.review, a)
-        case 'similarity': return withAlpha(colors.anchored, 0.75 * a)
-        default: return `rgba(255,255,255,${0.13 * a})`
+        case 'relation': return withAlpha(colors.accent, LINK_ALPHA.relation * a)
+        case 'contradiction': return withAlpha(colors.review, LINK_ALPHA.contradiction * a)
+        case 'similarity': return withAlpha(colors.anchored, LINK_ALPHA.similarity * a)
+        default: return `rgba(255,255,255,${LINK_ALPHA.structure * a})`
       }
     },
     [colors, linkTouchesSelection],
@@ -247,16 +269,27 @@ export function GraphLens() {
       <div className="xc-bar">
         <p className="xc-eyebrow">Graph lens</p>
         <span className="xc-note" aria-live="polite">
-          {visible ? `${visible.nodes.length} of ${total} nodes · ${visible.edges.length} edges` : loading ? 'Loading…' : '—'}
+          {visible ? `${visible.nodes.length === total ? total : `${visible.nodes.length} of ${total}`} nodes · ${visible.edges.length} edges` : loading ? 'Loading…' : '—'}
         </span>
         <span className="xc-spacer" />
+        <div className="xc-ranges" role="group" aria-label="Graph view">
+          <button type="button" aria-pressed={!mode3d} onClick={() => update({ graphMode: '2d' })}>2D</button>
+          <button type="button" aria-pressed={mode3d} onClick={() => { setNo3d(false); update({ graphMode: '3d' }) }} title="Orbit, pan and zoom. Needs WebGL.">3D</button>
+        </div>
         <button type="button" className="xc-btn" onClick={fit} disabled={!visible || visible.nodes.length === 0}>
           <IconFit style={{ width: 14, height: 14, verticalAlign: -2, marginRight: 6 }} />Fit
         </button>
       </div>
 
+      {no3d && settings.graphMode === '3d' && (
+        <p className="xc-note xc-3d-notice" role="status">3D needs WebGL, which this browser could not start, so the 2D view is showing.</p>
+      )}
+
       <div className="xc-host" ref={hostRef} style={{ cursor: hoverId ? 'pointer' : 'default' }}>
-        {size.width > 0 && visible && visible.nodes.length > 0 && (
+        {mode3d && visible && visible.nodes.length > 0 && (
+          <Graph3D ref={g3Ref} nodes={visible.nodes} edges={visible.edges} selectedId={selectedId} focus={focus} onSelect={select} onUnsupported={() => setNo3d(true)} />
+        )}
+        {!mode3d && size.width > 0 && visible && visible.nodes.length > 0 && (
           <ForceGraph2D<FGNode, FGLink>
             ref={fgRef}
             width={size.width}
@@ -268,11 +301,14 @@ export function GraphLens() {
             nodeCanvasObject={paintNode}
             nodePointerAreaPaint={paintPointer}
             linkColor={linkColor}
-            linkWidth={(l) => (l.group === 'contradiction' ? 2 : l.group === 'structure' ? 0.7 : 1)}
+            // widths are in graph units, so they are divided by the live zoom to stay at least 1px
+            linkWidth={(l) => linkWidth(l.group === 'contradiction' ? 2 : l.group === 'structure' ? 1 : 1.2, zoomRef.current)}
+            onZoom={(t) => { zoomRef.current = t.k }}
             linkLineDash={(l) => (l.group === 'contradiction' ? [5, 3] : l.group === 'similarity' ? [1.5, 2.5] : null)}
             linkDirectionalArrowLength={(l) => (l.group === 'relation' ? 3 : 0)}
             linkDirectionalArrowRelPos={1}
-            cooldownTicks={140}
+            warmupTicks={90}
+            cooldownTicks={160}
             onNodeClick={(n) => select(n.id)}
             onBackgroundClick={() => select(null)}
             onNodeHover={(n) => setHoverId(n ? n.id : null)}

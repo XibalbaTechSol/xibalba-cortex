@@ -39,7 +39,7 @@ function Wireframe({ layout }: { layout: ShellLayout }) {
 export function SettingsPage() {
   const { settings, update, reset } = useSettings()
   const [section, setSection] = useState<Section>('layout')
-  const isDefault = settings.shell === DEFAULT_SETTINGS.shell && settings.railCollapsed === DEFAULT_SETTINGS.railCollapsed
+  const isDefault = settings.shell === DEFAULT_SETTINGS.shell && settings.railCollapsed === DEFAULT_SETTINGS.railCollapsed && settings.graphMode === DEFAULT_SETTINGS.graphMode
 
   return (
     <Page eyebrow="System" title="Settings" note={section === 'layout' ? 'Layout is a preference of this browser and is not stored in the Cortex profile. The other sections read and change the profile itself.' : 'These sections read and change the Cortex profile through the local API.'}>
@@ -73,6 +73,14 @@ export function SettingsPage() {
           <input type="checkbox" checked={settings.railCollapsed} disabled={settings.shell !== 'rail'} onChange={(e) => update({ railCollapsed: e.target.checked })} />
           <span>Collapse the rail to icons</span>
           <span className="xc-note">Applies to the left rail. It also collapses by itself on narrow windows.</span>
+        </label>
+
+        <label className="xc-field xc-settings-row">Graph view
+          <select className="xc-input" value={settings.graphMode} onChange={(e) => update({ graphMode: e.target.value === '2d' ? '2d' : '3d' })}>
+            <option value="3d">3D — orbit, pan and zoom (default; needs WebGL)</option>
+            <option value="2d">2D — a flat force layout</option>
+          </select>
+          <span className="xc-note">Also switchable on the Graph lens itself. Without WebGL the Graph lens shows 2D. The Timeline lens is always 2D.</span>
         </label>
 
         <div className="xc-actions-row">
