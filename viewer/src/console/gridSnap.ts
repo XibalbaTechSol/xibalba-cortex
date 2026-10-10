@@ -81,3 +81,42 @@ export function gridLines(bounds: { min: Cell; max: Cell }, size: number, pad = 
   for (let k = lo.k; k <= hi.k + 1; k++) seg([x0, y0, edge(k)], [x0, y1, edge(k)])
   return new Float32Array(out)
 }
+
+/** Largest number of lattice segments drawn through the volume before it falls back to the three faces. */
+export const MAX_LATTICE_SEGMENTS = 9000
+
+/**
+ * The full 3D lattice: one line along x for every (y, z) cell boundary, one along y for every (x, z)
+ * boundary and one along z for every (x, y) boundary, so the cell walls fill the whole volume around
+ * `bounds` (padded by `pad` cells) and every cube sits inside a visible cell. It is a cubic lattice of
+ * 3 (n+1)^2 segments for an n-cell cube, which stays small for the sample sizes the lens draws; a
+ * lattice past MAX_LATTICE_SEGMENTS returns the three-face frame from `gridLines` instead.
+ */
+export function latticeLines(bounds: { min: Cell; max: Cell }, size: number, pad = 1): Float32Array {
+  const lo = { i: bounds.min.i - pad, j: bounds.min.j - pad, k: bounds.min.k - pad }
+  const hi = { i: bounds.max.i + pad, j: bounds.max.j + pad, k: bounds.max.k + pad }
+  const ni = hi.i - lo.i + 2, nj = hi.j - lo.j + 2, nk = hi.k - lo.k + 2 // boundaries per axis
+  if (nj * nk + ni * nk + ni * nj > MAX_LATTICE_SEGMENTS) return gridLines(bounds, size, pad)
+  const edge = (n: number) => (n - 0.5) * size
+  const x0 = edge(lo.i), x1 = edge(hi.i + 1), y0 = edge(lo.j), y1 = edge(hi.j + 1), z0 = edge(lo.k), z1 = edge(hi.k + 1)
+  const out: number[] = []
+  const seg = (ax: number, ay: number, az: number, bx: number, by: number, bz: number) => out.push(ax, ay, az, bx, by, bz)
+  for (let j = lo.j; j <= hi.j + 1; j++) for (let k = lo.k; k <= hi.k + 1; k++) seg(x0, edge(j), edge(k), x1, edge(j), edge(k))
+  for (let i = lo.i; i <= hi.i + 1; i++) for (let k = lo.k; k <= hi.k + 1; k++) seg(edge(i), y0, edge(k), edge(i), y1, edge(k))
+  for (let i = lo.i; i <= hi.i + 1; i++) for (let j = lo.j; j <= hi.j + 1; j++) seg(edge(i), edge(j), z0, edge(i), edge(j), z1)
+  return new Float32Array(out)
+}
+
+/** The twelve edges of the box that holds the lattice, drawn brighter so the volume reads as a volume. */
+export function latticeFrame(bounds: { min: Cell; max: Cell }, size: number, pad = 1): Float32Array {
+  const edge = (n: number) => (n - 0.5) * size
+  const x0 = edge(bounds.min.i - pad), x1 = edge(bounds.max.i + pad + 1)
+  const y0 = edge(bounds.min.j - pad), y1 = edge(bounds.max.j + pad + 1)
+  const z0 = edge(bounds.min.k - pad), z1 = edge(bounds.max.k + pad + 1)
+  const out: number[] = []
+  for (const y of [y0, y1]) for (const z of [z0, z1]) out.push(x0, y, z, x1, y, z)
+  for (const x of [x0, x1]) for (const z of [z0, z1]) out.push(x, y0, z, x, y1, z)
+  for (const x of [x0, x1]) for (const y of [y0, y1]) out.push(x, y, z0, x, y, z1)
+  return new Float32Array(out)
+}
+

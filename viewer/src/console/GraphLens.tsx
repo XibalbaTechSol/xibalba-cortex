@@ -12,9 +12,10 @@ import { useConsole } from './state'
 import { useSettings } from './settingsContext'
 import { Graph3D, type Graph3DHandle } from './Graph3D'
 import { FADE, LINK_ALPHA, linkWidth, nodeHalf } from './graphStyle'
-import { defaultFacets, filterModel, type CNode, type EdgeGroup, type NodeClass } from './model'
+import { cellCentre, snapToGrid, type Cell } from './gridSnap'
+import { defaultFacets, filterModel, selectionHidden, type CNode, type EdgeGroup, type Facets, type NodeClass } from './model'
 import { palette, withAlpha } from './palette'
-import { IconFit } from './icons'
+import { IconFit, IconTarget, IconWarn } from './icons'
 
 interface FGNode {
   id: string
@@ -27,8 +28,11 @@ interface FGNode {
   y?: number
   vx?: number
   vy?: number
+  fx?: number
+  fy?: number
 }
 interface FGLink {
+  id: string
   source: string | FGNode
   target: string | FGNode
   group: EdgeGroup
@@ -39,6 +43,9 @@ interface FGLink {
 const HALF: Record<NodeClass, number> = { memory: 4.5, entity: 3.5, session: 6.5, exchange: 3, merkle: 5 }
 /** Statuses that are history rather than current belief are drawn dim. */
 const DIM_STATUS = new Set(['superseded', 'forgotten'])
+
+/** Lattice cell size in graph units: the same lattice the 3D lens uses, seen flat. */
+const GRID = 24
 
 const endId = (end: string | FGNode): string => (typeof end === 'string' ? end : end.id)
 
@@ -51,8 +58,13 @@ export function GraphLens() {
   const { settings, update } = useSettings()
   const [no3d, setNo3d] = useState(false)
   const mode3d = settings.graphMode === '3d' && !no3d
+  const snap = settings.graphSnap
   const g3Ref = useRef<Graph3DHandle>(null)
   const zoomRef = useRef(1)
+  const [pinned, setPinned] = useState(0)
+  // the legend sits over the canvas, so it starts closed and opens on request
+  const [legendOpen, setLegendOpen] = useState(false)
+  const hidden = selectionHidden(model, visible, selectedId)
 
   // --- stable node objects -------------------------------------------------------------------------
   const objects = useRef(new Map<string, FGNode>())
@@ -70,13 +82,16 @@ export function GraphLens() {
       obj.degree = n.degree
       return obj
     })
-    const links: FGLink[] = visible.edges.map((e) => ({ source: e.source, target: e.target, group: e.group, similarity: e.similarity }))
+    const links: FGLink[] = visible.edges.map((e) => ({ id: e.id, source: e.source, target: e.target, group: e.group, similarity: e.similarity }))
     return { nodes, links }
   }, [visible])
 
   // --- neighbourhood of the selection, for dimming ---------------------------------------------------
   const near = useMemo(() => {
     if (!selectedId || !visible) return null
+    // a selected edge lights its two ends and nothing else
+    const picked = visible.edges.find((e) => e.id === selectedId)
+    if (picked) return new Set<string>([picked.source, picked.target])
     const set = new Set<string>([selectedId])
     for (const e of visible.edges) {
       if (e.source === selectedId) set.add(e.target)
@@ -101,7 +116,38 @@ export function GraphLens() {
   // --- camera ------------------------------------------------------------------------------------------
   const fgRef = useRef<ForceGraphMethods<FGNode, FGLink> | undefined>(undefined)
   const fitted = useRef(false)
+  // once the person pans or zooms the 2D view, layout changes stop re-framing it until they press Fit
+  const userMoved2d = useRef(false)
   const [hoverId, setHoverId] = useState<string | null>(null)
+
+  // --- snap to grid (2D) -----------------------------------------------------------------------------------
+  // Snapping fixes every node at the centre of its own lattice cell (fx/fy), so the links, which the
+  // library draws from node positions, follow with no extra drawing code. `cells2d` remembers the last
+  // assignment so a node near a cell boundary does not flicker between two cells.
+  const cells2d = useRef(new Map<string, Cell>())
+  const snapNodes = useCallback((priorityId?: string) => {
+    const fg = fgRef.current
+    if (!fg) return
+    const nodes = graphData.nodes
+    const pts = nodes.map((n) => ({ id: n.id, x: n.x ?? 0, y: n.y ?? 0, z: 0, priority: n.id === priorityId ? 1e6 : n.degree }))
+    cells2d.current = snapToGrid(pts, GRID, cells2d.current)
+    let moved = false
+    for (const n of nodes) {
+      const c = cells2d.current.get(n.id)
+      if (!c) continue
+      const p = cellCentre(c, GRID)
+      if (n.fx !== p.x || n.fy !== p.y) { n.fx = p.x; n.fy = p.y; moved = true }
+    }
+    // only re-heat when something moved, or the engine-stop that follows would snap again forever
+    if (moved) fg.d3ReheatSimulation()
+  }, [graphData])
+
+  // a new set of nodes, or snap switched off: let the layout relax; it is snapped again when it settles
+  useEffect(() => {
+    for (const n of graphData.nodes) { n.fx = undefined; n.fy = undefined }
+    if (!snap) cells2d.current = new Map()
+    else window.setTimeout(() => snapNodes(), 0)
+  }, [graphData, snap, snapNodes])
 
   useEffect(() => {
     const fg = fgRef.current
@@ -127,9 +173,15 @@ export function GraphLens() {
   }, [focus, mode3d])
 
   const fit = useCallback(() => {
+    userMoved2d.current = false
     if (mode3d) g3Ref.current?.fit()
     else fgRef.current?.zoomToFit(400, 70)
   }, [mode3d])
+  const fitSelection = useCallback(() => {
+    if (mode3d) { g3Ref.current?.fitSelection(); return }
+    // the selection and what it touches; the same set that is lit, so the framing matches the dimming
+    fgRef.current?.zoomToFit(400, 120, (n) => (near ? near.has(n.id) : true))
+  }, [mode3d, near])
   const zoomBy = useCallback((k: number) => {
     if (mode3d) { g3Ref.current?.zoomBy(k); return }
     const fg = fgRef.current
@@ -138,6 +190,30 @@ export function GraphLens() {
 
   // --- painting ----------------------------------------------------------------------------------------
   const colors = palette()
+
+  // A faint square grid in graph space, drawn behind everything. When zoomed far out the spacing doubles
+  // until lines are at least ~16px apart, so it stays a quiet texture and never a solid block.
+  const drawGrid = useCallback(
+    (ctx: CanvasRenderingContext2D, scale: number) => {
+      const fg = fgRef.current
+      if (!fg || size.width === 0) return
+      let step = GRID
+      while (step * scale < 16) step *= 2
+      const a = fg.screen2GraphCoords(0, 0)
+      const b = fg.screen2GraphCoords(size.width, size.height)
+      ctx.save()
+      ctx.lineWidth = 1 / scale
+      ctx.strokeStyle = withAlpha(colors.ink, 0.035)
+      ctx.beginPath()
+      // cell boundaries sit half a cell out from the cell centres, as in 3D
+      const off = GRID / 2
+      for (let x = Math.floor((a.x - off) / step) * step + off; x <= b.x; x += step) { ctx.moveTo(x, a.y); ctx.lineTo(x, b.y) }
+      for (let y = Math.floor((a.y - off) / step) * step + off; y <= b.y; y += step) { ctx.moveTo(a.x, y); ctx.lineTo(b.x, y) }
+      ctx.stroke()
+      ctx.restore()
+    },
+    [colors, size],
+  )
 
   const paintNode = useCallback(
     (node: FGNode, ctx: CanvasRenderingContext2D, scale: number) => {
@@ -214,12 +290,13 @@ export function GraphLens() {
   }, [])
 
   const linkTouchesSelection = useCallback(
-    (l: FGLink) => !near || (near.has(endId(l.source)) && near.has(endId(l.target)) && (endId(l.source) === selectedId || endId(l.target) === selectedId)),
+    (l: FGLink) => !near || l.id === selectedId || (near.has(endId(l.source)) && near.has(endId(l.target)) && (endId(l.source) === selectedId || endId(l.target) === selectedId)),
     [near, selectedId],
   )
   const linkColor = useCallback(
     (l: FGLink) => {
       // lit = no selection, or an edge of the selected node; the rest recede but stay visible
+      if (l.id === selectedId) return colors.ink
       const a = linkTouchesSelection(l) ? 1 : FADE.link / 0.4
       switch (l.group) {
         case 'relation': return withAlpha(colors.accent, LINK_ALPHA.relation * a)
@@ -228,7 +305,7 @@ export function GraphLens() {
         default: return `rgba(255,255,255,${LINK_ALPHA.structure * a})`
       }
     },
-    [colors, linkTouchesSelection],
+    [colors, linkTouchesSelection, selectedId],
   )
 
   // --- empty / error / loading ---------------------------------------------------------------------------
@@ -264,30 +341,48 @@ export function GraphLens() {
 
   const total = model?.nodes.length ?? 0
 
+  // the legend doubles as a set of switches: each row flips the same facet the rail does
+  const flip = (group: 'classes' | 'statuses' | 'edges', key: string) =>
+    setFacets((prev: Facets | null) => (prev ? { ...prev, [group]: { ...(prev[group] as Record<string, boolean>), [key]: !((prev[group] as Record<string, boolean>)[key] ?? true) } } : prev))
+  const isOn = (group: 'classes' | 'statuses' | 'edges', key: string) => ((facets?.[group] as Record<string, boolean> | undefined)?.[key] ?? true)
+  const LegendRow = ({ group, k, label, children }: { group: 'classes' | 'statuses' | 'edges'; k: string; label: string; children: React.ReactNode }) => (
+    <button type="button" className="xc-legend-row" aria-pressed={isOn(group, k)} onClick={() => flip(group, k)} title={`${isOn(group, k) ? 'Hide' : 'Show'} ${label.toLowerCase()}`}>
+      {children}{label}
+    </button>
+  )
+
   return (
     <section className="xc-win xc-pane xc-canvas-win" aria-label="Graph lens">
       <div className="xc-bar">
         <p className="xc-eyebrow">Graph lens</p>
-        <span className="xc-note" aria-live="polite">
-          {visible ? `${visible.nodes.length === total ? total : `${visible.nodes.length} of ${total}`} nodes · ${visible.edges.length} edges` : loading ? 'Loading…' : '—'}
-        </span>
         <span className="xc-spacer" />
         <div className="xc-ranges" role="group" aria-label="Graph view">
           <button type="button" aria-pressed={!mode3d} onClick={() => update({ graphMode: '2d' })}>2D</button>
           <button type="button" aria-pressed={mode3d} onClick={() => { setNo3d(false); update({ graphMode: '3d' }) }} title="Orbit, pan and zoom. Needs WebGL.">3D</button>
         </div>
-        <button type="button" className="xc-btn" onClick={fit} disabled={!visible || visible.nodes.length === 0}>
-          <IconFit style={{ width: 14, height: 14, verticalAlign: -2, marginRight: 6 }} />Fit
-        </button>
+        {mode3d && pinned > 0 && (
+          <button type="button" className="xc-btn" onClick={() => g3Ref.current?.unpinAll()} title="Double-click a cube to unpin just that one">Unpin {pinned}</button>
+        )}
+        <div className="xc-ranges" role="group" aria-label="Grid">
+          <button type="button" aria-pressed={snap} onClick={() => update({ graphSnap: !snap })} title="Each node takes its own cell of the grid. Off, nodes stay where the layout puts them.">Snap to grid</button>
+        </div>
       </div>
+
+      {hidden && (
+        <p className="xc-note xc-3d-notice" role="status" style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <IconWarn style={{ width: 14, height: 14 }} />
+          The selected item is hidden by the current filters. The inspector still shows it.
+          <button type="button" className="xc-link" onClick={resetFacets}>Reset facets</button>
+        </p>
+      )}
 
       {no3d && settings.graphMode === '3d' && (
         <p className="xc-note xc-3d-notice" role="status">3D needs WebGL, which this browser could not start, so the 2D view is showing.</p>
       )}
 
-      <div className="xc-host" ref={hostRef} style={{ cursor: hoverId ? 'pointer' : 'default' }}>
+      <div className="xc-host" ref={hostRef} onWheelCapture={() => { userMoved2d.current = true }} onPointerMoveCapture={(e) => { if (e.buttons) userMoved2d.current = true }} style={{ cursor: hoverId ? 'pointer' : 'default' }}>
         {mode3d && visible && visible.nodes.length > 0 && (
-          <Graph3D ref={g3Ref} nodes={visible.nodes} edges={visible.edges} selectedId={selectedId} focus={focus} onSelect={select} onUnsupported={() => setNo3d(true)} />
+          <Graph3D ref={g3Ref} nodes={visible.nodes} edges={visible.edges} selectedId={selectedId} focus={focus} snap={snap} onSelect={select} onPinnedChange={setPinned} onUnsupported={() => setNo3d(true)} />
         )}
         {!mode3d && size.width > 0 && visible && visible.nodes.length > 0 && (
           <ForceGraph2D<FGNode, FGLink>
@@ -302,40 +397,65 @@ export function GraphLens() {
             nodePointerAreaPaint={paintPointer}
             linkColor={linkColor}
             // widths are in graph units, so they are divided by the live zoom to stay at least 1px
-            linkWidth={(l) => linkWidth(l.group === 'contradiction' ? 2 : l.group === 'structure' ? 1 : 1.2, zoomRef.current)}
+            linkWidth={(l) => linkWidth(l.id === selectedId ? 3 : l.group === 'contradiction' ? 2 : l.group === 'structure' ? 1 : 1.2, zoomRef.current)}
+            linkHoverPrecision={6}
+            onLinkClick={(l) => select(l.id)}
             onZoom={(t) => { zoomRef.current = t.k }}
             linkLineDash={(l) => (l.group === 'contradiction' ? [5, 3] : l.group === 'similarity' ? [1.5, 2.5] : null)}
             linkDirectionalArrowLength={(l) => (l.group === 'relation' ? 3 : 0)}
             linkDirectionalArrowRelPos={1}
             warmupTicks={90}
             cooldownTicks={160}
+            onRenderFramePre={drawGrid}
+            onNodeDragEnd={(n) => { if (snap) snapNodes(n.id) }}
             onNodeClick={(n) => select(n.id)}
             onBackgroundClick={() => select(null)}
             onNodeHover={(n) => setHoverId(n ? n.id : null)}
             onEngineStop={() => {
-              if (!fitted.current) {
+              if (snap) snapNodes()
+              // frame the first layout, and each later one, until the person takes the camera
+              if (!fitted.current || !userMoved2d.current) {
                 fitted.current = true
-                fit()
+                fgRef.current?.zoomToFit(400, 70)
               }
             }}
           />
         )}
         {overlay && <div style={{ position: 'absolute', inset: 0, display: 'grid', placeItems: 'center' }}>{overlay}</div>}
 
+        <p className="xc-graph-count" aria-live="polite">
+          {visible ? `${visible.nodes.length === total ? total : `${visible.nodes.length} of ${total}`} nodes · ${visible.edges.length} edges` : loading ? 'Loading…' : '—'}
+        </p>
+
         <div className="xc-zoom">
           <button type="button" aria-label="Zoom in" onClick={() => zoomBy(1.4)}>+</button>
           <button type="button" aria-label="Zoom out" onClick={() => zoomBy(1 / 1.4)}>−</button>
+          <button type="button" aria-label="Fit all" title="Frame every node" onClick={fit} disabled={!visible || visible.nodes.length === 0}>
+            <IconFit style={{ width: 15, height: 15 }} />
+          </button>
+          <button type="button" aria-label="Fit selection" title="Frame the selected item and what it touches" onClick={fitSelection} disabled={!selectedId || !visible || visible.nodes.length === 0 || hidden}>
+            <IconTarget style={{ width: 15, height: 15 }} />
+          </button>
         </div>
 
-        <div className="xc-legend" aria-label="Legend">
-          <div><i className="xc-swatch" style={{ background: 'var(--cortex-accent)' }} />Memory</div>
-          <div><i className="xc-swatch" style={{ background: 'transparent', border: '1.5px solid var(--cortex-accent)' }} />Candidate memory</div>
-          <div><i className="xc-swatch" style={{ background: 'var(--ink-muted)' }} />Entity</div>
-          <div><i className="xc-swatch" style={{ background: 'var(--status-anchored)' }} />Session</div>
-          <div><i className="xc-swatch xc-swatch--ring" />Merkle root</div>
-          <div><i className="xc-rule" style={{ borderTop: '2px dashed var(--status-review)' }} />Contradiction</div>
-          <div><i className="xc-rule" style={{ borderTop: '1px dotted var(--status-anchored)' }} />Similarity</div>
+        <button type="button" className="xc-legend-toggle" aria-expanded={legendOpen} onClick={() => setLegendOpen((v) => !v)}>
+          {legendOpen ? 'Hide legend' : 'Legend'}
+        </button>
+        {legendOpen && (
+        <div className="xc-legend" aria-label="Legend (click a row to show or hide it)">
+          <LegendRow group="classes" k="memory" label="Memory"><i className="xc-swatch" style={{ background: 'var(--cortex-accent)' }} /></LegendRow>
+          {(facets?.statuses.candidate !== undefined) && (
+            <LegendRow group="statuses" k="candidate" label="Candidate memory"><i className="xc-swatch" style={{ background: 'transparent', border: '1.5px solid var(--cortex-accent)' }} /></LegendRow>
+          )}
+          <LegendRow group="classes" k="entity" label="Entity"><i className="xc-swatch" style={{ background: 'var(--ink-muted)' }} /></LegendRow>
+          <LegendRow group="classes" k="session" label="Session"><i className="xc-swatch" style={{ background: 'var(--status-anchored)' }} /></LegendRow>
+          <LegendRow group="classes" k="merkle" label="Merkle root"><i className="xc-swatch xc-swatch--ring" /></LegendRow>
+          <LegendRow group="edges" k="relation" label="Relation (arrow = subject to object)"><i className="xc-rule" style={{ borderTop: '1px solid var(--cortex-accent)' }} /></LegendRow>
+          <LegendRow group="edges" k="contradiction" label="Contradiction"><i className="xc-rule" style={{ borderTop: '2px dashed var(--status-review)' }} /></LegendRow>
+          <LegendRow group="edges" k="similarity" label="Similarity"><i className="xc-rule" style={{ borderTop: '1px dotted var(--status-anchored)' }} /></LegendRow>
+          {mode3d && <p className="xc-note" style={{ margin: '4px 0 0' }}>Drag a cube to move and pin it; double-click to unpin.</p>}
         </div>
+        )}
       </div>
     </section>
   )

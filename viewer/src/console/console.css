@@ -526,11 +526,14 @@ select.xc-input {
 
 /* ---------- workspace: facet rail | canvas | inspector ----------------------------------------- */
 .xc-workspace {
-  flex: 1;
+  /* a fixed height, not flex: 1 -- a flexible height is content-sized, so a long facet rail used to stretch
+     the whole workspace instead of scrolling inside its own pane */
+  flex: none;
   display: grid;
-  grid-template-columns: 250px minmax(0, 1fr) 360px;
+  grid-template-columns: 232px minmax(0, 1fr) 340px;
+  grid-template-rows: minmax(0, 1fr);
   gap: var(--window-gap);
-  padding: 28px var(--gutter) 22px;
+  padding: 28px 28px 22px;
   /* tall enough to be a workspace, short enough to leave the chain rail on screen */
   height: max(580px, calc(100vh - 360px));
   min-height: 0;
@@ -593,6 +596,13 @@ select.xc-input {
   font: 400 11px var(--font-mono);
   color: var(--ink-dim);
 }
+/* finer switch under an edge group: indented past the group's checkbox and rule */
+.xc-check--sub {
+  min-height: 24px;
+  padding-left: 23px;
+  font-size: 12px;
+  color: var(--ink-muted);
+}
 .xc-kv {
   display: grid;
   gap: 7px;
@@ -644,7 +654,7 @@ select.xc-input {
 .xc-legend {
   position: absolute;
   left: 14px;
-  bottom: 14px;
+  bottom: 52px;
   display: grid;
   gap: 6px;
   padding: 10px 12px;
@@ -659,6 +669,56 @@ select.xc-input {
   display: flex;
   align-items: center;
   gap: 9px;
+}
+.xc-graph-count {
+  position: absolute;
+  left: 14px;
+  top: 12px;
+  margin: 0;
+  font: 400 11px var(--font-mono);
+  letter-spacing: 0.04em;
+  color: var(--ink-dim);
+  pointer-events: none;
+  user-select: none;
+}
+.xc-legend-toggle {
+  position: absolute;
+  left: 14px;
+  bottom: 14px;
+  min-height: 28px;
+  padding: 0 12px;
+  border: 1px solid var(--hairline);
+  background: var(--ground);
+  color: var(--ink-muted);
+  font: 500 11px var(--font-mono);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+.xc-legend-toggle:hover,
+.xc-legend-toggle[aria-expanded='true'] {
+  color: var(--ink);
+  border-color: var(--hairline-strong);
+}
+.xc-legend-row {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.xc-legend-row:hover {
+  color: var(--ink);
+}
+/* off: the row stays, struck and dim, so it can be switched back on from where it was switched off */
+.xc-legend-row[aria-pressed='false'] {
+  opacity: 0.45;
+  text-decoration: line-through;
 }
 .xc-legend .xc-rule {
   width: 22px;
@@ -681,15 +741,22 @@ select.xc-input {
 .xc-zoom button {
   width: var(--control-height);
   height: var(--control-height);
+  display: grid;
+  place-items: center;
   border: 0;
   background: transparent;
+  color: var(--ink);
   font-size: 17px;
   cursor: pointer;
 }
 .xc-zoom button + button {
   border-top: 1px solid var(--hairline);
 }
-.xc-zoom button:hover {
+.xc-zoom button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.xc-zoom button:hover:not(:disabled) {
   background: var(--accent-soft);
 }
 .float-tooltip-kap {
@@ -1160,6 +1227,7 @@ select.xc-input {
 @media (max-width: 1180px) {
   .xc-workspace {
     grid-template-columns: minmax(0, 1fr) 340px;
+    grid-template-rows: none;
     height: auto;
   }
   .xc-rail {
@@ -2327,6 +2395,7 @@ select.xc-input {
   position: absolute;
   inset: 0;
   overflow: hidden;
+  user-select: none;
 }
 .xc-3d-labels {
   position: absolute;

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { cellBounds, cellCentre, gridLines, snapToGrid, type Point } from './gridSnap'
+import { cellBounds, cellCentre, gridLines, latticeFrame, latticeLines, MAX_LATTICE_SEGMENTS, snapToGrid, type Point } from './gridSnap'
 
 const pt = (id: string, x: number, y: number, z: number, priority = 0): Point => ({ id, x, y, z, priority })
 const keyOf = (c: { i: number; j: number; k: number }) => `${c.i},${c.j},${c.k}`
@@ -78,5 +78,34 @@ describe('gridLines', () => {
   })
   it('grows with the padding', () => {
     expect(gridLines(b, 24, 2).length).toBeGreaterThan(gridLines(b, 24, 1).length)
+  })
+})
+
+describe('latticeLines', () => {
+  const b = { min: { i: 0, j: 0, k: 0 }, max: { i: 1, j: 1, k: 1 } }
+  it('fills the volume: lines along all three axes at every boundary pair', () => {
+    // pad 1 makes a 4x4x4 block, so 5 boundaries per axis: 3 axes x 5 x 5 lines
+    expect(latticeLines(b, 24, 1).length / 6).toBe(3 * 5 * 5)
+  })
+  it('has lines that run through the middle, not only on the outside faces', () => {
+    const v = latticeLines(b, 24, 1)
+    const inner = (n: number) => Math.abs(n) < 24 * 1.4 // well inside the block, away from every face
+    let through = 0
+    for (let n = 0; n < v.length; n += 6) if (inner(v[n + 1]) && inner(v[n + 2]) && v[n] !== v[n + 3]) through++
+    expect(through).toBeGreaterThan(0)
+  })
+  it('puts every line on a cell boundary', () => {
+    for (const n of latticeLines(b, 24, 1)) expect(Math.abs((n / 24 + 0.5) % 1)).toBeCloseTo(0, 5)
+  })
+  it('falls back to the three faces when the lattice would be too dense', () => {
+    const big = { min: { i: 0, j: 0, k: 0 }, max: { i: 80, j: 80, k: 80 } }
+    expect(latticeLines(big, 24, 1).length / 6).toBeLessThanOrEqual(MAX_LATTICE_SEGMENTS)
+    expect(latticeLines(big, 24, 1)).toEqual(gridLines(big, 24, 1))
+  })
+})
+
+describe('latticeFrame', () => {
+  it('is the twelve edges of the box', () => {
+    expect(latticeFrame({ min: { i: 0, j: 0, k: 0 }, max: { i: 1, j: 1, k: 1 } }, 24, 1).length / 6).toBe(12)
   })
 })

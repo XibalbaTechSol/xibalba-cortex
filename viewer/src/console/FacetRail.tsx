@@ -3,7 +3,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { useConsole } from './state'
-import { countFacets, type EdgeGroup, type Facets, type NodeClass } from './model'
+import { countFacets, EDGE_TYPE_LABEL, type EdgeGroup, type Facets, type NodeClass } from './model'
 
 const CLASS_LABEL: Record<NodeClass, string> = {
   memory: 'Memories',
@@ -108,15 +108,45 @@ export function FacetRail() {
               </section>
             )}
 
+            {Object.keys(facets.sources ?? {}).length > 0 && (
+              <section className="xc-facet-group">
+                <p className="xc-eyebrow">Memory source</p>
+                {Object.keys(facets.sources).sort().map((source) => (
+                  <label className="xc-check" key={source}>
+                    <input type="checkbox" checked={facets.sources[source]} onChange={() => toggle('sources', source)} />
+                    <span>{titleCase(source)}</span>
+                    <b>{counts.sources[source] ?? 0}</b>
+                  </label>
+                ))}
+              </section>
+            )}
+
             <section className="xc-facet-group">
               <p className="xc-eyebrow">Edges</p>
               {(Object.keys(EDGE_LABEL) as EdgeGroup[]).map((group) => (
-                <label className="xc-check" key={group}>
-                  <input type="checkbox" checked={facets.edges[group]} onChange={() => toggle('edges', group)} />
-                  <i className="xc-rule" style={{ width: 16, height: 0, borderTop: EDGE_RULE[group], flexShrink: 0 }} />
-                  <span>{EDGE_LABEL[group]}</span>
-                  <b>{counts.edges[group]}</b>
-                </label>
+                <div key={group}>
+                  <label className="xc-check">
+                    <input type="checkbox" checked={facets.edges[group]} onChange={() => toggle('edges', group)} />
+                    <i className="xc-rule" style={{ width: 16, height: 0, borderTop: EDGE_RULE[group], flexShrink: 0 }} />
+                    <span>{EDGE_LABEL[group]}</span>
+                    <b>{counts.edges[group]}</b>
+                  </label>
+                  {/* finer switches, indented under the group they refine; dimmed while the group is off */}
+                  {group === 'structure' && Object.keys(facets.edgeTypes ?? {}).sort().map((type) => (
+                    <label className="xc-check xc-check--sub" key={type} style={{ opacity: facets.edges.structure ? 1 : 0.45 }}>
+                      <input type="checkbox" checked={facets.edgeTypes[type]} onChange={() => toggle('edgeTypes', type)} />
+                      <span>{EDGE_TYPE_LABEL[type] ?? titleCase(type)}</span>
+                      <b>{counts.edgeTypes[type] ?? 0}</b>
+                    </label>
+                  ))}
+                  {group === 'relation' && Object.keys(facets.predicates ?? {}).sort().map((predicate) => (
+                    <label className="xc-check xc-check--sub" key={predicate} style={{ opacity: facets.edges.relation ? 1 : 0.45 }}>
+                      <input type="checkbox" checked={facets.predicates[predicate]} onChange={() => toggle('predicates', predicate)} />
+                      <span>{titleCase(predicate)}</span>
+                      <b>{counts.predicates[predicate] ?? 0}</b>
+                    </label>
+                  ))}
+                </div>
               ))}
               <label className="xc-field" style={{ marginTop: 10 }}>
                 <span style={{ display: 'flex', justifyContent: 'space-between' }}>
@@ -125,9 +155,9 @@ export function FacetRail() {
                 <input
                   className="xc-range"
                   type="range"
-                  min={0.5}
-                  max={1}
-                  step={0.05}
+                  min={0.2}
+                  max={0.99}
+                  step={0.01}
                   value={pending}
                   onChange={(e) => setPending(Number(e.target.value))}
                   aria-label="Minimum similarity for similarity edges"

@@ -39,7 +39,7 @@ function Wireframe({ layout }: { layout: ShellLayout }) {
 export function SettingsPage() {
   const { settings, update, reset } = useSettings()
   const [section, setSection] = useState<Section>('layout')
-  const isDefault = settings.shell === DEFAULT_SETTINGS.shell && settings.railCollapsed === DEFAULT_SETTINGS.railCollapsed && settings.graphMode === DEFAULT_SETTINGS.graphMode
+  const isDefault = settings.shell === DEFAULT_SETTINGS.shell && settings.railCollapsed === DEFAULT_SETTINGS.railCollapsed && settings.graphMode === DEFAULT_SETTINGS.graphMode && settings.graphSnap === DEFAULT_SETTINGS.graphSnap
 
   return (
     <Page eyebrow="System" title="Settings" note={section === 'layout' ? 'Layout is a preference of this browser and is not stored in the Cortex profile. The other sections read and change the profile itself.' : 'These sections read and change the Cortex profile through the local API.'}>
@@ -81,6 +81,12 @@ export function SettingsPage() {
             <option value="2d">2D — a flat force layout</option>
           </select>
           <span className="xc-note">Also switchable on the Graph lens itself. Without WebGL the Graph lens shows 2D. The Timeline lens is always 2D.</span>
+        </label>
+
+        <label className="xc-check xc-settings-row">
+          <input type="checkbox" checked={settings.graphSnap} onChange={(e) => update({ graphSnap: e.target.checked })} />
+          <span>Snap graph nodes to the grid</span>
+          <span className="xc-note">Each node takes its own cell of a faint grid, in 2D and 3D. Off, nodes stay wherever the force layout puts them. Also a button on the Graph lens.</span>
         </label>
 
         <div className="xc-actions-row">

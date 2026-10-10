@@ -59,6 +59,13 @@ export const IconFit = (p: IconProps) => (
     <path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" />
   </svg>
 )
+/** a crosshair: frame the selection */
+export const IconTarget = (p: IconProps) => (
+  <svg {...base} {...p}>
+    <circle cx="12" cy="12" r="6" />
+    <path d="M12 2v4M12 18v4M2 12h4M18 12h4" />
+  </svg>
+)
 export const IconCheck = (p: IconProps) => (
   <svg {...base} strokeWidth={2.2} {...p}>
     <path d="M20 6 9 17l-5-5" />

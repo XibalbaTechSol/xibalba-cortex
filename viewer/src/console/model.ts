@@ -253,6 +253,12 @@ export interface Facets {
   /** Evidence class -> shown. */
   evidence: Record<string, boolean>
   edges: Record<EdgeGroup, boolean>
+  /** Individual session-structure edge types (contains, prompt, response, context, merkle_root). Absent = shown. */
+  edgeTypes: Record<string, boolean>
+  /** Relation predicate -> shown. Absent = shown. */
+  predicates: Record<string, boolean>
+  /** Memory source kind -> shown. Absent = shown. */
+  sources: Record<string, boolean>
 }
 
 /** Statuses hidden until asked for: they are history, not current belief. */
@@ -277,22 +283,36 @@ export function changedFacetCount(facets: Facets, model: GraphModel): number {
   compare(facets.statuses, base.statuses)
   compare(facets.evidence, base.evidence)
   compare(facets.edges, base.edges)
+  compare(facets.edgeTypes, base.edgeTypes)
+  compare(facets.predicates, base.predicates)
+  compare(facets.sources, base.sources)
   return n
 }
 
 export function defaultFacets(model: GraphModel): Facets {
   const statuses: Record<string, boolean> = {}
   const evidence: Record<string, boolean> = {}
+  const sources: Record<string, boolean> = {}
+  const edgeTypes: Record<string, boolean> = {}
+  const predicates: Record<string, boolean> = {}
   for (const node of model.nodes) {
     if (node.cls !== 'memory') continue
     if (node.status) statuses[node.status] = !HIDDEN_BY_DEFAULT.has(node.status)
     if (node.evidenceClass) evidence[node.evidenceClass] = true
+    if (node.sourceKind) sources[node.sourceKind] = true
+  }
+  for (const edge of model.edges) {
+    if (edge.group === 'structure') edgeTypes[edge.type] = true
+    if (edge.group === 'relation' && edge.predicate) predicates[edge.predicate] = true
   }
   return {
     classes: { memory: true, entity: true, session: true, exchange: true, merkle: true },
     statuses,
     evidence,
     edges: { relation: true, contradiction: true, similarity: true, structure: true },
+    edgeTypes,
+    predicates,
+    sources,
   }
 }
 
@@ -313,6 +333,9 @@ export function mergeFacets(prev: Facets, next: Facets): Facets {
     statuses: fold(prev.statuses, next.statuses),
     evidence: fold(prev.evidence, next.evidence),
     edges: prev.edges,
+    edgeTypes: fold(prev.edgeTypes ?? {}, next.edgeTypes),
+    predicates: fold(prev.predicates ?? {}, next.predicates),
+    sources: fold(prev.sources ?? {}, next.sources),
   }
 }
 
@@ -321,6 +344,7 @@ export function isNodeVisible(node: CNode, facets: Facets, window: TimeWindow | 
   if (node.cls === 'memory') {
     if (node.status && facets.statuses[node.status] === false) return false
     if (node.evidenceClass && facets.evidence[node.evidenceClass] === false) return false
+    if (node.sourceKind && facets.sources?.[node.sourceKind] === false) return false
   }
   // Untimed nodes are never filtered out by the window: hiding what we cannot place in time
   // would make the window look like it removed things it has no basis to remove.
@@ -336,8 +360,40 @@ export interface VisibleGraph {
 export function filterModel(model: GraphModel, facets: Facets, window: TimeWindow | null): VisibleGraph {
   const nodes = model.nodes.filter((n) => isNodeVisible(n, facets, window))
   const visible = new Set(nodes.map((n) => n.id))
-  const edges = model.edges.filter((e) => facets.edges[e.group] && visible.has(e.source) && visible.has(e.target))
+  const edges = model.edges.filter((e) => isEdgeVisible(e, facets) && visible.has(e.source) && visible.has(e.target))
   return { nodes, edges }
+}
+
+/** The group switch, then the finer switch for structure types and relation predicates. */
+export function isEdgeVisible(e: CEdge, facets: Facets): boolean {
+  if (!facets.edges[e.group]) return false
+  if (e.group === 'structure' && facets.edgeTypes?.[e.type] === false) return false
+  if (e.group === 'relation' && e.predicate && facets.predicates?.[e.predicate] === false) return false
+  return true
+}
+
+/**
+ * Is the selection hidden by the current filters? A selected node or edge that the facets or the time
+ * window removed is still selected, and the inspector still shows it, so the lens says so instead of
+ * leaving the person looking for a node that is not drawn.
+ */
+export function selectionHidden(model: GraphModel | null, visible: VisibleGraph | null, selectedId: string | null): boolean {
+  if (!model || !visible || !selectedId) return false
+  if (model.byId.has(selectedId)) return !visible.nodes.some((n) => n.id === selectedId)
+  const edge = model.edges.find((e) => e.id === selectedId)
+  return edge ? !visible.edges.some((e) => e.id === selectedId) : false
+}
+
+/** A human name for an edge type, for the inspector and the legend. */
+export const EDGE_TYPE_LABEL: Record<string, string> = {
+  relation: 'Extracted relation',
+  contradiction: 'Contradiction',
+  similarity: 'Similarity',
+  contains: 'Session contains exchange',
+  prompt: 'Exchange prompt',
+  response: 'Exchange response',
+  context: 'Exchange context',
+  merkle_root: 'Session Merkle root',
 }
 
 export interface FacetCounts {
@@ -345,6 +401,9 @@ export interface FacetCounts {
   statuses: Record<string, number>
   evidence: Record<string, number>
   edges: Record<EdgeGroup, number>
+  edgeTypes: Record<string, number>
+  predicates: Record<string, number>
+  sources: Record<string, number>
 }
 
 export function countFacets(model: GraphModel): FacetCounts {
@@ -353,14 +412,22 @@ export function countFacets(model: GraphModel): FacetCounts {
     statuses: {},
     evidence: {},
     edges: { relation: 0, contradiction: 0, similarity: 0, structure: 0 },
+    edgeTypes: {},
+    predicates: {},
+    sources: {},
   }
   for (const node of model.nodes) {
     counts.classes[node.cls] += 1
     if (node.cls !== 'memory') continue
+    if (node.sourceKind) counts.sources[node.sourceKind] = (counts.sources[node.sourceKind] ?? 0) + 1
     if (node.status) counts.statuses[node.status] = (counts.statuses[node.status] ?? 0) + 1
     if (node.evidenceClass) counts.evidence[node.evidenceClass] = (counts.evidence[node.evidenceClass] ?? 0) + 1
   }
-  for (const edge of model.edges) counts.edges[edge.group] += 1
+  for (const edge of model.edges) {
+    counts.edges[edge.group] += 1
+    if (edge.group === 'structure') counts.edgeTypes[edge.type] = (counts.edgeTypes[edge.type] ?? 0) + 1
+    if (edge.group === 'relation' && edge.predicate) counts.predicates[edge.predicate] = (counts.predicates[edge.predicate] ?? 0) + 1
+  }
   return counts
 }
 
