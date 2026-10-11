@@ -2468,3 +2468,23 @@ select.xc-input {
     height: 60px;
   }
 }
+
+/* recall on a phone: the query gets its own row, the retrieval modes sit beneath it, so the field is never squeezed to nothing */
+@media (max-width: 760px) {
+  .xc-palette-query {
+    flex-wrap: wrap;
+    gap: 8px 10px;
+  }
+  .xc-palette-query input {
+    flex: 1 1 0;
+    min-width: 120px;
+    font-size: 17px;
+  }
+  .xc-palette-query .xc-ranges {
+    order: 5;
+    flex: 1 0 100%;
+  }
+  .xc-palette-query .xc-ranges button {
+    flex: 1;
+  }
+}

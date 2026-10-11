@@ -70,6 +70,27 @@ the *Top bar* layout option.
 | Phone — Operations | `pages/OperationsPage.tsx` |  |
 | Phone — Agents | `pages/AgentsPage.tsx` |  |
 | Phone — Settings | `pages/SettingsPage.tsx` |  |
+| Inspector — provenance: who said it, from where, and the export | `Inspector.tsx (ProvenanceTab), VerifyPanel.tsx` | GET /api/memory/{id}/provenance; the export is the server’s own document. |
+| Inspector — neighbours in the graph | `Inspector.tsx (NeighborsTab)` |  |
+| Inspector — contradictions, and the actions that resolve them | `Inspector.tsx, MemoryActions.tsx` |  |
+| Inspector — telemetry attached to the memory | `Inspector.tsx (TelemetryTab)` |  |
+| Memories — writing a memory (agent workspace only) | `pages/MemoriesPage.tsx (NewMemory)` | Only a verified writable workspace sees New memory; it says whose memory it will be. |
+| Entities — a path between two entities | `pages/EntitiesPage.tsx, entities.ts` | Each hop names the relation that connects it. |
+| Sessions — replay, with its completeness stated | `pages/SessionsPage.tsx` | Replay says what it cannot prove: it does not execute tools. |
+| Sessions — telemetry summary | `pages/SessionsPage.tsx` |  |
+| Sessions — invocation correlations | `pages/SessionsPage.tsx` |  |
+| Settings — Top bar chosen (and Snap to grid) | `pages/SettingsPage.tsx, settings.ts` |  |
+| Graph lens — a workspace with no memories yet | `GraphLens.tsx` | The inspector still shows the workspace; the lens says why it is empty. |
+| Timeline lens — nothing to place | `TimelineLens.tsx` |  |
+| Recall — no results | `Recall.tsx` | Says what was searched and what to try, without implying a failure. |
+| Tablet (1024) — Graph | `console.css (max-width: 1180px)` | The facet rail becomes a strip above the lens; the rail shell collapses to icons. |
+| Tablet (1024) — Timeline | `console.css (max-width: 1180px)` |  |
+| Tablet (1024) — Memories | `pages/MemoriesPage.tsx` |  |
+| Tablet (820) — Settings | `pages/SettingsPage.tsx` |  |
+| Phone — Sign in | `SignIn.tsx` |  |
+| Phone — Recall: query on its own row, modes beneath | `Recall.tsx, console.css` |  |
+| Phone — Review | `Review.tsx` |  |
+| Phone — Graph with the legend open | `GraphLens.tsx` |  |
 
 ## Planned — designed, not built
 
