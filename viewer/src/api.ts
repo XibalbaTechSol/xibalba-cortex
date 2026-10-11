@@ -150,7 +150,7 @@ export async function accountChangePassword(currentPassword: string, newPassword
 // `GET /api/graph` (GraphStore.graph_payload) returns five node classes and eight edge types.
 // This used to declare only `memory | entity` and `relation | similarity | contradiction`, which
 // understated the payload: session/exchange/merkle nodes and the structural edges have always
-// been sent, and the legacy graph code reads them through its own DemoNode adapter. Widened so
+// been sent. Widened so
 // the types match the wire. Every added field is optional, so existing readers are unaffected.
 export type GraphNodeType = 'memory' | 'entity' | 'session' | 'exchange' | 'merkle'
 export type GraphEdgeType =
@@ -829,11 +829,25 @@ export interface AgentSummary {
   recent_memories: Memory[]
 }
 
+/**
+ * An HTTP failure from a data route. The status travels with the message because the message alone
+ * ("invalid or revoked token") cannot tell the console that the session ended: a 401 means sign in
+ * again, a 403 means this credential may not do that, and the screens react differently to each.
+ */
+export class ApiError extends Error {
+  readonly status: number
+  constructor(message: string, status: number) {
+    super(message)
+    this.name = 'ApiError'
+    this.status = status
+  }
+}
+
 async function getJson<T>(path: string): Promise<T> {
   const response = await fetch(`${getApiBaseUrl()}${path}`, { credentials: "include" })
   if (!response.ok) {
     const body = await response.json().catch(() => ({ error: response.statusText }))
-    throw new Error(body.error ?? `request failed: ${response.status}`)
+    throw new ApiError(body.error ?? `request failed: ${response.status}`, response.status)
   }
   return response.json() as Promise<T>
 }
@@ -846,7 +860,7 @@ async function postJson<T>(path: string, payload: Record<string, unknown>): Prom
   })
   if (!response.ok) {
     const body = await response.json().catch(() => ({ error: response.statusText }))
-    throw new Error(body.error ?? `request failed: ${response.status}`)
+    throw new ApiError(body.error ?? `request failed: ${response.status}`, response.status)
   }
   return response.json() as Promise<T>
 }
@@ -881,7 +895,6 @@ export const api = {
   agents: (limit = 100) => getJson<{agents: AgentWorkspace[]; oracle_reachable: boolean}>(`/api/agents?limit=${limit}`),
   agentSummary: (agentId: string, storeId: string) =>
     getJson<AgentSummary>(`/api/agent/${encodeURIComponent(agentId)}/summary?limit=0&store_id=${encodeURIComponent(storeId)}`),
-  agentMemories: (agentId: string, deviceId?: string, limit = 100, scope: WorkspaceScope = {}) => getJson<{agent_id: string; memories: Memory[]}>(`/api/agent/${encodeURIComponent(agentId)}/memories?limit=${limit}${deviceId ? `&device_id=${encodeURIComponent(deviceId)}` : ''}${scopeParams(scope)}`),
   /** Pairings, newest first. /api/agents lists workspaces; this lists which devices are paired to them. */
   agentDevices: () => getJson<{ pairs: AgentDevicePair[] }>('/api/agent-devices'),
   associateAgentDevice: (agentId: string, deviceId: string, displayName?: string) =>
@@ -964,15 +977,6 @@ export const api = {
     postJson<Memory>(`/api/memory/${encodeURIComponent(id)}/supersede`, payload),
   forgetMemory: (id: string) =>
     postJson<Memory & { content_hash_retained: boolean; deletion_receipt: Record<string, unknown> }>(`/api/memory/${encodeURIComponent(id)}/forget`, {}),
-  claimInferenceTask: (id: string, claimedBy: string, scope: WorkspaceScope = {}) =>
-    postJson<InferenceTask>(`/api/inference/tasks/${encodeURIComponent(id)}/claim?${scopeParams(scope).slice(1)}`, { claimed_by: claimedBy }),
-  completeInferenceTask: (id: string, outputPayload: Record<string, unknown>, error?: string, claimedBy?: string | null, claimToken?: string | null, scope: WorkspaceScope = {}) =>
-    postJson<InferenceTask>(`/api/inference/tasks/${encodeURIComponent(id)}/complete?${scopeParams(scope).slice(1)}`, {
-      output_payload: outputPayload,
-      ...(error ? { error } : {}),
-      ...(claimedBy ? { claimed_by: claimedBy } : {}),
-      ...(claimToken ? { claim_token: claimToken } : {}),
-    }),
   paraClassifications: (status = 'proposed', limit = 50) =>
     getJson<ParaClassification[]>(`/api/para/classifications?status=${encodeURIComponent(status)}&limit=${limit}`),
   decidePara: (taskId: string, decision: 'accept' | 'dismiss' | 'keep_original', note?: string) =>
@@ -1005,8 +1009,6 @@ export const api = {
     getJson<MerkleInclusionProof>(`/api/retrieval/trace/${encodeURIComponent(id)}/evidence?rank=${rank}`),
   projectionCheckpoints: (projectionId: string, limit = 50) =>
     getJson<ProjectionCheckpoint[]>(`/api/projections/${encodeURIComponent(projectionId)}/checkpoints?limit=${limit}`),
-  latestProjectionCheckpoint: (projectionId: string) =>
-    getJson<ProjectionCheckpoint>(`/api/projections/${encodeURIComponent(projectionId)}/checkpoints/latest`),
   createProjectionCheckpoint: (projectionId: string) =>
     postJson<ProjectionCheckpoint>(`/api/projections/${encodeURIComponent(projectionId)}/checkpoint`, {}),
   reconcileProjectionCheckpoint: (projectionId: string) =>

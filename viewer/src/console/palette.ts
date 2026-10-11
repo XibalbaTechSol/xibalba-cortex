@@ -22,7 +22,7 @@ export function palette(): Palette {
   const style = getComputedStyle(document.documentElement)
   const read = (name: string, fallback: string) => style.getPropertyValue(name).trim() || fallback
   cached = {
-    ground: read('--ground', '#14171a'),
+    ground: read('--ground', '#0d0f11'),
     ink: read('--ink', '#eef0f1'),
     inkMuted: read('--ink-muted', '#b7bcc1'),
     inkDim: read('--ink-dim', '#9aa1a8'),

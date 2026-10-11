@@ -29,9 +29,9 @@ body {
 .xc *::after {
   /* Raleway's default figures are old-style (3, 4, 5, 7, 9 drop below the baseline), which reads as
    * noise in counts, hashes and timestamps. Ask for lining figures on every element, not just the
-   * root: the `font:` shorthand used throughout this file can reset inherited feature settings.
+   * root: the `font:` shorthand used throughout this file resets font-feature-settings, so this is !important.
    * https://developer.mozilla.org/en-US/docs/Web/CSS/font-feature-settings */
-  font-feature-settings: 'lnum' 1;
+  font-feature-settings: 'lnum' 1 !important;
   box-sizing: border-box;
 }
 /* icons are sized by their container; this is only the floor so an unstyled one is never huge */

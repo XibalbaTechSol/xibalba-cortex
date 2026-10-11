@@ -7,10 +7,12 @@
  * Tokens marked DERIVED are not from the mock.
  */
 :root {
-  /* surfaces: one graphite for the page, every window and the top bar */
-  --ground: #14171a;
+  /* surfaces: one graphite for the page, every window and the top bar. #0d0f11 is the dark
+     background Shield's command-center theme uses for --bg and --panel alike (ui/src/App.css),
+     chosen by the product owner over the mock's #14171a. */
+  --ground: #0d0f11;
   --chrome: var(--ground);
-  --panel: #1b1f23;
+  --panel: #0d0f11;
   --elevated: #262b30;
 
   /* rules */

@@ -14,7 +14,7 @@ import {
   type ReactNode,
   type SetStateAction,
 } from 'react'
-import type { Session, Stats, StoreStatus } from '../api'
+import { ApiError, type Session, type Stats, type StoreStatus } from '../api'
 import { loadConsoleData } from './data'
 import {
   buildModel,
@@ -49,6 +49,8 @@ export interface ConsoleValue {
   /** Set when timing had to fall back to exchange timestamps only. */
   timingNote: string | null
   reload: () => void
+  /** True when the last load failed with HTTP 401: the session ended, so the console returns to sign-in. */
+  unauthorized: boolean
   /** Bumps on every reload; per-item fetches key on it so they refresh after a write. */
   revision: number
   // ui
@@ -105,6 +107,7 @@ export function ConsoleProvider({ children, onSignOut }: { children: ReactNode; 
   const [status, setStatus] = useState<StoreStatus | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [unauthorized, setUnauthorized] = useState(false)
   const [timingNote, setTimingNote] = useState<string | null>(null)
   const [nonce, setNonce] = useState(0)
 
@@ -140,6 +143,8 @@ export function ConsoleProvider({ children, onSignOut }: { children: ReactNode; 
         setStats(data.stats)
         setStatus(data.status)
         setError(null)
+        setUnauthorized(false)
+        setUnauthorized(false)
         setTimingNote(
           data.memoriesError
             ? `Memory timestamps unavailable (${data.memoriesError}); only exchanges and sessions are placed in time.`
@@ -153,6 +158,8 @@ export function ConsoleProvider({ children, onSignOut }: { children: ReactNode; 
       .catch((e: unknown) => {
         if (mine !== requestId.current) return
         setError(e instanceof Error ? e.message : String(e))
+        setUnauthorized(e instanceof ApiError && e.status === 401)
+        setUnauthorized(e instanceof ApiError && e.status === 401)
       })
       .finally(() => {
         if (mine === requestId.current) setLoading(false)
@@ -228,13 +235,13 @@ export function ConsoleProvider({ children, onSignOut }: { children: ReactNode; 
 
   const value = useMemo<ConsoleValue>(
     () => ({
-      workspace, model, memoryInfo, sessionEnds, sessions, stats, status, loading, error, timingNote, reload,
+      workspace, model, memoryInfo, sessionEnds, sessions, stats, status, loading, error, unauthorized, timingNote, reload,
       lens, setLens, page, setPage, openPage, pageArg, go, selectedId, select, reveal, focus, facets, setFacets,
       window: window_, preset, setWindow, applyPreset, similarity, setSimilarity, overlay, setOverlay,
       revision: nonce, notice, setNotice,
       signOut: onSignOut,
     }),
-    [workspace, model, memoryInfo, sessionEnds, sessions, stats, status, loading, error, timingNote, reload,
+    [workspace, model, memoryInfo, sessionEnds, sessions, stats, status, loading, error, unauthorized, timingNote, reload,
       lens, setLens, page, setPage, openPage, pageArg, go, selectedId, select, reveal, focus, facets, window_, preset, setWindow, applyPreset,
       similarity, overlay, onSignOut, nonce, notice],
   )

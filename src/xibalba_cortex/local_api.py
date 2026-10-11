@@ -125,8 +125,9 @@ import yaml
 from .config import load_config
 from .connector_policy import ConnectorRateLimiter
 from .ingest_tokens import _connect, list_tokens, verify_token_record
-from .accounts import account_for_token, approve_account, change_account_password, create_account, issue_account_session, request_password_reset, reset_password, revoke_account_session, revoke_account_session_by_id
+from .accounts import account_for_token, approve_account, list_pending_accounts, change_account_password, create_account, issue_account_session, request_password_reset, reset_password, revoke_account_session, revoke_account_session_by_id
 from .providers import InferenceTaskContract, connector_manifest
+from .console_admin import console_tokens, grantable_roles, issue_console_token, public_profile_config, revoke_console_token
 from .decision_trace_view import render_decision_trace_html
 from integrity_sdk.agent_identity import resolve_agent_identities
 from .store import MEMORY_INFERENCE_SUBAGENT_MANIFEST, GraphStore, _INFERENCE_TASK_TYPES
@@ -774,6 +775,18 @@ def _make_handler(store: GraphStore, *, allowed_origins: frozenset[str],
                     if agent_filter is None:
                         raise PermissionError("credential is not bound to an agent")
                     self._send_json(200, agent_store.agent_summary(agent_filter, limit=limit))
+                elif parts == ["api", "profile", "config"]:
+                    # Read-only on purpose: mode, identity and retention are config.yaml/env settings that
+                    # need a restart, so the console reports them and never pretends to edit them. No path
+                    # and no secret leaves the server (console_admin.public_profile_config).
+                    self._send_json(200, public_profile_config(store.home))
+                elif parts == ["api", "auth", "tokens"]:
+                    _assert_pair_manager(principal)
+                    self._send_json(200, {"tokens": console_tokens(store.home, store.profile_id), "grantable_roles": list(grantable_roles(set(principal.get("roles") or [])))})
+                elif parts == ["api", "auth", "admin", "pending"]:
+                    if "*" not in (principal.get("scopes") or []):
+                        raise PermissionError("an admin credential is required to list accounts waiting for approval")
+                    self._send_json(200, {"accounts": list_pending_accounts(store.home, profile_id=store.profile_id)})
                 elif parts == ["api", "agents"]:
                     # agent_workspaces() scans sources/memories for every agent_id and
                     # overlays agent_devices pairing metadata where it exists -- it must
@@ -1231,7 +1244,24 @@ def _make_handler(store: GraphStore, *, allowed_origins: frozenset[str],
 
             try:
                 payload = self._read_json_body()
-                if parts == ["api", "agent-devices", "associate"]:
+                if parts == ["api", "auth", "tokens"]:
+                    _assert_pair_manager(principal)
+                    ttl = payload.get("ttl_hours")
+                    issued = issue_console_token(
+                        store.home,
+                        profile_id=store.profile_id,
+                        caller_roles=set(principal.get("roles") or []),
+                        label=str(payload.get("label") or ""),
+                        role=str(payload.get("role") or ""),
+                        ttl_hours=int(ttl) if ttl not in (None, "") else None,
+                        agent_ids=[str(a) for a in payload.get("agent_ids") or []] if isinstance(payload.get("agent_ids"), list) else None,
+                    )
+                    self._send_json(201, issued)
+                elif parts == ["api", "auth", "tokens", "revoke"]:
+                    _assert_pair_manager(principal)
+                    revoked = revoke_console_token(store.home, store.profile_id, str(payload.get("token_id") or ""), current_token_id=str(principal.get("id") or "") or None)
+                    self._send_json(200 if revoked else 404, {"ok": True} if revoked else {"error": "token not found, or already revoked"})
+                elif parts == ["api", "agent-devices", "associate"]:
                     _assert_pair_manager(principal)
                     agent_id = str(payload.get("agent_id") or "").strip()
                     persisted_agent = store.storage_agent_id(agent_id)

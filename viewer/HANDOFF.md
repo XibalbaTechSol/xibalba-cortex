@@ -44,7 +44,7 @@ npx tsc -b && npx oxlint src && npx vitest run                   # the gates
 - The dev proxy issues an **operator bearer token**, so the console runs as a *token*, not an *account*.
   Settings → Account therefore shows "a token has no account"; the signed-in account design was captured
   with stubbed responses (section 9).
-- `?ui=legacy` opens the previous viewer. Leave it until the console has CI.
+- The previous viewer is gone (`App.tsx`, `index.css`, `?ui=legacy`, the landing page, Mermaid and the dependencies only it used). The console is the only UI.
 - If search or any route returns a surprising 404, **restart the API**; a stale process is the usual cause.
 
 ## 3. The theme
@@ -53,11 +53,11 @@ Everything is in `tokens.css`; use the variables, never the hex.
 
 | Token | Value | Use |
 |---|---|---|
-| `--ground` | `#14171a` | the page, every window and the top bar: one graphite |
-| `--panel` / `--elevated` | `#1b1f23` / `#262b30` | `elevated` only on inputs and genuinely raised states |
+| `--ground` / `--panel` | `#0d0f11` | the page, every window and the top bar: one graphite. This is the dark background Shield's command-center theme uses (`--bg` and `--panel` alike in `xibalba-shield/ui/src/App.css`); it replaced the mock's `#14171a` by the owner's choice |
+| `--elevated` | `#262b30` | only on inputs and genuinely raised states (same value in Shield) |
 | `--hairline` / `--hairline-strong` | `rgba(255,255,255,.14)` / `.35` | controls (buttons, inputs, tabs) |
 | `--frame-line` / `--frame-tick` | `rgba(92,100,106,.28)` / `rgba(171,181,188,.72)` | window frame, and the crosses at its corners |
-| `--ink` / `--ink-muted` / `--ink-dim` | `#eef0f1` / `#b7bcc1` / `#9aa1a8` | 15.7 / 9.4 / 6.9 : 1 on ground |
+| `--ink` / `--ink-muted` / `--ink-dim` | `#eef0f1` / `#b7bcc1` / `#9aa1a8` | 16.8 / 10.0 / 7.3 : 1 on ground |
 | `--cortex-accent` | `#c3b6dd` | Cortex's identity. OKLCH L 0.800, C 0.055, hue 300 (Shield's `#9fc3df` is hue 242) |
 | `--status-anchored` / `-review` / `-conflict` | `#9fc3df` / `#d7aa6c` / `#d88383` | the shared vocabulary; identical in Shield |
 | fonts | **Raleway** for everything but code: 600 for headings and metrics, 400/500 for prose and every control; JetBrains Mono for anything hashed or addressed | load Raleway 400/500/600/700 (variable) and Mono 400/500. Raleway's default figures are old-style, so `font-feature-settings: 'lnum'` is set on every element (`console.css`). There is no condensed Raleway, so headings are set smaller than the condensed face allowed, and the rail wordmark stacks on two lines |
@@ -190,7 +190,7 @@ above); it must not let a person impersonate a worker.
 
 ## 9. Known gaps and caveats (so nothing surprises you)
 
-- **No viewer CI, no checked-in browser tests.** `npm run test:ui` runs `e2e/ui-auth-smoke.mjs` only.
+- **Browser tests are headless Playwright** (`npm run test:e2e`, 54 tests across `desktop` and `phone`), run in CI by the `viewer` job. They cover what is built; a planned board gets its tests when it is built.
 - **Stubbed captures.** Four built boards use stubbed responses with the real shapes: signed-in Account,
   sign-in errors, the Recall refusal, empty graph/timeline. Everything else is live fixture output.
 - **Store-wide scoping gaps** were recorded earlier on some routes (review proposals, PARA, memory-by-id,
@@ -204,9 +204,7 @@ above); it must not let a person impersonate a worker.
 
 ## 10. Suggested order
 
-1. **CI and tests first.** A workflow running `tsc -b`, `oxlint`, `vitest` in `viewer/`; then a Playwright
-   smoke (software WebGL) that opens each drawer from its entry point and asserts `Esc` returns to the lens.
-   The recipes are in `design-tools/capture.mjs`.
+1. **Run the gates**: `tsc -b`, `oxlint`, `vitest` and `npm run test:e2e` (README, "Browser tests"). CI runs them.
 2. **UI-only planned boards** (password reset). No backend work.
 3. **Read-only routes**: runtime, runtimes, workers, connectors, profile config. Each is a SELECT over data
    the store already writes, plus the heartbeat table for workers.

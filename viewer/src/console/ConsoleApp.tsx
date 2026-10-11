@@ -27,7 +27,7 @@ import { useMediaQuery } from './useMediaQuery'
 const EXPIRED = /\b401\b|authentication required|unauthorized|expired/i
 
 function Workspace() {
-  const { lens, page, overlay, setOverlay, error, model, signOut } = useConsole()
+  const { lens, page, overlay, setOverlay, error, model, unauthorized, signOut } = useConsole()
 
   // ⌘K / Ctrl+K toggles Recall from anywhere, including inside inputs.
   useEffect(() => {
@@ -42,11 +42,13 @@ function Workspace() {
   }, [overlay, setOverlay])
 
   useEffect(() => {
-    if (error && !model && EXPIRED.test(error)) {
+    // a 401 from a data call at any time (the session ended while the tab was open), or an auth-shaped
+    // error before anything has loaded (the first call was refused)
+    if (unauthorized || (error && !model && EXPIRED.test(error))) {
       try { sessionStorage.setItem('xibalba-cortex.auth-notice', 'Session expired. Sign in again to reconnect to this Cortex profile.') } catch { /* private mode: sign-in just shows no notice */ }
       signOut()
     }
-  }, [error, model, signOut])
+  }, [error, model, unauthorized, signOut])
 
   const phone = useMediaQuery('(max-width: 760px)')
   const { settings } = useSettings()

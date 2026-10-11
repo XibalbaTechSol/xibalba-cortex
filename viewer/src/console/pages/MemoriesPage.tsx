@@ -58,7 +58,10 @@ export function MemoriesPage() {
       eyebrow="Explore"
       title="Memories"
       note="Every memory in this workspace, newest first. Search uses the store’s full-text index; use Recall for semantic and graph retrieval."
-      actions={workspace.canWrite && <button type="button" className="xc-btn xc-btn--primary" onClick={() => setAdding((v) => !v)} aria-expanded={adding}>New memory</button>}
+      actions={workspace.canWrite
+        ? <button type="button" className="xc-btn xc-btn--primary" onClick={() => setAdding((v) => !v)} aria-expanded={adding}>New memory</button>
+        // say why the button is missing rather than leaving the person to wonder where it went
+        : <p className="xc-note" role="note">Read only. Choose an agent workspace in Scope to add memories.</p>}
     >
       {adding && workspace.canWrite && (
         <NewMemory
