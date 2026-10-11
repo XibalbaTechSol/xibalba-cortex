@@ -1029,6 +1029,20 @@ select.xc-input {
 .xc-mark[data-cls='root'][data-valid='false'] {
   border-color: var(--status-conflict);
 }
+.xc-mark[data-cls='deny'],
+.xc-mark[data-cls='ask'] {
+  /* a policy stop is a tall bar, not a square: it is a different kind of event, and shape is the
+     signal where colour could not be (deny fills, ask is outlined) */
+  top: 6px;
+  width: 5px;
+  height: 18px;
+  margin-left: -2px;
+  background: var(--status-conflict);
+}
+.xc-mark[data-cls='ask'] {
+  background: transparent;
+  border: 2px solid var(--status-review);
+}
 .xc-mark[data-selected='true'] {
   outline: 2px solid var(--ink);
   outline-offset: 2px;
@@ -2677,4 +2691,9 @@ select.xc-input {
   font: 500 13px/1.5 var(--font-mono);
   overflow-wrap: anywhere;
   user-select: all;
+}
+
+/* a list row whose text runs to several lines (status cards): top-aligned, so a button sits with the title */
+.xc-listrow--block {
+  align-items: flex-start;
 }

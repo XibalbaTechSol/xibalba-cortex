@@ -105,6 +105,10 @@ Routes:
   POST /api/auth/tokens                    -> console_admin.issue_console_token() (the secret is in this response only)
   POST /api/auth/tokens/revoke             -> console_admin.revoke_console_token() (refuses the credential in use)
   GET /api/auth/admin/pending              -> accounts.list_pending_accounts() (admin only)
+  GET /api/runtimes                        -> GraphStore.runtime_overview() (store-wide; unbound operator/admin)
+  GET /api/workers                         -> GraphStore.worker_status() (store-wide; derived, no heartbeat)
+  GET /api/connectors                      -> GraphStore.connector_status() (store-wide; reports, never drives)
+  GET /api/vault/leaf?leaf_hash=           -> vault_inspect.inspect_leaf() against XIBALBA_VAULT_DIR (never a path from the browser)
 """
 from __future__ import annotations
 
@@ -113,6 +117,7 @@ import hmac
 import json
 import logging
 import os
+import re
 import sqlite3
 from collections import Counter
 from datetime import datetime, timezone
@@ -285,6 +290,28 @@ def _operator_workspace_agent(
     if not store.has_agent_partition(value):
         raise PermissionError("no such agent workspace")
     return value
+
+
+def _assert_store_operator(principal: dict[str, object]) -> None:
+    """Store-wide operational views (runtimes, workers, connectors) are for an unbound operator or admin.
+
+    An agent-bound credential must not learn about other agents' runtimes, queues or connectors, and
+    a reader has no business with the machinery. Fail closed: no role, or any agent binding, is refused.
+    """
+    roles = set(principal.get("roles") or [])
+    if not roles.intersection({"operator", "admin"}):
+        raise PermissionError("operator or admin role is required for store-wide status")
+    if _principal_agent_ids(principal):
+        raise PermissionError("an agent-bound credential cannot read store-wide status")
+
+
+def _configured_vault_dir() -> str:
+    """The trust vault the server was configured with. Module-level so do_GET's own local imports
+    cannot shadow `os`; the browser is never told the value."""
+    return os.environ.get("XIBALBA_VAULT_DIR", "").strip()
+
+
+_LEAF_HASH = re.compile(r"^0x[0-9a-fA-F]{64}$")
 
 
 def _assert_pair_manager(principal: dict[str, object]) -> None:
@@ -780,6 +807,31 @@ def _make_handler(store: GraphStore, *, allowed_origins: frozenset[str],
                     if agent_filter is None:
                         raise PermissionError("credential is not bound to an agent")
                     self._send_json(200, agent_store.agent_summary(agent_filter, limit=limit))
+                elif parts == ["api", "runtimes"]:
+                    _assert_store_operator(principal)
+                    self._send_json(200, {"runtimes": store.runtime_overview()})
+                elif parts == ["api", "workers"]:
+                    _assert_store_operator(principal)
+                    self._send_json(200, store.worker_status())
+                elif parts == ["api", "connectors"]:
+                    _assert_store_operator(principal)
+                    self._send_json(200, store.connector_status(connector_manifest()))
+                elif parts == ["api", "vault", "leaf"]:
+                    _assert_store_operator(principal)
+                    leaf_hash = str(params.get("leaf_hash") or "").strip()
+                    if not _LEAF_HASH.match(leaf_hash):
+                        raise ValueError("leaf_hash must be 0x followed by 64 hex characters")
+                    vault_dir = _configured_vault_dir()
+                    if not vault_dir:
+                        self._send_json(503, {"error": "no trust vault is configured on this server (XIBALBA_VAULT_DIR)"})
+                        return
+                    from .vault_inspect import inspect_leaf
+                    result = inspect_leaf(leaf_hash.lower(), vault_dir)
+                    if result.get("error"):
+                        # the exception text names a filesystem path; log it here, tell the browser only what failed
+                        logger.warning("vault lookup could not read the vault: %s", result["error"])
+                        result = {**result, "error": "the vault could not be read"}
+                    self._send_json(200, result)
                 elif parts == ["api", "profile", "config"]:
                     # Read-only on purpose: mode, identity and retention are config.yaml/env settings that
                     # need a restart, so the console reports them and never pretends to edit them. No path

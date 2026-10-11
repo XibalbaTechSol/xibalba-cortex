@@ -931,6 +931,74 @@ export interface ProfileConfig {
   changed_by: string
 }
 
+// ---- store-wide operational status (console_status.py) ---------------------------------------------------
+
+export interface RuntimeIntervention {
+  invocation_id: string | null
+  session_id: string | null
+  tool_name: string | null
+  verdict: 'deny' | 'ask'
+  reason: string | null
+  at: string | null
+}
+export interface RuntimeRow {
+  runtime: string
+  sessions: number
+  memories: number
+  invocations: number
+  decisions: { allow: number; deny: number; ask: number; other: number }
+  outcomes: { success: number; error: number; other: number }
+  first_seen_at: string | null
+  last_seen_at: string | null
+  /** "quiet" is not "down": the store only knows when a runtime last wrote */
+  activity: 'recent' | 'quiet'
+  interventions: RuntimeIntervention[]
+}
+
+export type WorkerState = 'working' | 'draining' | 'idle' | 'backlog' | 'stalled' | 'failing' | 'no work seen'
+export interface WorkerRow {
+  id: string
+  label: string
+  state: WorkerState
+  task_types: string[]
+  pending: number
+  in_flight: number
+  stalled_leases: number
+  completed_24h: number | null
+  failed_24h: number
+  last_activity_at: string | null
+  oldest_pending_at: string | null
+  claimed_by: string[]
+  coverage?: { eligible: number | null; current: number | null; missing: number | null; stale: number | null; failed: number | null; model: string | null }
+}
+export interface WorkerStatus { as_of: string; workers: WorkerRow[]; basis: string }
+
+export interface ConnectorRow {
+  name: string
+  entrypoint: string | null
+  state: string | null
+  idempotency: string | null
+  source_kind: string | null
+  evidence: { memories: number; last_at: string | null } | null
+}
+export interface ConnectorStatus {
+  connectors: ConnectorRow[]
+  webhook_senders: Array<{ connector: string; events: number; last_at: string | null }>
+  ingest_by_source_kind: Array<{ kind: string; memories: number; last_at: string | null }>
+  provider_telemetry: Array<{ provider: string; accepted: number; duplicates: number; rejected: number; last_error: string | null; last_seen_at: string | null }>
+  basis: string
+}
+
+/** GET /api/vault/leaf: found/anchored are what the vault says; `error` is a path-free reason it could not be read. */
+export interface VaultLeafResult {
+  found: boolean
+  anchored: boolean
+  leaf?: Record<string, unknown> | null
+  anchor?: Record<string, unknown> | null
+  recomputed_hash_matches?: boolean | null
+  error?: string
+}
+
 async function getBlob(path: string): Promise<Blob> {
   const response = await fetch(`${getApiBaseUrl()}${path}`, { credentials: "include" })
   if (!response.ok) throw new Error(`request failed: ${response.status}`)
@@ -1083,6 +1151,10 @@ export const api = {
     postJson<ProjectionCheckpoint & { verified: boolean }>(`/api/projections/${encodeURIComponent(projectionId)}/rebuild`, {}),
   embeddingModels: () => getJson<EmbeddingModel[]>('/api/embedding/models'),
   profileConfig: () => getJson<ProfileConfig>('/api/profile/config'),
+  runtimes: () => getJson<{ runtimes: RuntimeRow[] }>('/api/runtimes'),
+  workers: () => getJson<WorkerStatus>('/api/workers'),
+  connectors: () => getJson<ConnectorStatus>('/api/connectors'),
+  vaultLeaf: (leafHash: string) => getJson<VaultLeafResult>(`/api/vault/leaf?leaf_hash=${encodeURIComponent(leafHash)}`),
   authTokens: () => getJson<ApiTokenList>('/api/auth/tokens'),
   issueAuthToken: (input: { label: string; role: string; ttl_hours: number }) => postJson<IssuedApiToken>('/api/auth/tokens', input),
   revokeAuthToken: (tokenId: string) => postJson<{ ok: boolean }>('/api/auth/tokens/revoke', { token_id: tokenId }),

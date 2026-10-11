@@ -5,7 +5,7 @@ or documented route is not classified, so nothing becomes hidden by omission.
 
 ## Summary
 
-- **64 documented HTTP routes** and 23 more the handler serves but its docstring omits.
+- **68 documented HTTP routes** and 23 more the handler serves but its docstring omits.
 - **81 MCP tools**: 38 have a console surface, 37 are machine protocols (27 of them `runtime_*` harness hooks), 6 are deliberately withheld from a browser.
 
 Statuses: **console** = a surface covers it. **machine** = a protocol for workers or agent harnesses; a person should not be
@@ -80,6 +80,10 @@ route that does not exist yet.
 | `POST /api/auth/tokens` | Settings → Access → Issue a token (the secret is shown once) |
 | `POST /api/auth/tokens/revoke` | Settings → Access → Revoke (two steps) |
 | `GET /api/auth/admin/pending` | Settings → Access → Accounts waiting for approval |
+| `GET /api/runtimes` | Operations → Agent runtimes (each row leads to the Timeline) |
+| `GET /api/workers` | Operations → Workers (derived from the queue; no heartbeat) |
+| `GET /api/connectors` | Operations → Connectors and ingest (reports; never drives) |
+| `GET /api/vault/leaf` | Settings → Developer → Trust vault lookup (the vault is server configuration) |
 
 ### Served but not in the docstring
 

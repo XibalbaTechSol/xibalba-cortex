@@ -93,6 +93,10 @@ ROUTES: dict[str, str] = {
     "POST /api/auth/tokens": "Settings → Access → Issue a token (the secret is shown once)",
     "POST /api/auth/tokens/revoke": "Settings → Access → Revoke (two steps)",
     "GET /api/auth/admin/pending": "Settings → Access → Accounts waiting for approval",
+    "GET /api/runtimes": "Operations → Agent runtimes (each row leads to the Timeline)",
+    "GET /api/workers": "Operations → Workers (derived from the queue; no heartbeat)",
+    "GET /api/connectors": "Operations → Connectors and ingest (reports; never drives)",
+    "GET /api/vault/leaf": "Settings → Developer → Trust vault lookup (the vault is server configuration)",
 }
 
 # Served by local_api.py but missing from its module docstring (the docstring is not the source of truth).

@@ -6,6 +6,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useConsole } from './state'
 import { PaneToggle } from './PaneToggle'
+import { describeIntervention, interventions, interventionsForSession } from './runtime'
 import { buildLanes, isNodeVisible, shortDay, shortStamp, thinTicks, type Lane } from './model'
 
 interface Domain {
@@ -38,7 +39,9 @@ function ticksFor(domain: Domain): { at: number; label: string }[] {
 }
 
 export function TimelineLens() {
-  const { model, facets, window: timeWindow, sessionEnds, memoryInfo, selectedId, select, loading, error, reload } = useConsole()
+  const { model, facets, window: timeWindow, sessionEnds, memoryInfo, selectedId, select, loading, error, reload, invocations } = useConsole()
+  // policy denials and asks, drawn as marks on the lane of the session they happened in
+  const policyStops = useMemo(() => interventions(invocations), [invocations])
 
   // the axis width decides how many date labels fit, so measure it
   const axisRef = useRef<HTMLDivElement>(null)
@@ -127,6 +130,7 @@ export function TimelineLens() {
                 const node = model?.byId.get(m.nodeId)
                 return node && facets && isNodeVisible(node, facets, null) && inDomain(m.time)
               })
+              const stops = interventionsForSession(policyStops, lane.session.sessionId).filter((i) => inDomain(i.at))
               const rootAt = lane.root && lane.root.time !== null ? (lane.end ?? lane.marks.at(-1)?.time ?? lane.start) : null
               const selected = !lane.synthetic && selectedId === lane.session.id
               return (
@@ -163,6 +167,18 @@ export function TimelineLens() {
                         onClick={() => select(m.nodeId)}
                       />
                     ))}
+                    {stops.map((i) => (
+                      <button
+                        key={i.invocationId}
+                        type="button"
+                        className="xc-mark"
+                        data-cls={i.verdict}
+                        style={{ left: `${pct(i.at)}%` }}
+                        aria-label={`${describeIntervention(i)} at ${shortStamp(i.at)}`}
+                        title={`${describeIntervention(i)} · ${shortStamp(i.at)}`}
+                        onClick={() => select(lane.session.id)}
+                      />
+                    ))}
                     {lane.root && rootAt !== null && inDomain(rootAt) && (
                       <button
                         type="button"
@@ -186,7 +202,7 @@ export function TimelineLens() {
 
       <div className="xc-bar" style={{ borderTop: '1px solid var(--hairline)', borderBottom: 0 }}>
         <span className="xc-legend-inline xc-note">
-          ■ memory · ■ exchange (gray) · ◻ Merkle root (server-reported) ·{' '}
+          ■ memory · ■ exchange (gray) · ◻ Merkle root (server-reported) · ▮ denied by policy · ▯ asked for approval ·{' '}
           {untimedMemories > 0
             ? `${untimedMemories} memor${untimedMemories === 1 ? 'y has' : 'ies have'} no timestamp in the API and ${untimedMemories === 1 ? 'is' : 'are'} not placed`
             : 'every memory is placed'}

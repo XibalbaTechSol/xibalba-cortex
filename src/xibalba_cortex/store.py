@@ -4082,6 +4082,24 @@ class GraphStore:
                 item["runtime_status"] = "orphan_outcome"
         return list(reversed(results[-limit:]))
 
+    # -- operational status for the operator console (console_status.py has the reasoning) -----------------
+    # Read-only, store-wide views. None of them writes, and none exposes a worker or connector control.
+
+    def runtime_overview(self) -> list[dict[str, object]]:
+        """Agent runtimes seen in memory sources and tool-call telemetry, with policy decisions."""
+        from .console_status import runtime_overview
+        return runtime_overview(self._read_connection(), self.invocation_correlations(limit=1000))
+
+    def worker_status(self) -> dict[str, object]:
+        """Background workers' state, derived from the work they leave in the queue."""
+        from .console_status import worker_status
+        return worker_status(self._read_connection(), self.embedding_coverage())
+
+    def connector_status(self, manifest: dict[str, dict[str, object]]) -> dict[str, object]:
+        """Each declared ingest connector with the evidence the store holds for it."""
+        from .console_status import connector_status
+        return connector_status(self._read_connection(), manifest)
+
     def record_exchange(
         self,
         external_session_id: str,

@@ -9,6 +9,7 @@ import { api, type Attachment, type Memory, type WorkspaceScope } from '../api'
 import { useConsole } from './state'
 import { useAsync, type AsyncState } from './useAsync'
 import { EDGE_TYPE_LABEL, elideHash, parseServerTime, shortStamp, type CEdge, type CNode, type GraphModel } from './model'
+import { describeIntervention, interventions, interventionsForSession, sessionRuntime } from './runtime'
 import { IconCheck, IconClose, IconWarn } from './icons'
 import { MemoryActions } from './MemoryActions'
 import { MemoryChainCheck, ProvenanceExport } from './VerifyPanel'
@@ -576,8 +577,10 @@ function EntityInspector({ node }: { node: CNode }) {
 // --- session ---------------------------------------------------------------------------------------
 
 function SessionInspector({ node }: { node: CNode }) {
-  const { model, sessions, workspace, select, setWindow, openPage } = useConsole()
+  const { model, sessions, workspace, select, setWindow, openPage, invocations } = useConsole()
   const row = sessions.find((s) => s.external_session_id === node.sessionId)
+  const runtime = node.sessionId ? sessionRuntime(invocations, node.sessionId) : null
+  const stops = interventionsForSession(interventions(invocations), node.sessionId).slice(-5).reverse()
   const root = useAsync(() => (node.sessionId ? api.sessionMerkleRoot(node.sessionId, workspace.scope) : Promise.resolve(null)), [node.sessionId, workspace.scope])
   // span of this session in time, padded so its first and last marks are not on the border
   const startMs = parseServerTime(row?.started_at) ?? node.time
@@ -601,7 +604,20 @@ function SessionInspector({ node }: { node: CNode }) {
           <div><dt>Started</dt><dd>{row ? stamp(row.started_at) : node.time ? shortStamp(node.time) : '—'}</dd></div>
           <div><dt>Ended</dt><dd>{row ? (row.ended_at ? stamp(row.ended_at) : 'open') : '—'}</dd></div>
           <div><dt>Exchanges</dt><dd>{exchanges.length}</dd></div>
+          {runtime && <div><dt>Runtime</dt><dd>{runtime.runtimes.join(', ') || 'not recorded'}</dd></div>}
+          {runtime && <div><dt>Tool calls</dt><dd>{runtime.invocations}</dd></div>}
+          {runtime && <div><dt>Policy</dt><dd>{runtime.allowed} allowed · {runtime.denied} denied · {runtime.asked} asked{runtime.undecided ? ` · ${runtime.undecided} undecided` : ''}</dd></div>}
         </dl>
+        {stops.length > 0 && (
+          <div className="xc-callout xc-callout--review" role="note">
+            <IconWarn />
+            <div style={{ minWidth: 0 }}>
+              <b>{stops.length === 1 ? 'The policy stopped a tool call' : 'The policy stopped tool calls'}</b>
+              <ul className="xc-list">{stops.map((i) => <li key={i.invocationId} className="xc-note">{describeIntervention(i)} <span className="xc-meta">{shortStamp(i.at)}</span></li>)}</ul>
+              <p className="xc-note">From the {invocations.length} most recent tool calls the console loaded.</p>
+            </div>
+          </div>
+        )}
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
           {node.sessionId && <button type="button" className="xc-btn" aria-haspopup="dialog" onClick={() => openPage('sessions', node.sessionId)}>Exchanges, replay, telemetry</button>}
           {sessionSpan && <button type="button" className="xc-btn" onClick={() => setWindow(sessionSpan, 'custom')}>Window both lenses to this session</button>}

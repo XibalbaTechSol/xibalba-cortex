@@ -14,7 +14,7 @@ import {
   type ReactNode,
   type SetStateAction,
 } from 'react'
-import { ApiError, type Session, type Stats, type StoreStatus } from '../api'
+import { ApiError, type Invocation, type Session, type Stats, type StoreStatus } from '../api'
 import { loadConsoleData } from './data'
 import {
   buildModel,
@@ -49,6 +49,8 @@ export interface ConsoleValue {
   /** Set when timing had to fall back to exchange timestamps only. */
   timingNote: string | null
   reload: () => void
+  /** Recent correlated tool calls (policy decisions) for the Timeline and the session Inspector. */
+  invocations: Invocation[]
   /** True when the last load failed with HTTP 401: the session ended, so the console returns to sign-in. */
   unauthorized: boolean
   /** Bumps on every reload; per-item fetches key on it so they refresh after a write. */
@@ -108,6 +110,7 @@ export function ConsoleProvider({ children, onSignOut }: { children: ReactNode; 
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [unauthorized, setUnauthorized] = useState(false)
+  const [invocations, setInvocations] = useState<Invocation[]>([])
   const [timingNote, setTimingNote] = useState<string | null>(null)
   const [nonce, setNonce] = useState(0)
 
@@ -140,6 +143,7 @@ export function ConsoleProvider({ children, onSignOut }: { children: ReactNode; 
         setMemoryInfo(data.memories.info)
         setSessionEnds(new Map(data.sessions.map((s) => [s.external_session_id, s.ended_at])))
         setSessions(data.sessions)
+        setInvocations(data.invocations)
         setStats(data.stats)
         setStatus(data.status)
         setError(null)
@@ -235,13 +239,13 @@ export function ConsoleProvider({ children, onSignOut }: { children: ReactNode; 
 
   const value = useMemo<ConsoleValue>(
     () => ({
-      workspace, model, memoryInfo, sessionEnds, sessions, stats, status, loading, error, unauthorized, timingNote, reload,
+      workspace, model, memoryInfo, sessionEnds, sessions, stats, status, loading, error, unauthorized, invocations, timingNote, reload,
       lens, setLens, page, setPage, openPage, pageArg, go, selectedId, select, reveal, focus, facets, setFacets,
       window: window_, preset, setWindow, applyPreset, similarity, setSimilarity, overlay, setOverlay,
       revision: nonce, notice, setNotice,
       signOut: onSignOut,
     }),
-    [workspace, model, memoryInfo, sessionEnds, sessions, stats, status, loading, error, unauthorized, timingNote, reload,
+    [workspace, model, memoryInfo, sessionEnds, sessions, stats, status, loading, error, unauthorized, invocations, timingNote, reload,
       lens, setLens, page, setPage, openPage, pageArg, go, selectedId, select, reveal, focus, facets, window_, preset, setWindow, applyPreset,
       similarity, overlay, onSignOut, nonce, notice],
   )
