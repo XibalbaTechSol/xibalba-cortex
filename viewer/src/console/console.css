@@ -2488,3 +2488,122 @@ select.xc-input {
     flex: 1;
   }
 }
+
+/* ---------- information architecture: two lenses, everything else a drawer or a dialog ---------- */
+/* a page drawer: the same frame as Review and Integrity, wider when it holds a list beside a detail */
+.xc-drawer--page {
+  width: min(560px, calc(100vw - 40px));
+}
+.xc-drawer--page[data-width='medium'] {
+  width: min(820px, calc(100vw - 40px));
+}
+.xc-drawer--page[data-width='wide'] {
+  width: min(1180px, calc(100vw - 40px));
+}
+.xc-drawer-title {
+  margin: 4px 0 2px;
+  font: 600 30px/1 var(--font-condensed);
+}
+.xc-drawer-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--hairline) transparent;
+}
+/* inside a drawer a page has no gutter of its own and no max width: the drawer is the frame */
+.xc-drawer--page .xc-page {
+  padding: 18px var(--window-padding) 28px;
+  max-width: none;
+  gap: 16px;
+}
+.xc-drawer--page .xc-page-head {
+  align-items: flex-start;
+}
+/* a page's list-plus-detail panes keep a working height instead of growing with the page */
+.xc-drawer--page .xc-memories,
+.xc-drawer--page .xc-sessions,
+.xc-drawer--page .xc-entities {
+  min-height: 0;
+}
+@media (max-width: 760px) {
+  .xc-drawer--page,
+  .xc-drawer--page[data-width] {
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: 100vw;
+  }
+  .xc-drawer--page .xc-page {
+    padding: 14px 16px 24px;
+  }
+}
+
+/* the tools: small tiles under the two lenses */
+.xc-rail-tools {
+  margin-top: 4px;
+}
+.xc-tool-strip {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+}
+.xc-nav-btn--tile {
+  flex-direction: column;
+  justify-content: center;
+  gap: 4px;
+  min-height: 56px;
+  padding: 8px 4px;
+  border: 1px solid var(--hairline);
+  font-size: 12px;
+  text-align: center;
+}
+.xc-nav-btn--tile .xc-nav-label {
+  display: block;
+  font: 600 11px/1.1 var(--font-body);
+  color: var(--ink-muted);
+}
+.xc-nav-btn--tile:hover .xc-nav-label {
+  color: var(--ink);
+}
+.xc-nav-btn--tile svg {
+  width: 18px;
+  height: 18px;
+}
+.xc-shell[data-collapsed='true'] .xc-tool-strip {
+  grid-template-columns: 1fr;
+}
+.xc-shell[data-collapsed='true'] .xc-nav-btn--tile .xc-nav-label {
+  display: none;
+}
+.xc-shell[data-collapsed='true'] .xc-nav-btn--tile {
+  min-height: 40px;
+}
+.xc-conn--button {
+  background: none;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+.xc-conn--button:hover {
+  color: var(--ink);
+}
+.xc-scope-manage {
+  justify-self: start;
+  margin-top: 6px;
+  font-size: 12px;
+}
+.xc-kv-link {
+  padding: 0;
+  font: inherit;
+  color: var(--ink-muted);
+  text-decoration: underline;
+  text-decoration-color: var(--hairline-strong);
+  text-underline-offset: 3px;
+}
+.xc-kv-link:hover {
+  color: var(--ink);
+}

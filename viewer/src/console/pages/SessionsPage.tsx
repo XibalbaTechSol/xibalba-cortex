@@ -5,7 +5,7 @@
 // telemetry are the two writes, offered only in a writable workspace. Chain verification lives in
 // the Integrity drawer; this page links to it rather than repeating it.
 
-import { useMemo, useState, type FormEvent } from 'react'
+import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import { api, type Exchange, type Session } from '../../api'
 import { useConsole } from '../state'
 import { useAsync, type AsyncState } from '../useAsync'
@@ -53,10 +53,14 @@ export function SessionsPage() {
 // --- sessions ---------------------------------------------------------------------------------------
 
 function SessionList() {
-  const { workspace, revision, go } = useConsole()
+  const { workspace, revision, go, pageArg } = useConsole()
   const scope = workspace.scope
   const [offset, setOffset] = useState(0)
-  const [selected, setSelected] = useState<string | null>(null)
+  const [selected, setSelected] = useState<string | null>(pageArg?.page === 'sessions' ? pageArg.arg : null)
+  // opened from a session in the lens: aim at that one (the list shows the newest page first)
+  useEffect(() => {
+    if (pageArg?.page === 'sessions') { setSelected(pageArg.arg); setOffset(0) }
+  }, [pageArg])
   const list = useAsync(() => api.sessionsPage(PAGE_SIZE, offset, scope), [scope, offset, revision], { keepData: true })
   const sessions = list.data?.sessions ?? []
   const current = sessions.find((s) => s.external_session_id === selected) ?? null

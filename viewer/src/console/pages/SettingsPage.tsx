@@ -21,8 +21,8 @@ const SECTIONS: Array<[Section, string]> = [
 ]
 
 const LAYOUTS: Array<{ id: ShellLayout; title: string; body: string }> = [
-  { id: 'rail', title: 'Left rail', body: 'Every destination in a rail down the left edge, grouped, with the workspace beside it. The default.' },
-  { id: 'top', title: 'Top bar', body: 'A bar across the top with every destination on a second row. More room for the workspace, less room to label things.' },
+  { id: 'rail', title: 'Left rail', body: 'The Graph and Timeline lenses in a rail down the left edge, with the tools beneath them; the workspace beside it. The default.' },
+  { id: 'top', title: 'Top bar', body: 'A bar across the top: the two lenses and the tools on a second row. More room for the workspace, less room to label things.' },
 ]
 
 /** A small wireframe of each layout, drawn in CSS so it cannot drift from the real shell's proportions. */

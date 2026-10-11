@@ -13,6 +13,7 @@ import { IconCheck, IconClose, IconWarn } from './icons'
 import { MemoryActions } from './MemoryActions'
 import { MemoryChainCheck, ProvenanceExport } from './VerifyPanel'
 import { attachmentFilename, saveBlob } from './download'
+import { useInDrawer } from './PageDrawer'
 
 type MemoryTab = 'chain' | 'content' | 'provenance' | 'neighbors' | 'contradictions' | 'telemetry' | 'files'
 const MEMORY_TABS: Array<[MemoryTab, string]> = [
@@ -53,10 +54,19 @@ export function Inspector() {
   const node = selectedId ? model?.byId.get(selectedId) : undefined
   // an edge is selectable too; its ids start with the edge type, never with a node-class prefix
   const edge = selectedId && !node ? model?.edges.find((e) => e.id === selectedId) : undefined
+  // inside the Memories drawer the detail pane is for the list beside it, not a summary of the workspace
+  const inDrawer = useInDrawer()
 
   let body: ReactNode
   if (!selectedId) {
-    body = <WorkspaceSummary />
+    body = inDrawer ? (
+      <div className="xc-empty" style={{ flex: 1 }}>
+        <h3 className="xc-title">Nothing selected</h3>
+        <p>Choose a memory in the list to inspect it.</p>
+      </div>
+    ) : (
+      <WorkspaceSummary />
+    )
   } else if (edge) {
     body = <EdgeInspector key={selectedId} edge={edge} />
   } else if (selectedId.startsWith('memory:')) {
@@ -443,10 +453,10 @@ function WorkspaceSummary() {
         <section>
           <p className="xc-eyebrow xc-eyebrow--dim xc-section-title">Go to</p>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-            <button type="button" className="xc-btn" onClick={() => setOverlay('recall')}>Recall</button>
-            <button type="button" className="xc-btn" onClick={() => setOverlay('review')}>Review</button>
-            <button type="button" className="xc-btn" onClick={() => setOverlay('integrity')}>Verify chains</button>
-            <button type="button" className="xc-btn" onClick={() => go('sessions')}>All sessions</button>
+            <button type="button" className="xc-btn" aria-haspopup="dialog" onClick={() => setOverlay('recall')}>Recall</button>
+            <button type="button" className="xc-btn" aria-haspopup="dialog" onClick={() => setOverlay('review')}>Review</button>
+            <button type="button" className="xc-btn" aria-haspopup="dialog" onClick={() => setOverlay('integrity')}>Verify chains</button>
+            <button type="button" className="xc-btn" aria-haspopup="dialog" onClick={() => go('memories')}>Memories</button>
           </div>
         </section>
       </div></div>
@@ -519,7 +529,7 @@ function edgesOf(edges: CEdge[], id: string): CEdge[] {
 }
 
 function EntityInspector({ node }: { node: CNode }) {
-  const { model, select, reveal } = useConsole()
+  const { model, select, reveal, openPage } = useConsole()
   const relations = model ? edgesOf(model.edges, node.id).filter((e) => e.type === 'relation') : []
   return (
     <>
@@ -554,6 +564,9 @@ function EntityInspector({ node }: { node: CNode }) {
             </div>
           )}
         </section>
+        <div className="xc-actions-row" style={{ justifyContent: 'flex-start' }}>
+          <button type="button" className="xc-btn" aria-haspopup="dialog" onClick={() => openPage('entities', node.label)}>Neighbours and paths</button>
+        </div>
         <p className="xc-note">{node.time === null ? 'No timestamp: none of this entity’s evidence is placed in time.' : `Placed at ${shortStamp(node.time)} by its earliest evidence memory.`}</p>
       </div></div>
     </>
@@ -563,7 +576,7 @@ function EntityInspector({ node }: { node: CNode }) {
 // --- session ---------------------------------------------------------------------------------------
 
 function SessionInspector({ node }: { node: CNode }) {
-  const { model, sessions, workspace, select, setWindow } = useConsole()
+  const { model, sessions, workspace, select, setWindow, openPage } = useConsole()
   const row = sessions.find((s) => s.external_session_id === node.sessionId)
   const root = useAsync(() => (node.sessionId ? api.sessionMerkleRoot(node.sessionId, workspace.scope) : Promise.resolve(null)), [node.sessionId, workspace.scope])
   // span of this session in time, padded so its first and last marks are not on the border
@@ -589,11 +602,10 @@ function SessionInspector({ node }: { node: CNode }) {
           <div><dt>Ended</dt><dd>{row ? (row.ended_at ? stamp(row.ended_at) : 'open') : '—'}</dd></div>
           <div><dt>Exchanges</dt><dd>{exchanges.length}</dd></div>
         </dl>
-        {sessionSpan && (
-          <div>
-            <button type="button" className="xc-btn" onClick={() => setWindow(sessionSpan, 'custom')}>Window both lenses to this session</button>
-          </div>
-        )}
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+          {node.sessionId && <button type="button" className="xc-btn" aria-haspopup="dialog" onClick={() => openPage('sessions', node.sessionId)}>Exchanges, replay, telemetry</button>}
+          {sessionSpan && <button type="button" className="xc-btn" onClick={() => setWindow(sessionSpan, 'custom')}>Window both lenses to this session</button>}
+        </div>
         <Async state={root}>
           {(r) => r === null ? null : (
             <div className={`xc-callout ${r.valid ? 'xc-callout--anchored' : 'xc-callout--conflict'}`}>

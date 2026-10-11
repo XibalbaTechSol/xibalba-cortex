@@ -57,6 +57,10 @@ export interface ConsoleValue {
   /** null = the workspace; otherwise a full-page surface (Memories, Settings, ...) */
   page: PageId | null
   setPage: (page: PageId | null) => void
+  /** Open a drawer, optionally aimed at one thing in it (a session id, an entity name). */
+  openPage: (page: PageId, arg?: string) => void
+  /** What the open drawer was aimed at; the page reads it once per `nonce`. */
+  pageArg: { page: PageId; arg: string; nonce: number } | null
   /** open any destination by id, whatever its kind */
   go: (id: DestinationId) => void
   selectedId: string | null
@@ -115,6 +119,7 @@ export function ConsoleProvider({ children, onSignOut }: { children: ReactNode; 
   const [similarity, setSimilarity] = useState(0.75)
   const [overlay, setOverlay] = useState<Overlay>(null)
   const [notice, setNotice] = useState<string | null>(null)
+  const [pageArg, setPageArg] = useState<{ page: PageId; arg: string; nonce: number } | null>(null)
 
   // Responses can arrive out of order when the scope or threshold changes quickly; only the
   // newest request may write state.
@@ -175,6 +180,14 @@ export function ConsoleProvider({ children, onSignOut }: { children: ReactNode; 
   // choosing a lens leaves any page; choosing a page remembers which lens it was opened from
   const setLens = useCallback((next: Lens) => applyRoute({ lens: next, page: null }), [applyRoute])
   const setPage = useCallback((next: PageId | null) => applyRoute({ lens: route.lens, page: next }), [applyRoute, route.lens])
+  const openPage = useCallback(
+    (next: PageId, arg?: string) => {
+      setOverlay(null)
+      setPageArg((prev) => (arg ? { page: next, arg, nonce: (prev?.nonce ?? 0) + 1 } : null))
+      setPage(next)
+    },
+    [setPage],
+  )
   const go = useCallback(
     (id: DestinationId) => {
       const dest = ALL_DESTINATIONS.find((d) => d.id === id)
@@ -216,13 +229,13 @@ export function ConsoleProvider({ children, onSignOut }: { children: ReactNode; 
   const value = useMemo<ConsoleValue>(
     () => ({
       workspace, model, memoryInfo, sessionEnds, sessions, stats, status, loading, error, timingNote, reload,
-      lens, setLens, page, setPage, go, selectedId, select, reveal, focus, facets, setFacets,
+      lens, setLens, page, setPage, openPage, pageArg, go, selectedId, select, reveal, focus, facets, setFacets,
       window: window_, preset, setWindow, applyPreset, similarity, setSimilarity, overlay, setOverlay,
       revision: nonce, notice, setNotice,
       signOut: onSignOut,
     }),
     [workspace, model, memoryInfo, sessionEnds, sessions, stats, status, loading, error, timingNote, reload,
-      lens, setLens, page, setPage, go, selectedId, select, reveal, focus, facets, window_, preset, setWindow, applyPreset,
+      lens, setLens, page, setPage, openPage, pageArg, go, selectedId, select, reveal, focus, facets, window_, preset, setWindow, applyPreset,
       similarity, overlay, onSignOut, nonce, notice],
   )
 

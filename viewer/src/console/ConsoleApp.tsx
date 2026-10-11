@@ -2,7 +2,7 @@
 //
 // Layout is [facet rail | lens | inspector] above the chain rail and status bar. Switching lens
 // swaps only the centre pane; selection, facets and the time window live in ConsoleProvider so
-// they survive it.
+// they survive it. Every other surface is a dialog or a drawer over that workspace.
 
 import { useCallback, useEffect, useState } from 'react'
 import { accountLogout, isSignedIn } from '../api'
@@ -11,6 +11,7 @@ import { SignIn } from './SignIn'
 import { Rail, StatusBar, TopBar } from './Shell'
 import { SettingsProvider, useSettings } from './settingsContext'
 import { PageHost } from './pages/PageHost'
+import { PageDrawer } from './PageDrawer'
 import { FacetRail } from './FacetRail'
 import { GraphLens } from './GraphLens'
 import { TimelineLens } from './TimelineLens'
@@ -50,13 +51,9 @@ function Workspace() {
   const phone = useMediaQuery('(max-width: 760px)')
   const { settings } = useSettings()
 
-  // what sits to the right of (or below) the navigation: a full page, or the three-column workspace
-  const content = page ? (
-    <>
-      <PageHost page={page} />
-      <StatusBar />
-    </>
-  ) : (
+  // The workspace is always the lens. A page (Memories, Settings, ...) opens as a drawer over it, so the
+  // two lenses stay the place the user works and everything else is a tool reached from where they are.
+  const content = (
     <>
       <main className="xc-workspace">
         <FacetRail />
@@ -84,6 +81,11 @@ function Workspace() {
           <TopBar />
           {content}
         </>
+      )}
+      {page && (
+        <PageDrawer page={page}>
+          <PageHost page={page} />
+        </PageDrawer>
       )}
       {overlay === 'recall' && <Recall />}
       {overlay === 'review' && <Review />}
