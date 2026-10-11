@@ -60,7 +60,7 @@ Everything is in `tokens.css`; use the variables, never the hex.
 | `--ink` / `--ink-muted` / `--ink-dim` | `#eef0f1` / `#b7bcc1` / `#9aa1a8` | 15.7 / 9.4 / 6.9 : 1 on ground |
 | `--cortex-accent` | `#c3b6dd` | Cortex's identity. OKLCH L 0.800, C 0.055, hue 300 (Shield's `#9fc3df` is hue 242) |
 | `--status-anchored` / `-review` / `-conflict` | `#9fc3df` / `#d7aa6c` / `#d88383` | the shared vocabulary; identical in Shield |
-| fonts | Barlow Condensed 600 (headings, metrics), Barlow (prose and every control), JetBrains Mono (anything hashed or addressed) | load exactly Barlow 400/500/700, Condensed 400/600, Mono 400/500 |
+| fonts | **Raleway** for everything but code: 600 for headings and metrics, 400/500 for prose and every control; JetBrains Mono for anything hashed or addressed | load Raleway 400/500/600/700 (variable) and Mono 400/500. Raleway's default figures are old-style, so `font-feature-settings: 'lnum'` is set on every element (`console.css`). There is no condensed Raleway, so headings are set smaller than the condensed face allowed, and the rail wordmark stacks on two lines |
 | geometry | window padding/gap 20, control height 38, tab 40, content max 1440, gutter 42 | |
 
 Rules that are easy to break:
@@ -200,7 +200,7 @@ above); it must not let a person impersonate a worker.
 - **Graph panels in the mockups are images** of the 3D canvas (a `<canvas>` cannot be serialised); the live
   console is interactive. Two boards are kept as 2D images of a 3D scene on purpose: far and near zoom.
 - **Keyboard**: the 3D canvas has no way to pick a single node.
-- The design-system artifact's own text still describes the pre-drawer, pre-3D console.
+- The design-system artifact's own text still describes the pre-drawer, pre-3D console, and still names Barlow. The console now uses Raleway (a deliberate difference from Shield, which keeps Barlow); update the design system before treating it as the source for fonts.
 
 ## 10. Suggested order
 

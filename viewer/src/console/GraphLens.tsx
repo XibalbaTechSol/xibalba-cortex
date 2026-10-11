@@ -264,7 +264,7 @@ export function GraphLens() {
         const name = node.cls === 'session' ? node.label.replace(/^Session /, '') : node.label
         const text = name.length > 46 ? `${name.slice(0, 45)}…` : name
         const fontSize = 11 / scale
-        ctx.font = `400 ${fontSize}px Barlow, system-ui, sans-serif`
+        ctx.font = `500 ${fontSize}px Raleway, system-ui, sans-serif`
         const w = ctx.measureText(text).width
         const padX = 5 / scale
         const padY = 3 / scale

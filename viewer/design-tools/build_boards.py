@@ -223,7 +223,7 @@ PLANNED_ROWS = [
 css = (SRC / 'tokens.css').read_text() + '\n' + (SRC / 'console.css').read_text().replace("@import './tokens.css';", '')
 css = css.replace('100dvh', 'var(--board-h)').replace('100vh', 'var(--board-h)').replace('100vw', 'var(--board-w)')
 assert '{{' not in css and '}}' not in css
-FONTS = 'https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&family=Barlow+Condensed:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap'
+FONTS = 'https://fonts.googleapis.com/css2?family=Raleway:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap'
 
 
 class Check(HTMLParser):

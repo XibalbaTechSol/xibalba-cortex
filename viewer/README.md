@@ -62,7 +62,7 @@ The default screen is the redesigned **Cortex console** (`src/console/`): two le
 Timeline, over one shared state (selection, facets and time window survive a lens switch), a
 facet rail, a single inspector, a chain rail that windows both lenses, and Recall (`Ctrl/Cmd+K`).
 It is dark-only and shares the Xibalba Console design language with Shield (graphite surface,
-registration crosses on every window, Barlow / Barlow Condensed / JetBrains Mono) with Cortex's
+registration crosses on every window, Raleway / JetBrains Mono) with Cortex's
 lavender accent.
 
 The **Graph lens is 3D by default** (cubes on a faint 3D lattice, one node per cell; orbit, pan,

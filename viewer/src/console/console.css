@@ -27,6 +27,11 @@ body {
 .xc *,
 .xc *::before,
 .xc *::after {
+  /* Raleway's default figures are old-style (3, 4, 5, 7, 9 drop below the baseline), which reads as
+   * noise in counts, hashes and timestamps. Ask for lining figures on every element, not just the
+   * root: the `font:` shorthand used throughout this file can reset inherited feature settings.
+   * https://developer.mozilla.org/en-US/docs/Web/CSS/font-feature-settings */
+  font-feature-settings: 'lnum' 1;
   box-sizing: border-box;
 }
 /* icons are sized by their container; this is only the floor so an unstyled one is never huge */
@@ -143,7 +148,7 @@ body {
   content: none;
 }
 .xc-title {
-  font: 600 25px/1.12 var(--font-condensed);
+  font: 600 25px/1.12 var(--font-display);
   color: var(--ink);
 }
 .xc-title--sm {
@@ -403,7 +408,7 @@ select.xc-input {
   height: 32px;
 }
 .xc-brand b {
-  font: 600 21px/1.1 var(--font-condensed);
+  font: 600 21px/1.1 var(--font-display);
 }
 .xc-brand i {
   font-style: normal;
@@ -483,7 +488,7 @@ select.xc-input {
   border-bottom: 2px solid transparent;
   background: transparent;
   color: var(--ink-muted);
-  font: 600 17px/1.2 var(--font-condensed);
+  font: 600 17px/1.2 var(--font-display);
   white-space: nowrap;
   cursor: pointer;
 }
@@ -513,7 +518,7 @@ select.xc-input {
   padding: 2px 6px;
   background: var(--status-review);
   color: var(--ink-on-accent);
-  font: 600 12px var(--font-condensed);
+  font: 600 12px var(--font-display);
 }
 .xc-soon {
   padding: 1px 5px;
@@ -814,7 +819,7 @@ select.xc-input {
   gap: 10px;
 }
 .xc-row-top b {
-  font: 600 16px/1.2 var(--font-condensed);
+  font: 600 16px/1.2 var(--font-display);
 }
 .xc-link {
   padding: 0;
@@ -1091,7 +1096,7 @@ select.xc-input {
 }
 .xc-rank {
   min-width: 30px;
-  font: 600 26px/1 var(--font-condensed);
+  font: 600 26px/1 var(--font-display);
   color: var(--accent);
 }
 .xc-channels {
@@ -1135,7 +1140,7 @@ select.xc-input {
 }
 .xc-auth-story-body h1 {
   max-width: 560px;
-  font: 600 clamp(46px, 5vw, 64px) / 0.98 var(--font-condensed);
+  font: 600 clamp(46px, 5vw, 64px) / 0.98 var(--font-display);
   letter-spacing: -0.02em;
 }
 .xc-auth-story-body p:not(.xc-eyebrow) {
@@ -1192,7 +1197,7 @@ select.xc-input {
 }
 .xc-auth-title {
   margin: 0;
-  font: 600 38px / 1 var(--font-condensed);
+  font: 600 38px / 1 var(--font-display);
 }
 .xc-auth-lede {
   margin: -6px 0 0;
@@ -1302,7 +1307,7 @@ select.xc-input {
   padding: 0 14px 10px 0;
   border-bottom: 1px solid var(--hairline);
   text-align: left;
-  font: 600 12px/1.3 var(--font-condensed);
+  font: 600 12px/1.3 var(--font-display);
   letter-spacing: 0.1em;
   text-transform: uppercase;
   color: var(--ink-muted);
@@ -1405,7 +1410,7 @@ select.xc-input {
   gap: 12px;
 }
 .xc-card-title {
-  font: 600 18px/1.2 var(--font-condensed);
+  font: 600 18px/1.2 var(--font-display);
   min-width: 0;
   overflow-wrap: anywhere;
 }
@@ -1493,7 +1498,7 @@ select.xc-input {
   border-top: 2px solid transparent;
   background: transparent;
   color: var(--ink-muted);
-  font: 600 14px/1 var(--font-condensed);
+  font: 600 14px/1 var(--font-display);
   cursor: pointer;
 }
 .xc-tabbar-btn svg {
@@ -1641,8 +1646,13 @@ select.xc-input {
   min-width: 0;
 }
 .xc-rail-head .xc-brand b {
-  font-size: 19px;
-  white-space: nowrap;
+  /* Raleway has no condensed cut, so the wordmark is wider than the old one: stack it over two lines
+   * (name, then product) instead of running into the collapse button. */
+  font-size: 17px;
+  line-height: 1.15;
+}
+.xc-rail-head .xc-brand b i {
+  display: block;
 }
 .xc-rail-toggle {
   flex: none;
@@ -1674,7 +1684,7 @@ select.xc-input {
   padding: 3px 7px;
   border: 1px solid var(--hairline-strong);
   color: var(--ink-muted);
-  font: 600 12px var(--font-condensed);
+  font: 600 12px var(--font-display);
   letter-spacing: 0.08em;
 }
 .xc-rail-nav {
@@ -1793,7 +1803,7 @@ select.xc-input {
 }
 .xc-page-title {
   margin: 6px 0 0;
-  font: 600 40px/1 var(--font-condensed);
+  font: 600 40px/1 var(--font-display);
 }
 .xc-page-note {
   max-width: 640px;
@@ -1846,7 +1856,7 @@ select.xc-input {
   gap: 4px;
 }
 .xc-choice-text b {
-  font: 600 20px/1.1 var(--font-condensed);
+  font: 600 20px/1.1 var(--font-display);
 }
 /* two wireframes, drawn from the same proportions as the real shells */
 .xc-wire {
@@ -2239,7 +2249,7 @@ select.xc-input {
   padding: 12px 14px;
   border: 1px solid var(--hairline);
   background: var(--panel);
-  font: 500 16px/1.5 var(--font-condensed);
+  font: 500 16px/1.5 var(--font-display);
   overflow-wrap: anywhere;
 }
 @media (max-width: 1180px) {
@@ -2502,7 +2512,7 @@ select.xc-input {
 }
 .xc-drawer-title {
   margin: 4px 0 2px;
-  font: 600 30px/1 var(--font-condensed);
+  font: 600 30px/1 var(--font-display);
 }
 .xc-drawer-scroll {
   flex: 1;
@@ -2638,4 +2648,14 @@ select.xc-input {
   .xc-workspace[data-inspector='hidden'] {
     grid-template-columns: minmax(0, 1fr);
   }
+}
+
+/* settings: a note under a switch is prose, so it wraps on its own line (the generic .xc-check rule
+ * truncates every span to one line, which cut these notes off at "…") */
+.xc-check.xc-settings-row > .xc-note {
+  flex: 1 1 100%;
+  padding-left: 23px;
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
 }
