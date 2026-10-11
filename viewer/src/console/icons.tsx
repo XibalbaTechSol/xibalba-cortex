@@ -54,9 +54,33 @@ export const IconPause = (p: IconProps) => (
     <path d="M7 5h4v14H7zM13 5h4v14h-4z" />
   </svg>
 )
+export const IconChevronUp = (p: IconProps) => (
+  <svg {...base} {...p}>
+    <path d="m6 15 6-6 6 6" />
+  </svg>
+)
+export const IconChevronDown = (p: IconProps) => (
+  <svg {...base} {...p}>
+    <path d="m6 9 6 6 6-6" />
+  </svg>
+)
 export const IconFit = (p: IconProps) => (
   <svg {...base} {...p}>
     <path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" />
+  </svg>
+)
+/** a window with its left pane marked: show or hide the Filters pane */
+export const IconPanelLeft = (p: IconProps) => (
+  <svg {...base} {...p}>
+    <rect x="3" y="4" width="18" height="16" />
+    <path d="M9 4v16" />
+  </svg>
+)
+/** the same, with the right pane marked: show or hide the Inspector */
+export const IconPanelRight = (p: IconProps) => (
+  <svg {...base} {...p}>
+    <rect x="3" y="4" width="18" height="16" />
+    <path d="M15 4v16" />
   </svg>
 )
 /** a crosshair: frame the selection */

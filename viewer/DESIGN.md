@@ -94,11 +94,40 @@ the *Top bar* layout option.
 | Sessions drawer over the Timeline lens | `PageDrawer.tsx, pages/SessionsPage.tsx` | The route keeps the lens: #timeline/sessions. Closing returns to the timeline exactly as it was. |
 | A session in the lens opens its own drawer | `Inspector.tsx (SessionInspector), state.tsx (openPage)` | “Exchanges, replay, telemetry” on a selected session opens the Sessions drawer aimed at that session. |
 | An entity in the graph opens neighbours and paths · drawer | `Inspector.tsx (EntityInspector), pages/EntitiesPage.tsx` | “Neighbours and paths” opens the Entities drawer with that entity already looked up. |
+| Inspector — link a memory to an entity | `MemoryActions.tsx (link)` | POST /api/memory/link-entities; says what it will write before it writes it. |
+| Inspector — mark two memories as contradicting | `MemoryActions.tsx (contradiction)` | POST /api/memory/contradictions; the edge appears on the graph as a dashed line. |
+| Review — PARA classifications | `Review.tsx (PARA)` | POST /api/para/classifications/{id}/decision |
+| Review — inference tasks by status | `Review.tsx (Tasks)` | Read-only: workers claim and complete tasks; the console only shows them. |
+| Review — a read-only workspace | `Review.tsx` | The queue can be inspected, not decided on; the drawer says why. |
+| Sessions — the memories a session wrote · drawer | `pages/SessionsPage.tsx` | GET /api/session/{id}/memories |
+| Sessions — decision trace lookup · drawer | `pages/SessionsPage.tsx` | GET /api/session/{id}/decision-trace; the trace id comes from the runtime that made the decision. |
+| Sessions — kernel intents · drawer | `pages/SessionsPage.tsx` | GET /api/session/{id}/kernel-intents |
+| Agents — pair a device · drawer | `pages/AgentsPage.tsx (PairForm)` | POST /api/agent-devices/associate |
+| Agents — a paired device, with rename, detach and revoke · drawer | `pages/AgentsPage.tsx` | Revoke is the danger-quiet button; detach keeps the pairing record. |
+| Settings — Account, signed in as an account · drawer | `pages/settings/AccountSection.tsx` | ILLUSTRATIVE DATA: the dev fixture signs in by token, which has no account, so /api/auth/me, /sessions and /events were stubbed with the real response shapes (accounts.py). |
+| Sign in — wrong email or password | `SignIn.tsx` | The server’s own message, shown as returned. The response is stubbed: the fixture has no account to fail against. |
+| Sign in — an account waiting for approval | `SignIn.tsx` | accounts.py: “account requires email verification or administrator approval”. Stubbed response. |
+| Sign in — session expired | `ConsoleApp.tsx, SignIn.tsx` | Any 401 returns here with this notice. |
+| Integrity — a new checkpoint, then reconcile | `Integrity.tsx` | POST /api/projections/{id}/checkpoint and /reconcile. |
+| Integrity — rebuild asks first | `Integrity.tsx` | Rebuild recomputes the projection for the whole store; it is confirmed and named. |
+| Operations — the full readiness check · drawer | `pages/OperationsPage.tsx` | GET /readyz; slower than the snapshot, so it is a button. |
+| Recall — lexical results | `Recall.tsx` | Plain text search; no trace is kept. |
+| Recall — the server refused | `Recall.tsx` | The server’s message, in a conflict callout. Stubbed response. |
+| Timeline — a session selected | `TimelineLens.tsx, Inspector.tsx (SessionInspector)` | The base for the runtime and end-session designs. |
 
 ## Planned — designed, not built
 
 | Board | Lands in | What it needs |
 |---|---|---|
+| the agent runtime on the timeline | `TimelineLens.tsx, Inspector.tsx (SessionInspector)` | Needs GET /api/session/{id}/runtime; the controller lives in the MCP process. Deny and ask decisions become marks on the lane. |
+| Operations: agent runtimes | `pages/OperationsPage.tsx` | Needs GET /api/runtimes. A row leads back to the Timeline, windowed to that runtime. |
+| Operations: workers | `pages/OperationsPage.tsx` | Needs GET /api/workers and a heartbeat each worker writes. “Not seen” is not “idle”. |
+| Operations: connectors and ingest | `pages/OperationsPage.tsx` | Needs GET /api/connectors. Each row leads back to the Graph or Timeline with the Memory source facet set. |
+| Settings: API tokens | `pages/settings/AccountSection.tsx` | Needs GET/POST /api/auth/tokens and /revoke. Shown once; the server keeps a hash. |
+| Settings: Profile (read-only) | `pages/SettingsPage.tsx` | Needs GET /api/profile/config, redacted. Read-only on purpose: configuration is set in config.yaml or the environment. |
+| export what the timeline is showing | `ChainRail.tsx` | Needs POST /api/provenance/export taking the window and facets. |
+| end a session | `pages/SessionsPage.tsx` | Needs POST /api/session/{id}/end. Starting a session stays implicit. |
+| import a document or transcript | `pages/MemoriesPage.tsx` | Needs POST /api/import (multipart). Imports arrive as memories with proposals in Review; nothing reaches the graph undecided. |
 | Forgot password | `SignIn.tsx (new mode)` | Needs UI only: POST /api/auth/password-reset/request exists. Unavailable delivery is the 503 state. |
 | Choose a new password | `SignIn.tsx (new mode)` | Needs UI only: POST /api/auth/password-reset/confirm exists (400 on an invalid or expired code). |
 | Accounts waiting for approval | `pages/settings/AccountSection.tsx` | Needs GET /api/auth/admin/pending (new). POST /api/auth/admin/approve exists. |

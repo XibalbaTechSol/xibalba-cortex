@@ -7,7 +7,7 @@ import { useConsole } from './state'
 import { useSettings } from './settingsContext'
 import { GROUP_LABEL, NAV_GROUPS, destinationsIn, type Destination, type DestinationId } from './nav'
 import {
-  IconAgents, IconChevronLeft, IconChevronRight, IconEntities, IconGraph, IconIntegrity, IconMemories, IconOperations,
+  IconAgents, IconChevronDown, IconChevronLeft, IconChevronRight, IconChevronUp, IconEntities, IconGraph, IconIntegrity, IconMemories, IconOperations,
   IconRefresh, IconReview, IconSearch, IconSessions, IconSettings, IconSignOut, IconTimeline,
 } from './icons'
 
@@ -132,16 +132,28 @@ export function Actions() {
 /** The top-bar layout: brand, connection, scope and actions on a row; every destination on a second. */
 export function TopBar() {
   const { state, text } = useConnection()
+  const { settings, update } = useSettings()
+  const collapsed = settings.railCollapsed
   return (
-    <header className="xc-top">
+    <header className="xc-top" data-collapsed={collapsed}>
       <div className="xc-top-row">
         <Brand />
         <div className="xc-conn" data-state={state} role="status" aria-live="polite">
           <i aria-hidden="true" />
           {text}
         </div>
-        <ScopePicker />
+        <ScopePicker manage />
         <Actions />
+        <button
+          type="button"
+          className="xc-btn xc-btn--square"
+          aria-pressed={collapsed}
+          aria-label={collapsed ? 'Expand navigation' : 'Collapse navigation'}
+          title={collapsed ? 'Expand navigation' : 'Collapse navigation'}
+          onClick={() => update({ railCollapsed: !collapsed })}
+        >
+          {collapsed ? <IconChevronDown /> : <IconChevronUp />}
+        </button>
       </div>
       <nav className="xc-nav" aria-label="Lenses and workflows">
         {NAV_GROUPS.map((group) => {
@@ -150,7 +162,7 @@ export function TopBar() {
           return (
             <div className="xc-nav-group" key={group}>
               <span className="xc-nav-kicker">{GROUP_LABEL[group]}</span>
-              {items.map((d) => <NavButton key={d.id} dest={d} />)}
+              {items.map((d) => <NavButton key={d.id} dest={d} compact={collapsed} />)}
             </div>
           )
         })}

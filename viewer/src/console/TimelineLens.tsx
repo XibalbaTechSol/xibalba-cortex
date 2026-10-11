@@ -5,6 +5,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useConsole } from './state'
+import { PaneToggle } from './PaneToggle'
 import { buildLanes, isNodeVisible, shortDay, shortStamp, thinTicks, type Lane } from './model'
 
 interface Domain {
@@ -91,11 +92,14 @@ export function TimelineLens() {
   return (
     <section className="xc-win xc-pane xc-canvas-win" aria-label="Timeline lens">
       <div className="xc-bar">
+        <PaneToggle side="filters" />
         <p className="xc-eyebrow">Timeline lens</p>
         <span className="xc-note" aria-live="polite">
           {loading && !model ? 'Loading…' : `${lanes.length} session${lanes.length === 1 ? '' : 's'}`}
           {domain ? ` · ${shortStamp(domain.from)} → ${shortStamp(domain.to)}` : ''}
         </span>
+        <span className="xc-spacer" />
+        <PaneToggle side="inspector" />
       </div>
 
       <div className="xc-scroll">

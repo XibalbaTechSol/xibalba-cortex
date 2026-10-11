@@ -55,10 +55,11 @@ function Workspace() {
   // two lenses stay the place the user works and everything else is a tool reached from where they are.
   const content = (
     <>
-      <main className="xc-workspace">
-        <FacetRail />
+      {/* either side pane can be hidden from the lens bar; the lens takes the width */}
+      <main className="xc-workspace" data-facets={settings.facetsCollapsed ? 'hidden' : 'shown'} data-inspector={settings.inspectorCollapsed ? 'hidden' : 'shown'}>
+        {!settings.facetsCollapsed && <FacetRail />}
         {lens === 'graph' ? <GraphLens /> : <TimelineLens />}
-        <Inspector />
+        {!settings.inspectorCollapsed && <Inspector />}
       </main>
       <div style={{ padding: '0 var(--gutter) 22px' }}>
         <ChainRail />

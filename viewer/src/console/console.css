@@ -2607,3 +2607,35 @@ select.xc-input {
 .xc-kv-link:hover {
   color: var(--ink);
 }
+
+/* ---------- collapsible navigation and panes ---------------------------------------------------- */
+/* a hidden side pane gives its column to the lens */
+.xc-workspace[data-facets='hidden'] {
+  grid-template-columns: minmax(0, 1fr) 340px;
+}
+.xc-workspace[data-inspector='hidden'] {
+  grid-template-columns: 232px minmax(0, 1fr);
+}
+.xc-workspace[data-facets='hidden'][data-inspector='hidden'] {
+  grid-template-columns: minmax(0, 1fr);
+}
+.xc-pane-toggle {
+  flex: none;
+}
+/* the top bar's second row, collapsed to icons the way the rail is */
+.xc-top[data-collapsed='true'] .xc-nav-label,
+.xc-top[data-collapsed='true'] .xc-nav-kicker {
+  display: none;
+}
+.xc-top[data-collapsed='true'] .xc-nav-btn {
+  padding-inline: 12px;
+}
+@media (max-width: 1180px) {
+  .xc-workspace[data-facets='hidden'],
+  .xc-workspace[data-facets='shown'] {
+    grid-template-columns: minmax(0, 1fr) 340px;
+  }
+  .xc-workspace[data-inspector='hidden'] {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
