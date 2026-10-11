@@ -100,6 +100,24 @@ Routes:
                                                GraphStore.kernel_bridge_intents() -- and the
                                                dashboard's Kernel Intent page -- has real data to show)
   POST /api/otel/batch                     -> GraphStore.record_otel_batch() (browser-reachable write path)
+  GET /api/profile/config                  -> console_admin.public_profile_config() (read-only; no path, no secret)
+  GET /api/auth/tokens                     -> console_admin.console_tokens() (operator/admin; never a secret or hash)
+  POST /api/auth/tokens                    -> console_admin.issue_console_token() (the secret is in this response only)
+  POST /api/auth/tokens/revoke             -> console_admin.revoke_console_token() (refuses the credential in use)
+  GET /api/auth/admin/pending              -> accounts.list_pending_accounts() (admin only)
+  GET /api/runtimes                        -> GraphStore.runtime_overview() (store-wide; unbound operator/admin)
+  GET /api/workers                         -> GraphStore.worker_status() (store-wide; derived, no heartbeat)
+  GET /api/connectors                      -> GraphStore.connector_status() (store-wide; reports, never drives)
+  GET /api/backups                         -> console_actions.list_backups() (names and sizes of XIBALBA_BACKUP_DIR; never a path)
+  POST /api/backup                         -> GraphStore.backup() into XIBALBA_BACKUP_DIR under a server-chosen name
+  POST /api/backup/reconcile               -> GraphStore.reconcile_backup() for a backup the server listed
+  POST /api/memory/{id}/attachments        -> GraphStore.attach_media() from raw bytes (<= 200 MB, streamed; the path is never the client's)
+  POST /api/import                         -> console_actions.import_document() (text/Markdown <= 2 MB -> candidate memories + proposals)
+  POST /api/provenance/export              -> GraphStore.export_memory_bundle() for the listed memories, each scope-checked
+  POST /api/session/{id}/end               -> GraphStore.end_session() (not undone)
+  POST /api/memory/{id}/verify-link        -> GraphStore.verify_integrity_link() against XIBALBA_DAG_HOME
+  POST /api/session/{id}/anchor            -> GraphStore.anchor_session_root() to XIBALBA_ANCHOR_URL (outward; store operator)
+  GET /api/vault/leaf?leaf_hash=           -> vault_inspect.inspect_leaf() against XIBALBA_VAULT_DIR (never a path from the browser)
 """
 from __future__ import annotations
 
@@ -108,6 +126,7 @@ import hmac
 import json
 import logging
 import os
+import re
 import sqlite3
 from collections import Counter
 from datetime import datetime, timezone
@@ -125,8 +144,13 @@ import yaml
 from .config import load_config
 from .connector_policy import ConnectorRateLimiter
 from .ingest_tokens import _connect, list_tokens, verify_token_record
-from .accounts import account_for_token, approve_account, change_account_password, create_account, issue_account_session, request_password_reset, reset_password, revoke_account_session, revoke_account_session_by_id
+from .accounts import account_for_token, approve_account, list_pending_accounts, change_account_password, create_account, issue_account_session, request_password_reset, reset_password, revoke_account_session, revoke_account_session_by_id
 from .providers import InferenceTaskContract, connector_manifest
+from .console_actions import (
+    MAX_EXPORT_IDS, MAX_IMPORT_BYTES, clean_media_type, configured_backup_dir, import_document, list_backups,
+    new_backup_name, public_backup_result, resolve_backup, safe_display_name, summarize_reconciliation,
+)
+from .console_admin import console_tokens, grantable_roles, issue_console_token, public_profile_config, revoke_console_token
 from .decision_trace_view import render_decision_trace_html
 from integrity_sdk.agent_identity import resolve_agent_identities
 from .store import MEMORY_INFERENCE_SUBAGENT_MANIFEST, GraphStore, _INFERENCE_TASK_TYPES
@@ -279,6 +303,32 @@ def _operator_workspace_agent(
     if not store.has_agent_partition(value):
         raise PermissionError("no such agent workspace")
     return value
+
+
+class _PayloadTooLarge(Exception):
+    """An upload larger than its limit. HTTP 413; the body is never read."""
+
+
+def _assert_store_operator(principal: dict[str, object]) -> None:
+    """Store-wide operational views (runtimes, workers, connectors) are for an unbound operator or admin.
+
+    An agent-bound credential must not learn about other agents' runtimes, queues or connectors, and
+    a reader has no business with the machinery. Fail closed: no role, or any agent binding, is refused.
+    """
+    roles = set(principal.get("roles") or [])
+    if not roles.intersection({"operator", "admin"}):
+        raise PermissionError("operator or admin role is required for store-wide status")
+    if _principal_agent_ids(principal):
+        raise PermissionError("an agent-bound credential cannot read store-wide status")
+
+
+def _configured_vault_dir() -> str:
+    """The trust vault the server was configured with. Module-level so do_GET's own local imports
+    cannot shadow `os`; the browser is never told the value."""
+    return os.environ.get("XIBALBA_VAULT_DIR", "").strip()
+
+
+_LEAF_HASH = re.compile(r"^0x[0-9a-fA-F]{64}$")
 
 
 def _assert_pair_manager(principal: dict[str, object]) -> None:
@@ -700,6 +750,43 @@ def _make_handler(store: GraphStore, *, allowed_origins: frozenset[str],
                 raise ValueError("JSON body must be an object")
             return payload
 
+        def _read_raw_body(self, limit: int) -> bytes:
+            """A bounded raw body (import). Content-Length is required: a stream of unknown length
+            cannot be bounded before it is read."""
+            length = self._declared_length(limit)
+            return self.rfile.read(length)
+
+        def _declared_length(self, limit: int) -> int:
+            try:
+                length = int(self.headers.get("Content-Length") or "0")
+            except ValueError:
+                raise ValueError("invalid Content-Length") from None
+            if length <= 0:
+                raise ValueError("an upload needs a body and a Content-Length")
+            if length > limit:
+                self.close_connection = True  # do not read what we refuse
+                raise _PayloadTooLarge(f"the upload is larger than the {limit // (1024 * 1024)} MB limit")
+            return length
+
+        def _stream_body_to_temp(self, directory: Path, limit: int) -> Path:
+            """Stream the body to a server-chosen temp file (an attachment can be 200 MB: never held in memory)."""
+            length = self._declared_length(limit)
+            directory.mkdir(parents=True, exist_ok=True, mode=0o700)
+            handle, name = tempfile.mkstemp(prefix="upload-", dir=directory)
+            remaining = length
+            try:
+                with os.fdopen(handle, "wb") as out:
+                    while remaining > 0:
+                        chunk = self.rfile.read(min(1024 * 1024, remaining))
+                        if not chunk:
+                            raise ValueError("the upload ended before its declared length")
+                        out.write(chunk)
+                        remaining -= len(chunk)
+            except BaseException:
+                Path(name).unlink(missing_ok=True)
+                raise
+            return Path(name)
+
         def do_GET(self) -> None:  # noqa: N802 -- BaseHTTPRequestHandler's naming convention
             request_limiter.wait()
             parsed = urlparse(self.path)
@@ -774,6 +861,47 @@ def _make_handler(store: GraphStore, *, allowed_origins: frozenset[str],
                     if agent_filter is None:
                         raise PermissionError("credential is not bound to an agent")
                     self._send_json(200, agent_store.agent_summary(agent_filter, limit=limit))
+                elif parts == ["api", "runtimes"]:
+                    _assert_store_operator(principal)
+                    self._send_json(200, {"runtimes": store.runtime_overview()})
+                elif parts == ["api", "workers"]:
+                    _assert_store_operator(principal)
+                    self._send_json(200, store.worker_status())
+                elif parts == ["api", "connectors"]:
+                    _assert_store_operator(principal)
+                    self._send_json(200, store.connector_status(connector_manifest()))
+                elif parts == ["api", "backups"]:
+                    _assert_store_operator(principal)
+                    directory = configured_backup_dir()
+                    self._send_json(200, {"configured": directory is not None, "backups": list_backups(directory) if directory else []})
+                elif parts == ["api", "vault", "leaf"]:
+                    _assert_store_operator(principal)
+                    leaf_hash = str(params.get("leaf_hash") or "").strip()
+                    if not _LEAF_HASH.match(leaf_hash):
+                        raise ValueError("leaf_hash must be 0x followed by 64 hex characters")
+                    vault_dir = _configured_vault_dir()
+                    if not vault_dir:
+                        self._send_json(503, {"error": "no trust vault is configured on this server (XIBALBA_VAULT_DIR)"})
+                        return
+                    from .vault_inspect import inspect_leaf
+                    result = inspect_leaf(leaf_hash.lower(), vault_dir)
+                    if result.get("error"):
+                        # the exception text names a filesystem path; log it here, tell the browser only what failed
+                        logger.warning("vault lookup could not read the vault: %s", result["error"])
+                        result = {**result, "error": "the vault could not be read"}
+                    self._send_json(200, result)
+                elif parts == ["api", "profile", "config"]:
+                    # Read-only on purpose: mode, identity and retention are config.yaml/env settings that
+                    # need a restart, so the console reports them and never pretends to edit them. No path
+                    # and no secret leaves the server (console_admin.public_profile_config).
+                    self._send_json(200, public_profile_config(store.home))
+                elif parts == ["api", "auth", "tokens"]:
+                    _assert_pair_manager(principal)
+                    self._send_json(200, {"tokens": console_tokens(store.home, store.profile_id), "grantable_roles": list(grantable_roles(set(principal.get("roles") or [])))})
+                elif parts == ["api", "auth", "admin", "pending"]:
+                    if "*" not in (principal.get("scopes") or []):
+                        raise PermissionError("an admin credential is required to list accounts waiting for approval")
+                    self._send_json(200, {"accounts": list_pending_accounts(store.home, profile_id=store.profile_id)})
                 elif parts == ["api", "agents"]:
                     # agent_workspaces() scans sources/memories for every agent_id and
                     # overlays agent_devices pairing metadata where it exists -- it must
@@ -1071,7 +1199,8 @@ def _make_handler(store: GraphStore, *, allowed_origins: frozenset[str],
                 elif len(parts) == 4 and parts[0] == "api" and parts[1] == "memory" and parts[3] == "attachments":
                     memory_store, _ = _read_store_for_agent(principal, params.get("agent_id"), params.get("store_id"))
                     _assert_memory_scope(memory_store.get_memory(parts[2]), principal, memory_store)
-                    self._send_json(200, memory_store.list_attachments(parts[2]))
+                    # storage_locator is a path on this server's disk; the browser gets ids and hashes, never a path
+                    self._send_json(200, [{k: v for k, v in item.items() if k != "storage_locator"} for item in memory_store.list_attachments(parts[2])])
                 elif len(parts) == 4 and parts[0] == "api" and parts[1] == "attachment" and parts[3] == "file":
                     attachment_store, _ = _read_store_for_agent(principal, params.get("agent_id"), params.get("store_id"))
                     attachment = attachment_store.get_attachment(parts[2])
@@ -1230,8 +1359,101 @@ def _make_handler(store: GraphStore, *, allowed_origins: frozenset[str],
                 return
 
             try:
-                payload = self._read_json_body()
-                if parts == ["api", "agent-devices", "associate"]:
+                is_upload = (len(parts) == 4 and parts[:2] == ["api", "memory"] and parts[3] == "attachments") or parts == ["api", "import"]
+                payload = {} if is_upload else self._read_json_body()
+                query = {k: v[0] for k, v in parse_qs(parsed.query).items()}
+                if parts == ["api", "auth", "tokens"]:
+                    _assert_pair_manager(principal)
+                    ttl = payload.get("ttl_hours")
+                    issued = issue_console_token(
+                        store.home,
+                        profile_id=store.profile_id,
+                        caller_roles=set(principal.get("roles") or []),
+                        label=str(payload.get("label") or ""),
+                        role=str(payload.get("role") or ""),
+                        ttl_hours=int(ttl) if ttl not in (None, "") else None,
+                        agent_ids=[str(a) for a in payload.get("agent_ids") or []] if isinstance(payload.get("agent_ids"), list) else None,
+                    )
+                    self._send_json(201, issued)
+                elif parts == ["api", "auth", "tokens", "revoke"]:
+                    _assert_pair_manager(principal)
+                    revoked = revoke_console_token(store.home, store.profile_id, str(payload.get("token_id") or ""), current_token_id=str(principal.get("id") or "") or None)
+                    self._send_json(200 if revoked else 404, {"ok": True} if revoked else {"error": "token not found, or already revoked"})
+                elif len(parts) == 4 and parts[:2] == ["api", "memory"] and parts[3] == "attachments":
+                    # Raw bytes in the body (never a server path), streamed to a temp file under this
+                    # profile's folder, then handed to the same store method the MCP tool uses.
+                    memory_id = unquote(parts[2])
+                    _assert_memory_scope(store.get_memory(memory_id), principal, store)
+                    declared = clean_media_type(self.headers.get("Content-Type"))
+                    temp = self._stream_body_to_temp(Path(store.home) / "upload-tmp", 200 * 1024 * 1024)
+                    try:
+                        attachment = store.attach_media(memory_id, temp, media_type=declared)
+                    finally:
+                        temp.unlink(missing_ok=True)
+                    attachment.pop("storage_locator", None)
+                    attachment["display_name"] = safe_display_name(query.get("filename"))
+                    self._send_json(201, attachment)
+                elif parts == ["api", "import"]:
+                    data = self._read_raw_body(MAX_IMPORT_BYTES)
+                    source = _scoped_source(store, principal, None)
+                    workspace_agent = _operator_workspace_agent(store, principal, query.get("workspace_agent_id"), source)
+                    self._send_json(200, import_document(
+                        store, filename=query.get("filename"), data=data,
+                        source_agent_id=source.get("agent_id") if isinstance(source.get("agent_id"), str) else None,
+                        persisted_agent_id=workspace_agent,
+                    ))
+                elif parts == ["api", "provenance", "export"]:
+                    ids = payload.get("memory_ids")
+                    if not isinstance(ids, list) or not ids or not all(isinstance(i, str) for i in ids):
+                        raise ValueError("memory_ids must be a non-empty list of memory ids")
+                    if len(ids) > MAX_EXPORT_IDS:
+                        raise ValueError(f"at most {MAX_EXPORT_IDS} memories can be exported at once; narrow the window or the filters")
+                    for memory_id in ids:  # every memory, checked against the credential, before any is read into a bundle
+                        _assert_memory_scope(store.get_memory(memory_id), principal, store)
+                    self._send_json(200, store.export_memory_bundle(memory_ids=ids, include_forgotten=bool(payload.get("include_forgotten", False)), limit=MAX_EXPORT_IDS))
+                elif len(parts) == 4 and parts[:2] == ["api", "session"] and parts[3] == "end":
+                    session_id = unquote(parts[2])
+                    session = _assert_session_access(store, principal, session_id)
+                    if session.get("ended_at"):
+                        raise RuntimeError("this session has already ended")
+                    # No closing summary is taken here: the store queues one for the summary worker. Ending is
+                    # not undone, which is why the console asks first.
+                    self._send_json(200, store.end_session(session_id, source=_scoped_source(store, principal, None)))
+                elif len(parts) == 4 and parts[:2] == ["api", "memory"] and parts[3] == "verify-link":
+                    memory_id = unquote(parts[2])
+                    _assert_memory_scope(store.get_memory(memory_id), principal, store)
+                    dag_home = os.environ.get("XIBALBA_DAG_HOME", "").strip() or None
+                    result = store.verify_integrity_link(memory_id, dag_home=dag_home, agent_id=_write_agent(store, principal))
+                    result.pop("dag_home", None)
+                    self._send_json(200, result)
+                elif len(parts) == 4 and parts[:2] == ["api", "session"] and parts[3] == "anchor":
+                    _assert_store_operator(principal)
+                    session_id = unquote(parts[2])
+                    _assert_session_access(store, principal, session_id)
+                    if not os.environ.get("XIBALBA_ANCHOR_URL", "").strip():
+                        self._send_json(503, {"error": "no anchor service is configured on this server (XIBALBA_ANCHOR_URL)"})
+                        return
+                    result = store.anchor_session_root(session_id)
+                    # the anchor URL and any upstream detail stay on the server
+                    self._send_json(200, {k: v for k, v in result.items() if k not in {"anchor_url", "url", "response"}})
+                elif parts == ["api", "backup"]:
+                    _assert_store_operator(principal)
+                    directory = configured_backup_dir()
+                    if directory is None:
+                        self._send_json(503, {"error": "no backup destination is configured on this server (XIBALBA_BACKUP_DIR)"})
+                        return
+                    name = new_backup_name()
+                    result = store.backup(directory / name)
+                    self._send_json(201, public_backup_result(result, name))
+                elif parts == ["api", "backup", "reconcile"]:
+                    _assert_store_operator(principal)
+                    directory = configured_backup_dir()
+                    if directory is None:
+                        self._send_json(503, {"error": "no backup destination is configured on this server (XIBALBA_BACKUP_DIR)"})
+                        return
+                    recon = store.reconcile_backup(resolve_backup(directory, str(payload.get("name") or "")))
+                    self._send_json(200, {"name": str(payload["name"]), "reconciliation": summarize_reconciliation(recon)})
+                elif parts == ["api", "agent-devices", "associate"]:
                     _assert_pair_manager(principal)
                     agent_id = str(payload.get("agent_id") or "").strip()
                     persisted_agent = store.storage_agent_id(agent_id)
@@ -1521,6 +1743,8 @@ def _make_handler(store: GraphStore, *, allowed_origins: frozenset[str],
                     )
                 else:
                     self._send_json(404, {"error": "not found"})
+            except _PayloadTooLarge as exc:
+                self._send_json(413, {"error": str(exc)})
             except KeyError:
                 self._send_json(404, {"error": "not found"})
             except (sqlite3.IntegrityError, TypeError, ValueError) as exc:

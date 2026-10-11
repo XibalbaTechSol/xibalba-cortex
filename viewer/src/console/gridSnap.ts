@@ -90,20 +90,25 @@ export const MAX_LATTICE_SEGMENTS = 9000
  * boundary and one along z for every (x, y) boundary, so the cell walls fill the whole volume around
  * `bounds` (padded by `pad` cells) and every cube sits inside a visible cell. It is a cubic lattice of
  * 3 (n+1)^2 segments for an n-cell cube, which stays small for the sample sizes the lens draws; a
- * lattice past MAX_LATTICE_SEGMENTS returns the three-face frame from `gridLines` instead.
+ * lattice past MAX_LATTICE_SEGMENTS returns the three-face frame from `gridLines` instead. `stride` keeps
+ * every nth boundary, for a coarser lattice when the camera is far.
  */
-export function latticeLines(bounds: { min: Cell; max: Cell }, size: number, pad = 1): Float32Array {
+export function latticeLines(bounds: { min: Cell; max: Cell }, size: number, pad = 1, stride = 1): Float32Array {
   const lo = { i: bounds.min.i - pad, j: bounds.min.j - pad, k: bounds.min.k - pad }
   const hi = { i: bounds.max.i + pad, j: bounds.max.j + pad, k: bounds.max.k + pad }
   const ni = hi.i - lo.i + 2, nj = hi.j - lo.j + 2, nk = hi.k - lo.k + 2 // boundaries per axis
-  if (nj * nk + ni * nk + ni * nj > MAX_LATTICE_SEGMENTS) return gridLines(bounds, size, pad)
+  const st = Math.max(1, Math.floor(stride))
+  // a coarser lattice (every `st`th boundary, aligned to multiples of st so the lines do not shift as it
+  // coarsens) is how the grid stays faint and legible when the camera is far away
+  const keep = (n: number) => n % st === 0
+  if ((nj * nk + ni * nk + ni * nj) / (st * st) > MAX_LATTICE_SEGMENTS) return gridLines(bounds, size, pad)
   const edge = (n: number) => (n - 0.5) * size
   const x0 = edge(lo.i), x1 = edge(hi.i + 1), y0 = edge(lo.j), y1 = edge(hi.j + 1), z0 = edge(lo.k), z1 = edge(hi.k + 1)
   const out: number[] = []
   const seg = (ax: number, ay: number, az: number, bx: number, by: number, bz: number) => out.push(ax, ay, az, bx, by, bz)
-  for (let j = lo.j; j <= hi.j + 1; j++) for (let k = lo.k; k <= hi.k + 1; k++) seg(x0, edge(j), edge(k), x1, edge(j), edge(k))
-  for (let i = lo.i; i <= hi.i + 1; i++) for (let k = lo.k; k <= hi.k + 1; k++) seg(edge(i), y0, edge(k), edge(i), y1, edge(k))
-  for (let i = lo.i; i <= hi.i + 1; i++) for (let j = lo.j; j <= hi.j + 1; j++) seg(edge(i), edge(j), z0, edge(i), edge(j), z1)
+  for (let j = lo.j; j <= hi.j + 1; j++) for (let k = lo.k; k <= hi.k + 1; k++) if (keep(j) && keep(k)) seg(x0, edge(j), edge(k), x1, edge(j), edge(k))
+  for (let i = lo.i; i <= hi.i + 1; i++) for (let k = lo.k; k <= hi.k + 1; k++) if (keep(i) && keep(k)) seg(edge(i), y0, edge(k), edge(i), y1, edge(k))
+  for (let i = lo.i; i <= hi.i + 1; i++) for (let j = lo.j; j <= hi.j + 1; j++) if (keep(i) && keep(j)) seg(edge(i), edge(j), z0, edge(i), edge(j), z1)
   return new Float32Array(out)
 }
 
@@ -120,3 +125,15 @@ export function latticeFrame(bounds: { min: Cell; max: Cell }, size: number, pad
   return new Float32Array(out)
 }
 
+
+/**
+ * How many cells apart to draw lattice lines so they stay at least `minPx` apart on screen: 1 when close,
+ * then 2, 4, 8... as the camera pulls back. A power of two, so each coarser lattice is a subset of the
+ * finer one and the lines never appear to slide.
+ */
+export function latticeStride(cellPx: number, minPx = 14): number {
+  if (!(cellPx > 0)) return 1
+  let stride = 1
+  while (cellPx * stride < minPx && stride < 1024) stride *= 2
+  return stride
+}

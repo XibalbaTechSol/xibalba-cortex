@@ -7,10 +7,12 @@
  * Tokens marked DERIVED are not from the mock.
  */
 :root {
-  /* surfaces: one graphite for the page, every window and the top bar */
-  --ground: #14171a;
+  /* surfaces: one graphite for the page, every window and the top bar. #0d0f11 is the dark
+     background Shield's command-center theme uses for --bg and --panel alike (ui/src/App.css),
+     chosen by the product owner over the mock's #14171a. */
+  --ground: #0d0f11;
   --chrome: var(--ground);
-  --panel: #1b1f23;
+  --panel: #0d0f11;
   --elevated: #262b30;
 
   /* rules */
@@ -42,8 +44,10 @@
   --status-conflict-soft: rgba(216, 131, 131, 0.16);
 
   /* type */
-  --font-condensed: 'Barlow Condensed', sans-serif;
-  --font-body: 'Barlow', system-ui, -apple-system, sans-serif;
+  /* Raleway throughout. Headings and metrics use the same face at weight 600 (there is no condensed
+     Raleway), so they are set a little smaller than a condensed face would be. */
+  --font-display: 'Raleway', system-ui, -apple-system, sans-serif;
+  --font-body: 'Raleway', system-ui, -apple-system, sans-serif;
   --font-mono: 'JetBrains Mono', monospace;
 
   /* geometry */

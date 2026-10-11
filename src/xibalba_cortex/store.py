@@ -1819,6 +1819,13 @@ class GraphStore:
             ).fetchone()
         return row["id"] if row else None
 
+    def find_memory_id_by_idempotency_key(self, key: str) -> str | None:
+        """The memory a prior write with this idempotency key produced, if any. Lets a caller tell a
+        fresh write from a replay, which store_memory itself does not report."""
+        with self._lock:
+            row = self._connection.execute("SELECT id FROM memories WHERE idempotency_key = ?", (key,)).fetchone()
+        return row["id"] if row else None
+
     def find_memory_id_by_locator(self, locator: str) -> str | None:
         """Look up the current (non-superseded) memory for a given source.locator, if any --
         the re-sync primitive for document-ingestion paths (wiki_ingest): a
@@ -4081,6 +4088,24 @@ class GraphStore:
             else:
                 item["runtime_status"] = "orphan_outcome"
         return list(reversed(results[-limit:]))
+
+    # -- operational status for the operator console (console_status.py has the reasoning) -----------------
+    # Read-only, store-wide views. None of them writes, and none exposes a worker or connector control.
+
+    def runtime_overview(self) -> list[dict[str, object]]:
+        """Agent runtimes seen in memory sources and tool-call telemetry, with policy decisions."""
+        from .console_status import runtime_overview
+        return runtime_overview(self._read_connection(), self.invocation_correlations(limit=1000))
+
+    def worker_status(self) -> dict[str, object]:
+        """Background workers' state, derived from the work they leave in the queue."""
+        from .console_status import worker_status
+        return worker_status(self._read_connection(), self.embedding_coverage())
+
+    def connector_status(self, manifest: dict[str, dict[str, object]]) -> dict[str, object]:
+        """Each declared ingest connector with the evidence the store holds for it."""
+        from .console_status import connector_status
+        return connector_status(self._read_connection(), manifest)
 
     def record_exchange(
         self,

@@ -35,7 +35,7 @@ const EDGE_RULE: Record<EdgeGroup, string> = {
 const titleCase = (value: string) => value.replace(/_/g, ' ')
 
 export function FacetRail() {
-  const { model, facets, setFacets, stats, similarity, setSimilarity, window: timeWindow, setWindow, loading } = useConsole()
+  const { model, facets, setFacets, stats, similarity, setSimilarity, window: timeWindow, setWindow, loading, openPage } = useConsole()
   const counts = useMemo(() => (model ? countFacets(model) : null), [model])
 
   // the slider refetches the graph, so it commits after the user stops moving it
@@ -60,10 +60,11 @@ export function FacetRail() {
         <section className="xc-facet-group">
           <p className="xc-eyebrow">Projection</p>
           <dl className="xc-kv" style={{ marginTop: 10 }}>
-            <div><dt>Memories</dt><dd title={stats?.memories == null ? 'The API did not count them' : undefined}>{stats?.memories == null ? '—' : stats.memories.toLocaleString()}</dd></div>
-            <div><dt>Entities</dt><dd>{stats ? stats.entities.toLocaleString() : '—'}</dd></div>
+            {/* the counts are the way into the lists behind them: each opens its drawer over this lens */}
+            <div><dt><button type="button" className="xc-link xc-kv-link" aria-haspopup="dialog" onClick={() => openPage('memories')}>Memories</button></dt><dd title={stats?.memories == null ? 'The API did not count them' : undefined}>{stats?.memories == null ? '—' : stats.memories.toLocaleString()}</dd></div>
+            <div><dt><button type="button" className="xc-link xc-kv-link" aria-haspopup="dialog" onClick={() => openPage('entities')}>Entities</button></dt><dd>{stats ? stats.entities.toLocaleString() : '—'}</dd></div>
             <div><dt>Relations</dt><dd>{stats ? stats.relations.toLocaleString() : '—'}</dd></div>
-            <div><dt>Sessions</dt><dd>{stats ? stats.sessions.toLocaleString() : '—'}</dd></div>
+            <div><dt><button type="button" className="xc-link xc-kv-link" aria-haspopup="dialog" onClick={() => openPage('sessions')}>Sessions</button></dt><dd>{stats ? stats.sessions.toLocaleString() : '—'}</dd></div>
             <div><dt>In this sample</dt><dd>{model ? `${model.nodes.length} nodes` : loading ? '…' : '—'}</dd></div>
           </dl>
         </section>

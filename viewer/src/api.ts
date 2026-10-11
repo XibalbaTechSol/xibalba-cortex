@@ -141,6 +141,23 @@ export async function accountLogout(): Promise<void> {
   markSignedIn(false)
 }
 
+/**
+ * Ask for a password-reset email. Resolves for every 200 (the server answers the same whether or not
+ * the account exists); rejects with an ApiError carrying 503 (no email delivery), 429 (rate limit) etc.
+ */
+export async function accountRequestPasswordReset(email: string): Promise<void> {
+  const response = await fetch(getApiBaseUrl() + "/api/auth/password-reset/request", { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email }) })
+  const payload = await response.json().catch(() => ({}))
+  if (!response.ok) throw new ApiError(payload.error || response.status + " " + response.statusText, response.status)
+}
+
+/** Set a new password with the secret from the emailed link. 400 means invalid, used or expired. */
+export async function accountConfirmPasswordReset(resetToken: string, newPassword: string): Promise<void> {
+  const response = await fetch(getApiBaseUrl() + "/api/auth/password-reset/confirm", { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ reset_token: resetToken, new_password: newPassword }) })
+  const payload = await response.json().catch(() => ({}))
+  if (!response.ok) throw new ApiError(payload.error || response.status + " " + response.statusText, response.status)
+}
+
 export async function accountChangePassword(currentPassword: string, newPassword: string): Promise<void> {
   const response = await mutatingFetch("/api/auth/password", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ current_password: currentPassword, new_password: newPassword }) })
   const payload = await response.json().catch(() => ({}))
@@ -150,7 +167,7 @@ export async function accountChangePassword(currentPassword: string, newPassword
 // `GET /api/graph` (GraphStore.graph_payload) returns five node classes and eight edge types.
 // This used to declare only `memory | entity` and `relation | similarity | contradiction`, which
 // understated the payload: session/exchange/merkle nodes and the structural edges have always
-// been sent, and the legacy graph code reads them through its own DemoNode adapter. Widened so
+// been sent. Widened so
 // the types match the wire. Every added field is optional, so existing readers are unaffected.
 export type GraphNodeType = 'memory' | 'entity' | 'session' | 'exchange' | 'merkle'
 export type GraphEdgeType =
@@ -340,7 +357,6 @@ export interface Attachment {
   media_type: string
   content_hash: string
   byte_size: number
-  storage_locator: string
   created_at: string
 }
 
@@ -829,11 +845,25 @@ export interface AgentSummary {
   recent_memories: Memory[]
 }
 
+/**
+ * An HTTP failure from a data route. The status travels with the message because the message alone
+ * ("invalid or revoked token") cannot tell the console that the session ended: a 401 means sign in
+ * again, a 403 means this credential may not do that, and the screens react differently to each.
+ */
+export class ApiError extends Error {
+  readonly status: number
+  constructor(message: string, status: number) {
+    super(message)
+    this.name = 'ApiError'
+    this.status = status
+  }
+}
+
 async function getJson<T>(path: string): Promise<T> {
   const response = await fetch(`${getApiBaseUrl()}${path}`, { credentials: "include" })
   if (!response.ok) {
     const body = await response.json().catch(() => ({ error: response.statusText }))
-    throw new Error(body.error ?? `request failed: ${response.status}`)
+    throw new ApiError(body.error ?? `request failed: ${response.status}`, response.status)
   }
   return response.json() as Promise<T>
 }
@@ -846,7 +876,172 @@ async function postJson<T>(path: string, payload: Record<string, unknown>): Prom
   })
   if (!response.ok) {
     const body = await response.json().catch(() => ({ error: response.statusText }))
-    throw new Error(body.error ?? `request failed: ${response.status}`)
+    throw new ApiError(body.error ?? `request failed: ${response.status}`, response.status)
+  }
+  return response.json() as Promise<T>
+}
+
+// ---- operator administration (console_admin.py) -----------------------------------------------------------
+
+export type ApiTokenState = 'active' | 'expired' | 'revoked'
+export interface ApiTokenRecord {
+  id: string
+  label: string
+  roles: string[]
+  scopes: string[]
+  agent_ids: string[]
+  created_at: string
+  last_used_at: string | null
+  expires_at: string | null
+  revoked_at: string | null
+  state: ApiTokenState
+}
+export interface ApiTokenList { tokens: ApiTokenRecord[]; grantable_roles: string[] }
+/** `token` is the secret and exists only in this response. */
+export interface IssuedApiToken { token: string; record: ApiTokenRecord | null }
+
+export interface PendingAccount {
+  id: string
+  email: string
+  display_name: string
+  profile_id: string
+  role: string
+  email_verified: boolean
+  approval_status: string
+  created_at: string
+}
+
+/** GET /api/profile/config: how the profile is configured, with no path and no secret. */
+export interface ProfileConfig {
+  profile_id: string
+  mode: string
+  identity_mode: string
+  retention_tier: string
+  storage: { backend: string; pool_size: number | null; ssl_mode: string | null }
+  inference: Record<string, unknown>
+  embeddings: Record<string, unknown>
+  retrieval: Record<string, boolean>
+  features: Record<string, boolean>
+  telemetry: Record<string, unknown>
+  quotas: Record<string, unknown>
+  auth: Record<string, unknown>
+  remote: { configured: boolean }
+  destinations: { backup: boolean; vault: boolean; integrity_dag: boolean; anchor_service: boolean; oracle: boolean }
+  changed_by: string
+}
+
+// ---- store-wide operational status (console_status.py) ---------------------------------------------------
+
+export interface RuntimeIntervention {
+  invocation_id: string | null
+  session_id: string | null
+  tool_name: string | null
+  verdict: 'deny' | 'ask'
+  reason: string | null
+  at: string | null
+}
+export interface RuntimeRow {
+  runtime: string
+  sessions: number
+  memories: number
+  invocations: number
+  decisions: { allow: number; deny: number; ask: number; other: number }
+  outcomes: { success: number; error: number; other: number }
+  first_seen_at: string | null
+  last_seen_at: string | null
+  /** "quiet" is not "down": the store only knows when a runtime last wrote */
+  activity: 'recent' | 'quiet'
+  interventions: RuntimeIntervention[]
+}
+
+export type WorkerState = 'working' | 'draining' | 'idle' | 'backlog' | 'stalled' | 'failing' | 'no work seen'
+export interface WorkerRow {
+  id: string
+  label: string
+  state: WorkerState
+  task_types: string[]
+  pending: number
+  in_flight: number
+  stalled_leases: number
+  completed_24h: number | null
+  failed_24h: number
+  last_activity_at: string | null
+  oldest_pending_at: string | null
+  claimed_by: string[]
+  coverage?: { eligible: number | null; current: number | null; missing: number | null; stale: number | null; failed: number | null; model: string | null }
+}
+export interface WorkerStatus { as_of: string; workers: WorkerRow[]; basis: string }
+
+export interface ConnectorRow {
+  name: string
+  entrypoint: string | null
+  state: string | null
+  idempotency: string | null
+  source_kind: string | null
+  evidence: { memories: number; last_at: string | null } | null
+}
+export interface ConnectorStatus {
+  connectors: ConnectorRow[]
+  webhook_senders: Array<{ connector: string; events: number; last_at: string | null }>
+  ingest_by_source_kind: Array<{ kind: string; memories: number; last_at: string | null }>
+  provider_telemetry: Array<{ provider: string; accepted: number; duplicates: number; rejected: number; last_error: string | null; last_seen_at: string | null }>
+  basis: string
+}
+
+/** GET /api/vault/leaf: found/anchored are what the vault says; `error` is a path-free reason it could not be read. */
+export interface VaultLeafResult {
+  found: boolean
+  anchored: boolean
+  leaf?: Record<string, unknown> | null
+  anchor?: Record<string, unknown> | null
+  recomputed_hash_matches?: boolean | null
+  error?: string
+}
+
+// ---- actions that write or reach outward (console_actions.py) ---------------------------------------------
+
+export interface ImportResult {
+  document: { name: string; sha256: string; bytes: number; sections: number }
+  imported: number
+  already_present: number
+  memory_ids: string[]
+  proposal_runs: number
+  status: 'candidate'
+  note: string
+}
+
+export interface ReconciliationSummary {
+  equal: boolean
+  domains: Record<string, { equal: boolean; live_leaf_count: number | null; destination_leaf_count: number | null }>
+}
+export interface BackupResult {
+  name: string
+  integrity_check: string | null
+  schema_version: number | null
+  reconciliation: ReconciliationSummary | null
+  /** one sentence on what this copy does and does not show */
+  claim: string
+}
+export interface BackupEntry { name: string; bytes: number; modified_at: string }
+export interface BackupList { configured: boolean; backups: BackupEntry[] }
+
+export interface IntegrityLinkVerification {
+  memory_id: string
+  node_id: string | null
+  verification_state: string
+  failure_reason: string | null
+  scope: string
+  truth_authorization_completeness: boolean
+  anchored: boolean
+}
+export interface SessionAnchorResult { anchored: boolean; session_id?: string; error?: string }
+
+/** POST a file's bytes as the request body. 413 and the server's own reason surface as an ApiError. */
+async function uploadRaw<T>(path: string, file: File): Promise<T> {
+  const response = await mutatingFetch(path, { method: 'POST', headers: { 'Content-Type': file.type || 'application/octet-stream' }, body: file })
+  if (!response.ok) {
+    const body = await response.json().catch(() => ({ error: response.statusText }))
+    throw new ApiError(body.error ?? `request failed: ${response.status}`, response.status)
   }
   return response.json() as Promise<T>
 }
@@ -881,7 +1076,6 @@ export const api = {
   agents: (limit = 100) => getJson<{agents: AgentWorkspace[]; oracle_reachable: boolean}>(`/api/agents?limit=${limit}`),
   agentSummary: (agentId: string, storeId: string) =>
     getJson<AgentSummary>(`/api/agent/${encodeURIComponent(agentId)}/summary?limit=0&store_id=${encodeURIComponent(storeId)}`),
-  agentMemories: (agentId: string, deviceId?: string, limit = 100, scope: WorkspaceScope = {}) => getJson<{agent_id: string; memories: Memory[]}>(`/api/agent/${encodeURIComponent(agentId)}/memories?limit=${limit}${deviceId ? `&device_id=${encodeURIComponent(deviceId)}` : ''}${scopeParams(scope)}`),
   /** Pairings, newest first. /api/agents lists workspaces; this lists which devices are paired to them. */
   agentDevices: () => getJson<{ pairs: AgentDevicePair[] }>('/api/agent-devices'),
   associateAgentDevice: (agentId: string, deviceId: string, displayName?: string) =>
@@ -964,15 +1158,6 @@ export const api = {
     postJson<Memory>(`/api/memory/${encodeURIComponent(id)}/supersede`, payload),
   forgetMemory: (id: string) =>
     postJson<Memory & { content_hash_retained: boolean; deletion_receipt: Record<string, unknown> }>(`/api/memory/${encodeURIComponent(id)}/forget`, {}),
-  claimInferenceTask: (id: string, claimedBy: string, scope: WorkspaceScope = {}) =>
-    postJson<InferenceTask>(`/api/inference/tasks/${encodeURIComponent(id)}/claim?${scopeParams(scope).slice(1)}`, { claimed_by: claimedBy }),
-  completeInferenceTask: (id: string, outputPayload: Record<string, unknown>, error?: string, claimedBy?: string | null, claimToken?: string | null, scope: WorkspaceScope = {}) =>
-    postJson<InferenceTask>(`/api/inference/tasks/${encodeURIComponent(id)}/complete?${scopeParams(scope).slice(1)}`, {
-      output_payload: outputPayload,
-      ...(error ? { error } : {}),
-      ...(claimedBy ? { claimed_by: claimedBy } : {}),
-      ...(claimToken ? { claim_token: claimToken } : {}),
-    }),
   paraClassifications: (status = 'proposed', limit = 50) =>
     getJson<ParaClassification[]>(`/api/para/classifications?status=${encodeURIComponent(status)}&limit=${limit}`),
   decidePara: (taskId: string, decision: 'accept' | 'dismiss' | 'keep_original', note?: string) =>
@@ -1005,8 +1190,6 @@ export const api = {
     getJson<MerkleInclusionProof>(`/api/retrieval/trace/${encodeURIComponent(id)}/evidence?rank=${rank}`),
   projectionCheckpoints: (projectionId: string, limit = 50) =>
     getJson<ProjectionCheckpoint[]>(`/api/projections/${encodeURIComponent(projectionId)}/checkpoints?limit=${limit}`),
-  latestProjectionCheckpoint: (projectionId: string) =>
-    getJson<ProjectionCheckpoint>(`/api/projections/${encodeURIComponent(projectionId)}/checkpoints/latest`),
   createProjectionCheckpoint: (projectionId: string) =>
     postJson<ProjectionCheckpoint>(`/api/projections/${encodeURIComponent(projectionId)}/checkpoint`, {}),
   reconcileProjectionCheckpoint: (projectionId: string) =>
@@ -1014,6 +1197,26 @@ export const api = {
   rebuildProjectionCheckpoint: (projectionId: string) =>
     postJson<ProjectionCheckpoint & { verified: boolean }>(`/api/projections/${encodeURIComponent(projectionId)}/rebuild`, {}),
   embeddingModels: () => getJson<EmbeddingModel[]>('/api/embedding/models'),
+  profileConfig: () => getJson<ProfileConfig>('/api/profile/config'),
+  runtimes: () => getJson<{ runtimes: RuntimeRow[] }>('/api/runtimes'),
+  workers: () => getJson<WorkerStatus>('/api/workers'),
+  connectors: () => getJson<ConnectorStatus>('/api/connectors'),
+  vaultLeaf: (leafHash: string) => getJson<VaultLeafResult>(`/api/vault/leaf?leaf_hash=${encodeURIComponent(leafHash)}`),
+  backups: () => getJson<BackupList>('/api/backups'),
+  backupNow: () => postJson<BackupResult>('/api/backup', {}),
+  reconcileBackup: (name: string) => postJson<{ name: string; reconciliation: ReconciliationSummary }>('/api/backup/reconcile', { name }),
+  exportProvenance: (memoryIds: string[]) => postJson<ProvenanceBundle>('/api/provenance/export', { memory_ids: memoryIds }),
+  endSession: (sessionId: string) => postJson<Session>(`/api/session/${encodeURIComponent(sessionId)}/end`, {}),
+  verifyIntegrityLink: (memoryId: string) => postJson<IntegrityLinkVerification>(`/api/memory/${encodeURIComponent(memoryId)}/verify-link`, {}),
+  anchorSession: (sessionId: string) => postJson<SessionAnchorResult>(`/api/session/${encodeURIComponent(sessionId)}/anchor`, {}),
+  /** Raw bytes in the body, the declared media type in Content-Type, the display name in the query. The server picks every path. */
+  attachFile: (memoryId: string, file: File) => uploadRaw<Attachment & { display_name: string }>(`/api/memory/${encodeURIComponent(memoryId)}/attachments?filename=${encodeURIComponent(file.name)}`, file),
+  importDocument: (file: File, workspaceAgentId?: string) => uploadRaw<ImportResult>(`/api/import?filename=${encodeURIComponent(file.name)}${workspaceAgentId ? `&workspace_agent_id=${encodeURIComponent(workspaceAgentId)}` : ''}`, file),
+  authTokens: () => getJson<ApiTokenList>('/api/auth/tokens'),
+  issueAuthToken: (input: { label: string; role: string; ttl_hours: number }) => postJson<IssuedApiToken>('/api/auth/tokens', input),
+  revokeAuthToken: (tokenId: string) => postJson<{ ok: boolean }>('/api/auth/tokens/revoke', { token_id: tokenId }),
+  pendingAccounts: () => getJson<{ accounts: PendingAccount[] }>('/api/auth/admin/pending'),
+  approveAccount: (email: string) => postJson<{ ok: boolean }>('/api/auth/admin/approve', { email }),
   /**
    * Guided System Test for the kernel bridge. Without a session id it only submits the two
    * UserOperations and reports the decisions; with one it also records them as real
