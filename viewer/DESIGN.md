@@ -31,7 +31,7 @@ the *Top bar* layout option.
 | Collapsed rail — Timeline lens | `Shell.tsx (Rail), settings.ts` | Rail collapses to icons; also automatic on narrow windows. |
 | Top bar — Graph lens | `Shell.tsx (TopBar)` | Shield’s form of navigation, chosen in Settings → Layout. |
 | Top bar — Timeline lens | `Shell.tsx (TopBar)` |  |
-| Top bar — Sessions page | `pages/SessionsPage.tsx` |  |
+| Top bar — Sessions page · drawer | `pages/SessionsPage.tsx` |  |
 | Sign in — matches Shield | `SignIn.tsx` |  |
 | Sign in — create account | `SignIn.tsx` |  |
 | Recall — Hybrid, with per-channel ranks | `Recall.tsx` |  |
@@ -46,17 +46,17 @@ the *Top bar* layout option.
 | Integrity — server and browser verification | `Integrity.tsx, integrity.ts, merkleVerify.ts` | GET /api/session/{id}/verify-chain beside the browser-recomputed proofs. |
 | Integrity — checkpoints | `Integrity.tsx` |  |
 | Integrity — links | `Integrity.tsx` |  |
-| Memories | `pages/MemoriesPage.tsx` |  |
-| Memories — nothing matches | `pages/MemoriesPage.tsx` |  |
-| Entities — lookup and path | `pages/EntitiesPage.tsx, entities.ts` |  |
-| Sessions | `pages/SessionsPage.tsx, sessions.ts` |  |
-| Agents — identity and devices | `pages/AgentsPage.tsx, agents.ts` |  |
-| Operations | `pages/OperationsPage.tsx, ops.ts` |  |
-| Settings — Layout (rail or top bar) | `pages/SettingsPage.tsx, settings.ts` |  |
-| Settings — Inference policy | `pages/settings/InferenceSection.tsx, inferenceForm.ts` |  |
-| Settings — Embeddings | `pages/settings/EmbeddingsSection.tsx` |  |
-| Settings — Account (a token has no account) | `pages/settings/AccountSection.tsx, account.ts` |  |
-| Settings — Developer (an honest self-test failure) | `pages/settings/DeveloperSection.tsx` |  |
+| Memories · drawer | `pages/MemoriesPage.tsx` |  |
+| Memories — nothing matches · drawer | `pages/MemoriesPage.tsx` |  |
+| Entities — lookup and path · drawer | `pages/EntitiesPage.tsx, entities.ts` |  |
+| Sessions · drawer | `pages/SessionsPage.tsx, sessions.ts` |  |
+| Agents — identity and devices · drawer | `pages/AgentsPage.tsx, agents.ts` |  |
+| Operations · drawer | `pages/OperationsPage.tsx, ops.ts` |  |
+| Settings — Layout (rail or top bar) · drawer | `pages/SettingsPage.tsx, settings.ts` |  |
+| Settings — Inference policy · drawer | `pages/settings/InferenceSection.tsx, inferenceForm.ts` |  |
+| Settings — Embeddings · drawer | `pages/settings/EmbeddingsSection.tsx` |  |
+| Settings — Account (a token has no account) · drawer | `pages/settings/AccountSection.tsx, account.ts` |  |
+| Settings — Developer (an honest self-test failure) · drawer | `pages/settings/DeveloperSection.tsx` |  |
 | State — the API is unreachable | `state.tsx, Shell.tsx` |  |
 | Phone — Graph | `Phone.tsx` |  |
 | Phone — Timeline | `Phone.tsx, TimelineLens.tsx` |  |
@@ -74,12 +74,12 @@ the *Top bar* layout option.
 | Inspector — neighbours in the graph | `Inspector.tsx (NeighborsTab)` |  |
 | Inspector — contradictions, and the actions that resolve them | `Inspector.tsx, MemoryActions.tsx` |  |
 | Inspector — telemetry attached to the memory | `Inspector.tsx (TelemetryTab)` |  |
-| Memories — writing a memory (agent workspace only) | `pages/MemoriesPage.tsx (NewMemory)` | Only a verified writable workspace sees New memory; it says whose memory it will be. |
-| Entities — a path between two entities | `pages/EntitiesPage.tsx, entities.ts` | Each hop names the relation that connects it. |
-| Sessions — replay, with its completeness stated | `pages/SessionsPage.tsx` | Replay says what it cannot prove: it does not execute tools. |
-| Sessions — telemetry summary | `pages/SessionsPage.tsx` |  |
-| Sessions — invocation correlations | `pages/SessionsPage.tsx` |  |
-| Settings — Top bar chosen (and Snap to grid) | `pages/SettingsPage.tsx, settings.ts` |  |
+| Memories — writing a memory (agent workspace only) · drawer | `pages/MemoriesPage.tsx (NewMemory)` | Only a verified writable workspace sees New memory; it says whose memory it will be. |
+| Entities — a path between two entities · drawer | `pages/EntitiesPage.tsx, entities.ts` | Each hop names the relation that connects it. |
+| Sessions — replay, with its completeness stated · drawer | `pages/SessionsPage.tsx` | Replay says what it cannot prove: it does not execute tools. |
+| Sessions — telemetry summary · drawer | `pages/SessionsPage.tsx` |  |
+| Sessions — invocation correlations · drawer | `pages/SessionsPage.tsx` |  |
+| Settings — Top bar chosen (and Snap to grid) · drawer | `pages/SettingsPage.tsx, settings.ts` |  |
 | Graph lens — a workspace with no memories yet | `GraphLens.tsx` | The inspector still shows the workspace; the lens says why it is empty. |
 | Timeline lens — nothing to place | `TimelineLens.tsx` |  |
 | Recall — no results | `Recall.tsx` | Says what was searched and what to try, without implying a failure. |
@@ -91,6 +91,9 @@ the *Top bar* layout option.
 | Phone — Recall: query on its own row, modes beneath | `Recall.tsx, console.css` |  |
 | Phone — Review | `Review.tsx` |  |
 | Phone — Graph with the legend open | `GraphLens.tsx` |  |
+| Sessions drawer over the Timeline lens | `PageDrawer.tsx, pages/SessionsPage.tsx` | The route keeps the lens: #timeline/sessions. Closing returns to the timeline exactly as it was. |
+| A session in the lens opens its own drawer | `Inspector.tsx (SessionInspector), state.tsx (openPage)` | “Exchanges, replay, telemetry” on a selected session opens the Sessions drawer aimed at that session. |
+| An entity in the graph opens neighbours and paths · drawer | `Inspector.tsx (EntityInspector), pages/EntitiesPage.tsx` | “Neighbours and paths” opens the Entities drawer with that entity already looked up. |
 
 ## Planned — designed, not built
 
@@ -118,6 +121,22 @@ the *Top bar* layout option.
 - On a phone, Memories rows are cards and Sessions shows the list or the detail, not both.
 - Timeline date labels thin themselves so neighbours stay at least 56px apart.
 
+
+## Information architecture
+
+Graph and Timeline are the two ways to work; they are the only destinations. Everything else opens **over** the lens it was opened from, as a drawer or a dialog, and the lens stays mounted underneath (camera, window and selection are kept).
+
+| Tool | Surface | Opened from |
+|---|---|---|
+| Memories | drawer (wide) | the Memories count in the facet rail; Tools strip; `#memories` |
+| Entities | drawer (wide) | the Entities count; an entity in the inspector (“Neighbours and paths”, aimed at it) |
+| Sessions | drawer (wide) | the Sessions count; a session in the inspector (“Exchanges, replay, telemetry”, aimed at it) |
+| Operations | drawer | the connection chip at the foot of the rail |
+| Agents | drawer | “Agents and devices”, under the scope picker |
+| Settings | drawer | Tools strip |
+| Recall, Review, Integrity | dialog / drawer | `⌘K`; Tools strip; the workspace summary in the inspector |
+
+The route keeps the lens under a drawer: `#timeline/sessions`. Esc, the scrim and the close button return to the lens. On a phone a drawer is a full-screen sheet and the tab bar is unchanged.
 
 ## Graph lens: the spec to implement from
 
