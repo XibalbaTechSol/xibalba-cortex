@@ -16,6 +16,7 @@ import { cellCentre, snapToGrid, type Cell } from './gridSnap'
 import { defaultFacets, filterModel, selectionHidden, type CNode, type EdgeGroup, type Facets, type NodeClass } from './model'
 import { palette, withAlpha } from './palette'
 import { IconFit, IconTarget, IconWarn } from './icons'
+import { PaneToggle } from './PaneToggle'
 
 interface FGNode {
   id: string
@@ -354,6 +355,7 @@ export function GraphLens() {
   return (
     <section className="xc-win xc-pane xc-canvas-win" aria-label="Graph lens">
       <div className="xc-bar">
+        <PaneToggle side="filters" />
         <p className="xc-eyebrow">Graph lens</p>
         <span className="xc-spacer" />
         <div className="xc-ranges" role="group" aria-label="Graph view">
@@ -366,6 +368,7 @@ export function GraphLens() {
         <div className="xc-ranges" role="group" aria-label="Grid">
           <button type="button" aria-pressed={snap} onClick={() => update({ graphSnap: !snap })} title="Each node takes its own cell of the grid. Off, nodes stay where the layout puts them.">Snap to grid</button>
         </div>
+        <PaneToggle side="inspector" />
       </div>
 
       {hidden && (

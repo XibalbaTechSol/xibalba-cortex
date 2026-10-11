@@ -7,7 +7,7 @@ import { useConsole } from './state'
 import { useSettings } from './settingsContext'
 import { GROUP_LABEL, NAV_GROUPS, destinationsIn, type Destination, type DestinationId } from './nav'
 import {
-  IconAgents, IconChevronLeft, IconChevronRight, IconEntities, IconGraph, IconIntegrity, IconMemories, IconOperations,
+  IconAgents, IconChevronDown, IconChevronLeft, IconChevronRight, IconChevronUp, IconEntities, IconGraph, IconIntegrity, IconMemories, IconOperations,
   IconRefresh, IconReview, IconSearch, IconSessions, IconSettings, IconSignOut, IconTimeline,
 } from './icons'
 
@@ -36,22 +36,24 @@ export function useIsCurrent(): (dest: Destination) => boolean {
   }
 }
 
-export function NavButton({ dest, compact = false }: { dest: Destination; compact?: boolean }) {
+/** `tile` is the small square form used for tools: an icon over a short label. */
+export function NavButton({ dest, compact = false, tile = false }: { dest: Destination; compact?: boolean; tile?: boolean }) {
   const { go } = useConsole()
   const isCurrent = useIsCurrent()
   return (
     <button
       type="button"
-      className="xc-nav-btn"
+      className={`xc-nav-btn${tile ? ' xc-nav-btn--tile' : ''}`}
+      data-kind={dest.kind}
       aria-current={isCurrent(dest) ? 'page' : undefined}
-      aria-haspopup={dest.kind === 'overlay' ? 'dialog' : undefined}
-      aria-label={compact ? dest.label : undefined}
+      aria-haspopup={dest.kind !== 'lens' ? 'dialog' : undefined}
+      aria-label={compact || tile ? dest.label : undefined}
       title={dest.hint}
       onClick={() => go(dest.id)}
     >
       {DESTINATION_ICON[dest.id]}
       <span className="xc-nav-label">{dest.label}</span>
-      {dest.id === 'recall' && <span className="xc-kbd xc-nav-label">⌘K</span>}
+      {dest.id === 'recall' && !tile && <span className="xc-kbd xc-nav-label">⌘K</span>}
     </button>
   )
 }
@@ -77,8 +79,8 @@ function useConnection() {
 /** Not a store/agent pair, so it cannot collide with one (those join their ids with a NUL). */
 const PRIMARY_VALUE = '__primary__'
 
-export function ScopePicker() {
-  const { workspace } = useConsole()
+export function ScopePicker({ manage = false }: { manage?: boolean }) {
+  const { workspace, openPage } = useConsole()
   const { options, selected, primary, choose, choosePrimary } = workspace
   return (
     <label className="xc-scope">
@@ -103,6 +105,12 @@ export function ScopePicker() {
       ) : (
         <span className="xc-input xc-scope-static">Primary profile · read only</span>
       )}
+      {/* agents and devices belong to the scope, so they open from it */}
+      {manage && (
+        <button type="button" className="xc-link xc-scope-manage" aria-haspopup="dialog" onClick={(e) => { e.preventDefault(); openPage('agents') }}>
+          Agents and devices
+        </button>
+      )}
     </label>
   )
 }
@@ -124,16 +132,28 @@ export function Actions() {
 /** The top-bar layout: brand, connection, scope and actions on a row; every destination on a second. */
 export function TopBar() {
   const { state, text } = useConnection()
+  const { settings, update } = useSettings()
+  const collapsed = settings.railCollapsed
   return (
-    <header className="xc-top">
+    <header className="xc-top" data-collapsed={collapsed}>
       <div className="xc-top-row">
         <Brand />
         <div className="xc-conn" data-state={state} role="status" aria-live="polite">
           <i aria-hidden="true" />
           {text}
         </div>
-        <ScopePicker />
+        <ScopePicker manage />
         <Actions />
+        <button
+          type="button"
+          className="xc-btn xc-btn--square"
+          aria-pressed={collapsed}
+          aria-label={collapsed ? 'Expand navigation' : 'Collapse navigation'}
+          title={collapsed ? 'Expand navigation' : 'Collapse navigation'}
+          onClick={() => update({ railCollapsed: !collapsed })}
+        >
+          {collapsed ? <IconChevronDown /> : <IconChevronUp />}
+        </button>
       </div>
       <nav className="xc-nav" aria-label="Lenses and workflows">
         {NAV_GROUPS.map((group) => {
@@ -142,7 +162,7 @@ export function TopBar() {
           return (
             <div className="xc-nav-group" key={group}>
               <span className="xc-nav-kicker">{GROUP_LABEL[group]}</span>
-              {items.map((d) => <NavButton key={d.id} dest={d} />)}
+              {items.map((d) => <NavButton key={d.id} dest={d} compact={collapsed} />)}
             </div>
           )
         })}
@@ -153,7 +173,7 @@ export function TopBar() {
 
 /** The left-rail layout (the default). Collapsing keeps the icons and moves the scope to a badge. */
 export function Rail() {
-  const { workspace } = useConsole()
+  const { workspace, openPage } = useConsole()
   const { settings, update } = useSettings()
   const { state, text } = useConnection()
   const collapsed = settings.railCollapsed
@@ -175,31 +195,33 @@ export function Rail() {
       </div>
 
       <div className="xc-rail-scope">
-        <ScopePicker />
+        <ScopePicker manage={!collapsed} />
         {/* shown only when collapsed: which workspace am I in, and can I write to it */}
         <span className="xc-rail-badge" title={`${scopeLabel} · ${workspace.canWrite ? 'writable' : 'read only'}`}>
           {workspace.canWrite ? 'RW' : 'RO'}
         </span>
       </div>
 
-      <nav className="xc-rail-nav" aria-label="Lenses and workflows">
-        {NAV_GROUPS.map((group) => {
-          const items = destinationsIn(group)
-          if (items.length === 0) return null
-          return (
-            <div className="xc-rail-group" key={group}>
-              <p className="xc-rail-kicker">{GROUP_LABEL[group]}</p>
-              {items.map((d) => <NavButton key={d.id} dest={d} compact={collapsed} />)}
-            </div>
-          )
-        })}
+      <nav className="xc-rail-nav" aria-label="Lenses">
+        <div className="xc-rail-group">
+          <p className="xc-rail-kicker">{GROUP_LABEL.lens}</p>
+          {destinationsIn('lens').map((d) => <NavButton key={d.id} dest={d} compact={collapsed} />)}
+        </div>
       </nav>
 
+      {/* everything that is not a lens opens over the lens: small tiles, so the two lenses stay the nav */}
+      <div className="xc-rail-group xc-rail-tools" role="group" aria-label="Tools, each opens over the current lens">
+        <p className="xc-rail-kicker">{GROUP_LABEL.tools}</p>
+        <div className="xc-tool-strip">
+          {destinationsIn('tools').map((d) => <NavButton key={d.id} dest={d} tile />)}
+        </div>
+      </div>
+
       <div className="xc-rail-foot">
-        <div className="xc-conn" data-state={state} role="status" aria-live="polite" title={text}>
+        <button type="button" className="xc-conn xc-conn--button" data-state={state} aria-haspopup="dialog" title={`${text}. Open Operations`} onClick={() => openPage('operations')}>
           <i aria-hidden="true" />
           <span className="xc-nav-label">{text}</span>
-        </div>
+        </button>
         <Actions />
       </div>
     </aside>

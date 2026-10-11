@@ -21,8 +21,8 @@ const SECTIONS: Array<[Section, string]> = [
 ]
 
 const LAYOUTS: Array<{ id: ShellLayout; title: string; body: string }> = [
-  { id: 'rail', title: 'Left rail', body: 'Every destination in a rail down the left edge, grouped, with the workspace beside it. The default.' },
-  { id: 'top', title: 'Top bar', body: 'A bar across the top with every destination on a second row. More room for the workspace, less room to label things.' },
+  { id: 'rail', title: 'Left rail', body: 'The Graph and Timeline lenses in a rail down the left edge, with the tools beneath them; the workspace beside it. The default.' },
+  { id: 'top', title: 'Top bar', body: 'A bar across the top: the two lenses and the tools on a second row. More room for the workspace, less room to label things.' },
 ]
 
 /** A small wireframe of each layout, drawn in CSS so it cannot drift from the real shell's proportions. */
@@ -39,7 +39,7 @@ function Wireframe({ layout }: { layout: ShellLayout }) {
 export function SettingsPage() {
   const { settings, update, reset } = useSettings()
   const [section, setSection] = useState<Section>('layout')
-  const isDefault = settings.shell === DEFAULT_SETTINGS.shell && settings.railCollapsed === DEFAULT_SETTINGS.railCollapsed && settings.graphMode === DEFAULT_SETTINGS.graphMode && settings.graphSnap === DEFAULT_SETTINGS.graphSnap
+  const isDefault = settings.shell === DEFAULT_SETTINGS.shell && settings.railCollapsed === DEFAULT_SETTINGS.railCollapsed && settings.facetsCollapsed === DEFAULT_SETTINGS.facetsCollapsed && settings.inspectorCollapsed === DEFAULT_SETTINGS.inspectorCollapsed && settings.graphMode === DEFAULT_SETTINGS.graphMode && settings.graphSnap === DEFAULT_SETTINGS.graphSnap
 
   return (
     <Page eyebrow="System" title="Settings" note={section === 'layout' ? 'Layout is a preference of this browser and is not stored in the Cortex profile. The other sections read and change the profile itself.' : 'These sections read and change the Cortex profile through the local API.'}>
@@ -69,10 +69,20 @@ export function SettingsPage() {
           ))}
         </div>
 
-        <label className="xc-check xc-settings-row" data-disabled={settings.shell !== 'rail'}>
-          <input type="checkbox" checked={settings.railCollapsed} disabled={settings.shell !== 'rail'} onChange={(e) => update({ railCollapsed: e.target.checked })} />
-          <span>Collapse the rail to icons</span>
-          <span className="xc-note">Applies to the left rail. It also collapses by itself on narrow windows.</span>
+        <label className="xc-check xc-settings-row">
+          <input type="checkbox" checked={settings.railCollapsed} onChange={(e) => update({ railCollapsed: e.target.checked })} />
+          <span>Collapse navigation to icons</span>
+          <span className="xc-note">The left rail, or the top bar’s second row. Also a button on each. The rail also collapses by itself on narrow windows.</span>
+        </label>
+        <label className="xc-check xc-settings-row">
+          <input type="checkbox" checked={settings.facetsCollapsed} onChange={(e) => update({ facetsCollapsed: e.target.checked })} />
+          <span>Hide the Filters pane</span>
+          <span className="xc-note">The lens takes its width. Also a button at the left of the lens bar.</span>
+        </label>
+        <label className="xc-check xc-settings-row">
+          <input type="checkbox" checked={settings.inspectorCollapsed} onChange={(e) => update({ inspectorCollapsed: e.target.checked })} />
+          <span>Hide the Inspector pane</span>
+          <span className="xc-note">Select things without it. Also a button at the right of the lens bar.</span>
         </label>
 
         <label className="xc-field xc-settings-row">Graph view
