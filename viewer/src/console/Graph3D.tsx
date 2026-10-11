@@ -428,7 +428,12 @@ function createEngine(host: HTMLElement, cb: { snap: boolean; onSelect: (id: str
       }
       el.dataset.selected = String(id === selectedId || (!!sl2 && (id === endId(sl2.source) || id === endId(sl2.target))))
       el.style.display = 'block'
-      el.style.transform = `translate(${sx}px, ${sy}px) translateY(-50%)`
+      // a label that would run under the zoom buttons or off the right edge flips to the cube's left
+      const room = w - 64 - sx
+      const flip = el.offsetWidth > room
+      el.style.transform = flip
+        ? `translate(${sx - 24 - el.offsetWidth}px, ${sy}px) translateY(-50%)`
+        : `translate(${sx}px, ${sy}px) translateY(-50%)`
     }
   }
 
