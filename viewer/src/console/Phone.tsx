@@ -12,8 +12,6 @@ import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
 import { useConsole } from './state'
 import { Actions, Brand, DESTINATION_ICON, ScopePicker, StatusBar, useIsCurrent } from './Shell'
 import { DESTINATIONS, GROUP_LABEL, NAV_GROUPS, destinationsIn, type Destination, type DestinationId } from './nav'
-import { PageHost } from './pages/PageHost'
-import { PageDrawer } from './PageDrawer'
 import { FacetRail } from './FacetRail'
 import { GraphLens } from './GraphLens'
 import { TimelineLens } from './TimelineLens'
@@ -131,12 +129,6 @@ export function PhoneWorkspace() {
         </div>
         {lens === 'graph' ? <GraphLens /> : <TimelineLens />}
       </main>
-      {/* a page is a full-screen drawer here, over the lens, like everything else that is not a lens */}
-      {page && (
-        <PageDrawer page={page}>
-          <PageHost page={page} />
-        </PageDrawer>
-      )}
       <TabBar moreOpen={sheet === 'more'} onMore={() => setSheet('more')} />
 
       {sheet === 'filters' && (
