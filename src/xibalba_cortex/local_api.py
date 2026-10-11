@@ -100,6 +100,11 @@ Routes:
                                                GraphStore.kernel_bridge_intents() -- and the
                                                dashboard's Kernel Intent page -- has real data to show)
   POST /api/otel/batch                     -> GraphStore.record_otel_batch() (browser-reachable write path)
+  GET /api/profile/config                  -> console_admin.public_profile_config() (read-only; no path, no secret)
+  GET /api/auth/tokens                     -> console_admin.console_tokens() (operator/admin; never a secret or hash)
+  POST /api/auth/tokens                    -> console_admin.issue_console_token() (the secret is in this response only)
+  POST /api/auth/tokens/revoke             -> console_admin.revoke_console_token() (refuses the credential in use)
+  GET /api/auth/admin/pending              -> accounts.list_pending_accounts() (admin only)
 """
 from __future__ import annotations
 

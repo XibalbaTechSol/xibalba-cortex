@@ -141,6 +141,23 @@ export async function accountLogout(): Promise<void> {
   markSignedIn(false)
 }
 
+/**
+ * Ask for a password-reset email. Resolves for every 200 (the server answers the same whether or not
+ * the account exists); rejects with an ApiError carrying 503 (no email delivery), 429 (rate limit) etc.
+ */
+export async function accountRequestPasswordReset(email: string): Promise<void> {
+  const response = await fetch(getApiBaseUrl() + "/api/auth/password-reset/request", { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email }) })
+  const payload = await response.json().catch(() => ({}))
+  if (!response.ok) throw new ApiError(payload.error || response.status + " " + response.statusText, response.status)
+}
+
+/** Set a new password with the secret from the emailed link. 400 means invalid, used or expired. */
+export async function accountConfirmPasswordReset(resetToken: string, newPassword: string): Promise<void> {
+  const response = await fetch(getApiBaseUrl() + "/api/auth/password-reset/confirm", { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ reset_token: resetToken, new_password: newPassword }) })
+  const payload = await response.json().catch(() => ({}))
+  if (!response.ok) throw new ApiError(payload.error || response.status + " " + response.statusText, response.status)
+}
+
 export async function accountChangePassword(currentPassword: string, newPassword: string): Promise<void> {
   const response = await mutatingFetch("/api/auth/password", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ current_password: currentPassword, new_password: newPassword }) })
   const payload = await response.json().catch(() => ({}))
@@ -865,6 +882,55 @@ async function postJson<T>(path: string, payload: Record<string, unknown>): Prom
   return response.json() as Promise<T>
 }
 
+// ---- operator administration (console_admin.py) -----------------------------------------------------------
+
+export type ApiTokenState = 'active' | 'expired' | 'revoked'
+export interface ApiTokenRecord {
+  id: string
+  label: string
+  roles: string[]
+  scopes: string[]
+  agent_ids: string[]
+  created_at: string
+  last_used_at: string | null
+  expires_at: string | null
+  revoked_at: string | null
+  state: ApiTokenState
+}
+export interface ApiTokenList { tokens: ApiTokenRecord[]; grantable_roles: string[] }
+/** `token` is the secret and exists only in this response. */
+export interface IssuedApiToken { token: string; record: ApiTokenRecord | null }
+
+export interface PendingAccount {
+  id: string
+  email: string
+  display_name: string
+  profile_id: string
+  role: string
+  email_verified: boolean
+  approval_status: string
+  created_at: string
+}
+
+/** GET /api/profile/config: how the profile is configured, with no path and no secret. */
+export interface ProfileConfig {
+  profile_id: string
+  mode: string
+  identity_mode: string
+  retention_tier: string
+  storage: { backend: string; pool_size: number | null; ssl_mode: string | null }
+  inference: Record<string, unknown>
+  embeddings: Record<string, unknown>
+  retrieval: Record<string, boolean>
+  features: Record<string, boolean>
+  telemetry: Record<string, unknown>
+  quotas: Record<string, unknown>
+  auth: Record<string, unknown>
+  remote: { configured: boolean }
+  destinations: { backup: boolean; vault: boolean; integrity_dag: boolean; anchor_service: boolean; oracle: boolean }
+  changed_by: string
+}
+
 async function getBlob(path: string): Promise<Blob> {
   const response = await fetch(`${getApiBaseUrl()}${path}`, { credentials: "include" })
   if (!response.ok) throw new Error(`request failed: ${response.status}`)
@@ -1016,6 +1082,12 @@ export const api = {
   rebuildProjectionCheckpoint: (projectionId: string) =>
     postJson<ProjectionCheckpoint & { verified: boolean }>(`/api/projections/${encodeURIComponent(projectionId)}/rebuild`, {}),
   embeddingModels: () => getJson<EmbeddingModel[]>('/api/embedding/models'),
+  profileConfig: () => getJson<ProfileConfig>('/api/profile/config'),
+  authTokens: () => getJson<ApiTokenList>('/api/auth/tokens'),
+  issueAuthToken: (input: { label: string; role: string; ttl_hours: number }) => postJson<IssuedApiToken>('/api/auth/tokens', input),
+  revokeAuthToken: (tokenId: string) => postJson<{ ok: boolean }>('/api/auth/tokens/revoke', { token_id: tokenId }),
+  pendingAccounts: () => getJson<{ accounts: PendingAccount[] }>('/api/auth/admin/pending'),
+  approveAccount: (email: string) => postJson<{ ok: boolean }>('/api/auth/admin/approve', { email }),
   /**
    * Guided System Test for the kernel bridge. Without a session id it only submits the two
    * UserOperations and reports the decisions; with one it also records them as real

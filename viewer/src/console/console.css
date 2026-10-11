@@ -2659,3 +2659,22 @@ select.xc-input {
   overflow: visible;
   text-overflow: clip;
 }
+
+/* sign-in: the "Forgot password?" and "Back to sign in" links sit left, close to the field above them */
+.xc-auth-forgot {
+  align-self: flex-start;
+  margin-top: -6px;
+  font-size: 13px;
+}
+
+/* a secret shown once: mono, on its own line, never truncated, wraps rather than scrolls */
+.xc-secret {
+  display: block;
+  padding: 10px 12px;
+  border: 1px solid var(--frame-line);
+  background: var(--elevated);
+  color: var(--ink);
+  font: 500 13px/1.5 var(--font-mono);
+  overflow-wrap: anywhere;
+  user-select: all;
+}

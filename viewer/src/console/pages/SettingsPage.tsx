@@ -10,13 +10,17 @@ import { InferenceSection } from './settings/InferenceSection'
 import { EmbeddingsSection } from './settings/EmbeddingsSection'
 import { AccountSection } from './settings/AccountSection'
 import { DeveloperSection } from './settings/DeveloperSection'
+import { AccessSection } from './settings/AccessSection'
+import { ProfileSection } from './settings/ProfileSection'
 
-type Section = 'layout' | 'inference' | 'embeddings' | 'account' | 'developer'
+type Section = 'layout' | 'inference' | 'embeddings' | 'account' | 'access' | 'profile' | 'developer'
 const SECTIONS: Array<[Section, string]> = [
   ['layout', 'Layout'],
   ['inference', 'Inference'],
   ['embeddings', 'Embeddings'],
   ['account', 'Account'],
+  ['access', 'Access'],
+  ['profile', 'Profile'],
   ['developer', 'Developer'],
 ]
 
@@ -53,6 +57,8 @@ export function SettingsPage() {
         {section === 'inference' && <InferenceSection />}
         {section === 'embeddings' && <EmbeddingsSection />}
         {section === 'account' && <AccountSection />}
+        {section === 'access' && <AccessSection />}
+        {section === 'profile' && <ProfileSection />}
         {section === 'developer' && <DeveloperSection />}
         {section === 'layout' && (<>
         <p className="xc-eyebrow">Shell layout</p>

@@ -88,6 +88,11 @@ ROUTES: dict[str, str] = {
     "GET /api/invocations": "Sessions → Invocations",
     "POST /api/kernel-bridge/self-test": "Settings → Developer → Kernel bridge self-test",
     "POST /api/otel/batch": "NOT A CONSOLE FEATURE: machine telemetry ingest (agents and the OTLP receiver)",
+    "GET /api/profile/config": "Settings → Profile (read-only)",
+    "GET /api/auth/tokens": "Settings → Access → API tokens",
+    "POST /api/auth/tokens": "Settings → Access → Issue a token (the secret is shown once)",
+    "POST /api/auth/tokens/revoke": "Settings → Access → Revoke (two steps)",
+    "GET /api/auth/admin/pending": "Settings → Access → Accounts waiting for approval",
 }
 
 # Served by local_api.py but missing from its module docstring (the docstring is not the source of truth).
@@ -112,9 +117,9 @@ UNDOCUMENTED_ROUTES: dict[str, str] = {
     "POST /api/auth/login": "Sign-in",
     "POST /api/auth/signup": "Sign-in → Create account",
     "POST /api/auth/logout": "Rail / top bar → Sign out",
-    "POST /api/auth/password-reset/request": "Sign-in → Forgot password (not yet built)",
-    "POST /api/auth/password-reset/confirm": "Sign-in → Reset password (not yet built)",
-    "POST /api/auth/admin/approve": "not yet built: account approval for operators",
+    "POST /api/auth/password-reset/request": "Sign-in → Forgot password",
+    "POST /api/auth/password-reset/confirm": "Sign-in → Reset password (the emailed link)",
+    "POST /api/auth/admin/approve": "Settings → Access → Accounts waiting for approval → Approve",
 }
 
 # --- MCP tools -> console surface or reason ----------------------------------------------------------------
