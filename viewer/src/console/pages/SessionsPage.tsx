@@ -14,6 +14,8 @@ import { elideHash, parseServerTime, shortStamp } from '../model'
 import { INVOCATION_STATUS, describeKernelDecision, exchangeSummary, type Tone } from '../sessions'
 import { kindCounts, metricRows } from '../verify'
 import { IconWarn } from '../icons'
+import { ConfirmPanel } from '../ConfirmPanel'
+import { END_SESSION_CONFIRMATION } from '../workspaceActions'
 import { useMediaQuery } from '../useMediaQuery'
 import { Page } from './Page'
 
@@ -112,7 +114,23 @@ function SessionDetail({ session, onVerify, onBack }: { session: Session; onVeri
   const [recording, setRecording] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [confirmingEnd, setConfirmingEnd] = useState(false)
   const id = session.external_session_id
+
+  const end = async () => {
+    setBusy(true)
+    setError(null)
+    try {
+      await api.endSession(id)
+      setNotice(`Session ${id} ended. Its exchanges are built and a summary is queued.`)
+      setConfirmingEnd(false)
+      reload()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setBusy(false)
+    }
+  }
 
   const build = async () => {
     setBusy(true)
@@ -139,7 +157,9 @@ function SessionDetail({ session, onVerify, onBack }: { session: Session; onVeri
           <button type="button" className="xc-btn" onClick={onVerify}>Verify in Integrity</button>
           {workspace.canWrite && <button type="button" className="xc-btn" onClick={() => setRecording((v) => !v)} aria-expanded={recording}>Record exchange</button>}
           {workspace.canWrite && <button type="button" className="xc-btn" disabled={busy} onClick={build} title="Pairs this session’s tool-call telemetry with its memories to form exchanges">{busy ? 'Building…' : 'Build from telemetry'}</button>}
+          {workspace.canWrite && !session.ended_at && <button type="button" className="xc-btn xc-btn--danger-quiet" onClick={() => setConfirmingEnd((v) => !v)} aria-expanded={confirmingEnd}>End session</button>}
         </div>
+        {confirmingEnd && <ConfirmPanel title={`End session ${id}`} lines={END_SESSION_CONFIRMATION} confirmLabel="End this session" danger busy={busy} onConfirm={() => void end()} onCancel={() => setConfirmingEnd(false)} />}
         {error && <div className="xc-callout xc-callout--conflict" role="alert"><IconWarn />{error}</div>}
       </div>
       {recording && workspace.canWrite && <RecordExchange sessionId={id} onDone={() => { setRecording(false); setNotice('Exchange recorded.'); reload() }} />}

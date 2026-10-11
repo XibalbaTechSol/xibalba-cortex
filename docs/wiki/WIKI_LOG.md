@@ -185,3 +185,20 @@ exposing the secret to browser JavaScript. Production authentication remains exp
 - Updated `WIKI_INDEX.md` and `index.md` to expose the new page.
 - Source review covers `src/xibalba_cortex/jev_gateway.py`, `decision_trace_view.py`,
   `hermes_observer.py`, and `local_api.py`.
+
+## [2026-10-11] update | Console is the only UI; every backend capability reaches it
+
+- Removed the legacy tab-based viewer (`App.tsx`, the Graph views, `index.css`, the landing page, the
+  `?ui=legacy` switch) and the dependencies and assets only it used. The Cortex console in
+  `viewer/src/console/` (Graph and Timeline lenses; everything else a drawer or dialog) is the only UI.
+- Added routes so no MCP tool is withheld from the console: `/api/profile/config`, `/api/auth/tokens`,
+  `/api/auth/admin/pending`, `/api/runtimes`, `/api/workers`, `/api/connectors`, `/api/vault/leaf`,
+  `/api/backups`, `/api/backup`, `/api/backup/reconcile`, `POST /api/memory/{id}/attachments`,
+  `/api/import`, `/api/provenance/export`, `/api/session/{id}/end`, `/api/memory/{id}/verify-link`,
+  `/api/session/{id}/anchor`. Locations (backup, vault, DAG, anchor) are server environment variables;
+  the browser sends ids, hashes or bytes and is never given a path. The attachments listing no longer
+  returns `storage_locator`.
+- Worker status is derived from the queue (no heartbeat: the v1 schema is frozen).
+- Rewrote `architecture/viewer-and-local-api.md` for the console; browser validation is now headless
+  Playwright in CI (job `viewer`).
+

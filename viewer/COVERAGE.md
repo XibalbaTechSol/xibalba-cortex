@@ -5,8 +5,8 @@ or documented route is not classified, so nothing becomes hidden by omission.
 
 ## Summary
 
-- **68 documented HTTP routes** and 23 more the handler serves but its docstring omits.
-- **81 MCP tools**: 38 have a console surface, 37 are machine protocols (27 of them `runtime_*` harness hooks), 6 are deliberately withheld from a browser.
+- **77 documented HTTP routes** and 23 more the handler serves but its docstring omits.
+- **81 MCP tools**: 45 have a console surface, 36 are machine protocols (27 of them `runtime_*` harness hooks), 0 are deliberately withheld from a browser.
 
 Statuses: **console** = a surface covers it. **machine** = a protocol for workers or agent harnesses; a person should not be
 able to drive it from a button. **withheld** = would hand a browser a server filesystem path, or is outward-facing, or needs a
@@ -83,6 +83,15 @@ route that does not exist yet.
 | `GET /api/runtimes` | Operations → Agent runtimes (each row leads to the Timeline) |
 | `GET /api/workers` | Operations → Workers (derived from the queue; no heartbeat) |
 | `GET /api/connectors` | Operations → Connectors and ingest (reports; never drives) |
+| `GET /api/backups` | Operations → Backup (names and sizes; never a path) |
+| `POST /api/backup` | Operations → Backup → Back up now (confirmed; the server names the file) |
+| `POST /api/backup/reconcile` | Operations → Backup → Check against the live store |
+| `POST /api/memory/{id}/attachments` | Inspector → Files → Attach a file (bytes, not a path; up to 200 MB) |
+| `POST /api/import` | Memories → Import (text and Markdown; candidate memories plus proposals) |
+| `POST /api/provenance/export` | Chain rail → Export this window |
+| `POST /api/session/{id}/end` | Sessions → End session (confirmed; not undone) |
+| `POST /api/memory/{id}/verify-link` | Integrity → Links → Verify this link |
+| `POST /api/session/{id}/anchor` | Integrity → Sessions → Anchor this root (confirmed; outward) |
 | `GET /api/vault/leaf` | Settings → Developer → Trust vault lookup (the vault is server configuration) |
 
 ### Served but not in the docstring
@@ -130,10 +139,10 @@ route that does not exist yet.
 | `memory_embedding_coverage` | console | Operations, Settings → Embeddings |
 | `memory_embed` | machine | Embedding worker writes vectors; a browser has no embedding model |
 | `memory_embedding_models` | console | Settings → Embeddings |
-| `memory_attach` | withheld | Takes a file path on the server's disk; a browser upload route does not exist yet |
+| `memory_attach` | console | Inspector → Files → Attach a file (the browser sends the bytes; the server picks the path) |
 | `memory_list_attachments` | console | Inspector → Files |
 | `memory_session_start` | machine | Harness lifecycle; a session begins when its first exchange is recorded |
-| `memory_session_end` | machine | Harness lifecycle; no HTTP route exists to end a session |
+| `memory_session_end` | console | Sessions → End session (confirmed; the harness still ends its own sessions) |
 | `memory_session_get` | console | Sessions |
 | `memory_session_memories` | console | Sessions → Memories |
 | `memory_record_otel_batch` | machine | Telemetry ingest for agents and the OTLP receiver (POST /api/otel/batch exists; there is no UI producer) |
@@ -150,17 +159,17 @@ route that does not exist yet.
 | `memory_find_path` | console | Entities → Path |
 | `memory_events` | console | Inspector → Chain |
 | `memory_verify_chain` | console | Inspector → Chain → Verify this history |
-| `memory_verify_integrity_link` | withheld | Takes a dag_home path on the server's disk; the link states are listed under Integrity → Links |
+| `memory_verify_integrity_link` | console | Integrity → Links → Verify this link (the DAG location is server configuration) |
 | `memory_status` | console | Status bar, Operations |
-| `memory_backup` | withheld | Takes a destination path on the server's disk |
-| `memory_backup_reconcile` | withheld | Takes a backup path on the server's disk |
-| `memory_vault_inspect` | withheld | Takes a vault directory path on the server's disk |
+| `memory_backup` | console | Operations → Backup → Back up now (the destination is server configuration) |
+| `memory_backup_reconcile` | console | Operations → Backup → Check against the live store (by a name the server listed) |
+| `memory_vault_inspect` | console | Settings → Developer → Trust vault lookup (the vault is server configuration) |
 | `memory_build_session_exchanges` | console | Sessions → Build from telemetry |
 | `memory_session_exchanges` | console | Sessions → Exchanges |
 | `memory_session_replay` | console | Sessions → Replay |
 | `memory_verify_exchange_chain` | console | Integrity → Sessions |
 | `memory_session_merkle_root` | console | Inspector, Integrity |
-| `memory_anchor_session_root` | withheld | Outward-facing: publishes a session root to the oracle. Needs an explicit, confirmed action |
+| `memory_anchor_session_root` | console | Integrity → Sessions → Anchor this root (a confirmed, named, outward action) |
 | `memory_record_model_exchange` | console | Sessions → Record exchange |
 | `memory_ingest_agent_turn` | machine | Agent harness ingest |
 | `memory_inference_subagent_manifest` | console | Settings → Inference → Worker contract |

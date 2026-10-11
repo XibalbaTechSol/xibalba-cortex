@@ -103,9 +103,11 @@ a tab bar switches Graph / Timeline / Recall / Review, and More lists every othe
 sheets (their buttons show how many switches are off their defaults), and the inspector rises as a
 sheet when something is selected. Selection and filters survive crossing the breakpoint.
 
-Pages: Memories, Entities, Sessions, Operations, Agents and Settings. Settings has Layout (browser-only),
-and Inference, Embeddings, Account and Developer, which read and change the Cortex profile through the
-local API. Inspector actions beyond the four writes: ask the server to verify a memory's history, export
+Tools, each a drawer over the lens: Memories (browse, search, add, import a document), Entities, Sessions
+(exchanges, replay, telemetry, end a session), Operations (health, readiness, agent runtimes, workers,
+connectors, backup) and Agents. Settings has Layout (browser-only), and Inference, Embeddings, Account,
+Access (API tokens, accounts waiting for approval), Profile (read-only configuration) and Developer
+(kernel-bridge self-test, trust vault lookup), which read and change the Cortex profile through the local API. Inspector actions beyond the four writes: ask the server to verify a memory's history, export
 its provenance, request an extraction (or run the rule-based one now), and download attachments; Recall has
 a Context mode, and the Integrity drawer shows the server's exchange-chain recomputation beside the
 browser's. Results the server recomputed are worded as such and never as anchoring.
@@ -138,6 +140,19 @@ npm run lint
 ```
 
 The build must pass and lint must report zero errors. The repository may still report non-blocking bundle-size or pre-existing warning diagnostics.
+
+### Server configuration the console's actions use
+
+The console never asks for, shows or receives a filesystem path or a service address. These are the
+server's own environment variables (Settings → Profile shows only whether each is set):
+
+| Variable | Used by | If unset |
+|---|---|---|
+| `XIBALBA_BACKUP_DIR` | Operations → Backup | the console says no backup location is configured |
+| `XIBALBA_VAULT_DIR` | Settings → Developer → Trust vault lookup | the lookup says no vault is configured |
+| `XIBALBA_DAG_HOME` | Integrity → Links → Verify this link | the store's default DAG location |
+| `XIBALBA_ANCHOR_URL` | Integrity → Sessions → Anchor this root | the button is disabled, with the reason |
+| `CORTEX_PASSWORD_RESET_URL`, `CORTEX_SMTP_HOST` / `_FROM` / `_PORT` / `_USERNAME` / `_PASSWORD` | Sign-in → Forgot password | the request is refused for an existing account |
 
 ### Browser tests (Playwright, headless)
 

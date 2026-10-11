@@ -21,11 +21,7 @@ Recall, Review, Integrity) is a **drawer or dialog that opens over the lens it w
 stays mounted underneath. Dark only. Square, flat, graphite, with registration crosses on every window and
 one lavender accent. Nothing is shown as checked that was not checked.
 
-**State of the work.** The designs for everything the console *already does* are **built and tested** (231
-unit tests; `tsc`, `oxlint` clean; the 3D lens and flows verified by hand in Chromium). What remains is the
-**17 "Planned" boards**: capabilities the backend has but the browser cannot reach yet. Each needs one new
-HTTP route; section 8 lists them. There is no viewer CI and no checked-in browser test; adding both is a
-good first task (section 10).
+**State of the work.** The console is **complete against the backend**: it is the only UI (the old viewer is deleted), and every HTTP route and MCP tool is either a console surface or deliberately not one, with the reason, in `COVERAGE.md` (a test fails if a new one is unclassified). It is verified by `tsc`, `oxlint`, 281 unit tests, the full Python suite, and **95 headless Playwright tests** against the real API (`npm run test:e2e`, run in CI as job `viewer`). The 17 capabilities that were once only designed ("Planned" boards) are built; section 8 lists where each lives. What remains is listed in section 9.
 
 ## 2. Run it
 
@@ -131,6 +127,9 @@ Pure logic, fully tested: `model.ts`, `gridSnap.ts`, `framing.ts`, `graphStyle.t
 | `GraphLens.tsx`, `Graph3D.tsx`, `TimelineLens.tsx` | the two lenses; `Graph3D` is the three.js engine |
 | `FacetRail.tsx`, `Inspector.tsx`, `ChainRail.tsx`, `PaneToggle.tsx` | the panes around the lens |
 | `Recall.tsx`, `Review.tsx`, `Integrity.tsx`, `VerifyPanel.tsx`, `MemoryActions.tsx` | the dialogs/drawers and the write actions |
+| `ConfirmPanel.tsx`, `workspaceActions.ts` | the confirm-before-acting panel, and the pure wording and arithmetic for export, import, attach, link verification, anchoring, backup, ending a session |
+| `status.ts`, `runtime.ts`, `access.ts`, `passwordReset.ts` | pure wording for workers/runtimes/vault, policy interventions on the Timeline, tokens and the profile view, password reset |
+| `pages/OpsStatus.tsx`, `pages/settings/AccessSection.tsx`, `ProfileSection.tsx` | Operations cards (runtimes, workers, connectors, backup); Settings → Access and Profile |
 | `model.ts` | payload → graph model; facets; time placement (event time → exchange time → `created_at`) |
 | `data.ts`, `workspace.ts`, `../api.ts` | loading; scope (agent/store/primary); every HTTP call and the CSRF handling |
 | `settings*.ts(x)`, `tokens.css`, `console.css`, `palette.ts` | browser preferences; the theme |
@@ -155,63 +154,67 @@ automatically. Cookie sessions send a CSRF token on writes; a bearer token does 
 7. Timestamps: a node is placed in time only from a time the API really returns; the rest are *untimed*
    and never hidden by the time window.
 
-## 8. What is designed but not built (17 boards)
+## 8. Where each formerly planned capability lives (all built)
 
-Each row: the board, the surface it lands in, **the route it needs**, and the constraint to respect.
-Routes are *proposals*; check `local_api.py` for the handler conventions (scope strings, CSRF, error shape).
+| Capability | Surface | Backend |
+|---|---|---|
+| Forgot password; choose a new password | Sign-in (`SignIn.tsx`, `passwordReset.ts`) | `POST /api/auth/password-reset/{request,confirm}`; the emailed link carries `?token=`, removed from the address bar on load |
+| Accounts waiting for approval | Settings → Access | `GET /api/auth/admin/pending` (admin), `POST /api/auth/admin/approve` |
+| API tokens | Settings → Access | `GET/POST /api/auth/tokens`, `POST /api/auth/tokens/revoke` (`console_admin.py`) |
+| Profile (read-only) | Settings → Profile | `GET /api/profile/config`: no path, no secret |
+| Trust vault lookup | Settings → Developer | `GET /api/vault/leaf` (`XIBALBA_VAULT_DIR`) |
+| Agent runtimes | Operations | `GET /api/runtimes` (`console_status.py`) |
+| Runtime on the Timeline | Timeline lane marks + session Inspector | from `GET /api/invocations`: a denied or asked tool call is a tall bar on its lane (`runtime.ts`) |
+| Workers | Operations | `GET /api/workers`: derived from the queue, **no heartbeat** (the v1 schema is frozen) |
+| Connectors and ingest | Operations | `GET /api/connectors`: reports ingest, never drives it |
+| Backup and check | Operations | `GET /api/backups`, `POST /api/backup`, `POST /api/backup/reconcile` (`XIBALBA_BACKUP_DIR`; the server names the file) |
+| Attach a file | Inspector → Files | `POST /api/memory/{id}/attachments`: raw bytes, streamed, up to 200 MB |
+| Import a document | Memories | `POST /api/import`: text and Markdown, candidate memories plus review proposals |
+| Export this window | Chain rail | `POST /api/provenance/export`: the ids the window and Filters show, each scope-checked |
+| End a session | Sessions | `POST /api/session/{id}/end`: not undone, confirmed first |
+| Verify an integrity link | Integrity → Links | `POST /api/memory/{id}/verify-link` (`XIBALBA_DAG_HOME`): byte lineage only |
+| Anchor a session root | Integrity → Sessions | `POST /api/session/{id}/anchor` (`XIBALBA_ANCHOR_URL`): outward, confirmed, store operator |
 
-| Board | Lands in | Route needed | Constraint |
-|---|---|---|---|
-| Forgot password; Choose a new password | `SignIn.tsx` (two modes) | none: `POST /api/auth/password-reset/request` and `/confirm` exist | UI only. Never confirm whether an account exists; 503 = delivery not configured; 400 = invalid or expired code |
-| Accounts waiting for approval | Settings → Account | `GET /api/auth/admin/pending` (new); `POST /api/auth/admin/approve` exists | full-scope operators only; approving does not grant any agent workspace |
-| Trust vault lookup | Settings → Developer | `GET /api/vault/leaf?leaf_hash=` | vault dir is server config; "not found" ≠ "could not read" |
-| Attach a file | Inspector → Files | `POST /api/memory/{id}/attachments` (upload, ≤ 200 MB, content-addressed) | the store takes a server path today; the route must take bytes |
-| Verify an integrity link | Integrity → Links | `POST /api/memory/{id}/verify-link` | records its result → needs `memory:write`; DAG location is server config |
-| Anchor a session root | Integrity → Sessions | `POST /api/session/{id}/anchor` | outward-facing; confirmed and named; disabled with the reason when no anchor service |
-| Backup and check | Operations | `POST /api/backup`, `POST /api/backup/reconcile` | destination is server config; result never claims restorability |
-| **Runtime on the timeline** | Timeline lane tag + session Inspector | `GET /api/session/{id}/runtime` | the runtime controller lives in the MCP process; answer from runtime events the store already records. Deny/ask decisions become marks on the lane |
-| **Agent runtimes** | Operations | `GET /api/runtimes` | read-only; a row leads back to the Timeline windowed to that runtime |
-| **Workers** | Operations | `GET /api/workers` + a heartbeat row each worker writes | "not seen" is a different state from "idle" and is shown as such |
-| **Connectors and ingest** | Operations | `GET /api/connectors` | reports ingest; does not drive it. Rows lead to the Graph/Timeline with the Memory source facet set |
-| **API tokens** | Settings → Account | `GET/POST /api/auth/tokens`, `POST /api/auth/tokens/revoke` | secret shown once, server keeps a hash; replaces the `xibalba-cortex-ingest-tokens` CLI for operators |
-| **Profile (read-only)** | Settings → new tab | `GET /api/profile/config`, redacted | read-only on purpose: mode/identity/retention are `config.yaml` or env and need a restart; no paths or secrets |
-| **Export this window** | Timeline chain rail | `POST /api/provenance/export` taking the window and facets | one bundle; states which facets hid memories |
-| **End a session** | Sessions drawer | `POST /api/session/{id}/end` | irreversible, confirmed; starting a session stays implicit |
-| **Import** | Memories drawer | `POST /api/import` (multipart) | arrives as memories with source `imported_document`; entities/relations arrive as proposals |
+Every outward or irreversible action uses `ConfirmPanel.tsx` (what it will do, then a named button, Escape
+backs out) and words its result in `workspaceActions.ts` / `status.ts` / `access.ts` (pure, unit-tested).
 
-For each: add the route + a test in `tests/`, add the call to `api.ts`, build the surface from the board
-(copy its markup; the classes are the console's own), add the board's feature to `COVERAGE.md`'s
-classification so `tests/test_ui_coverage.py` stays green, and **replace the board** with a recapture.
-
-**Machine protocols stay machine protocols.** Do not build UI for: the 27 `runtime_*` harness hooks, the
-worker `claim`/`complete` protocol, connector ingest, `memory_embed`, `memory_ingest_agent_turn`,
-`memory_session_start/end`, OTLP batch ingest. The console reports on them (runtimes, workers, connectors
-above); it must not let a person impersonate a worker.
+**Machine protocols stay machine protocols.** There is, and should be, no UI for: the 27 `runtime_*` harness
+hooks, the worker `claim`/`complete` protocol, connector ingest, `memory_embed`, `memory_ingest_agent_turn`,
+`memory_session_start`, OTLP batch ingest. The console reports on them (runtimes, workers, connectors); it must
+not let a person impersonate a worker.
 
 ## 9. Known gaps and caveats (so nothing surprises you)
 
-- **Browser tests are headless Playwright** (`npm run test:e2e`, 54 tests across `desktop` and `phone`), run in CI by the `viewer` job. They cover what is built; a planned board gets its tests when it is built.
-- **Stubbed captures.** Four built boards use stubbed responses with the real shapes: signed-in Account,
-  sign-in errors, the Recall refusal, empty graph/timeline. Everything else is live fixture output.
-- **Store-wide scoping gaps** were recorded earlier on some routes (review proposals, PARA, memory-by-id,
-  integrity-links, projection routes can reach memories outside the selected agent). The console filters
-  what it shows, but the server should enforce it. **Re-verify before relying on this**; it was noted
-  mid-project, not re-audited since.
-- **Graph panels in the mockups are images** of the 3D canvas (a `<canvas>` cannot be serialised); the live
-  console is interactive. Two boards are kept as 2D images of a 3D scene on purpose: far and near zoom.
-- **Keyboard**: the 3D canvas has no way to pick a single node.
-- The design-system artifact's own text still describes the pre-drawer, pre-3D console, and still names Barlow. The console now uses Raleway (a deliberate difference from Shield, which keeps Barlow); update the design system before treating it as the source for fonts.
+- **Stubbed responses in tests**, only where the fixture cannot produce the case, each named as such in the test:
+  a working mail server and a valid emailed secret (password reset success), an administrator credential
+  (approving accounts), a trust vault (the five vault outcomes), and the signed-in Account data (the dev proxy
+  is a token, not an account). Everything else runs against the real API.
+- **No worker heartbeat.** Worker state is inferred from the queue, so an idle worker and one that is down look
+  alike when nothing is waiting. A heartbeat needs a schema migration and a spec amendment; the console's
+  wording already keeps "idle", "backlog" and "no work seen" apart.
+- **Store-wide scoping** was recorded earlier on some read routes (review proposals, PARA, memory-by-id,
+  integrity-links, projection routes can reach memories outside the selected agent). The console filters what
+  it shows and the new store-wide routes require an unbound operator, but the older routes should enforce scope
+  on the server. **Re-verify before relying on it.**
+- **Password reset**: for an address with an account and no mail delivery configured the server answers `503`,
+  for an unknown address `200`, which tells a probe the account exists. It only happens on a server where reset
+  cannot work at all; fixing it means answering `200` there too, which would tell the person a link is coming
+  when none is. A deployment decision, not a UI one.
+- **Graph panels in the mockups are images** of the 3D canvas; the live console is interactive. The 3D canvas has
+  no keyboard way to pick a single node (use the Inspector or Recall).
+- **Mockups need a recapture** after the Raleway, ground-colour and surface changes (`design-tools/README.md`);
+  the design-system artifact's own text still describes Barlow and the old ground, and Shield keeps Barlow.
 
-## 10. Suggested order
+## 10. Suggested next steps
 
-1. **Run the gates**: `tsc -b`, `oxlint`, `vitest` and `npm run test:e2e` (README, "Browser tests"). CI runs them.
-2. **UI-only planned boards** (password reset). No backend work.
-3. **Read-only routes**: runtime, runtimes, workers, connectors, profile config. Each is a SELECT over data
-   the store already writes, plus the heartbeat table for workers.
-4. **Write routes**: end session, export window, attach, import, tokens, approvals. Each needs scope,
-   CSRF, a confirmation in the UI, and a test that a read-only scope cannot call it.
-5. **Withheld outward actions** last: backup, vault, link verify, anchor. They are the ones that can hurt.
-6. After each: recapture the board (`design-tools/README.md`), republish, regenerate `DESIGN.md`.
+1. **Recapture and republish the mockups** (`design-tools/`): every board changed with Raleway, the `#0d0f11`
+   ground and the new surfaces; the planned boards become captured ones.
+2. **Server-side scoping** for the older store-wide read routes (section 9), with a test per route that an
+   agent-bound credential cannot reach another agent's data.
+3. **A worker heartbeat**, if "is it running?" matters more than "is it keeping up?": a table, a spec amendment,
+   and one call per worker loop. Then `console_status.worker_status` can say `down` truthfully.
+4. **Update the design system** (Raleway; `#0d0f11`; the confirm panel, verdict callout and intervention marks).
+5. Keep the gates green: `tsc -b`, `oxlint`, `vitest`, `npm run test:e2e`, `uv run pytest -q`.
 
 ## 11. Conventions for the code you write
 

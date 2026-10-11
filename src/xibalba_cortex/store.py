@@ -1819,6 +1819,13 @@ class GraphStore:
             ).fetchone()
         return row["id"] if row else None
 
+    def find_memory_id_by_idempotency_key(self, key: str) -> str | None:
+        """The memory a prior write with this idempotency key produced, if any. Lets a caller tell a
+        fresh write from a replay, which store_memory itself does not report."""
+        with self._lock:
+            row = self._connection.execute("SELECT id FROM memories WHERE idempotency_key = ?", (key,)).fetchone()
+        return row["id"] if row else None
+
     def find_memory_id_by_locator(self, locator: str) -> str | None:
         """Look up the current (non-superseded) memory for a given source.locator, if any --
         the re-sync primitive for document-ingestion paths (wiki_ingest): a

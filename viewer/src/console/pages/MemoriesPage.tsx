@@ -12,6 +12,8 @@ import { Inspector } from '../Inspector'
 import { elideHash, parseServerTime, shortStamp } from '../model'
 import { NEW_MEMORY_CLASSES, NEW_MEMORY_STATUSES, buildNewMemory, type NewMemoryClass, type NewMemoryStatus } from '../actions'
 import { IconSearch, IconWarn } from '../icons'
+import { ConfirmPanel } from '../ConfirmPanel'
+import { describeImport, formatBytes, importProblem } from '../workspaceActions'
 import { Page } from './Page'
 
 const PAGE_SIZE = 40
@@ -32,6 +34,32 @@ export function MemoriesPage() {
   const [query, setQuery] = useState('')
   const [offset, setOffset] = useState(0)
   const [adding, setAdding] = useState(false)
+  // importing a document: choose, read what will happen, confirm; the server splits it and stores candidates
+  const [importing, setImporting] = useState(false)
+  const [picked, setPicked] = useState<File | null>(null)
+  const [importBusy, setImportBusy] = useState(false)
+  const [importNote, setImportNote] = useState<{ tone: 'ok' | 'error'; lines: string[] } | null>(null)
+  const pick = (file: File | undefined) => {
+    setImportNote(null)
+    if (!file) { setPicked(null); return }
+    const problem = importProblem(file)
+    if (problem) { setPicked(null); setImportNote({ tone: 'error', lines: [problem] }); return }
+    setPicked(file)
+  }
+  const runImport = async () => {
+    if (!picked) return
+    setImportBusy(true)
+    try {
+      const result = await api.importDocument(picked, workspace.selected?.agentId)
+      setImportNote({ tone: 'ok', lines: describeImport(result) })
+      setPicked(null)
+      reload()
+    } catch (e) {
+      setImportNote({ tone: 'error', lines: [e instanceof Error ? e.message : String(e)] })
+    } finally {
+      setImportBusy(false)
+    }
+  }
 
   const list = useAsync(
     () => api.memories({ limit: PAGE_SIZE, offset, statuses, agentId: scope.agentId, storeId: scope.storeId, query }),
@@ -59,7 +87,10 @@ export function MemoriesPage() {
       title="Memories"
       note="Every memory in this workspace, newest first. Search uses the store’s full-text index; use Recall for semantic and graph retrieval."
       actions={workspace.canWrite
-        ? <button type="button" className="xc-btn xc-btn--primary" onClick={() => setAdding((v) => !v)} aria-expanded={adding}>New memory</button>
+        ? <>
+            <button type="button" className="xc-btn" onClick={() => { setImporting((v) => !v); setImportNote(null) }} aria-expanded={importing}>Import a document</button>
+            <button type="button" className="xc-btn xc-btn--primary" onClick={() => setAdding((v) => !v)} aria-expanded={adding}>New memory</button>
+          </>
         // say why the button is missing rather than leaving the person to wonder where it went
         : <p className="xc-note" role="note">Read only. Choose an agent workspace in Scope to add memories.</p>}
     >
@@ -74,6 +105,30 @@ export function MemoriesPage() {
           }}
           onCancel={() => setAdding(false)}
         />
+      )}
+
+      {importing && workspace.canWrite && (
+        <section className="xc-win xc-opscard xc-form" aria-label="Import a document">
+          <p className="xc-eyebrow">Import a document</p>
+          <label className="xc-field">Text or Markdown file
+            <input className="xc-input" type="file" accept=".md,.markdown,.txt,.text,text/plain,text/markdown" disabled={importBusy} onChange={(e) => { pick(e.target.files?.[0]); e.target.value = '' }} />
+            <span className="xc-note">Up to 2 MB. It is split at headings and paragraphs into candidate memories. Importing the same file again stores nothing new.</span>
+          </label>
+          {picked && (
+            <ConfirmPanel
+              title={`Import ${picked.name}`}
+              lines={[
+                `${formatBytes(picked.size)} of text will be split into sections and stored as candidate memories (source: imported document).`,
+                'Entities and relations found in it become proposals that wait in Review. Nothing is added to the graph.',
+              ]}
+              confirmLabel="Import"
+              busy={importBusy}
+              onConfirm={() => void runImport()}
+              onCancel={() => setPicked(null)}
+            />
+          )}
+          {importNote && <div className={`xc-callout ${importNote.tone === 'ok' ? 'xc-callout--anchored' : 'xc-callout--conflict'}`} role={importNote.tone === 'ok' ? 'status' : 'alert'}>{importNote.tone === 'error' && <IconWarn />}<span>{importNote.lines.join(' ')}</span></div>}
+        </section>
       )}
 
       <div className="xc-memories">

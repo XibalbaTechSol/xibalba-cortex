@@ -10,6 +10,8 @@ import { useConsole } from './state'
 import { useAsync, type AsyncState } from './useAsync'
 import { EDGE_TYPE_LABEL, elideHash, parseServerTime, shortStamp, type CEdge, type CNode, type GraphModel } from './model'
 import { describeIntervention, interventions, interventionsForSession, sessionRuntime } from './runtime'
+import { ConfirmPanel } from './ConfirmPanel'
+import { attachProblem, formatBytes } from './workspaceActions'
 import { IconCheck, IconClose, IconWarn } from './icons'
 import { MemoryActions } from './MemoryActions'
 import { MemoryChainCheck, ProvenanceExport } from './VerifyPanel'
@@ -365,9 +367,36 @@ function TelemetryTab({ memoryId, scope }: { memoryId: string; scope: WorkspaceS
 }
 
 function FilesTab({ memoryId, scope }: { memoryId: string; scope: WorkspaceScope }) {
-  const list = useAsync(() => api.attachments(memoryId, scope), [memoryId, scope])
+  const { workspace } = useConsole()
+  const [rev, setRev] = useState(0)
+  const list = useAsync(() => api.attachments(memoryId, scope), [memoryId, scope, rev])
   const [downloading, setDownloading] = useState<string | null>(null)
   const [downloadError, setDownloadError] = useState<string | null>(null)
+  // attaching: choose a file, read what will happen, then confirm; the bytes go to the server, which picks the path
+  const [chosen, setChosen] = useState<File | null>(null)
+  const [attachBusy, setAttachBusy] = useState(false)
+  const [attachNote, setAttachNote] = useState<{ tone: 'ok' | 'error'; text: string } | null>(null)
+  const choose = (file: File | undefined) => {
+    setAttachNote(null)
+    if (!file) { setChosen(null); return }
+    const problem = attachProblem(file)
+    if (problem) { setChosen(null); setAttachNote({ tone: 'error', text: problem }); return }
+    setChosen(file)
+  }
+  const attach = async () => {
+    if (!chosen) return
+    setAttachBusy(true)
+    try {
+      const made = await api.attachFile(memoryId, chosen)
+      setAttachNote({ tone: 'ok', text: `Attached ${made.display_name} (${formatBytes(made.byte_size)}). It is stored by its content hash and recorded in this memory’s history.` })
+      setChosen(null)
+      setRev((n) => n + 1)
+    } catch (e) {
+      setAttachNote({ tone: 'error', text: e instanceof Error ? e.message : String(e) })
+    } finally {
+      setAttachBusy(false)
+    }
+  }
 
   /** Fetch with the session credential (a plain link would not carry a bearer token) and hand the bytes to the browser. */
   const download = async (attachment: Attachment) => {
@@ -383,25 +412,48 @@ function FilesTab({ memoryId, scope }: { memoryId: string; scope: WorkspaceScope
   }
 
   return (
-    <Async state={list} empty={(l) => l.length === 0}>
-      {(items) => (
-        <div className="xc-rows">
-          {items.map((a) => (
-            <div className="xc-row" key={a.id}>
-              <i className="xc-row-dot" style={{ background: 'var(--ink-muted)' }} />
-              <div className="xc-row-main">
-                <div className="xc-row-top"><span className="xc-mono">{a.media_type}</span><span className="xc-meta">{a.byte_size.toLocaleString()} B</span></div>
-                <p className="xc-hash" title={a.content_hash}>{elideHash(a.content_hash)}</p>
-                <div className="xc-actions-row" style={{ marginTop: 4 }}>
-                  <button type="button" className="xc-btn" disabled={downloading === a.id} onClick={() => void download(a)}>{downloading === a.id ? 'Downloading…' : 'Download'}</button>
+    <>
+      {workspace.canWrite ? (
+        <div className="xc-form">
+          <label className="xc-field">Attach a file
+            <input className="xc-input" type="file" onChange={(e) => { choose(e.target.files?.[0]); e.target.value = '' }} disabled={attachBusy} />
+            <span className="xc-note">Any file up to 200 MB. It is stored on the server by its content hash; identical files are stored once.</span>
+          </label>
+          {chosen && (
+            <ConfirmPanel
+              title={`Attach ${chosen.name}`}
+              lines={[`${formatBytes(chosen.size)}${chosen.type ? ` · ${chosen.type}` : ''} will be uploaded and attached to this memory.`, 'The attachment is recorded in the memory’s history and cannot be removed from it.']}
+              confirmLabel="Attach"
+              busy={attachBusy}
+              onConfirm={() => void attach()}
+              onCancel={() => setChosen(null)}
+            />
+          )}
+        </div>
+      ) : (
+        <p className="xc-note">Read-only workspace: files can be downloaded but not attached.</p>
+      )}
+      {attachNote && <div className={`xc-callout ${attachNote.tone === 'ok' ? 'xc-callout--anchored' : 'xc-callout--conflict'}`} role={attachNote.tone === 'ok' ? 'status' : 'alert'}>{attachNote.tone === 'error' && <IconWarn />}{attachNote.text}</div>}
+      <Async state={list} empty={(l) => l.length === 0}>
+        {(items) => (
+          <div className="xc-rows">
+            {items.map((a) => (
+              <div className="xc-row" key={a.id}>
+                <i className="xc-row-dot" style={{ background: 'var(--ink-muted)' }} />
+                <div className="xc-row-main">
+                  <div className="xc-row-top"><span className="xc-mono">{a.media_type}</span><span className="xc-meta">{a.byte_size.toLocaleString()} B</span></div>
+                  <p className="xc-hash" title={a.content_hash}>{elideHash(a.content_hash)}</p>
+                  <div className="xc-actions-row" style={{ marginTop: 4 }}>
+                    <button type="button" className="xc-btn" disabled={downloading === a.id} onClick={() => void download(a)}>{downloading === a.id ? 'Downloading…' : 'Download'}</button>
+                  </div>
                 </div>
               </div>
-            </div>
-          ))}
-          {downloadError && <div className="xc-callout xc-callout--conflict" role="alert"><IconWarn />{downloadError}</div>}
-        </div>
-      )}
-    </Async>
+            ))}
+            {downloadError && <div className="xc-callout xc-callout--conflict" role="alert"><IconWarn />{downloadError}</div>}
+          </div>
+        )}
+      </Async>
+    </>
   )
 }
 

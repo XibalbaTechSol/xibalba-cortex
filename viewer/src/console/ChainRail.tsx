@@ -11,6 +11,10 @@ import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointer
 import { useConsole } from './state'
 import { histogram, shortStamp, type RangePreset } from './model'
 import { IconPause, IconPlay } from './icons'
+import { api } from '../api'
+import { ConfirmPanel } from './ConfirmPanel'
+import { saveBlob } from './download'
+import { describeExport, exportFilename, exportPlan } from './workspaceActions'
 
 const BUCKETS = 72
 const PRESETS: RangePreset[] = ['1h', '24h', '7d', '30d', 'all']
@@ -18,8 +22,28 @@ const REPLAY_STEPS = 110
 const REPLAY_TICK_MS = 70
 
 export function ChainRail() {
-  const { model, window: timeWindow, preset, setWindow, applyPreset } = useConsole()
+  const { model, facets, window: timeWindow, preset, setWindow, applyPreset } = useConsole()
   const hist = useMemo(() => (model ? histogram(model, BUCKETS) : null), [model])
+
+  // Export what the window and the Filters show: one provenance bundle, after saying exactly what is in it.
+  const [exporting, setExporting] = useState(false)
+  const [exportBusy, setExportBusy] = useState(false)
+  const [exportNote, setExportNote] = useState<{ tone: 'ok' | 'error'; text: string } | null>(null)
+  const plan = useMemo(() => exportPlan(model, facets, timeWindow), [model, facets, timeWindow])
+  const exportNow = async () => {
+    setExportBusy(true)
+    setExportNote(null)
+    try {
+      const bundle = await api.exportProvenance(plan.ids)
+      saveBlob(exportFilename(), new Blob([JSON.stringify(bundle, null, 2)], { type: 'application/json' }))
+      setExportNote({ tone: 'ok', text: `Saved a bundle of ${bundle.count} memor${bundle.count === 1 ? 'y' : 'ies'}. Its root is ${bundle.root_hash.slice(0, 19)}…` })
+      setExporting(false)
+    } catch (e) {
+      setExportNote({ tone: 'error', text: e instanceof Error ? e.message : String(e) })
+    } finally {
+      setExportBusy(false)
+    }
+  }
 
   const histRef = useRef<HTMLDivElement>(null)
   const drag = useRef<{ anchor: number; moved: boolean } | null>(null)
@@ -110,6 +134,7 @@ export function ChainRail() {
           {model && model.untimed > 0 ? ` · ${model.untimed} node${model.untimed === 1 ? '' : 's'} untimed (no timestamp in the API)` : ''}
         </span>
         <span className="xc-spacer" />
+        <button type="button" className="xc-btn" aria-expanded={exporting} aria-haspopup="true" disabled={!model} onClick={() => { setExporting((v) => !v); setExportNote(null) }}>Export this window</button>
         <div className="xc-ranges" role="group" aria-label="Time range">
           {PRESETS.map((p) => (
             <button key={p} type="button" aria-pressed={preset === p} onClick={() => (p === 'all' ? setWindow(null) : applyPreset(p))}>
@@ -118,6 +143,13 @@ export function ChainRail() {
           ))}
         </div>
       </div>
+
+      {exporting && (
+        plan.ids.length === 0 || plan.tooMany
+          ? <div className="xc-callout xc-callout--review" role="status"><span>{describeExport(plan, timeWindow).join(' ')} <button type="button" className="xc-link" onClick={() => setExporting(false)}>Close</button></span></div>
+          : <ConfirmPanel title="Export this window" lines={describeExport(plan, timeWindow)} confirmLabel={`Download ${plan.ids.length} memor${plan.ids.length === 1 ? 'y' : 'ies'}`} busy={exportBusy} onConfirm={() => void exportNow()} onCancel={() => setExporting(false)} />
+      )}
+      {exportNote && <div className={`xc-callout ${exportNote.tone === 'ok' ? 'xc-callout--anchored' : 'xc-callout--conflict'}`} role={exportNote.tone === 'ok' ? 'status' : 'alert'}>{exportNote.text}</div>}
 
       {hist ? (
         <>

@@ -6,14 +6,16 @@
 // These are store-wide views, so they need an unbound operator credential; for anyone else the card
 // says so instead of showing an error.
 
-import type { ReactNode } from 'react'
-import { api } from '../../api'
+import { useState, type ReactNode } from 'react'
+import { ApiError, api } from '../../api'
 import { useConsole } from '../state'
 import { useAsync } from '../useAsync'
 import { IconWarn } from '../icons'
 import { ago, coverageSentence, onlySource, runtimeSentence, workerSentence, workerTone } from '../status'
 import { describeIntervention, type Intervention } from '../runtime'
 import { parseServerTime } from '../model'
+import { ConfirmPanel } from '../ConfirmPanel'
+import { BACKUP_CONFIRMATION, describeBackup, formatBytes, reconciliationLine, type Verdict } from '../workspaceActions'
 
 function Card({ title, note, children }: { title: string; note?: ReactNode; children: ReactNode }) {
   return (
@@ -140,3 +142,83 @@ export function ConnectorsCard() {
 }
 
 
+
+
+/**
+ * Backup: write a verified copy of the whole store to the location the server is configured with, and
+ * check a listed copy against the live store. The browser never chooses or sees a location: it asks, the
+ * server names the file, and a check names a copy by the name the server listed. A complete copy is not
+ * a restorable one, and the result says so.
+ */
+export function BackupCard() {
+  const [rev, setRev] = useState(0)
+  const backups = useAsync(() => api.backups(), [rev])
+  const [confirming, setConfirming] = useState(false)
+  const [busy, setBusy] = useState<string | null>(null)
+  const [outcome, setOutcome] = useState<Verdict | null>(null)
+  const [checks, setChecks] = useState<Record<string, Verdict>>({})
+  const [problem, setProblem] = useState<string | null>(null)
+
+  const refuse = (e: unknown) => setProblem(e instanceof ApiError && e.status === 403 ? 'Backups cover the whole store, so they need an operator credential that is not bound to one agent.' : e instanceof Error ? e.message : String(e))
+
+  const backUp = async () => {
+    setBusy('backup'); setProblem(null); setOutcome(null)
+    try {
+      setOutcome(describeBackup(await api.backupNow()))
+      setConfirming(false)
+      setRev((n) => n + 1)
+    } catch (e) {
+      refuse(e)
+    } finally {
+      setBusy(null)
+    }
+  }
+  const check = async (name: string) => {
+    setBusy(name); setProblem(null)
+    try {
+      const r = await api.reconcileBackup(name)
+      setChecks((c) => ({ ...c, [name]: { tone: r.reconciliation.equal ? 'anchored' : 'conflict', title: r.reconciliation.equal ? 'Matches the live store' : 'Differs from the live store', detail: reconciliationLine(r.reconciliation) } }))
+    } catch (e) {
+      refuse(e)
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  const list = backups.data
+  return (
+    <Card title="Backup" note="A verified copy of the whole store, written where this server is configured to put it. A copy that is complete is not shown to restore.">
+      {backups.error ? <Refused error={backups.error} /> : backups.loading ? <p className="xc-note" role="status">Loading…</p> : !list?.configured ? (
+        <p className="xc-note">No backup location is configured on this server, so no backup can be made. An administrator sets one (XIBALBA_BACKUP_DIR).</p>
+      ) : (
+        <>
+          <div className="xc-actions-row">
+            <button type="button" className="xc-btn xc-btn--primary" aria-expanded={confirming} onClick={() => setConfirming((v) => !v)} disabled={busy !== null}>Back up now</button>
+          </div>
+          {confirming && <ConfirmPanel title="Back up the store" lines={BACKUP_CONFIRMATION} confirmLabel="Write the backup" busy={busy === 'backup'} onConfirm={() => void backUp()} onCancel={() => setConfirming(false)} />}
+          {problem && <div className="xc-callout xc-callout--conflict" role="alert"><IconWarn />{problem}</div>}
+          {outcome && <BackupVerdict verdict={outcome} />}
+          {list.backups.length === 0 ? <p className="xc-note">No backups have been made yet.</p> : (
+            <ul className="xc-list">
+              {list.backups.map((b) => (
+                <li key={b.name} className="xc-listrow xc-listrow--block">
+                  <span>
+                    <b className="xc-mono">{b.name}</b>
+                    <br /><span className="xc-meta">{formatBytes(b.bytes)} · {ago(b.modified_at)}</span>
+                    {checks[b.name] && <><br /><BackupVerdict verdict={checks[b.name]} /></>}
+                  </span>
+                  <button type="button" className="xc-btn" disabled={busy !== null} onClick={() => void check(b.name)}>{busy === b.name ? 'Checking…' : 'Check against the live store'}</button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </>
+      )}
+    </Card>
+  )
+}
+
+function BackupVerdict({ verdict }: { verdict: Verdict }) {
+  const cls = verdict.tone === 'anchored' ? 'xc-callout--anchored' : verdict.tone === 'conflict' ? 'xc-callout--conflict' : 'xc-callout--review'
+  return <div className={`xc-callout ${cls}`} role="status"><div style={{ minWidth: 0 }}><b>{verdict.title}</b><div className="xc-note">{verdict.detail}</div></div></div>
+}

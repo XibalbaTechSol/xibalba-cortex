@@ -97,6 +97,15 @@ ROUTES: dict[str, str] = {
     "GET /api/workers": "Operations → Workers (derived from the queue; no heartbeat)",
     "GET /api/connectors": "Operations → Connectors and ingest (reports; never drives)",
     "GET /api/vault/leaf": "Settings → Developer → Trust vault lookup (the vault is server configuration)",
+    "GET /api/backups": "Operations → Backup (names and sizes; never a path)",
+    "POST /api/backup": "Operations → Backup → Back up now (confirmed; the server names the file)",
+    "POST /api/backup/reconcile": "Operations → Backup → Check against the live store",
+    "POST /api/memory/{id}/attachments": "Inspector → Files → Attach a file (bytes, not a path; up to 200 MB)",
+    "POST /api/import": "Memories → Import (text and Markdown; candidate memories plus proposals)",
+    "POST /api/provenance/export": "Chain rail → Export this window",
+    "POST /api/session/{id}/end": "Sessions → End session (confirmed; not undone)",
+    "POST /api/memory/{id}/verify-link": "Integrity → Links → Verify this link",
+    "POST /api/session/{id}/anchor": "Integrity → Sessions → Anchor this root (confirmed; outward)",
 }
 
 # Served by local_api.py but missing from its module docstring (the docstring is not the source of truth).
@@ -178,13 +187,13 @@ TOOLS: dict[str, tuple[str, str]] = {
     "memory_ingest_connector_event": ("machine", "Connector ingest"),
     "memory_start_self_extraction": ("machine", "An agent extracting from its own context"),
     "memory_session_start": ("machine", "Harness lifecycle; a session begins when its first exchange is recorded"),
-    "memory_session_end": ("machine", "Harness lifecycle; no HTTP route exists to end a session"),
-    "memory_attach": ("withheld", "Takes a file path on the server's disk; a browser upload route does not exist yet"),
-    "memory_backup": ("withheld", "Takes a destination path on the server's disk"),
-    "memory_backup_reconcile": ("withheld", "Takes a backup path on the server's disk"),
-    "memory_vault_inspect": ("withheld", "Takes a vault directory path on the server's disk"),
-    "memory_verify_integrity_link": ("withheld", "Takes a dag_home path on the server's disk; the link states are listed under Integrity → Links"),
-    "memory_anchor_session_root": ("withheld", "Outward-facing: publishes a session root to the oracle. Needs an explicit, confirmed action"),
+    "memory_session_end": ("console", "Sessions → End session (confirmed; the harness still ends its own sessions)"),
+    "memory_attach": ("console", "Inspector → Files → Attach a file (the browser sends the bytes; the server picks the path)"),
+    "memory_backup": ("console", "Operations → Backup → Back up now (the destination is server configuration)"),
+    "memory_backup_reconcile": ("console", "Operations → Backup → Check against the live store (by a name the server listed)"),
+    "memory_vault_inspect": ("console", "Settings → Developer → Trust vault lookup (the vault is server configuration)"),
+    "memory_verify_integrity_link": ("console", "Integrity → Links → Verify this link (the DAG location is server configuration)"),
+    "memory_anchor_session_root": ("console", "Integrity → Sessions → Anchor this root (a confirmed, named, outward action)"),
 }
 RUNTIME_REASON = (
     "machine",

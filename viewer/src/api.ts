@@ -357,7 +357,6 @@ export interface Attachment {
   media_type: string
   content_hash: string
   byte_size: number
-  storage_locator: string
   created_at: string
 }
 
@@ -999,6 +998,54 @@ export interface VaultLeafResult {
   error?: string
 }
 
+// ---- actions that write or reach outward (console_actions.py) ---------------------------------------------
+
+export interface ImportResult {
+  document: { name: string; sha256: string; bytes: number; sections: number }
+  imported: number
+  already_present: number
+  memory_ids: string[]
+  proposal_runs: number
+  status: 'candidate'
+  note: string
+}
+
+export interface ReconciliationSummary {
+  equal: boolean
+  domains: Record<string, { equal: boolean; live_leaf_count: number | null; destination_leaf_count: number | null }>
+}
+export interface BackupResult {
+  name: string
+  integrity_check: string | null
+  schema_version: number | null
+  reconciliation: ReconciliationSummary | null
+  /** one sentence on what this copy does and does not show */
+  claim: string
+}
+export interface BackupEntry { name: string; bytes: number; modified_at: string }
+export interface BackupList { configured: boolean; backups: BackupEntry[] }
+
+export interface IntegrityLinkVerification {
+  memory_id: string
+  node_id: string | null
+  verification_state: string
+  failure_reason: string | null
+  scope: string
+  truth_authorization_completeness: boolean
+  anchored: boolean
+}
+export interface SessionAnchorResult { anchored: boolean; session_id?: string; error?: string }
+
+/** POST a file's bytes as the request body. 413 and the server's own reason surface as an ApiError. */
+async function uploadRaw<T>(path: string, file: File): Promise<T> {
+  const response = await mutatingFetch(path, { method: 'POST', headers: { 'Content-Type': file.type || 'application/octet-stream' }, body: file })
+  if (!response.ok) {
+    const body = await response.json().catch(() => ({ error: response.statusText }))
+    throw new ApiError(body.error ?? `request failed: ${response.status}`, response.status)
+  }
+  return response.json() as Promise<T>
+}
+
 async function getBlob(path: string): Promise<Blob> {
   const response = await fetch(`${getApiBaseUrl()}${path}`, { credentials: "include" })
   if (!response.ok) throw new Error(`request failed: ${response.status}`)
@@ -1155,6 +1202,16 @@ export const api = {
   workers: () => getJson<WorkerStatus>('/api/workers'),
   connectors: () => getJson<ConnectorStatus>('/api/connectors'),
   vaultLeaf: (leafHash: string) => getJson<VaultLeafResult>(`/api/vault/leaf?leaf_hash=${encodeURIComponent(leafHash)}`),
+  backups: () => getJson<BackupList>('/api/backups'),
+  backupNow: () => postJson<BackupResult>('/api/backup', {}),
+  reconcileBackup: (name: string) => postJson<{ name: string; reconciliation: ReconciliationSummary }>('/api/backup/reconcile', { name }),
+  exportProvenance: (memoryIds: string[]) => postJson<ProvenanceBundle>('/api/provenance/export', { memory_ids: memoryIds }),
+  endSession: (sessionId: string) => postJson<Session>(`/api/session/${encodeURIComponent(sessionId)}/end`, {}),
+  verifyIntegrityLink: (memoryId: string) => postJson<IntegrityLinkVerification>(`/api/memory/${encodeURIComponent(memoryId)}/verify-link`, {}),
+  anchorSession: (sessionId: string) => postJson<SessionAnchorResult>(`/api/session/${encodeURIComponent(sessionId)}/anchor`, {}),
+  /** Raw bytes in the body, the declared media type in Content-Type, the display name in the query. The server picks every path. */
+  attachFile: (memoryId: string, file: File) => uploadRaw<Attachment & { display_name: string }>(`/api/memory/${encodeURIComponent(memoryId)}/attachments?filename=${encodeURIComponent(file.name)}`, file),
+  importDocument: (file: File, workspaceAgentId?: string) => uploadRaw<ImportResult>(`/api/import?filename=${encodeURIComponent(file.name)}${workspaceAgentId ? `&workspace_agent_id=${encodeURIComponent(workspaceAgentId)}` : ''}`, file),
   authTokens: () => getJson<ApiTokenList>('/api/auth/tokens'),
   issueAuthToken: (input: { label: string; role: string; ttl_hours: number }) => postJson<IssuedApiToken>('/api/auth/tokens', input),
   revokeAuthToken: (tokenId: string) => postJson<{ ok: boolean }>('/api/auth/tokens/revoke', { token_id: tokenId }),

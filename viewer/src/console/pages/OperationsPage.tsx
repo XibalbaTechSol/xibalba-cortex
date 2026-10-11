@@ -10,7 +10,7 @@ import { useAsync } from '../useAsync'
 import { describeCoverage, labelText, parsePrometheus, sum } from '../ops'
 import { IconWarn } from '../icons'
 import { Page } from './Page'
-import { ConnectorsCard, RuntimesCard, WorkersCard } from './OpsStatus'
+import { BackupCard, ConnectorsCard, RuntimesCard, WorkersCard } from './OpsStatus'
 
 const tone = (ok: boolean) => (ok ? 'xc-tag--anchored' : 'xc-tag--conflict')
 const state = (value: string) => (/^(healthy|ok|ready|implemented|active)$/i.test(value) ? 'xc-tag--anchored' : /^(degraded|local_only|planned)$/i.test(value) ? 'xc-tag--review' : '')
@@ -131,6 +131,7 @@ export function OperationsPage() {
           <RuntimesCard />
           <WorkersCard />
           <ConnectorsCard />
+          <BackupCard />
 
           <Card title="Production" note="What this profile does not yet claim.">
             <p><span className={`xc-tag ${state(d.production.state)}`}><i />{d.production.state.replace(/_/g, ' ')}</span></p>

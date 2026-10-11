@@ -4,6 +4,7 @@
 //   npx playwright test -g "drawers"     # a subset
 //
 // What it starts (sequentially, in this order):
+//   0. an anchor-service stand-in (e2e/anchor-stub.mjs) on :8431;
 //   1. a scratch Cortex profile seeded by scripts/dev_seed_console.py (real GraphStore writes, then
 //      backdated timestamps) and `xibalba_cortex.local_api` serving it on :8420;
 //   2. the Vite dev server on :5190, whose proxy injects a local-development operator token, so the
@@ -28,6 +29,10 @@ const home = process.env.E2E_CORTEX_HOME ?? join(tmpdir(), 'cortex-e2e')
 const python = process.env.E2E_PYTHON ?? 'uv run python'
 const apiPort = 8420
 const uiPort = 5190
+const anchorPort = 8431
+// Server-side destinations the console's actions use. The browser is never told these; they are the
+// server's own configuration, set here for the fixture API only.
+const backupDir = join(tmpdir(), 'cortex-e2e-backups')
 
 export default defineConfig({
   testDir: './e2e',
@@ -57,10 +62,18 @@ export default defineConfig({
   ],
   webServer: [
     {
+      // stands in for the anchor service, so anchoring a session root works end to end with no outside network
+      command: `node e2e/anchor-stub.mjs ${anchorPort}`,
+      cwd: import.meta.dirname,
+      url: `http://127.0.0.1:${anchorPort}/healthz`,
+      timeout: 30_000,
+      reuseExistingServer: !process.env.CI,
+    },
+    {
       // seed, then serve. --reset only deletes the SQLite files the seed itself would create.
       command: `${python} scripts/dev_seed_console.py --home "${home}" --reset --scenario both && exec ${python} -m xibalba_cortex.local_api --home "${home}" --port ${apiPort}`,
       cwd: repoRoot,
-      env: { PYTHONPATH: join(repoRoot, 'src') },
+      env: { PYTHONPATH: join(repoRoot, 'src'), XIBALBA_BACKUP_DIR: backupDir, XIBALBA_ANCHOR_URL: `http://127.0.0.1:${anchorPort}/anchor` },
       url: `http://127.0.0.1:${apiPort}/healthz`,
       timeout: 180_000,
       reuseExistingServer: !process.env.CI,
