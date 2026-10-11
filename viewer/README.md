@@ -65,6 +65,14 @@ It is dark-only and shares the Xibalba Console design language with Shield (grap
 registration crosses on every window, Barlow / Barlow Condensed / JetBrains Mono) with Cortex's
 lavender accent.
 
+The **Graph lens is 3D by default** (cubes on a faint 3D lattice, one node per cell; orbit, pan,
+zoom, click a node or a line to select, drag a cube to pin it) with a 2D toggle on a faint square
+grid. **Snap to grid** (button on the lens, or Settings) puts each node in its own cell in both
+views. The camera frames the cloud intelligently (`framing.ts`) and re-frames after filters until
+you move it; at any zoom, nodes keep a minimum size and the grid coarsens so the graph stays
+intact. Keyboard, with the canvas focused: arrows orbit, shift+arrows pan, + and − zoom, F frames
+everything, Esc clears. The full behaviour spec and every screen state are in `DESIGN.md`.
+
 Honesty rules the console follows:
 
 - A node is placed in time only from a timestamp the API really returns; everything else is
