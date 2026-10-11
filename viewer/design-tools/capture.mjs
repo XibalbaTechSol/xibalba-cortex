@@ -99,6 +99,10 @@ const boards = [
   { name: 'recall-lexical', w: 1440, h: 900, hash: '#graph', run: async (p) => { await p.keyboard.press('Control+k'); await p.getByRole('dialog', { name: 'Recall' }).waitFor(); await p.getByRole('button', { name: 'Lexical' }).click(); await p.getByLabel('Recall query').fill('relay'); await p.keyboard.press('Enter'); await p.locator('li.xc-result').first().waitFor(); await p.waitForTimeout(600) } },
   { name: 'recall-error', w: 1440, h: 900, hash: '#graph', routes: [['**/cortex-api/api/retrieval/hybrid', { error: 'lexical and vector retrieval are disabled by feature policy' }]], status: 500, run: async (p) => { await p.keyboard.press('Control+k'); await p.getByRole('dialog', { name: 'Recall' }).waitFor(); await p.getByLabel('Recall query').fill('relay submissions'); await p.keyboard.press('Enter'); await p.waitForTimeout(1200) } },
   { name: 'timeline-session-selected', w: 1440, h: 900, hash: '#timeline', primary: true, run: async (p) => { await p.locator('.xc-lane-label').first().click(); await p.waitForTimeout(900) } },
+  // ---- round 6: collapsed navigation and panes
+  { name: 'panes-hidden', w: 1440, h: 900, hash: '#graph', primary: true, init: { facetsCollapsed: true, inspectorCollapsed: true }, run: async (p) => { await settle3d(p) } },
+  { name: 'inspector-hidden', w: 1440, h: 900, hash: '#timeline', primary: true, init: { inspectorCollapsed: true } },
+  { name: 'topbar-collapsed', w: 1440, h: 900, hash: '#graph', primary: true, init: { shell: 'top', railCollapsed: true } },
   { name: 'rail-graph', w: 1440, h: 900, hash: '#graph', run: async (p) => { await pinMemory(p, 'relay retries', 'three times') } },
   { name: 'rail-timeline', w: 1440, h: 900, hash: '#timeline', init: { railCollapsed: true }, run: async (p) => { await pinMemory(p, 'relay retries', 'three times') } },
   { name: 'signin', w: 1440, h: 900, signedOut: true },
