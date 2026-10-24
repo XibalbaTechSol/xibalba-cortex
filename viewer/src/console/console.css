@@ -685,14 +685,12 @@ select.xc-input {
   position: absolute;
   left: 14px;
   bottom: 14px;
-  min-height: 28px;
-  padding: 0 12px;
+  min-height: var(--control-height);
+  padding: 0 14px;
   border: 1px solid var(--hairline);
   background: var(--ground);
   color: var(--ink-muted);
-  font: 500 11px var(--font-mono);
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
+  font: 600 13px/1.2 var(--font-body);
   cursor: pointer;
 }
 .xc-legend-toggle:hover,
