@@ -1,12 +1,30 @@
 /* Design tokens for the Cortex console.
  *
- * Source: the "Xibalba Console" design system (tokens.json), which follows the Industry mock as
- * measured in xibalba-shield/docs/audits/UI_MOCK_COMPARISON_MATRIX.md -- NOT Shield's current CSS,
- * which drifted from the mock in commit 7e36a2d. Dark only, by decision.
+ * Source of truth: the Industry design system (styles.css / readme.md), as measured in
+ * xibalba-shield/docs/audits/UI_MOCK_COMPARISON_MATRIX.md. Industry ships a single light
+ * ground; the dark ground below is the derived counterpart and is shared verbatim with the
+ * Shield console (ui/src/App.css), so the two products read as one system. Dark only, by
+ * decision -- there is no light theme here, which is why nothing selects one.
  *
- * Tokens marked DERIVED are not from the mock.
+ * Industry is a MONO palette: one steel accent, no decorative colour beyond it. Cortex
+ * previously carried a lavender accent to distinguish itself from Shield; that was retired
+ * in favour of the shared steel, so both consoles now use the same accent ramp.
+ *
+ * Tokens marked DERIVED are not from Industry itself.
  */
 :root {
+  /* Industry tonal ramps -- OKLCH-generated on one shared lightness scale. Prefer a
+     ramp step over an ad-hoc color-mix(). Identical to Shield's. */
+  --accent-100: #eef6ff;
+  --accent-200: #d6ebff;
+  --accent-300: #b5d9fd;
+  --accent-400: #94bce3;
+  --accent-500: #749dc4;
+  --accent-600: #597ea3;
+  --accent-700: #416180;
+  --accent-800: #2c455d;
+  --accent-900: #1d2d3d;
+
   /* surfaces: one graphite for the page, every window and the top bar */
   --ground: #14171a;
   --chrome: var(--ground);
@@ -26,16 +44,18 @@
   --ink-dim: #9aa1a8;
   --ink-on-accent: #102027;
 
-  /* Cortex accent: derived in OKLCH from Shield's #9fc3df at identical lightness 0.800 and
-     chroma 0.055, hue 242 -> 300. DERIVED. */
-  --cortex-accent: #c3b6dd;
-  --cortex-accent-hover: #e3dcf2;
-  --cortex-accent-soft: rgba(195, 182, 221, 0.16);
-  --cortex-accent-glow: rgba(195, 182, 221, 0.2);
+  /* Accent: Industry's steel, lifted onto the dark ground. accent-400 is the base and
+     hover goes *lighter* (accent-300), which is what Industry specifies for a dark ground;
+     pressed goes one step darker. Shared with Shield. */
+  --cortex-accent: var(--accent-400);
+  --cortex-accent-hover: var(--accent-300);
+  --cortex-accent-pressed: var(--accent-500);
+  --cortex-accent-soft: rgba(148, 188, 227, 0.16);
+  --cortex-accent-glow: rgba(148, 188, 227, 0.2);
 
   /* shared status vocabulary: identical in Shield and Cortex */
-  --status-anchored: #9fc3df;
-  --status-anchored-soft: rgba(159, 195, 223, 0.12);
+  --status-anchored: var(--accent-400);
+  --status-anchored-soft: rgba(148, 188, 227, 0.12);
   --status-review: #d7aa6c;
   --status-review-soft: rgba(215, 170, 108, 0.16);
   --status-conflict: #d88383;

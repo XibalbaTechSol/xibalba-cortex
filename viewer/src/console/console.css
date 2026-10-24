@@ -890,7 +890,7 @@ select.xc-input {
 .xc-hist-bar {
   flex: 1 1 0;
   min-width: 0;
-  background: rgba(195, 182, 221, 0.32);
+  background: color-mix(in srgb, var(--accent) 32%, transparent);
   pointer-events: none;
 }
 .xc-hist-bar[data-in='true'] {
@@ -902,7 +902,7 @@ select.xc-input {
   bottom: 0;
   border-left: 2px solid var(--accent);
   border-right: 2px solid var(--accent);
-  background: rgba(195, 182, 221, 0.1);
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
   pointer-events: none;
 }
 .xc-hist-axis {
@@ -993,10 +993,10 @@ select.xc-input {
   position: absolute;
   top: 27px;
   height: 3px;
-  background: rgba(195, 182, 221, 0.28);
+  background: color-mix(in srgb, var(--accent) 28%, transparent);
 }
 .xc-lane-span[data-open='true'] {
-  background: repeating-linear-gradient(90deg, rgba(195, 182, 221, 0.28) 0 6px, transparent 6px 10px);
+  background: repeating-linear-gradient(90deg, color-mix(in srgb, var(--accent) 28%, transparent) 0 6px, transparent 6px 10px);
 }
 .xc-mark {
   position: absolute;
