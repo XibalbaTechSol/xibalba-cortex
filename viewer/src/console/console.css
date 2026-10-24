@@ -534,10 +534,10 @@ select.xc-input {
 .xc-workspace {
   flex: 1 1 0%;
   display: grid;
-  grid-template-columns: 232px minmax(0, 1fr) 340px;
+  grid-template-columns: 210px minmax(0, 1fr) 480px;
   grid-template-rows: minmax(0, 1fr);
   gap: var(--window-gap);
-  padding: 16px 20px 12px;
+  padding: 10px 16px 8px;
   height: auto;
   min-height: 0;
   max-height: none;
@@ -799,15 +799,66 @@ select.xc-input {
 /* inspector */
 .xc-inspector-head {
   display: grid;
-  gap: 7px;
-  padding: 16px var(--window-padding) 13px;
+  gap: 3px;
+  padding: 8px 12px 6px;
   border-bottom: 1px solid var(--hairline);
+  flex-shrink: 0;
+}
+.xc-inspector-head .xc-title {
+  font: 600 15px/1.25 var(--font-condensed);
+  margin: 0;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.xc-inspector-head .xc-eyebrow {
+  margin: 0;
+  font-size: 10px;
+}
+.xc-inspector-head .xc-meta {
+  margin: 0;
+  font-size: 11px;
+}
+.xc-inspector .xc-tabs {
+  flex-wrap: wrap;
+  overflow-x: hidden;
+  scrollbar-width: none;
+}
+.xc-inspector .xc-tab {
+  padding: 5px 8px;
+  font-size: 11px;
+  min-height: 26px;
+  line-height: 1.2;
 }
 .xc-inspector-body {
   display: grid;
-  gap: 18px;
-  padding: var(--window-padding);
+  gap: 8px;
+  padding: 8px 12px;
   align-content: start;
+}
+.xc-inspector-body .xc-section-title {
+  margin-bottom: 4px;
+}
+.xc-inspector-body .xc-callout {
+  padding: 6px 10px;
+  gap: 8px;
+  font-size: 11px;
+}
+.xc-inspector-body .xc-row {
+  padding: 4px 0;
+  gap: 8px;
+}
+.xc-inspector-body .xc-note {
+  font-size: 11px;
+  line-height: 1.35;
+  margin-top: 4px;
+}
+.xc-inspector-body .xc-kv {
+  gap: 3px;
+}
+.xc-inspector-body .xc-kv > div {
+  font-size: 11px;
 }
 .xc-section-title {
   margin-bottom: 10px;
@@ -1367,11 +1418,23 @@ select.xc-input {
 /* ---------- write actions (inspector footer) -------------------------------------------------- */
 .xc-inspector-foot {
   display: grid;
-  gap: 12px;
-  padding: 14px var(--window-padding);
+  gap: 6px;
+  padding: 8px 12px;
   border-top: 1px solid var(--hairline);
   max-height: 60%;
   overflow-y: auto;
+  flex-shrink: 0;
+}
+.xc-inspector-foot .xc-actions-row {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+.xc-inspector-foot .xc-btn {
+  padding: 4px 8px;
+  font-size: 11px;
+  min-height: 26px;
 }
 .xc-form {
   display: grid;
@@ -2016,26 +2079,33 @@ select.xc-input {
 /* ---------- memories page ---------------------------------------------------------------------------- */
 .xc-memories {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 400px;
+  grid-template-columns: minmax(0, 1fr) 480px;
   gap: var(--window-gap);
   align-items: start;
 }
 .xc-memories-list {
   min-height: 0;
-  height: calc(100vh - 220px);
+  height: auto;
   min-height: 520px;
 }
 .xc-memories-detail {
   position: sticky;
-  top: 20px;
-  height: calc(100vh - 220px);
-  min-height: 520px;
+  top: 0;
+  height: auto;
+  min-height: min-content;
   display: flex;
   flex-direction: column;
 }
 .xc-memories-detail > .xc-win {
-  flex: 1;
-  min-height: 0;
+  height: auto;
+  min-height: min-content;
+  display: flex;
+  flex-direction: column;
+}
+.xc-memories-detail .xc-scroll {
+  overflow-y: visible;
+  height: auto;
+  flex: none;
 }
 .xc-memories-filters {
   display: grid;
