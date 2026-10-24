@@ -3,6 +3,7 @@
 // there shows up in each, and the phone tab bar, without a second list to keep in step.
 
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
+import { createPortal } from 'react-dom'
 import { accountMe } from '../api'
 import { useConsole } from './state'
 import { useSettings } from './settingsContext'
@@ -135,10 +136,12 @@ export function AccountMenu({ placement = 'down' }: { placement?: 'up' | 'down' 
   const [open, setOpen] = useState(false)
   const [at, setAt] = useState<CSSProperties>({})
   const root = useRef<HTMLDivElement>(null)
+  const menuRef = useRef<HTMLDivElement>(null)
   const first = useRef<HTMLButtonElement>(null)
 
-  // fixed to the viewport, from the button's box: the rail clips its overflow, so a menu
-  // positioned inside it would be cut off (and a collapsed rail is only 68px wide)
+  // fixed to the viewport from the button's box, and rendered into <body>: the rail clips its
+  // overflow and is its own stacking context, so a menu inside it would be cut off or drawn
+  // under the main panes (a collapsed rail is only 68px wide)
   const place = () => {
     const btn = root.current?.querySelector<HTMLButtonElement>('.xc-account-btn')
     if (!btn) return
@@ -152,7 +155,8 @@ export function AccountMenu({ placement = 'down' }: { placement?: 'up' | 'down' 
     if (!open) return
     first.current?.focus()
     const onDown = (e: PointerEvent) => {
-      if (root.current && !root.current.contains(e.target as Node)) setOpen(false)
+      const t = e.target as Node
+      if (!root.current?.contains(t) && !menuRef.current?.contains(t)) setOpen(false)
     }
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
@@ -164,12 +168,12 @@ export function AccountMenu({ placement = 'down' }: { placement?: 'up' | 'down' 
     document.addEventListener('pointerdown', onDown)
     document.addEventListener('keydown', onKey)
     window.addEventListener('resize', close)
-    window.addEventListener('scroll', close, true)
+    window.addEventListener('scroll', close)
     return () => {
       document.removeEventListener('pointerdown', onDown)
       document.removeEventListener('keydown', onKey)
       window.removeEventListener('resize', close)
-      window.removeEventListener('scroll', close, true)
+      window.removeEventListener('scroll', close)
     }
   }, [open])
 
@@ -195,15 +199,16 @@ export function AccountMenu({ placement = 'down' }: { placement?: 'up' | 'down' 
         <span className="xc-account-avatar" aria-hidden="true">{name.trim().slice(0, 1).toUpperCase()}</span>
         <span className="xc-account-name xc-nav-label">{name}</span>
       </button>
-      {open && (
-        <div className="xc-account-menu" role="menu" aria-label="Account" style={at}>
+      {open && createPortal(
+        <div className="xc-account-menu" role="menu" aria-label="Account" style={at} ref={menuRef}>
           <button ref={first} type="button" role="menuitem" className="xc-account-item" onClick={choose(() => go('settings'))}>
             <IconSettings /> Settings
           </button>
           <button type="button" role="menuitem" className="xc-account-item" onClick={choose(signOut)}>
             <IconSignOut /> Sign out
           </button>
-        </div>
+        </div>,
+        document.body,
       )}
     </div>
   )

@@ -2463,8 +2463,11 @@ select.xc-input {
   white-space: nowrap;
 }
 .xc-account-menu {
-  position: fixed; /* placed from the button's box in Shell.tsx: the rail clips overflow */
-  z-index: 40;
+  /* placed from the button's box in Shell.tsx and rendered into <body>, outside .xc */
+  --accent-soft: var(--cortex-accent-soft);
+  position: fixed;
+  z-index: 60;
+  box-sizing: border-box;
   min-width: 180px;
   display: grid;
   padding: 4px;
