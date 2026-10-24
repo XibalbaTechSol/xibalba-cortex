@@ -2434,6 +2434,75 @@ select.xc-input {
   color: var(--ink);
 }
 
+/* Account button and its menu (Settings, Sign out). Square, hairline, the overlay shadow. */
+.xc-account {
+  position: relative;
+  min-width: 0;
+}
+.xc-account-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 220px;
+  padding: 4px 12px 4px 4px;
+}
+.xc-account-avatar {
+  flex: none;
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--accent);
+  color: var(--accent);
+  font: 600 15px/1 var(--font-condensed);
+}
+.xc-account-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.xc-account-menu {
+  position: fixed; /* placed from the button's box in Shell.tsx: the rail clips overflow */
+  z-index: 40;
+  min-width: 180px;
+  display: grid;
+  padding: 4px;
+  border: 1px solid var(--hairline-strong);
+  background: var(--elevated);
+  box-shadow: var(--shadow-overlay);
+}
+.xc-account-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: var(--control-height);
+  padding: 8px 12px;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  font: 600 13px/1.2 var(--font-body);
+  text-align: left;
+  cursor: pointer;
+}
+.xc-account-item svg {
+  width: 15px;
+  height: 15px;
+}
+.xc-account-item:hover,
+.xc-account-item:focus-visible {
+  background: var(--accent-soft);
+  outline: none;
+}
+/* in the rail the account button takes the row, beside Reload */
+.xc-rail-foot .xc-account {
+  flex: 1;
+}
+.xc-rail-foot .xc-account-btn {
+  width: 100%;
+  max-width: none;
+}
+
 /* A short window fits the rail instead of scrolling it. Last in the file so it wins over the
    rail rules above at equal specificity. */
 @media (max-height: 760px) {

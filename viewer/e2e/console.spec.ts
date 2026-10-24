@@ -83,6 +83,23 @@ test.describe('Console', () => {
     }
   });
 
+  test('the account button opens Settings and Sign out', async ({ page }) => {
+    await signedInConsole(page);
+    const account = page.locator('.xc-rail-foot').getByRole('button', { name: /Account: Operator/ });
+    await account.click();
+    const menu = page.getByRole('menu', { name: 'Account' });
+    await expect(menu.getByRole('menuitem')).toHaveText([/Settings/, /Sign out/]);
+    await page.keyboard.press('Escape');
+    await expect(menu).toBeHidden();
+    await account.click();
+    await menu.getByRole('menuitem', { name: /Settings/ }).click();
+    await expect(page.getByRole('heading', { name: 'Settings' })).toBeVisible();
+    await expect(menu).toBeHidden();
+    await account.click();
+    await page.getByRole('menuitem', { name: /Sign out/ }).click();
+    await expect(page.getByRole('tab', { name: 'Sign in' })).toBeVisible();
+  });
+
   test('at phone width the console does not scroll sideways', async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await signedInConsole(page);
