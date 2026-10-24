@@ -1630,6 +1630,11 @@ select.xc-input {
   background: var(--ground);
   overflow-y: auto;
   overflow-x: hidden;
+  /* the rail never shows a scrollbar; a short window compacts it instead (below) */
+  scrollbar-width: none;
+}
+.xc-rail-shell::-webkit-scrollbar {
+  display: none;
 }
 .xc-rail-head {
   display: flex;
@@ -2427,4 +2432,28 @@ select.xc-input {
   border-bottom: 1px solid var(--hairline);
   background: var(--status-review-soft);
   color: var(--ink);
+}
+
+/* A short window fits the rail instead of scrolling it. Last in the file so it wins over the
+   rail rules above at equal specificity. */
+@media (max-height: 760px) {
+  .xc-rail-shell {
+    gap: 8px;
+    padding-top: 10px;
+    padding-bottom: 8px;
+  }
+  .xc-rail-nav {
+    gap: 6px;
+  }
+  .xc-rail-kicker {
+    margin-bottom: 0;
+  }
+  .xc-rail-shell .xc-nav-btn {
+    padding-top: 3px;
+    padding-bottom: 3px;
+  }
+  .xc-rail-shell .xc-brand-mark {
+    width: 40px;
+    height: 40px;
+  }
 }
