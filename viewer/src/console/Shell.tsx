@@ -36,7 +36,7 @@ export function useIsCurrent(): (dest: Destination) => boolean {
   }
 }
 
-export function NavButton({ dest, compact = false }: { dest: Destination; compact?: boolean }) {
+export function NavButton({ dest }: { dest: Destination }) {
   const { go } = useConsole()
   const isCurrent = useIsCurrent()
   return (
@@ -45,13 +45,21 @@ export function NavButton({ dest, compact = false }: { dest: Destination; compac
       className="xc-nav-btn"
       aria-current={isCurrent(dest) ? 'page' : undefined}
       aria-haspopup={dest.kind === 'overlay' ? 'dialog' : undefined}
-      aria-label={compact ? dest.label : undefined}
+      /* The name is unconditional. It used to be set only when the rail's JS
+         collapse toggle was on, but the rail is also forced icon-only by CSS
+         between 761 and 1280px -- that media query hides `.xc-nav-label` and the
+         toggle both. So at those widths every button in the primary navigation
+         went nameless. Naming it always costs nothing when the label is visible:
+         the accessible name is the same string either way. */
+      aria-label={dest.label}
       title={dest.hint}
       onClick={() => go(dest.id)}
     >
       {DESTINATION_ICON[dest.id]}
       <span className="xc-nav-label">{dest.label}</span>
-      {dest.id === 'recall' && <span className="xc-kbd xc-nav-label">⌘K</span>}
+      {/* a keyboard hint, decorative for assistive tech: it would otherwise land
+          inside the accessible name as "Recall ⌘K". */}
+      {dest.id === 'recall' && <span className="xc-kbd xc-nav-label" aria-hidden="true">⌘K</span>}
     </button>
   )
 }
@@ -189,7 +197,7 @@ export function Rail() {
           return (
             <div className="xc-rail-group" key={group}>
               <p className="xc-rail-kicker">{GROUP_LABEL[group]}</p>
-              {items.map((d) => <NavButton key={d.id} dest={d} compact={collapsed} />)}
+              {items.map((d) => <NavButton key={d.id} dest={d} />)}
             </div>
           )
         })}

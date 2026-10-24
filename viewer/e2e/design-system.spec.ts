@@ -251,6 +251,10 @@ test.describe('Industry design system conformance (Cortex console)', () => {
 
 const SCALE = [10, 11, 12, 13, 14, 15, 16, 17, 18, 20, 25, 32, 42]
 const ROUTES = ['', 'timeline', 'memories', 'entities', 'sessions', 'operations', 'agents', 'settings']
+/* The workflow surfaces open over whichever lens is current. They are where
+   the stacking-layer rule and the legend toggle actually appear, so leaving
+   them out left both untested. */
+const OVERLAYS = ['recall', 'review', 'integrity']
 
 async function grammarSweep(page: Page): Promise<string[]> {
   return page.evaluate((scale) => {
@@ -279,15 +283,21 @@ async function grammarSweep(page: Page): Promise<string[]> {
       }
       return true
     }
+    /* Also records WHICH ancestor each bound came from. "cut off by a clipping
+       ancestor" named no element, which left every such finding needing a
+       separate hand-written probe before it could be fixed. */
     const clip = (e: Element, seedViewport: boolean) => {
-      let r = seedViewport
-        ? { l: 0, t: 0, r: innerWidth, b: innerHeight }
-        : { l: 0, t: -1e7, r: innerWidth, b: 1e7 }
+      let r: { l: number; t: number; r: number; b: number; by: Record<string, string> } = seedViewport
+        ? { l: 0, t: 0, r: innerWidth, b: innerHeight, by: {} }
+        : { l: 0, t: -1e7, r: innerWidth, b: 1e7, by: {} }
       for (let p = e.parentElement; p; p = p.parentElement) {
         const s = getComputedStyle(p)
         if (s.overflowX === 'visible' && s.overflowY === 'visible') continue
-        const pr = p.getBoundingClientRect()
-        r = { l: Math.max(r.l, pr.left), t: Math.max(r.t, pr.top), r: Math.min(r.r, pr.right), b: Math.min(r.b, pr.bottom) }
+        const pr = p.getBoundingClientRect(), who = name(p) + ` [${s.overflowX}/${s.overflowY}]`
+        if (pr.left > r.l) { r.l = pr.left; r.by.l = who }
+        if (pr.top > r.t) { r.t = pr.top; r.by.t = who }
+        if (pr.right < r.r) { r.r = pr.right; r.by.r = who }
+        if (pr.bottom < r.b) { r.b = pr.bottom; r.by.b = who }
       }
       return r
     }
@@ -317,6 +327,8 @@ async function grammarSweep(page: Page): Promise<string[]> {
     for (const e of [document.documentElement, ...shown]) {
       if (!(e instanceof Element)) continue
       if (e !== document.documentElement && !/hidden|clip/.test(getComputedStyle(e).overflowX)) continue
+      // a form control scrolls its own value natively; the caret still reaches it
+      if (['INPUT', 'TEXTAREA', 'SELECT'].includes(e.tagName)) continue
       const over = e.scrollWidth - e.clientWidth
       if (over > 1) out.push(`${name(e)} overflows horizontally by ${over}px`)
     }
@@ -331,9 +343,12 @@ async function grammarSweep(page: Page): Promise<string[]> {
       const bleed = -num(pb.top)
       if (bleed < 6) out.push(`${name(w)} cross bleeds only ${bleed}px; Industry offsets the corner -6px`)
       const r = w.getBoundingClientRect(), c = clip(w, false)
-      const cut = [[r.left, r.top], [r.right, r.top], [r.left, r.bottom], [r.right, r.bottom]]
-        .filter(([x, y]) => x - bleed < c.l - 1 || x + bleed > c.r + 1 || y - bleed < c.t - 1 || y + bleed > c.b + 1).length
-      if (cut) out.push(`${name(w)} has ${cut} registration cross(es) cut off by a clipping ancestor`)
+      const sides: string[] = []
+      if (r.left - bleed < c.l - 1) sides.push(`left by ${Math.round(c.l - (r.left - bleed))}px (${c.by.l ?? 'viewport'})`)
+      if (r.right + bleed > c.r + 1) sides.push(`right by ${Math.round(r.right + bleed - c.r)}px (${c.by.r ?? 'viewport'})`)
+      if (r.top - bleed < c.t - 1) sides.push(`top by ${Math.round(c.t - (r.top - bleed))}px (${c.by.t ?? 'viewport'})`)
+      if (r.bottom + bleed > c.b + 1) sides.push(`bottom by ${Math.round(r.bottom + bleed - c.b)}px (${c.by.b ?? 'viewport'})`)
+      if (sides.length) out.push(`${name(w)} registration cross cut off -- ${sides.join('; ')}`)
       const s = getComputedStyle(w)
       const missing = ['Top', 'Right', 'Bottom', 'Left'].filter((d) =>
         num(s[('border' + d + 'Width') as never]) < 0.5)
@@ -362,7 +377,16 @@ async function grammarSweep(page: Page): Promise<string[]> {
       for (let j = i + 1; j < leaves.length; j++) {
         const a = leaves[i], b = leaves[j]
         if (a.contains(b) || b.contains(a)) continue
-        if (a.matches('.xc-mark') || b.matches('.xc-mark')) continue
+        /* Two exemptions, both for things whose position is not authored in CSS
+           and so cannot be laid out away from anything:
+            - `.xc-mark` is a timeline tick placed from a timestamp.
+            - `.xc-3d-label` is a node label whose screen position is the node's
+              3D point projected through the camera every frame (Graph3D.tsx),
+              so it drifts with the simulation and the camera. The controls that
+              float over the canvas are the ones that must stay legible, and
+              they do: they paint above, on an opaque ground, while the label
+              layer is `pointer-events: none` and cannot take a click. */
+        if (a.matches('.xc-mark, .xc-3d-label') || b.matches('.xc-mark, .xc-3d-label')) continue
         if (layer(a) !== layer(b)) continue
         const ca = clip(a, true), cb = clip(b, true)
         const ra = a.getBoundingClientRect(), rb = b.getBoundingClientRect()
@@ -371,6 +395,46 @@ async function grammarSweep(page: Page): Promise<string[]> {
         const ox = Math.min(A.r, B.r) - Math.max(A.l, B.l), oy = Math.min(A.b, B.b) - Math.max(A.t, B.t)
         if (ox > 2 && oy > 2) out.push(`${name(a)} overlaps ${name(b)} by ${Math.round(ox)}x${Math.round(oy)}px`)
       }
+    }
+
+    /* (e2) button grounds. Industry allows a button exactly two grounds: the
+       one solid accent fill ("the one solid object on the board") or a
+       transparent object with a hairline border. A neutral panel fill is not a
+       variant, and this is the check that answers "are the button colours in
+       line with the theme".
+
+       Exemptions, each deliberate and each named rather than left silent:
+        - Nav and tab rows mark the current item with a fill; that is selection
+          state, not a button ground.
+        - `.xc-legend-toggle` floats over the graph canvas, where a transparent
+          ground would leave its label sitting on top of edges and nodes. It is
+          the same reasoning that exempts a drawer or dialog from the "windows
+          are line drawings" rule: a thing that overlaps the canvas has to
+          occlude it to stay legible. */
+    const probe = document.createElement('span')
+    probe.style.cssText = 'position:absolute;left:-9999px;color:var(--accent)'
+    ;(document.querySelector('.xc') ?? document.body).appendChild(probe)
+    const acc = (getComputedStyle(probe).color.match(/[\d.]+/g) || []).slice(0, 3).map(Number)
+    probe.remove()
+    const nearAcc = (c: number[], tol: number) =>
+      c.length === 3 && acc.length === 3 && c.every((v, i) => Math.abs(v - acc[i]) <= tol)
+    const OVER_CANVAS = '.xc-legend-toggle'
+    const navLike = (e: Element) =>
+      !!e.closest('nav, [role="tablist"], .xc-rail, .xc-tabs, .xc-seg')
+      || e.getAttribute('role') === 'tab'
+      || /(^|[\s.-])(xc-nav-btn|xc-tab|xc-seg-opt|xc-session-row|xc-mark)/.test((e.className || '').toString())
+    for (const b of shown) {
+      if (!(b.tagName === 'BUTTON' || b.getAttribute('role') === 'button')) continue
+      if (navLike(b) || b.matches(OVER_CANVAS)) continue
+      const cs = getComputedStyle(b), bg = cs.backgroundColor
+      const a = (bg.match(/[\d.]+/g) || []).length === 4 ? +(bg.match(/[\d.]+/g) || [])[3] : 1
+      const c = (bg.match(/[\d.]+/g) || []).slice(0, 3).map(Number)
+      const solid = a > 0.9 && nearAcc(c, 26)
+      const tint = a <= 0.9 && nearAcc(c, 60)
+      if (!solid && !(a < 0.12 || tint))
+        out.push(`button ground ${name(b)}: ${bg} ${JSON.stringify((b.textContent || '').trim().slice(0, 20))}`)
+      if (num(cs.borderTopLeftRadius) > 2 && cs.borderTopLeftRadius !== '50%')
+        out.push(`button rounded ${name(b)}: ${cs.borderTopLeftRadius}`)
     }
 
     // (f) type sits on Industry's fixed scale
@@ -408,6 +472,36 @@ for (const [w, h] of [[390, 844], [1280, 720], [1600, 1000]] as const) {
       }
       await page.waitForTimeout(700)
       problems.push(...(await grammarSweep(page)).map((p) => `[${route || 'graph'}] ${p}`))
+    }
+    for (const ov of OVERLAYS) {
+      await page.evaluate(() => { location.hash = '' })
+      await expect(page.locator('.xc')).toBeVisible({ timeout: 20000 })
+      /* The rail carries all three at desktop width. The phone tabbar carries
+         only the first two and files the rest behind "More", so the walk has to
+         go through that sheet rather than declare the overlay missing. */
+      const byName = (re: RegExp) => page.getByRole('button', { name: re }).first()
+      /* word-anchored, not `$`-anchored: the More sheet puts each destination's
+         hint inside the button, so its accessible name is "Integrity Verify
+         chains and checkpoints". A leading anchor still keeps it off the
+         overlays' own "Close Integrity" buttons. */
+      const trigger = new RegExp('^' + ov + '\\b', 'i')
+      let btn = byName(trigger)
+      if (!(await btn.count())) {
+        const more = byName(/^more$/i)
+        expect(await more.count(), `overlay ${ov} unreachable at ${w}px: no "More"`).toBeGreaterThan(0)
+        await more.click()
+        await page.waitForTimeout(400)
+        btn = byName(trigger)
+      }
+      expect(await btn.count(), `overlay ${ov} unreachable at ${w}px`).toBeGreaterThan(0)
+      await btn.click()
+      await page.waitForTimeout(700)
+      // a sweep over an overlay that never opened would pass without measuring it
+      await expect(page.locator(`[role="dialog"], .xc-overlay, .xc-palette`).first())
+        .toBeVisible({ timeout: 10000 })
+      problems.push(...(await grammarSweep(page)).map((p) => `[${ov}] ${p}`))
+      await page.keyboard.press('Escape').catch(() => {})
+      await page.waitForTimeout(300)
     }
     expect(problems, `Industry grammar violations:\n  ${problems.join('\n  ')}`).toEqual([])
   })

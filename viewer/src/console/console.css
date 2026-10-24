@@ -1463,10 +1463,14 @@ select.xc-input {
 }
 @media (max-width: 760px) {
   .xc-drawer {
-    top: 0;
-    right: 0;
-    bottom: 0;
-    width: 100vw;
+    /* 8px, not 0. A full-bleed drawer is flush with every edge, which puts its
+       own registration cross -- inset -6px -- entirely off the screen on all
+       four sides. The gutter matches `.xc-sheet`'s, so the two phone overlays
+       sit on the same margin. */
+    top: 8px;
+    right: 8px;
+    bottom: 8px;
+    width: calc(100vw - 16px);
   }
 }
 
