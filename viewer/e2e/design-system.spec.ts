@@ -221,3 +221,194 @@ test.describe('Industry design system conformance (Cortex console)', () => {
     expect(report.low, `text below AA: ${report.low.slice(0, 8).join('; ')}`).toEqual([])
   })
 })
+
+/* ────────────────────────────────────────────────────────────────────────────
+ * The rendered console, measured route by route.
+ *
+ * The checks above assert the palette and the faces. These assert the GRAMMAR,
+ * and they do it over every destination rather than the default lens, which is
+ * what the earlier pass measured. That distinction is not academic: the Settings
+ * page rendered 848px wide inside a 390px phone -- every line of guidance cut
+ * off mid-sentence -- while "no horizontal overflow at mobile width" above sat
+ * green, because it never opened Settings.
+ *
+ * Measurement notes, each of which produced a false finding before it was fixed:
+ *  - A rect must be intersected with every clipping ancestor, or a collapsed
+ *    <details> reads as a 391px spill across the Sign in button.
+ *  - display/visibility/opacity do not describe a closed <details>: its rows
+ *    keep their boxes and simply are not painted. checkVisibility knows.
+ *  - A registration cross is identified by HOW it is drawn, not by a pseudo
+ *    merely existing: eight gradient arms on one inset pseudo here, and the
+ *    eyebrow's 7px tick is not a mark.
+ *  - Two boxes in different stacking layers do not collide: an overlay drawer
+ *    is MEANT to cover the lens beneath it, and paint order cannot tell that
+ *    apart from a real overlap -- the layer can.
+ *  - Scrolling is not clipping. A window below the fold is fine; a cross past
+ *    the left or right edge is not, because nothing scrolls sideways to it.
+ *  - Marks placed on an axis by DATA (two memories two minutes apart) are the
+ *    density of the store, not a defect, and change with its contents.
+ * ──────────────────────────────────────────────────────────────────────────── */
+
+const SCALE = [10, 11, 12, 13, 14, 15, 16, 17, 18, 20, 25, 32, 42]
+const ROUTES = ['', 'timeline', 'memories', 'entities', 'sessions', 'operations', 'agents', 'settings']
+
+async function grammarSweep(page: Page): Promise<string[]> {
+  return page.evaluate((scale) => {
+    const out: string[] = []
+    const num = (v: string) => parseFloat(v) || 0
+    const own = (e: Element) =>
+      e.tagName.toLowerCase() + (typeof e.className === 'string' && e.className ? '.' + e.className.trim().split(/\s+/)[0] : '')
+    /* An unclassed `span` is not something anyone can find in the stylesheet,
+       so an element with no class of its own is reported under its nearest
+       classed ancestor. */
+    const name = (e: Element): string => {
+      const self = own(e)
+      if (self.includes('.')) return self
+      for (let p = e.parentElement; p; p = p.parentElement) {
+        if (own(p).includes('.')) return `${own(p)} > ${self}`
+      }
+      return self
+    }
+    const vis = (e: Element) => {
+      const s = getComputedStyle(e), r = e.getBoundingClientRect()
+      if (!(s.display !== 'none' && s.visibility !== 'hidden' && +s.opacity > 0.01 && r.width > 0 && r.height > 0)) return false
+      if (typeof e.checkVisibility === 'function'
+        && !e.checkVisibility({ contentVisibilityAuto: true, opacityProperty: true, visibilityProperty: true })) return false
+      for (let p = e.parentElement; p; p = p.parentElement) {
+        if (p.tagName === 'DETAILS' && !(p as HTMLDetailsElement).open && !e.closest('summary')) return false
+      }
+      return true
+    }
+    const clip = (e: Element, seedViewport: boolean) => {
+      let r = seedViewport
+        ? { l: 0, t: 0, r: innerWidth, b: innerHeight }
+        : { l: 0, t: -1e7, r: innerWidth, b: 1e7 }
+      for (let p = e.parentElement; p; p = p.parentElement) {
+        const s = getComputedStyle(p)
+        if (s.overflowX === 'visible' && s.overflowY === 'visible') continue
+        const pr = p.getBoundingClientRect()
+        r = { l: Math.max(r.l, pr.left), t: Math.max(r.t, pr.top), r: Math.min(r.r, pr.right), b: Math.min(r.b, pr.bottom) }
+      }
+      return r
+    }
+    const layer = (e: Element) => {
+      for (let p: Element | null = e; p; p = p.parentElement) {
+        const s = getComputedStyle(p)
+        if (s.position !== 'static' && s.zIndex !== 'auto') {
+          const z = parseInt(s.zIndex, 10)
+          if (Number.isFinite(z)) return z
+        }
+      }
+      return 0
+    }
+    const shown = [...document.querySelectorAll('.xc *')].filter(vis)
+    if (shown.length < 20) out.push(`only ${shown.length} elements rendered -- the sweep would pass vacuously`)
+
+    // (a) text stays inside its own box
+    for (const e of shown) {
+      const s = getComputedStyle(e)
+      if (!(s.overflow + s.overflowX).includes('hidden')) continue
+      if (![...e.childNodes].some((n) => n.nodeType === 3 && n.textContent!.trim())) continue
+      const dx = Math.round(e.scrollWidth - e.clientWidth)
+      if (dx > 1) out.push(`text clipped ${name(e)} by ${dx}px: ${(e.textContent || '').trim().slice(0, 48)}`)
+    }
+
+    // (b) nothing is permanently out of reach sideways
+    for (const e of [document.documentElement, ...shown]) {
+      if (!(e instanceof Element)) continue
+      if (e !== document.documentElement && !/hidden|clip/.test(getComputedStyle(e).overflowX)) continue
+      const over = e.scrollWidth - e.clientWidth
+      if (over > 1) out.push(`${name(e)} overflows horizontally by ${over}px`)
+    }
+
+    // (c) every window carries a complete, unclipped registration cross
+    const wins = [...document.querySelectorAll('.xc-win')].filter(vis)
+    if (!wins.length) out.push('no .xc-win rendered -- the mark checks would pass vacuously')
+    for (const w of wins) {
+      const pb = getComputedStyle(w, '::before')
+      const arms = (pb.backgroundImage.match(/gradient/g) || []).length
+      if (pb.content === 'none' || arms < 8) { out.push(`${name(w)} is missing its registration cross (${arms} arms)`); continue }
+      const bleed = -num(pb.top)
+      if (bleed < 6) out.push(`${name(w)} cross bleeds only ${bleed}px; Industry offsets the corner -6px`)
+      const r = w.getBoundingClientRect(), c = clip(w, false)
+      const cut = [[r.left, r.top], [r.right, r.top], [r.left, r.bottom], [r.right, r.bottom]]
+        .filter(([x, y]) => x - bleed < c.l - 1 || x + bleed > c.r + 1 || y - bleed < c.t - 1 || y + bleed > c.b + 1).length
+      if (cut) out.push(`${name(w)} has ${cut} registration cross(es) cut off by a clipping ancestor`)
+      const s = getComputedStyle(w)
+      const missing = ['Top', 'Right', 'Bottom', 'Left'].filter((d) =>
+        num(s[('border' + d + 'Width') as never]) < 0.5)
+      if (missing.length) out.push(`${name(w)} frame is missing its ${missing.join('/')} border`)
+    }
+
+    // (d) windows are line drawings on one ground, not stacked surfaces
+    const root = document.querySelector('.xc')
+    const ground = root ? getComputedStyle(root).backgroundColor : 'rgb(20, 23, 26)'
+    const rgb = (c: string) => (c.match(/[\d.]+/g) || []).slice(0, 3).map(Number)
+    for (const w of wins) {
+      const r = w.getBoundingClientRect()
+      if (r.width < 200 || r.height < 72) continue
+      const bg = getComputedStyle(w).backgroundColor
+      const a = (bg.match(/[\d.]+/g) || []).length === 4 ? +(bg.match(/[\d.]+/g) || [])[3] : 1
+      if (a < 0.2) continue
+      const [x, y, z] = rgb(bg), g = rgb(ground)
+      if (Math.abs(x - g[0]) + Math.abs(y - g[1]) + Math.abs(z - g[2]) > 12)
+        out.push(`${name(w)} carries a surface fill ${bg} over a ${ground} ground`)
+    }
+
+    // (e) two things in the same layer never sit on top of each other
+    const leaves = shown.filter((e) => ['BUTTON', 'A', 'INPUT', 'SELECT'].includes(e.tagName)
+      || [...e.childNodes].some((n) => n.nodeType === 3 && n.textContent!.trim()))
+    for (let i = 0; i < leaves.length; i++) {
+      for (let j = i + 1; j < leaves.length; j++) {
+        const a = leaves[i], b = leaves[j]
+        if (a.contains(b) || b.contains(a)) continue
+        if (a.matches('.xc-mark') || b.matches('.xc-mark')) continue
+        if (layer(a) !== layer(b)) continue
+        const ca = clip(a, true), cb = clip(b, true)
+        const ra = a.getBoundingClientRect(), rb = b.getBoundingClientRect()
+        const A = { l: Math.max(ra.left, ca.l), r: Math.min(ra.right, ca.r), t: Math.max(ra.top, ca.t), b: Math.min(ra.bottom, ca.b) }
+        const B = { l: Math.max(rb.left, cb.l), r: Math.min(rb.right, cb.r), t: Math.max(rb.top, cb.t), b: Math.min(rb.bottom, cb.b) }
+        const ox = Math.min(A.r, B.r) - Math.max(A.l, B.l), oy = Math.min(A.b, B.b) - Math.max(A.t, B.t)
+        if (ox > 2 && oy > 2) out.push(`${name(a)} overlaps ${name(b)} by ${Math.round(ox)}x${Math.round(oy)}px`)
+      }
+    }
+
+    // (f) type sits on Industry's fixed scale
+    for (const e of shown) {
+      if (![...e.childNodes].some((n) => n.nodeType === 3 && n.textContent!.trim())) continue
+      const px = Math.round(num(getComputedStyle(e).fontSize) * 10) / 10
+      if (!scale.includes(px)) out.push(`${name(e)} is ${px}px, off the scale: ${(e.textContent || '').trim().slice(0, 32)}`)
+    }
+
+    // (g) icons are drawn at one weight
+    for (const svg of document.querySelectorAll<SVGElement>('.xc svg')) {
+      if (!vis(svg)) continue
+      const sw = getComputedStyle(svg).strokeWidth
+      if (sw && sw !== '1.5' && sw !== '1.5px' && sw !== '0px') out.push(`icon stroke ${sw} on ${name(svg.parentElement ?? svg)}`)
+    }
+    return out
+  }, SCALE)
+}
+
+for (const [w, h] of [[390, 844], [1280, 720], [1600, 1000]] as const) {
+  test(`every destination keeps its content, frames and grammar at ${w}px`, async ({ page }) => {
+    await page.setViewportSize({ width: w, height: h })
+    const crashes: string[] = []
+    page.on('pageerror', (e) => crashes.push(String(e.message || e).slice(0, 180)))
+    await openConsole(page)
+    const problems: string[] = []
+    for (const route of ROUTES) {
+      // drive the hash in-page: a goto() to a hash is still a document load, and
+      // the console is a dynamic import that has to boot again each time.
+      await page.evaluate((r) => { location.hash = r ? '#' + r : '' }, route)
+      await page.waitForTimeout(900)
+      if (!(await page.locator('.xc').count())) {
+        problems.push(`[${route || 'graph'}] console unmounted: ${crashes[crashes.length - 1] ?? 'no page error'}`)
+        continue
+      }
+      await page.waitForTimeout(700)
+      problems.push(...(await grammarSweep(page)).map((p) => `[${route || 'graph'}] ${p}`))
+    }
+    expect(problems, `Industry grammar violations:\n  ${problems.join('\n  ')}`).toEqual([])
+  })
+}

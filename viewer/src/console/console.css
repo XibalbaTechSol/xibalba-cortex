@@ -10,6 +10,12 @@ body {
   margin: 0;
   background: var(--ground);
   color-scheme: dark;
+  /* `.xc` carries the console's type, so the body itself never had a family and
+     computed to the UA default -- Times New Roman. Nothing inside `.xc` showed
+     it, but anything the console renders outside that subtree (a portalled
+     dialog, a popover) inherits from here, and it is the one place a serif can
+     still reach the screen. Set at the root rather than patched per portal. */
+  font-family: var(--font-body);
 }
 
 .xc {
@@ -21,7 +27,7 @@ body {
   flex-direction: column;
   background: var(--ground);
   color: var(--ink);
-  font: 400 14px/1.5 var(--font-body);
+  font: 400 15px/1.5 var(--font-body);
   -webkit-font-smoothing: antialiased;
 }
 .xc *,
@@ -74,8 +80,12 @@ body {
 }
 
 /* ---------- windows: faint frame rule + a registration cross at each corner -------------------- */
-/* A 9x9 "+" straddling each corner (inset -4px). Marks never nest, and a clipping ancestor needs
-   >= 4px of padding or the outer arms are cut into L brackets. See the WindowFrame component. */
+/* An 11x11 "+" straddling each corner, bleeding 6px outside the window: Industry's own
+   `.blueprint > .corner` geometry (11px arms, offset -6px, the cross centred on the corner), so
+   Cortex, Shield and the spec all draw the same mark. Marks never nest, and a clipping ancestor
+   needs >= 6px of padding or the outer arms are cut into L brackets. Drawn as eight gradient
+   layers on one pseudo rather than four corner boxes: no extra elements, same rendered result.
+   Shield draws the identical mark the same way. */
 .xc-win {
   position: relative;
   border: 1px solid var(--frame-line);
@@ -84,7 +94,7 @@ body {
 .xc-win::before {
   content: '';
   position: absolute;
-  inset: -4px;
+  inset: -6px;
   pointer-events: none;
   background-repeat: no-repeat;
   background-image:
@@ -92,12 +102,12 @@ body {
     linear-gradient(var(--frame-tick), var(--frame-tick)), linear-gradient(var(--frame-tick), var(--frame-tick)),
     linear-gradient(var(--frame-tick), var(--frame-tick)), linear-gradient(var(--frame-tick), var(--frame-tick)),
     linear-gradient(var(--frame-tick), var(--frame-tick)), linear-gradient(var(--frame-tick), var(--frame-tick));
-  background-size: 9px 1px, 1px 9px, 9px 1px, 1px 9px, 9px 1px, 1px 9px, 9px 1px, 1px 9px;
+  background-size: 11px 1px, 1px 11px, 11px 1px, 1px 11px, 11px 1px, 1px 11px, 11px 1px, 1px 11px;
   background-position:
-    top 4px left 0, top 0 left 4px,
-    top 4px right 0, top 0 right 4px,
-    bottom 4px left 0, bottom 0 left 4px,
-    bottom 4px right 0, bottom 0 right 4px;
+    top 6px left 0, top 0 left 6px,
+    top 6px right 0, top 0 right 6px,
+    bottom 6px left 0, bottom 0 left 6px,
+    bottom 6px right 0, bottom 0 right 6px;
 }
 .xc-win .xc-win::before {
   content: none;
@@ -147,7 +157,7 @@ body {
   color: var(--ink);
 }
 .xc-title--sm {
-  font-size: 22px;
+  font-size: 20px;
 }
 .xc-copy {
   font-size: 13px;
@@ -155,7 +165,7 @@ body {
   color: var(--ink-muted);
 }
 .xc-note {
-  font-size: 12.5px;
+  font-size: 13px;
   line-height: 1.45;
   color: var(--ink-dim);
 }
@@ -166,7 +176,7 @@ body {
 }
 .xc-hash {
   font-family: var(--font-mono);
-  font-size: 11.5px;
+  font-size: 11px;
   color: var(--accent);
   word-break: break-all;
 }
@@ -180,6 +190,15 @@ body {
 }
 
 /* ---------- controls --------------------------------------------------------------------------- */
+/* A form control does not inherit type: left alone, a <button> renders in the
+   UA's own face at 13.333px -- Arial, and a size that is not on the scale.
+   Every control that forgets to name a font would otherwise leak both. */
+.xc button,
+.xc input,
+.xc select,
+.xc textarea {
+  font-family: inherit;
+}
 .xc-btn {
   min-height: var(--control-height);
   padding: 9px 16px;
@@ -347,7 +366,7 @@ select.xc-input {
   flex-shrink: 0;
   fill: none;
   stroke: currentColor;
-  stroke-width: 2;
+  stroke-width: 1.5;
 }
 .xc-callout--anchored { border-color: var(--status-anchored); background: var(--status-anchored-soft); }
 .xc-callout--anchored svg { color: var(--status-anchored); }
@@ -365,7 +384,7 @@ select.xc-input {
   color: var(--ink-dim);
 }
 .xc-empty .xc-title {
-  font-size: 22px;
+  font-size: 20px;
 }
 
 /* ---------- top bar ---------------------------------------------------------------------------- */
@@ -403,7 +422,7 @@ select.xc-input {
   height: 32px;
 }
 .xc-brand b {
-  font: 600 21px/1.1 var(--font-condensed);
+  font: 600 18px/1.1 var(--font-condensed);
 }
 .xc-brand i {
   font-style: normal;
@@ -501,7 +520,7 @@ select.xc-input {
   height: 15px;
   fill: none;
   stroke: currentColor;
-  stroke-width: 1.8;
+  stroke-width: 1.5;
 }
 .xc-kbd {
   padding: 2px 5px;
@@ -519,7 +538,7 @@ select.xc-input {
   padding: 1px 5px;
   border: 1px solid var(--hairline);
   color: var(--ink-dim);
-  font: 700 9px var(--font-body);
+  font: 700 10px var(--font-body);
   letter-spacing: 0.1em;
   text-transform: uppercase;
 }
@@ -585,13 +604,20 @@ select.xc-input {
   height: 9px;
   flex-shrink: 0;
 }
+/* These rows carry filter labels that are whole phrases ("Session contains
+   exchange"), and an ellipsis there drops the end of the sentence rather than
+   tidying it. They wrap: the rail grows a line, nothing is lost. */
 .xc-check span:not(.xc-swatch) {
   flex: 1;
   min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
 }
+/* The one-line ellipsis above is right for the facet rail, where each row is a
+   short filter label. The same row is reused on Settings to carry a sentence
+   explaining what the switch does, and there a truncation is missing
+   information rather than tidy typography: "Each node takes its own cell of a
+   faint grid, in 2D and 3D." lost 420px of itself to an ellipsis. Notes wrap. */
+
 .xc-check b {
   font: 400 11px var(--font-mono);
   color: var(--ink-dim);
@@ -1072,7 +1098,7 @@ select.xc-input {
   min-height: 44px;
   border: 0;
   background: transparent;
-  font: 400 19px var(--font-body);
+  font: 400 20px var(--font-body);
 }
 .xc-palette-query input:focus-visible {
   outline: none;
@@ -1091,7 +1117,7 @@ select.xc-input {
 }
 .xc-rank {
   min-width: 30px;
-  font: 600 26px/1 var(--font-condensed);
+  font: 600 25px/1 var(--font-condensed);
   color: var(--accent);
 }
 .xc-channels {
@@ -1135,7 +1161,7 @@ select.xc-input {
 }
 .xc-auth-story-body h1 {
   max-width: 560px;
-  font: 600 clamp(46px, 5vw, 64px) / 0.98 var(--font-condensed);
+  font: 600 clamp(32px, 5vw, 42px) / 0.98 var(--font-condensed);
   letter-spacing: -0.02em;
 }
 .xc-auth-story-body p:not(.xc-eyebrow) {
@@ -1151,7 +1177,9 @@ select.xc-input {
   max-width: 460px;
   padding: 16px 18px;
   border: 1px solid var(--hairline);
-  background: var(--panel);
+  /* a hairline-bordered callout is a card, and Industry's cards are line
+     drawings: "do not give cards or figures a surface fill". */
+  background: transparent;
 }
 .xc-auth-story aside svg {
   width: 24px;
@@ -1170,7 +1198,9 @@ select.xc-input {
   display: grid;
   place-items: center;
   padding: 48px clamp(28px, 5vw, 64px);
-  background: var(--panel);
+  /* the split is drawn by the rule, not by a second grey: Industry runs one
+     ground under everything and marks structure with lines. */
+  background: transparent;
   border-left: 1px solid var(--hairline);
 }
 .xc-auth-form {
@@ -1192,7 +1222,7 @@ select.xc-input {
 }
 .xc-auth-title {
   margin: 0;
-  font: 600 38px / 1 var(--font-condensed);
+  font: 600 32px / 1 var(--font-condensed);
 }
 .xc-auth-lede {
   margin: -6px 0 0;
@@ -1216,6 +1246,9 @@ select.xc-input {
   display: inline-flex;
   align-items: center;
   gap: 8px;
+  /* <small> with no size of its own takes the UA's 0.833em and lands on
+     12.5px, which is not a step on the scale. */
+  font-size: 13px;
   color: var(--ink-dim);
 }
 .xc-auth-note svg {
@@ -1237,7 +1270,7 @@ select.xc-input {
   }
   .xc-rail .xc-scroll {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(min(210px, 100%), 1fr));
     align-items: start;
   }
   .xc-canvas-win {
@@ -1252,7 +1285,7 @@ select.xc-input {
     grid-template-columns: minmax(0, 1fr);
   }
   .xc-brand b {
-    font-size: 19px;
+    font-size: 18px;
   }
   .xc-conn {
     display: none;
@@ -1272,7 +1305,7 @@ select.xc-input {
     gap: 24px;
   }
   .xc-auth-story-body h1 {
-    font-size: 38px;
+    font-size: 32px;
   }
   .xc-auth-formwrap {
     border-left: 0;
@@ -1641,7 +1674,7 @@ select.xc-input {
   min-width: 0;
 }
 .xc-rail-head .xc-brand b {
-  font-size: 19px;
+  font-size: 18px;
   white-space: nowrap;
 }
 .xc-rail-toggle {
@@ -1729,6 +1762,20 @@ select.xc-input {
   padding-inline: 10px;
   align-items: center;
 }
+/* A collapsed rail is 68px with a 10px gutter either side, which leaves 48px
+   of content for a 52px brand mark -- the logo was clipped on its right edge.
+   It is sized to the space it actually has. Both ways of collapsing the rail
+   (the explicit toggle and the <=1280px window) land here. */
+.xc-shell[data-collapsed='true'] .xc-brand-mark,
+.xc-shell[data-collapsed='true'] .xc-rail-head .xc-brand-mark {
+  width: 44px;
+  height: 44px;
+}
+/* Industry sizes a nav link at 14px (`.nav a`); the label carried no size of
+   its own and took the surrounding button's. Shield's rail says the same. */
+.xc-nav-label {
+  font-size: 14px;
+}
 .xc-shell[data-collapsed='true'] .xc-nav-label,
 .xc-shell[data-collapsed='true'] .xc-rail-kicker,
 .xc-shell[data-collapsed='true'] .xc-rail-scope .xc-scope {
@@ -1756,6 +1803,10 @@ select.xc-input {
     padding-inline: 10px;
     align-items: center;
   }
+  .xc-shell .xc-brand-mark {
+    width: 44px;
+    height: 44px;
+  }
   .xc-shell .xc-nav-label,
   .xc-shell .xc-rail-kicker,
   .xc-shell .xc-rail-scope .xc-scope,
@@ -1778,6 +1829,11 @@ select.xc-input {
 .xc-page {
   flex: 1;
   display: grid;
+  /* an implicit grid track is max-content, so without this floor a single item
+     that will not shrink widens the page itself: at 390px the settings panel
+     came out 848px wide and ran 474px off the right edge, cutting every line
+     of guidance and half the tab row. */
+  grid-template-columns: minmax(0, 1fr);
   align-content: start;
   gap: 20px;
   padding: 34px var(--gutter) 48px;
@@ -1793,7 +1849,7 @@ select.xc-input {
 }
 .xc-page-title {
   margin: 6px 0 0;
-  font: 600 40px/1 var(--font-condensed);
+  font: 600 42px/1 var(--font-condensed);
 }
 .xc-page-note {
   max-width: 640px;
@@ -1813,7 +1869,7 @@ select.xc-input {
 }
 .xc-choice {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(300px, 100%), 1fr));
   gap: 14px;
 }
 .xc-choice-card {
@@ -2125,6 +2181,7 @@ select.xc-input {
 }
 .xc-session-row {
   display: grid;
+  font-size: 13px;
   gap: 4px;
   width: 100%;
   padding: 12px var(--window-padding);
@@ -2255,7 +2312,7 @@ select.xc-input {
 /* ---------- operations page -------------------------------------------------------------------------- */
 .xc-opsgrid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(340px, 100%), 1fr));
   gap: var(--window-gap);
   align-items: start;
 }
@@ -2322,14 +2379,14 @@ select.xc-input {
 }
 .xc-formgrid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(210px, 100%), 1fr));
   gap: 12px;
   /* a field with hint text is taller than its neighbours; without this its input stretches to match */
   align-items: start;
 }
 .xc-taskgrid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(230px, 100%), 1fr));
   gap: 4px 16px;
 }
 /* the generic .xc-check ellipsises its label; task names and descriptions here must wrap whole */
