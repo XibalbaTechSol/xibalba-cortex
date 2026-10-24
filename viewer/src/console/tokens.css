@@ -7,8 +7,9 @@
  * Tokens marked DERIVED are not from the mock.
  */
 :root {
-  /* surfaces: one graphite for the page, every window and the top bar */
-  --ground: #14171a;
+  /* surfaces: one graphite for the page, every window and the top bar. #0d0f11 is the owner's
+     choice (2026-10-24), darker than the Industry mock's #14171a; the rest of the chassis is the mock's. */
+  --ground: #0d0f11;
   --chrome: var(--ground);
   --panel: #1b1f23;
   --elevated: #262b30;
