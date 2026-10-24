@@ -143,6 +143,13 @@ test.describe('Industry design system conformance (Cortex console)', () => {
     const pale = await page.evaluate(() => {
       const bad: string[] = []
       for (const el of document.querySelectorAll('.xc, .xc *')) {
+        /* A swatch is a colour sample, not a surface: its whole job is to show
+           the colour it denotes, and the graph palette gives Entities a neutral
+           grey, rgb(183, 188, 193). That tripped this check -- but only when the
+           legend happened to have an Entities row, which is why the test looked
+           intermittent rather than wrong. It was a false positive with a
+           data-dependent trigger, not a flake. */
+        if (el.classList.contains('xc-swatch')) continue
         const m = /^rgba?\((\d+), (\d+), (\d+)(?:, ([0-9.]+))?\)$/.exec(getComputedStyle(el).backgroundColor)
         if (!m) continue
         const [r, g, b] = [+m[1], +m[2], +m[3]]
@@ -256,8 +263,8 @@ const ROUTES = ['', 'timeline', 'memories', 'entities', 'sessions', 'operations'
    them out left both untested. */
 const OVERLAYS = ['recall', 'review', 'integrity']
 
-async function grammarSweep(page: Page): Promise<string[]> {
-  return page.evaluate((scale) => {
+async function grammarSweep(page: Page, expectWindows = true): Promise<string[]> {
+  return page.evaluate(({ scale, expectWindows }) => {
     const out: string[] = []
     const num = (v: string) => parseFloat(v) || 0
     const own = (e: Element) =>
@@ -335,7 +342,7 @@ async function grammarSweep(page: Page): Promise<string[]> {
 
     // (c) every window carries a complete, unclipped registration cross
     const wins = [...document.querySelectorAll('.xc-win')].filter(vis)
-    if (!wins.length) out.push('no .xc-win rendered -- the mark checks would pass vacuously')
+    if (!wins.length && expectWindows) out.push('no .xc-win rendered -- the mark checks would pass vacuously')
     for (const w of wins) {
       const pb = getComputedStyle(w, '::before')
       const arms = (pb.backgroundImage.match(/gradient/g) || []).length
@@ -411,16 +418,31 @@ async function grammarSweep(page: Page): Promise<string[]> {
           the same reasoning that exempts a drawer or dialog from the "windows
           are line drawings" rule: a thing that overlaps the canvas has to
           occlude it to stay legible. */
-    const probe = document.createElement('span')
-    probe.style.cssText = 'position:absolute;left:-9999px;color:var(--accent)'
-    ;(document.querySelector('.xc') ?? document.body).appendChild(probe)
-    const acc = (getComputedStyle(probe).color.match(/[\d.]+/g) || []).slice(0, 3).map(Number)
-    probe.remove()
+    const resolve = (expr: string) => {
+      const probe = document.createElement('span')
+      probe.style.cssText = `position:absolute;left:-9999px;color:${expr}`
+      ;(document.querySelector('.xc') ?? document.body).appendChild(probe)
+      const c = (getComputedStyle(probe).color.match(/[\d.]+/g) || []).slice(0, 3).map(Number)
+      probe.remove()
+      return c
+    }
+    const acc = resolve('var(--accent)')
+    /* An undefined custom property makes `color` invalid at computed-value time,
+       so the probe silently inherits the ink colour and every button then reads
+       as off-palette -- or, if no accent button happens to be on screen, the
+       whole check passes while measuring nothing. Resolving the same colour by
+       its other name and requiring the two to agree is what rules that out. */
+    const accAlt = resolve('var(--cortex-accent)')
+    if (acc.length !== 3 || accAlt.length !== 3 || acc.some((v, i) => v !== accAlt[i]))
+      out.push(`accent probe did not resolve: var(--accent)=${JSON.stringify(acc)} vs var(--cortex-accent)=${JSON.stringify(accAlt)}`)
     const nearAcc = (c: number[], tol: number) =>
       c.length === 3 && acc.length === 3 && c.every((v, i) => Math.abs(v - acc[i]) <= tol)
     const OVER_CANVAS = '.xc-legend-toggle'
     const navLike = (e: Element) =>
-      !!e.closest('nav, [role="tablist"], .xc-rail, .xc-tabs, .xc-seg')
+      /* `.xc-rail-shell`/`.xc-rail-nav`, not `.xc-rail`: the Integrity overlay has
+         a content pane classed `xc-win xc-pane xc-rail`, and the broader selector
+         exempted every button inside it -- a silent allowance over real content. */
+      !!e.closest('nav, [role="tablist"], .xc-rail-shell, .xc-rail-nav, .xc-tabs, .xc-seg')
       || e.getAttribute('role') === 'tab'
       || /(^|[\s.-])(xc-nav-btn|xc-tab|xc-seg-opt|xc-session-row|xc-mark)/.test((e.className || '').toString())
     for (const b of shown) {
@@ -451,10 +473,29 @@ async function grammarSweep(page: Page): Promise<string[]> {
       if (sw && sw !== '1.5' && sw !== '1.5px' && sw !== '0px') out.push(`icon stroke ${sw} on ${name(svg.parentElement ?? svg)}`)
     }
     return out
-  }, SCALE)
+  }, { scale: SCALE, expectWindows })
 }
 
+/* The signed-out screen is the first thing anyone sees and it is not reachable
+   from any route, because `openConsole` seeds the signed-in flag. Nothing else
+   in this file covers it. */
 for (const [w, h] of [[390, 844], [1280, 720], [1600, 1000]] as const) {
+  test(`the sign-in screen keeps its grammar at ${w}px`, async ({ page }) => {
+    await page.setViewportSize({ width: w, height: h })
+    await stubConsoleApi(page)
+    await page.goto('/#settings', { waitUntil: 'domcontentloaded' })
+    await expect(page.locator('.xc')).toBeVisible({ timeout: 20000 })
+    // it must actually be the signed-out screen, not the console
+    await expect(page.locator('.xc-auth-formwrap, .xc-auth-story').first()).toBeVisible({ timeout: 10000 })
+    await page.waitForTimeout(600)
+    /* expectWindows: false -- this screen is a two-column split drawn by a
+       single rule plus one hairline callout, and neither is a window. The guard
+       stays on for every other surface, where a missing window WOULD mean the
+       mark checks measured nothing. */
+    const problems = await grammarSweep(page, false)
+    expect(problems, `Industry grammar violations on sign-in:\n  ${problems.join('\n  ')}`).toEqual([])
+  })
+
   test(`every destination keeps its content, frames and grammar at ${w}px`, async ({ page }) => {
     await page.setViewportSize({ width: w, height: h })
     const crashes: string[] = []
@@ -496,8 +537,11 @@ for (const [w, h] of [[390, 844], [1280, 720], [1600, 1000]] as const) {
       expect(await btn.count(), `overlay ${ov} unreachable at ${w}px`).toBeGreaterThan(0)
       await btn.click()
       await page.waitForTimeout(700)
-      // a sweep over an overlay that never opened would pass without measuring it
-      await expect(page.locator(`[role="dialog"], .xc-overlay, .xc-palette`).first())
+      /* Each overlay's close button carries its own name ("Close Integrity"), so
+         this proves the overlay that opened is the one asked for. A bare
+         `[role=dialog]` would also be satisfied by a previous overlay that
+         failed to close, and the sweep would then measure it twice. */
+      await expect(page.getByRole('button', { name: `Close ${ov}`, exact: false }).first())
         .toBeVisible({ timeout: 10000 })
       problems.push(...(await grammarSweep(page)).map((p) => `[${ov}] ${p}`))
       await page.keyboard.press('Escape').catch(() => {})
