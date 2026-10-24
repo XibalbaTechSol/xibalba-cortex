@@ -96,8 +96,8 @@ export function ScopePicker() {
           }}
         >
           {options.map((o) => (
-            <option key={`${o.storeId}\0${o.agentId}`} value={`${o.storeId}\0${o.agentId}`}>
-              {o.label} · {o.storeId.slice(0, 6)} · {o.writable ? 'writable' : 'read only'}
+            <option key={`${o.storeId}\0${o.agentId}`} value={`${o.storeId}\0${o.agentId}`} title={`${o.label} · ${o.storeId} · ${o.writable ? 'writable' : 'read only'}`}>
+              {o.label} · …{o.storeId.slice(-4)} · {o.writable ? 'rw' : 'ro'}
             </option>
           ))}
           <option value={PRIMARY_VALUE}>Primary profile · all memories · read only</option>

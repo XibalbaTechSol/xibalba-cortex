@@ -6,8 +6,12 @@
  */
 
 html,
-body {
+body,
+#root {
   margin: 0;
+  height: 100vh;
+  max-height: 100vh;
+  overflow: hidden;
   background: var(--ground);
   color-scheme: dark;
 }
@@ -16,7 +20,9 @@ body {
   --accent: var(--cortex-accent);
   --accent-hover: var(--cortex-accent-hover);
   --accent-soft: var(--cortex-accent-soft);
-  min-height: 100vh;
+  height: 100vh;
+  max-height: 100vh;
+  overflow: hidden;
   display: flex;
   flex-direction: column;
   background: var(--ground);
@@ -155,7 +161,7 @@ body {
   color: var(--ink-muted);
 }
 .xc-note {
-  font-size: 12.5px;
+  font-size: 12px;
   line-height: 1.45;
   color: var(--ink-dim);
 }
@@ -166,7 +172,7 @@ body {
 }
 .xc-hash {
   font-family: var(--font-mono);
-  font-size: 11.5px;
+  font-size: 11px;
   color: var(--accent);
   word-break: break-all;
 }
@@ -526,17 +532,15 @@ select.xc-input {
 
 /* ---------- workspace: facet rail | canvas | inspector ----------------------------------------- */
 .xc-workspace {
-  /* a fixed height, not flex: 1 -- a flexible height is content-sized, so a long facet rail used to stretch
-     the whole workspace instead of scrolling inside its own pane */
-  flex: none;
+  flex: 1 1 0%;
   display: grid;
   grid-template-columns: 232px minmax(0, 1fr) 340px;
   grid-template-rows: minmax(0, 1fr);
   gap: var(--window-gap);
-  padding: 28px 28px 22px;
-  /* tall enough to be a workspace, short enough to leave the chain rail on screen */
-  height: max(580px, calc(100vh - 360px));
+  padding: 16px 20px 12px;
+  height: auto;
   min-height: 0;
+  max-height: none;
 }
 .xc-workspace > * {
   min-width: 0;
@@ -559,7 +563,7 @@ select.xc-input {
   display: flex;
   flex-direction: column;
   gap: 20px;
-  padding: var(--window-padding);
+  padding: var(--window-padding) var(--window-padding) 36px;
 }
 .xc-facet-group > .xc-eyebrow {
   margin-bottom: 10px;
@@ -627,8 +631,33 @@ select.xc-input {
   word-break: break-all;
 }
 .xc-range {
+  -webkit-appearance: none;
+  appearance: none;
   width: 100%;
-  accent-color: var(--accent);
+  height: 4px;
+  background: var(--hairline);
+  outline: none;
+  border-radius: 0;
+  cursor: pointer;
+  margin: 8px 0;
+}
+.xc-range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 12px;
+  height: 12px;
+  background: var(--accent);
+  border: 1px solid var(--ground);
+  border-radius: 0;
+  cursor: pointer;
+}
+.xc-range::-moz-range-thumb {
+  width: 12px;
+  height: 12px;
+  background: var(--accent);
+  border: 1px solid var(--ground);
+  border-radius: 0;
+  cursor: pointer;
 }
 
 /* canvas window */
@@ -912,16 +941,37 @@ select.xc-input {
 
 /* ---------- status bar ------------------------------------------------------------------------- */
 .xc-status {
+  flex-shrink: 0;
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
   gap: 6px 18px;
   padding: 7px var(--gutter);
   border-top: 1px solid var(--hairline);
   font: 400 11px var(--font-mono);
   color: var(--ink-dim);
+  background: var(--ground);
 }
 .xc-status .xc-spacer {
   flex: 1;
+}
+
+.xc-legend-mark {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  vertical-align: middle;
+  flex: none;
+}
+.xc-legend-mark--memory {
+  background: var(--accent);
+}
+.xc-legend-mark--exchange {
+  background: var(--ink-dim);
+}
+.xc-legend-mark--merkle {
+  border: 1px solid var(--accent);
+  background: transparent;
 }
 
 /* ---------- timeline lens ---------------------------------------------------------------------- */
@@ -1604,7 +1654,10 @@ select.xc-input {
   flex: 1;
   display: grid;
   grid-template-columns: 240px minmax(0, 1fr);
-  min-height: 100vh;
+  height: 100vh;
+  max-height: 100vh;
+  min-height: 0;
+  overflow: hidden;
 }
 .xc-shell[data-collapsed='true'] {
   grid-template-columns: 68px minmax(0, 1fr);
@@ -1614,6 +1667,10 @@ select.xc-input {
   flex-direction: column;
   min-width: 0;
   min-height: 0;
+  height: 100vh;
+  max-height: 100vh;
+  overflow: hidden;
+  flex: 1 1 0%;
 }
 .xc-rail-shell {
   position: sticky;
@@ -1779,7 +1836,9 @@ select.xc-input {
 
 /* ---------- pages ---------------------------------------------------------------------------------- */
 .xc-page {
-  flex: 1;
+  flex: 1 1 0%;
+  min-height: 0;
+  overflow-y: auto;
   display: grid;
   align-content: start;
   gap: 20px;
@@ -1796,7 +1855,7 @@ select.xc-input {
 }
 .xc-page-title {
   margin: 6px 0 0;
-  font: 600 40px/1 var(--font-condensed);
+  font: 600 34px/1 var(--font-condensed);
 }
 .xc-page-note {
   max-width: 640px;
@@ -1816,7 +1875,7 @@ select.xc-input {
 }
 .xc-choice {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr));
   gap: 14px;
 }
 .xc-choice-card {
@@ -2502,6 +2561,30 @@ select.xc-input {
 .xc-rail-foot .xc-account-btn {
   width: 100%;
   max-width: none;
+}
+
+/* The primary button carries the registration crosses (Industry mock: the one solid object on
+   the board keeps its marks). Same frame as .xc-win: 9px arms straddling each corner. */
+.xc-btn--primary {
+  position: relative;
+}
+.xc-btn--primary::before {
+  content: '';
+  position: absolute;
+  inset: -4px;
+  pointer-events: none;
+  background-repeat: no-repeat;
+  background-image:
+    linear-gradient(var(--frame-tick), var(--frame-tick)), linear-gradient(var(--frame-tick), var(--frame-tick)),
+    linear-gradient(var(--frame-tick), var(--frame-tick)), linear-gradient(var(--frame-tick), var(--frame-tick)),
+    linear-gradient(var(--frame-tick), var(--frame-tick)), linear-gradient(var(--frame-tick), var(--frame-tick)),
+    linear-gradient(var(--frame-tick), var(--frame-tick)), linear-gradient(var(--frame-tick), var(--frame-tick));
+  background-size: 9px 1px, 1px 9px, 9px 1px, 1px 9px, 9px 1px, 1px 9px, 9px 1px, 1px 9px;
+  background-position:
+    top 4px left 0, top 0 left 4px,
+    top 4px right 0, top 0 right 4px,
+    bottom 4px left 0, bottom 0 left 4px,
+    bottom 4px right 0, bottom 0 right 4px;
 }
 
 /* A short window fits the rail instead of scrolling it. Last in the file so it wins over the

@@ -182,7 +182,9 @@ export function TimelineLens() {
 
       <div className="xc-bar" style={{ borderTop: '1px solid var(--hairline)', borderBottom: 0 }}>
         <span className="xc-legend-inline xc-note">
-          ■ memory · ■ exchange (gray) · ◻ Merkle root (server-reported) ·{' '}
+          <i className="xc-legend-mark xc-legend-mark--memory" /> memory ·{' '}
+          <i className="xc-legend-mark xc-legend-mark--exchange" /> exchange ·{' '}
+          <i className="xc-legend-mark xc-legend-mark--merkle" /> Merkle root (server-reported) ·{' '}
           {untimedMemories > 0
             ? `${untimedMemories} memor${untimedMemories === 1 ? 'y has' : 'ies have'} no timestamp in the API and ${untimedMemories === 1 ? 'is' : 'are'} not placed`
             : 'every memory is placed'}
