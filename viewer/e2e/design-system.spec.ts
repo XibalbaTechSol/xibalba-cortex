@@ -166,4 +166,58 @@ test.describe('Industry design system conformance (Cortex console)', () => {
       expect(overflow).toBeLessThanOrEqual(1)
     })
   }
+
+  test('all text clears WCAG AA against the surface it sits on', async ({ page }) => {
+    await openConsole(page)
+    const report = await page.evaluate(() => {
+      const parse = (v: string) => {
+        const m = /^rgba?\((\d+), (\d+), (\d+)(?:, ([0-9.]+))?\)$/.exec(v)
+        return m ? { r: +m[1], g: +m[2], b: +m[3], a: m[4] === undefined ? 1 : +m[4] } : null
+      }
+      const lum = (c: { r: number; g: number; b: number }) => {
+        const f = [c.r, c.g, c.b].map((v) => { const s = v / 255; return s <= 0.03928 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4 })
+        return 0.2126 * f[0] + 0.7152 * f[1] + 0.0722 * f[2]
+      }
+      const backdrop = (el: Element) => {
+        let n: Element | null = el
+        while (n) { const c = parse(getComputedStyle(n).backgroundColor); if (c && c.a >= 0.85) return c; n = n.parentElement }
+        return parse(getComputedStyle(document.body).backgroundColor)
+      }
+      const hueOf = (c: { r: number; g: number; b: number }) => {
+        const [r, g, b] = [c.r / 255, c.g / 255, c.b / 255]
+        const max = Math.max(r, g, b), min = Math.min(r, g, b), d = max - min
+        if (d === 0) return -1
+        let h = max === r ? ((g - b) / d) % 6 : max === g ? (b - r) / d + 2 : (r - g) / d + 4
+        h *= 60; return h < 0 ? h + 360 : h
+      }
+      const onPalette = (h: number) => h < 0 || (h >= 185 && h <= 235) || (h >= 20 && h <= 55) || h <= 15 || h >= 345
+      const low: string[] = [], off: string[] = []
+      for (const el of document.querySelectorAll('.xc *')) {
+        const cs = getComputedStyle(el)
+        if (cs.display === 'none' || cs.visibility === 'hidden' || cs.opacity === '0') continue
+        const name = `${el.tagName.toLowerCase()}.${(el as HTMLElement).className}`.slice(0, 60)
+        const bg = parse(cs.backgroundColor)
+        if (bg && bg.a >= 0.5) {
+          const chroma = Math.max(bg.r, bg.g, bg.b) - Math.min(bg.r, bg.g, bg.b)
+          if (chroma > 24 && !onPalette(hueOf(bg))) off.push(`${name} bg ${cs.backgroundColor}`)
+        }
+        const fg = parse(cs.color)
+        if (!fg) continue
+        const chroma = Math.max(fg.r, fg.g, fg.b) - Math.min(fg.r, fg.g, fg.b)
+        if (chroma > 24 && !onPalette(hueOf(fg))) off.push(`${name} fg ${cs.color}`)
+        const hasText = [...el.childNodes].some((n) => n.nodeType === 3 && (n.textContent || '').trim().length > 1)
+        if (!hasText || fg.a < 0.9) continue
+        const under = backdrop(el)
+        if (!under) continue
+        const size = parseFloat(cs.fontSize)
+        const need = size >= 24 || (size >= 18.66 && (parseInt(cs.fontWeight, 10) || 400) >= 700) ? 3 : 4.5
+        const [la, lb] = [lum(fg), lum(under)]
+        const got = (Math.max(la, lb) + 0.05) / (Math.min(la, lb) + 0.05)
+        if (got < need) low.push(`${name}: ${got.toFixed(2)}:1 (needs ${need}) ${cs.color} on rgb(${under.r}, ${under.g}, ${under.b})`)
+      }
+      return { low: [...new Set(low)], off: [...new Set(off)] }
+    })
+    expect(report.off, `colour outside steel/amber/red: ${report.off.slice(0, 8).join('; ')}`).toEqual([])
+    expect(report.low, `text below AA: ${report.low.slice(0, 8).join('; ')}`).toEqual([])
+  })
 })
