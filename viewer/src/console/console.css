@@ -3041,3 +3041,43 @@ body,
 .xc-lane-track .xc-mark[data-row='2'] { margin-top: 11px; }
 .xc-lane-track .xc-mark[data-row='3'] { margin-top: -22px; }
 .xc-lane-track .xc-mark[data-row='4'] { margin-top: 22px; }
+
+/* --- the chain rail folds to its bottom-right margin ------------------------------------------
+   The rail is the full width of the workspace and ~150px tall, permanently over the lens. Folded
+   it becomes a handle on the bottom-right margin -- the corner nothing else claims, since the
+   lens toolbar runs along the top and both docks hold the sides -- uncovering the strip of lens
+   it was sitting on. The rail floats over the canvas rather than sharing its box, so folding
+   reveals the lens rather than resizing it. The handle still reads the window and the event
+   count, so folding hides the histogram, not the number. */
+.xc-chain-fold {
+  min-height: var(--control-height);
+  width: var(--control-height);
+  padding: 0;
+  border: 1px solid var(--hairline);
+  background: transparent;
+  color: var(--ink-muted);
+  font-size: 13px;
+  line-height: 1;
+  cursor: pointer;
+}
+.xc-chain-fold:hover {
+  border-color: var(--hairline-strong);
+  color: var(--ink);
+}
+.xc-workspace > .xc-chain-handle {
+  position: absolute;
+  right: calc(var(--dock-right) + 16px);
+  bottom: 16px;
+  z-index: 3;
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 8px 14px;
+  border: 1px solid var(--hairline);
+  background: var(--ground);
+  text-align: left;
+  cursor: pointer;
+}
+.xc-workspace > .xc-chain-handle:hover {
+  border-color: var(--hairline-strong);
+}

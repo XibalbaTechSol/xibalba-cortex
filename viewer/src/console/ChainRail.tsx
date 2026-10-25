@@ -9,6 +9,7 @@
 
 import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
 import { useConsole } from './state'
+import { useSettings } from './settingsContext'
 import { histogram, shortStamp, type RangePreset } from './model'
 import { IconPause, IconPlay } from './icons'
 
@@ -19,6 +20,8 @@ const REPLAY_TICK_MS = 70
 
 export function ChainRail() {
   const { model, window: timeWindow, preset, setWindow, applyPreset } = useConsole()
+  const { settings, update } = useSettings()
+  const collapsed = settings.chainCollapsed
   const hist = useMemo(() => (model ? histogram(model, BUCKETS) : null), [model])
 
   const histRef = useRef<HTMLDivElement>(null)
@@ -90,6 +93,26 @@ export function ChainRail() {
     return start + span >= timeWindow.from && start <= timeWindow.to
   }
 
+  /* Folded down, the rail is just its handle on the workspace's bottom-right margin: the lens
+     gets the height back, and the handle still says how many events are in the window so the
+     number does not disappear with the histogram. */
+  if (collapsed) {
+    return (
+      <button
+        type="button"
+        className="xc-chain-handle"
+        onClick={() => update({ chainCollapsed: false })}
+        aria-expanded={false}
+        title="Show the chain rail"
+      >
+        <span className="xc-eyebrow">Chain rail</span>
+        <span className="xc-note">
+          {timeWindow ? `${shortStamp(timeWindow.from)} → ${shortStamp(timeWindow.to)}` : 'All time'} · {eventsInWindow.toLocaleString()}
+        </span>
+      </button>
+    )
+  }
+
   return (
     <section className="xc-win xc-chain" aria-label="Chain rail">
       <div className="xc-chain-top">
@@ -117,6 +140,16 @@ export function ChainRail() {
             </button>
           ))}
         </div>
+        <button
+          type="button"
+          className="xc-chain-fold"
+          onClick={() => update({ chainCollapsed: true })}
+          aria-expanded
+          aria-label="Hide the chain rail"
+          title="Hide the chain rail"
+        >
+          ▾
+        </button>
       </div>
 
       {hist ? (

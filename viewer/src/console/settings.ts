@@ -32,9 +32,11 @@ export interface ConsoleSettings {
   nodeShape: NodeShape
   /** what the graph is drawn on behind the nodes */
   graphCanvas: GraphCanvas
+  /** the chain rail, folded down to its handle on the workspace's bottom-right margin */
+  chainCollapsed: boolean
 }
 
-export const DEFAULT_SETTINGS: ConsoleSettings = { shell: 'rail', railCollapsed: false, facetsCollapsed: false, detailCollapsed: false, graphMode: '3d', graphSnap: true, nodeShape: 'box', graphCanvas: 'lattice' }
+export const DEFAULT_SETTINGS: ConsoleSettings = { shell: 'rail', railCollapsed: false, facetsCollapsed: false, detailCollapsed: false, graphMode: '3d', graphSnap: true, nodeShape: 'box', graphCanvas: 'lattice', chainCollapsed: false }
 export const SETTINGS_KEY = 'xibalba-cortex.console-settings'
 
 export function parseSettings(raw: string | null | undefined): ConsoleSettings {
@@ -56,6 +58,7 @@ export function parseSettings(raw: string | null | undefined): ConsoleSettings {
     graphSnap: typeof v.graphSnap === 'boolean' ? v.graphSnap : DEFAULT_SETTINGS.graphSnap,
     nodeShape: NODE_SHAPES.includes(v.nodeShape as NodeShape) ? (v.nodeShape as NodeShape) : DEFAULT_SETTINGS.nodeShape,
     graphCanvas: GRAPH_CANVASES.includes(v.graphCanvas as GraphCanvas) ? (v.graphCanvas as GraphCanvas) : DEFAULT_SETTINGS.graphCanvas,
+    chainCollapsed: typeof v.chainCollapsed === 'boolean' ? v.chainCollapsed : DEFAULT_SETTINGS.chainCollapsed,
   }
 }
 
