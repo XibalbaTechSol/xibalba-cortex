@@ -226,7 +226,6 @@ export function StatusBar() {
       <span>{stats?.memories == null ? 'memory total not counted' : `${stats.memories.toLocaleString()} memories`}</span>
       {timingNote && <span title={timingNote} style={{ color: 'var(--status-review)' }}>timing partial</span>}
       <span className="xc-spacer" />
-      <a href="?ui=legacy">Legacy viewer</a>
     </footer>
   )
 }

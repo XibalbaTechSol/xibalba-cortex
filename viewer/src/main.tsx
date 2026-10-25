@@ -1,24 +1,13 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 
-// Two UIs share this bundle while the console replaces the legacy viewer. The console is the
-// default; `?ui=legacy` loads the original tab-based app unchanged. Each branch imports its own
-// stylesheet dynamically so the legacy global element selectors (button, input, h1...) never
-// leak into the console, and the console's tokens never touch the legacy pages.
-const legacy = new URLSearchParams(window.location.search).get('ui') === 'legacy'
-
+// The console is the only UI. It used to share this bundle with the original tab-based viewer,
+// reachable at `?ui=legacy`; that viewer was archived and has now been removed, so the stylesheet
+// no longer has to be imported dynamically to keep its global element selectors (button, input,
+// h1...) out of the console. The import stays dynamic only because the console's CSS and its
+// component tree are a single lazily-loaded chunk.
 async function boot(): Promise<void> {
   const root = createRoot(document.getElementById('root')!)
-  if (legacy) {
-    await import('./index.css')
-    const { default: App } = await import('./App.tsx')
-    root.render(
-      <StrictMode>
-        <App />
-      </StrictMode>,
-    )
-    return
-  }
   await import('./console/console.css')
   const { ConsoleApp } = await import('./console/ConsoleApp.tsx')
   root.render(
