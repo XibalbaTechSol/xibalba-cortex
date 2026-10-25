@@ -515,7 +515,7 @@ for (const [w, h] of [[390, 844], [1280, 720], [1600, 1000]] as const) {
   test(`the sign-in screen keeps its grammar at ${w}px`, async ({ page }) => {
     await page.setViewportSize({ width: w, height: h })
     await stubConsoleApi(page)
-    await page.goto('/#settings', { waitUntil: 'domcontentloaded' })
+    await page.goto('/#signin', { waitUntil: 'domcontentloaded' })
     await expect(page.locator('.xc')).toBeVisible({ timeout: 20000 })
     // it must actually be the signed-out screen, not the console
     await expect(page.locator('.xc-auth-formwrap, .xc-auth-story').first()).toBeVisible({ timeout: 10000 })
@@ -529,6 +529,8 @@ for (const [w, h] of [[390, 844], [1280, 720], [1600, 1000]] as const) {
   })
 
   test(`every destination keeps its content, frames and grammar at ${w}px`, async ({ page }) => {
+    // Eight routes and three overlays share this budget, including their intentional settling waits.
+    test.setTimeout(60000)
     await page.setViewportSize({ width: w, height: h })
     const crashes: string[] = []
     page.on('pageerror', (e) => crashes.push(String(e.message || e).slice(0, 180)))
@@ -640,3 +642,15 @@ test.describe('nothing is clipped and nothing scrolls the page', () => {
     }
   }
 })
+
+for (const width of [390, 1280, 1600]) {
+  test(`the public landing keeps its grammar at ${width}px`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 950 })
+    await stubConsoleApi(page)
+    await page.goto('/')
+    await expect(page.locator('.xc-landing')).toBeVisible()
+    await page.evaluate(() => document.fonts.ready)
+    const problems = await grammarSweep(page)
+    expect(problems, problems.join('\n')).toEqual([])
+  })
+}
