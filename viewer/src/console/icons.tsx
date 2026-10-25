@@ -9,7 +9,7 @@ const base = {
   viewBox: '0 0 24 24',
   fill: 'none',
   stroke: 'currentColor',
-  strokeWidth: 1.8,
+  strokeWidth: 1.5,
   strokeLinecap: 'round',
   strokeLinejoin: 'round',
   'aria-hidden': true,
@@ -29,7 +29,7 @@ export const IconTimeline = (p: IconProps) => (
   </svg>
 )
 export const IconSearch = (p: IconProps) => (
-  <svg {...base} strokeWidth={2} {...p}>
+  <svg {...base} {...p}>
     <circle cx="11" cy="11" r="7" />
     <path d="m16.5 16.5 4 4" />
   </svg>
@@ -67,17 +67,17 @@ export const IconTarget = (p: IconProps) => (
   </svg>
 )
 export const IconCheck = (p: IconProps) => (
-  <svg {...base} strokeWidth={2.2} {...p}>
+  <svg {...base} {...p}>
     <path d="M20 6 9 17l-5-5" />
   </svg>
 )
 export const IconWarn = (p: IconProps) => (
-  <svg {...base} strokeWidth={2} {...p}>
+  <svg {...base} {...p}>
     <path d="M12 9v4M12 17h.01M10.3 3.9 2.4 17.5A1.9 1.9 0 0 0 4 20.4h16a1.9 1.9 0 0 0 1.6-2.9L13.7 3.9a1.9 1.9 0 0 0-3.4 0Z" />
   </svg>
 )
 export const IconClose = (p: IconProps) => (
-  <svg {...base} strokeWidth={2} {...p}>
+  <svg {...base} {...p}>
     <path d="M18 6 6 18M6 6l12 12" />
   </svg>
 )

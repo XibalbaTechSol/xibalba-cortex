@@ -27,8 +27,8 @@ describe('linkWidth', () => {
 
 describe('blendOver', () => {
   it('is the ground at alpha 0 and the colour at alpha 1', () => {
-    expect(blendOver(0xc3b6dd, 0x14171a, 0)).toBe(0x14171a)
-    expect(blendOver(0xc3b6dd, 0x14171a, 1)).toBe(0xc3b6dd)
+    expect(blendOver(0x94bce3, 0x14171a, 0)).toBe(0x14171a)
+    expect(blendOver(0x94bce3, 0x14171a, 1)).toBe(0x94bce3)
   })
   it('lands between them in each channel, and clamps alpha', () => {
     const mid = blendOver(0xffffff, 0x000000, 0.5)
