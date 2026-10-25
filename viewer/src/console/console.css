@@ -3001,3 +3001,31 @@ body,
   bottom: 0;
   border-left: 1px solid var(--hairline-faint);
 }
+
+/* --- the docked rail says when it has more below ---------------------------------------------
+   Projection's facet list runs 247px past the fold at 900px tall, and with scrollbar chrome
+   hidden there was nothing to say so: the list simply stopped mid-row at the frame edge and
+   read as cut off rather than as scrollable.
+
+   The bottom edge now fades instead. A static mask would be wrong at the end of the list -- the
+   last row would stay dimmed with nothing below it -- so the fade is driven by the scroll
+   position: full at the top, gone once you reach the bottom. Where scroll-driven animation is
+   not available the rail keeps a plain hard edge rather than a fade that lies about there being
+   more; the content is still reachable by wheel or keyboard either way. */
+@supports (animation-timeline: scroll()) {
+  .xc-workspace > .xc-rail .xc-scroll {
+    animation: xc-fade-foot linear both;
+    animation-timeline: scroll(self block);
+    animation-range: contain;
+  }
+  @keyframes xc-fade-foot {
+    from {
+      -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 28px), transparent 100%);
+      mask-image: linear-gradient(to bottom, #000 calc(100% - 28px), transparent 100%);
+    }
+    to {
+      -webkit-mask-image: linear-gradient(to bottom, #000 100%, transparent 100%);
+      mask-image: linear-gradient(to bottom, #000 100%, transparent 100%);
+    }
+  }
+}
