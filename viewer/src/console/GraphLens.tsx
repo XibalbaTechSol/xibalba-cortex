@@ -11,8 +11,8 @@ import { forceX, forceY } from 'd3-force'
 import { useConsole } from './state'
 import { useSettings } from './settingsContext'
 import { Graph3D, type Graph3DHandle } from './Graph3D'
-import { FADE, LINK_ALPHA, linkWidth, nodeHalf, traceNode } from './graphStyle'
-import { cellCentre, snapToGrid, type Cell } from './gridSnap'
+import { FADE, GRID_INK, LINK_ALPHA, linkWidth, nodeHalf, traceNode } from './graphStyle'
+import { GRID_CELL_SIZE, cellCentre, snapToGrid, type Cell } from './gridSnap'
 import { defaultFacets, filterModel, selectionHidden, type CNode, type EdgeGroup, type Facets, type NodeClass } from './model'
 import { palette, withAlpha } from './palette'
 import { IconFit, IconGrid, IconTarget, IconUnpin, IconWarn } from './icons'
@@ -45,7 +45,7 @@ const HALF: Record<NodeClass, number> = { memory: 4.5, entity: 3.5, session: 6.5
 const DIM_STATUS = new Set(['superseded', 'forgotten'])
 
 /** Lattice cell size in graph units: the same lattice the 3D lens uses, seen flat. */
-const GRID = 24
+const GRID = GRID_CELL_SIZE
 
 const endId = (end: string | FGNode): string => (typeof end === 'string' ? end : end.id)
 
@@ -208,7 +208,7 @@ export function GraphLens() {
       const b = fg.screen2GraphCoords(size.width, size.height)
       ctx.save()
       ctx.lineWidth = 1 / scale
-      ctx.strokeStyle = withAlpha(colors.ink, 0.035)
+      ctx.strokeStyle = withAlpha(colors.ink, GRID_INK.flat)
       ctx.beginPath()
       // cell boundaries sit half a cell out from the cell centres, as in 3D
       const off = GRID / 2
