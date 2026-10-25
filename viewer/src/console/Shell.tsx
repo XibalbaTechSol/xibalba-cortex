@@ -139,6 +139,29 @@ export function Actions() {
   )
 }
 
+/** The rail layout's own header, spanning the content column.
+ *
+ *  Scope and Reload are workspace controls -- they say which memories are on screen and refetch
+ *  them -- so they belong over the workspace, not inside the navigation. In the rail they were
+ *  split across the rail's top and its foot, and both vanished into icons whenever the rail
+ *  collapsed; here they stay stated at full width at either rail width. The top-bar layout
+ *  already had both in its header (see TopBar), so this gives the two shells the same place
+ *  for them. Connection and profile stay in the rail foot: those are about the session, not
+ *  about what the workspace is showing.
+ */
+export function WorkspaceHeader() {
+  const { reload } = useConsole()
+  return (
+    <header className="xc-workspace-header">
+      <ScopePicker />
+      <span className="xc-spacer" />
+      <button type="button" className="xc-btn xc-btn--square" aria-label="Reload data" title="Reload data" onClick={reload}>
+        <IconRefresh />
+      </button>
+    </header>
+  )
+}
+
 /** Graph / Timeline, in the lens's own toolbar.
  *
  *  The two lenses are two views of one workspace, not two destinations, so they share a single
@@ -226,13 +249,12 @@ export function TopBar() {
   )
 }
 
-/** The left-rail layout (the default). Collapsing keeps the icons and moves the scope to a badge. */
+/** The left-rail layout (the default). Collapsing keeps the icons; scope and reload live in
+ *  WorkspaceHeader, over the content, so collapsing no longer hides them. */
 export function Rail() {
-  const { workspace, reload } = useConsole()
   const { settings, update } = useSettings()
   const { state, text } = useConnection()
   const collapsed = settings.railCollapsed
-  const scopeLabel = workspace.selected ? workspace.selected.label : 'Primary profile'
   return (
     <aside className="xc-rail-shell" data-collapsed={collapsed} aria-label="Navigation">
       <div className="xc-rail-head">
@@ -249,14 +271,6 @@ export function Rail() {
         </button>
       </div>
 
-      <div className="xc-rail-scope">
-        <ScopePicker />
-        {/* shown only when collapsed: which workspace am I in, and can I write to it */}
-        <span className="xc-rail-badge" title={`${scopeLabel} · ${workspace.canWrite ? 'writable' : 'read only'}`}>
-          {workspace.canWrite ? 'RW' : 'RO'}
-        </span>
-      </div>
-
       <nav className="xc-rail-nav" aria-label="Lenses and workflows">
         {primaryDestinations().map((d) => <NavButton key={d.id} dest={d} />)}
       </nav>
@@ -266,9 +280,6 @@ export function Rail() {
           <i aria-hidden="true" />
           <span className="xc-nav-label">{text}</span>
         </div>
-        <button type="button" className="xc-btn xc-btn--square" aria-label="Reload data" title="Reload data" onClick={reload}>
-          <IconRefresh />
-        </button>
         <ProfileButton />
       </div>
     </aside>

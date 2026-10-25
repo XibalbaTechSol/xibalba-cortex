@@ -1720,32 +1720,12 @@ select.xc-input {
   min-height: 30px;
   height: 30px;
 }
-.xc-rail-scope .xc-scope {
-  flex-direction: column;
-  align-items: stretch;
-  gap: 6px;
-}
-.xc-rail-scope .xc-scope select,
-.xc-rail-scope .xc-scope .xc-input {
-  max-width: none;
-  width: 100%;
-  font-size: 13px;
-}
 .xc-scope-static {
   display: inline-flex;
   align-items: center;
   color: var(--ink-muted);
   text-transform: none;
   letter-spacing: 0;
-}
-.xc-rail-badge {
-  display: none;
-  align-self: center;
-  padding: 3px 7px;
-  border: 1px solid var(--hairline-strong);
-  color: var(--ink-muted);
-  font: 600 12px var(--font-condensed);
-  letter-spacing: 0.08em;
 }
 .xc-rail-nav {
   flex: 1;
@@ -1814,12 +1794,8 @@ select.xc-input {
   font-size: 14px;
 }
 .xc-shell[data-collapsed='true'] .xc-nav-label,
-.xc-shell[data-collapsed='true'] .xc-rail-kicker,
-.xc-shell[data-collapsed='true'] .xc-rail-scope .xc-scope {
+.xc-shell[data-collapsed='true'] .xc-rail-kicker {
   display: none;
-}
-.xc-shell[data-collapsed='true'] .xc-rail-badge {
-  display: inline-block;
 }
 .xc-shell[data-collapsed='true'] .xc-rail-head {
   flex-direction: column;
@@ -1850,12 +1826,8 @@ select.xc-input {
   }
   .xc-shell .xc-nav-label,
   .xc-shell .xc-rail-kicker,
-  .xc-shell .xc-rail-scope .xc-scope,
   .xc-shell .xc-rail-toggle {
     display: none;
-  }
-  .xc-shell .xc-rail-badge {
-    display: inline-block;
   }
   .xc-shell .xc-rail-shell .xc-nav-btn {
     justify-content: center;
@@ -3124,4 +3096,40 @@ body,
 }
 .xc-workspace > .xc-chain[data-dragging='true'] .xc-chain-grip {
   cursor: grabbing;
+}
+
+/* ---------- rail layout: workspace header ------------------------------------------------------
+   Scope and Reload moved out of the rail and over the content. `flex: none` matters: .xc-main is
+   a flex column whose .xc-workspace is `flex: 1 1 auto`, so a header allowed to grow would take
+   height from the lens -- the same way a content-sized workspace once stretched instead of
+   scrolling. The header sizes to its controls and the lens keeps the rest. */
+.xc-workspace-header {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 28px 0;
+  min-height: 0;
+}
+/* Stated at full strength here, unlike the rail, where it sat in a narrow column and had to
+   stack its label above the select. */
+.xc-workspace-header .xc-scope {
+  flex-direction: row;
+  align-items: center;
+  gap: 10px;
+}
+.xc-workspace-header .xc-scope select,
+.xc-workspace-header .xc-scope .xc-input {
+  width: auto;
+  max-width: 420px;
+  font-size: 13px;
+}
+@media (max-width: 1100px) {
+  .xc-workspace-header {
+    padding-inline: 18px;
+  }
+  .xc-workspace-header .xc-scope select,
+  .xc-workspace-header .xc-scope .xc-input {
+    max-width: none;
+  }
 }
