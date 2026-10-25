@@ -1,5 +1,5 @@
 // The Graph lens in 3D: the same nodes, edges, selection, dimming and palette as the 2D lens, laid
-// out by a 3D force simulation, snapped to a 3D lattice (one cube per cell, drawn as a full 3D lattice of cell walls)
+// out by a 3D force simulation, snapped to a 3D lattice (one cube per cell, framed by a quiet grid on three outer planes)
 // and rendered with three.js. Drag to orbit, right-drag to pan, wheel to
 // zoom; click a cube to select it, click empty space to clear.
 //
@@ -21,7 +21,7 @@ import type { GraphCanvas, NodeShape } from './settings'
 import { FADE, GRID_INK, LINK_ALPHA, blendOver, faceColours } from './graphStyle'
 import { palette } from './palette'
 import { frameCamera, type Vec3 } from './framing'
-import { GRID_CELL_SIZE, cellBounds, cellCentre, latticeFrame, latticeLines, snapToGrid, type Cell } from './gridSnap'
+import { GRID_CELL_SIZE, cellBounds, cellCentre, latticeFrame, gridLines, snapToGrid, type Cell } from './gridSnap'
 
 export interface Graph3DHandle {
   fit: () => void
@@ -190,8 +190,8 @@ function createEngine(host: HTMLElement, cb: { snap: boolean; shape: NodeShape; 
   let cells = new Map<string, Cell>()
   const targets = new Map<string, THREE.Vector3>()
   let animating = false
-  // the lattice is a true 3D grid: cell walls run through the whole volume along x, y and z, with the
-  // bounding box drawn a little brighter. depthWrite is off so the faint lines never fight the cubes.
+  // Three outer grid planes communicate spacing without running lines through every node and
+  // relationship. The slightly brighter frame keeps depth readable; cubes still snap to 3D cells.
   const gridObj = new THREE.LineSegments(new THREE.BufferGeometry(), new THREE.LineBasicMaterial({ color: blendOver(C.ink, C.ground, GRID_INK.lattice), depthWrite: false }))
   gridObj.frustumCulled = false
   const frameObj = new THREE.LineSegments(new THREE.BufferGeometry(), new THREE.LineBasicMaterial({ color: blendOver(C.ink, C.ground, GRID_INK.frame), depthWrite: false }))
@@ -226,7 +226,7 @@ function createEngine(host: HTMLElement, cb: { snap: boolean; shape: NodeShape; 
       const g = new THREE.BufferGeometry()
       const f = new THREE.BufferGeometry()
       if (b) {
-        g.setAttribute('position', new THREE.BufferAttribute(latticeLines(b, GRID, 1), 3))
+        g.setAttribute('position', new THREE.BufferAttribute(gridLines(b, GRID, 1), 3))
         f.setAttribute('position', new THREE.BufferAttribute(latticeFrame(b, GRID, 1), 3))
       }
       gridObj.geometry = g
