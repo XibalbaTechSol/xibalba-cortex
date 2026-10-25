@@ -8,7 +8,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { accountLogout, isSignedIn } from '../api'
 import { ConsoleProvider, useConsole } from './state'
 import { SignIn } from './SignIn'
-import { Rail, StatusBar, TopBar } from './Shell'
+import { Rail, StatusBar, TopBar, WorkspaceHeader } from './Shell'
 import { SettingsProvider, useSettings } from './settingsContext'
 import { PageHost } from './pages/PageHost'
 import { FacetRail } from './FacetRail'
@@ -79,7 +79,10 @@ function Workspace() {
       ) : settings.shell === 'rail' ? (
         <div className="xc-shell" data-collapsed={settings.railCollapsed}>
           <Rail />
-          <div className="xc-main">{content}</div>
+          <div className="xc-main">
+            <WorkspaceHeader />
+            {content}
+          </div>
         </div>
       ) : (
         <>
