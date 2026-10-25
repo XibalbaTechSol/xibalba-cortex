@@ -2772,12 +2772,22 @@ select.xc-input {
   background: var(--ground);
   box-shadow: none;
 }
-/* The canvas keeps the whole workspace -- the graph still lays out and zooms across the full
-   width -- while its toolbar and legend are inset past the docks so no control hides beneath
-   one. */
+/* The lens is inset BY the docks, not merely decorated around them. Keeping the canvas at the
+   full workspace width and only pushing its toolbar inward left the drawing itself underneath
+   the panels: measured at 1600x900, 224px of the lens sat behind Projection, three of the
+   timeline's four marks were buried, and `elementFromPoint` at their centres returned
+   `.xc-scroll` -- so a click on a mark reached the dock, not the mark. The lens reported as
+   "not selecting" was really a lens that could not be hit.
+
+   With the window itself inset, the 3D camera fits the rect the user can actually see, and
+   the toolbar and legend need no offset of their own. */
+.xc-workspace > .xc-canvas-win {
+  left: calc(var(--dock-left) + 7px);
+  right: calc(var(--dock-right) + 7px);
+}
 .xc-workspace > .xc-canvas-win > .xc-bar {
-  padding-left: calc(var(--dock-left) + 16px);
-  padding-right: calc(var(--dock-right) + 16px);
+  padding-left: 16px;
+  padding-right: 16px;
 }
 .xc-workspace > .xc-chain {
   left: calc(var(--dock-left) + 16px);
@@ -2875,7 +2885,7 @@ select.xc-input {
    the legend or the loading line. */
 .xc-workspace > .xc-canvas-win > .xc-legend,
 .xc-workspace > .xc-canvas-win > .xc-legend-toggle {
-  left: calc(var(--dock-left) + 14px);
+  left: 14px;
 }
 
 /* --- the console is exactly one viewport tall ---------------------------------------------
