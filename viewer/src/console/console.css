@@ -2595,3 +2595,27 @@ select.xc-input {
 /* Collapsed: the avatar alone, centred, and the menu widens to stay readable. */
 .xc-shell[data-collapsed='true'] .xc-profile-btn { justify-content: center; padding-inline: 0; }
 .xc-shell[data-collapsed='true'] .xc-profile-menu { left: 0; width: 180px; right: auto; }
+
+/* --- page tab strip ----------------------------------------------------------------------
+   The counterpart to a five-link rail: the surfaces a single link fronts stay one click apart.
+   Industry's underline-on-current, not a pill. */
+.xc-page-tabs {
+  display: flex;
+  gap: 2px;
+  padding: 0 var(--gutter);
+  border-bottom: 1px solid var(--hairline-faint);
+}
+.xc-page-tab {
+  padding: 10px 14px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: var(--ink-muted);
+  font: 500 14px/1.2 'Barlow', sans-serif;
+  cursor: pointer;
+}
+.xc-page-tab:hover { color: var(--ink); }
+.xc-page-tab[aria-current='page'] {
+  border-bottom-color: var(--cortex-accent);
+  color: var(--ink);
+}

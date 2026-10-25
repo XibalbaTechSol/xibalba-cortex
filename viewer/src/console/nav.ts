@@ -28,10 +28,36 @@ export const GROUP_LABEL: Record<NavGroup, string> = {
   system: 'System',
 }
 
+/** The destinations the navigation actually lists, in order. Capped at five on purpose.
+ *
+ *  Eleven links was a list, not a navigation: it made the rail the tallest thing on screen and
+ *  pushed three administrative surfaces (Operations, Agents, Settings) to the same weight as the
+ *  graph. Those three now live behind the account control in the rail foot, exactly where Shield
+ *  keeps its own Settings, and reach each other through the tab strip below.
+ *
+ *  Nothing was deleted. Every destination still has its route and its surface, so `#sessions`
+ *  and `#operations` still resolve -- what changed is which five earn a permanent link. */
+export const PRIMARY_NAV: readonly DestinationId[] = ['graph', 'memories', 'recall', 'review', 'integrity']
+
+/** Sibling surfaces reachable as tabs once you are on one of them, keyed by any member.
+ *
+ *  This is what lets five links cover eleven surfaces without hiding eight of them: Explore's
+ *  three pages are peers of each other, and the three administrative pages are peers behind the
+ *  account menu. The lens pair (graph/timeline) is not here -- it switches inside the workspace
+ *  itself, because they are two views of one thing rather than two pages. */
+export const PAGE_TABS: Readonly<Record<string, readonly PageId[]>> = {
+  memories: ['memories', 'entities', 'sessions'],
+  entities: ['memories', 'entities', 'sessions'],
+  sessions: ['memories', 'entities', 'sessions'],
+  settings: ['settings', 'operations', 'agents'],
+  operations: ['settings', 'operations', 'agents'],
+  agents: ['settings', 'operations', 'agents'],
+}
+
 export const ALL_DESTINATIONS: readonly Destination[] = [
-  { id: 'graph', kind: 'lens', label: 'Graph', group: 'lens', hint: 'Knowledge graph' },
+  { id: 'graph', kind: 'lens', label: 'Workspace', group: 'lens', hint: 'Knowledge graph and timeline' },
   { id: 'timeline', kind: 'lens', label: 'Timeline', group: 'lens', hint: 'Sessions on a time axis' },
-  { id: 'memories', kind: 'page', label: 'Memories', group: 'explore', hint: 'Browse, filter and add memories' },
+  { id: 'memories', kind: 'page', label: 'Explore', group: 'explore', hint: 'Memories, entities and sessions' },
   { id: 'entities', kind: 'page', label: 'Entities', group: 'explore', hint: 'Entity neighbours and paths' },
   { id: 'sessions', kind: 'page', label: 'Sessions', group: 'explore', hint: 'Sessions, exchanges, replay and traces' },
   { id: 'recall', kind: 'overlay', label: 'Recall', group: 'workflows', hint: 'Ask the memory a question' },
@@ -52,6 +78,30 @@ export const DESTINATIONS: readonly Destination[] = ALL_DESTINATIONS.filter((d) 
 
 export function destinationsIn(group: NavGroup, list: readonly Destination[] = DESTINATIONS): Destination[] {
   return list.filter((d) => d.group === group)
+}
+
+/** The five, resolved to destinations and in `PRIMARY_NAV` order. Anything unbuilt drops out. */
+export function primaryDestinations(list: readonly Destination[] = DESTINATIONS): Destination[] {
+  return PRIMARY_NAV.map((id) => list.find((d) => d.id === id)).filter((d): d is Destination => !!d)
+}
+
+/** What a page calls itself inside a tab strip.
+ *
+ *  Separate from `Destination.label` because two of those labels now name the group a single
+ *  link fronts -- `memories` is listed as "Explore" -- and a tab called "Explore" sitting beside
+ *  "Entities" and "Sessions" would be nonsense. */
+export const TAB_LABEL: Readonly<Record<PageId, string>> = {
+  memories: 'Memories',
+  entities: 'Entities',
+  sessions: 'Sessions',
+  settings: 'Settings',
+  operations: 'Operations',
+  agents: 'Agents',
+}
+
+/** The tab strip to show on `page`, or an empty list when it has no peers. */
+export function tabsFor(page: PageId): readonly PageId[] {
+  return PAGE_TABS[page] ?? []
 }
 
 export const NAV_GROUPS: readonly NavGroup[] = ['lens', 'explore', 'workflows', 'system']

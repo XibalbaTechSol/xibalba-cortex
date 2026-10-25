@@ -5,7 +5,7 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { useConsole } from './state'
 import { useSettings } from './settingsContext'
-import { GROUP_LABEL, NAV_GROUPS, destinationsIn, type Destination, type DestinationId } from './nav'
+import { primaryDestinations, type Destination, type DestinationId } from './nav'
 import {
   IconAgents, IconChevronLeft, IconChevronRight, IconEntities, IconGraph, IconIntegrity, IconMemories, IconOperations,
   IconRefresh, IconReview, IconSearch, IconSessions, IconSettings, IconSignOut, IconTimeline,
@@ -205,16 +205,7 @@ export function TopBar() {
         <Actions />
       </div>
       <nav className="xc-nav" aria-label="Lenses and workflows">
-        {NAV_GROUPS.map((group) => {
-          const items = destinationsIn(group)
-          if (items.length === 0) return null
-          return (
-            <div className="xc-nav-group" key={group}>
-              <span className="xc-nav-kicker">{GROUP_LABEL[group]}</span>
-              {items.map((d) => <NavButton key={d.id} dest={d} />)}
-            </div>
-          )
-        })}
+        {primaryDestinations().map((d) => <NavButton key={d.id} dest={d} />)}
       </nav>
     </header>
   )
@@ -252,16 +243,7 @@ export function Rail() {
       </div>
 
       <nav className="xc-rail-nav" aria-label="Lenses and workflows">
-        {NAV_GROUPS.map((group) => {
-          const items = destinationsIn(group)
-          if (items.length === 0) return null
-          return (
-            <div className="xc-rail-group" key={group}>
-              <p className="xc-rail-kicker">{GROUP_LABEL[group]}</p>
-              {items.map((d) => <NavButton key={d.id} dest={d} />)}
-            </div>
-          )
-        })}
+        {primaryDestinations().map((d) => <NavButton key={d.id} dest={d} />)}
       </nav>
 
       <div className="xc-rail-foot">
