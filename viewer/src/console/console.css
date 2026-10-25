@@ -1812,13 +1812,8 @@ select.xc-input {
   padding-inline: 10px;
   align-items: center;
 }
-/* A collapsed rail is 68px with a 10px gutter either side, which leaves 48px of content.
-   The mark is the brain crown (88x33), so it is sized by WIDTH and its height follows --
-   the square 36/24 box here was built for the old square circuit emblem, and forcing this
-   one into it would squash it. 44px of the 48px available leaves it 2px of air either
-   side and, at 16px tall, settles it beside the 19px nav icons rather than towering over
-   them. Both ways of collapsing the rail (the explicit toggle and the <=1280px window)
-   land here. */
+/* The complete lockup fits inside the collapsed rail's 48px content width. Height follows
+   the artwork's aspect ratio, retaining the wordmark and lower brain in both collapse modes. */
 .xc-shell[data-collapsed='true'] .xc-brand-mark,
 .xc-shell[data-collapsed='true'] .xc-rail-head .xc-brand-mark {
   width: 48px;
@@ -3294,7 +3289,7 @@ body,
 .xc-landing-top .xc-brand-mark {
   display: grid;
   width: 48px;
-  height: 32px;
+  height: 48px;
   border: 0;
 }
 .xc-landing-top .xc-brand-mark img {

@@ -99,11 +99,11 @@ test('the collapsed rail gives its brand mark room', async ({ page }) => {
   const src = await page.locator('.xc-brand-mark img').evaluate((el) => (el as HTMLImageElement).currentSrc)
   expect(src).toContain('cortex-rail-mark.png')
 
-  // The crown is wider than it is tall, so it fills the rail's width rather than sitting in a
-  // square box: 44px of the 48px the collapsed rail has, with the mark no taller than a nav row.
+  // Preserve the complete, nearly square lockup inside the rail, including its lower half.
   expect(img.width).toBeGreaterThanOrEqual(40)
   expect(img.width).toBeLessThanOrEqual(48)
-  expect(img.height, 'the crown must not tower over the nav icons').toBeLessThanOrEqual(24)
+  expect(img.height, 'the complete logo must retain its lower half').toBeGreaterThanOrEqual(36)
+  expect(img.height).toBeLessThanOrEqual(48)
   expect(mark.width - img.width, 'the crown has no room inside its frame').toBeGreaterThanOrEqual(2)
 
   // and the frame sits inside the rail with a gutter either side

@@ -34,7 +34,7 @@ FRAME = 3                    # px of outer edge to drop before measuring the art
 OUT_W = 248                  # 2x the rail's 124px lockup, and just over the 208px sign-in use
 GAMMA = 0.7                  # alpha stretch applied after resampling
 
-def invert_to_white(src: str, dst: str, out_w: int = OUT_W, pad: int = 6, gamma: float = GAMMA):
+def invert_to_white(src: str, dst: str, out_w: int = OUT_W, pad: int = 6, gamma: float = GAMMA, dilate: int = 1):
     # The ink is read from RGB alone, NOT from the image composited over white. These exports
     # carry the artwork at full strength in RGB and a PARTIAL alpha over it, so compositing
     # first washes the ink out -- measured on the compact lockup: minimum luminance 190 instead
@@ -50,6 +50,9 @@ def invert_to_white(src: str, dst: str, out_w: int = OUT_W, pad: int = 6, gamma:
     x0, y0, x1, y1 = box
     alpha = alpha.crop((max(0, x0 - pad), max(0, y0 - pad),
                         min(alpha.size[0], x1 + pad), min(alpha.size[1], y1 + pad)))
+
+    if dilate > 1:
+        alpha = alpha.filter(ImageFilter.MaxFilter(dilate))
 
     if out_w and alpha.size[0] != out_w:
         alpha = alpha.resize((out_w, round(alpha.size[1] * out_w / alpha.size[0])), Image.LANCZOS)
@@ -81,42 +84,17 @@ def restate_white(src: str, dst: str, out_w: int, pad: int = 2, gamma: float = G
     mark.save(dst)
     return mark.size
 
-def crown_mark(src: str, dst: str, out_w: int = 88, keep: float = 0.40, dilate: int = 7,
-               gamma: float = 0.55):
-    """The rail mark: the brain alone, from the same drawing as the lockup.
+def rail_mark(src: str, dst: str, out_w: int = 88):
+    """Keep the complete lockup in the collapsed rail, with breathing room on every side.
 
-    The collapsed rail paints its mark at about 44px. Nothing that contains the wordmark
-    survives that -- measured, the lockup's inner "Xibalba CORTEX / AI MEMORY SYSTEM" is
-    illegible noise below roughly 90px, which is why the lockup is 124px in the open rail.
-    The emblem that used to stand in for it there (cortex-mark.png) is a DIFFERENT drawing,
-    a circuit-trace brain, and at 24-36px its traces average into a grey blob.
-
-    So the mark is cut from the brand's own brain: the top `keep` of the artwork, which is
-    the clean gyri above the wordmark band. Hairline strokes still thin out under a 14x
-    downscale, so the alpha is dilated first -- that is what keeps the strokes at full
-    weight once they are 44px wide, and it is done BEFORE the resize for the same reason
-    the stretch is done after it.
+    The earlier crown crop removed the wordmark and lower half of the brain. Small navigation
+    must preserve the same complete artwork as the expanded rail, even at a smaller scale.
     """
-    full = Image.open(src).convert('RGB')
-    w, h = full.size
-    lum = full.convert('L').crop((FRAME, FRAME, w - FRAME, h - FRAME))
-    span = INK_LO - INK_HI
-    alpha = lum.point(lambda v: 255 if v <= INK_HI else 0 if v >= INK_LO else round(255 * (INK_LO - v) / span))
-    box = alpha.getbbox()
-    x0, y0, x1, y1 = box
-    alpha = alpha.crop((x0, y0, x1, y0 + round((y1 - y0) * keep)))
-    if dilate > 1:
-        alpha = alpha.filter(ImageFilter.MaxFilter(dilate))
-    alpha = alpha.resize((out_w, round(alpha.size[1] * out_w / alpha.size[0])), Image.LANCZOS)
-    alpha = alpha.point(lambda v: 0 if v < 8 else min(255, round(255 * (v / 255) ** gamma)))
-    mark = Image.new('RGBA', alpha.size, (255, 255, 255, 0))
-    mark.putalpha(alpha)
-    mark.save(dst)
-    return mark.size
+    return invert_to_white(src, dst, out_w=out_w, pad=12, gamma=0.55, dilate=7)
 
 if __name__ == '__main__':
-    if sys.argv[1] == '--crown':
-        print(crown_mark(sys.argv[2], sys.argv[3], int(sys.argv[4]) if len(sys.argv) > 4 else 88))
+    if sys.argv[1] == '--rail':
+        print(rail_mark(sys.argv[2], sys.argv[3], int(sys.argv[4]) if len(sys.argv) > 4 else 88))
     elif sys.argv[1] == '--restate':
         print(restate_white(sys.argv[2], sys.argv[3], int(sys.argv[4])))
     else:
