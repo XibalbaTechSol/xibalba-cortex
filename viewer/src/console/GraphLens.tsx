@@ -12,7 +12,7 @@ import { useConsole } from './state'
 import { LensSwitch } from './Shell'
 import { useSettings } from './settingsContext'
 import { Graph3D, type Graph3DHandle } from './Graph3D'
-import { FADE, LINK_ALPHA, linkWidth, nodeHalf } from './graphStyle'
+import { FADE, LINK_ALPHA, linkWidth, nodeHalf, traceNode } from './graphStyle'
 import { cellCentre, snapToGrid, type Cell } from './gridSnap'
 import { defaultFacets, filterModel, selectionHidden, type CNode, type EdgeGroup, type Facets, type NodeClass } from './model'
 import { palette, withAlpha } from './palette'
@@ -60,6 +60,8 @@ export function GraphLens() {
   const [no3d, setNo3d] = useState(false)
   const mode3d = settings.graphMode === '3d' && !no3d
   const snap = settings.graphSnap
+  const shape = settings.nodeShape
+  const canvas = settings.graphCanvas
   const g3Ref = useRef<Graph3DHandle>(null)
   const zoomRef = useRef(1)
   const [pinned, setPinned] = useState(0)
@@ -198,6 +200,9 @@ export function GraphLens() {
     (ctx: CanvasRenderingContext2D, scale: number) => {
       const fg = fgRef.current
       if (!fg || size.width === 0) return
+      // the backdrop setting reaches both lenses: 'lattice' draws the cell walls, the other two
+      // leave the field clear (the 2D lens has no bounding frame of its own to keep)
+      if (canvas !== 'lattice') return
       let step = GRID
       while (step * scale < 16) step *= 2
       const a = fg.screen2GraphCoords(0, 0)
@@ -213,7 +218,7 @@ export function GraphLens() {
       ctx.stroke()
       ctx.restore()
     },
-    [colors, size],
+    [colors, size, canvas],
   )
 
   const paintNode = useCallback(
@@ -235,26 +240,31 @@ export function GraphLens() {
         : node.cls === 'exchange' ? colors.inkDim
         : node.valid === false ? colors.conflict : colors.anchored
 
+      // the same silhouette the 3D lens builds as a solid, traced flat -- one setting, one form
+      ctx.beginPath()
+      traceNode(ctx, shape, x, y, h)
       if (node.cls === 'merkle') {
-        // a root is a ring: it is evidence about a session, not a thing in the graph
+        // a root is an outline: it is evidence about a session, not a thing in the graph
         ctx.lineWidth = 1.6 / scale
         ctx.strokeStyle = fill
-        ctx.strokeRect(x - h, y - h, h * 2, h * 2)
+        ctx.stroke()
       } else if (node.cls === 'memory' && (node.status === 'candidate' || node.status === 'disputed' || node.status === 'quarantined')) {
         // not-yet-trusted memories are outlined, in the colour of why
         ctx.lineWidth = 1.6 / scale
         ctx.strokeStyle = node.status === 'candidate' ? colors.accent : node.status === 'disputed' ? colors.review : colors.conflict
-        ctx.strokeRect(x - h, y - h, h * 2, h * 2)
+        ctx.stroke()
       } else {
         ctx.fillStyle = fill
-        ctx.fillRect(x - h, y - h, h * 2, h * 2)
+        ctx.fill()
       }
 
       if (isSelected) {
         ctx.globalAlpha = 1
         ctx.lineWidth = 1.6 / scale
         ctx.strokeStyle = colors.ink
-        ctx.strokeRect(x - h - 3 / scale, y - h - 3 / scale, (h + 3 / scale) * 2, (h + 3 / scale) * 2)
+        ctx.beginPath()
+        traceNode(ctx, shape, x, y, h + 3 / scale)
+        ctx.stroke()
       }
 
       // labels earn their place: zoomed in, selected, hovered, or a hub
@@ -383,7 +393,7 @@ export function GraphLens() {
 
       <div className="xc-host" ref={hostRef} onWheelCapture={() => { userMoved2d.current = true }} onPointerMoveCapture={(e) => { if (e.buttons) userMoved2d.current = true }} style={{ cursor: hoverId ? 'pointer' : 'default' }}>
         {mode3d && visible && visible.nodes.length > 0 && (
-          <Graph3D ref={g3Ref} nodes={visible.nodes} edges={visible.edges} selectedId={selectedId} focus={focus} snap={snap} onSelect={select} onPinnedChange={setPinned} onUnsupported={() => setNo3d(true)} />
+          <Graph3D ref={g3Ref} nodes={visible.nodes} edges={visible.edges} selectedId={selectedId} focus={focus} snap={snap} shape={shape} canvas={canvas} onSelect={select} onPinnedChange={setPinned} onUnsupported={() => setNo3d(true)} />
         )}
         {!mode3d && size.width > 0 && visible && visible.nodes.length > 0 && (
           <ForceGraph2D<FGNode, FGLink>

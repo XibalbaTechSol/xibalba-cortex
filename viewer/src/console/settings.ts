@@ -4,6 +4,16 @@
 
 export type ShellLayout = 'rail' | 'top'
 export type GraphMode = '2d' | '3d'
+/* One form per setting, rendered in each lens's own idiom: the 3D lens builds the solid, the 2D
+   lens traces the same silhouette flat. Every one of them has to read when it is unlit and only
+   a few pixels across, which is why there is no sphere -- under an unlit material a sphere is a
+   flat disc, and its edge geometry is a mess of triangles rather than a readable outline. */
+export type NodeShape = 'box' | 'diamond' | 'facet'
+/** The backdrop the graph is drawn on: the full lattice, the bounding frame alone, or neither. */
+export type GraphCanvas = 'lattice' | 'frame' | 'plain'
+
+export const NODE_SHAPES: readonly NodeShape[] = ['box', 'diamond', 'facet']
+export const GRAPH_CANVASES: readonly GraphCanvas[] = ['lattice', 'frame', 'plain']
 
 export interface ConsoleSettings {
   /** left rail (default) or the top bar with a tab row */
@@ -18,9 +28,13 @@ export interface ConsoleSettings {
   graphMode: GraphMode
   /** graph nodes sit on the lattice (default) instead of wherever the force layout leaves them */
   graphSnap: boolean
+  /** the solid a node is drawn as, in both lenses */
+  nodeShape: NodeShape
+  /** what the graph is drawn on behind the nodes */
+  graphCanvas: GraphCanvas
 }
 
-export const DEFAULT_SETTINGS: ConsoleSettings = { shell: 'rail', railCollapsed: false, facetsCollapsed: false, detailCollapsed: false, graphMode: '3d', graphSnap: true }
+export const DEFAULT_SETTINGS: ConsoleSettings = { shell: 'rail', railCollapsed: false, facetsCollapsed: false, detailCollapsed: false, graphMode: '3d', graphSnap: true, nodeShape: 'box', graphCanvas: 'lattice' }
 export const SETTINGS_KEY = 'xibalba-cortex.console-settings'
 
 export function parseSettings(raw: string | null | undefined): ConsoleSettings {
@@ -40,6 +54,8 @@ export function parseSettings(raw: string | null | undefined): ConsoleSettings {
     detailCollapsed: typeof v.detailCollapsed === 'boolean' ? v.detailCollapsed : DEFAULT_SETTINGS.detailCollapsed,
     graphMode: v.graphMode === '2d' || v.graphMode === '3d' ? v.graphMode : DEFAULT_SETTINGS.graphMode,
     graphSnap: typeof v.graphSnap === 'boolean' ? v.graphSnap : DEFAULT_SETTINGS.graphSnap,
+    nodeShape: NODE_SHAPES.includes(v.nodeShape as NodeShape) ? (v.nodeShape as NodeShape) : DEFAULT_SETTINGS.nodeShape,
+    graphCanvas: GRAPH_CANVASES.includes(v.graphCanvas as GraphCanvas) ? (v.graphCanvas as GraphCanvas) : DEFAULT_SETTINGS.graphCanvas,
   }
 }
 

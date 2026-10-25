@@ -17,6 +17,7 @@ import * as THREE from 'three'
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js'
 import { forceLink, forceManyBody, forceSimulation, forceX, forceY, forceZ, type Simulation } from 'd3-force-3d'
 import type { CEdge, CNode, EdgeGroup, NodeClass } from './model'
+import type { GraphCanvas, NodeShape } from './settings'
 import { FADE, LINK_ALPHA, blendOver } from './graphStyle'
 import { palette } from './palette'
 import { frameCamera, type Vec3 } from './framing'
@@ -39,6 +40,10 @@ interface Props {
   onSelect: (id: string | null) => void
   /** cubes take a lattice cell each (true) or sit where the force layout leaves them (false) */
   snap: boolean
+  /** the solid each node is drawn as */
+  shape: NodeShape
+  /** the backdrop behind the nodes */
+  canvas: GraphCanvas
   /** how many cubes are pinned by dragging */
   onPinnedChange?: (count: number) => void
   /** the browser cannot create a WebGL context */
@@ -97,6 +102,8 @@ interface Engine {
   setData: (nodes: CNode[], edges: CEdge[]) => void
   setSelection: (id: string | null) => void
   setSnap: (on: boolean) => void
+  setShape: (shape: NodeShape) => void
+  setCanvas: (canvas: GraphCanvas) => void
   focusOn: (id: string) => void
   fit: () => void
   fitSelection: () => void
@@ -105,7 +112,7 @@ interface Engine {
   dispose: () => void
 }
 
-function createEngine(host: HTMLElement, cb: { snap: boolean; onSelect: (id: string | null) => void; onPinnedChange: (count: number) => void }): Engine {
+function createEngine(host: HTMLElement, cb: { snap: boolean; shape: NodeShape; canvas: GraphCanvas; onSelect: (id: string | null) => void; onPinnedChange: (count: number) => void }): Engine {
   const pal = palette()
   const C = { ground: num(pal.ground), ink: num(pal.ink), muted: num(pal.inkMuted), dim: num(pal.inkDim), accent: num(pal.accent), anchored: num(pal.anchored), review: num(pal.review), conflict: num(pal.conflict) }
   const reduceMotion = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches
@@ -143,6 +150,21 @@ function createEngine(host: HTMLElement, cb: { snap: boolean; onSelect: (id: str
   const proxies: THREE.Mesh[] = []
   const box = new THREE.BoxGeometry(1, 1, 1)
   const boxEdges = new THREE.EdgesGeometry(box)
+  /* One solid per shape, each sized so its half-extent is 0.5 -- the same contract `NODE_OUTLINE`
+     holds the 2D lens to, so `scale.setScalar(side)` is correct for all three and a node can never
+     reach outside the cell the lattice reserves for it. Built once and shared: a 500-node graph
+     would otherwise allocate 500 identical geometries. */
+  const SHAPE_GEOM: Record<NodeShape, THREE.BufferGeometry> = {
+    box,
+    diamond: new THREE.OctahedronGeometry(0.5),
+    facet: new THREE.IcosahedronGeometry(0.5),
+  }
+  const SHAPE_EDGES: Record<NodeShape, THREE.BufferGeometry> = {
+    box: boxEdges,
+    diamond: new THREE.EdgesGeometry(SHAPE_GEOM.diamond),
+    facet: new THREE.EdgesGeometry(SHAPE_GEOM.facet),
+  }
+  let shape: NodeShape = cb.shape
   const nodeGroup = new THREE.Group()
   const linkGroup = new THREE.Group()
   scene.add(linkGroup, nodeGroup)
@@ -174,6 +196,18 @@ function createEngine(host: HTMLElement, cb: { snap: boolean; onSelect: (id: str
   const frameObj = new THREE.LineSegments(new THREE.BufferGeometry(), new THREE.LineBasicMaterial({ color: blendOver(C.ink, C.ground, 0.13), depthWrite: false }))
   frameObj.frustumCulled = false
   scene.add(gridObj, frameObj)
+  let canvasKind: GraphCanvas = cb.canvas
+  /* The backdrop is two objects, so "which backdrop" is just which of them is visible. Both stay
+     in the scene and keep their geometry: switching is a visibility flip, not a rebuild. */
+  function applyCanvas() {
+    gridObj.visible = canvasKind === 'lattice'
+    frameObj.visible = canvasKind !== 'plain'
+    canvas.dataset.canvas = canvasKind
+  }
+  applyCanvas()
+  // published at startup too, not only when it changes, or a test reading it sees nothing on the
+  // default and would pass against a lens that never honoured the setting at all
+  canvas.dataset.shape = shape
   let gridKey = ''
   function retarget() {
     const pts = visibleIds.map((id) => simNodes.get(id)!).map((n) => ({ id: n.id, x: n.x, y: n.y, z: n.z, priority: n.fx != null ? 1e6 : n.degree }))
@@ -234,25 +268,46 @@ function createEngine(host: HTMLElement, cb: { snap: boolean; onSelect: (id: str
     const side = half(n) * 2
     const hollow = n.cls === 'merkle' || (n.cls === 'memory' && !!n.status && HOLLOW_STATUS.has(n.status))
     let visual: THREE.Object3D
-    if (hollow) visual = new THREE.LineSegments(boxEdges, new THREE.LineBasicMaterial({ color: colourOf(n), transparent: true }))
-    else visual = new THREE.Mesh(box, new THREE.MeshBasicMaterial({ color: colourOf(n), transparent: true }))
+    if (hollow) visual = new THREE.LineSegments(SHAPE_EDGES[shape], new THREE.LineBasicMaterial({ color: colourOf(n), transparent: true }))
+    else visual = new THREE.Mesh(SHAPE_GEOM[shape], new THREE.MeshBasicMaterial({ color: colourOf(n), transparent: true }))
     visual.scale.setScalar(side)
-    // a slightly larger invisible cube is what the pointer hits, so a hollow node is as easy to pick as a solid one
+    /* A solid node also gets its edges drawn. `MeshBasicMaterial` is unlit, so every face of a
+       solid returns the identical colour and the shape collapses into a flat silhouette -- at the
+       fitted zoom the cubes read as pale slabs rather than as objects with corners. The outline is
+       what gives an unlit solid its form, and it is the Industry grammar besides: a line drawing
+       with one solid fill. Hollow nodes are already edges, so they do not get a second copy. */
+    let outline: THREE.LineSegments | null = null
+    if (!hollow) {
+      outline = new THREE.LineSegments(SHAPE_EDGES[shape], new THREE.LineBasicMaterial({ color: C.ground, transparent: true }))
+      outline.scale.setScalar(side)
+    }
+    // a slightly larger invisible solid is what the pointer hits, so a hollow node is as easy to pick as a solid one
     const hit = new THREE.Mesh(box, new THREE.MeshBasicMaterial({ visible: false }))
     hit.scale.setScalar(side * 1.5)
     hit.userData.id = n.id
     const group = new THREE.Group()
     group.add(visual, hit)
-    group.userData = { id: n.id, visual, hit }
+    if (outline) group.add(outline)
+    group.userData = { id: n.id, visual, hit, outline }
     return group
   }
   const materialOf = (o: THREE.Object3D): THREE.Material & { opacity: number } =>
     ((o.userData.visual as THREE.Mesh | THREE.LineSegments).material as THREE.Material & { opacity: number })
 
+  const outlineOf = (o: THREE.Object3D): (THREE.Material & { opacity: number }) | null => {
+    const l = o.userData.outline as THREE.LineSegments | null | undefined
+    return l ? (l.material as THREE.Material & { opacity: number }) : null
+  }
+
   function applyNodeStyle() {
     for (const [id, o] of objects) {
       const n = simNodes.get(id)
-      if (n) materialOf(o).opacity = opacityOf(n)
+      if (!n) continue
+      const opacity = opacityOf(n)
+      materialOf(o).opacity = opacity
+      // the edge fades with its own solid, or a dimmed node keeps a hard bright outline
+      const edge = outlineOf(o)
+      if (edge) edge.opacity = opacity
     }
   }
 
@@ -642,6 +697,7 @@ function createEngine(host: HTMLElement, cb: { snap: boolean; onSelect: (id: str
         const hit = o.userData.hit as THREE.Mesh
         proxies.splice(proxies.indexOf(hit), 1)
         materialOf(o).dispose()
+        outlineOf(o)?.dispose()
         ;(hit.material as THREE.Material).dispose()
         const mark = pinMarks.get(id)
         if (mark) { (mark.material as THREE.Material).dispose(); pinMarks.delete(id) }
@@ -668,6 +724,35 @@ function createEngine(host: HTMLElement, cb: { snap: boolean; onSelect: (id: str
       snapOn = on
       // re-heat so the cubes glide to their cells (or off them) rather than jump
       cells = new Map(); retarget(); reheat(); dirty = true
+    },
+    setShape(next) {
+      if (next === shape) return
+      shape = next
+      /* The solids are shared geometry, so only the per-node meshes and their materials are
+         rebuilt -- the simulation, the positions and the selection all survive the switch. */
+      for (const [id, o] of objects) {
+        nodeGroup.remove(o)
+        const hit = o.userData.hit as THREE.Mesh
+        proxies.splice(proxies.indexOf(hit), 1)
+        materialOf(o).dispose()
+        outlineOf(o)?.dispose()
+        ;(hit.material as THREE.Material).dispose()
+        objects.delete(id)
+      }
+      for (const [id, n] of simNodes) {
+        if (!visibleIds.includes(id)) continue
+        const o = buildObject(n)
+        objects.set(id, o)
+        nodeGroup.add(o)
+        proxies.push(o.userData.hit as THREE.Mesh)
+      }
+      canvas.dataset.shape = shape
+      applyNodeStyle(); syncObjects(); dirty = true
+    },
+    setCanvas(next) {
+      if (next === canvasKind) return
+      canvasKind = next
+      applyCanvas(); dirty = true
     },
     setSelection(id) {
       selectedId = id
@@ -723,7 +808,7 @@ function createEngine(host: HTMLElement, cb: { snap: boolean; onSelect: (id: str
   }
 }
 
-export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D({ nodes, edges, selectedId, focus, snap, onSelect, onPinnedChange, onUnsupported }, ref) {
+export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D({ nodes, edges, selectedId, focus, snap, shape, canvas, onSelect, onPinnedChange, onUnsupported }, ref) {
   const hostRef = useRef<HTMLDivElement>(null)
   const engineRef = useRef<Engine | null>(null)
   const [failed, setFailed] = useState(false)
@@ -737,7 +822,7 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D({ nodes
     const host = hostRef.current
     if (!host) return
     try {
-      engineRef.current = createEngine(host, { snap, onSelect: (id) => selectRef.current(id), onPinnedChange: (n) => pinRef.current?.(n) })
+      engineRef.current = createEngine(host, { snap, shape, canvas, onSelect: (id) => selectRef.current(id), onPinnedChange: (n) => pinRef.current?.(n) })
     } catch {
       setFailed(true)
       onUnsupported()
@@ -755,6 +840,8 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D({ nodes
   useEffect(() => { engineRef.current?.setSelection(selectedId) }, [selectedId, nodes, edges])
   useEffect(() => { if (focus) engineRef.current?.focusOn(focus.id) }, [focus])
   useEffect(() => { engineRef.current?.setSnap(snap) }, [snap])
+  useEffect(() => { engineRef.current?.setShape(shape) }, [shape])
+  useEffect(() => { engineRef.current?.setCanvas(canvas) }, [canvas])
 
   useImperativeHandle(
     ref,

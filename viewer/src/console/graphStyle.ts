@@ -65,3 +65,35 @@ export function boundingSphere(points: ReadonlyArray<{ x: number; y: number; z: 
   for (const p of points) radius = Math.max(radius, Math.hypot(p.x - cx, p.y - cy, p.z - cz))
   return { cx, cy, cz, radius }
 }
+
+/**
+ * The silhouette of a node shape as unit offsets from its centre, each in [-1, 1], to be scaled by
+ * the node's half-extent. The 2D lens traces these directly; the 3D lens builds the matching solid.
+ *
+ * Shared so the two lenses cannot drift into drawing different things for the same setting, and so
+ * the half-extent contract is testable: every point stays inside the box the layout reserves for a
+ * node, which is what keeps nodes off each other when they are snapped to the lattice.
+ */
+export const NODE_OUTLINE: Record<'box' | 'diamond' | 'facet', ReadonlyArray<readonly [number, number]>> = {
+  box: [[-1, -1], [1, -1], [1, 1], [-1, 1]],
+  diamond: [[0, -1], [1, 0], [0, 1], [-1, 0]],
+  // a hexagon, flat-topped, as the plan view of the 3D lens's icosahedron
+  facet: [[-0.5, -1], [0.5, -1], [1, 0], [0.5, 1], [-0.5, 1], [-1, 0]],
+}
+
+/** Trace a node's outline on a 2D context, centred on (x, y) with half-extent `h`. */
+export function traceNode(
+  ctx: { moveTo: (x: number, y: number) => void; lineTo: (x: number, y: number) => void; closePath: () => void },
+  shape: keyof typeof NODE_OUTLINE,
+  x: number,
+  y: number,
+  h: number,
+): void {
+  const pts = NODE_OUTLINE[shape] ?? NODE_OUTLINE.box
+  pts.forEach(([dx, dy], i) => {
+    const px = x + dx * h, py = y + dy * h
+    if (i === 0) ctx.moveTo(px, py)
+    else ctx.lineTo(px, py)
+  })
+  ctx.closePath()
+}
