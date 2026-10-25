@@ -107,6 +107,15 @@ export function TimelineLens() {
           </div>
         ) : (
           <div className="xc-tl-grid" role="table" aria-label="Sessions on a time axis">
+            {/* The axis rules, drawn the full height of the plotting field rather than only
+                through the 31px head, so the area below the last lane reads as unused time on a
+                chart instead of as empty frame. Decoration only -- the head still carries the
+                labels and the accessible axis. */}
+            <div className="xc-tl-rules" aria-hidden="true">
+              {thinTicks(ticksFor(domain).filter((t) => pct(t.at) < 94), axisPx).map((t) => (
+                <span key={t.at} style={{ left: `${pct(t.at)}%` }} />
+              ))}
+            </div>
             <div className="xc-tl-head">
               <div>SESSION</div>
               <div className="xc-tl-ticks" aria-hidden="true" ref={axisRef}>

@@ -955,7 +955,10 @@ select.xc-input {
 /* ---------- timeline lens ---------------------------------------------------------------------- */
 .xc-tl-grid {
   display: grid;
-  grid-template-columns: 176px minmax(0, 1fr);
+  /* one number, because the full-height axis rules must start exactly where the track column
+     does -- see `.xc-tl-rules`, which is a separate layer and cannot inherit the grid track */
+  --tl-label: 176px;
+  grid-template-columns: var(--tl-label) minmax(0, 1fr);
   min-width: 0;
 }
 .xc-tl-head {
@@ -1295,7 +1298,7 @@ select.xc-input {
     font-size: 16px;
   }
   .xc-tl-grid {
-    grid-template-columns: 120px minmax(0, 1fr);
+    --tl-label: 120px;
   }
   .xc-auth {
     grid-template-columns: minmax(0, 1fr);
@@ -2967,4 +2970,34 @@ body,
 .xc-tabs {
   align-items: stretch;
   min-height: calc(var(--tab-height) + 1px);
+}
+
+/* --- the timeline fills its frame ------------------------------------------------------------
+   Lane tracks are 56px, so a console with one open session drew an 87px strip at the top of an
+   857px window and left 770px of black beneath it: the lens read as unfinished rather than
+   sparse. Stretching the rows to divide that height was worse -- one lane centred in the frame
+   put void both above and below it, and split the label's two lines apart.
+
+   What the empty area needed was not filling but ruling. The axis gridlines now run the whole
+   height of the plotting field, so the lanes sit on a chart that extends to the frame and the
+   space below the last lane reads as time nobody has used yet. Lanes keep their natural size
+   and still scroll when there are more of them than fit. */
+.xc-tl-grid {
+  position: relative;
+  min-height: 100%;
+  align-content: start;
+}
+.xc-tl-rules {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: var(--tl-label);
+  right: 0;
+  pointer-events: none;
+}
+.xc-tl-rules span {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  border-left: 1px solid var(--hairline-faint);
 }
