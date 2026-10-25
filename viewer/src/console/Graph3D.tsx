@@ -18,10 +18,10 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js'
 import { forceLink, forceManyBody, forceSimulation, forceX, forceY, forceZ, type Simulation } from 'd3-force-3d'
 import type { CEdge, CNode, EdgeGroup, NodeClass, NodeEvidence } from './model'
 import type { GraphCanvas, NodeShape } from './settings'
-import { FADE, LINK_ALPHA, blendOver, faceColours } from './graphStyle'
+import { FADE, GRID_INK, LINK_ALPHA, blendOver, faceColours } from './graphStyle'
 import { palette } from './palette'
 import { frameCamera, type Vec3 } from './framing'
-import { cellBounds, cellCentre, latticeFrame, latticeLines, snapToGrid, type Cell } from './gridSnap'
+import { GRID_CELL_SIZE, cellBounds, cellCentre, latticeFrame, latticeLines, snapToGrid, type Cell } from './gridSnap'
 
 export interface Graph3DHandle {
   fit: () => void
@@ -80,7 +80,7 @@ const HISTORY_STATUS = new Set(['superseded', 'forgotten'])
 const DASHED: Partial<Record<EdgeGroup, { dash: number; gap: number }>> = { contradiction: { dash: 5, gap: 3 }, similarity: { dash: 1.5, gap: 2.5 } }
 const FOV = 50
 /** Lattice cell size in world units. Cubes are capped below it so neighbours never touch. */
-const GRID = 24
+const GRID = GRID_CELL_SIZE
 const MAX_HALF = 10.5
 /** Cubes read small at the zoom that fits a whole cloud, so they are drawn larger than the 2D squares. */
 const SIZE_3D = 1.4
@@ -192,9 +192,9 @@ function createEngine(host: HTMLElement, cb: { snap: boolean; shape: NodeShape; 
   let animating = false
   // the lattice is a true 3D grid: cell walls run through the whole volume along x, y and z, with the
   // bounding box drawn a little brighter. depthWrite is off so the faint lines never fight the cubes.
-  const gridObj = new THREE.LineSegments(new THREE.BufferGeometry(), new THREE.LineBasicMaterial({ color: blendOver(C.ink, C.ground, 0.028), depthWrite: false }))
+  const gridObj = new THREE.LineSegments(new THREE.BufferGeometry(), new THREE.LineBasicMaterial({ color: blendOver(C.ink, C.ground, GRID_INK.lattice), depthWrite: false }))
   gridObj.frustumCulled = false
-  const frameObj = new THREE.LineSegments(new THREE.BufferGeometry(), new THREE.LineBasicMaterial({ color: blendOver(C.ink, C.ground, 0.13), depthWrite: false }))
+  const frameObj = new THREE.LineSegments(new THREE.BufferGeometry(), new THREE.LineBasicMaterial({ color: blendOver(C.ink, C.ground, GRID_INK.frame), depthWrite: false }))
   frameObj.frustumCulled = false
   scene.add(gridObj, frameObj)
   let canvasKind: GraphCanvas = cb.canvas

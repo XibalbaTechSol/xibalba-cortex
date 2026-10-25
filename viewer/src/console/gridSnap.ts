@@ -3,6 +3,9 @@
 //
 // Pure and deterministic, so it is testable and the same graph always lands the same way.
 
+/** Shared spacing: even the largest 21-unit cube has seven units of air in its cell. */
+export const GRID_CELL_SIZE = 28
+
 export interface Cell { i: number; j: number; k: number }
 export interface Point { id: string; x: number; y: number; z: number; /** higher gets its ideal cell first */ priority?: number }
 
