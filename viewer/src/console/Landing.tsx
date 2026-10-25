@@ -19,7 +19,7 @@ const REPO = 'https://github.com/XibalbaTechSol/xibalba-cortex'
 const PRIMITIVES = [
   {
     icon: <IconIntegrity />,
-    title: 'Hash-chained, not just stored',
+    title: 'A verifiable history',
     body: 'Every write is an append-only event linked to the one before it, and Merkle roots are computed per domain. A caller can verify a subset of the graph without replaying the whole chain.',
     tool: 'memory_verify_chain',
   },
@@ -32,7 +32,7 @@ const PRIMITIVES = [
   {
     icon: <IconCheck />,
     title: 'Extraction proposes; it never writes',
-    body: 'Entity and relationship extraction produces proposals that need an explicit decision before they reach the graph. The review gate is the design, not a setting you can turn off.',
+    body: 'Entity and relationship extraction produces proposals that need an explicit decision before they reach the graph. Accepted proposals pass through the review lifecycle before entering the store.',
     tool: 'memory_claim_inference_task',
   },
 ] as const
@@ -42,15 +42,14 @@ const FACTS = [
   ['Runs', 'On your machine. SQLite under ~/.hermes/xibalba-cortex.'],
   ['Speaks', 'MCP, over stdio or streamable-HTTP.'],
   ['Bridges', 'Claude Code, Codex and agy, through one shared contract.'],
-  ['Licence', 'MIT.'],
 ] as const
 
 export function Landing({ onSignIn }: { onSignIn: () => void }) {
   return (
     <div className="xc-landing">
       <header className="xc-landing-top">
-        <a className="xc-brand" href="#" aria-label="Xibalba Cortex" onClick={(e) => e.preventDefault()}>
-          <span className="xc-brand-mark"><img src="/cortex-mark.png" alt="" /></span>
+        <a className="xc-brand" href="#" aria-label="Xibalba Cortex" onClick={(e) => { e.preventDefault(); document.querySelector('.xc-landing')?.scrollTo({ top: 0, behavior: 'auto' }) }}>
+          <span className="xc-brand-mark"><img src="/cortex-rail-mark.png" alt="" /></span>
           <b>Xibalba Cortex</b>
         </a>
         <nav className="xc-landing-nav" aria-label="Sections">
@@ -61,6 +60,7 @@ export function Landing({ onSignIn }: { onSignIn: () => void }) {
         <button type="button" className="xc-btn xc-btn--primary" onClick={onSignIn}>Sign in</button>
       </header>
 
+      <main>
       <section className="xc-landing-hero" aria-labelledby="xc-hero-title">
         {/* The mark leads. It carries its own hero derivative rather than the rail's, which is
             built for 124px -- see viewer/scripts/invert_logo_to_white.py. */}
@@ -81,7 +81,7 @@ export function Landing({ onSignIn }: { onSignIn: () => void }) {
 
       <section className="xc-landing-section" id="what" aria-labelledby="xc-what-title">
         <p className="xc-eyebrow">What it is</p>
-        <h2 className="xc-landing-h2" id="xc-what-title">Three guarantees, not a vector store</h2>
+        <h2 className="xc-landing-h2" id="xc-what-title">Memory with a verifiable foundation</h2>
         <div className="xc-landing-grid">
           {PRIMITIVES.map((p) => (
             <article className="xc-win xc-landing-card" key={p.title}>
@@ -108,7 +108,7 @@ export function Landing({ onSignIn }: { onSignIn: () => void }) {
           </dl>
           <article className="xc-win xc-landing-card">
             <div className="xc-landing-card-icon" aria-hidden="true"><IconGraph /></div>
-            <h3 className="xc-title xc-title--sm">A console, not a log file</h3>
+            <h3 className="xc-title xc-title--sm">Explore the memory graph</h3>
             <p className="xc-copy">
               The same store, read two ways: a force-directed graph of memories, entities, sessions and
               Merkle roots, and a timeline that places them on a real time axis. Select either and the
@@ -119,8 +119,9 @@ export function Landing({ onSignIn }: { onSignIn: () => void }) {
         </div>
       </section>
 
+      </main>
       <footer className="xc-landing-foot">
-        <span className="xc-meta">Xibalba Cortex · MIT licensed</span>
+        <span className="xc-meta">Xibalba Cortex · Graph memory for agents</span>
         <span className="xc-spacer" />
         <a className="xc-link" href={REPO} target="_blank" rel="noreferrer noopener">github.com/XibalbaTechSol/xibalba-cortex</a>
       </footer>

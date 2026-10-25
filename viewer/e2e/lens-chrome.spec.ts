@@ -138,8 +138,8 @@ test('the collapsed rail gives its brand mark room', async ({ page }) => {
 
 test('the sign-in hero states the mark at hero size, from its own derivative', async ({ page }) => {
   await page.setViewportSize({ width: 1600, height: 950 })
-  await stubConsoleApi(page)          // no signed-in hint -> the sign-in screen
-  await page.goto('/')
+  await stubConsoleApi(page)          // explicit sign-in route, without a signed-in hint
+  await page.goto('/#signin')
 
   const logo = page.locator('.xc-auth-story .xc-brand-lockup')
   await expect(logo).toBeVisible()
