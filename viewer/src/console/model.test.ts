@@ -536,3 +536,24 @@ describe('markRows', () => {
     expect(Math.max(...rows)).toBeLessThan(MARK_ROWS)
   })
 })
+
+describe('node metadata faces', () => {
+  it('uses explicit observation time, never inherited time', () => {
+    const m = buildModel(payload, info)
+    expect(m.byId.get('memory:m-observed')!.evidence.observed).toBe(true)
+    for (const id of ['memory:m-ctx', 'entity:x', 'session:s1', 'exchange:e1']) {
+      expect(m.byId.get(id)!.evidence.observed, id).toBe(false)
+    }
+  })
+  it('marks both endpoints of loaded edges and only metadata actually present', () => {
+    const m = buildModel(payload, info)
+    for (const id of ['entity:x', 'entity:y']) expect(m.byId.get(id)!.evidence.relation).toBe(true)
+    for (const id of ['memory:m-ctx', 'memory:m-observed']) expect(m.byId.get(id)!.evidence.similarity).toBe(true)
+    for (const id of ['memory:m-none', 'memory:m-observed']) expect(m.byId.get(id)!.evidence.contradiction).toBe(true)
+    expect(m.byId.get('memory:m-observed')!.evidence.evidence).toBe(true)
+    expect(m.byId.get('memory:m-observed')!.evidence.source).toBe(true)
+    expect(Object.values(m.byId.get('entity:orphan')!.evidence)).toEqual(Array(6).fill(false))
+    const filtered = buildModel({ nodes: payload.nodes, edges: [] })
+    expect(filtered.byId.get('memory:m-ctx')!.evidence.similarity).toBe(false)
+  })
+})

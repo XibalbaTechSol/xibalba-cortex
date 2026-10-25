@@ -3268,6 +3268,7 @@ body,
   }
 }
 
+.xc-face-legend { max-width: 32ch; }
 /* Public entry: the console's type, frames and palette, with a scrolling reading surface. */
 .xc-landing {
   flex: 1;

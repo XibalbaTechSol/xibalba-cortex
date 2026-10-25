@@ -1,3 +1,5 @@
+import { EVIDENCE_FACES, type NodeEvidence } from './model'
+
 // Pure sizing and colour rules shared by the 2D and 3D graph lenses, so the two read as one design
 // and so the rules that make a graph legible are tested rather than eyeballed.
 //
@@ -96,4 +98,11 @@ export function traceNode(
     else ctx.lineTo(px, py)
   })
   ctx.closePath()
+}
+
+
+/** Cube materials follow BoxGeometry's +X, -X, +Y, -Y, +Z, -Z groups. */
+export function faceColours(base: number, ground: number, evidence: NodeEvidence, conflict: number): number[] {
+  const dim = blendOver(base, ground, 0.30)
+  return EVIDENCE_FACES.map((face) => evidence[face] ? face === 'contradiction' ? conflict : base : dim)
 }

@@ -16,9 +16,9 @@ import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 're
 import * as THREE from 'three'
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js'
 import { forceLink, forceManyBody, forceSimulation, forceX, forceY, forceZ, type Simulation } from 'd3-force-3d'
-import type { CEdge, CNode, EdgeGroup, NodeClass } from './model'
+import type { CEdge, CNode, EdgeGroup, NodeClass, NodeEvidence } from './model'
 import type { GraphCanvas, NodeShape } from './settings'
-import { FADE, LINK_ALPHA, blendOver } from './graphStyle'
+import { FADE, LINK_ALPHA, blendOver, faceColours } from './graphStyle'
 import { palette } from './palette'
 import { frameCamera, type Vec3 } from './framing'
 import { cellBounds, cellCentre, latticeFrame, latticeLines, snapToGrid, type Cell } from './gridSnap'
@@ -57,6 +57,7 @@ interface SimNode {
   status?: string
   valid?: boolean
   degree: number
+  evidence: NodeEvidence
   x: number
   y: number
   z: number
@@ -269,13 +270,12 @@ function createEngine(host: HTMLElement, cb: { snap: boolean; shape: NodeShape; 
     const hollow = n.cls === 'merkle' || (n.cls === 'memory' && !!n.status && HOLLOW_STATUS.has(n.status))
     let visual: THREE.Object3D
     if (hollow) visual = new THREE.LineSegments(SHAPE_EDGES[shape], new THREE.LineBasicMaterial({ color: colourOf(n), transparent: true }))
-    else visual = new THREE.Mesh(SHAPE_GEOM[shape], new THREE.MeshBasicMaterial({ color: colourOf(n), transparent: true }))
+    else visual = new THREE.Mesh(SHAPE_GEOM[shape], shape === 'box'
+      ? faceColours(colourOf(n), C.ground, n.evidence, C.conflict).map((color) => new THREE.MeshBasicMaterial({ color, transparent: true }))
+      : new THREE.MeshBasicMaterial({ color: colourOf(n), transparent: true }))
     visual.scale.setScalar(side)
-    /* A solid node also gets its edges drawn. `MeshBasicMaterial` is unlit, so every face of a
-       solid returns the identical colour and the shape collapses into a flat silhouette -- at the
-       fitted zoom the cubes read as pale slabs rather than as objects with corners. The outline is
-       what gives an unlit solid its form, and it is the Industry grammar besides: a line drawing
-       with one solid fill. Hollow nodes are already edges, so they do not get a second copy. */
+    // Outlines keep adjacent faces distinct even when their metadata has the same colour.
+    // Hollow status nodes already consist of edges and need no second outline.
     let outline: THREE.LineSegments | null = null
     if (!hollow) {
       outline = new THREE.LineSegments(SHAPE_EDGES[shape], new THREE.LineBasicMaterial({ color: C.ground, transparent: true }))
@@ -291,8 +291,10 @@ function createEngine(host: HTMLElement, cb: { snap: boolean; shape: NodeShape; 
     group.userData = { id: n.id, visual, hit, outline }
     return group
   }
-  const materialOf = (o: THREE.Object3D): THREE.Material & { opacity: number } =>
-    ((o.userData.visual as THREE.Mesh | THREE.LineSegments).material as THREE.Material & { opacity: number })
+  const materialsOf = (o: THREE.Object3D): Array<THREE.MeshBasicMaterial | THREE.LineBasicMaterial> => {
+    const material = (o.userData.visual as THREE.Mesh | THREE.LineSegments).material
+    return (Array.isArray(material) ? material : [material]) as Array<THREE.MeshBasicMaterial | THREE.LineBasicMaterial>
+  }
 
   const outlineOf = (o: THREE.Object3D): (THREE.Material & { opacity: number }) | null => {
     const l = o.userData.outline as THREE.LineSegments | null | undefined
@@ -304,7 +306,9 @@ function createEngine(host: HTMLElement, cb: { snap: boolean; shape: NodeShape; 
       const n = simNodes.get(id)
       if (!n) continue
       const opacity = opacityOf(n)
-      materialOf(o).opacity = opacity
+      const materials = materialsOf(o)
+      const colours = materials.length === 6 ? faceColours(colourOf(n), C.ground, n.evidence, C.conflict) : [colourOf(n)]
+      materials.forEach((material, i) => { material.opacity = opacity; material.color.setHex(colours[i]) })
       // the edge fades with its own solid, or a dimmed node keeps a hard bright outline
       const edge = outlineOf(o)
       if (edge) edge.opacity = opacity
@@ -688,15 +692,15 @@ function createEngine(host: HTMLElement, cb: { snap: boolean; shape: NodeShape; 
       visibleIds = nodes.map((n) => n.id)
       for (const n of nodes) {
         let s = simNodes.get(n.id)
-        if (!s) { s = { id: n.id, cls: n.cls, label: n.label, degree: n.degree, ...seedPosition(n.id) }; simNodes.set(n.id, s) }
-        s.label = n.label; s.status = n.status; s.valid = n.valid; s.degree = n.degree; s.cls = n.cls
+        if (!s) { s = { id: n.id, cls: n.cls, label: n.label, degree: n.degree, evidence: n.evidence, ...seedPosition(n.id) }; simNodes.set(n.id, s) }
+        s.label = n.label; s.status = n.status; s.valid = n.valid; s.degree = n.degree; s.cls = n.cls; s.evidence = n.evidence
       }
       for (const [id, o] of objects) {
         if (ids.has(id)) continue
         nodeGroup.remove(o)
         const hit = o.userData.hit as THREE.Mesh
         proxies.splice(proxies.indexOf(hit), 1)
-        materialOf(o).dispose()
+        materialsOf(o).forEach((material) => material.dispose())
         outlineOf(o)?.dispose()
         ;(hit.material as THREE.Material).dispose()
         const mark = pinMarks.get(id)
@@ -734,7 +738,7 @@ function createEngine(host: HTMLElement, cb: { snap: boolean; shape: NodeShape; 
         nodeGroup.remove(o)
         const hit = o.userData.hit as THREE.Mesh
         proxies.splice(proxies.indexOf(hit), 1)
-        materialOf(o).dispose()
+        materialsOf(o).forEach((material) => material.dispose())
         outlineOf(o)?.dispose()
         ;(hit.material as THREE.Material).dispose()
         objects.delete(id)
@@ -790,7 +794,7 @@ function createEngine(host: HTMLElement, cb: { snap: boolean; shape: NodeShape; 
       canvas.removeEventListener('pointermove', onMove)
       controls.dispose()
       disposeBuckets()
-      for (const o of objects.values()) { materialOf(o).dispose(); ((o.userData.hit as THREE.Mesh).material as THREE.Material).dispose() }
+      for (const o of objects.values()) { materialsOf(o).forEach((material) => material.dispose()); outlineOf(o)?.dispose(); ((o.userData.hit as THREE.Mesh).material as THREE.Material).dispose() }
       ring.material.dispose()
       edgeMark.geometry.dispose(); (edgeMark.material as THREE.Material).dispose()
       if (arrows) arrows.dispose()
