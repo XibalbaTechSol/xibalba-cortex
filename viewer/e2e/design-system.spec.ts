@@ -293,14 +293,46 @@ async function grammarSweep(page: Page, expectWindows = true): Promise<string[]>
     /* Also records WHICH ancestor each bound came from. "cut off by a clipping
        ancestor" named no element, which left every such finding needing a
        separate hand-written probe before it could be fixed. */
-    const clip = (e: Element, seedViewport: boolean) => {
+    /* `scrollClips` picks which of two different questions this box answers.
+       `false` -- can the user ever get to it? A scroll container is NOT a clip: whatever sits
+       past its visible box is reachable by scrolling, so the walk stops there (used by the
+       registration-mark cut-off check, which is about content being permanently lost).
+       `true` -- which pixels does it actually paint right now? A scroll container clips
+       absolutely, so the walk clamps to it (used by the overlap check: two things cannot be
+       on top of each other if one of them is behind a scroll box's edge). Sharing one box
+       between the two reported every row sitting below its scroller's bottom edge as
+       overlapping the status bar -- 14 pairs on Memories/Operations/Agents -- for content the
+       browser was clipping. */
+    const clip = (e: Element, seedViewport: boolean, scrollClips = false) => {
       let r: { l: number; t: number; r: number; b: number; by: Record<string, string> } = seedViewport
         ? { l: 0, t: 0, r: innerWidth, b: innerHeight, by: {} }
         : { l: 0, t: -1e7, r: innerWidth, b: 1e7, by: {} }
       for (let p = e.parentElement; p; p = p.parentElement) {
         const s = getComputedStyle(p)
         if (s.overflowX === 'visible' && s.overflowY === 'visible') continue
+        /* A scroll container is not a clip: whatever sits past its visible box is still
+           reachable, and the user gets there the same way they reach any other content below
+           the fold. Treating it as one reported every window on a scrolling page as "cut off"
+           -- 267px on Operations -- for the ordinary fact that the page is longer than the
+           screen. Only a container that genuinely cannot be scrolled to its content clips. */
+        const scrollsX = !scrollClips && (s.overflowX === 'auto' || s.overflowX === 'scroll') && p.scrollWidth > p.clientWidth
+        const scrollsY = !scrollClips && (s.overflowY === 'auto' || s.overflowY === 'scroll') && p.scrollHeight > p.clientHeight
+        /* Past a scroll container, nothing further out clips either: scrolling moves this
+           element inside every outer box in turn. Without stopping here, `.xc-main`'s own
+           `overflow: hidden` -- which exists precisely so the page scrolls instead of the
+           document -- reported every window below the fold as cut off. */
+        if (scrollsX && scrollsY) break
         const pr = p.getBoundingClientRect(), who = name(p) + ` [${s.overflowX}/${s.overflowY}]`
+        if (scrollsY) {
+          if (pr.left > r.l) { r.l = pr.left; r.by.l = who }
+          if (pr.right < r.r) { r.r = pr.right; r.by.r = who }
+          break
+        }
+        if (scrollsX) {
+          if (pr.top > r.t) { r.t = pr.top; r.by.t = who }
+          if (pr.bottom < r.b) { r.b = pr.bottom; r.by.b = who }
+          continue
+        }
         if (pr.left > r.l) { r.l = pr.left; r.by.l = who }
         if (pr.top > r.t) { r.t = pr.top; r.by.t = who }
         if (pr.right < r.r) { r.r = pr.right; r.by.r = who }
@@ -395,7 +427,7 @@ async function grammarSweep(page: Page, expectWindows = true): Promise<string[]>
               layer is `pointer-events: none` and cannot take a click. */
         if (a.matches('.xc-mark, .xc-3d-label') || b.matches('.xc-mark, .xc-3d-label')) continue
         if (layer(a) !== layer(b)) continue
-        const ca = clip(a, true), cb = clip(b, true)
+        const ca = clip(a, true, true), cb = clip(b, true, true)
         const ra = a.getBoundingClientRect(), rb = b.getBoundingClientRect()
         const A = { l: Math.max(ra.left, ca.l), r: Math.min(ra.right, ca.r), t: Math.max(ra.top, ca.t), b: Math.min(ra.bottom, ca.b) }
         const B = { l: Math.max(rb.left, cb.l), r: Math.min(rb.right, cb.r), t: Math.max(rb.top, cb.t), b: Math.min(rb.bottom, cb.b) }
@@ -550,3 +582,61 @@ for (const [w, h] of [[390, 844], [1280, 720], [1600, 1000]] as const) {
     expect(problems, `Industry grammar violations:\n  ${problems.join('\n  ')}`).toEqual([])
   })
 }
+
+test.describe('nothing is clipped and nothing scrolls the page', () => {
+  // The console hides all scrollbar chrome, which makes a layout bug invisible rather than
+  // ugly: content that overflows a box with `overflow: hidden` is simply gone, and there is no
+  // bar left to hint at it. This is the check that keeps that honest.
+  //
+  // `MARK` is the reach of Industry's registration marks, which are drawn on a pseudo-element
+  // inset outside the frame and so legitimately report a few pixels of overflow on every
+  // `.xc-win`. Anything past that is content with nowhere to go.
+  const MARK = 7
+
+  const SURFACES = [
+    ['workspace', async () => {}],
+    ['explore', async (page: Page) => { await page.getByRole('button', { name: 'Explore' }).first().click() }],
+    ['settings', async (page: Page) => {
+      await page.locator('.xc-profile-btn').click()
+      await page.getByRole('menuitem', { name: 'Settings' }).click()
+    }],
+  ] as const
+
+  for (const [name, open] of SURFACES) {
+    for (const width of [1600, 1280]) {
+      test(`${name} fits the viewport at ${width}px`, async ({ page, baseURL }) => {
+        await page.setViewportSize({ width, height: 900 })
+        await page.goto(baseURL!)
+        await page.evaluate(() => sessionStorage.setItem('xibalba-cortex.signed-in', '1'))
+        await page.goto(baseURL!)
+        await page.waitForTimeout(1500)
+        await open(page)
+        await page.waitForTimeout(1200)
+        await page.evaluate(() => document.fonts.ready)
+
+        const seen = await page.evaluate((MARK) => {
+          const clipped: string[] = []
+          document.querySelectorAll('*').forEach((el) => {
+            const e = el as HTMLElement
+            const s = getComputedStyle(e)
+            const box = e.getBoundingClientRect()
+            if (box.width < 2 || box.height < 2) return
+            const overX = e.scrollWidth - e.clientWidth
+            const overY = e.scrollHeight - e.clientHeight
+            if (overX <= MARK && overY <= MARK) return
+            const scrollsX = s.overflowX === 'auto' || s.overflowX === 'scroll'
+            const scrollsY = s.overflowY === 'auto' || s.overflowY === 'scroll'
+            if ((overX > MARK && !scrollsX) || (overY > MARK && !scrollsY)) {
+              const named = e.tagName.toLowerCase() + '.' + (e.className || '').toString().trim().split(/\s+/)[0]
+              clipped.push(`${named} overflows by ${overX}x${overY} with overflow ${s.overflowX}/${s.overflowY}`)
+            }
+          })
+          return { document: document.documentElement.scrollHeight - window.innerHeight, clipped }
+        }, MARK)
+
+        expect(seen.document, 'the page itself scrolls; the shell should be exactly one viewport tall').toBe(0)
+        expect(seen.clipped, `content with nowhere to go:\n  ${seen.clipped.join('\n  ')}`).toEqual([])
+      })
+    }
+  }
+})

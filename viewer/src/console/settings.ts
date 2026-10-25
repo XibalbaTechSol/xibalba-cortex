@@ -12,13 +12,15 @@ export interface ConsoleSettings {
   railCollapsed: boolean
   /** the Projection dock in the workspace, collapsed to its edge strip */
   facetsCollapsed: boolean
+  /** the selected-memory dock, same */
+  detailCollapsed: boolean
   /** the Graph lens as a 3D layout you can orbit (default), or a flat 2D force layout */
   graphMode: GraphMode
   /** graph nodes sit on the lattice (default) instead of wherever the force layout leaves them */
   graphSnap: boolean
 }
 
-export const DEFAULT_SETTINGS: ConsoleSettings = { shell: 'rail', railCollapsed: false, facetsCollapsed: false, graphMode: '3d', graphSnap: true }
+export const DEFAULT_SETTINGS: ConsoleSettings = { shell: 'rail', railCollapsed: false, facetsCollapsed: false, detailCollapsed: false, graphMode: '3d', graphSnap: true }
 export const SETTINGS_KEY = 'xibalba-cortex.console-settings'
 
 export function parseSettings(raw: string | null | undefined): ConsoleSettings {
@@ -35,6 +37,7 @@ export function parseSettings(raw: string | null | undefined): ConsoleSettings {
     shell: v.shell === 'rail' || v.shell === 'top' ? v.shell : DEFAULT_SETTINGS.shell,
     railCollapsed: typeof v.railCollapsed === 'boolean' ? v.railCollapsed : DEFAULT_SETTINGS.railCollapsed,
     facetsCollapsed: typeof v.facetsCollapsed === 'boolean' ? v.facetsCollapsed : DEFAULT_SETTINGS.facetsCollapsed,
+    detailCollapsed: typeof v.detailCollapsed === 'boolean' ? v.detailCollapsed : DEFAULT_SETTINGS.detailCollapsed,
     graphMode: v.graphMode === '2d' || v.graphMode === '3d' ? v.graphMode : DEFAULT_SETTINGS.graphMode,
     graphSnap: typeof v.graphSnap === 'boolean' ? v.graphSnap : DEFAULT_SETTINGS.graphSnap,
   }

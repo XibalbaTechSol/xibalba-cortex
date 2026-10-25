@@ -59,7 +59,7 @@ export function FacetRail() {
     })
 
   return (
-    <aside className="xc-win xc-pane xc-rail" aria-label="Facets" data-collapsed={collapsed}>
+    <aside className="xc-pane xc-rail" aria-label="Facets" data-collapsed={collapsed}>
       {/* Collapsed, the dock keeps a 36px strip: the label turned on its side and the control
           that brings it back. A dock that vanished entirely would leave nothing to click. */}
       <div className="xc-dock-head">

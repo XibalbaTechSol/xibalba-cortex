@@ -2648,7 +2648,6 @@ select.xc-input {
 .xc-workspace > .xc-canvas-win {
   position: absolute;
   inset: 0;
-  border: 0;
 }
 /* facets, top left */
 .xc-workspace > .xc-rail {
@@ -2668,7 +2667,9 @@ select.xc-input {
   bottom: 16px;
   left: 264px;
   z-index: 2;
-  background: var(--panel);
+  /* ground, not panel: Industry's windows are line drawings on one ground, and a second
+     surface colour stacked over the canvas is exactly what the grammar sweep rejects. */
+  background: var(--ground);
 }
 /* the detail window: only present when something is selected */
 .xc-workspace > .xc-inspector {
@@ -2784,13 +2785,11 @@ select.xc-input {
   bottom: 16px;
 }
 
-/* A docked panel is chrome, not a window, so it drops the registration marks. They mark the
-   corners of a floating frame; on a panel flush to two edges they draw crosses into the rail
-   and off the viewport. The lens keeps its own. */
-.xc-workspace > .xc-rail::before,
-.xc-workspace > .xc-inspector::before {
-  content: none;
-}
+/* A docked panel is chrome, not a window: it is flush to two edges, so a frame with
+   registration crosses would draw into the navigation rail and off the viewport. Both dropped
+   `.xc-win` for `.xc-pane` when they were docked -- they are part of the frame now, and the
+   grammar sweep in e2e/design-system.spec.ts is right to hold a window to a window's rules.
+   The lens between them keeps its own frame and marks. */
 
 /* --- collapsing the Projection dock -------------------------------------------------------
    The whole point of publishing the dock widths as variables: collapsing is one number. The
@@ -2828,4 +2827,134 @@ select.xc-input {
 .xc-rail[data-collapsed='true'] .xc-dock-title {
   writing-mode: vertical-rl;
   letter-spacing: .2em;
+}
+
+/* The detail dock collapses exactly as Projection does -- one more variable value, and the
+   chain rail and toolbar follow without knowing about it. */
+.xc-workspace[data-detail='open']:has(> .xc-inspector[data-collapsed='true']) {
+  --dock-right: 36px;
+}
+.xc-inspector[data-collapsed='true'] > *:not(.xc-dock-head) { display: none; }
+.xc-inspector[data-collapsed='true'] .xc-dock-head {
+  flex-direction: column;
+  justify-content: flex-start;
+  gap: 12px;
+  height: 100%;
+  padding: 8px 4px;
+  border-bottom: 0;
+}
+.xc-inspector[data-collapsed='true'] .xc-dock-title {
+  writing-mode: vertical-rl;
+  letter-spacing: .2em;
+}
+
+/* Content fit inside the detail dock. It is 380px wide and holds hashes, ids, URLs and raw
+   JSON -- strings with no spaces to break at -- so without this they set their own width and
+   pushed the panel's content sideways under a hidden scrollbar. Nothing in here may exceed
+   the column. */
+.xc-inspector .xc-inspector-body,
+.xc-inspector .xc-inspector-head {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+.xc-inspector .xc-tabs {
+  flex-wrap: wrap;
+}
+.xc-inspector pre,
+.xc-inspector code {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.xc-inspector .xc-kv dd,
+.xc-inspector .xc-meta {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+/* The lens's own edge furniture clears the docks, so a collapsed strip never sits on top of
+   the legend or the loading line. */
+.xc-workspace > .xc-canvas-win > .xc-legend,
+.xc-workspace > .xc-canvas-win > .xc-legend-toggle {
+  left: calc(var(--dock-left) + 14px);
+}
+
+/* --- the console is exactly one viewport tall ---------------------------------------------
+   `.xc-shell` carried `height: 100vh`, but it is `flex: 1 1 0%` inside `.xc`, and a flex basis
+   of 0% beats a height declaration -- so it grew to whatever `.xc` was, and `.xc` sized to its
+   content. The result was circular and the viewport lost: on Explore the shell measured 958px
+   against a 900px viewport and the last 58px of the page had nowhere to go.
+
+   Pinning the chain from the root fixes it at the only place it can be fixed. Every link needs
+   `min-height: 0`, or a flex/grid child refuses to shrink below its content and puts the
+   overflow straight back. */
+html,
+body,
+#root {
+  height: 100%;
+  overflow: hidden;
+}
+.xc {
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+}
+.xc-shell {
+  height: 100%;
+  min-height: 0;
+  grid-template-rows: minmax(0, 1fr);
+}
+.xc-main {
+  min-height: 0;
+}
+
+/* A page scrolls inside itself now, and a scroll box clips at its padding edge -- so without
+   this the bottom window's registration crosses were cut by up to 267px on Operations. The
+   marks reach 7px outside the frame; the gutter gives them somewhere to land. */
+.xc-main > .xc-page {
+  padding-bottom: 28px;
+}
+
+/* Hiding scrollbar chrome shrank every `overflow-x: auto` strip by the height the bar used to
+   reserve, and `.xc-tabs`' buttons keep their own min-height -- so the tabs bled out of the
+   strip and overlapped the first row beneath it by 18px. The strip now states the height it
+   needs rather than inheriting it from a scrollbar that no longer exists. */
+.xc-tabs {
+  align-items: stretch;
+  min-height: calc(var(--tab-height) + 1px);
+}
+
+/* --- the rail: narrower, with bigger targets ----------------------------------------------
+   Five links instead of eleven freed the height, so the destinations can be the largest thing
+   in the rail rather than a dense list, while the rail itself gives 32px back to the canvas.
+   The two move in opposite directions on purpose: fewer, bigger, in less room. */
+.xc-shell {
+  grid-template-columns: 208px minmax(0, 1fr);
+}
+.xc-rail-shell {
+  padding: 18px 10px 14px;
+}
+.xc-rail-nav {
+  gap: 4px;
+}
+.xc-rail-nav .xc-nav-btn {
+  gap: 12px;
+  padding: 13px 12px;
+  border-bottom: 0;
+  font-size: 19px;
+}
+.xc-rail-nav .xc-nav-btn svg {
+  width: 19px;
+  height: 19px;
+}
+.xc-rail-nav .xc-nav-btn[aria-current='page'] {
+  background: var(--cortex-accent-soft);
+}
+
+/* Hiding scrollbar chrome shrank every `overflow-x: auto` strip by the height the bar used to
+   reserve, while `.xc-tab` keeps its own min-height -- so on Sessions the tabs bled out of the
+   strip and overlapped the first row by 18px. The strip now states the height it needs rather
+   than inheriting it from a scrollbar that no longer exists. */
+.xc-tabs {
+  align-items: stretch;
+  min-height: calc(var(--tab-height) + 1px);
 }

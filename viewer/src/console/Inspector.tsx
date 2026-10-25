@@ -7,9 +7,10 @@
 import { useState, type ReactNode } from 'react'
 import { api, type Attachment, type ExtractionProposal, type Memory, type ParaClassification, type WorkspaceScope } from '../api'
 import { useConsole } from './state'
+import { useSettings } from './settingsContext'
 import { useAsync, type AsyncState } from './useAsync'
 import { EDGE_TYPE_LABEL, elideHash, parseServerTime, shortStamp, type CEdge, type CNode, type GraphModel } from './model'
-import { IconCheck, IconClose, IconWarn } from './icons'
+import { IconCheck, IconChevronLeft, IconChevronRight, IconClose, IconWarn } from './icons'
 import { MemoryActions } from './MemoryActions'
 import { MemoryChainCheck, ProvenanceExport } from './VerifyPanel'
 import { attachmentFilename, saveBlob } from './download'
@@ -153,6 +154,8 @@ function InferenceTab({ memory }: { memory: Memory }) {
 
 export function Inspector() {
   const { selectedId, model, notice, setNotice } = useConsole()
+  const { settings, update } = useSettings()
+  const collapsed = settings.detailCollapsed
   const node = selectedId ? model?.byId.get(selectedId) : undefined
   // an edge is selectable too; its ids start with the edge type, never with a node-class prefix
   const edge = selectedId && !node ? model?.edges.find((e) => e.id === selectedId) : undefined
@@ -186,7 +189,22 @@ export function Inspector() {
     )
   }
   return (
-    <aside className="xc-win xc-pane xc-inspector" aria-label="Inspector">
+    <aside className="xc-pane xc-inspector" aria-label="Inspector" data-collapsed={collapsed}>
+      {/* Same control as the Projection dock, same strip when collapsed -- the two sides of the
+          workspace behave alike rather than each having its own idea. */}
+      <div className="xc-dock-head">
+        <span className="xc-dock-title">Selected</span>
+        <button
+          type="button"
+          className="xc-btn xc-btn--square"
+          aria-label={collapsed ? 'Expand selected memory' : 'Collapse selected memory'}
+          aria-expanded={!collapsed}
+          title={collapsed ? 'Expand selected memory' : 'Collapse selected memory'}
+          onClick={() => update({ detailCollapsed: !collapsed })}
+        >
+          {collapsed ? <IconChevronLeft /> : <IconChevronRight />}
+        </button>
+      </div>
       {notice && (
         <div className="xc-callout xc-callout--anchored xc-notice" role="status">
           <IconCheck />
