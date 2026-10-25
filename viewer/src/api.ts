@@ -881,7 +881,6 @@ export const api = {
   agents: (limit = 100) => getJson<{agents: AgentWorkspace[]; oracle_reachable: boolean}>(`/api/agents?limit=${limit}`),
   agentSummary: (agentId: string, storeId: string) =>
     getJson<AgentSummary>(`/api/agent/${encodeURIComponent(agentId)}/summary?limit=0&store_id=${encodeURIComponent(storeId)}`),
-  agentMemories: (agentId: string, deviceId?: string, limit = 100, scope: WorkspaceScope = {}) => getJson<{agent_id: string; memories: Memory[]}>(`/api/agent/${encodeURIComponent(agentId)}/memories?limit=${limit}${deviceId ? `&device_id=${encodeURIComponent(deviceId)}` : ''}${scopeParams(scope)}`),
   /** Pairings, newest first. /api/agents lists workspaces; this lists which devices are paired to them. */
   agentDevices: () => getJson<{ pairs: AgentDevicePair[] }>('/api/agent-devices'),
   associateAgentDevice: (agentId: string, deviceId: string, displayName?: string) =>
