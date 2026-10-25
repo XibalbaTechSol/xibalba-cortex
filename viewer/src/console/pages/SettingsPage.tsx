@@ -105,7 +105,7 @@ export function SettingsPage() {
 
         <label className="xc-field xc-settings-row">Graph canvas
           <select className="xc-input" value={settings.graphCanvas} onChange={(e) => update({ graphCanvas: asGraphCanvas(e.target.value) })}>
-            <option value="lattice">Lattice — cell walls through the whole volume (default)</option>
+            <option value="lattice">Spatial grid — faint outer planes (default)</option>
             <option value="frame">Frame — the bounding box only</option>
             <option value="plain">Plain — nothing behind the nodes</option>
           </select>

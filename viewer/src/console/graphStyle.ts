@@ -8,7 +8,7 @@ import { EVIDENCE_FACES, type NodeEvidence } from './model'
 // hairlines. Sizes here are therefore expressed as a floor in SCREEN pixels.
 
 /** Grid stays subordinate to node faces and relationship edges in both renderers. */
-export const GRID_INK = { lattice: 0.018, frame: 0.075, flat: 0.02 } as const
+export const GRID_INK = { lattice: 0.035, frame: 0.055, flat: 0.02 } as const
 
 export const MIN_NODE_PX = 3.5
 export const MIN_LINK_PX = 1
