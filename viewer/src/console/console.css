@@ -2681,3 +2681,151 @@ select.xc-input {
   background: var(--panel);
   box-shadow: 0 10px 34px rgba(0, 0, 0, 0.45);
 }
+
+/* Raw payload inside a detail panel: an extraction proposal's own JSON, shown verbatim
+   because paraphrasing it would hide what the task actually proposed. Wraps rather than
+   scrolls sideways -- a horizontal scrollbar inside a floating window is unusable. */
+.xc-pre {
+  margin: 0 0 6px;
+  padding: 8px 10px;
+  border: 1px solid var(--hairline-faint);
+  background: var(--ground);
+  color: var(--ink-muted);
+  font: 400 11px/1.5 var(--font-mono);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+/* --- no scrollbar chrome ------------------------------------------------------------------
+   The console shows no scrollbars. The page itself cannot scroll at all (the shell is exactly
+   one viewport tall), and the panes that do own more content than they can show scroll by
+   wheel, trackpad, arrow keys, Page Up/Down and Home/End as before -- only the bar is gone.
+   `overflow: auto` is kept rather than switched to `hidden`, because hiding the bar must not
+   make content unreachable.
+
+   Pairs with the overflow audit in e2e/design-system.spec.ts, which is what stops this rule
+   from quietly hiding a layout bug instead of a scrollbar: anything clipped with no way to
+   scroll to it fails there. */
+* {
+  scrollbar-width: none;
+}
+*::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+  display: none;
+}
+.xc-scroll {
+  scrollbar-width: none;
+  scrollbar-color: auto;
+}
+
+/* A page fills what the shell gives it and scrolls inside itself. Before this it was
+   `flex: 1` against content height, so a long page grew the document past the viewport --
+   and with the shell now exactly one viewport tall and the page-tab strip added above, that
+   overflow had nowhere to go. Measured at 1600x900: Explore ran 58px past the bottom. */
+.xc-main > .xc-page {
+  min-height: 0;
+  overflow-y: auto;
+}
+/* The lens is inset by its own registration marks' reach. At `inset: 0` the corner crosses
+   sat exactly on the boundary that `.xc-main`'s clip cuts, so each one lost its outer arm. */
+.xc-workspace > .xc-canvas-win {
+  inset: 7px;
+}
+
+/* --- docked side panels -------------------------------------------------------------------
+   Projection docks against the navigation rail and the detail window against the opposite
+   edge: both full height, flush, sharing a hairline with the chrome they sit beside, so they
+   read as part of the frame rather than as cards dropped on the canvas.
+
+   The clever part is that nothing else has to know whether they are there. The workspace
+   publishes its own occupied edges as `--dock-left` / `--dock-right`, and the right one
+   collapses to 0 when no memory is selected. The chain rail spans between the two variables,
+   so it widens and narrows as the detail window comes and goes without a second rule, a
+   media query or a class. Add another dock later and only these two numbers change. */
+.xc-workspace {
+  --dock-left: 232px;
+  --dock-right: 380px;
+}
+.xc-workspace[data-detail='closed'] {
+  --dock-right: 0px;
+}
+.xc-workspace > .xc-rail {
+  top: 0;
+  left: 0;
+  width: var(--dock-left);
+  height: 100%;
+  max-height: none;
+  border: 0;
+  border-right: 1px solid var(--hairline);
+  background: var(--ground);
+}
+.xc-workspace > .xc-inspector {
+  top: 0;
+  right: 0;
+  width: var(--dock-right);
+  height: 100%;
+  max-height: none;
+  border: 0;
+  border-left: 1px solid var(--hairline);
+  background: var(--ground);
+  box-shadow: none;
+}
+/* The canvas keeps the whole workspace -- the graph still lays out and zooms across the full
+   width -- while its toolbar and legend are inset past the docks so no control hides beneath
+   one. */
+.xc-workspace > .xc-canvas-win > .xc-bar {
+  padding-left: calc(var(--dock-left) + 16px);
+  padding-right: calc(var(--dock-right) + 16px);
+}
+.xc-workspace > .xc-chain {
+  left: calc(var(--dock-left) + 16px);
+  right: calc(var(--dock-right) + 16px);
+  bottom: 16px;
+}
+
+/* A docked panel is chrome, not a window, so it drops the registration marks. They mark the
+   corners of a floating frame; on a panel flush to two edges they draw crosses into the rail
+   and off the viewport. The lens keeps its own. */
+.xc-workspace > .xc-rail::before,
+.xc-workspace > .xc-inspector::before {
+  content: none;
+}
+
+/* --- collapsing the Projection dock -------------------------------------------------------
+   The whole point of publishing the dock widths as variables: collapsing is one number. The
+   lens toolbar's inset and the chain rail's left edge follow from `--dock-left` with no rule
+   of their own, so nothing here has to know the dock can collapse. */
+.xc-workspace:has(> .xc-rail[data-collapsed='true']) {
+  --dock-left: 36px;
+}
+.xc-dock-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 8px 8px 14px;
+  border-bottom: 1px solid var(--hairline-faint);
+}
+.xc-dock-title {
+  font: 600 11px/1 var(--font-mono);
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+  white-space: nowrap;
+}
+/* Collapsed: the strip keeps the title, turned on its side, and the control to bring it back.
+   A dock that disappeared completely would leave nothing to click. */
+.xc-rail[data-collapsed='true'] > .xc-scroll { display: none; }
+.xc-rail[data-collapsed='true'] .xc-dock-head {
+  flex-direction: column-reverse;
+  justify-content: flex-end;
+  gap: 12px;
+  height: 100%;
+  padding: 8px 4px;
+  border-bottom: 0;
+}
+.xc-rail[data-collapsed='true'] .xc-dock-title {
+  writing-mode: vertical-rl;
+  letter-spacing: .2em;
+}

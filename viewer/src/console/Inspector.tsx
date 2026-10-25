@@ -5,7 +5,7 @@
 // contradiction, forget) are the next slice and are deliberately absent rather than shown inert.
 
 import { useState, type ReactNode } from 'react'
-import { api, type Attachment, type Memory, type WorkspaceScope } from '../api'
+import { api, type Attachment, type ExtractionProposal, type Memory, type ParaClassification, type WorkspaceScope } from '../api'
 import { useConsole } from './state'
 import { useAsync, type AsyncState } from './useAsync'
 import { EDGE_TYPE_LABEL, elideHash, parseServerTime, shortStamp, type CEdge, type CNode, type GraphModel } from './model'
@@ -14,10 +14,11 @@ import { MemoryActions } from './MemoryActions'
 import { MemoryChainCheck, ProvenanceExport } from './VerifyPanel'
 import { attachmentFilename, saveBlob } from './download'
 
-type MemoryTab = 'chain' | 'content' | 'provenance' | 'neighbors' | 'contradictions' | 'telemetry' | 'files'
+type MemoryTab = 'chain' | 'content' | 'inference' | 'provenance' | 'neighbors' | 'contradictions' | 'telemetry' | 'files'
 const MEMORY_TABS: Array<[MemoryTab, string]> = [
   ['chain', 'Chain'],
   ['content', 'Content'],
+  ['inference', 'Inference'],
   ['provenance', 'Provenance'],
   ['neighbors', 'Neighbors'],
   ['contradictions', 'Contradictions'],
@@ -45,6 +46,108 @@ function Tag({ children, tone }: { children: ReactNode; tone?: 'accent' | 'ancho
 
 const statusTone = (status: string | undefined) =>
   status === 'confirmed' ? 'accent' : status === 'disputed' ? 'review' : status === 'quarantined' ? 'conflict' : undefined
+
+// ---------------------------------------------------------------------------------------------------
+
+/** How deep the per-memory scan of the inference queues goes. Neither classification endpoint
+ *  filters by memory, so this tab pulls the recent window of each status and matches on
+ *  `memory_id` / `source_memory_id` here. A window that comes back full means the scan was
+ *  bounded, and the tab says so rather than reporting "none" -- an empty result from a
+ *  truncated scan is not evidence of absence. */
+const SCAN_LIMIT = 200
+const PARA_STATUSES = ['proposed', 'accepted', 'dismissed', 'kept_original'] as const
+const PROPOSAL_STATUSES = ['proposed', 'accepted', 'dismissed', 'stale'] as const
+
+const paraTone = (status: string) =>
+  status === 'accepted' ? 'accent' : status === 'proposed' ? 'review' : status === 'dismissed' ? 'conflict' : 'hollow'
+
+/** What inference has said about this memory: its PARA classification, and the entities and
+ *  relations an extraction task proposed from it. Read-only -- deciding a proposal is Review's
+ *  job, and this tab links there rather than duplicating the controls. */
+function InferenceTab({ memory }: { memory: Memory }) {
+  const { go } = useConsole()
+  const state = useAsync(async () => {
+    const [paraLists, proposalLists] = await Promise.all([
+      Promise.all(PARA_STATUSES.map((s) => api.paraClassifications(s, SCAN_LIMIT).catch(() => [] as ParaClassification[]))),
+      Promise.all(PROPOSAL_STATUSES.map((s) => api.extractionProposals(s, SCAN_LIMIT, undefined, memory.id).catch(() => [] as ExtractionProposal[]))),
+    ])
+    return {
+      para: paraLists.flat().filter((c) => c.memory_id === memory.id),
+      proposals: proposalLists.flat().filter((p) => p.source_memory_id === memory.id),
+      bounded: paraLists.some((l) => l.length >= SCAN_LIMIT) || proposalLists.some((l) => l.length >= SCAN_LIMIT),
+    }
+  }, [memory.id])
+
+  return (
+    <Async state={state}>
+      {(data) => (
+        <>
+          <section>
+            <p className="xc-eyebrow">PARA</p>
+            {data.para.length === 0 ? (
+              <p className="xc-note">
+                {data.bounded
+                  ? `No classification for this memory in the most recent ${SCAN_LIMIT} of each status. There may be an older one.`
+                  : 'Not classified.'}
+              </p>
+            ) : data.para.map((c) => (
+              <div className="xc-kv" key={c.task_id}>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 6 }}>
+                  <Tag tone="accent">{c.category}</Tag>
+                  <Tag tone={paraTone(c.status)}>{c.status.replace(/_/g, ' ')}</Tag>
+                  <Tag tone="hollow">{Math.round(c.confidence * 100)}% confidence</Tag>
+                </div>
+                {c.rationale && <p className="xc-note">{c.rationale}</p>}
+                {c.signals.length > 0 && (
+                  <p className="xc-meta">signals: {c.signals.join(' · ')}</p>
+                )}
+                {c.alternatives.length > 0 && (
+                  <p className="xc-meta">considered: {c.alternatives.join(' · ')}</p>
+                )}
+                <p className="xc-meta">
+                  proposed {stamp(c.created_at)}
+                  {c.decided_at ? ` · decided ${stamp(c.decided_at)}` : ''}
+                  {c.decision_note ? ` · ${c.decision_note}` : ''}
+                </p>
+              </div>
+            ))}
+          </section>
+
+          <section>
+            <p className="xc-eyebrow">Extracted from this memory</p>
+            {data.proposals.length === 0 ? (
+              <p className="xc-note">
+                {data.bounded
+                  ? `Nothing in the most recent ${SCAN_LIMIT} of each status.`
+                  : 'No extraction has run over this memory.'}
+              </p>
+            ) : data.proposals.map((p) => (
+              <div className="xc-kv" key={p.id}>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 6 }}>
+                  <Tag tone="hollow">{p.task_type.replace(/_/g, ' ')}</Tag>
+                  <Tag tone={paraTone(p.status)}>{p.status}</Tag>
+                </div>
+                <pre className="xc-pre">{JSON.stringify(p.payload, null, 2)}</pre>
+                {p.evidence_quote && <p className="xc-note">“{p.evidence_quote}”</p>}
+                <p className="xc-meta">
+                  proposed {stamp(p.created_at)}
+                  {p.decided_by ? ` · by ${p.decided_by}` : ''}
+                  {p.decision_note ? ` · ${p.decision_note}` : ''}
+                </p>
+              </div>
+            ))}
+          </section>
+
+          {(data.para.some((c) => c.status === 'proposed') || data.proposals.some((p) => p.status === 'proposed')) && (
+            <p className="xc-note">
+              Undecided items are acted on in <button type="button" className="xc-link" onClick={() => go('review')}>Review</button>.
+            </p>
+          )}
+        </>
+      )}
+    </Async>
+  )
+}
 
 // ---------------------------------------------------------------------------------------------------
 
@@ -137,6 +240,7 @@ function MemoryInspector({ memoryId, node }: { memoryId: string; node: CNode | u
         <div className="xc-inspector-body" key={revision}>
           {m && tab === 'chain' && <ChainTab memory={m} scope={scope} />}
           {m && tab === 'content' && <ContentTab memory={m} onOpen={(id) => select(`memory:${id}`)} />}
+          {m && tab === 'inference' && <InferenceTab memory={m} />}
           {m && tab === 'provenance' && <ProvenanceTab memory={m} node={node} scope={scope} />}
           {m && tab === 'neighbors' && <NeighborsTab memoryId={memoryId} scope={scope} />}
           {m && tab === 'contradictions' && <ContradictionsTab memoryId={memoryId} scope={scope} />}

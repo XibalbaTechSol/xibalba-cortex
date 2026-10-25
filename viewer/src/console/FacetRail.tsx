@@ -3,6 +3,8 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { useConsole } from './state'
+import { useSettings } from './settingsContext'
+import { IconChevronLeft, IconChevronRight } from './icons'
 import { countFacets, EDGE_TYPE_LABEL, type EdgeGroup, type Facets, type NodeClass } from './model'
 
 const CLASS_LABEL: Record<NodeClass, string> = {
@@ -35,6 +37,8 @@ const EDGE_RULE: Record<EdgeGroup, string> = {
 const titleCase = (value: string) => value.replace(/_/g, ' ')
 
 export function FacetRail() {
+  const { settings, update } = useSettings()
+  const collapsed = settings.facetsCollapsed
   const { model, facets, setFacets, stats, similarity, setSimilarity, window: timeWindow, setWindow, loading } = useConsole()
   const counts = useMemo(() => (model ? countFacets(model) : null), [model])
 
@@ -55,7 +59,22 @@ export function FacetRail() {
     })
 
   return (
-    <aside className="xc-win xc-pane xc-rail" aria-label="Facets">
+    <aside className="xc-win xc-pane xc-rail" aria-label="Facets" data-collapsed={collapsed}>
+      {/* Collapsed, the dock keeps a 36px strip: the label turned on its side and the control
+          that brings it back. A dock that vanished entirely would leave nothing to click. */}
+      <div className="xc-dock-head">
+        <span className="xc-dock-title">Projection</span>
+        <button
+          type="button"
+          className="xc-btn xc-btn--square"
+          aria-label={collapsed ? 'Expand projection' : 'Collapse projection'}
+          aria-expanded={!collapsed}
+          title={collapsed ? 'Expand projection' : 'Collapse projection'}
+          onClick={() => update({ facetsCollapsed: !collapsed })}
+        >
+          {collapsed ? <IconChevronRight /> : <IconChevronLeft />}
+        </button>
+      </div>
       <div className="xc-scroll">
         <section className="xc-facet-group">
           <p className="xc-eyebrow">Projection</p>
