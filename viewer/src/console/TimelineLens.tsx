@@ -6,7 +6,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useConsole } from './state'
 import { LensSwitch } from './Shell'
-import { buildLanes, isNodeVisible, shortDay, shortStamp, thinTicks, type Lane } from './model'
+import { buildLanes, isNodeVisible, markRows, shortDay, shortStamp, thinTicks, type Lane } from './model'
+
+/** `.xc-mark` is 10px wide; two closer than this on screen would overlap. */
+const MARK_PX = 10
 
 interface Domain {
   from: number
@@ -133,6 +136,12 @@ export function TimelineLens() {
                 const node = model?.byId.get(m.nodeId)
                 return node && facets && isNodeVisible(node, facets, null) && inDomain(m.time)
               })
+              /* Marks are placed by time alone, so several written seconds apart land on the same
+                 pixel and the topmost one swallows the others' clicks. `markRows` stacks them
+                 across the lane instead of moving them along it, which would misreport when they
+                 happened. It needs real pixels, which is what `axisPx` already measures for the
+                 tick thinning. */
+              const rows = markRows(marks.map((m) => (pct(m.time) / 100) * axisPx), MARK_PX)
               const rootAt = lane.root && lane.root.time !== null ? (lane.end ?? lane.marks.at(-1)?.time ?? lane.start) : null
               const selected = !lane.synthetic && selectedId === lane.session.id
               return (
@@ -156,13 +165,14 @@ export function TimelineLens() {
                     {right > left && (
                       <i className="xc-lane-span" data-open={lane.end === null} style={{ left: `${left}%`, width: `${right - left}%` }} />
                     )}
-                    {marks.map((m) => (
+                    {marks.map((m, i) => (
                       <button
                         key={m.nodeId}
                         type="button"
                         className="xc-mark"
                         data-cls={m.cls}
                         data-selected={selectedId === m.nodeId}
+                        data-row={rows[i]}
                         style={{ left: `${pct(m.time)}%` }}
                         aria-label={`${m.cls} at ${shortStamp(m.time)}`}
                         title={`${m.cls} · ${shortStamp(m.time)}${m.status ? ` · ${m.status}` : ''}`}

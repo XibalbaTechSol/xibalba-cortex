@@ -231,7 +231,7 @@ function MemoryInspector({ memoryId, node }: { memoryId: string; node: CNode | u
     <>
       <div className="xc-inspector-head">
         <p className="xc-eyebrow">Selected memory</p>
-        <h3 className="xc-title">{m ? truncate(m.content, 96) : node ? truncate(node.label, 96) : 'Loading…'}</h3>
+        <h3 className="xc-title">{truncate(m?.content, 96) || truncate(node?.label, 96) || (m ? memoryId : 'Loading…')}</h3>
         <p className="xc-meta" style={{ wordBreak: 'break-all' }}>
           {memoryId}
           {m ? <> · <span title={m.content_hash}>{elideHash(m.content_hash)}</span></> : null}
@@ -272,7 +272,13 @@ function MemoryInspector({ memoryId, node }: { memoryId: string; node: CNode | u
   )
 }
 
-const truncate = (value: string, max: number): string => (value.length > max ? `${value.slice(0, max - 1)}…` : value)
+/* Tolerates a missing string rather than throwing. Every caller feeds this a field straight off
+   an API payload, and a single undefined one took down the entire console: there is no error
+   boundary here, so `undefined.length` inside a render unmounts the whole tree and leaves a blank
+   page. Selecting a memory on the timeline did exactly that. Showing nothing for a field the API
+   did not send is a far better failure than showing nothing at all. */
+const truncate = (value: string | null | undefined, max: number): string =>
+  !value ? '' : value.length > max ? `${value.slice(0, max - 1)}…` : value
 
 function ChainTab({ memory, scope }: { memory: Memory; scope: WorkspaceScope }) {
   const events = useAsync(() => api.memoryEvents(memory.id, scope), [memory.id, scope])

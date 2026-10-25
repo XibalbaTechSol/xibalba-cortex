@@ -3029,3 +3029,15 @@ body,
     }
   }
 }
+
+/* --- coincident marks stack across the lane ---------------------------------------------------
+   Marks are placed by time alone, so memories written seconds apart on an all-time axis land on
+   the same pixel: the topmost took every click and the ones beneath it could not be selected.
+   `markRows` gives each one a row; these turn that row into an offset from the lane's midline,
+   alternating above and below so a cluster grows symmetrically and stays inside the 56px track.
+   Written out rather than computed, because `round()` and `mod()` are newer than the browsers
+   this has to work in. */
+.xc-lane-track .xc-mark[data-row='1'] { margin-top: -11px; }
+.xc-lane-track .xc-mark[data-row='2'] { margin-top: 11px; }
+.xc-lane-track .xc-mark[data-row='3'] { margin-top: -22px; }
+.xc-lane-track .xc-mark[data-row='4'] { margin-top: 22px; }
