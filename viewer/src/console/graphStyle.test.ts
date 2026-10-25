@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { MIN_LINK_PX, MIN_NODE_PX, blendOver, boundingSphere, fitDistance, linkWidth, nodeHalf } from './graphStyle'
+import { MIN_LINK_PX, MIN_NODE_PX, NODE_OUTLINE, blendOver, boundingSphere, fitDistance, linkWidth, nodeHalf, traceNode } from './graphStyle'
 
 describe('nodeHalf', () => {
   it('never draws a node smaller than the screen floor, however far out the zoom is', () => {
@@ -60,5 +60,38 @@ describe('boundingSphere', () => {
     expect(s.cx).toBe(10)
     expect(s.cy).toBe(2.5)
     expect(s.radius).toBeCloseTo(Math.hypot(20, 2.5), 5)
+  })
+})
+
+describe('node outlines', () => {
+  it('keeps every shape inside the half-extent the layout reserves', () => {
+    // nodes are capped below the lattice cell so neighbours never touch; a shape that reached
+    // outside its own half-extent would break that for every shape but the box.
+    for (const [name, pts] of Object.entries(NODE_OUTLINE)) {
+      for (const [x, y] of pts) {
+        expect(Math.abs(x), `${name} x`).toBeLessThanOrEqual(1)
+        expect(Math.abs(y), `${name} y`).toBeLessThanOrEqual(1)
+      }
+    }
+  })
+
+  it('traces a closed path of the right length, scaled and centred', () => {
+    const calls: string[] = []
+    const ctx = {
+      moveTo: (x: number, y: number) => calls.push(`M${x},${y}`),
+      lineTo: (x: number, y: number) => calls.push(`L${x},${y}`),
+      closePath: () => calls.push('Z'),
+    }
+    traceNode(ctx, 'diamond', 100, 50, 10)
+    expect(calls).toEqual(['M100,40', 'L110,50', 'L100,60', 'L90,50', 'Z'])
+  })
+
+  it('falls back to the box for a shape it does not know, rather than drawing nothing', () => {
+    const calls: string[] = []
+    const ctx = {
+      moveTo: () => calls.push('M'), lineTo: () => calls.push('L'), closePath: () => calls.push('Z'),
+    }
+    traceNode(ctx, 'sphere' as 'box', 0, 0, 5)
+    expect(calls).toEqual(['M', 'L', 'L', 'L', 'Z'])
   })
 })

@@ -955,7 +955,10 @@ select.xc-input {
 /* ---------- timeline lens ---------------------------------------------------------------------- */
 .xc-tl-grid {
   display: grid;
-  grid-template-columns: 176px minmax(0, 1fr);
+  /* one number, because the full-height axis rules must start exactly where the track column
+     does -- see `.xc-tl-rules`, which is a separate layer and cannot inherit the grid track */
+  --tl-label: 176px;
+  grid-template-columns: var(--tl-label) minmax(0, 1fr);
   min-width: 0;
 }
 .xc-tl-head {
@@ -1295,7 +1298,7 @@ select.xc-input {
     font-size: 16px;
   }
   .xc-tl-grid {
-    grid-template-columns: 120px minmax(0, 1fr);
+    --tl-label: 120px;
   }
   .xc-auth {
     grid-template-columns: minmax(0, 1fr);
@@ -2522,4 +2525,603 @@ select.xc-input {
   border-bottom: 1px solid var(--hairline);
   background: var(--status-review-soft);
   color: var(--ink);
+}
+
+/* --- account control ---------------------------------------------------------------------
+   The same control as Shield's operator profile (ui/src/components/Dashboard.jsx), so the two
+   consoles put the same thing in the same corner: a 28px solid-accent avatar, the name beside
+   it, and a two-item menu that opens upward. Values mirror Shield's `.profile-*` rules with
+   Cortex's token names. */
+.xc-profile {
+  position: relative;
+  flex: 1 1 100%;
+  min-width: 0;
+}
+.xc-profile-btn {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 4px;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  text-align: left;
+  cursor: pointer;
+}
+.xc-profile-avatar {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  flex: 0 0 auto;
+  background: var(--cortex-accent);
+  color: var(--ink-on-accent);
+  font-size: 12px;
+  font-weight: 600;
+}
+.xc-profile-name {
+  overflow: hidden;
+  font-size: 14px;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.xc-profile-menu {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 8px);
+  left: 0;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px;
+  border: 1px solid var(--hairline);
+  background: var(--ground);
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.35);
+}
+.xc-profile-menu button {
+  width: 100%;
+  padding: 8px 10px;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  text-align: left;
+  font: 500 14px/1.2 'Barlow', sans-serif;
+  cursor: pointer;
+}
+.xc-profile-menu button:hover {
+  background: var(--cortex-accent-soft);
+  color: var(--cortex-accent);
+}
+/* Collapsed: the avatar alone, centred, and the menu widens to stay readable. */
+.xc-shell[data-collapsed='true'] .xc-profile-btn { justify-content: center; padding-inline: 0; }
+.xc-shell[data-collapsed='true'] .xc-profile-menu { left: 0; width: 180px; right: auto; }
+
+/* --- page tab strip ----------------------------------------------------------------------
+   The counterpart to a five-link rail: the surfaces a single link fronts stay one click apart.
+   Industry's underline-on-current, not a pill. */
+.xc-page-tabs {
+  display: flex;
+  gap: 2px;
+  padding: 0 var(--gutter);
+  border-bottom: 1px solid var(--hairline-faint);
+}
+.xc-page-tab {
+  padding: 10px 14px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: var(--ink-muted);
+  font: 500 14px/1.2 'Barlow', sans-serif;
+  cursor: pointer;
+}
+.xc-page-tab:hover { color: var(--ink); }
+.xc-page-tab[aria-current='page'] {
+  border-bottom-color: var(--cortex-accent);
+  color: var(--ink);
+}
+
+/* --- full-bleed workspace -----------------------------------------------------------------
+   The lens fills the workspace and the three support surfaces float over it. The previous
+   layout gave the graph one of three grid columns with the chain rail in a strip below, so on
+   a 1600px screen the canvas got roughly half the width and well under half the height -- the
+   one surface in the console that actually wants the room.
+
+   The console is also exactly one viewport tall now, so the page itself never scrolls; any
+   scrolling happens inside a pane that owns its own content. */
+.xc-shell {
+  height: 100vh;
+  overflow: hidden;
+}
+.xc-main {
+  height: 100%;
+  overflow: hidden;
+}
+.xc-workspace {
+  position: relative;
+  display: block;
+  flex: 1 1 auto;
+  height: auto;
+  min-height: 0;
+  padding: 0;
+}
+/* the lens */
+.xc-workspace > .xc-canvas-win {
+  position: absolute;
+  inset: 0;
+}
+/* facets, top left */
+.xc-workspace > .xc-rail {
+  /* clears the lens's own toolbar, which runs the full width above it */
+  position: absolute;
+  top: 72px;
+  left: 16px;
+  z-index: 3;
+  width: 232px;
+  max-height: calc(100% - 88px);
+  background: var(--panel);
+}
+/* chain rail, along the bottom, clearing the facet column */
+.xc-workspace > .xc-chain {
+  position: absolute;
+  right: 16px;
+  bottom: 16px;
+  left: 264px;
+  z-index: 2;
+  /* ground, not panel: Industry's windows are line drawings on one ground, and a second
+     surface colour stacked over the canvas is exactly what the grammar sweep rejects. */
+  background: var(--ground);
+}
+/* the detail window: only present when something is selected */
+.xc-workspace > .xc-inspector {
+  position: absolute;
+  top: 72px;
+  right: 16px;
+  z-index: 4;
+  width: 380px;
+  max-height: calc(100% - 88px);
+  background: var(--panel);
+  box-shadow: 0 10px 34px rgba(0, 0, 0, 0.45);
+}
+
+/* Raw payload inside a detail panel: an extraction proposal's own JSON, shown verbatim
+   because paraphrasing it would hide what the task actually proposed. Wraps rather than
+   scrolls sideways -- a horizontal scrollbar inside a floating window is unusable. */
+.xc-pre {
+  margin: 0 0 6px;
+  padding: 8px 10px;
+  border: 1px solid var(--hairline-faint);
+  background: var(--ground);
+  color: var(--ink-muted);
+  font: 400 11px/1.5 var(--font-mono);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+/* --- no scrollbar chrome ------------------------------------------------------------------
+   The console shows no scrollbars. The page itself cannot scroll at all (the shell is exactly
+   one viewport tall), and the panes that do own more content than they can show scroll by
+   wheel, trackpad, arrow keys, Page Up/Down and Home/End as before -- only the bar is gone.
+   `overflow: auto` is kept rather than switched to `hidden`, because hiding the bar must not
+   make content unreachable.
+
+   Pairs with the overflow audit in e2e/design-system.spec.ts, which is what stops this rule
+   from quietly hiding a layout bug instead of a scrollbar: anything clipped with no way to
+   scroll to it fails there. */
+* {
+  scrollbar-width: none;
+}
+*::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+  display: none;
+}
+.xc-scroll {
+  scrollbar-width: none;
+  scrollbar-color: auto;
+}
+
+/* A page fills what the shell gives it and scrolls inside itself. Before this it was
+   `flex: 1` against content height, so a long page grew the document past the viewport --
+   and with the shell now exactly one viewport tall and the page-tab strip added above, that
+   overflow had nowhere to go. Measured at 1600x900: Explore ran 58px past the bottom. */
+.xc-main > .xc-page {
+  min-height: 0;
+  overflow-y: auto;
+}
+/* The lens is inset by its own registration marks' reach. At `inset: 0` the corner crosses
+   sat exactly on the boundary that `.xc-main`'s clip cuts, so each one lost its outer arm. */
+.xc-workspace > .xc-canvas-win {
+  inset: 7px;
+}
+
+/* --- docked side panels -------------------------------------------------------------------
+   Projection docks against the navigation rail and the detail window against the opposite
+   edge: both full height, flush, sharing a hairline with the chrome they sit beside, so they
+   read as part of the frame rather than as cards dropped on the canvas.
+
+   The clever part is that nothing else has to know whether they are there. The workspace
+   publishes its own occupied edges as `--dock-left` / `--dock-right`, and the right one
+   collapses to 0 when no memory is selected. The chain rail spans between the two variables,
+   so it widens and narrows as the detail window comes and goes without a second rule, a
+   media query or a class. Add another dock later and only these two numbers change. */
+.xc-workspace {
+  --dock-left: 232px;
+  --dock-right: 380px;
+}
+.xc-workspace[data-detail='closed'] {
+  --dock-right: 0px;
+}
+.xc-workspace > .xc-rail {
+  top: 0;
+  left: 0;
+  width: var(--dock-left);
+  height: 100%;
+  max-height: none;
+  border: 0;
+  border-right: 1px solid var(--hairline);
+  background: var(--ground);
+}
+.xc-workspace > .xc-inspector {
+  top: 0;
+  right: 0;
+  width: var(--dock-right);
+  height: 100%;
+  max-height: none;
+  border: 0;
+  border-left: 1px solid var(--hairline);
+  background: var(--ground);
+  box-shadow: none;
+}
+/* The lens is inset BY the docks, not merely decorated around them. Keeping the canvas at the
+   full workspace width and only pushing its toolbar inward left the drawing itself underneath
+   the panels: measured at 1600x900, 224px of the lens sat behind Projection, three of the
+   timeline's four marks were buried, and `elementFromPoint` at their centres returned
+   `.xc-scroll` -- so a click on a mark reached the dock, not the mark. The lens reported as
+   "not selecting" was really a lens that could not be hit.
+
+   With the window itself inset, the 3D camera fits the rect the user can actually see, and
+   the toolbar and legend need no offset of their own. */
+.xc-workspace > .xc-canvas-win {
+  left: calc(var(--dock-left) + 7px);
+  right: calc(var(--dock-right) + 7px);
+}
+.xc-workspace > .xc-canvas-win > .xc-bar {
+  padding-left: 16px;
+  padding-right: 16px;
+}
+.xc-workspace > .xc-chain {
+  left: calc(var(--dock-left) + 16px);
+  right: calc(var(--dock-right) + 16px);
+  bottom: 16px;
+}
+
+/* A docked panel is chrome, not a window: it is flush to two edges, so a frame with
+   registration crosses would draw into the navigation rail and off the viewport. Both dropped
+   `.xc-win` for `.xc-pane` when they were docked -- they are part of the frame now, and the
+   grammar sweep in e2e/design-system.spec.ts is right to hold a window to a window's rules.
+   The lens between them keeps its own frame and marks. */
+
+/* --- collapsing the Projection dock -------------------------------------------------------
+   The whole point of publishing the dock widths as variables: collapsing is one number. The
+   lens toolbar's inset and the chain rail's left edge follow from `--dock-left` with no rule
+   of their own, so nothing here has to know the dock can collapse. */
+.xc-workspace:has(> .xc-rail[data-collapsed='true']) {
+  --dock-left: 36px;
+}
+.xc-dock-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 8px 8px 14px;
+  border-bottom: 1px solid var(--hairline-faint);
+}
+.xc-dock-title {
+  font: 600 11px/1 var(--font-mono);
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+  white-space: nowrap;
+}
+/* Collapsed: the strip keeps the title, turned on its side, and the control to bring it back.
+   A dock that disappeared completely would leave nothing to click. */
+.xc-rail[data-collapsed='true'] > .xc-scroll { display: none; }
+.xc-rail[data-collapsed='true'] .xc-dock-head {
+  flex-direction: column-reverse;
+  justify-content: flex-end;
+  gap: 12px;
+  height: 100%;
+  padding: 8px 4px;
+  border-bottom: 0;
+}
+.xc-rail[data-collapsed='true'] .xc-dock-title {
+  writing-mode: vertical-rl;
+  letter-spacing: .2em;
+}
+
+/* The detail dock collapses exactly as Projection does -- one more variable value, and the
+   chain rail and toolbar follow without knowing about it. */
+.xc-workspace[data-detail='open']:has(> .xc-inspector[data-collapsed='true']) {
+  --dock-right: 36px;
+}
+.xc-inspector[data-collapsed='true'] > *:not(.xc-dock-head) { display: none; }
+.xc-inspector[data-collapsed='true'] .xc-dock-head {
+  flex-direction: column;
+  justify-content: flex-start;
+  gap: 12px;
+  height: 100%;
+  padding: 8px 4px;
+  border-bottom: 0;
+}
+.xc-inspector[data-collapsed='true'] .xc-dock-title {
+  writing-mode: vertical-rl;
+  letter-spacing: .2em;
+}
+
+/* Content fit inside the detail dock. It is 380px wide and holds hashes, ids, URLs and raw
+   JSON -- strings with no spaces to break at -- so without this they set their own width and
+   pushed the panel's content sideways under a hidden scrollbar. Nothing in here may exceed
+   the column. */
+.xc-inspector .xc-inspector-body,
+.xc-inspector .xc-inspector-head {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+.xc-inspector .xc-tabs {
+  flex-wrap: wrap;
+}
+.xc-inspector pre,
+.xc-inspector code {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.xc-inspector .xc-kv dd,
+.xc-inspector .xc-meta {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+/* The lens's own edge furniture clears the docks, so a collapsed strip never sits on top of
+   the legend or the loading line. */
+.xc-workspace > .xc-canvas-win > .xc-legend,
+.xc-workspace > .xc-canvas-win > .xc-legend-toggle {
+  left: 14px;
+}
+
+/* --- the console is exactly one viewport tall ---------------------------------------------
+   `.xc-shell` carried `height: 100vh`, but it is `flex: 1 1 0%` inside `.xc`, and a flex basis
+   of 0% beats a height declaration -- so it grew to whatever `.xc` was, and `.xc` sized to its
+   content. The result was circular and the viewport lost: on Explore the shell measured 958px
+   against a 900px viewport and the last 58px of the page had nowhere to go.
+
+   Pinning the chain from the root fixes it at the only place it can be fixed. Every link needs
+   `min-height: 0`, or a flex/grid child refuses to shrink below its content and puts the
+   overflow straight back. */
+html,
+body,
+#root {
+  height: 100%;
+  overflow: hidden;
+}
+.xc {
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+}
+.xc-shell {
+  height: 100%;
+  min-height: 0;
+  grid-template-rows: minmax(0, 1fr);
+}
+.xc-main {
+  min-height: 0;
+}
+
+/* A page scrolls inside itself now, and a scroll box clips at its padding edge -- so without
+   this the bottom window's registration crosses were cut by up to 267px on Operations. The
+   marks reach 7px outside the frame; the gutter gives them somewhere to land. */
+.xc-main > .xc-page {
+  padding-bottom: 28px;
+}
+
+/* Hiding scrollbar chrome shrank every `overflow-x: auto` strip by the height the bar used to
+   reserve, and `.xc-tabs`' buttons keep their own min-height -- so the tabs bled out of the
+   strip and overlapped the first row beneath it by 18px. The strip now states the height it
+   needs rather than inheriting it from a scrollbar that no longer exists. */
+.xc-tabs {
+  align-items: stretch;
+  min-height: calc(var(--tab-height) + 1px);
+}
+
+/* --- the rail: narrower, with bigger targets ----------------------------------------------
+   Five links instead of eleven freed the height, so the destinations can be the largest thing
+   in the rail rather than a dense list, while the rail itself gives 32px back to the canvas.
+   The two move in opposite directions on purpose: fewer, bigger, in less room. */
+.xc-shell {
+  grid-template-columns: 208px minmax(0, 1fr);
+}
+.xc-rail-shell {
+  padding: 18px 10px 14px;
+}
+.xc-rail-nav {
+  gap: 4px;
+}
+.xc-rail-nav .xc-nav-btn {
+  gap: 12px;
+  padding: 13px 12px;
+  border-bottom: 0;
+  font-size: 19px;
+}
+.xc-rail-nav .xc-nav-btn svg {
+  width: 19px;
+  height: 19px;
+}
+.xc-rail-nav .xc-nav-btn[aria-current='page'] {
+  background: var(--cortex-accent-soft);
+}
+
+/* Hiding scrollbar chrome shrank every `overflow-x: auto` strip by the height the bar used to
+   reserve, while `.xc-tab` keeps its own min-height -- so on Sessions the tabs bled out of the
+   strip and overlapped the first row by 18px. The strip now states the height it needs rather
+   than inheriting it from a scrollbar that no longer exists. */
+.xc-tabs {
+  align-items: stretch;
+  min-height: calc(var(--tab-height) + 1px);
+}
+
+/* --- the timeline fills its frame ------------------------------------------------------------
+   Lane tracks are 56px, so a console with one open session drew an 87px strip at the top of an
+   857px window and left 770px of black beneath it: the lens read as unfinished rather than
+   sparse. Stretching the rows to divide that height was worse -- one lane centred in the frame
+   put void both above and below it, and split the label's two lines apart.
+
+   What the empty area needed was not filling but ruling. The axis gridlines now run the whole
+   height of the plotting field, so the lanes sit on a chart that extends to the frame and the
+   space below the last lane reads as time nobody has used yet. Lanes keep their natural size
+   and still scroll when there are more of them than fit. */
+.xc-tl-grid {
+  position: relative;
+  min-height: 100%;
+  align-content: start;
+}
+.xc-tl-rules {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: var(--tl-label);
+  right: 0;
+  pointer-events: none;
+}
+.xc-tl-rules span {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  border-left: 1px solid var(--hairline-faint);
+}
+
+/* --- the docked rail says when it has more below ---------------------------------------------
+   Projection's facet list runs 247px past the fold at 900px tall, and with scrollbar chrome
+   hidden there was nothing to say so: the list simply stopped mid-row at the frame edge and
+   read as cut off rather than as scrollable.
+
+   The bottom edge now fades instead. A static mask would be wrong at the end of the list -- the
+   last row would stay dimmed with nothing below it -- so the fade is driven by the scroll
+   position: full at the top, gone once you reach the bottom. Where scroll-driven animation is
+   not available the rail keeps a plain hard edge rather than a fade that lies about there being
+   more; the content is still reachable by wheel or keyboard either way. */
+@supports (animation-timeline: scroll()) {
+  .xc-workspace > .xc-rail .xc-scroll {
+    animation: xc-fade-foot linear both;
+    animation-timeline: scroll(self block);
+    animation-range: contain;
+  }
+  @keyframes xc-fade-foot {
+    from {
+      -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 28px), transparent 100%);
+      mask-image: linear-gradient(to bottom, #000 calc(100% - 28px), transparent 100%);
+    }
+    to {
+      -webkit-mask-image: linear-gradient(to bottom, #000 100%, transparent 100%);
+      mask-image: linear-gradient(to bottom, #000 100%, transparent 100%);
+    }
+  }
+}
+
+/* --- coincident marks stack across the lane ---------------------------------------------------
+   Marks are placed by time alone, so memories written seconds apart on an all-time axis land on
+   the same pixel: the topmost took every click and the ones beneath it could not be selected.
+   `markRows` gives each one a row; these turn that row into an offset from the lane's midline,
+   alternating above and below so a cluster grows symmetrically and stays inside the 56px track.
+   Written out rather than computed, because `round()` and `mod()` are newer than the browsers
+   this has to work in. */
+.xc-lane-track .xc-mark[data-row='1'] { margin-top: -11px; }
+.xc-lane-track .xc-mark[data-row='2'] { margin-top: 11px; }
+.xc-lane-track .xc-mark[data-row='3'] { margin-top: -22px; }
+.xc-lane-track .xc-mark[data-row='4'] { margin-top: 22px; }
+
+/* --- the chain rail folds to its bottom-right margin ------------------------------------------
+   The rail is the full width of the workspace and ~150px tall, permanently over the lens. Folded
+   it becomes a handle on the bottom-right margin -- the corner nothing else claims, since the
+   lens toolbar runs along the top and both docks hold the sides -- uncovering the strip of lens
+   it was sitting on. The rail floats over the canvas rather than sharing its box, so folding
+   reveals the lens rather than resizing it. The handle still reads the window and the event
+   count, so folding hides the histogram, not the number. */
+.xc-chain-fold {
+  min-height: var(--control-height);
+  width: var(--control-height);
+  padding: 0;
+  border: 1px solid var(--hairline);
+  background: transparent;
+  color: var(--ink-muted);
+  font-size: 13px;
+  line-height: 1;
+  cursor: pointer;
+}
+.xc-chain-fold:hover {
+  border-color: var(--hairline-strong);
+  color: var(--ink);
+}
+.xc-workspace > .xc-chain-handle {
+  position: absolute;
+  right: calc(var(--dock-right) + 16px);
+  bottom: 16px;
+  z-index: 3;
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 8px 14px;
+  border: 1px solid var(--hairline);
+  background: var(--ground);
+  text-align: left;
+  cursor: pointer;
+}
+.xc-workspace > .xc-chain-handle:hover {
+  border-color: var(--hairline-strong);
+}
+
+/* --- a floating chain rail --------------------------------------------------------------------
+   Docked, the rail spans the workspace between the two side docks (the rules further up). Dragged
+   off, it becomes a free window at `--float-x`/`--float-y` and keeps its dragged width rather than
+   spanning, so it reads as a window rather than a loose bar. Dropping it near the bottom edge
+   returns it to the dock -- which is what makes the dock reachable again without a second control
+   (`resolveDrop`). */
+.xc-workspace > .xc-chain[data-floating='true'] {
+  /* Clamped here as well as on drop, and this is the clamp that matters: `resolveDrop` only sees
+     the workspace as it was when the pointer was released, while the position persists. Shrink
+     the window afterwards and a stored position would put the rail somewhere it could never be
+     grabbed again. These keep a grabbable edge on screen whatever the workspace is now. */
+  left: clamp(0px, var(--float-x), calc(100% - 140px));
+  top: clamp(0px, var(--float-y), calc(100% - 44px));
+  right: auto;
+  bottom: auto;
+  width: min(760px, calc(100% - var(--dock-left) - var(--dock-right) - 32px));
+  z-index: 4;
+}
+.xc-workspace > .xc-chain[data-dragging='true'] {
+  /* no transition while the pointer owns it, or the window lags behind the cursor */
+  transition: none;
+  border-color: var(--accent);
+  user-select: none;
+}
+.xc-chain-grip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: var(--control-height);
+  width: 20px;
+  margin-right: -4px;
+  color: var(--ink-dim);
+  font-size: 14px;
+  line-height: 1;
+  cursor: grab;
+  touch-action: none;
+}
+.xc-chain-grip:hover {
+  color: var(--ink);
+}
+.xc-workspace > .xc-chain[data-dragging='true'] .xc-chain-grip {
+  cursor: grabbing;
 }

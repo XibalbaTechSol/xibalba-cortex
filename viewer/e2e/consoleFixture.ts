@@ -156,6 +156,15 @@ export async function stubConsoleApi(page: Page) {
       route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(body) })
 
     if (path.endsWith('/api/graph')) return json(GRAPH)
+    /* `/api/memory/<id>` -- singular, and distinct from the plural collection above. Without it
+       the catch-all answered with EMPTY_COLLECTIONS, so the Inspector got a truthy memory whose
+       `content` was undefined and the console unmounted the moment a memory was selected. */
+    if (path.includes('/api/memory/')) {
+      const id = decodeURIComponent(path.split('/api/memory/')[1] ?? '')
+      const found = MEMORIES.find((m) => m.id === id)
+      if (found) return json(found)
+      return route.fulfill({ status: 404, contentType: 'application/json', body: JSON.stringify({ detail: 'not found' }) })
+    }
     if (path.endsWith('/api/memories')) return json({ ...EMPTY_COLLECTIONS, memories: MEMORIES, items: MEMORIES, total: MEMORIES.length })
     // the live endpoint returns a bare array here; an object leaves Sessions
     // with nothing to iterate and unmounts the console.

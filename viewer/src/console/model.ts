@@ -597,3 +597,34 @@ export function thinTicks<T>(ticks: readonly T[], axisPx: number, minPx = 56): T
   const every = Math.max(1, Math.ceil(ticks.length / room))
   return ticks.filter((_, i) => i % every === 0)
 }
+
+/** Vertical rows a timeline lane stacks coincident marks into, so none buries another. */
+export const MARK_ROWS = 5
+
+/**
+ * Assign each mark a row within its lane so that two marks closer together than `markPx` never sit
+ * on the same row. Marks must arrive in ascending time order; the returned array is parallel to it.
+ *
+ * Why this exists: marks are positioned by time alone, so three memories written seconds apart on
+ * an all-time axis land on the same pixel. The topmost one then takes every click and the ones
+ * under it cannot be selected at all -- Playwright reports `<button class="xc-mark"> intercepts
+ * pointer events`. Nudging them along the axis would be a lie about when they happened, so they
+ * stack across the lane instead and keep their true x.
+ *
+ * With more coincident marks than rows, the row whose last mark is furthest back is reused: that
+ * is the choice that leaves the most space between the two that end up sharing a row. It does not
+ * make a dense enough cluster fully separable -- nothing at this size would -- so it degrades by
+ * spreading rather than by hiding.
+ */
+export function markRows(xs: readonly number[], markPx: number): number[] {
+  const lastX: number[] = []
+  return xs.map((x) => {
+    for (let r = 0; r < MARK_ROWS; r++) {
+      if (lastX[r] === undefined || x - lastX[r] >= markPx) { lastX[r] = x; return r }
+    }
+    let oldest = 0
+    for (let r = 1; r < MARK_ROWS; r++) if (lastX[r] < lastX[oldest]) oldest = r
+    lastX[oldest] = x
+    return oldest
+  })
+}
