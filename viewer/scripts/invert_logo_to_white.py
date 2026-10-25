@@ -27,14 +27,14 @@ Three details decide whether the result reads as solid white or as the grey ghos
     to twice its display size, and stretched at that size.
 """
 import sys
-from PIL import Image
+from PIL import Image, ImageFilter
 
 INK_LO, INK_HI = 243, 200   # source luminance: >= INK_LO is paper, <= INK_HI is full ink
 FRAME = 3                    # px of outer edge to drop before measuring the artwork
 OUT_W = 248                  # 2x the rail's 124px lockup, and just over the 208px sign-in use
 GAMMA = 0.7                  # alpha stretch applied after resampling
 
-def invert_to_white(src: str, dst: str, out_w: int = OUT_W, pad: int = 6, gamma: float = GAMMA):
+def invert_to_white(src: str, dst: str, out_w: int = OUT_W, pad: int = 6, gamma: float = GAMMA, dilate: int = 1):
     # The ink is read from RGB alone, NOT from the image composited over white. These exports
     # carry the artwork at full strength in RGB and a PARTIAL alpha over it, so compositing
     # first washes the ink out -- measured on the compact lockup: minimum luminance 190 instead
@@ -50,6 +50,9 @@ def invert_to_white(src: str, dst: str, out_w: int = OUT_W, pad: int = 6, gamma:
     x0, y0, x1, y1 = box
     alpha = alpha.crop((max(0, x0 - pad), max(0, y0 - pad),
                         min(alpha.size[0], x1 + pad), min(alpha.size[1], y1 + pad)))
+
+    if dilate > 1:
+        alpha = alpha.filter(ImageFilter.MaxFilter(dilate))
 
     if out_w and alpha.size[0] != out_w:
         alpha = alpha.resize((out_w, round(alpha.size[1] * out_w / alpha.size[0])), Image.LANCZOS)
@@ -87,7 +90,7 @@ def rail_mark(src: str, dst: str, out_w: int = 88):
     The earlier crown crop removed the wordmark and lower half of the brain. Small navigation
     must preserve the same complete artwork as the expanded rail, even at a smaller scale.
     """
-    return invert_to_white(src, dst, out_w=out_w, pad=12, gamma=0.55)
+    return invert_to_white(src, dst, out_w=out_w, pad=12, gamma=0.55, dilate=7)
 
 if __name__ == '__main__':
     if sys.argv[1] == '--rail':
