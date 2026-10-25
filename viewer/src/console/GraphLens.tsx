@@ -9,7 +9,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import ForceGraph2D, { type ForceGraphMethods } from 'react-force-graph-2d'
 import { forceX, forceY } from 'd3-force'
 import { useConsole } from './state'
-import { LensSwitch } from './Shell'
 import { useSettings } from './settingsContext'
 import { Graph3D, type Graph3DHandle } from './Graph3D'
 import { FADE, LINK_ALPHA, linkWidth, nodeHalf, traceNode } from './graphStyle'
@@ -365,7 +364,7 @@ export function GraphLens() {
   return (
     <section className="xc-win xc-pane xc-canvas-win" aria-label="Graph lens">
       <div className="xc-bar">
-        <LensSwitch />
+        {/* The lens switch moved to the shell header; the spacer keeps these view controls right. */}
         <span className="xc-spacer" />
         <div className="xc-ranges" role="group" aria-label="Graph view">
           <button type="button" aria-pressed={!mode3d} onClick={() => update({ graphMode: '2d' })}>2D</button>

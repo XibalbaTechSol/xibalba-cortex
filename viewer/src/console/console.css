@@ -401,6 +401,17 @@ select.xc-input {
   align-items: center;
   gap: 12px 22px;
 }
+/* The top bar's leading group: brand, then the lens switch. It owns the auto margin that used to
+   sit on .xc-brand itself, which would otherwise have pushed the lens switch over to the right. */
+.xc-top-lead {
+  display: flex;
+  align-items: center;
+  gap: 22px;
+  margin-right: auto;
+}
+.xc-top-lead .xc-brand {
+  margin-right: 0;
+}
 .xc-brand {
   display: flex;
   align-items: center;
@@ -2509,12 +2520,16 @@ select.xc-input {
   flex: 1 1 100%;
   min-width: 0;
 }
+/* Larger than Shield's 28px original, by request: the account control is the one thing in the
+   rail foot now that connection has moved to the workspace header, and at 28px it read as a
+   caption rather than a control. The menu, its items and the collapsed behaviour are unchanged,
+   so the two consoles still open the same thing in the same corner. */
 .xc-profile-btn {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
   width: 100%;
-  padding: 4px;
+  padding: 8px 6px;
   border: 0;
   background: transparent;
   color: var(--ink);
@@ -2524,17 +2539,17 @@ select.xc-input {
 .xc-profile-avatar {
   display: grid;
   place-items: center;
-  width: 28px;
-  height: 28px;
+  width: 40px;
+  height: 40px;
   flex: 0 0 auto;
   background: var(--cortex-accent);
   color: var(--ink-on-accent);
-  font-size: 12px;
+  font-size: 16px;
   font-weight: 600;
 }
 .xc-profile-name {
   overflow: hidden;
-  font-size: 14px;
+  font-size: 15px;
   font-weight: 500;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -3111,6 +3126,13 @@ body,
   padding: 14px 28px 0;
   min-height: 0;
 }
+/* The lens switch sits at the left, scope and reload at the right, and the spacer between them
+   does the dividing. `.xc-spacer` has no base rule in this sheet -- every other place that uses
+   one states its own `flex` (.xc-bar, .xc-chain-top, .xc-status) -- so without this the two
+   right-hand controls simply sat next to the lens switch. */
+.xc-workspace-header .xc-spacer {
+  flex: 1;
+}
 /* Stated at full strength here, unlike the rail, where it sat in a narrow column and had to
    stack its label above the select. */
 .xc-workspace-header .xc-scope {
@@ -3124,9 +3146,32 @@ body,
   max-width: 420px;
   font-size: 13px;
 }
+/* The header is one unwrapping row, so the scope select is the part that gives: a store option
+   reads "<label> · <6 hex> · writable" and would otherwise push Reload past the column edge and
+   hand the page a horizontal scrollbar. `min-width: 0` is what lets a flex child shrink below its
+   content at all. */
+.xc-workspace-header,
+.xc-workspace-header .xc-scope {
+  min-width: 0;
+}
+.xc-workspace-header .xc-scope select,
+.xc-workspace-header .xc-scope .xc-input {
+  min-width: 0;
+  flex: 0 1 auto;
+}
+/* The connection indicator reads as a unit with Reload, so it keeps the dot tight to its text and
+   does not shrink to a bare dot the way the rail foot's copy did when the rail collapsed. */
+.xc-workspace-header .xc-conn {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
 @media (max-width: 1100px) {
   .xc-workspace-header {
     padding-inline: 18px;
+  }
+  /* the scope select has first claim on a narrow header; the dot still says the state */
+  .xc-workspace-header .xc-conn span {
+    display: none;
   }
   .xc-workspace-header .xc-scope select,
   .xc-workspace-header .xc-scope .xc-input {
