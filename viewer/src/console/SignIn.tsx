@@ -63,9 +63,8 @@ export function SignIn({ onSignedIn }: { onSignedIn: () => void }) {
   return (
     <main className="xc-auth">
       <section className="xc-auth-story">
-        <a className="xc-brand" href="#" onClick={(e) => e.preventDefault()}>
-          <span className="xc-brand-mark"><img src="/cortex-mark.png" alt="" /></span>
-          <b>Xibalba <i>Cortex</i></b>
+        <a className="xc-brand" href="#" aria-label="Xibalba Cortex" onClick={(e) => e.preventDefault()}>
+          <img className="xc-brand-lockup" src="/cortex-brain-compact-dark.png" alt="" />
         </a>
         <div className="xc-auth-story-body">
           <p className="xc-eyebrow">Secure operator access</p>

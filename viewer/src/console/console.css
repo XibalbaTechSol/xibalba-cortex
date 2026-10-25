@@ -1323,6 +1323,36 @@ select.xc-input {
   height: 40px;
   object-fit: contain;
 }
+/* ---------- brand lockup -----------------------------------------------------------------
+   cortex-brain-compact-dark.png is a lockup: the brain emblem encloses the "Xibalba CORTEX /
+   AI MEMORY SYSTEM" wordmark. So it replaces the square mark AND the text that used to sit
+   beside it, rather than being squeezed into the 40px mark box -- measured at that size the
+   embedded wordmark reads as noise, while the emblem alone (cortex-mark.png) stays legible.
+   Hence the swap below: lockup wherever the rail is full width, square mark whenever it is
+   collapsed to 44px, by either route (the explicit toggle and the <=1280px window). */
+.xc-brand-lockup {
+  display: block;
+  /* The trimmed artwork is 549x509, i.e. essentially square -- so this is sized by width and
+     the height follows. It has to be this big: the wordmark inside the emblem is unreadable
+     much below ~96px, which is the whole reason the lockup is not simply dropped into the
+     40px mark box. The expanded rail is 240px wide, so 124px sits comfortably inside it. */
+  width: 100%;
+  max-width: 124px;
+  height: auto;
+}
+/* Sign-in has a whole story panel to itself, so the lockup can be stated at full strength. */
+.xc-auth-story .xc-brand-lockup {
+  max-width: 208px;
+}
+.xc-brand-mark {
+  display: none;
+}
+.xc-shell[data-collapsed='true'] .xc-brand-lockup {
+  display: none;
+}
+.xc-shell[data-collapsed='true'] .xc-brand-mark {
+  display: grid;
+}
 .xc-swatch--ring {
   background: transparent !important;
   border: 2px solid var(--status-anchored);
@@ -1807,7 +1837,11 @@ select.xc-input {
     padding-inline: 10px;
     align-items: center;
   }
+  .xc-shell .xc-brand-lockup {
+    display: none;
+  }
   .xc-shell .xc-brand-mark {
+    display: grid;
     width: 44px;
     height: 44px;
   }

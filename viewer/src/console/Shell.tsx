@@ -67,9 +67,19 @@ export function NavButton({ dest }: { dest: Destination }) {
 export function Brand() {
   const { setLens } = useConsole()
   return (
-    <a className="xc-brand" href="#" onClick={(e) => { e.preventDefault(); setLens('graph') }}>
+    <a
+      className="xc-brand"
+      href="#"
+      aria-label="Xibalba Cortex"
+      onClick={(e) => { e.preventDefault(); setLens('graph') }}
+    >
+      {/* Two marks, one shown at a time by CSS. The lockup already contains the wordmark,
+          so it stands alone; the square mark is for the collapsed rail, where the lockup's
+          wordmark would be too small to read. Both are decorative -- the link is named by
+          aria-label above, which the old `<b>` could not do: it carries `xc-nav-label`,
+          which the <=1280px rail rules display:none, leaving the link with no name. */}
+      <img className="xc-brand-lockup" src="/cortex-brain-compact-dark.png" alt="" />
       <span className="xc-brand-mark"><img src="/cortex-mark.png" alt="" /></span>
-      <b className="xc-nav-label">Xibalba <i>Cortex</i></b>
     </a>
   )
 }
