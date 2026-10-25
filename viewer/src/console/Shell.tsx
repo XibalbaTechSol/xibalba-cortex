@@ -141,20 +141,32 @@ export function Actions() {
 
 /** The rail layout's own header, spanning the content column.
  *
- *  Scope and Reload are workspace controls -- they say which memories are on screen and refetch
- *  them -- so they belong over the workspace, not inside the navigation. In the rail they were
- *  split across the rail's top and its foot, and both vanished into icons whenever the rail
- *  collapsed; here they stay stated at full width at either rail width. The top-bar layout
- *  already had both in its header (see TopBar), so this gives the two shells the same place
- *  for them. Connection and profile stay in the rail foot: those are about the session, not
- *  about what the workspace is showing.
+ *  Reading order follows what each control answers: WHICH VIEW on the left (Graph / Timeline),
+ *  then WHICH MEMORIES and refetch on the right. All three are workspace controls -- they say
+ *  what is on screen and refresh it -- so they belong over the workspace, not inside the
+ *  navigation. Scope and Reload used to be split across the rail's top and its foot and both
+ *  vanished into icons whenever the rail collapsed; the lens switch used to live in the lens's
+ *  own toolbar, which meant it moved with the lens chrome and sat below the fold of the eye.
+ *  Connection and profile stay in the rail foot: those are about the session, not about what
+ *  the workspace is showing.
  */
 export function WorkspaceHeader() {
-  const { reload } = useConsole()
+  const { reload, page } = useConsole()
+  const { state, text } = useConnection()
   return (
     <header className="xc-workspace-header">
-      <ScopePicker />
+      {/* Only the workspace has lenses; a full page (Explore, Settings, ...) has none to switch,
+          and the spacer still pushes the right-hand group over without it. */}
+      {!page && <LensSwitch />}
       <span className="xc-spacer" />
+      <ScopePicker />
+      {/* Connection sat in the rail foot, where a collapsed rail reduced it to a 7px dot with its
+          text hidden -- next to Reload it reads as what it is: whether the data on screen is
+          current, and the control that refetches it. */}
+      <div className="xc-conn" data-state={state} role="status" aria-live="polite" title={text}>
+        <i aria-hidden="true" />
+        <span>{text}</span>
+      </div>
       <button type="button" className="xc-btn xc-btn--square" aria-label="Reload data" title="Reload data" onClick={reload}>
         <IconRefresh />
       </button>
@@ -162,11 +174,13 @@ export function WorkspaceHeader() {
   )
 }
 
-/** Graph / Timeline, in the lens's own toolbar.
+/** Graph / Timeline, at the left of whichever header the shell is wearing.
  *
  *  The two lenses are two views of one workspace, not two destinations, so they share a single
- *  nav link and switch here instead. Rendered by both lenses in place of the static title they
- *  used to carry, so the control sits in the same spot whichever one is showing. */
+ *  nav link (`PRIMARY_NAV`'s "Workspace") and switch here instead. It used to sit in each lens's
+ *  own `.xc-bar` toolbar, which put it inside the thing it switches: the control moved with the
+ *  lens chrome and sat below the eye's first stop. Rendered once per shell -- WorkspaceHeader for
+ *  the rail layout, TopBar for the other -- so there is never a second copy to keep in step. */
 export function LensSwitch() {
   const { lens, setLens } = useConsole()
   return (
@@ -231,15 +245,23 @@ export function ProfileButton() {
 /** The top-bar layout: brand, connection, scope and actions on a row; every destination on a second. */
 export function TopBar() {
   const { state, text } = useConnection()
+  const { page } = useConsole()
   return (
     <header className="xc-top">
       <div className="xc-top-row">
-        <Brand />
+        {/* Brand and lens switch are one leading group so the group, not the brand alone, carries
+            the `margin-right: auto` that pushes connection, scope and actions to the right. */}
+        <div className="xc-top-lead">
+          <Brand />
+          {!page && <LensSwitch />}
+        </div>
+        <ScopePicker />
+        {/* Same order as WorkspaceHeader: scope, then connection beside the reload button that
+            Actions carries, so the two shells read the same way left to right. */}
         <div className="xc-conn" data-state={state} role="status" aria-live="polite">
           <i aria-hidden="true" />
           {text}
         </div>
-        <ScopePicker />
         <Actions />
       </div>
       <nav className="xc-nav" aria-label="Lenses and workflows">
@@ -249,11 +271,11 @@ export function TopBar() {
   )
 }
 
-/** The left-rail layout (the default). Collapsing keeps the icons; scope and reload live in
- *  WorkspaceHeader, over the content, so collapsing no longer hides them. */
+/** The left-rail layout (the default). Collapsing keeps the icons; the lens switch, scope,
+ *  connection and reload live in WorkspaceHeader, over the content, so collapsing hides none of
+ *  them. What stays here is navigation and the account. */
 export function Rail() {
   const { settings, update } = useSettings()
-  const { state, text } = useConnection()
   const collapsed = settings.railCollapsed
   return (
     <aside className="xc-rail-shell" data-collapsed={collapsed} aria-label="Navigation">
@@ -276,10 +298,6 @@ export function Rail() {
       </nav>
 
       <div className="xc-rail-foot">
-        <div className="xc-conn" data-state={state} role="status" aria-live="polite" title={text}>
-          <i aria-hidden="true" />
-          <span className="xc-nav-label">{text}</span>
-        </div>
         <ProfileButton />
       </div>
     </aside>

@@ -5,7 +5,6 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useConsole } from './state'
-import { LensSwitch } from './Shell'
 import { buildLanes, isNodeVisible, markRows, shortDay, shortStamp, thinTicks, type Lane } from './model'
 
 /** `.xc-mark` is 10px wide; two closer than this on screen would overlap. */
@@ -95,7 +94,6 @@ export function TimelineLens() {
   return (
     <section className="xc-win xc-pane xc-canvas-win" aria-label="Timeline lens">
       <div className="xc-bar">
-        <LensSwitch />
         <span className="xc-note" aria-live="polite">
           {loading && !model ? 'Loading…' : `${lanes.length} session${lanes.length === 1 ? '' : 's'}`}
           {domain ? ` · ${shortStamp(domain.from)} → ${shortStamp(domain.to)}` : ''}
