@@ -2523,3 +2523,75 @@ select.xc-input {
   background: var(--status-review-soft);
   color: var(--ink);
 }
+
+/* --- account control ---------------------------------------------------------------------
+   The same control as Shield's operator profile (ui/src/components/Dashboard.jsx), so the two
+   consoles put the same thing in the same corner: a 28px solid-accent avatar, the name beside
+   it, and a two-item menu that opens upward. Values mirror Shield's `.profile-*` rules with
+   Cortex's token names. */
+.xc-profile {
+  position: relative;
+  flex: 1 1 100%;
+  min-width: 0;
+}
+.xc-profile-btn {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 4px;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  text-align: left;
+  cursor: pointer;
+}
+.xc-profile-avatar {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  flex: 0 0 auto;
+  background: var(--cortex-accent);
+  color: var(--ink-on-accent);
+  font-size: 12px;
+  font-weight: 600;
+}
+.xc-profile-name {
+  overflow: hidden;
+  font-size: 14px;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.xc-profile-menu {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 8px);
+  left: 0;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px;
+  border: 1px solid var(--hairline);
+  background: var(--ground);
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.35);
+}
+.xc-profile-menu button {
+  width: 100%;
+  padding: 8px 10px;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  text-align: left;
+  font: 500 14px/1.2 'Barlow', sans-serif;
+  cursor: pointer;
+}
+.xc-profile-menu button:hover {
+  background: var(--cortex-accent-soft);
+  color: var(--cortex-accent);
+}
+/* Collapsed: the avatar alone, centred, and the menu widens to stay readable. */
+.xc-shell[data-collapsed='true'] .xc-profile-btn { justify-content: center; padding-inline: 0; }
+.xc-shell[data-collapsed='true'] .xc-profile-menu { left: 0; width: 180px; right: auto; }

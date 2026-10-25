@@ -2,7 +2,7 @@
 // the status bar. Both layouts render the same destination registry (nav.ts), so a surface added
 // there shows up in each, and the phone tab bar, without a second list to keep in step.
 
-import type { ReactNode } from 'react'
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { useConsole } from './state'
 import { useSettings } from './settingsContext'
 import { GROUP_LABEL, NAV_GROUPS, destinationsIn, type Destination, type DestinationId } from './nav'
@@ -139,6 +139,57 @@ export function Actions() {
   )
 }
 
+/** The account control at the foot of the rail: avatar, name, and a menu with Settings and
+ *  Log out. Deliberately the same control as Shield's (`ui/src/components/Dashboard.jsx`'s
+ *  `.profile-btn` / `.profile-menu`) down to the 28px avatar, the menu's placement above the
+ *  button and its two items, so an operator moving between the two consoles finds the same
+ *  thing in the same corner. The only addition is dismissal -- Escape and a click outside --
+ *  which Shield's does not do and which costs nothing visually. */
+export function ProfileButton() {
+  const { status, signOut, go } = useConsole()
+  const [open, setOpen] = useState(false)
+  const root = useRef<HTMLDivElement>(null)
+  const name = status?.profile_id || 'Operator profile'
+
+  const close = useCallback(() => setOpen(false), [])
+  useEffect(() => {
+    if (!open) return
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') close() }
+    const onDown = (e: MouseEvent) => {
+      if (!root.current?.contains(e.target as Node)) close()
+    }
+    document.addEventListener('keydown', onKey)
+    document.addEventListener('mousedown', onDown)
+    return () => {
+      document.removeEventListener('keydown', onKey)
+      document.removeEventListener('mousedown', onDown)
+    }
+  }, [open, close])
+
+  return (
+    <div className="xc-profile" ref={root}>
+      {open && (
+        <div className="xc-profile-menu" role="menu">
+          <button type="button" role="menuitem" onClick={() => { close(); go('settings') }}>Settings</button>
+          <button type="button" role="menuitem" onClick={() => { close(); signOut() }}>Log out</button>
+        </div>
+      )}
+      <button
+        type="button"
+        className="xc-profile-btn"
+        aria-label="Open operator profile settings"
+        aria-expanded={open}
+        aria-haspopup="menu"
+        title={name}
+        onClick={() => setOpen((v) => !v)}
+      >
+        <span className="xc-profile-avatar" aria-hidden="true">{name.trim().slice(0, 1).toUpperCase()}</span>
+        <span className="xc-profile-name xc-nav-label">{name}</span>
+      </button>
+    </div>
+  )
+}
+
 /** The top-bar layout: brand, connection, scope and actions on a row; every destination on a second. */
 export function TopBar() {
   const { state, text } = useConnection()
@@ -171,7 +222,7 @@ export function TopBar() {
 
 /** The left-rail layout (the default). Collapsing keeps the icons and moves the scope to a badge. */
 export function Rail() {
-  const { workspace } = useConsole()
+  const { workspace, reload } = useConsole()
   const { settings, update } = useSettings()
   const { state, text } = useConnection()
   const collapsed = settings.railCollapsed
@@ -218,7 +269,10 @@ export function Rail() {
           <i aria-hidden="true" />
           <span className="xc-nav-label">{text}</span>
         </div>
-        <Actions />
+        <button type="button" className="xc-btn xc-btn--square" aria-label="Reload data" title="Reload data" onClick={reload}>
+          <IconRefresh />
+        </button>
+        <ProfileButton />
       </div>
     </aside>
   )
