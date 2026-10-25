@@ -9,13 +9,29 @@
     # Replace with a real domain (Caddy auto-provisions Let's Encrypt) for a public deployment.
     tls internal
 
-    root * /srv/cortex/viewer/dist
-    file_server
+    # A `route` block, not bare directives: Caddy's automatic directive sorting runs
+    # `try_files` (the SPA fallback) *before* `reverse_proxy`, so every proxied path was
+    # rewritten to /index.html before the proxy matcher ever saw it. A route executes in
+    # the order written instead. Without this, /readyz and /metrics answered 200 with the
+    # viewer's HTML, which `api.metrics()` then parsed as Prometheus text (it only checks
+    # `response.ok`) and `api.readiness()` threw on -- the Operations page's readiness and
+    # metrics panels were dead in any Caddy-served deployment while working under Vite.
+    route {
+        reverse_proxy /api/* 127.0.0.1:8420
 
-    try_files {path} /index.html
+        # The console reads these three outside /api: Operations polls /readyz and /metrics
+        # (console/pages/OperationsPage.tsx), and Settings -> Developer probes /healthz
+        # (console/pages/settings/DeveloperSection.tsx). /metrics is unauthenticated by
+        # design, so publishing it here puts store counters on this origin -- bind to
+        # loopback or add an access control if that origin is ever public.
+        reverse_proxy /readyz 127.0.0.1:8420
+        reverse_proxy /healthz 127.0.0.1:8420
+        reverse_proxy /metrics 127.0.0.1:8420
 
-    # Reverse proxy API requests to the Python backend
-    reverse_proxy /api/* 127.0.0.1:8420
+        root * /srv/cortex/viewer/dist
+        try_files {path} /index.html
+        file_server
+    }
 
     header {
         Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"

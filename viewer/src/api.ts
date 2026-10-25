@@ -1005,8 +1005,6 @@ export const api = {
     getJson<MerkleInclusionProof>(`/api/retrieval/trace/${encodeURIComponent(id)}/evidence?rank=${rank}`),
   projectionCheckpoints: (projectionId: string, limit = 50) =>
     getJson<ProjectionCheckpoint[]>(`/api/projections/${encodeURIComponent(projectionId)}/checkpoints?limit=${limit}`),
-  latestProjectionCheckpoint: (projectionId: string) =>
-    getJson<ProjectionCheckpoint>(`/api/projections/${encodeURIComponent(projectionId)}/checkpoints/latest`),
   createProjectionCheckpoint: (projectionId: string) =>
     postJson<ProjectionCheckpoint>(`/api/projections/${encodeURIComponent(projectionId)}/checkpoint`, {}),
   reconcileProjectionCheckpoint: (projectionId: string) =>
