@@ -153,7 +153,7 @@ function InferenceTab({ memory }: { memory: Memory }) {
 // ---------------------------------------------------------------------------------------------------
 
 export function Inspector() {
-  const { selectedId, model, notice, setNotice } = useConsole()
+  const { selectedId, model, notice, setNotice, select } = useConsole()
   const { settings, update } = useSettings()
   const collapsed = settings.detailCollapsed
   const node = selectedId ? model?.byId.get(selectedId) : undefined
@@ -192,6 +192,10 @@ export function Inspector() {
     <aside className="xc-pane xc-inspector" aria-label="Inspector" data-collapsed={collapsed}>
       {/* Same control as the Projection dock, same strip when collapsed -- the two sides of the
           workspace behave alike rather than each having its own idea. */}
+      {/* Two different exits, because they mean different things: collapse keeps the selection
+          and narrows the dock to its strip, so the graph is readable while the memory stays
+          chosen; close drops the selection and gives the lens the whole width back. Both stay
+          in the head when collapsed -- it is the one child the collapsed strip keeps. */}
       <div className="xc-dock-head">
         <span className="xc-dock-title">Selected</span>
         <button
@@ -203,6 +207,15 @@ export function Inspector() {
           onClick={() => update({ detailCollapsed: !collapsed })}
         >
           {collapsed ? <IconChevronLeft /> : <IconChevronRight />}
+        </button>
+        <button
+          type="button"
+          className="xc-btn xc-btn--square"
+          aria-label="Close selected memory"
+          title="Close: clears the selection"
+          onClick={() => select(null)}
+        >
+          <IconClose />
         </button>
       </div>
       {notice && (

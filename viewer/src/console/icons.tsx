@@ -23,6 +23,20 @@ export const IconGraph = (p: IconProps) => (
     <path d="M8 8.2 10.4 15M16.3 7.8 13.6 15.3M8.3 6.6 15.6 6.2" />
   </svg>
 )
+/** Snap-to-grid: cells, with one node sitting in one of them. */
+export const IconGrid = (p: IconProps) => (
+  <svg {...base} {...p}>
+    <path d="M3 9h18M3 15h18M9 3v18M15 3v18" />
+    <rect x="9.8" y="9.8" width="4.4" height="4.4" fill="currentColor" stroke="none" />
+  </svg>
+)
+/** Unpin: a pin with a stroke through it. */
+export const IconUnpin = (p: IconProps) => (
+  <svg {...base} {...p}>
+    <path d="M9 4h6l-1 5 3 3H7l3-3-1-5ZM12 12v7" />
+    <path d="M4 4l16 16" />
+  </svg>
+)
 export const IconTimeline = (p: IconProps) => (
   <svg {...base} {...p}>
     <path d="M3 12h18M7 8v8M12 6v12M17 9v6" />

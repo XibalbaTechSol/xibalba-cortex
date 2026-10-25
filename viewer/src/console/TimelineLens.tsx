@@ -93,13 +93,6 @@ export function TimelineLens() {
 
   return (
     <section className="xc-win xc-pane xc-canvas-win" aria-label="Timeline lens">
-      <div className="xc-bar">
-        <span className="xc-note" aria-live="polite">
-          {loading && !model ? 'Loading…' : `${lanes.length} session${lanes.length === 1 ? '' : 's'}`}
-          {domain ? ` · ${shortStamp(domain.from)} → ${shortStamp(domain.to)}` : ''}
-        </span>
-      </div>
-
       <div className="xc-scroll">
         {!domain || lanes.length === 0 ? (
           <div className="xc-empty">
@@ -198,7 +191,15 @@ export function TimelineLens() {
         )}
       </div>
 
+      {/* The session count and the span it covers used to sit in a toolbar strip of their own
+          under the workspace header. They are a caption, not a control, and the lens already
+          has a caption strip at its foot -- so they join it, and the lens keeps that row. */}
       <div className="xc-bar" style={{ borderTop: '1px solid var(--hairline)', borderBottom: 0 }}>
+        <span className="xc-note" aria-live="polite">
+          {loading && !model ? 'Loading…' : `${lanes.length} session${lanes.length === 1 ? '' : 's'}`}
+          {domain ? ` · ${shortStamp(domain.from)} → ${shortStamp(domain.to)}` : ''}
+        </span>
+        <span className="xc-note" aria-hidden="true">·</span>
         <span className="xc-legend-inline xc-note">
           ■ memory · ■ exchange (gray) · ◻ Merkle root (server-reported) ·{' '}
           {untimedMemories > 0

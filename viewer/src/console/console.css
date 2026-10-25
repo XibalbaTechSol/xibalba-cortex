@@ -796,6 +796,25 @@ select.xc-input {
 .xc-zoom button:hover:not(:disabled) {
   background: var(--accent-soft);
 }
+/* The stack carries two groups now -- camera, then what the view IS -- so the second is set off
+   by a rule rather than by another box. It is a <span>, not a border on the next button, because
+   `button + button` already owns that border and the two would double up. */
+.xc-zoom-rule {
+  height: 1px;
+  margin: 3px 5px;
+  background: var(--hairline-strong);
+}
+/* 2D / 3D say what they are in two characters; an invented glyph for "flat" versus "spatial"
+   would need a tooltip to be read, which is not an icon. Sized down from the stack's 17px so the
+   pair sits level with the 15px icons above them. */
+.xc-zoom-text {
+  font: 500 11px/1 var(--font-mono);
+  letter-spacing: 0.06em;
+}
+.xc-zoom button[aria-pressed='true'] {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
 .float-tooltip-kap {
   background: var(--ground) !important;
   border: 1px solid var(--hairline-strong) !important;
@@ -1354,9 +1373,12 @@ select.xc-input {
   max-width: 124px;
   height: auto;
 }
-/* Sign-in has a whole story panel to itself, so the lockup can be stated at full strength. */
+/* Sign-in has a whole story panel to itself, so the lockup can be stated at full strength -- it
+   is the only landing surface Cortex has. It loads its own larger derivative rather than scaling
+   the rail's up: that asset is built at 248px with the alpha stretched at that size, so enlarging
+   it here would blur it and thin the very strokes the stretch was for. */
 .xc-auth-story .xc-brand-lockup {
-  max-width: 208px;
+  max-width: 300px;
 }
 .xc-brand-mark {
   display: none;
@@ -1793,11 +1815,21 @@ select.xc-input {
 /* A collapsed rail is 68px with a 10px gutter either side, which leaves 48px
    of content for a 52px brand mark -- the logo was clipped on its right edge.
    It is sized to the space it actually has. Both ways of collapsing the rail
-   (the explicit toggle and the <=1280px window) land here. */
+   (the explicit toggle and the <=1280px window) land here.
+   At 44px around a 40px emblem the box had 2px of air and read as a crop
+   rather than a mark, and it towered over the 20px nav icons below it. 36px
+   of frame around a 24px emblem gives it room and settles it into the column.
+   `.xc-brand-mark img` is sized with it: that rule is 40px globally, which is
+   the expanded rail's size, and nothing overrode it here. */
 .xc-shell[data-collapsed='true'] .xc-brand-mark,
 .xc-shell[data-collapsed='true'] .xc-rail-head .xc-brand-mark {
-  width: 44px;
-  height: 44px;
+  width: 36px;
+  height: 36px;
+}
+.xc-shell[data-collapsed='true'] .xc-brand-mark img,
+.xc-shell[data-collapsed='true'] .xc-rail-head .xc-brand-mark img {
+  width: 24px;
+  height: 24px;
 }
 /* Industry sizes a nav link at 14px (`.nav a`); the label carried no size of
    its own and took the surrounding button's. Shield's rail says the same. */
@@ -1832,8 +1864,12 @@ select.xc-input {
   }
   .xc-shell .xc-brand-mark {
     display: grid;
-    width: 44px;
-    height: 44px;
+    width: 36px;
+    height: 36px;
+  }
+  .xc-shell .xc-brand-mark img {
+    width: 24px;
+    height: 24px;
   }
   .xc-shell .xc-nav-label,
   .xc-shell .xc-rail-kicker,
@@ -2736,7 +2772,13 @@ select.xc-input {
    media query or a class. Add another dock later and only these two numbers change. */
 .xc-workspace {
   --dock-left: 232px;
-  --dock-right: 380px;
+  /* The detail dock is the surface the whole console exists to show -- a memory's chain,
+     content, inference, provenance, neighbours, contradictions, telemetry and files, eight
+     tabs of it. At 380px those tabs wrapped onto three rows and every hash, id and JSON
+     fragment broke mid-token. It scales with the window and stops short of half of it, so a
+     wide screen spends its room on the detail and a 1280px one still leaves the lens the
+     larger share. */
+  --dock-right: clamp(380px, 34vw, 620px);
 }
 .xc-workspace[data-detail='closed'] {
   --dock-right: 0px;
@@ -2761,6 +2803,33 @@ select.xc-input {
   border-left: 1px solid var(--hairline);
   background: var(--ground);
   box-shadow: none;
+  /* It slides in rather than appearing. An ANIMATION, not a transition: the element is mounted
+     only while something is selected (ConsoleApp renders it behind `selectedId`), and there is
+     no previous computed value for a transition to run from. */
+  animation: xc-dock-in 180ms cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+@keyframes xc-dock-in {
+  from { transform: translateX(100%); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+/* Everything that spans between the docks follows the same 180ms, so the chain rail and the
+   lens furniture travel with the panel instead of jumping to meet it. `--dock-right` itself
+   cannot be transitioned (a custom property is not an animatable type without @property), but
+   the computed `left`/`right` it feeds can. */
+.xc-workspace > .xc-chain,
+.xc-workspace > .xc-canvas-win > .xc-legend,
+.xc-workspace > .xc-canvas-win > .xc-legend-toggle {
+  transition: left 180ms cubic-bezier(0.22, 0.61, 0.36, 1), right 180ms cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+@media (prefers-reduced-motion: reduce) {
+  .xc-workspace > .xc-inspector {
+    animation: none;
+  }
+  .xc-workspace > .xc-chain,
+  .xc-workspace > .xc-canvas-win > .xc-legend,
+  .xc-workspace > .xc-canvas-win > .xc-legend-toggle {
+    transition: none;
+  }
 }
 /* The lens is inset BY the docks, not merely decorated around them. Keeping the canvas at the
    full workspace width and only pushing its toolbar inward left the drawing itself underneath
@@ -2829,10 +2898,20 @@ select.xc-input {
   letter-spacing: .2em;
 }
 
+/* The head holds a title and now two buttons, so the title takes the slack and the pair sits
+   together at the right. `space-between` alone would have spread all three evenly. */
+.xc-inspector .xc-dock-head .xc-dock-title {
+  flex: 1;
+  min-width: 0;
+}
+.xc-inspector[data-collapsed='true'] .xc-dock-head .xc-dock-title {
+  flex: 0 0 auto;
+}
+
 /* The detail dock collapses exactly as Projection does -- one more variable value, and the
    chain rail and toolbar follow without knowing about it. */
 .xc-workspace[data-detail='open']:has(> .xc-inspector[data-collapsed='true']) {
-  --dock-right: 36px;
+  --dock-right: 40px;
 }
 .xc-inspector[data-collapsed='true'] > *:not(.xc-dock-head) { display: none; }
 .xc-inspector[data-collapsed='true'] .xc-dock-head {
@@ -2848,7 +2927,7 @@ select.xc-input {
   letter-spacing: .2em;
 }
 
-/* Content fit inside the detail dock. It is 380px wide and holds hashes, ids, URLs and raw
+/* Content fit inside the detail dock. However wide it is, it holds hashes, ids, URLs and raw
    JSON -- strings with no spaces to break at -- so without this they set their own width and
    pushed the panel's content sideways under a hidden scrollbar. Nothing in here may exceed
    the column. */

@@ -15,7 +15,7 @@ import { FADE, LINK_ALPHA, linkWidth, nodeHalf, traceNode } from './graphStyle'
 import { cellCentre, snapToGrid, type Cell } from './gridSnap'
 import { defaultFacets, filterModel, selectionHidden, type CNode, type EdgeGroup, type Facets, type NodeClass } from './model'
 import { palette, withAlpha } from './palette'
-import { IconFit, IconTarget, IconWarn } from './icons'
+import { IconFit, IconGrid, IconTarget, IconUnpin, IconWarn } from './icons'
 
 interface FGNode {
   id: string
@@ -363,20 +363,9 @@ export function GraphLens() {
 
   return (
     <section className="xc-win xc-pane xc-canvas-win" aria-label="Graph lens">
-      <div className="xc-bar">
-        {/* The lens switch moved to the shell header; the spacer keeps these view controls right. */}
-        <span className="xc-spacer" />
-        <div className="xc-ranges" role="group" aria-label="Graph view">
-          <button type="button" aria-pressed={!mode3d} onClick={() => update({ graphMode: '2d' })}>2D</button>
-          <button type="button" aria-pressed={mode3d} onClick={() => { setNo3d(false); update({ graphMode: '3d' }) }} title="Orbit, pan and zoom. Needs WebGL.">3D</button>
-        </div>
-        {mode3d && pinned > 0 && (
-          <button type="button" className="xc-btn" onClick={() => g3Ref.current?.unpinAll()} title="Double-click a cube to unpin just that one">Unpin {pinned}</button>
-        )}
-        <div className="xc-ranges" role="group" aria-label="Grid">
-          <button type="button" aria-pressed={snap} onClick={() => update({ graphSnap: !snap })} title="Each node takes its own cell of the grid. Off, nodes stay where the layout puts them.">Snap to grid</button>
-        </div>
-      </div>
+      {/* No toolbar. 2D/3D, snap and unpin moved into the canvas's own control stack (below),
+          which left the bar holding nothing but a spacer -- a second header strip under the
+          workspace header, costing a row of canvas and saying nothing. */}
 
       {hidden && (
         <p className="xc-note xc-3d-notice" role="status" style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
@@ -437,6 +426,9 @@ export function GraphLens() {
           {visible ? `${visible.nodes.length === total ? total : `${visible.nodes.length} of ${total}`} nodes · ${visible.edges.length} edges` : loading ? 'Loading…' : '—'}
         </p>
 
+        {/* One stack, top right, in two groups: what moves the camera, then -- below the framing
+            buttons, separated by a rule -- what the view itself is. Both act on the canvas, so
+            both belong over it rather than in a strip above it. */}
         <div className="xc-zoom">
           <button type="button" aria-label="Zoom in" onClick={() => zoomBy(1.4)}>+</button>
           <button type="button" aria-label="Zoom out" onClick={() => zoomBy(1 / 1.4)}>−</button>
@@ -446,6 +438,19 @@ export function GraphLens() {
           <button type="button" aria-label="Fit selection" title="Frame the selected item and what it touches" onClick={fitSelection} disabled={!selectedId || !visible || visible.nodes.length === 0 || hidden}>
             <IconTarget style={{ width: 15, height: 15 }} />
           </button>
+
+          <span className="xc-zoom-rule" aria-hidden="true" />
+
+          <button type="button" className="xc-zoom-text" aria-label="2D view" aria-pressed={!mode3d} title="Flat force layout" onClick={() => update({ graphMode: '2d' })}>2D</button>
+          <button type="button" className="xc-zoom-text" aria-label="3D view" aria-pressed={mode3d} title="Orbit, pan and zoom. Needs WebGL." onClick={() => { setNo3d(false); update({ graphMode: '3d' }) }}>3D</button>
+          <button type="button" aria-label="Snap to grid" aria-pressed={snap} title="Each node takes its own cell of the grid. Off, nodes stay where the layout puts them." onClick={() => update({ graphSnap: !snap })}>
+            <IconGrid style={{ width: 15, height: 15 }} />
+          </button>
+          {mode3d && pinned > 0 && (
+            <button type="button" aria-label={`Unpin all ${pinned} pinned nodes`} title="Double-click a cube to unpin just that one" onClick={() => g3Ref.current?.unpinAll()}>
+              <IconUnpin style={{ width: 15, height: 15 }} />
+            </button>
+          )}
         </div>
 
         <button type="button" className="xc-legend-toggle" aria-expanded={legendOpen} onClick={() => setLegendOpen((v) => !v)}>
