@@ -73,14 +73,9 @@ export function Brand() {
       aria-label="Xibalba Cortex"
       onClick={(e) => { e.preventDefault(); setLens('graph') }}
     >
-      {/* Two marks, one shown at a time by CSS. The lockup already contains the wordmark,
-          so it stands alone; the crown is for the collapsed rail, where the lockup's wordmark
-          would be too small to read. Both are cut from the SAME drawing -- the collapsed rail
-          used to show cortex-mark.png, a different, circuit-trace brain, which at 24px was a
-          grey blob and at any size was not this brand's mark. See scripts/invert_logo_to_white.py
-          (--crown). Both are decorative -- the link is named by aria-label above, which the old
-          `<b>` could not do: it carries `xc-nav-label`, which the <=1280px rail rules
-          display:none, leaving the link with no name. */}
+      {/* The same complete artwork at two display sizes. The collapsed derivative preserves
+          the wordmark and lower brain; neither version crops the logo. Both are decorative
+          because the link has its own accessible name. */}
       <img className="xc-brand-lockup" src="/cortex-brain-compact-dark.png" alt="" />
       <span className="xc-brand-mark"><img src="/cortex-rail-mark.png" alt="" /></span>
     </a>
