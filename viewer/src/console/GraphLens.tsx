@@ -468,6 +468,12 @@ export function GraphLens() {
           <LegendRow group="edges" k="relation" label="Relation (arrow = subject to object)"><i className="xc-rule" style={{ borderTop: '1px solid var(--cortex-accent)' }} /></LegendRow>
           <LegendRow group="edges" k="contradiction" label="Contradiction"><i className="xc-rule" style={{ borderTop: '2px dashed var(--status-review)' }} /></LegendRow>
           <LegendRow group="edges" k="similarity" label="Similarity"><i className="xc-rule" style={{ borderTop: '1px dotted var(--status-anchored)' }} /></LegendRow>
+          {mode3d && shape === 'box' && <p className="xc-note xc-face-legend">
+            Solid cube faces brighten when the loaded graph has that metadata: right (+X) relation;
+            left (−X) similarity; top (+Y) observed time; bottom (−Y) evidence class;
+            front (+Z) source kind; back (−Z) contradiction (red). Dim means absent from the loaded graph.
+            Orbit to inspect hidden faces. Outlined nodes show status; other shapes use one colour.
+          </p>}
           {mode3d && <p className="xc-note" style={{ margin: '4px 0 0' }}>Drag a cube to move and pin it; double-click to unpin.</p>}
         </div>
         )}
