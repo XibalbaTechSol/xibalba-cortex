@@ -3081,3 +3081,47 @@ body,
 .xc-workspace > .xc-chain-handle:hover {
   border-color: var(--hairline-strong);
 }
+
+/* --- a floating chain rail --------------------------------------------------------------------
+   Docked, the rail spans the workspace between the two side docks (the rules further up). Dragged
+   off, it becomes a free window at `--float-x`/`--float-y` and keeps its dragged width rather than
+   spanning, so it reads as a window rather than a loose bar. Dropping it near the bottom edge
+   returns it to the dock -- which is what makes the dock reachable again without a second control
+   (`resolveDrop`). */
+.xc-workspace > .xc-chain[data-floating='true'] {
+  /* Clamped here as well as on drop, and this is the clamp that matters: `resolveDrop` only sees
+     the workspace as it was when the pointer was released, while the position persists. Shrink
+     the window afterwards and a stored position would put the rail somewhere it could never be
+     grabbed again. These keep a grabbable edge on screen whatever the workspace is now. */
+  left: clamp(0px, var(--float-x), calc(100% - 140px));
+  top: clamp(0px, var(--float-y), calc(100% - 44px));
+  right: auto;
+  bottom: auto;
+  width: min(760px, calc(100% - var(--dock-left) - var(--dock-right) - 32px));
+  z-index: 4;
+}
+.xc-workspace > .xc-chain[data-dragging='true'] {
+  /* no transition while the pointer owns it, or the window lags behind the cursor */
+  transition: none;
+  border-color: var(--accent);
+  user-select: none;
+}
+.xc-chain-grip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: var(--control-height);
+  width: 20px;
+  margin-right: -4px;
+  color: var(--ink-dim);
+  font-size: 14px;
+  line-height: 1;
+  cursor: grab;
+  touch-action: none;
+}
+.xc-chain-grip:hover {
+  color: var(--ink);
+}
+.xc-workspace > .xc-chain[data-dragging='true'] .xc-chain-grip {
+  cursor: grabbing;
+}

@@ -1,3 +1,5 @@
+import { parseFloat2, type FloatPos } from './floating'
+
 // Console preferences that belong to this browser (not to a Cortex profile): how the shell is laid
 // out. Pure parse/serialize so a corrupt or hand-edited value can never break startup -- every field
 // falls back to its own default independently.
@@ -34,9 +36,11 @@ export interface ConsoleSettings {
   graphCanvas: GraphCanvas
   /** the chain rail, folded down to its handle on the workspace's bottom-right margin */
   chainCollapsed: boolean
+  /** where the chain rail was dragged to, or null for its dock on the bottom edge */
+  chainPos: FloatPos
 }
 
-export const DEFAULT_SETTINGS: ConsoleSettings = { shell: 'rail', railCollapsed: false, facetsCollapsed: false, detailCollapsed: false, graphMode: '3d', graphSnap: true, nodeShape: 'box', graphCanvas: 'lattice', chainCollapsed: false }
+export const DEFAULT_SETTINGS: ConsoleSettings = { shell: 'rail', railCollapsed: false, facetsCollapsed: false, detailCollapsed: false, graphMode: '3d', graphSnap: true, nodeShape: 'box', graphCanvas: 'lattice', chainCollapsed: false, chainPos: null }
 export const SETTINGS_KEY = 'xibalba-cortex.console-settings'
 
 export function parseSettings(raw: string | null | undefined): ConsoleSettings {
@@ -59,6 +63,7 @@ export function parseSettings(raw: string | null | undefined): ConsoleSettings {
     nodeShape: NODE_SHAPES.includes(v.nodeShape as NodeShape) ? (v.nodeShape as NodeShape) : DEFAULT_SETTINGS.nodeShape,
     graphCanvas: GRAPH_CANVASES.includes(v.graphCanvas as GraphCanvas) ? (v.graphCanvas as GraphCanvas) : DEFAULT_SETTINGS.graphCanvas,
     chainCollapsed: typeof v.chainCollapsed === 'boolean' ? v.chainCollapsed : DEFAULT_SETTINGS.chainCollapsed,
+    chainPos: parseFloat2(v.chainPos),
   }
 }
 
