@@ -2619,3 +2619,65 @@ select.xc-input {
   border-bottom-color: var(--cortex-accent);
   color: var(--ink);
 }
+
+/* --- full-bleed workspace -----------------------------------------------------------------
+   The lens fills the workspace and the three support surfaces float over it. The previous
+   layout gave the graph one of three grid columns with the chain rail in a strip below, so on
+   a 1600px screen the canvas got roughly half the width and well under half the height -- the
+   one surface in the console that actually wants the room.
+
+   The console is also exactly one viewport tall now, so the page itself never scrolls; any
+   scrolling happens inside a pane that owns its own content. */
+.xc-shell {
+  height: 100vh;
+  overflow: hidden;
+}
+.xc-main {
+  height: 100%;
+  overflow: hidden;
+}
+.xc-workspace {
+  position: relative;
+  display: block;
+  flex: 1 1 auto;
+  height: auto;
+  min-height: 0;
+  padding: 0;
+}
+/* the lens */
+.xc-workspace > .xc-canvas-win {
+  position: absolute;
+  inset: 0;
+  border: 0;
+}
+/* facets, top left */
+.xc-workspace > .xc-rail {
+  /* clears the lens's own toolbar, which runs the full width above it */
+  position: absolute;
+  top: 72px;
+  left: 16px;
+  z-index: 3;
+  width: 232px;
+  max-height: calc(100% - 88px);
+  background: var(--panel);
+}
+/* chain rail, along the bottom, clearing the facet column */
+.xc-workspace > .xc-chain {
+  position: absolute;
+  right: 16px;
+  bottom: 16px;
+  left: 264px;
+  z-index: 2;
+  background: var(--panel);
+}
+/* the detail window: only present when something is selected */
+.xc-workspace > .xc-inspector {
+  position: absolute;
+  top: 72px;
+  right: 16px;
+  z-index: 4;
+  width: 380px;
+  max-height: calc(100% - 88px);
+  background: var(--panel);
+  box-shadow: 0 10px 34px rgba(0, 0, 0, 0.45);
+}

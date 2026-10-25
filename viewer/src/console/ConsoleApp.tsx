@@ -26,7 +26,7 @@ import { useMediaQuery } from './useMediaQuery'
 const EXPIRED = /\b401\b|authentication required|unauthorized|expired/i
 
 function Workspace() {
-  const { lens, page, overlay, setOverlay, error, model, signOut } = useConsole()
+  const { lens, page, overlay, setOverlay, error, model, signOut, selectedId } = useConsole()
 
   // ⌘K / Ctrl+K toggles Recall from anywhere, including inside inputs.
   useEffect(() => {
@@ -58,14 +58,16 @@ function Workspace() {
     </>
   ) : (
     <>
-      <main className="xc-workspace">
-        <FacetRail />
+      {/* The lens owns the whole workspace; the facets, the chain rail and the detail window
+          float over it. Previously these were three grid columns and a strip below, which left
+          the graph about half the page on a 1600px screen -- the one surface that most wants
+          the room. */}
+      <main className="xc-workspace" data-detail={selectedId ? 'open' : 'closed'}>
         {lens === 'graph' ? <GraphLens /> : <TimelineLens />}
-        <Inspector />
-      </main>
-      <div style={{ padding: '0 var(--gutter) 22px' }}>
+        <FacetRail />
         <ChainRail />
-      </div>
+        {selectedId && <Inspector />}
+      </main>
       <StatusBar />
     </>
   )

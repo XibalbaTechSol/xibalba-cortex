@@ -139,6 +139,21 @@ export function Actions() {
   )
 }
 
+/** Graph / Timeline, in the lens's own toolbar.
+ *
+ *  The two lenses are two views of one workspace, not two destinations, so they share a single
+ *  nav link and switch here instead. Rendered by both lenses in place of the static title they
+ *  used to carry, so the control sits in the same spot whichever one is showing. */
+export function LensSwitch() {
+  const { lens, setLens } = useConsole()
+  return (
+    <div className="xc-ranges" role="group" aria-label="Lens">
+      <button type="button" className="xc-btn" aria-pressed={lens === 'graph'} onClick={() => setLens('graph')}>Graph</button>
+      <button type="button" className="xc-btn" aria-pressed={lens === 'timeline'} onClick={() => setLens('timeline')}>Timeline</button>
+    </div>
+  )
+}
+
 /** The account control at the foot of the rail: avatar, name, and a menu with Settings and
  *  Log out. Deliberately the same control as Shield's (`ui/src/components/Dashboard.jsx`'s
  *  `.profile-btn` / `.profile-menu`) down to the 28px avatar, the menu's placement above the

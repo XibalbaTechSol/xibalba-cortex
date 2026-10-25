@@ -5,6 +5,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useConsole } from './state'
+import { LensSwitch } from './Shell'
 import { buildLanes, isNodeVisible, shortDay, shortStamp, thinTicks, type Lane } from './model'
 
 interface Domain {
@@ -91,7 +92,7 @@ export function TimelineLens() {
   return (
     <section className="xc-win xc-pane xc-canvas-win" aria-label="Timeline lens">
       <div className="xc-bar">
-        <p className="xc-eyebrow">Timeline lens</p>
+        <LensSwitch />
         <span className="xc-note" aria-live="polite">
           {loading && !model ? 'Loading…' : `${lanes.length} session${lanes.length === 1 ? '' : 's'}`}
           {domain ? ` · ${shortStamp(domain.from)} → ${shortStamp(domain.to)}` : ''}
