@@ -9,7 +9,7 @@ for (const width of [320, 390, 1280, 1600]) {
     await expect(page.getByRole('heading', { level: 1 })).toHaveText('Your agents’ memory.Provably yours.')
     const mark = page.locator('.xc-landing-mark')
     await expect(mark).toBeVisible()
-    expect(await mark.evaluate((el) => (el as HTMLImageElement).naturalWidth)).toBeGreaterThanOrEqual(420)
+    await expect.poll(() => mark.evaluate((el) => (el as HTMLImageElement).naturalWidth)).toBeGreaterThanOrEqual(420)
     const box = (await mark.boundingBox())!
     expect(box.width).toBeGreaterThanOrEqual(width < 600 ? 220 : 380)
     await expect(page.locator('.xc-landing-top .xc-brand-mark')).toBeVisible()

@@ -30,6 +30,24 @@ export function edgeGroup(type: GraphEdgeType): EdgeGroup {
 /** observed = event time set by the writer; recorded = when this store wrote the row. */
 export type TimeSource = 'observed' | 'exchange' | 'session' | 'evidence' | 'recorded'
 
+/**
+ * Which kinds of evidence a node actually carries, read off the graph that is loaded -- not
+ * fetched, inferred or assumed. Every field is a fact already present in the payload:
+ * `relation`/`similarity`/`contradiction` are edges incident on this node, `observed` means the
+ * writing agent set an event time (as opposed to the store recording a row), and
+ * `evidence`/`source` are the two classification fields the API sends per node.
+ *
+ * The 3D lens paints one cube face per field, so a memory's evidence is readable from the shape
+ * itself. The order below is the order of a BoxGeometry's material groups: +X, -X, +Y, -Y, +Z, -Z.
+ */
+export const EVIDENCE_FACES = ['relation', 'similarity', 'observed', 'evidence', 'source', 'contradiction'] as const
+export type EvidenceFace = (typeof EVIDENCE_FACES)[number]
+export type NodeEvidence = Record<EvidenceFace, boolean>
+
+export const NO_EVIDENCE: NodeEvidence = {
+  relation: false, similarity: false, observed: false, evidence: false, source: false, contradiction: false,
+}
+
 export interface CNode {
   id: string
   cls: NodeClass
@@ -49,6 +67,8 @@ export interface CNode {
   /** merkle nodes: the server-computed root validity. */
   valid?: boolean
   degree: number
+  /** What this node carries, from the loaded graph alone. See EVIDENCE_FACES. */
+  evidence: NodeEvidence
 }
 
 export interface CEdge {
@@ -111,6 +131,7 @@ export function buildModel(payload: GraphPayload, memoryInfo: ReadonlyMap<string
       time: null,
       timeSource: null,
       degree: 0,
+      evidence: { ...NO_EVIDENCE },
     }
     if (cls === 'memory') {
       node.memoryId = stripPrefix(raw.id, 'memory:')
@@ -142,6 +163,17 @@ export function buildModel(payload: GraphPayload, memoryInfo: ReadonlyMap<string
     const b = byId.get(edge.target)
     if (a) a.degree += 1
     if (b) b.degree += 1
+    // an edge is evidence for BOTH ends: a contradiction names two memories, and a relation is
+    // as true of its object as of its subject
+    if (edge.group === 'relation' || edge.group === 'similarity' || edge.group === 'contradiction') {
+      if (a) a.evidence[edge.group] = true
+      if (b) b.evidence[edge.group] = true
+    }
+  }
+
+  for (const node of nodes) {
+    node.evidence.evidence = Boolean(node.evidenceClass)
+    node.evidence.source = Boolean(node.sourceKind)
   }
 
   // --- time resolution, in dependency order ------------------------------------------------------
@@ -219,6 +251,8 @@ export function buildModel(payload: GraphPayload, memoryInfo: ReadonlyMap<string
       }
     }
   }
+
+  for (const node of nodes) node.evidence.observed = node.timeSource === 'observed'
 
   let min = Infinity
   let max = -Infinity
@@ -547,7 +581,7 @@ export function buildLanes(
   for (const lane of lanes.values()) for (const mark of lane.marks) placed.add(mark.nodeId)
   const loose = model.nodes.filter((n) => n.cls === 'memory' && n.time !== null && !placed.has(n.id))
   if (loose.length > 0) {
-    const synthetic: CNode = { id: NO_SESSION_LANE, cls: 'session', label: 'No session', time: null, timeSource: null, degree: 0 }
+    const synthetic: CNode = { id: NO_SESSION_LANE, cls: 'session', label: 'No session', time: null, timeSource: null, degree: 0, evidence: { ...NO_EVIDENCE } }
     const lane: Lane = { session: synthetic, synthetic: true, start: Math.min(...loose.map((n) => n.time as number)), end: Math.max(...loose.map((n) => n.time as number)), marks: [], root: null }
     for (const node of loose) lane.marks.push({ nodeId: node.id, cls: 'memory', time: node.time as number, status: node.status })
     lanes.set(NO_SESSION_LANE, lane)

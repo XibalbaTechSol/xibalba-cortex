@@ -1,5 +1,6 @@
+import { EVIDENCE_FACES, NO_EVIDENCE } from './model'
 import { describe, expect, it } from 'vitest'
-import { MIN_LINK_PX, MIN_NODE_PX, NODE_OUTLINE, blendOver, boundingSphere, fitDistance, linkWidth, nodeHalf, traceNode } from './graphStyle'
+import { MIN_LINK_PX, MIN_NODE_PX, NODE_OUTLINE, blendOver, faceColours, boundingSphere, fitDistance, linkWidth, nodeHalf, traceNode } from './graphStyle'
 
 describe('nodeHalf', () => {
   it('never draws a node smaller than the screen floor, however far out the zoom is', () => {
@@ -93,5 +94,18 @@ describe('node outlines', () => {
     }
     traceNode(ctx, 'sphere' as 'box', 0, 0, 5)
     expect(calls).toEqual(['M', 'L', 'L', 'L', 'Z'])
+  })
+})
+
+
+describe('metadata face colours', () => {
+  const base = 0x94bce3, ground = 0x14171a, conflict = 0xd88383
+  it('dims absent fields and lights each present field in BoxGeometry group order', () => {
+    const dim = blendOver(base, ground, 0.30)
+    expect(faceColours(base, ground, NO_EVIDENCE, conflict)).toEqual(Array(6).fill(dim))
+    for (const [index, face] of EVIDENCE_FACES.entries()) {
+      const colours = faceColours(base, ground, { ...NO_EVIDENCE, [face]: true }, conflict)
+      expect(colours).toEqual(Array.from({ length: 6 }, (_, i) => i === index ? face === 'contradiction' ? conflict : base : dim))
+    }
   })
 })
