@@ -1812,29 +1812,33 @@ select.xc-input {
   padding-inline: 10px;
   align-items: center;
 }
-/* A collapsed rail is 68px with a 10px gutter either side, which leaves 48px
-   of content for a 52px brand mark -- the logo was clipped on its right edge.
-   It is sized to the space it actually has. Both ways of collapsing the rail
-   (the explicit toggle and the <=1280px window) land here.
-   At 44px around a 40px emblem the box had 2px of air and read as a crop
-   rather than a mark, and it towered over the 20px nav icons below it. 36px
-   of frame around a 24px emblem gives it room and settles it into the column.
-   `.xc-brand-mark img` is sized with it: that rule is 40px globally, which is
-   the expanded rail's size, and nothing overrode it here. */
+/* A collapsed rail is 68px with a 10px gutter either side, which leaves 48px of content.
+   The mark is the brain crown (88x33), so it is sized by WIDTH and its height follows --
+   the square 36/24 box here was built for the old square circuit emblem, and forcing this
+   one into it would squash it. 44px of the 48px available leaves it 2px of air either
+   side and, at 16px tall, settles it beside the 19px nav icons rather than towering over
+   them. Both ways of collapsing the rail (the explicit toggle and the <=1280px window)
+   land here. */
 .xc-shell[data-collapsed='true'] .xc-brand-mark,
 .xc-shell[data-collapsed='true'] .xc-rail-head .xc-brand-mark {
-  width: 36px;
-  height: 36px;
+  width: 48px;
+  height: auto;
 }
 .xc-shell[data-collapsed='true'] .xc-brand-mark img,
 .xc-shell[data-collapsed='true'] .xc-rail-head .xc-brand-mark img {
-  width: 24px;
-  height: 24px;
+  width: 44px;
+  height: auto;
 }
-/* Industry sizes a nav link at 14px (`.nav a`); the label carried no size of
-   its own and took the surrounding button's. Shield's rail says the same. */
+/* The label carries its own size, so it does NOT take the surrounding button's -- which is
+   why making the rail buttons 19px (below) left the words at 14px, and the rail ended up
+   tall boxes with small text in them. Industry sizes a nav link at 14px (`.nav a`) and that
+   is still right in the top bar and the phone tab bar, where the links sit in a row; the
+   rail is the primary navigation with one word per row, so it states its own size there. */
 .xc-nav-label {
   font-size: 14px;
+}
+.xc-rail-shell .xc-nav-label {
+  font-size: 17px;
 }
 .xc-shell[data-collapsed='true'] .xc-nav-label,
 .xc-shell[data-collapsed='true'] .xc-rail-kicker {
@@ -1864,12 +1868,12 @@ select.xc-input {
   }
   .xc-shell .xc-brand-mark {
     display: grid;
-    width: 36px;
-    height: 36px;
+    width: 48px;
+    height: auto;
   }
   .xc-shell .xc-brand-mark img {
-    width: 24px;
-    height: 24px;
+    width: 44px;
+    height: auto;
   }
   .xc-shell .xc-nav-label,
   .xc-shell .xc-rail-kicker,
@@ -2777,8 +2781,11 @@ select.xc-input {
      tabs of it. At 380px those tabs wrapped onto three rows and every hash, id and JSON
      fragment broke mid-token. It scales with the window and stops short of half of it, so a
      wide screen spends its room on the detail and a 1280px one still leaves the lens the
-     larger share. */
-  --dock-right: clamp(380px, 34vw, 620px);
+     larger share.
+     34vw was 544px on a 1600px screen, which still wrapped the tab row onto two lines and
+     read every hash and JSON fragment in a ~30-character column. 42vw is 672px there: one
+     tab row, and still under half the workspace at every width the dock opens at. */
+  --dock-right: clamp(460px, 42vw, 820px);
 }
 .xc-workspace[data-detail='closed'] {
   --dock-right: 0px;
@@ -3015,11 +3022,14 @@ body,
 .xc-rail-nav {
   gap: 4px;
 }
+/* 19px is not on the Industry type scale, and nothing rendered at it anyway: the only text
+   inside is `.xc-nav-label`, which sets its own size. It is stated at the label's size so the
+   two cannot drift apart again. */
 .xc-rail-nav .xc-nav-btn {
   gap: 12px;
   padding: 13px 12px;
   border-bottom: 0;
-  font-size: 19px;
+  font-size: 17px;
 }
 .xc-rail-nav .xc-nav-btn svg {
   width: 19px;
