@@ -34,6 +34,8 @@ Cortex sits underneath your agent harness as a local Model Context Protocol serv
 
 Pilot packages for Claude Code, Codex and Gemini CLI are documented in
 [Plugin distribution](docs/operations/cortex-plugin-distribution.md).
+For Cindy, see [Cortex for Cindy](https://github.com/XibalbaTechSol/cortex-cindy) for the installable
+`.cindy` package, setup, capture coverage, file snapshots, privacy boundaries, and diagnostics.
 For Perplexity API sessions, see the [runtime recorder guide](docs/operations/perplexity-runtime-recorder.md).
 For Perplexity/Spark consumer memory access, see [hosted memory connectors](docs/operations/hosted-memory-connectors.md).
 GitHub packages are separate from official directory approval; recorder coverage is
