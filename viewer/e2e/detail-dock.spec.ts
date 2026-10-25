@@ -36,7 +36,12 @@ async function settled(page: Page) {
   )
 }
 
-async function openWithSelection(page: Page, width = 1600) {
+async function openWithSelection(page: Page, width = 1600, motion: 'reduce' | 'no-preference' = 'reduce') {
+  // The geometry tests measure where the dock comes to rest, not how it gets there, and the
+  // console honours prefers-reduced-motion by dropping the slide-in and the transitions it
+  // starts elsewhere. Asking for it removes the race at the source; `settled()` below still
+  // guards the reads. The animation test opts back in with 'no-preference'.
+  await page.emulateMedia({ reducedMotion: motion })
   await page.setViewportSize({ width, height: 950 })
   await page.addInitScript(() => sessionStorage.setItem('xibalba-cortex.signed-in', '1'))
   await stubConsoleApi(page)
@@ -52,8 +57,9 @@ test('selecting opens a dock that is considerably larger than it was', async ({ 
   const d = (await page.locator(dock).boundingBox())!
   const ws = (await page.locator('.xc-workspace').boundingBox())!
 
-  // it was 380px flat. At 1600px it is now 34vw.
-  expect(d.width).toBeGreaterThan(500)
+  // it was 380px flat, then 34vw (544px here, which still wrapped the tab row). At 1600px
+  // it is now 42vw.
+  expect(d.width).toBeGreaterThan(640)
   // but never more than the lens: the graph keeps the larger share
   expect(d.width).toBeLessThan(ws.width / 2)
   // flush to the right edge, full height -- a dock, not a card dropped on the canvas
@@ -62,7 +68,8 @@ test('selecting opens a dock that is considerably larger than it was', async ({ 
 })
 
 test('it slides in rather than appearing', async ({ page }) => {
-  await openWithSelection(page)
+  // the one test that wants the motion on
+  await openWithSelection(page, 1600, 'no-preference')
   // An animation, not a transition: the element mounts with the selection, so there is no
   // previous computed value for a transition to run from.
   const anim = await page.locator(dock).evaluate((el) => {
