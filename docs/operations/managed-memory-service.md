@@ -3,6 +3,20 @@
 This is the Free / Pro / Team service foundation. It does not enable paid service
 with dummy Stripe keys and does not change the local operator profile.
 
+## Render pilot fallback
+
+When Railway is unavailable, create a Render Blueprint from `render.yaml` on the
+`feat/public-product-page` branch. The Blueprint provisions the managed container
+and a 10 GB persistent disk at `/data/cortex-managed`; it uses the Starter plan
+because Render's free web service does not provide durable disks.
+
+After Render assigns the service URL, set `CORTEX_MANAGED_PUBLIC_URL` to that
+exact `https://` origin and redeploy. Keep `CORTEX_MANAGED_ALLOW_SIGNUP=false`
+until SMTP is configured. Add Stripe test credentials and the Pro/Team test
+Price IDs in Render's environment settings before enabling billing; placeholder
+keys are intentionally rejected. Stripe webhooks should target
+`/api/managed/stripe/webhook`.
+
 ## Local development
 
 From a Cortex checkout with the sibling `integrity-core/integrity-sdk` available:
