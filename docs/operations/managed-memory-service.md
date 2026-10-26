@@ -44,7 +44,7 @@ managed backend and does not issue or inject a local operator token.
 Both the local and managed landing pages submit inquiries to `/api/contact` on
 that page's own origin. Configure the SMTP settings above and optionally
 `CORTEX_CONTACT_TO` (defaults to the public company contact,
-`jacob.v.universe@gmail.com`) on the server that serves the page. The recipient
+`contact@xibalba.dev`) on the server that serves the page. The recipient
 is server configuration, never a value supplied by the visitor.
 
 Without SMTP, submission returns a delivery error and preserves the visitor's
