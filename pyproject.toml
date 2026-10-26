@@ -33,6 +33,10 @@ otel = [
   "grpcio>=1.70.0",
 ]
 
+# Agent0 currently declares the pre-release IPFS client explicitly; pinning that
+# transitive requirement keeps uv's normal resolver deterministic.
+agent0 = ["agent0-sdk==1.7.1", "ipfshttpclient==0.8.0a2"]
+
 [project.scripts]
 xibalba-cortex-managed = "xibalba_cortex.managed.api:main"
 xibalba-cortex-perplexity = "xibalba_cortex.perplexity_runtime:main"

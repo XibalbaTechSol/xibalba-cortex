@@ -34,7 +34,7 @@ _DB_FILENAME = "ingest_tokens.sqlite3"
 ROLE_SCOPES: dict[str, frozenset[str]] = {
     "reader": frozenset({"memory:read"}),
     "writer": frozenset({"memory:read", "memory:write"}),
-    "operator": frozenset({"memory:read", "memory:write", "memory:delete", "proposal:decide"}),
+    "operator": frozenset({"memory:read", "memory:write", "memory:delete", "proposal:decide", "agent0:write"}),
     "reviewer": frozenset({"memory:read", "proposal:decide"}),
     "admin": frozenset({"*" }),
 }
@@ -238,7 +238,10 @@ def main() -> None:
         # every known scope here rather than defaulting to "memory:read": the role does the real
         # narrowing, and a `--role writer` issuance ends up with `memory:write` as intended instead
         # of silently downgrading to read-only.
-        all_known_scopes = tuple(sorted({scope for grants in ROLE_SCOPES.values() for scope in grants if scope != "*"}))
+        # On-chain Agent0 writes are intentionally opt-in even for an admin token;
+        # request --scope agent0:write explicitly when a token should be able to
+        # spend the configured signer.
+        all_known_scopes = tuple(sorted({scope for grants in ROLE_SCOPES.values() for scope in grants if scope not in {"*", "agent0:write"}}))
         raw_token = issue_token(args.home, args.label, profile_id=args.profile_id, roles=tuple(args.roles or ("reader",)), scopes=tuple(args.scopes or all_known_scopes), ttl_hours=args.ttl_hours, agent_ids=tuple(args.agent_ids or ()))
         print(f"Issued token for {args.label!r}. Shown once, save it now:")
         print(raw_token)

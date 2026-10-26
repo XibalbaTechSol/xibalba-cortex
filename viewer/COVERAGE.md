@@ -5,8 +5,8 @@ or documented route is not classified, so nothing becomes hidden by omission.
 
 ## Summary
 
-- **77 documented HTTP routes** and 23 more the handler serves but its docstring omits.
-- **81 MCP tools**: 45 have a console surface, 36 are machine protocols (27 of them `runtime_*` harness hooks), 0 are deliberately withheld from a browser.
+- **80 documented HTTP routes** and 23 more the handler serves but its docstring omits.
+- **89 MCP tools**: 45 have a console surface, 44 are machine protocols (27 of them `runtime_*` harness hooks), 0 are deliberately withheld from a browser.
 
 Statuses: **console** = a surface covers it. **machine** = a protocol for workers or agent harnesses; a person should not be
 able to drive it from a button. **withheld** = would hand a browser a server filesystem path, or is outward-facing, or needs a
@@ -22,6 +22,9 @@ route that does not exist yet.
 | `GET /api/stats` | Facet rail counts |
 | `GET /api/status` | Status bar, Operations |
 | `GET /api/operations` | Operations |
+| `GET /api/agent0/search` | Agents → ERC-8004 directory search |
+| `GET /api/agent0/agent/{id}` | Agents → ERC-8004 agent record |
+| `GET /api/agent0/reputation/{id}` | Agents → ERC-8004 reputation |
 | `GET /api/integrity-links` | Integrity → Links |
 | `GET /api/sessions` | Timeline / Sessions |
 | `GET /api/session/{id}/replay` | Sessions → Replay |
@@ -180,6 +183,14 @@ route that does not exist yet.
 | `memory_extract_structural_entities` | console | Inspector → Request extraction → structural entities |
 | `memory_evidence_bundle` | machine | Worker-side: the bounded evidence a claimed task may read |
 | `memory_complete_inference_task` | machine | Worker protocol: completing a task submits the worker's output |
+| `agent0_search_agents` | machine | ERC-8004 discovery connector; no dedicated console surface yet |
+| `agent0_get_agent` | machine | ERC-8004 agent inspection connector; no dedicated console surface yet |
+| `agent0_get_reputation` | machine | External ERC-8004 reputation read; no dedicated console surface yet |
+| `agent0_search_feedback` | machine | External ERC-8004 feedback read; no dedicated console surface yet |
+| `agent0_get_owner` | machine | External ERC-8004 owner read; no dedicated console surface yet |
+| `agent0_register_agent` | machine | Outward on-chain registration; operator MCP action, no browser surface yet |
+| `agent0_prepare_feedback` | machine | External feedback preparation; no dedicated console surface yet |
+| `agent0_give_feedback` | machine | Outward on-chain feedback write; operator MCP action, no browser surface yet |
 
 ### `runtime_*` (27 tools)
 

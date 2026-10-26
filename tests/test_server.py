@@ -117,6 +117,14 @@ async def test_all_tools_are_advertised(store):
         "memory_list_extraction_proposals",
         "memory_decide_extraction_proposal",
         "memory_backup_reconcile",
+        "agent0_search_agents",
+        "agent0_get_agent",
+        "agent0_get_reputation",
+        "agent0_search_feedback",
+        "agent0_get_owner",
+        "agent0_register_agent",
+        "agent0_prepare_feedback",
+        "agent0_give_feedback",
     }
 
 

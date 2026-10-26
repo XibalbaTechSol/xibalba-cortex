@@ -3,13 +3,14 @@
 // and only to an operator credential (the server enforces that and its refusal is shown as-is).
 
 import { useState, type FormEvent } from 'react'
-import { api, type AgentDevicePair, type AgentWorkspace } from '../../api'
+import { api, type Agent0Record, type AgentDevicePair, type AgentWorkspace } from '../../api'
 import { useConsole } from '../state'
 import { useAsync } from '../useAsync'
 import { PAIR_ACTION_COPY, countText, describeIdentity, pairActions, type PairAction } from '../agents'
 import { elideHash, parseServerTime, shortStamp } from '../model'
 import { IconWarn } from '../icons'
 import { Page } from './Page'
+import { registerAgentWithMetaMask } from '../../agent0_wallet'
 
 const stamp = (value: string | null | undefined): string => {
   const ms = parseServerTime(value)
@@ -97,7 +98,113 @@ export function AgentsPage() {
           />
         ))}
       </div>
+      <ERC8004Directory />
     </Page>
+  )
+}
+
+function ERC8004Directory() {
+  const [query, setQuery] = useState('')
+  const [submitted, setSubmitted] = useState('')
+  const [selected, setSelected] = useState<string | null>(null)
+  const [localRecord, setLocalRecord] = useState<Agent0Record | null>(null)
+  const [registrationName, setRegistrationName] = useState('Cortex Test Agent')
+  const [registrationDescription, setRegistrationDescription] = useState('Test ERC-8004 identity registered from Cortex with MetaMask on Base Sepolia.')
+  const [registering, setRegistering] = useState(false)
+  const [registrationError, setRegistrationError] = useState<string | null>(null)
+  const [registrationTx, setRegistrationTx] = useState<string | null>(null)
+  const results = useAsync(() => api.agent0Search(submitted), [submitted], { keepData: true })
+  const details = useAsync(() => selected ? api.agent0Agent(selected, true) : Promise.resolve(null), [selected], { keepData: true })
+  const reputation = useAsync(() => selected ? api.agent0Reputation(selected) : Promise.resolve(null), [selected], { keepData: true })
+  const submit = (event: FormEvent) => {
+    event.preventDefault()
+    setSubmitted(query.trim())
+    setSelected(null)
+    setLocalRecord(null)
+  }
+  const register = async (event: FormEvent) => {
+    event.preventDefault()
+    setRegistering(true)
+    setRegistrationError(null)
+    setRegistrationTx(null)
+    try {
+      const result = await registerAgentWithMetaMask({ name: registrationName, description: registrationDescription })
+      setLocalRecord(result.record as Agent0Record)
+      setRegistrationTx(result.txHash)
+      setSelected(result.agentId)
+    } catch (error) {
+      setRegistrationError(error instanceof Error ? error.message : String(error))
+    } finally {
+      setRegistering(false)
+    }
+  }
+
+  return (
+    <section className="xc-win xc-agent-onboarding" aria-labelledby="erc8004-directory-title">
+      <div>
+        <p className="xc-eyebrow">External directory · Agent0</p>
+        <h2 className="xc-title" id="erc8004-directory-title">Search ERC-8004 agents</h2>
+        <p className="xc-copy">Browse public ERC-8004 registration data and reputation. This is external chain evidence; it does not change Cortex identity or Integrity AIS.</p>
+        <form className="xc-actions-row" onSubmit={submit}>
+          <label className="xc-field" style={{ flex: 1 }}>Search by name
+            <input className="xc-input" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="agent name (optional)" />
+          </label>
+          <button type="submit" className="xc-btn xc-btn--primary" disabled={results.loading}>Search</button>
+        </form>
+        <details className="xc-agent-register">
+          <summary className="xc-btn">Register a test identity with MetaMask</summary>
+          <form className="xc-agent-register-form" onSubmit={register}>
+            <label className="xc-field">Name
+              <input className="xc-input" value={registrationName} onChange={(event) => setRegistrationName(event.target.value)} required />
+            </label>
+            <label className="xc-field">Description
+              <textarea className="xc-input" value={registrationDescription} onChange={(event) => setRegistrationDescription(event.target.value)} rows={3} required />
+            </label>
+            <p className="xc-note">MetaMask will switch to or add Base Sepolia, then ask you to approve the ERC-8004 registration transaction. Gas is paid by the connected wallet.</p>
+            <button type="submit" className="xc-btn xc-btn--primary" disabled={registering}>{registering ? 'Waiting for MetaMask…' : 'Connect & register'}</button>
+          </form>
+        </details>
+        {registrationError && <div className="xc-callout xc-callout--conflict" role="alert"><IconWarn />{registrationError}</div>}
+        {registrationTx && <p className="xc-note">Confirmed transaction: <a className="xc-mono" href={`https://sepolia.basescan.org/tx/${registrationTx}`} target="_blank" rel="noreferrer">{registrationTx}</a></p>}
+        {results.error && <div className="xc-callout xc-callout--review" role="status"><IconWarn /><span>{results.error}. Enable the Agent0 extra and configure the RPC/subgraph to use this directory.</span></div>}
+        {results.loading && <p className="xc-note" role="status">Searching ERC-8004…</p>}
+        {results.data && !results.error && (
+          <div className="xc-agent-directory">
+            <p className="xc-eyebrow xc-eyebrow--dim">{results.data.agents.length} result{results.data.agents.length === 1 ? '' : 's'} · Agent0 index</p>
+            {results.data.agents.length === 0 && <p className="xc-note">No matching ERC-8004 agents.</p>}
+            {results.data.agents.map((agent) => (
+              <button type="button" className={`xc-agent-result ${selected === String(agent.agentId ?? '') ? 'xc-agent-result--selected' : ''}`} key={String(agent.agentId)} onClick={() => setSelected(String(agent.agentId))}>
+                <span><b>{agent.name || 'Unnamed agent'}</b><small className="xc-mono">{String(agent.agentId ?? 'unknown')}</small></span>
+                <span className="xc-tag"><i />{agent.active === false ? 'inactive' : 'active'}</span>
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+      {selected && <Agent0Details agentId={selected} details={details.data?.agent ?? localRecord} reputation={reputation.data?.reputation ?? null} loading={details.loading || reputation.loading} error={(details.data?.agent || localRecord) ? reputation.error : (details.error ?? reputation.error)} />}
+    </section>
+  )
+}
+
+function Agent0Details({ agentId, details, reputation, loading, error }: { agentId: string; details: Agent0Record | null; reputation: Record<string, unknown> | null; loading: boolean; error: string | null }) {
+  return (
+    <div className="xc-agent-directory-detail" aria-label="ERC-8004 agent details">
+      <p className="xc-eyebrow">On-chain agent record</p>
+      <h3 className="xc-title">{details?.name || agentId}</h3>
+      <p className="xc-meta xc-mono">{agentId}</p>
+      {loading && <p className="xc-note" role="status">Loading registration and reputation…</p>}
+      {error && <div className="xc-callout xc-callout--conflict" role="alert"><IconWarn />{error}</div>}
+      {details && <dl className="xc-kv">
+        <div><dt>Description</dt><dd>{details.description || '—'}</dd></div>
+        <div><dt>Owner</dt><dd className="xc-mono">{details.owners?.join(', ') || '—'}</dd></div>
+        <div><dt>Wallet</dt><dd className="xc-mono">{details.walletAddress || '—'}</dd></div>
+        <div><dt>Agent URI</dt><dd className="xc-mono">{details.agentURI || '—'}</dd></div>
+        <div><dt>Trust models</dt><dd>{details.trustModels?.join(', ') || '—'}</dd></div>
+      </dl>}
+      {details?.endpoints && details.endpoints.length > 0 && <><p className="xc-eyebrow xc-eyebrow--dim">Endpoints</p><ul className="xc-pairs">{details.endpoints.map((endpoint, index) => <li className="xc-pair" key={index}><span className="xc-mono">{String(endpoint.type ?? 'endpoint')}</span> · {String(endpoint.value ?? '—')}</li>)}</ul></>}
+      {reputation && <><p className="xc-eyebrow xc-eyebrow--dim">Reputation summary</p><pre className="xc-code-block">{JSON.stringify(reputation, null, 2)}</pre></>}
+      <p className="xc-note">Source: Agent0 / ERC-8004. Cortex does not treat this record as authorization or Integrity truth.</p>
+    </div>
   )
 }
 

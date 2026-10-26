@@ -40,6 +40,9 @@ Routes:
   GET /api/stats                          -> GraphStore.counts()
   GET /api/status                         -> GraphStore.status()
   GET /api/operations                     -> unified dashboard operations snapshot
+  GET /api/agent0/search?q=               -> Agent0 ERC-8004 agent discovery
+  GET /api/agent0/agent/{id}              -> Agent0 ERC-8004 registration data
+  GET /api/agent0/reputation/{id}         -> Agent0 ERC-8004 reputation summary
   GET /api/integrity-links?limit=          -> GraphStore.integrity_links_status()
   GET /api/sessions?limit=                 -> GraphStore.list_sessions()
   GET /api/session/{id}/replay             -> GraphStore.session_replay()
@@ -155,6 +158,7 @@ from .console_admin import console_tokens, grantable_roles, issue_console_token,
 from .decision_trace_view import render_decision_trace_html
 from integrity_sdk.agent_identity import resolve_agent_identities
 from .store import MEMORY_INFERENCE_SUBAGENT_MANIFEST, GraphStore, _INFERENCE_TASK_TYPES
+from .agent0_integration import Agent0Gateway, Agent0Unavailable
 
 
 def _principal_agent_ids(principal: dict[str, object]) -> list[str]:
@@ -518,6 +522,13 @@ def _make_handler(store: GraphStore, *, allowed_origins: frozenset[str],
                   agent_stores: tuple[GraphStore, ...] = ()):
     csrf_secret = _load_or_create_csrf_secret(store.home)
     readable_stores = (store, *agent_stores)
+    agent0_gateway: Agent0Gateway | None = None
+
+    def get_agent0_gateway() -> Agent0Gateway:
+        nonlocal agent0_gateway
+        if agent0_gateway is None:
+            agent0_gateway = Agent0Gateway(load_config(home=store.home).agent0)
+        return agent0_gateway
 
     def _read_store_for_agent(
         principal: dict[str, object],
@@ -1019,6 +1030,21 @@ def _make_handler(store: GraphStore, *, allowed_origins: frozenset[str],
                     except RuntimeError as exc:
                         audit = {"disabled": True, "error": str(exc)}
                     self._send_json(200, {"schema_version": "xibalba.dashboard_operations.v1", "profile_id": store.profile_id, "health": {"state": "healthy", "status": status}, "readiness": {"state": "healthy" if status["integrity_check"] == "skipped (fast mode)" and status["foreign_keys"] and status["fts5"] and status["backup_ready"] else "degraded", "checks": {"foreign_keys": status["foreign_keys"], "fts5": status["fts5"], "backup_ready": status["backup_ready"]}}, "features": status.get("features", {}), "quotas": status.get("quotas", {}), "embedding_coverage": store.embedding_coverage(), "audit": audit, "connectors": connector_manifest(), "production": {"state": "local_only", "active_tokens": sum(1 for row in list_tokens(store.home) if not row["revoked_at"] and (not row["expires_at"] or row["expires_at"] > datetime.now(timezone.utc).isoformat())), "token_lifecycle": "implemented", "tenant_onboarding": "implemented", "isolation_model": "one profile home and SQLite store per tenant", "open_gates": ["external pilot deployment", "published integrity-sdk", "HA/PITR", "real-tenant evaluation", "burn-in SLA"]}, "disclaimer": "Local dashboard operations evidence; not deployment, SLA, compliance, or pilot-readiness evidence."})
+                elif parts == ["api", "agent0", "search"]:
+                    query = str(params.get("q") or params.get("name") or "").strip()
+                    filters: dict[str, object] = {}
+                    if query:
+                        filters["name"] = query
+                    if params.get("active") in {"true", "false"}:
+                        filters["active"] = params["active"] == "true"
+                    if params.get("x402support") in {"true", "false"}:
+                        filters["x402support"] = params["x402support"] == "true"
+                    results = get_agent0_gateway().search_agents(filters=filters, options={"sort": ["updatedAt:desc"]})
+                    self._send_json(200, {"agents": results, "source": "agent0", "query": query})
+                elif len(parts) == 4 and parts[:3] == ["api", "agent0", "agent"]:
+                    self._send_json(200, {"agent": get_agent0_gateway().agent(unquote(parts[3]), full=params.get("full") == "true"), "source": "agent0"})
+                elif len(parts) == 4 and parts[:3] == ["api", "agent0", "reputation"]:
+                    self._send_json(200, {"agent_id": unquote(parts[3]), "reputation": get_agent0_gateway().reputation(unquote(parts[3])), "source": "agent0"})
                 elif parts == ["api", "settings", "inference"]:
                     self._send_json(200, load_config(home=store.home).redacted_dict()["inference"])
                 elif parts == ["api", "integrity-links"]:
@@ -1246,6 +1272,8 @@ def _make_handler(store: GraphStore, *, allowed_origins: frozenset[str],
                 self._send_json(400, {"error": str(exc)})
             except PermissionError as exc:
                 self._send_json(403, {"error": str(exc)})
+            except Agent0Unavailable as exc:
+                self._send_json(503, {"error": str(exc)})
             except RuntimeError as exc:
                 self._send_json(409, {"error": str(exc)})
             except Exception:
