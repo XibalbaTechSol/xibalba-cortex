@@ -3302,7 +3302,8 @@ body,
 }
 .xc-landing-nav {
   display: flex;
-  gap: 24px;
+  flex-wrap: wrap;
+  gap: 12px 24px;
   align-items: center;
 }
 .xc-landing-hero {
@@ -3377,10 +3378,9 @@ body,
 .xc-landing-facts dd { margin: 0; font-size: 16px; overflow-wrap: anywhere; }
 .xc-landing-icons { display: flex; gap: 20px; color: var(--accent); }
 .xc-landing-foot {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 16px;
-  padding-block: 24px 40px;
+  display: grid;
+  gap: 32px;
+  padding-block: 40px;
   border-top: 1px solid var(--hairline);
 }
 .xc-landing-foot a { overflow-wrap: anywhere; }
@@ -3396,5 +3396,265 @@ body,
   .xc-landing-split { grid-template-columns: minmax(0, 1fr); gap: 24px; }
   .xc-landing-section { padding-block: 36px 48px; }
   .xc-landing-card { padding: 20px; }
-  .xc-landing-foot .xc-spacer { display: none; }
+  .xc-landing-foot-base .xc-spacer { display: none; }
+}
+
+/* ---- Public entry: comparison, tiers, docs, contact and the footer columns ---- */
+
+.xc-landing-section .xc-landing-lead { margin-block: -16px 32px; }
+.xc-landing-footnote {
+  max-width: 88ch;
+  margin-top: 20px;
+  line-height: 1.6;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+/* Only shown where the table actually starts off-frame; see the 760px block below. */
+.xc-landing-scrollhint {
+  display: none;
+  margin-bottom: 12px;
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--accent);
+}
+
+/* The comparison scrolls inside its own frame so the page never gains a scrollbar. */
+.xc-landing-tablewrap {
+  overflow-x: auto;
+  border: 1px solid var(--hairline);
+  background: var(--panel);
+  scrollbar-width: thin;
+}
+.xc-landing-tablewrap:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+.xc-landing-table {
+  width: 100%;
+  min-width: 720px;
+  border-collapse: collapse;
+  font: 400 15px/1.55 var(--font-body);
+  text-align: left;
+}
+.xc-landing-table caption {
+  padding: 16px 20px;
+  text-align: left;
+  color: var(--ink-dim);
+  text-transform: none;
+  letter-spacing: 0;
+  border-bottom: 1px solid var(--hairline-faint);
+}
+.xc-landing-table thead th {
+  padding: 16px 20px;
+  font: 600 13px/1.2 var(--font-body);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-muted);
+  background: var(--elevated);
+  border-bottom: 1px solid var(--hairline);
+  vertical-align: bottom;
+}
+.xc-landing-table thead th:nth-child(2) { color: var(--accent); }
+.xc-landing-table tbody th {
+  width: 20%;
+  padding: 18px 20px;
+  font: 600 15px/1.4 var(--font-condensed);
+  font-size: 17px;
+  color: var(--ink);
+  vertical-align: top;
+}
+.xc-landing-table tbody td {
+  width: 40%;
+  padding: 18px 20px;
+  color: var(--ink-muted);
+  vertical-align: top;
+}
+.xc-landing-table tbody tr + tr th,
+.xc-landing-table tbody tr + tr td { border-top: 1px solid var(--hairline-faint); }
+.xc-landing-table tbody td:first-of-type { color: var(--ink); }
+
+/* Tiers. The featured one is marked with the accent border, never a lighter fill. */
+.xc-landing-tiers {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 24px;
+  align-items: start;
+}
+.xc-landing-tier {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 24px;
+  min-width: 0;
+  height: 100%;
+}
+.xc-landing-tier--featured {
+  border-color: var(--accent);
+  --frame-tick: var(--accent);
+}
+.xc-landing-tier-flag {
+  align-self: start;
+  padding: 5px 10px;
+  border: 1px solid var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent);
+  font: 600 11px/1.2 var(--font-body);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.xc-landing-tier-price {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 10px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--hairline-faint);
+}
+.xc-landing-tier-price b { font: 600 32px/1 var(--font-condensed); }
+.xc-landing-tier-list {
+  display: grid;
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.xc-landing-tier-list li {
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr);
+  gap: 12px;
+  font: 400 15px/1.5 var(--font-body);
+  color: var(--ink-muted);
+}
+.xc-landing-tick {
+  display: grid;
+  place-items: center;
+  margin-top: 3px;
+  color: var(--accent);
+}
+.xc-landing-tick svg { width: 14px; height: 14px; }
+.xc-landing-planned { color: var(--ink-dim); }
+.xc-landing-planned .xc-landing-tick { color: var(--ink-dim); }
+.xc-landing-tier-note {
+  text-transform: none;
+  letter-spacing: 0;
+  line-height: 1.5;
+}
+.xc-landing-tier-cta {
+  margin-top: auto;
+  text-align: center;
+  text-decoration: none;
+}
+
+/* Documentation cards are whole-surface links. */
+.xc-landing-docs {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 20px;
+}
+.xc-landing-doc {
+  display: grid;
+  gap: 10px;
+  padding: 22px;
+  min-width: 0;
+  color: inherit;
+  text-decoration: none;
+}
+.xc-landing-doc:hover { border-color: var(--hairline-strong); }
+.xc-landing-doc:hover .xc-title { color: var(--accent); }
+.xc-landing-doc .xc-copy { font-size: 15px; line-height: 1.6; }
+
+/* Contact. */
+.xc-landing-contact-aside { display: grid; gap: 8px; align-content: start; }
+.xc-landing-form {
+  display: grid;
+  gap: 20px;
+  padding: 24px;
+  border: 1px solid var(--hairline);
+  background: var(--panel);
+  align-content: start;
+}
+.xc-landing-form-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 20px;
+}
+.xc-landing-label {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px;
+}
+.xc-landing-optional {
+  font-weight: 400;
+  color: var(--ink-dim);
+  text-transform: none;
+}
+.xc-landing-textarea {
+  min-height: 120px;
+  padding: 12px 14px;
+  resize: vertical;
+  font: 400 14px/1.5 var(--font-body);
+}
+.xc-landing-form-foot {
+  display: grid;
+  gap: 12px;
+  justify-items: start;
+}
+.xc-landing-form-foot .xc-meta {
+  text-transform: none;
+  letter-spacing: 0;
+  line-height: 1.5;
+}
+
+/* Footer columns. */
+.xc-landing-foot-cols {
+  display: grid;
+  grid-template-columns: minmax(0, 1.6fr) repeat(4, minmax(0, 1fr));
+  gap: 32px;
+}
+.xc-landing-foot-brand { display: grid; gap: 14px; align-content: start; }
+.xc-landing-foot-brand .xc-brand-mark {
+  display: grid;
+  width: 48px;
+  height: 32px;
+  border: 0;
+}
+.xc-landing-foot-brand .xc-brand-mark img { width: 44px; height: auto; }
+.xc-landing-foot-brand .xc-copy { max-width: 36ch; font-size: 15px; }
+.xc-landing-foot-col {
+  display: grid;
+  gap: 10px;
+  align-content: start;
+}
+.xc-landing-foot-base {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 16px;
+  padding-top: 24px;
+  border-top: 1px solid var(--hairline-faint);
+}
+/* `.xc-spacer` carries no base rule in this sheet -- every use scopes its own. */
+.xc-landing-foot-base .xc-spacer { flex: 1; }
+
+/* Narrow screens. This block has to sit after the rules above, not beside the earlier
+   landing media query: same specificity, so source order is what decides. */
+@media (max-width: 760px) {
+  .xc-landing-tiers,
+  .xc-landing-docs { grid-template-columns: minmax(0, 1fr); }
+  .xc-landing-form-row { grid-template-columns: minmax(0, 1fr); }
+  .xc-landing-form { padding: 20px; }
+  .xc-landing-tier { padding: 20px; }
+  .xc-landing-foot-cols { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 28px; }
+  .xc-landing-foot-brand { grid-column: 1 / -1; }
+  .xc-landing-scrollhint { display: block; }
+  .xc-landing-table { font-size: 14px; }
+  .xc-landing-table caption { padding: 14px 16px; }
+  .xc-landing-table thead th,
+  .xc-landing-table tbody th,
+  .xc-landing-table tbody td { padding: 14px 16px; }
+}
+@media (max-width: 420px) {
+  .xc-landing-foot-cols { grid-template-columns: minmax(0, 1fr); }
 }
