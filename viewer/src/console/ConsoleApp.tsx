@@ -88,7 +88,7 @@ function Workspace() {
           {content}
         </>
       )}
-      {!phone && page && <PageDrawer page={page}><PageHost page={page} /></PageDrawer>}
+      {page && <PageDrawer page={page}><PageHost page={page} /></PageDrawer>}
       {overlay === 'recall' && <Recall />}
       {overlay === 'review' && <Review />}
       {overlay === 'integrity' && <Integrity />}
