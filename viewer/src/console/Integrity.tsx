@@ -13,7 +13,7 @@
 // reconciling or rebuilding one is labelled store-wide and needs a writable workspace.
 
 import { useEffect, useId, useRef, useState } from 'react'
-import { api, type ExchangeChainVerification, type ProjectionCheckpoint, type ProjectionReconciliation, type Session } from '../api'
+import { ApiError, api, type ExchangeChainVerification, type IntegrityLinkVerification, type ProjectionCheckpoint, type ProjectionReconciliation, type Session } from '../api'
 import { useConsole } from './state'
 import { loadMemoryIndex } from './data'
 import { useAsync } from './useAsync'
@@ -23,6 +23,8 @@ import { elideHash, parseServerTime, shortStamp } from './model'
 import { IconCheck, IconClose, IconWarn } from './icons'
 import { VerdictCallout } from './VerifyPanel'
 import { describeExchangeChain } from './verify'
+import { ConfirmPanel } from './ConfirmPanel'
+import { ANCHOR_CONFIRMATION, describeAnchor, describeLinkVerification, type Verdict } from './workspaceActions'
 
 type Tab = 'sessions' | 'checkpoints' | 'links'
 const PROJECTIONS = ['memories', 'entities', 'relations'] as const
@@ -88,6 +90,27 @@ function SessionsTab() {
   const { sessions, workspace } = useConsole()
   const [state, setState] = useState<Record<string, SessionState>>({})
   const scope = workspace.scope
+  // Anchoring sends a root to a service the SERVER is configured with; whether one is set is the server's
+  // to say (the address itself is never shown), so the button is offered only when it can work.
+  const config = useAsync(() => api.profileConfig(), [])
+  const anchorConfigured = config.data ? config.data.destinations.anchor_service : null
+  const [anchoring, setAnchoring] = useState<string | null>(null)
+  const [anchorBusy, setAnchorBusy] = useState(false)
+  const [anchored, setAnchored] = useState<Record<string, Verdict>>({})
+  const anchor = async (id: string) => {
+    setAnchorBusy(true)
+    try {
+      const verdict = describeAnchor(await api.anchorSession(id))
+      setAnchored((a) => ({ ...a, [id]: verdict }))
+      setAnchoring(null)
+    } catch (e) {
+      const text = e instanceof ApiError && e.status === 403 ? 'Anchoring needs an operator credential that is not bound to one agent.' : e instanceof Error ? e.message : String(e)
+      setAnchored((a) => ({ ...a, [id]: { tone: 'review', title: 'The root was not anchored', detail: text } }))
+      setAnchoring(null)
+    } finally {
+      setAnchorBusy(false)
+    }
+  }
 
   const verify = async (session: Session) => {
     const id = session.external_session_id
@@ -138,7 +161,24 @@ function SessionsTab() {
             )}
             <div className="xc-actions-row">
               <button type="button" className="xc-btn" disabled={st?.busy} onClick={() => verify(session)}>{st?.busy ? 'Verifying…' : st?.batch ? 'Verify again' : 'Verify exchanges'}</button>
+              {workspace.canWrite && (
+                <button
+                  type="button"
+                  className="xc-btn"
+                  disabled={anchorConfigured !== true || anchorBusy}
+                  aria-expanded={anchoring === session.external_session_id}
+                  title={anchorConfigured === false ? 'No anchor service is configured on this server' : 'Send this session’s Merkle root to the anchor service (outward; confirmed first)'}
+                  onClick={() => setAnchoring((cur) => (cur === session.external_session_id ? null : session.external_session_id))}
+                >
+                  Anchor this root
+                </button>
+              )}
             </div>
+            {workspace.canWrite && anchorConfigured === false && <p className="xc-note">No anchor service is configured on this server, so a root cannot be anchored. An administrator sets one.</p>}
+            {anchoring === session.external_session_id && (
+              <ConfirmPanel title={`Anchor ${session.external_session_id}’s root`} lines={ANCHOR_CONFIRMATION} confirmLabel="Send the root" danger busy={anchorBusy} onConfirm={() => void anchor(session.external_session_id)} onCancel={() => setAnchoring(null)} />
+            )}
+            {anchored[session.external_session_id] && <VerdictLine verdict={anchored[session.external_session_id]} />}
           </li>
         )
       })}
@@ -264,6 +304,17 @@ function ProjectionCard({ projectionId }: { projectionId: (typeof PROJECTIONS)[n
   )
 }
 
+/** A result in one callout: what was found, then what it does not show. */
+function VerdictLine({ verdict }: { verdict: Verdict }) {
+  const cls = verdict.tone === 'anchored' ? 'xc-callout--anchored' : verdict.tone === 'conflict' ? 'xc-callout--conflict' : verdict.tone === 'review' ? 'xc-callout--review' : ''
+  return (
+    <div className={`xc-callout ${cls}`} role="status">
+      {verdict.tone === 'anchored' ? <IconCheck /> : verdict.tone === 'none' ? null : <IconWarn />}
+      <div style={{ minWidth: 0 }}><b>{verdict.title}</b><div className="xc-note">{verdict.detail}</div></div>
+    </div>
+  )
+}
+
 // --- integrity links ---------------------------------------------------------------------------------
 
 function LinksTab() {
@@ -271,6 +322,19 @@ function LinksTab() {
   const scope = workspace.scope
   // The endpoint is store-wide and takes no agent scope, so the sample is matched against this
   // workspace's own memory listing (same rule as Review) and the counts are labelled store-wide.
+  const [verified, setVerified] = useState<Record<string, Verdict>>({})
+  const [verifying, setVerifying] = useState<string | null>(null)
+  const verifyLink = async (memoryId: string) => {
+    setVerifying(memoryId)
+    try {
+      const result: IntegrityLinkVerification = await api.verifyIntegrityLink(memoryId)
+      setVerified((v) => ({ ...v, [memoryId]: describeLinkVerification(result) }))
+    } catch (e) {
+      setVerified((v) => ({ ...v, [memoryId]: { tone: 'review', title: 'The link could not be verified', detail: e instanceof Error ? e.message : String(e) } }))
+    } finally {
+      setVerifying(null)
+    }
+  }
   const links = useAsync(async () => {
     const [status, index] = await Promise.all([api.integrityLinks(100), loadMemoryIndex(scope)])
     const sample = status.sample.filter((r) => index.info.has(r.memory_id))
@@ -307,6 +371,12 @@ function LinksTab() {
               {r.failure_reason && <p className="xc-note" style={{ color: 'var(--status-conflict)' }}>{r.failure_reason}</p>}
               {r.node_id && <div className="xc-hash" title={r.node_id}>node {elideHash(r.node_id)}</div>}
               {r.verified_at && <p className="xc-meta">verified {stamp(r.verified_at)}</p>}
+              {verified[r.memory_id] && <VerdictLine verdict={verified[r.memory_id]} />}
+              {workspace.canWrite && (
+                <div className="xc-actions-row">
+                  <button type="button" className="xc-btn" disabled={verifying === r.memory_id} onClick={() => void verifyLink(r.memory_id)} title="Compare the cited DAG node’s content hash with this memory’s content. Records the result.">{verifying === r.memory_id ? 'Verifying…' : 'Verify this link'}</button>
+                </div>
+              )}
             </li>
           ))}
         </ul>

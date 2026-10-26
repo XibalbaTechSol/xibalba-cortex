@@ -3,8 +3,9 @@
 // Shares the selection, the facets and the window with the Graph lens. Memories with no timestamp
 // signal in the API are not placed: the footer says how many were left out rather than guessing.
 
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent, type KeyboardEvent as ReactKeyboardEvent } from 'react'
 import { useConsole } from './state'
+import { describeIntervention, interventions, interventionsForSession } from './runtime'
 import { buildLanes, isNodeVisible, markRows, shortDay, shortStamp, thinTicks, type Lane } from './model'
 
 /** `.xc-mark` is 10px wide; two closer than this on screen would overlap. */
@@ -40,7 +41,9 @@ function ticksFor(domain: Domain): { at: number; label: string }[] {
 }
 
 export function TimelineLens() {
-  const { model, facets, window: timeWindow, sessionEnds, memoryInfo, selectedId, select, loading, error, reload } = useConsole()
+  const { model, facets, window: timeWindow, sessionEnds, memoryInfo, selectedId, select, setWindow, loading, error, reload, invocations } = useConsole()
+  // policy denials and asks, drawn as marks on the lane of the session they happened in
+  const policyStops = useMemo(() => interventions(invocations), [invocations])
 
   // the axis width decides how many date labels fit, so measure it
   const axisRef = useRef<HTMLDivElement>(null)
@@ -74,6 +77,70 @@ export function TimelineLens() {
   const pct = (t: number): number => (domain ? ((t - domain.from) / Math.max(1, domain.to - domain.from)) * 100 : 0)
   const inDomain = (t: number): boolean => (domain ? t >= domain.from && t <= domain.to : false)
 
+  const gesture = useRef<{ pointer: number; x: number; left: number; width: number; domain: Domain; anchor: number; lane?: string; moved: boolean } | null>(null)
+  const [cursor, setCursor] = useState<number | null>(null)
+  const [brush, setBrush] = useState<{ from: number; to: number } | null>(null)
+
+  const nearest = (at: number, laneId?: string) => {
+    const marks = lanes.filter((lane) => !laneId || lane.session.id === laneId).flatMap((lane) => lane.marks)
+      .filter((mark) => {
+        const node = model?.byId.get(mark.nodeId)
+        return node && facets && isNodeVisible(node, facets, null) && inDomain(mark.time)
+      })
+    const mark = marks.reduce<(typeof marks)[number] | null>((best, next) =>
+      !best || Math.abs(next.time - at) < Math.abs(best.time - at) ? next : best, null)
+    if (mark) select(mark.nodeId)
+  }
+  const gestureTime = (x: number, g: NonNullable<typeof gesture.current>) =>
+    Math.round(g.domain.from + Math.max(0, Math.min(1, (x - g.left) / g.width)) * (g.domain.to - g.domain.from))
+  const cancelGesture = () => { gesture.current = null; setBrush(null) }
+  const onDown = (e: ReactPointerEvent<HTMLDivElement>) => {
+    const rect = axisRef.current?.getBoundingClientRect()
+    if (!domain || !rect?.width || e.button !== 0 || !e.isPrimary || e.clientX < rect.left ||
+        (e.target as HTMLElement).closest('button')) return
+    const g = { pointer: e.pointerId, x: e.clientX, left: rect.left, width: rect.width,
+      domain: { ...domain }, anchor: 0, moved: false,
+      lane: (e.target as HTMLElement).closest<HTMLElement>('.xc-lane-track')?.dataset.lane }
+    g.anchor = gestureTime(e.clientX, g)
+    gesture.current = g
+    setCursor(g.anchor)
+    axisRef.current?.focus({ preventScroll: true })
+    e.currentTarget.setPointerCapture(e.pointerId)
+    e.preventDefault()
+  }
+  const onMove = (e: ReactPointerEvent<HTMLDivElement>) => {
+    const g = gesture.current
+    if (!g || e.pointerId !== g.pointer) return
+    const at = gestureTime(e.clientX, g)
+    setCursor(at)
+    if (Math.abs(e.clientX - g.x) >= 4) g.moved = true
+    if (g.moved) setBrush({ from: Math.min(g.anchor, at), to: Math.max(g.anchor, at) })
+  }
+  const onUp = (e: ReactPointerEvent<HTMLDivElement>) => {
+    const g = gesture.current
+    if (!g || e.pointerId !== g.pointer) return
+    const at = gestureTime(e.clientX, g)
+    cancelGesture()
+    if (g.moved && at !== g.anchor) setWindow({ from: Math.min(g.anchor, at), to: Math.max(g.anchor, at) }, 'custom')
+    else nearest(at, g.lane)
+    if (e.currentTarget.hasPointerCapture(e.pointerId)) e.currentTarget.releasePointerCapture(e.pointerId)
+  }
+  const onKey = (e: ReactKeyboardEvent<HTMLDivElement>) => {
+    if (!domain) return
+    if (e.key === 'Escape') { const active = gesture.current; cancelGesture(); if (!active) setWindow(null); setCursor(null); e.preventDefault(); return }
+    let at = cursor ?? domain.from
+    if (e.key === 'ArrowRight') at += (domain.to - domain.from) / 100
+    else if (e.key === 'ArrowLeft') at -= (domain.to - domain.from) / 100
+    else if (e.key === 'Home') at = domain.from
+    else if (e.key === 'End') at = domain.to
+    else if (e.key !== 'Enter' && e.key !== ' ') return
+    e.preventDefault()
+    at = Math.round(Math.max(domain.from, Math.min(domain.to, at)))
+    setCursor(at)
+    nearest(at)
+  }
+  const cursorAt = domain && cursor !== null ? Math.max(domain.from, Math.min(domain.to, cursor)) : null
+
   const untimedMemories = useMemo(
     () => (model ? model.nodes.filter((n) => n.cls === 'memory' && n.time === null).length : 0),
     [model],
@@ -100,7 +167,10 @@ export function TimelineLens() {
             {!loading && <p>A lane needs a session with a start time. Sessions appear as agents open them.</p>}
           </div>
         ) : (
-          <div className="xc-tl-grid" role="table" aria-label="Sessions on a time axis">
+          <div className="xc-tl-grid" role="table" aria-label="Sessions on a time axis"
+            onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp}
+            onPointerCancel={cancelGesture} onLostPointerCapture={cancelGesture}
+          >
             {/* The axis rules, drawn the full height of the plotting field rather than only
                 through the 31px head, so the area below the last lane reads as unused time on a
                 chart instead of as empty frame. Decoration only -- the head still carries the
@@ -110,11 +180,20 @@ export function TimelineLens() {
                 <span key={t.at} style={{ left: `${pct(t.at)}%` }} />
               ))}
             </div>
+            <div className="xc-tl-feedback" aria-hidden="true">
+              {brush && <div className="xc-tl-brush" style={{ left: `${pct(brush.from)}%`, width: `${pct(brush.to) - pct(brush.from)}%` }} />}
+              {cursorAt !== null && <div className="xc-tl-cursor" style={{ left: `${pct(cursorAt)}%` }} />}
+            </div>
             <div className="xc-tl-head">
-              <div>SESSION</div>
-              <div className="xc-tl-ticks" aria-hidden="true" ref={axisRef}>
+              <div className="xc-tl-caption"><span>SESSION</span>{timeWindow && <button type="button" className="xc-btn" onClick={() => { cancelGesture(); setWindow(null); setCursor(null) }}>All time</button>}</div>
+              <div className="xc-tl-ticks" ref={axisRef} role="slider" tabIndex={0}
+                aria-label="Timeline time" aria-orientation="horizontal"
+                aria-valuemin={Math.round(domain.from)} aria-valuemax={Math.round(domain.to)}
+                aria-valuenow={Math.round(cursorAt ?? domain.from)} aria-valuetext={shortStamp(cursorAt ?? domain.from)}
+                aria-describedby="timeline-help" onKeyDown={onKey}
+              >
                 {thinTicks(ticksFor(domain).filter((t) => pct(t.at) < 94), axisPx).map((t) => (
-                  <span key={t.at} style={{ left: `${pct(t.at)}%` }}>{t.label}</span>
+                  <span key={t.at} aria-hidden="true" style={{ left: `${pct(t.at)}%` }}>{t.label}</span>
                 ))}
               </div>
             </div>
@@ -127,6 +206,7 @@ export function TimelineLens() {
                 const node = model?.byId.get(m.nodeId)
                 return node && facets && isNodeVisible(node, facets, null) && inDomain(m.time)
               })
+              const stops = interventionsForSession(policyStops, lane.session.sessionId).filter((i) => inDomain(i.at))
               /* Marks are placed by time alone, so several written seconds apart land on the same
                  pixel and the topmost one swallows the others' clicks. `markRows` stacks them
                  across the lane instead of moving them along it, which would misreport when they
@@ -152,7 +232,7 @@ export function TimelineLens() {
                         : `${lane.marks.filter((m) => m.cls === 'exchange').length} exchanges · ${lane.end === null ? 'open' : `${Math.max(1, Math.round((lane.end - lane.start) / 60_000))} min`}`}
                     </span>
                   </button>
-                  <div className="xc-lane-track">
+                  <div className="xc-lane-track" data-lane={lane.session.id}>
                     {right > left && (
                       <i className="xc-lane-span" data-open={lane.end === null} style={{ left: `${left}%`, width: `${right - left}%` }} />
                     )}
@@ -168,6 +248,18 @@ export function TimelineLens() {
                         aria-label={`${m.cls} at ${shortStamp(m.time)}`}
                         title={`${m.cls} · ${shortStamp(m.time)}${m.status ? ` · ${m.status}` : ''}`}
                         onClick={() => select(m.nodeId)}
+                      />
+                    ))}
+                    {stops.map((i) => (
+                      <button
+                        key={i.invocationId}
+                        type="button"
+                        className="xc-mark"
+                        data-cls={i.verdict}
+                        style={{ left: `${pct(i.at)}%` }}
+                        aria-label={`${describeIntervention(i)} at ${shortStamp(i.at)}`}
+                        title={`${describeIntervention(i)} · ${shortStamp(i.at)}`}
+                        onClick={() => select(lane.session.id)}
                       />
                     ))}
                     {lane.root && rootAt !== null && inDomain(rootAt) && (
@@ -199,9 +291,11 @@ export function TimelineLens() {
           {loading && !model ? 'Loading…' : `${lanes.length} session${lanes.length === 1 ? '' : 's'}`}
           {domain ? ` · ${shortStamp(domain.from)} → ${shortStamp(domain.to)}` : ''}
         </span>
+        <span className="xc-note" id="timeline-help">Click to inspect · drag to select time · arrow keys to scrub</span>
+        {cursorAt !== null && <span className="xc-note">{shortStamp(cursorAt)}</span>}
         <span className="xc-note" aria-hidden="true">·</span>
         <span className="xc-legend-inline xc-note">
-          ■ memory · ■ exchange (gray) · ◻ Merkle root (server-reported) ·{' '}
+          ■ memory · ■ exchange (gray) · ◻ Merkle root (server-reported) · ▮ denied by policy · ▯ asked for approval ·{' '}
           {untimedMemories > 0
             ? `${untimedMemories} memor${untimedMemories === 1 ? 'y has' : 'ies have'} no timestamp in the API and ${untimedMemories === 1 ? 'is' : 'are'} not placed`
             : 'every memory is placed'}

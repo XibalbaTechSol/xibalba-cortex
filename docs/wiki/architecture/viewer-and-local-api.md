@@ -2,7 +2,7 @@
 title: Viewer and Local API
 acronyms: [MCP, FTS5, WAL]
 created: 2026-08-13
-updated: 2026-09-18
+updated: 2026-10-11
 type: architecture
 tags: [infrastructure, storage, provenance]
 confidence: high
@@ -11,24 +11,26 @@ source_files:
   - src/xibalba_cortex/store.py
   - src/xibalba_cortex/accounts.py
   - src/xibalba_cortex/email_delivery.py
-  - viewer/src/App.tsx
+  - src/xibalba_cortex/console_admin.py
+  - src/xibalba_cortex/console_status.py
+  - src/xibalba_cortex/console_actions.py
   - viewer/src/api.ts
-  - viewer/src/index.css
-  - viewer/src/ProvenancePanels.tsx
-  - viewer/xibalba-3d-smoke.mjs
+  - viewer/src/console/ConsoleApp.tsx
+  - viewer/src/console/nav.ts
+  - viewer/COVERAGE.md
+  - viewer/playwright.config.ts
 ---
 
 # Viewer and Local API
 
-This page describes the implementation in the current Cortex worktree. The 2026-09-18
-profile-store routing and read-only viewer work is on a feature branch until merged and
-deployed; documenting it here does not make it a released capability.
-
-The local API exposes read and operator-oriented surfaces over the canonical `GraphStore`. It is a local operator API, not a read-only API: bounded `POST` routes can record exchanges, create propositions, link entities, apply lifecycle changes (including forgetting a memory), manage inference tasks, and record PARA decisions. The React viewer presents memory browsing, the session/graph timeline, retrieval, inference, PARA review, and audit/integrity state without treating the viewer as the source of truth.
+The local API exposes read and operator-oriented surfaces over the canonical `GraphStore`. It is a local operator API, not a read-only API: bounded `POST` routes can record exchanges, create propositions, link entities, apply lifecycle changes (including forgetting a memory), manage inference tasks, record PARA decisions, and, since 2026-10-11, import documents, attach files, back up the store, anchor a session root and end a session. The React console (`viewer/`) is the only UI: a Graph lens and a Timeline lens, with every other surface a drawer or dialog opened over them. The console is never the source of truth.
 
 ## Table of contents
 
 - [Surfaces](#surfaces)
+- [Server configuration the console uses](#server-configuration-the-console-uses)
+- [Actions that write or reach outward](#actions-that-write-or-reach-outward)
+- [Status the console reports](#status-the-console-reports)
 - [Memory lifecycle: forget](#memory-lifecycle-forget)
 - [On-chain identity honesty](#on-chain-identity-honesty)
 - [Agent workspaces](#agent-workspaces)
@@ -41,39 +43,44 @@ The local API exposes read and operator-oriented surfaces over the canonical `Gr
 
 ## Surfaces
 
-As of 2026-09-15 the viewer's left nav is: Overview, Agents, Memory Explorer, Sessions, Graph,
-Search & Retrieval, Inference, Audit Log, Operations, Settings. Several of these are renames or
-merges of the tabs this page previously described, done to match a proposed information
-architecture without rewriting working code underneath the label:
+The console has two destinations, **Graph** (3D by default, 2D optional, a faint grid, snap to grid) and **Timeline** (one lane per session). Everything else opens over the lens it was opened from and returns to it on Escape:
 
-- **Memory Explorer** — a paginated, status-filterable browse of the canonical memory store,
-  independent of any search query. `GET /api/memories?limit=&offset=&status=&agent_id=` (new
-  2026-09-15) backs it; `status` is a comma-separated subset of
-  `candidate,active,confirmed,superseded,forgotten` (default: all five). Agent-scoped exactly
-  like every other route (`_agent_filter`); an operator session sees every agent unless one is
-  selected via the global agent switcher.
-- **Sessions** (formerly "Timeline") — sessions, exchanges, tool events, and context
-  contributions, plus inline transcript replay for the selected session. This remains one
-  component (`TimelineTab`), not split into separate Sessions/Replay tabs — the two are
-  tightly coupled around one `selectedSessionId`, and splitting them would add navigation
-  without adding capability.
-- **Graph** — nodes, edges, filters, 3D canvas, and bounded traversal controls.
-- **Search & Retrieval** (formerly "Recall") — lexical/hybrid search over eligible memories.
-- **Inference** — task queue, claim/complete controls, explicit write-back, and PARA review.
-- **Audit Log** (formerly two separate tabs, "Integrity Audit" and "Provenance") — merged into
-  one tab with an `All / Chain & Store Lineage / Extraction & Retrieval Traces` subnav (the same
-  pattern Settings already used), since both were reading different slices of the same
-  provenance/audit concern. Chain & Store Lineage: SQLite health, backup readiness, session
-  Merkle root, and integrity-link state. Extraction & Retrieval Traces: autonomous extraction
-  proposal review, hybrid-retrieval Merkle inclusion proofs, and projection-checkpoint drift.
-- **Agents** — exact canonical agent/device workspaces. `GET /api/agents` lists namespaces and
-  `GET /api/agent/{agent_id}/memories?device_id=` reads only that agent/device partition. Records
-  without `sources.agent_id` remain outside these workspaces rather than being guessed into one.
-  `GET /api/agents` also returns `oracle_reachable` and a per-agent `identity_verified` flag (new
-  2026-09-15) — see "On-chain identity honesty" below.
-- **Settings** — operator profile, inference-daemon policy, and account security, plus a
-  Dark/Light/System theme picker (new 2026-09-15; `[data-theme]` CSS variable overrides in
-  `viewer/src/index.css`, applied live and persisted to `localStorage`).
+- **Memories** (`GET /api/memories`, paged, status-filterable), **Entities**, **Sessions** (exchanges, replay, telemetry, decision trace, kernel intents, invocations), **Operations**, **Agents**, **Settings** — drawers, with deep links such as `#settings` and `#timeline/sessions`.
+- **Recall** (hybrid, lexical, context), **Review** (extraction proposals, PARA, tasks) and **Integrity** (session proofs, projection checkpoints, link verification) — dialogs.
+- **Inspector** (beside the lens): one selected memory, session, entity or edge, with its chain, provenance, neighbours, contradictions, telemetry and files, and the write actions in a writable workspace only.
+- Agents are exact canonical agent/device workspaces. `GET /api/agents` lists namespaces and returns `oracle_reachable` and a per-agent `identity_verified` flag — see "On-chain identity honesty" below.
+
+`viewer/COVERAGE.md` (generated by `scripts/ui_coverage.py`, enforced by `tests/test_ui_coverage.py`) maps every HTTP route and MCP tool to the console surface that covers it, or states why it is deliberately not a console feature (the worker `claim`/`complete` protocol, the 27 `runtime_*` harness hooks, telemetry and connector ingest). No capability is withheld from the console for want of a route.
+
+## Server configuration the console uses
+
+The browser never supplies or learns a filesystem path or a service address. These are the server's own environment variables; the console is told only whether each is set (`GET /api/profile/config`, `destinations`).
+
+| Variable | Used by | If unset |
+|---|---|---|
+| `XIBALBA_BACKUP_DIR` | Backup (`POST /api/backup`, `/api/backup/reconcile`, `GET /api/backups`) | `503`; the console says no backup location is configured |
+| `XIBALBA_VAULT_DIR` | Trust vault lookup (`GET /api/vault/leaf`) | `503` |
+| `XIBALBA_DAG_HOME` | Verify an integrity link (`POST /api/memory/{id}/verify-link`) | the store's default DAG location |
+| `XIBALBA_ANCHOR_URL` | Anchor a session root (`POST /api/session/{id}/anchor`) | `503`; the Anchor button is disabled with the reason |
+| `XIBALBA_ORACLE_URL` | Agent identity resolution; the anchor's registration check | identity shows as unverified |
+| `CORTEX_PASSWORD_RESET_URL`, `CORTEX_SMTP_*` | Password reset links | request answers `503` for an existing account |
+
+## Actions that write or reach outward
+
+Each is confirmed in the console with what it will do, before it is sent, and worded afterwards as what it showed and no more.
+
+- **Attach a file** — `POST /api/memory/{id}/attachments`, raw bytes up to 200 MB streamed to a temp file the server chooses, then `GraphStore.attach_media`. The response and `GET .../attachments` carry no `storage_locator` (a server path).
+- **Import a document** — `POST /api/import`, text or Markdown up to 2 MB, split at headings into candidate memories (`source.kind = imported_document`). Re-importing the same bytes stores nothing new. Entities found become extraction proposals that wait in Review: nothing is written to the graph.
+- **Export this window** — `POST /api/provenance/export` with the memory ids the window and Filters show (each checked against the credential, at most 500), returning one provenance bundle with a Merkle commitment.
+- **End a session** — `POST /api/session/{id}/end`; not undone.
+- **Verify a link** — records a byte-lineage comparison only; never shown as more.
+- **Anchor a root** — an outward POST to the configured service, store-operator only; the address is never returned.
+- **Backup** — writes under a server-generated name; a check names a copy by the name the server listed. A complete copy is not shown to restore.
+- **API tokens** (`/api/auth/tokens`) — the secret is returned once; scopes come from the role; an operator cannot issue an admin token; the credential in use cannot be revoked.
+
+## Status the console reports
+
+Read-only, store-wide, for an unbound operator or admin credential: `GET /api/runtimes` (what each runtime wrote and what the policy denied or asked), `GET /api/workers` and `GET /api/connectors`. A worker's state is **derived from its queue**, not from a heartbeat (the v1 store schema is frozen): `idle` (nothing waiting) is kept apart from `backlog` (work waiting, nothing servicing it), `stalled` (a lease expired) and `no work seen`. Policy denials and asks are marks on the lane of the session they happened in.
 
 ## Memory lifecycle: forget
 
@@ -129,26 +136,15 @@ and selected store before relying on a rendered view.
 
 ## PARA and inference integration
 
-The viewer queues PARA work against the selected memory's current content hash. It polls proposed classifications and offers inspect, accept, keep-original, and dismiss actions. No classification moves a memory automatically.
-
-Inference completion carries the task's claim owner and claim token. The viewer is an operator surface; durable authority remains in the store's transaction and ownership checks.
+Review lists extraction proposals and PARA classifications and offers accept (a two-step action that first says what it will write) or reject; the Tasks tab is read-only. No classification or proposal moves a memory or the graph automatically. The console does not claim or complete inference tasks: that is the worker protocol, and a person must not be able to impersonate a worker.
 
 ## Integrity presentation
 
-The header and the Audit Log tab's Chain & Store Lineage section display observed store state such as schema version, Write-Ahead Logging (WAL), Full-Text Search (FTS5), backup readiness, and root validity. The UI also preserves the boundary that local tamper evidence is not proof of truth, authorization, completeness, or external anchoring.
+The Integrity dialog verifies in the browser what the browser can (every exchange's inclusion proof, and each projection checkpoint's root recomputed from its own leaves) and labels anything the server computed as "server reports". The status bar shows observed store state (schema version, identity mode, integrity check). The console preserves the boundary that local tamper evidence is not proof of truth, authorization, completeness, or external anchoring.
 
 ## Headless verification
 
-The viewer was exercised with headless Chromium at desktop and mobile sizes, under the pre-2026-09-15 tab names (Timeline, Recall, Integrity) — this evidence predates the Memory Explorer addition, the Sessions/Search & Retrieval renames, and the Audit Log merge, and has not been re-run against them. Screenshots were used as the visual source of truth for navigation, graph rendering, Timeline, Recall, Inference, Integrity, and responsive layout. The run observed no browser console errors, uncaught page errors, failed network requests, or horizontal document overflow.
-
-The evidence set is generated locally under `/tmp/xibalba-cortex-playwright/`; it is not committed automatically because screenshots from a live profile may contain sensitive memory labels or operational history.
-
-The 2026-09-15 additions (Memory Explorer, forget lifecycle, Audit Log merge, theme picker,
-`identity_verified`/`oracle_reachable`) are source-verified plus `tsc --noEmit`/`vite build`/
-`pytest` verified only — a live browser pass was attempted and blocked by an unrelated
-environmental issue (the local API process wedged under host memory pressure, timing out on
-every route including ones untouched by these changes) rather than completed. Re-run headless
-verification before treating this set as browser-confirmed.
+`npm run test:e2e` (in `viewer/`) runs Playwright in headless Chromium against a freshly seeded fixture profile (`scripts/dev_seed_console.py`) served by the real `local_api`, with software WebGL. Two projects, desktop (1440 x 900) and phone (390 x 844), cover the theme and typography, the 3D graph (painted canvas, snap to grid, zoom limits, keyboard, selection, facets), the Timeline and its policy marks, every tool opening over both lenses, Recall, Review and Integrity, the write and outward actions above (each against the real API, with a stand-in anchor service), sign-in and password reset, token management, collapsible chrome, and a wiring tour that fails on any 404, 405 or 5xx. It runs in CI (job `viewer`). A stubbed response is used only where the fixture cannot produce the case (a working mail server, a valid emailed secret, a trust vault, an administrator credential), and each such test says so in its name.
 
 ## Design boundaries
 

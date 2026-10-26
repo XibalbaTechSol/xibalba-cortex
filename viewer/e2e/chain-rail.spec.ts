@@ -10,6 +10,8 @@ async function openWorkspace(page: Page) {
   await page.goto('/', { waitUntil: 'domcontentloaded' })
   await expect(page.locator('.xc')).toBeVisible({ timeout: 20000 })
   await expect(page.locator('.xc-chain, .xc-chain-handle').first()).toBeVisible({ timeout: 20000 })
+  await expect(page.locator('.xc-hist')).toBeVisible()
+  await page.evaluate(() => document.fonts.ready)
 }
 
 test('the chain rail folds to the bottom-right margin and comes back', async ({ page }) => {
@@ -58,6 +60,7 @@ test('the chain rail can be dragged off its dock and dropped back onto it', asyn
   const docked = (await rail.boundingBox())!
 
   const grip = page.locator('.xc-chain-grip')
+  await grip.click({ trial: true })
   const g = (await grip.boundingBox())!
   await page.mouse.move(g.x + g.width / 2, g.y + g.height / 2)
   await page.mouse.down()
@@ -109,11 +112,16 @@ test('a floating position survives a reload and stays on screen', async ({ page 
   await page.setViewportSize({ width: 1600, height: 900 })
   await openWorkspace(page)
   const grip = page.locator('.xc-chain-grip')
+  await grip.click({ trial: true })
   const g = (await grip.boundingBox())!
   await page.mouse.move(g.x + g.width / 2, g.y + g.height / 2)
   await page.mouse.down()
   await page.mouse.move(g.x + 260, g.y - 300, { steps: 12 })
   await page.mouse.up()
+  // Settings persist after the React update; wait for that contract before navigating away.
+  await expect.poll(() => page.evaluate(() =>
+    JSON.parse(localStorage.getItem('xibalba-cortex.console-settings') ?? '{}').chainPos ?? null,
+  )).not.toBeNull()
 
   await page.reload({ waitUntil: 'domcontentloaded' })
   const rail = page.locator('.xc-chain')

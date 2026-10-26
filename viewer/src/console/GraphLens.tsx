@@ -11,8 +11,9 @@ import { forceX, forceY } from 'd3-force'
 import { useConsole } from './state'
 import { useSettings } from './settingsContext'
 import { Graph3D, type Graph3DHandle } from './Graph3D'
-import { FADE, LINK_ALPHA, linkWidth, nodeHalf, traceNode } from './graphStyle'
-import { cellCentre, snapToGrid, type Cell } from './gridSnap'
+import { Inspector } from './Inspector'
+import { FADE, GRID_INK, LINK_ALPHA, linkWidth, nodeHalf, traceNode } from './graphStyle'
+import { GRID_CELL_SIZE, cellCentre, snapToGrid, type Cell } from './gridSnap'
 import { defaultFacets, filterModel, selectionHidden, type CNode, type EdgeGroup, type Facets, type NodeClass } from './model'
 import { palette, withAlpha } from './palette'
 import { IconFit, IconGrid, IconTarget, IconUnpin, IconWarn } from './icons'
@@ -45,7 +46,7 @@ const HALF: Record<NodeClass, number> = { memory: 4.5, entity: 3.5, session: 6.5
 const DIM_STATUS = new Set(['superseded', 'forgotten'])
 
 /** Lattice cell size in graph units: the same lattice the 3D lens uses, seen flat. */
-const GRID = 24
+const GRID = GRID_CELL_SIZE
 
 const endId = (end: string | FGNode): string => (typeof end === 'string' ? end : end.id)
 
@@ -66,6 +67,7 @@ export function GraphLens() {
   const [pinned, setPinned] = useState(0)
   // the legend sits over the canvas, so it starts closed and opens on request
   const [legendOpen, setLegendOpen] = useState(false)
+  const [summaryOpen, setSummaryOpen] = useState(false)
   const hidden = selectionHidden(model, visible, selectedId)
 
   // --- stable node objects -------------------------------------------------------------------------
@@ -208,7 +210,7 @@ export function GraphLens() {
       const b = fg.screen2GraphCoords(size.width, size.height)
       ctx.save()
       ctx.lineWidth = 1 / scale
-      ctx.strokeStyle = withAlpha(colors.ink, 0.035)
+      ctx.strokeStyle = withAlpha(colors.ink, GRID_INK.flat)
       ctx.beginPath()
       // cell boundaries sit half a cell out from the cell centres, as in 3D
       const off = GRID / 2
@@ -273,7 +275,7 @@ export function GraphLens() {
         const name = node.cls === 'session' ? node.label.replace(/^Session /, '') : node.label
         const text = name.length > 46 ? `${name.slice(0, 45)}…` : name
         const fontSize = 11 / scale
-        ctx.font = `400 ${fontSize}px Barlow, system-ui, sans-serif`
+        ctx.font = `500 ${fontSize}px Raleway, system-ui, sans-serif`
         const w = ctx.measureText(text).width
         const padX = 5 / scale
         const padY = 3 / scale
@@ -453,6 +455,8 @@ export function GraphLens() {
           )}
         </div>
 
+        <button type="button" className="xc-summary-toggle xc-btn" aria-label="Workspace summary" onClick={() => { select(null); setSummaryOpen((v) => !v) }}>Workspace</button>
+        {summaryOpen && !selectedId && <Inspector summary onClose={() => setSummaryOpen(false)} />}
         <button type="button" className="xc-legend-toggle" aria-expanded={legendOpen} onClick={() => setLegendOpen((v) => !v)}>
           {legendOpen ? 'Hide legend' : 'Legend'}
         </button>
@@ -468,6 +472,12 @@ export function GraphLens() {
           <LegendRow group="edges" k="relation" label="Relation (arrow = subject to object)"><i className="xc-rule" style={{ borderTop: '1px solid var(--cortex-accent)' }} /></LegendRow>
           <LegendRow group="edges" k="contradiction" label="Contradiction"><i className="xc-rule" style={{ borderTop: '2px dashed var(--status-review)' }} /></LegendRow>
           <LegendRow group="edges" k="similarity" label="Similarity"><i className="xc-rule" style={{ borderTop: '1px dotted var(--status-anchored)' }} /></LegendRow>
+          {mode3d && shape === 'box' && <p className="xc-note xc-face-legend">
+            Solid cube faces brighten when the loaded graph has that metadata: right (+X) relation;
+            left (−X) similarity; top (+Y) observed time; bottom (−Y) evidence class;
+            front (+Z) source kind; back (−Z) contradiction (red). Dim means absent from the loaded graph.
+            Orbit to inspect hidden faces. Outlined nodes show status; other shapes use one colour.
+          </p>}
           {mode3d && <p className="xc-note" style={{ margin: '4px 0 0' }}>Drag a cube to move and pin it; double-click to unpin.</p>}
         </div>
         )}

@@ -15,19 +15,23 @@ import { InferenceSection } from './settings/InferenceSection'
 import { EmbeddingsSection } from './settings/EmbeddingsSection'
 import { AccountSection } from './settings/AccountSection'
 import { DeveloperSection } from './settings/DeveloperSection'
+import { AccessSection } from './settings/AccessSection'
+import { ProfileSection } from './settings/ProfileSection'
 
-type Section = 'layout' | 'inference' | 'embeddings' | 'account' | 'developer'
+type Section = 'layout' | 'inference' | 'embeddings' | 'account' | 'access' | 'profile' | 'developer'
 const SECTIONS: Array<[Section, string]> = [
   ['layout', 'Layout'],
   ['inference', 'Inference'],
   ['embeddings', 'Embeddings'],
   ['account', 'Account'],
+  ['access', 'Access'],
+  ['profile', 'Profile'],
   ['developer', 'Developer'],
 ]
 
 const LAYOUTS: Array<{ id: ShellLayout; title: string; body: string }> = [
-  { id: 'rail', title: 'Left rail', body: 'Every destination in a rail down the left edge, grouped, with the workspace beside it. The default.' },
-  { id: 'top', title: 'Top bar', body: 'A bar across the top with every destination on a second row. More room for the workspace, less room to label things.' },
+  { id: 'rail', title: 'Left rail', body: 'The Graph and Timeline lenses in a rail down the left edge, with the tools beneath them; the workspace beside it. The default.' },
+  { id: 'top', title: 'Top bar', body: 'A bar across the top: the two lenses and the tools on a second row. More room for the workspace, less room to label things.' },
 ]
 
 /** A small wireframe of each layout, drawn in CSS so it cannot drift from the real shell's proportions. */
@@ -58,6 +62,8 @@ export function SettingsPage() {
         {section === 'inference' && <InferenceSection />}
         {section === 'embeddings' && <EmbeddingsSection />}
         {section === 'account' && <AccountSection />}
+        {section === 'access' && <AccessSection />}
+        {section === 'profile' && <ProfileSection />}
         {section === 'developer' && <DeveloperSection />}
         {section === 'layout' && (<>
         <p className="xc-eyebrow">Shell layout</p>
@@ -74,10 +80,20 @@ export function SettingsPage() {
           ))}
         </div>
 
-        <label className="xc-check xc-settings-row" data-disabled={settings.shell !== 'rail'}>
-          <input type="checkbox" checked={settings.railCollapsed} disabled={settings.shell !== 'rail'} onChange={(e) => update({ railCollapsed: e.target.checked })} />
-          <span>Collapse the rail to icons</span>
-          <span className="xc-note">Applies to the left rail. It also collapses by itself on narrow windows.</span>
+        <label className="xc-check xc-settings-row">
+          <input type="checkbox" checked={settings.railCollapsed} onChange={(e) => update({ railCollapsed: e.target.checked })} />
+          <span>Collapse navigation to icons</span>
+          <span className="xc-note">The left rail, or the top bar’s second row. Also a button on each. The rail also collapses by itself on narrow windows.</span>
+        </label>
+        <label className="xc-check xc-settings-row">
+          <input type="checkbox" checked={settings.facetsCollapsed} onChange={(e) => update({ facetsCollapsed: e.target.checked })} />
+          <span>Collapse the Projection dock</span>
+          <span className="xc-note">Keep the filters in a narrow edge strip. Also available from the dock header.</span>
+        </label>
+        <label className="xc-check xc-settings-row">
+          <input type="checkbox" checked={settings.detailCollapsed} onChange={(e) => update({ detailCollapsed: e.target.checked })} />
+          <span>Collapse the selected-memory dock</span>
+          <span className="xc-note">Keep the selection while giving the graph more room. Also available from the dock header.</span>
         </label>
 
         <label className="xc-field xc-settings-row">Graph view
@@ -105,7 +121,7 @@ export function SettingsPage() {
 
         <label className="xc-field xc-settings-row">Graph canvas
           <select className="xc-input" value={settings.graphCanvas} onChange={(e) => update({ graphCanvas: asGraphCanvas(e.target.value) })}>
-            <option value="lattice">Lattice — cell walls through the whole volume (default)</option>
+            <option value="lattice">Spatial grid — faint outer planes (default)</option>
             <option value="frame">Frame — the bounding box only</option>
             <option value="plain">Plain — nothing behind the nodes</option>
           </select>

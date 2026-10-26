@@ -5,7 +5,7 @@
 // Both lookups are scoped to the selected agent workspace. Relations are only ever created
 // elsewhere (the inspector's "Link entities", or accepting a proposal in Review); this page reads.
 
-import { useMemo, useState, type FormEvent } from 'react'
+import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import { api, type TraversalResult } from '../../api'
 import { useConsole } from '../state'
 import { useAsync } from '../useAsync'
@@ -14,7 +14,7 @@ import { IconWarn } from '../icons'
 import { Page } from './Page'
 
 export function EntitiesPage() {
-  const { model, workspace } = useConsole()
+  const { model, workspace, pageArg } = useConsole()
   const scope = workspace.scope
   const [filter, setFilter] = useState('')
   const [name, setName] = useState('')
@@ -35,6 +35,10 @@ export function EntitiesPage() {
     setName(label)
     setQuery({ name: label, depth })
   }
+  // opened from an entity in the lens: look that one up straight away
+  useEffect(() => {
+    if (pageArg?.page === 'entities') { setName(pageArg.arg); setQuery({ name: pageArg.arg, depth: 1 }) }
+  }, [pageArg])
   const submitLookup = (e: FormEvent) => {
     e.preventDefault()
     if (name.trim()) setQuery({ name: name.trim(), depth })

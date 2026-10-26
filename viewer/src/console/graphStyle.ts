@@ -1,9 +1,14 @@
+import { EVIDENCE_FACES, type NodeEvidence } from './model'
+
 // Pure sizing and colour rules shared by the 2D and 3D graph lenses, so the two read as one design
 // and so the rules that make a graph legible are tested rather than eyeballed.
 //
 // The reason these exist: react-force-graph takes node sizes and line widths in GRAPH units, which a
 // fit-to-screen zoom (often 0.3 to 0.6 for a few hundred nodes) shrinks to a few pixels and sub-pixel
 // hairlines. Sizes here are therefore expressed as a floor in SCREEN pixels.
+
+/** Grid stays subordinate to node faces and relationship edges in both renderers. */
+export const GRID_INK = { lattice: 0.035, frame: 0.055, flat: 0.02 } as const
 
 export const MIN_NODE_PX = 3.5
 export const MIN_LINK_PX = 1
@@ -96,4 +101,11 @@ export function traceNode(
     else ctx.lineTo(px, py)
   })
   ctx.closePath()
+}
+
+
+/** Cube materials follow BoxGeometry's +X, -X, +Y, -Y, +Z, -Z groups. */
+export function faceColours(base: number, ground: number, evidence: NodeEvidence, conflict: number): number[] {
+  const dim = blendOver(base, ground, 0.30)
+  return EVIDENCE_FACES.map((face) => evidence[face] ? face === 'contradiction' ? conflict : base : dim)
 }

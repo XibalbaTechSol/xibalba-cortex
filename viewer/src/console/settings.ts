@@ -11,7 +11,7 @@ export type GraphMode = '2d' | '3d'
    a few pixels across, which is why there is no sphere -- under an unlit material a sphere is a
    flat disc, and its edge geometry is a mess of triangles rather than a readable outline. */
 export type NodeShape = 'box' | 'diamond' | 'facet'
-/** The backdrop the graph is drawn on: the full lattice, the bounding frame alone, or neither. */
+/** The backdrop the graph is drawn on: a spatial grid, the bounding frame alone, or neither. */
 export type GraphCanvas = 'lattice' | 'frame' | 'plain'
 
 export const NODE_SHAPES: readonly NodeShape[] = ['box', 'diamond', 'facet']

@@ -53,3 +53,22 @@ test('an unknown stored shape falls back rather than rendering nothing', async (
   await expect(canvas).toHaveAttribute('data-shape', 'box')
   await expect(canvas).toHaveAttribute('data-canvas', 'lattice')
 })
+
+
+test('metadata face key is available for 3D cubes and clears when switching to 2D', async ({ page }) => {
+  await page.setViewportSize({ width: 1600, height: 950 })
+  const crashes: string[] = []
+  page.on('pageerror', (error) => crashes.push(error.message))
+  await openGraph(page)
+  await page.getByRole('button', { name: 'Legend', exact: true }).click()
+  await expect(page.locator('.xc-face-legend')).toContainText('observed time')
+  await expect(page.locator('.xc-face-legend')).toContainText('contradiction (red)')
+  await page.getByRole('button', { name: '2D view', exact: true }).click()
+  await expect(page.locator('.xc-face-legend')).toHaveCount(0)
+  await page.getByRole('button', { name: '3D view', exact: true }).click()
+  await expect(page.locator('.xc-face-legend')).toBeVisible()
+  // Changing the lens and unmounting it exercise disposal of every face material.
+  await page.locator('.xc-workspace-header button', { hasText: 'Timeline' }).click()
+  await expect(page.locator('section[aria-label="Timeline lens"]')).toBeVisible()
+  expect(crashes).toEqual([])
+})

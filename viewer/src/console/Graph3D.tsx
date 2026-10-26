@@ -1,5 +1,5 @@
 // The Graph lens in 3D: the same nodes, edges, selection, dimming and palette as the 2D lens, laid
-// out by a 3D force simulation, snapped to a 3D lattice (one cube per cell, drawn as a full 3D lattice of cell walls)
+// out by a 3D force simulation, snapped to a 3D lattice (one cube per cell, framed by a quiet grid on three outer planes)
 // and rendered with three.js. Drag to orbit, right-drag to pan, wheel to
 // zoom; click a cube to select it, click empty space to clear.
 //
@@ -8,20 +8,26 @@
 // camera, lands in the nearest free lattice cell, and stays pinned there until it is double-clicked or
 // "Unpin" is used. Pins live in this view only; nothing is written to the store.
 //
-// What it does not do, so nobody assumes it does: it is not keyboard-navigable (the inspector and the
-// other pages are). If the browser cannot create a WebGL context it says so and offers 2D instead of
+// Resolution: a cube is never drawn smaller than MIN_CUBE_PX on screen, arrowheads and the selected-edge
+// bar keep a minimum size too, the grid coarsens by powers of two as the camera pulls back (so it stays
+// faint rather than becoming a solid block), and the camera is bounded so the cloud cannot be lost off
+// screen or flown through. Keyboard: with the canvas focused, arrows orbit, shift+arrows pan, + and -
+// zoom, F or 0 frames everything, Esc clears the selection.
+//
+// What it does not do, so nobody assumes it does: it has no keyboard way to pick an individual node
+// (use the inspector, Recall or the other pages for that). If the browser cannot create a WebGL context it says so and offers 2D instead of
 // drawing a blank rectangle.
 
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react'
 import * as THREE from 'three'
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js'
 import { forceLink, forceManyBody, forceSimulation, forceX, forceY, forceZ, type Simulation } from 'd3-force-3d'
-import type { CEdge, CNode, EdgeGroup, NodeClass } from './model'
+import type { CEdge, CNode, EdgeGroup, NodeClass, NodeEvidence } from './model'
 import type { GraphCanvas, NodeShape } from './settings'
-import { FADE, LINK_ALPHA, blendOver } from './graphStyle'
+import { FADE, GRID_INK, LINK_ALPHA, blendOver, faceColours } from './graphStyle'
 import { palette } from './palette'
 import { frameCamera, type Vec3 } from './framing'
-import { cellBounds, cellCentre, latticeFrame, latticeLines, snapToGrid, type Cell } from './gridSnap'
+import { GRID_CELL_SIZE, cellBounds, cellCentre, latticeFrame, gridLines, latticeStride, snapToGrid, type Cell } from './gridSnap'
 
 export interface Graph3DHandle {
   fit: () => void
@@ -57,6 +63,7 @@ interface SimNode {
   status?: string
   valid?: boolean
   degree: number
+  evidence: NodeEvidence
   x: number
   y: number
   z: number
@@ -79,10 +86,14 @@ const HISTORY_STATUS = new Set(['superseded', 'forgotten'])
 const DASHED: Partial<Record<EdgeGroup, { dash: number; gap: number }>> = { contradiction: { dash: 5, gap: 3 }, similarity: { dash: 1.5, gap: 2.5 } }
 const FOV = 50
 /** Lattice cell size in world units. Cubes are capped below it so neighbours never touch. */
-const GRID = 24
+const GRID = GRID_CELL_SIZE
 const MAX_HALF = 10.5
 /** Cubes read small at the zoom that fits a whole cloud, so they are drawn larger than the 2D squares. */
 const SIZE_3D = 1.4
+/** A cube is never drawn smaller than this on screen, however far the camera pulls back (the 2D lens floors its squares the same way). */
+const MIN_CUBE_PX = 5
+/** The camera cannot go closer than this to its target, nor so close that it passes through the cloud. */
+const MIN_DISTANCE = 16
 
 const num = (hex: string): number => parseInt(hex.slice(1), 16)
 const endId = (end: string | SimNode): string => (typeof end === 'string' ? end : end.id)
@@ -118,22 +129,29 @@ function createEngine(host: HTMLElement, cb: { snap: boolean; shape: NodeShape; 
   const reduceMotion = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches
 
   // throws when WebGL is unavailable; the component turns that into a visible fallback
-  const renderer = new THREE.WebGLRenderer({ antialias: true })
+  // preserveDrawingBuffer lets the canvas be read back (a screenshot, a design export); the cost is negligible at this size
+  const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true })
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2))
   renderer.setClearColor(C.ground, 1)
   const canvas = renderer.domElement
   canvas.style.display = 'block'
-  canvas.setAttribute('aria-label', '3D graph. Select nodes with the pointer; the inspector and the other pages are keyboard accessible.')
-  canvas.setAttribute('role', 'img')
+  canvas.setAttribute('aria-label', '3D graph. Arrow keys orbit, shift and arrows pan, plus and minus zoom, F frames everything, Escape clears the selection. Select nodes with the pointer, or use the inspector and Recall.')
+  canvas.setAttribute('role', 'application')
+  canvas.tabIndex = 0
   host.appendChild(canvas)
 
   const scene = new THREE.Scene()
-  const camera = new THREE.PerspectiveCamera(FOV, 1, 1, 6000)
+  const camera = new THREE.PerspectiveCamera(FOV, 1, 0.5, 40000)
   camera.position.set(0, 0, 320)
   const controls = new OrbitControls(camera, canvas)
   controls.enableDamping = false
   controls.screenSpacePanning = true
   controls.zoomSpeed = 0.8
+  // zoom toward the pointer, so the thing you are looking at stays under it
+  controls.zoomToCursor = true
+  // the camera stays outside the cloud and inside the far plane, so the graph is never lost off-screen
+  controls.minDistance = MIN_DISTANCE
+  controls.maxDistance = 6000
 
   const labelLayer = document.createElement('div')
   labelLayer.className = 'xc-3d-labels'
@@ -189,11 +207,11 @@ function createEngine(host: HTMLElement, cb: { snap: boolean; shape: NodeShape; 
   let cells = new Map<string, Cell>()
   const targets = new Map<string, THREE.Vector3>()
   let animating = false
-  // the lattice is a true 3D grid: cell walls run through the whole volume along x, y and z, with the
-  // bounding box drawn a little brighter. depthWrite is off so the faint lines never fight the cubes.
-  const gridObj = new THREE.LineSegments(new THREE.BufferGeometry(), new THREE.LineBasicMaterial({ color: blendOver(C.ink, C.ground, 0.028), depthWrite: false }))
+  // Three outer grid planes communicate spacing without running lines through every node and
+  // relationship. The slightly brighter frame keeps depth readable; cubes still snap to 3D cells.
+  const gridObj = new THREE.LineSegments(new THREE.BufferGeometry(), new THREE.LineBasicMaterial({ color: blendOver(C.ink, C.ground, GRID_INK.lattice), depthWrite: false }))
   gridObj.frustumCulled = false
-  const frameObj = new THREE.LineSegments(new THREE.BufferGeometry(), new THREE.LineBasicMaterial({ color: blendOver(C.ink, C.ground, 0.13), depthWrite: false }))
+  const frameObj = new THREE.LineSegments(new THREE.BufferGeometry(), new THREE.LineBasicMaterial({ color: blendOver(C.ink, C.ground, GRID_INK.frame), depthWrite: false }))
   frameObj.frustumCulled = false
   scene.add(gridObj, frameObj)
   let canvasKind: GraphCanvas = cb.canvas
@@ -209,6 +227,7 @@ function createEngine(host: HTMLElement, cb: { snap: boolean; shape: NodeShape; 
   // default and would pass against a lens that never honoured the setting at all
   canvas.dataset.shape = shape
   let gridKey = ''
+  let gridStride = 1
   function retarget() {
     const pts = visibleIds.map((id) => simNodes.get(id)!).map((n) => ({ id: n.id, x: n.x, y: n.y, z: n.z, priority: n.fx != null ? 1e6 : n.degree }))
     // the cells are always computed: they size the grid. Only with snap on do the cubes go to them.
@@ -217,7 +236,7 @@ function createEngine(host: HTMLElement, cb: { snap: boolean; shape: NodeShape; 
     if (snapOn) for (const [id, c] of cells) { const p = cellCentre(c, GRID); targets.set(id, new THREE.Vector3(p.x, p.y, p.z)) }
     else for (const pt of pts) targets.set(pt.id, new THREE.Vector3(pt.x, pt.y, pt.z))
     const b = cellBounds(cells.values())
-    const k = b ? `${b.min.i},${b.min.j},${b.min.k}|${b.max.i},${b.max.j},${b.max.k}` : ''
+    const k = (b ? `${b.min.i},${b.min.j},${b.min.k}|${b.max.i},${b.max.j},${b.max.k}` : '') + `|${gridStride}`
     if (k !== gridKey) {
       gridKey = k
       gridObj.geometry.dispose()
@@ -225,7 +244,7 @@ function createEngine(host: HTMLElement, cb: { snap: boolean; shape: NodeShape; 
       const g = new THREE.BufferGeometry()
       const f = new THREE.BufferGeometry()
       if (b) {
-        g.setAttribute('position', new THREE.BufferAttribute(latticeLines(b, GRID, 1), 3))
+        g.setAttribute('position', new THREE.BufferAttribute(gridLines(b, GRID, 1), 3))
         f.setAttribute('position', new THREE.BufferAttribute(latticeFrame(b, GRID, 1), 3))
       }
       gridObj.geometry = g
@@ -245,6 +264,7 @@ function createEngine(host: HTMLElement, cb: { snap: boolean; shape: NodeShape; 
   }).strength(0.7))
 
   let moving = true
+  let cameraMoved = true
   let fittedOnce = false
   // once the person orbits, pans or zooms, the camera is theirs: layout changes stop re-framing it until they press Fit
   let userMoved = false
@@ -269,13 +289,12 @@ function createEngine(host: HTMLElement, cb: { snap: boolean; shape: NodeShape; 
     const hollow = n.cls === 'merkle' || (n.cls === 'memory' && !!n.status && HOLLOW_STATUS.has(n.status))
     let visual: THREE.Object3D
     if (hollow) visual = new THREE.LineSegments(SHAPE_EDGES[shape], new THREE.LineBasicMaterial({ color: colourOf(n), transparent: true }))
-    else visual = new THREE.Mesh(SHAPE_GEOM[shape], new THREE.MeshBasicMaterial({ color: colourOf(n), transparent: true }))
+    else visual = new THREE.Mesh(SHAPE_GEOM[shape], shape === 'box'
+      ? faceColours(colourOf(n), C.ground, n.evidence, C.conflict).map((color) => new THREE.MeshBasicMaterial({ color, transparent: true }))
+      : new THREE.MeshBasicMaterial({ color: colourOf(n), transparent: true }))
     visual.scale.setScalar(side)
-    /* A solid node also gets its edges drawn. `MeshBasicMaterial` is unlit, so every face of a
-       solid returns the identical colour and the shape collapses into a flat silhouette -- at the
-       fitted zoom the cubes read as pale slabs rather than as objects with corners. The outline is
-       what gives an unlit solid its form, and it is the Industry grammar besides: a line drawing
-       with one solid fill. Hollow nodes are already edges, so they do not get a second copy. */
+    // Outlines keep adjacent faces distinct even when their metadata has the same colour.
+    // Hollow status nodes already consist of edges and need no second outline.
     let outline: THREE.LineSegments | null = null
     if (!hollow) {
       outline = new THREE.LineSegments(SHAPE_EDGES[shape], new THREE.LineBasicMaterial({ color: C.ground, transparent: true }))
@@ -291,8 +310,10 @@ function createEngine(host: HTMLElement, cb: { snap: boolean; shape: NodeShape; 
     group.userData = { id: n.id, visual, hit, outline }
     return group
   }
-  const materialOf = (o: THREE.Object3D): THREE.Material & { opacity: number } =>
-    ((o.userData.visual as THREE.Mesh | THREE.LineSegments).material as THREE.Material & { opacity: number })
+  const materialsOf = (o: THREE.Object3D): Array<THREE.MeshBasicMaterial | THREE.LineBasicMaterial> => {
+    const material = (o.userData.visual as THREE.Mesh | THREE.LineSegments).material
+    return (Array.isArray(material) ? material : [material]) as Array<THREE.MeshBasicMaterial | THREE.LineBasicMaterial>
+  }
 
   const outlineOf = (o: THREE.Object3D): (THREE.Material & { opacity: number }) | null => {
     const l = o.userData.outline as THREE.LineSegments | null | undefined
@@ -304,7 +325,9 @@ function createEngine(host: HTMLElement, cb: { snap: boolean; shape: NodeShape; 
       const n = simNodes.get(id)
       if (!n) continue
       const opacity = opacityOf(n)
-      materialOf(o).opacity = opacity
+      const materials = materialsOf(o)
+      const colours = materials.length === 6 ? faceColours(colourOf(n), C.ground, n.evidence, C.conflict) : [colourOf(n)]
+      materials.forEach((material, i) => { material.opacity = opacity; material.color.setHex(colours[i]) })
       // the edge fades with its own solid, or a dimmed node keeps a hard bright outline
       const edge = outlineOf(o)
       if (edge) edge.opacity = opacity
@@ -398,8 +421,11 @@ function createEngine(host: HTMLElement, cb: { snap: boolean; shape: NodeShape; 
         if (aDir.lengthSq() < 1e-6) { aMat.makeScale(0, 0, 0); arrows!.setMatrixAt(i, aMat); return }
         aDir.normalize()
         // distance from the cube's centre to its surface along the line, for an axis-aligned cube
-        const reach = half(simNodes.get(endId(l.target))!) / Math.max(Math.abs(aDir.x), Math.abs(aDir.y), Math.abs(aDir.z))
-        aPos.copy(t).addScaledVector(aDir, -(reach + ARROW_LEN / 2))
+        const reach = (drawnSide(endId(l.target)) / 2) / Math.max(Math.abs(aDir.x), Math.abs(aDir.y), Math.abs(aDir.z))
+        // an arrowhead keeps at least ~10px of length on screen, however far the camera is
+        const k = Math.max(1, (10 * worldPerPx(camera.position.distanceTo(t))) / ARROW_LEN)
+        aScale.setScalar(k)
+        aPos.copy(t).addScaledVector(aDir, -(reach + (ARROW_LEN * k) / 2))
         aQuat.setFromUnitVectors(up, aDir)
         arrows!.setMatrixAt(i, aMat.compose(aPos, aQuat, aScale))
       })
@@ -414,7 +440,9 @@ function createEngine(host: HTMLElement, cb: { snap: boolean; shape: NodeShape; 
       const len = aDir.length()
       edgeMark.position.copy(s).addScaledVector(aDir, 0.5)
       edgeMark.quaternion.setFromUnitVectors(up, len > 1e-6 ? aDir.divideScalar(len) : up)
-      edgeMark.scale.set(1, Math.max(len, 0.01), 1)
+      // the selected-edge bar keeps at least ~2px of width on screen
+      const w = Math.max(1, (2 * worldPerPx(camera.position.distanceTo(edgeMark.position))) / 1.4)
+      edgeMark.scale.set(w, Math.max(len, 0.01), w)
     }
   }
 
@@ -435,10 +463,20 @@ function createEngine(host: HTMLElement, cb: { snap: boolean; shape: NodeShape; 
     for (const [id, el] of labels) if (!want.has(id)) { el.remove(); labels.delete(id) }
     const w = canvas.clientWidth, h = canvas.clientHeight
     const sl2 = selectedLink()
-    for (const id of want) {
+    // labels that would land on top of each other are dropped, the selected and hovered ones kept first,
+    // so zoomed far out the cloud is not buried under a pile of text
+    const order = [...want].sort((a, b) => Number(b === selectedId || b === hoverId) - Number(a === selectedId || a === hoverId))
+    const kept: Array<[number, number]> = []
+    for (const id of order) {
       const n = simNodes.get(id)!
       if (!objects.has(id)) continue
+      tmpV.copy(objects.get(id)!.position).project(camera)
+      const sx = (tmpV.x * 0.5 + 0.5) * w + 12, sy = (-tmpV.y * 0.5 + 0.5) * h
+      const priority = id === selectedId || id === hoverId
+      const clash = !priority && kept.some(([x, y]) => Math.abs(x - sx) < 70 && Math.abs(y - sy) < 16)
       let el = labels.get(id)
+      if (clash || tmpV.z > 1) { if (el) el.style.display = 'none'; continue }
+      kept.push([sx, sy])
       if (!el) {
         el = document.createElement('div')
         el.className = 'xc-3d-label'
@@ -448,10 +486,13 @@ function createEngine(host: HTMLElement, cb: { snap: boolean; shape: NodeShape; 
         labels.set(id, el)
       }
       el.dataset.selected = String(id === selectedId || (!!sl2 && (id === endId(sl2.source) || id === endId(sl2.target))))
-      tmpV.copy(objects.get(id)!.position).project(camera)
-      const behind = tmpV.z > 1
-      el.style.display = behind ? 'none' : 'block'
-      el.style.transform = `translate(${(tmpV.x * 0.5 + 0.5) * w + 12}px, ${(-tmpV.y * 0.5 + 0.5) * h}px) translateY(-50%)`
+      el.style.display = 'block'
+      // a label that would run under the zoom buttons or off the right edge flips to the cube's left
+      const room = w - 64 - sx
+      const flip = el.offsetWidth > room
+      el.style.transform = flip
+        ? `translate(${sx - 24 - el.offsetWidth}px, ${sy}px) translateY(-50%)`
+        : `translate(${sx}px, ${sy}px) translateY(-50%)`
     }
   }
 
@@ -574,13 +615,74 @@ function createEngine(host: HTMLElement, cb: { snap: boolean; shape: NodeShape; 
       canvas.style.cursor = id ? 'grab' : edge ? 'pointer' : 'grab'
     })
   }
+  // keyboard: orbit, pan, zoom, frame, clear -- the canvas takes focus with Tab
+  const onKey = (e: KeyboardEvent) => {
+    const orbit = (dTheta: number, dPhi: number) => {
+      const off = camera.position.clone().sub(controls.target)
+      const sph = new THREE.Spherical().setFromVector3(off)
+      sph.theta += dTheta
+      sph.phi = Math.min(Math.PI - 0.05, Math.max(0.05, sph.phi + dPhi))
+      camera.position.copy(controls.target).add(off.setFromSpherical(sph))
+      camera.lookAt(controls.target)
+      controls.update(); userMoved = true; dirty = true; cameraMoved = true
+    }
+    const pan = (dx: number, dy: number) => {
+      const step = camera.position.distanceTo(controls.target) * 0.08
+      const right = new THREE.Vector3().setFromMatrixColumn(camera.matrix, 0)
+      const upv = new THREE.Vector3().setFromMatrixColumn(camera.matrix, 1)
+      const d = right.multiplyScalar(dx * step).add(upv.multiplyScalar(dy * step))
+      camera.position.add(d); controls.target.add(d)
+      controls.update(); userMoved = true; dirty = true; cameraMoved = true
+    }
+    const step = 0.12
+    switch (e.key) {
+      case 'ArrowLeft': e.shiftKey ? pan(-1, 0) : orbit(-step, 0); break
+      case 'ArrowRight': e.shiftKey ? pan(1, 0) : orbit(step, 0); break
+      case 'ArrowUp': e.shiftKey ? pan(0, 1) : orbit(0, -step); break
+      case 'ArrowDown': e.shiftKey ? pan(0, -1) : orbit(0, step); break
+      case '+': case '=': userMoved = true; api.zoomBy(1.25); break
+      case '-': case '_': userMoved = true; api.zoomBy(1 / 1.25); break
+      case 'f': case 'F': case '0': userMoved = false; fit(); break
+      case 'Escape': cb.onSelect(null); break
+      default: return
+    }
+    e.preventDefault()
+  }
+  canvas.addEventListener('keydown', onKey)
   canvas.style.cursor = 'grab'
   // capture phase, so the controls never see a pointer that starts on a cube
   canvas.addEventListener('pointerdown', onDown, true)
   canvas.addEventListener('dblclick', onDouble)
   canvas.addEventListener('pointerup', onUp)
   canvas.addEventListener('pointermove', onMove)
-  controls.addEventListener('change', () => { dirty = true })
+  controls.addEventListener('change', () => { dirty = true; cameraMoved = true })
+
+  // --- resolution: keep everything legible at any distance --------------------------------------------------------
+  const tanHalfFov = Math.tan((FOV * Math.PI) / 360)
+  /** world units covered by one screen pixel at `dist` from the camera */
+  const worldPerPx = (dist: number): number => (2 * dist * tanHalfFov) / Math.max(1, canvas.clientHeight)
+  const drawnSide = (id: string): number => (objects.get(id)?.userData.drawn as number | undefined) ?? half(simNodes.get(id)!) * 2
+  function applyScreenFloor() {
+    for (const [id, o] of objects) {
+      const n = simNodes.get(id)
+      if (!n) continue
+      const side = half(n) * 2
+      const floor = MIN_CUBE_PX * worldPerPx(camera.position.distanceTo(o.position))
+      const drawn = Math.max(side, floor)
+      o.userData.drawn = drawn
+      ;(o.userData.visual as THREE.Object3D).scale.setScalar(drawn)
+      ;(o.userData.hit as THREE.Object3D).scale.setScalar(Math.max(side * 1.5, floor * 1.8))
+      const mark = pinMarks.get(id)
+      if (mark) mark.scale.setScalar(drawn * 1.3)
+    }
+    // the lattice coarsens by powers of two so its lines stay at least ~14px apart
+    const stride = latticeStride(GRID / worldPerPx(camera.position.distanceTo(controls.target)))
+    if (stride !== gridStride) {
+      gridStride = stride; gridKey = ''; retarget()
+      // a coarser lattice has fewer lines, so each is a touch brighter and the grid still reads as a grid
+      ;(gridObj.material as THREE.LineBasicMaterial).color.setHex(blendOver(C.ink, C.ground, Math.min(0.07, 0.028 + 0.012 * Math.log2(stride))))
+    }
+  }
 
   // --- camera ---------------------------------------------------------------------------------------------------
   function flyTo(position: THREE.Vector3, target: THREE.Vector3) {
@@ -600,6 +702,8 @@ function createEngine(host: HTMLElement, cb: { snap: boolean; shape: NodeShape; 
     const f = frameCamera(pts, { fovDeg: FOV, aspect: camera.aspect, margin: opts.margin, pad: MAX_HALF * 0.7, minDistance: opts.minDistance, prefer: direction().toArray() as Vec3 })
     if (!f) return
     lastFrame.pts = pts.length
+    // pulling back stops at 2.5x the framing distance, so the cloud can never shrink to a dot
+    controls.maxDistance = Math.max(400, f.distance * 2.5)
     const target = new THREE.Vector3(...f.target)
     flyTo(target.clone().add(new THREE.Vector3(...f.direction).multiplyScalar(f.distance)), target)
   }
@@ -637,7 +741,7 @@ function createEngine(host: HTMLElement, cb: { snap: boolean; shape: NodeShape; 
     }
     const sel = selectedId ? objects.get(selectedId) : null
     ring.visible = !!sel
-    if (sel && selectedId) { ring.position.copy(sel.position); ring.scale.setScalar(half(simNodes.get(selectedId)!) * 2 * 1.45) }
+    if (sel && selectedId) { ring.position.copy(sel.position); ring.scale.setScalar(drawnSide(selectedId) * 1.45) }
   }
   function frame(now: number) {
     raf = requestAnimationFrame(frame)
@@ -650,7 +754,7 @@ function createEngine(host: HTMLElement, cb: { snap: boolean; shape: NodeShape; 
         if (!fittedOnce || !userMoved) { fittedOnce = true; fit() }
       }
     }
-    if (moving || animating) { syncObjects(); updateLinkPositions(); dirty = true }
+    if (moving || animating) { syncObjects(); applyScreenFloor(); updateLinkPositions(); dirty = true }
     if (tween) {
       const k = Math.min(1, (now - tween.start) / tween.ms)
       const e = k < 0.5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2
@@ -662,6 +766,7 @@ function createEngine(host: HTMLElement, cb: { snap: boolean; shape: NodeShape; 
     }
     if (dirty) {
       dirty = false
+      if (cameraMoved) { cameraMoved = false; applyScreenFloor(); updateLinkPositions() }
       updateLabels()
       renderer.render(scene, camera)
       canvas.dataset.settled = String(!moving)
@@ -682,21 +787,21 @@ function createEngine(host: HTMLElement, cb: { snap: boolean; shape: NodeShape; 
     near = set
   }
 
-  return {
+  const api: Engine = {
     setData(nodes, edges) {
       const ids = new Set(nodes.map((n) => n.id))
       visibleIds = nodes.map((n) => n.id)
       for (const n of nodes) {
         let s = simNodes.get(n.id)
-        if (!s) { s = { id: n.id, cls: n.cls, label: n.label, degree: n.degree, ...seedPosition(n.id) }; simNodes.set(n.id, s) }
-        s.label = n.label; s.status = n.status; s.valid = n.valid; s.degree = n.degree; s.cls = n.cls
+        if (!s) { s = { id: n.id, cls: n.cls, label: n.label, degree: n.degree, evidence: n.evidence, ...seedPosition(n.id) }; simNodes.set(n.id, s) }
+        s.label = n.label; s.status = n.status; s.valid = n.valid; s.degree = n.degree; s.cls = n.cls; s.evidence = n.evidence
       }
       for (const [id, o] of objects) {
         if (ids.has(id)) continue
         nodeGroup.remove(o)
         const hit = o.userData.hit as THREE.Mesh
         proxies.splice(proxies.indexOf(hit), 1)
-        materialOf(o).dispose()
+        materialsOf(o).forEach((material) => material.dispose())
         outlineOf(o)?.dispose()
         ;(hit.material as THREE.Material).dispose()
         const mark = pinMarks.get(id)
@@ -715,7 +820,7 @@ function createEngine(host: HTMLElement, cb: { snap: boolean; shape: NodeShape; 
       sim.force('link')?.links(links)
       sim.alpha(fittedOnce ? 0.35 : 1)
       moving = true
-      recomputeNear(); applyNodeStyle(); buildBuckets(); retarget(); syncObjects(); updateLinkPositions()
+      recomputeNear(); applyNodeStyle(); buildBuckets(); retarget(); syncObjects(); applyScreenFloor(); updateLinkPositions()
       canvas.dataset.nodeCount = String(nodes.length)
       dirty = true
     },
@@ -734,7 +839,7 @@ function createEngine(host: HTMLElement, cb: { snap: boolean; shape: NodeShape; 
         nodeGroup.remove(o)
         const hit = o.userData.hit as THREE.Mesh
         proxies.splice(proxies.indexOf(hit), 1)
-        materialOf(o).dispose()
+        materialsOf(o).forEach((material) => material.dispose())
         outlineOf(o)?.dispose()
         ;(hit.material as THREE.Material).dispose()
         objects.delete(id)
@@ -779,18 +884,21 @@ function createEngine(host: HTMLElement, cb: { snap: boolean; shape: NodeShape; 
     },
     zoomBy(k) {
       const offset = camera.position.clone().sub(controls.target)
-      flyTo(controls.target.clone().add(offset.divideScalar(k)), controls.target.clone())
+      // stay between the near stop and the far stop, so repeated zooming can never lose the graph
+      const dist = Math.min(controls.maxDistance, Math.max(MIN_DISTANCE, offset.length() / k))
+      flyTo(controls.target.clone().add(offset.setLength(dist)), controls.target.clone())
     },
     dispose() {
       cancelAnimationFrame(raf)
       ro.disconnect()
       canvas.removeEventListener('pointerdown', onDown, true)
       canvas.removeEventListener('dblclick', onDouble)
+      canvas.removeEventListener('keydown', onKey)
       canvas.removeEventListener('pointerup', onUp)
       canvas.removeEventListener('pointermove', onMove)
       controls.dispose()
       disposeBuckets()
-      for (const o of objects.values()) { materialOf(o).dispose(); ((o.userData.hit as THREE.Mesh).material as THREE.Material).dispose() }
+      for (const o of objects.values()) { materialsOf(o).forEach((material) => material.dispose()); outlineOf(o)?.dispose(); ((o.userData.hit as THREE.Mesh).material as THREE.Material).dispose() }
       ring.material.dispose()
       edgeMark.geometry.dispose(); (edgeMark.material as THREE.Material).dispose()
       if (arrows) arrows.dispose()
@@ -806,6 +914,7 @@ function createEngine(host: HTMLElement, cb: { snap: boolean; shape: NodeShape; 
       labelLayer.remove()
     },
   }
+  return api
 }
 
 export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D({ nodes, edges, selectedId, focus, snap, shape, canvas, onSelect, onPinnedChange, onUnsupported }, ref) {

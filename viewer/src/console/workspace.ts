@@ -37,6 +37,8 @@ export interface AgentOption {
   profileId: string
   label: string
   writable: boolean
+  /** The server counted this namespace and found no memories (e.g. a device paired before its first write). */
+  knownEmpty: boolean
 }
 
 export function toOptions(workspaces: AgentWorkspace[]): AgentOption[] {
@@ -46,7 +48,14 @@ export function toOptions(workspaces: AgentWorkspace[]): AgentOption[] {
     profileId: w.profile_id!,
     label: w.agent_name || w.agent_id,
     writable: w.writable === true,
+    knownEmpty: w.memories_counted === true && w.memories === 0,
   }))
+}
+
+/** The workspace to open when nothing is chosen yet: the first that may hold memories, so the
+ * console does not land on an empty namespace when a populated one exists. */
+export function defaultOption(options: AgentOption[]): AgentOption | undefined {
+  return options.find((o) => !o.knownEmpty) ?? options[0]
 }
 
 function readInitial(): { agentId: string; storeId: string } {
@@ -142,11 +151,11 @@ export function useWorkspace(): Workspace {
     [options, chosen, primary],
   )
 
-  // Nothing valid selected but namespaces exist: take the first rather than leave the user in a
+  // Nothing valid selected but namespaces exist: take the default rather than leave the user in a
   // scope the server does not recognise. Nothing exists: stay unscoped (primary profile, read-only).
   useEffect(() => {
     if (!loaded || selected || primary || options.length === 0) return
-    const first = options[0]
+    const first = defaultOption(options)!
     persist(first.agentId, first.storeId)
     setChosen({ agentId: first.agentId, storeId: first.storeId })
   }, [loaded, selected, primary, options])

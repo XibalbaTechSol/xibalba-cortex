@@ -42,7 +42,9 @@ def test_both_scenarios_produce_the_documented_data(seed, tmp_path):
         scoped = store.graph_payload(limit=500, agent_id="agent-demo")
         labels = " | ".join(n["label"] for n in scoped["nodes"] if n["type"] == "memory")
         assert "relay" in labels and "Madison" not in labels and "Merkle roots are domain-separated" not in labels
-        assert {n["id"] for n in scoped["nodes"] if n["type"] == "session"} == {"session:sess-w1"}
+        # sess-w1 is the open session the fixture is built around; sess-w2 is a spare open one kept for
+        # ending ("End session" cannot be undone, so tests end it and leave sess-w1 alone)
+        assert {n["id"] for n in scoped["nodes"] if n["type"] == "session"} == {"session:sess-w1", "session:sess-w2"}
         # the Files tab has a real, downloadable attachment on the agent's first memory
         relay = next(m for m in store.list_memories(limit=500, statuses=("confirmed",)) if "retries a failed submission" in m["content"])
         attachments = store.list_attachments(relay["id"])
@@ -57,8 +59,9 @@ def test_agent_scenario_alone_is_small_and_has_one_open_session(seed, tmp_path):
     seed.main(["--home", str(home), "--scenario", "agent"])
     store = GraphStore(home)
     try:
-        assert {s["external_session_id"] for s in store.list_sessions(limit=50)} == {"sess-w1"}
-        assert sum(1 for n in store.graph_payload()["nodes"] if n["type"] == "exchange") == 5
+        assert {s["external_session_id"] for s in store.list_sessions(limit=50)} == {"sess-w1", "sess-w2"}
+        assert all(not s["ended_at"] for s in store.list_sessions(limit=50)), "both agent sessions are open"
+        assert sum(1 for n in store.graph_payload()["nodes"] if n["type"] == "exchange") == 6  # five in sess-w1, one in sess-w2
         # the agent's private relation chain is walkable, and only inside that workspace
         walked = store.neighbors("relay", max_depth=3, agent_id=store.storage_agent_id("agent-demo"))["edges"]
         assert [(e["subject"], e["object"]) for e in walked] == [("relay", "failed submission"), ("failed submission", "spool"), ("spool", "reconnect")]

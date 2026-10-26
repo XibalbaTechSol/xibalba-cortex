@@ -10,6 +10,7 @@ import { useAsync } from '../useAsync'
 import { describeCoverage, labelText, parsePrometheus, sum } from '../ops'
 import { IconWarn } from '../icons'
 import { Page } from './Page'
+import { BackupCard, ConnectorsCard, RuntimesCard, WorkersCard } from './OpsStatus'
 
 const tone = (ok: boolean) => (ok ? 'xc-tag--anchored' : 'xc-tag--conflict')
 const state = (value: string) => (/^(healthy|ok|ready|implemented|active)$/i.test(value) ? 'xc-tag--anchored' : /^(degraded|local_only|planned)$/i.test(value) ? 'xc-tag--review' : '')
@@ -127,13 +128,10 @@ export function OperationsPage() {
             <dl className="xc-kv">{Object.entries(d.quotas).map(([k, v]) => <div key={k}><dt>Quota · {k.replace(/_/g, ' ')}</dt><dd>{v === null ? 'unlimited' : v.toLocaleString()}</dd></div>)}</dl>
           </Card>
 
-          <Card title="Connectors" note="Entry points that bring outside events into the store.">
-            <ul className="xc-checks">
-              {Object.entries(d.connectors).map(([k, c]) => (
-                <li key={k}><span className={`xc-tag ${state(c.state)}`}><i />{c.state}</span> <b>{k.replace(/_/g, ' ')}</b> <span className="xc-meta xc-mono">{c.entrypoint}</span></li>
-              ))}
-            </ul>
-          </Card>
+          <RuntimesCard />
+          <WorkersCard />
+          <ConnectorsCard />
+          <BackupCard />
 
           <Card title="Production" note="What this profile does not yet claim.">
             <p><span className={`xc-tag ${state(d.production.state)}`}><i />{d.production.state.replace(/_/g, ' ')}</span></p>
