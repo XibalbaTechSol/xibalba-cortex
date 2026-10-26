@@ -13,7 +13,7 @@ from typing import Any
 import yaml
 
 _MODES = {"local", "hybrid", "remote-inference"}
-_SECRET_KEYS = {"api_key", "token", "password", "secret", "bearer_token", "connection_string"}
+_SECRET_KEYS = {"api_key", "token", "password", "secret", "bearer_token", "connection_string", "signer", "private_key", "pinata_jwt", "filecoin_private_key"}
 
 
 @dataclass(frozen=True)
@@ -109,6 +109,18 @@ class ProviderTelemetryConfig:
 
 
 @dataclass(frozen=True)
+class Agent0Config:
+    enabled: bool = False
+    chain_id: int = 8453
+    rpc_url: str | None = None
+    subgraph_url: str | None = None
+    signer: str | None = None
+    ipfs: str | None = None
+    pinata_jwt: str | None = None
+    filecoin_private_key: str | None = None
+
+
+@dataclass(frozen=True)
 class CortexConfig:
     profile_id: str = "default"
     mode: str = "local"
@@ -119,6 +131,7 @@ class CortexConfig:
     retrieval: RetrievalConfig = field(default_factory=RetrievalConfig)
     features: FeatureConfig = field(default_factory=FeatureConfig)
     telemetry: ProviderTelemetryConfig = field(default_factory=ProviderTelemetryConfig)
+    agent0: Agent0Config = field(default_factory=Agent0Config)
     quotas: QuotaConfig = field(default_factory=QuotaConfig)
     remote: dict[str, Any] = field(default_factory=dict)
 
@@ -269,6 +282,17 @@ def load_config(*, home: Path | str | None = None, environ: dict[str, str] | Non
     )
     if telemetry.retention_tier not in {"digest", "synopsis", "verbatim"}:
         raise ValueError("telemetry.retention_tier must be digest, synopsis, or verbatim")
+    agent0_raw = _mapping(raw.get("agent0"), "agent0")
+    agent0 = Agent0Config(
+        enabled=str(env.get("XIBALBA_AGENT0_ENABLED", agent0_raw.get("enabled", False))).lower() in {"1", "true", "yes", "on"},
+        chain_id=int(env.get("XIBALBA_AGENT0_CHAIN_ID", agent0_raw.get("chain_id", 8453))),
+        rpc_url=env.get("XIBALBA_AGENT0_RPC_URL", agent0_raw.get("rpc_url")),
+        subgraph_url=env.get("XIBALBA_AGENT0_SUBGRAPH_URL", agent0_raw.get("subgraph_url")),
+        signer=env.get("XIBALBA_AGENT0_SIGNER", agent0_raw.get("signer")),
+        ipfs=env.get("XIBALBA_AGENT0_IPFS", agent0_raw.get("ipfs")),
+        pinata_jwt=env.get("XIBALBA_AGENT0_PINATA_JWT", agent0_raw.get("pinata_jwt")),
+        filecoin_private_key=env.get("XIBALBA_AGENT0_FILECOIN_PRIVATE_KEY", agent0_raw.get("filecoin_private_key")),
+    )
     quota_raw = _mapping(raw.get("quotas"), "quotas")
     quota_value = env.get("XIBALBA_CORTEX_QUOTA_MAX_MEMORIES", quota_raw.get("max_memories"))
     max_memories = None if quota_value in (None, "", "none", "null") else int(quota_value)
@@ -284,6 +308,7 @@ def load_config(*, home: Path | str | None = None, environ: dict[str, str] | Non
         retrieval=retrieval,
         features=features,
         telemetry=telemetry,
+        agent0=agent0,
         quotas=QuotaConfig(max_memories=max_memories),
         remote=_mapping(raw.get("remote"), "remote"),
     )

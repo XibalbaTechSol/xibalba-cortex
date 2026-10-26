@@ -31,6 +31,7 @@ from .config import ManagedConfig
 from .control import LimitExceeded, ManagedControl
 from .plans import PLANS
 from .stripe_gateway import BillingUnavailable
+from ..agent0_integration import Agent0Gateway, Agent0Unavailable
 
 log = logging.getLogger(__name__)
 COOKIE = "cortex_managed_session"
@@ -69,6 +70,7 @@ def create_app(config: ManagedConfig, *, control: ManagedControl | None = None, 
     rate_lock = threading.Lock()
     export_slots = asyncio.Semaphore(2)
     auth_slots = asyncio.Semaphore(4)
+    agent0_gateway: Agent0Gateway | None = None
 
     async def auth_work(function, *args, **kwargs):
         async with auth_slots:
@@ -143,6 +145,39 @@ def create_app(config: ManagedConfig, *, control: ManagedControl | None = None, 
             if len(data) > config.max_body_bytes:
                 raise ApiError(413, "Request body is too large")
         return bytes(data)
+
+    def get_agent0() -> Agent0Gateway:
+        nonlocal agent0_gateway
+        if agent0_gateway is None:
+            agent0_gateway = Agent0Gateway(config.agent0)
+        return agent0_gateway
+
+    def agent0_read_operation(request: Request, operation: str):
+        account, principal, _ = authenticate(request)
+        require_scope(principal, "memory:read")
+        tenant = service.tenant(account)
+        service.consume(tenant, "retrievals")
+        gateway = get_agent0()
+        if operation == "search":
+            query = str(request.query_params.get("q") or request.query_params.get("name") or "").strip()
+            filters: dict[str, object] = {"name": query} if query else {}
+            return {"agents": gateway.search_agents(filters=filters, options={"sort": ["updatedAt:desc"]}), "source": "agent0", "query": query}
+        agent_id = str(request.path_params["agent_id"])
+        if operation == "agent":
+            return {"agent": gateway.agent(agent_id, full=request.query_params.get("full") == "true"), "source": "agent0"}
+        return {"agent_id": agent_id, "reputation": gateway.reputation(agent_id), "source": "agent0"}
+
+    async def agent0_search(request):
+        rate_limit(request)
+        return JSONResponse(await run_in_threadpool(agent0_read_operation, request, "search"))
+
+    async def agent0_agent(request):
+        rate_limit(request)
+        return JSONResponse(await run_in_threadpool(agent0_read_operation, request, "agent"))
+
+    async def agent0_reputation(request):
+        rate_limit(request)
+        return JSONResponse(await run_in_threadpool(agent0_read_operation, request, "reputation"))
 
     async def payload(request: Request):
         if request.headers.get("content-type", "").split(";", 1)[0] != "application/json":
@@ -454,6 +489,8 @@ def create_app(config: ManagedConfig, *, control: ManagedControl | None = None, 
             return JSONResponse({"error": str(exc)}, status_code=429)
         if isinstance(exc, BillingUnavailable):
             return JSONResponse({"error": str(exc)}, status_code=503)
+        if isinstance(exc, Agent0Unavailable):
+            return JSONResponse({"error": str(exc)}, status_code=503)
         if isinstance(exc, PermissionError):
             return JSONResponse({"error": str(exc)}, status_code=403)
         if isinstance(exc, KeyError):
@@ -483,6 +520,9 @@ def create_app(config: ManagedConfig, *, control: ManagedControl | None = None, 
         Route("/api/managed/import", structured_import, methods=["POST"]),
         Route("/api/managed/graph", graph, methods=["GET"]),
         Route("/api/managed/timeline", timeline, methods=["GET"]),
+        Route("/api/managed/agent0/search", agent0_search, methods=["GET"]),
+        Route("/api/managed/agent0/agent/{agent_id}", agent0_agent, methods=["GET"]),
+        Route("/api/managed/agent0/reputation/{agent_id}", agent0_reputation, methods=["GET"]),
         Route("/api/managed/memories/{memory_id}", memories),
         Route("/api/managed/memories/{memory_id}/verify", memories),
         Route("/api/managed/export", export),

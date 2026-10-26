@@ -826,6 +826,36 @@ export interface AgentWorkspace {
   seen?: boolean
 }
 
+export interface Agent0Record {
+  agentId?: string
+  agentURI?: string | null
+  name?: string
+  description?: string
+  image?: string | null
+  active?: boolean
+  walletAddress?: string | null
+  walletChainId?: number | null
+  owners?: string[]
+  operators?: string[]
+  endpoints?: Array<Record<string, unknown>>
+  trustModels?: unknown[]
+  metadata?: Record<string, unknown>
+  updatedAt?: number | string | null
+  [key: string]: unknown
+}
+
+export interface Agent0SearchResponse {
+  agents: Agent0Record[]
+  source: 'agent0'
+  query: string
+}
+
+export interface Agent0ReputationResponse {
+  agent_id: string
+  reputation: Record<string, unknown>
+  source: 'agent0'
+}
+
 export interface AgentDevicePair {
   device_id: string
   agent_id: string
@@ -1074,6 +1104,9 @@ export const api = {
   sessionsPage: (limit = 50, offset = 0, scope: WorkspaceScope = {}) =>
     getJson<{sessions: Session[]; offset: number; limit: number; has_more: boolean; count_status: string; store_id: string; profile_id: string}>(`/api/sessions/page?limit=${limit}&offset=${offset}${scopeParams(scope)}`),
   agents: (limit = 100) => getJson<{agents: AgentWorkspace[]; oracle_reachable: boolean}>(`/api/agents?limit=${limit}`),
+  agent0Search: (query = '') => getJson<Agent0SearchResponse>(`/api/agent0/search?q=${encodeURIComponent(query)}`),
+  agent0Agent: (agentId: string, full = true) => getJson<{agent: Agent0Record; source: 'agent0'}>(`/api/agent0/agent/${encodeURIComponent(agentId)}?full=${full ? 'true' : 'false'}`),
+  agent0Reputation: (agentId: string) => getJson<Agent0ReputationResponse>(`/api/agent0/reputation/${encodeURIComponent(agentId)}`),
   agentSummary: (agentId: string, storeId: string) =>
     getJson<AgentSummary>(`/api/agent/${encodeURIComponent(agentId)}/summary?limit=0&store_id=${encodeURIComponent(storeId)}`),
   /** Pairings, newest first. /api/agents lists workspaces; this lists which devices are paired to them. */

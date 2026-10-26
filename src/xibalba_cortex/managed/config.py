@@ -5,6 +5,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from urllib.parse import urlsplit
 
+from ..config import Agent0Config
+
 
 @dataclass(frozen=True)
 class ManagedConfig:
@@ -21,6 +23,7 @@ class ManagedConfig:
     max_content_bytes: int = 16_384
     # A pinned, supported version; upgrades must be tested alongside webhook fixtures.
     stripe_api_version: str = "2025-06-30.basil"
+    agent0: Agent0Config = field(default_factory=lambda: Agent0Config(chain_id=84532))
 
     def __post_init__(self):
         object.__setattr__(self, "home", Path(self.home).expanduser().resolve())
@@ -72,4 +75,14 @@ class ManagedConfig:
             stripe_live=os.environ.get("CORTEX_STRIPE_LIVE", "false").lower() == "true",
             allow_signup=os.environ.get("CORTEX_MANAGED_ALLOW_SIGNUP", "false").lower() == "true",
             signup_daily_limit=int(os.environ.get("CORTEX_MANAGED_SIGNUP_DAILY_LIMIT", "20")),
+            agent0=Agent0Config(
+                enabled=os.environ.get("XIBALBA_AGENT0_ENABLED", "false").lower() in {"1", "true", "yes", "on"},
+                chain_id=int(os.environ.get("XIBALBA_AGENT0_CHAIN_ID", "84532")),
+                rpc_url=os.environ.get("XIBALBA_AGENT0_RPC_URL"),
+                subgraph_url=os.environ.get("XIBALBA_AGENT0_SUBGRAPH_URL"),
+                signer=os.environ.get("XIBALBA_AGENT0_SIGNER"),
+                ipfs=os.environ.get("XIBALBA_AGENT0_IPFS"),
+                pinata_jwt=os.environ.get("XIBALBA_AGENT0_PINATA_JWT"),
+                filecoin_private_key=os.environ.get("XIBALBA_AGENT0_FILECOIN_PRIVATE_KEY"),
+            ),
         )

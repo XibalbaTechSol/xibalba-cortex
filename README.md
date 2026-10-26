@@ -292,6 +292,30 @@ The adapter also requires the snapshot's `finalized_block_number` and
 32-byte hex block hash. The operator-controlled `finalized` bit is therefore not sufficient by
 itself to widen an account's agent namespace.
 
+### ERC-8004 / Agent0 integration
+
+Cortex can optionally expose the Agent0 SDK through MCP for ERC-8004 discovery,
+registration, agent inspection, reputation, and feedback. Install the optional
+dependency with `uv sync --extra agent0`.
+
+Read operations require `XIBALBA_AGENT0_ENABLED=1`,
+`XIBALBA_AGENT0_RPC_URL`, and optionally `XIBALBA_AGENT0_SUBGRAPH_URL`.
+On-chain registration and feedback additionally require
+`XIBALBA_AGENT0_SIGNER`; keep that value in the service environment and never
+place it in a memory record or MCP argument. The available MCP tools are
+`agent0_search_agents`, `agent0_get_agent`, `agent0_get_reputation`,
+`agent0_search_feedback`, `agent0_get_owner`, `agent0_register_agent`,
+`agent0_prepare_feedback`, and `agent0_give_feedback`.
+
+Agent0 data is external ERC-8004 evidence. It does not replace the Integrity
+Oracle, Integrity DIDs, AIS, BCC policy, or Cortex's local provenance store.
+
+The viewer's Agents page also supports client-signed test registration on Base
+Sepolia. Open **Register a test identity with MetaMask**, connect MetaMask, and
+approve the ERC-8004 Identity Registry transaction. The wallet stays in the
+browser; the page reads the confirmed token URI and owner back from Base
+Sepolia and displays the resulting record and Basescan transaction.
+
 **Not yet installable standalone.** `pyproject.toml` pins `integrity-sdk` as a local path
 dependency on `../integrity-core/integrity-sdk` (`[tool.uv.sources]`) — `uv sync` only resolves
 if `integrity-core` is checked out as a sibling directory (this is also how CI installs it — see

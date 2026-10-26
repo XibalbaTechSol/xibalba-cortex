@@ -1,12 +1,15 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
 import { Landing } from './Landing'
 import { ManagedGraphLens, ManagedTimelineLens } from './ManagedLenses'
+import { registerAgentWithMetaMask } from '../agent0_wallet'
 import './managed.css'
 
 type Plan = { id: string; name: string; monthly_cents: number; max_memories: number; writes_per_month: number; retrievals_per_month: number }
 type Catalog = { plans: Plan[]; billing_configured: boolean; signup_enabled: boolean; hosted_inference_enabled: boolean }
 type Account = { account: { display_name: string; email: string }; entitlement: { plan: Plan; status: string; writable: boolean; period_end: number | null; cancel_at_period_end: boolean }; usage: { month: string; used: Record<string, number> }; counts: Record<string, number>; csrf_token: string }
 type Memory = { id: string; content: string; status: string }
+type Agent0Record = { agentId?: string; agentURI?: string; name?: string; description?: string; owners?: string[]; walletAddress?: string; trustModels?: unknown[]; endpoints?: Array<Record<string, unknown>>; active?: boolean }
+type Agent0Search = { agents: Agent0Record[]; source: 'agent0'; query: string }
 
 class ManagedError extends Error {
   status: number
@@ -211,6 +214,52 @@ export function ManagedApp() {
       {keys.map((key) => <div className="xc-managed-actions" key={key.id}><span className="xc-note">{key.label.replace(/^managed-api:/, '')} · {key.agent_ids?.length ? `${key.agent_ids.length} agent${key.agent_ids.length === 1 ? '' : 's'}` : 'unbound'} · expires {new Date(key.expires_at).toLocaleDateString()}</span><button className="xc-btn" disabled={busy} onClick={() => void act(async () => { await request('keys/revoke', { method: 'POST', body: JSON.stringify({ id: key.id }) }, account.csrf_token); setKeys(keys.filter((item) => item.id !== key.id)); setNewKey('') })}>Revoke key</button></div>)}
       {newKey && <div><p className="xc-note">Copy this key now; it will disappear when you leave this page.</p><code className="xc-managed-key">{newKey}</code><button className="xc-btn" onClick={() => setNewKey('')}>Hide key</button></div>}
     </section>
+    <ManagedAgent0Directory />
     <section aria-labelledby="workspace-plans-title"><h2 className="xc-landing-h2" id="workspace-plans-title">Workspace plans</h2>{cards}{!catalog?.billing_configured && <p className="xc-note xc-managed-note">Paid subscriptions are not available yet.</p>}</section>
   </div></main></div>
+}
+
+function ManagedAgent0Directory() {
+  const [query, setQuery] = useState('')
+  const [agents, setAgents] = useState<Agent0Record[]>([])
+  const [selected, setSelected] = useState<Agent0Record | null>(null)
+  const [busy, setBusy] = useState(false)
+  const [message, setMessage] = useState('')
+  const [name, setName] = useState('Cortex Managed Test Agent')
+  const [description, setDescription] = useState('Test ERC-8004 identity registered from managed Cortex with MetaMask on Base Sepolia.')
+  const [txHash, setTxHash] = useState('')
+  const search = async (event: FormEvent) => {
+    event.preventDefault(); setBusy(true); setMessage('')
+    try { const result = await request<Agent0Search>('agent0/search?q=' + encodeURIComponent(query.trim())); setAgents(result.agents); setSelected(null) }
+    catch (error) { setMessage(error instanceof Error ? error.message : String(error)) }
+    finally { setBusy(false) }
+  }
+  const register = async (event: FormEvent) => {
+    event.preventDefault(); setBusy(true); setMessage(''); setTxHash('')
+    try { const result = await registerAgentWithMetaMask({ name, description }); setSelected(result.record as Agent0Record); setTxHash(result.txHash); setMessage(`Registered ${result.agentId} on Base Sepolia.`) }
+    catch (error) { setMessage(error instanceof Error ? error.message : String(error)) }
+    finally { setBusy(false) }
+  }
+  return <section className="xc-win xc-managed-panel xc-managed-agent0" aria-labelledby="managed-agent0-title">
+    <p className="xc-eyebrow">External directory · Agent0</p>
+    <h2 className="xc-title" id="managed-agent0-title">Search ERC-8004 agents</h2>
+    <p className="xc-copy">Managed and local Cortex use the same Agent0/ERC-8004 directory and MetaMask registration flow. Agent0 remains external chain evidence, not workspace authorization.</p>
+    <form className="xc-managed-search" onSubmit={search}>
+      <label className="xc-field">Search by name<input className="xc-input" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="agent name (optional)" /></label>
+      <button className="xc-btn xc-btn--primary" disabled={busy}>Search</button>
+    </form>
+    <details className="xc-managed-agent0-register">
+      <summary className="xc-btn">Register a test identity with MetaMask</summary>
+      <form className="xc-managed-form" onSubmit={register}>
+        <label className="xc-field">Name<input className="xc-input" value={name} onChange={(event) => setName(event.target.value)} required /></label>
+        <label className="xc-field">Description<textarea className="xc-input" value={description} onChange={(event) => setDescription(event.target.value)} rows={3} required /></label>
+        <p className="xc-note">MetaMask will switch to Base Sepolia and ask for approval. Gas is paid by the connected wallet.</p>
+        <button className="xc-btn xc-btn--primary" disabled={busy}>{busy ? 'Waiting…' : 'Connect & register'}</button>
+      </form>
+    </details>
+    {message && <p className="xc-callout xc-callout--review" role="status">{message}</p>}
+    {txHash && <p className="xc-note">Confirmed transaction: <a className="xc-mono" href={`https://sepolia.basescan.org/tx/${txHash}`} target="_blank" rel="noreferrer">{txHash}</a></p>}
+    {agents.map((agent) => <button className="xc-managed-agent0-result" type="button" key={String(agent.agentId)} onClick={() => setSelected(agent)}><b>{agent.name || 'Unnamed agent'}</b><span className="xc-mono">{agent.agentId}</span></button>)}
+    {selected && <div className="xc-managed-agent0-detail"><p className="xc-eyebrow">On-chain agent record</p><h3 className="xc-title">{selected.name || selected.agentId}</h3><p className="xc-mono">{selected.agentId}</p><dl className="xc-kv"><div><dt>Description</dt><dd>{selected.description || '—'}</dd></div><div><dt>Owner</dt><dd className="xc-mono">{selected.owners?.join(', ') || '—'}</dd></div><div><dt>Wallet</dt><dd className="xc-mono">{selected.walletAddress || '—'}</dd></div><div><dt>Agent URI</dt><dd className="xc-mono">{selected.agentURI || '—'}</dd></div><div><dt>Trust models</dt><dd>{selected.trustModels?.join(', ') || '—'}</dd></div></dl><p className="xc-note">Source: Agent0 / ERC-8004. This record does not grant workspace access.</p></div>}
+  </section>
 }

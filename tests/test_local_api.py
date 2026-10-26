@@ -137,6 +137,60 @@ def test_get_without_token_is_rejected(running_store):
     assert excinfo.value.code == 401
 
 
+def test_agent0_routes_fail_closed_when_disabled(running_store):
+    _, port = running_store
+
+    status, payload = _get(port, "/api/agent0/search?q=weather")
+
+    assert status == 503
+    assert "Agent0" in payload["error"]
+
+
+def test_agent0_routes_expose_search_and_on_chain_data(running_store, monkeypatch):
+    store, port = running_store
+
+    class FakeAgent0Gateway:
+        def __init__(self, config):
+            assert config.enabled is True
+
+        def search_agents(self, *, filters, options):
+            assert filters == {"name": "weather"}
+            return [{"id": "8453:7", "name": "Weather Agent"}]
+
+        def agent(self, agent_id, *, full):
+            assert (agent_id, full) == ("8453:7", True)
+            return {"id": agent_id, "owner": "0xabc", "uri": "ipfs://record"}
+
+        def reputation(self, agent_id):
+            assert agent_id == "8453:7"
+            return {"count": 3, "average": 0.9}
+
+    monkeypatch.setenv("XIBALBA_AGENT0_ENABLED", "1")
+    monkeypatch.setenv("XIBALBA_AGENT0_RPC_URL", "http://agent0.test")
+    monkeypatch.setattr("xibalba_cortex.local_api.Agent0Gateway", FakeAgent0Gateway)
+
+    status, search = _get(port, "/api/agent0/search?q=weather")
+    assert status == 200
+    assert search == {
+        "agents": [{"id": "8453:7", "name": "Weather Agent"}],
+        "source": "agent0",
+        "query": "weather",
+    }
+
+    status, agent = _get(port, "/api/agent0/agent/8453%3A7?full=true")
+    assert status == 200
+    assert agent["agent"]["owner"] == "0xabc"
+    assert agent["source"] == "agent0"
+
+    status, reputation = _get(port, "/api/agent0/reputation/8453%3A7")
+    assert status == 200
+    assert reputation == {
+        "agent_id": "8453:7",
+        "reputation": {"count": 3, "average": 0.9},
+        "source": "agent0",
+    }
+
+
 def test_post_without_token_is_rejected(running_store):
     _, port = running_store
     body = json.dumps({}).encode()

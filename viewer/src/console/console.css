@@ -2519,6 +2519,83 @@ select.xc-input {
   padding: 10px 12px;
   border: 1px solid var(--hairline);
 }
+.xc-agent-directory {
+  display: grid;
+  gap: 8px;
+  margin-top: 18px;
+  min-width: 0;
+}
+.xc-agent-result {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 10px 12px;
+  color: inherit;
+  text-align: left;
+  background: transparent;
+  border: 1px solid var(--hairline);
+  cursor: pointer;
+}
+.xc-agent-result:hover,
+.xc-agent-result--selected {
+  border-color: var(--accent);
+}
+.xc-agent-result span:first-child {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+.xc-agent-result small {
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+.xc-agent-directory-detail {
+  display: grid;
+  align-content: start;
+  gap: 10px;
+  padding: 18px;
+  border: 1px solid var(--hairline);
+  min-width: 0;
+}
+
+.xc-agent-register {
+  margin-top: 18px;
+  border-top: 1px solid var(--xc-border);
+  padding-top: 14px;
+}
+
+.xc-agent-register summary {
+  display: inline-block;
+  cursor: pointer;
+  list-style: none;
+}
+
+.xc-agent-register summary::-webkit-details-marker {
+  display: none;
+}
+
+.xc-agent-register-form {
+  display: grid;
+  gap: 12px;
+  margin-top: 14px;
+  max-width: 620px;
+}
+.xc-agent-directory-detail h3,
+.xc-agent-directory-detail p {
+  margin-top: 0;
+}
+.xc-code-block {
+  max-height: 220px;
+  overflow: auto;
+  margin: 0;
+  padding: 12px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  border: 1px solid var(--hairline);
+  font: 12px/1.5 var(--mono);
+}
 
 /* ── Settings sections (Inference, Embeddings, Account, Developer) ───────────────────────── */
 .xc-settings-form {
