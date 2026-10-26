@@ -11,6 +11,7 @@ import { forceX, forceY } from 'd3-force'
 import { useConsole } from './state'
 import { useSettings } from './settingsContext'
 import { Graph3D, type Graph3DHandle } from './Graph3D'
+import { Inspector } from './Inspector'
 import { FADE, GRID_INK, LINK_ALPHA, linkWidth, nodeHalf, traceNode } from './graphStyle'
 import { GRID_CELL_SIZE, cellCentre, snapToGrid, type Cell } from './gridSnap'
 import { defaultFacets, filterModel, selectionHidden, type CNode, type EdgeGroup, type Facets, type NodeClass } from './model'
@@ -66,6 +67,7 @@ export function GraphLens() {
   const [pinned, setPinned] = useState(0)
   // the legend sits over the canvas, so it starts closed and opens on request
   const [legendOpen, setLegendOpen] = useState(false)
+  const [summaryOpen, setSummaryOpen] = useState(false)
   const hidden = selectionHidden(model, visible, selectedId)
 
   // --- stable node objects -------------------------------------------------------------------------
@@ -273,7 +275,7 @@ export function GraphLens() {
         const name = node.cls === 'session' ? node.label.replace(/^Session /, '') : node.label
         const text = name.length > 46 ? `${name.slice(0, 45)}…` : name
         const fontSize = 11 / scale
-        ctx.font = `400 ${fontSize}px Barlow, system-ui, sans-serif`
+        ctx.font = `500 ${fontSize}px Raleway, system-ui, sans-serif`
         const w = ctx.measureText(text).width
         const padX = 5 / scale
         const padY = 3 / scale
@@ -453,6 +455,8 @@ export function GraphLens() {
           )}
         </div>
 
+        <button type="button" className="xc-summary-toggle xc-btn" aria-label="Workspace summary" onClick={() => { select(null); setSummaryOpen((v) => !v) }}>Workspace</button>
+        {summaryOpen && !selectedId && <Inspector summary onClose={() => setSummaryOpen(false)} />}
         <button type="button" className="xc-legend-toggle" aria-expanded={legendOpen} onClick={() => setLegendOpen((v) => !v)}>
           {legendOpen ? 'Hide legend' : 'Legend'}
         </button>

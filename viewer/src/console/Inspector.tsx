@@ -10,10 +10,15 @@ import { useConsole } from './state'
 import { useSettings } from './settingsContext'
 import { useAsync, type AsyncState } from './useAsync'
 import { EDGE_TYPE_LABEL, elideHash, parseServerTime, shortStamp, type CEdge, type CNode, type GraphModel } from './model'
+import { describeIntervention, interventions, interventionsForSession, sessionRuntime } from './runtime'
+import { ConfirmPanel } from './ConfirmPanel'
+import { attachProblem, formatBytes } from './workspaceActions'
+
 import { IconCheck, IconChevronLeft, IconChevronRight, IconClose, IconWarn } from './icons'
 import { MemoryActions } from './MemoryActions'
 import { MemoryChainCheck, ProvenanceExport } from './VerifyPanel'
 import { attachmentFilename, saveBlob } from './download'
+import { useInDrawer } from './PageDrawer'
 
 type MemoryTab = 'chain' | 'content' | 'inference' | 'provenance' | 'neighbors' | 'contradictions' | 'telemetry' | 'files'
 const MEMORY_TABS: Array<[MemoryTab, string]> = [
@@ -152,21 +157,25 @@ function InferenceTab({ memory }: { memory: Memory }) {
 
 // ---------------------------------------------------------------------------------------------------
 
-export function Inspector() {
+export function Inspector({ summary = false, onClose }: { summary?: boolean; onClose?: () => void } = {}) {
   const { selectedId, model, notice, setNotice, select } = useConsole()
   const { settings, update } = useSettings()
   const collapsed = settings.detailCollapsed
   const node = selectedId ? model?.byId.get(selectedId) : undefined
   // an edge is selectable too; its ids start with the edge type, never with a node-class prefix
   const edge = selectedId && !node ? model?.edges.find((e) => e.id === selectedId) : undefined
+  // inside the Memories drawer the detail pane is for the list beside it, not a summary of the workspace
+  const inDrawer = useInDrawer()
 
   let body: ReactNode
-  if (!selectedId) {
-    body = (
+  if (summary || !selectedId) {
+    body = inDrawer ? (
       <div className="xc-empty" style={{ flex: 1 }}>
         <h3 className="xc-title">Nothing selected</h3>
-        <p>Select a node on the graph, a mark on the timeline, or a Recall result to inspect it.</p>
+        <p>Choose a memory in the list to inspect it.</p>
       </div>
+    ) : (
+      <WorkspaceSummary />
     )
   } else if (edge) {
     body = <EdgeInspector key={selectedId} edge={edge} />
@@ -197,7 +206,7 @@ export function Inspector() {
           chosen; close drops the selection and gives the lens the whole width back. Both stay
           in the head when collapsed -- it is the one child the collapsed strip keeps. */}
       <div className="xc-dock-head">
-        <span className="xc-dock-title">Selected</span>
+        <span className="xc-dock-title">{summary ? 'Workspace' : 'Selected'}</span>
         <button
           type="button"
           className="xc-btn xc-btn--square"
@@ -211,14 +220,14 @@ export function Inspector() {
         <button
           type="button"
           className="xc-btn xc-btn--square"
-          aria-label="Close selected memory"
+          aria-label={summary ? 'Close workspace summary' : 'Close selected memory'}
           title="Close: clears the selection"
-          onClick={() => select(null)}
+          onClick={summary ? onClose : () => select(null)}
         >
           <IconClose />
         </button>
       </div>
-      {notice && (
+      {notice && !inDrawer && (
         <div className="xc-callout xc-callout--anchored xc-notice" role="status">
           <IconCheck />
           <span style={{ flex: 1 }}>{notice}</span>
@@ -500,9 +509,36 @@ function TelemetryTab({ memoryId, scope }: { memoryId: string; scope: WorkspaceS
 }
 
 function FilesTab({ memoryId, scope }: { memoryId: string; scope: WorkspaceScope }) {
-  const list = useAsync(() => api.attachments(memoryId, scope), [memoryId, scope])
+  const { workspace } = useConsole()
+  const [rev, setRev] = useState(0)
+  const list = useAsync(() => api.attachments(memoryId, scope), [memoryId, scope, rev])
   const [downloading, setDownloading] = useState<string | null>(null)
   const [downloadError, setDownloadError] = useState<string | null>(null)
+  // attaching: choose a file, read what will happen, then confirm; the bytes go to the server, which picks the path
+  const [chosen, setChosen] = useState<File | null>(null)
+  const [attachBusy, setAttachBusy] = useState(false)
+  const [attachNote, setAttachNote] = useState<{ tone: 'ok' | 'error'; text: string } | null>(null)
+  const choose = (file: File | undefined) => {
+    setAttachNote(null)
+    if (!file) { setChosen(null); return }
+    const problem = attachProblem(file)
+    if (problem) { setChosen(null); setAttachNote({ tone: 'error', text: problem }); return }
+    setChosen(file)
+  }
+  const attach = async () => {
+    if (!chosen) return
+    setAttachBusy(true)
+    try {
+      const made = await api.attachFile(memoryId, chosen)
+      setAttachNote({ tone: 'ok', text: `Attached ${made.display_name} (${formatBytes(made.byte_size)}). It is stored by its content hash and recorded in this memory’s history.` })
+      setChosen(null)
+      setRev((n) => n + 1)
+    } catch (e) {
+      setAttachNote({ tone: 'error', text: e instanceof Error ? e.message : String(e) })
+    } finally {
+      setAttachBusy(false)
+    }
+  }
 
   /** Fetch with the session credential (a plain link would not carry a bearer token) and hand the bytes to the browser. */
   const download = async (attachment: Attachment) => {
@@ -518,25 +554,108 @@ function FilesTab({ memoryId, scope }: { memoryId: string; scope: WorkspaceScope
   }
 
   return (
-    <Async state={list} empty={(l) => l.length === 0}>
-      {(items) => (
-        <div className="xc-rows">
-          {items.map((a) => (
-            <div className="xc-row" key={a.id}>
-              <i className="xc-row-dot" style={{ background: 'var(--ink-muted)' }} />
-              <div className="xc-row-main">
-                <div className="xc-row-top"><span className="xc-mono">{a.media_type}</span><span className="xc-meta">{a.byte_size.toLocaleString()} B</span></div>
-                <p className="xc-hash" title={a.content_hash}>{elideHash(a.content_hash)}</p>
-                <div className="xc-actions-row" style={{ marginTop: 4 }}>
-                  <button type="button" className="xc-btn" disabled={downloading === a.id} onClick={() => void download(a)}>{downloading === a.id ? 'Downloading…' : 'Download'}</button>
+    <>
+      {workspace.canWrite ? (
+        <div className="xc-form">
+          <label className="xc-field">Attach a file
+            <input className="xc-input" type="file" onChange={(e) => { choose(e.target.files?.[0]); e.target.value = '' }} disabled={attachBusy} />
+            <span className="xc-note">Any file up to 200 MB. It is stored on the server by its content hash; identical files are stored once.</span>
+          </label>
+          {chosen && (
+            <ConfirmPanel
+              title={`Attach ${chosen.name}`}
+              lines={[`${formatBytes(chosen.size)}${chosen.type ? ` · ${chosen.type}` : ''} will be uploaded and attached to this memory.`, 'The attachment is recorded in the memory’s history and cannot be removed from it.']}
+              confirmLabel="Attach"
+              busy={attachBusy}
+              onConfirm={() => void attach()}
+              onCancel={() => setChosen(null)}
+            />
+          )}
+        </div>
+      ) : (
+        <p className="xc-note">Read-only workspace: files can be downloaded but not attached.</p>
+      )}
+      {attachNote && <div className={`xc-callout ${attachNote.tone === 'ok' ? 'xc-callout--anchored' : 'xc-callout--conflict'}`} role={attachNote.tone === 'ok' ? 'status' : 'alert'}>{attachNote.tone === 'error' && <IconWarn />}{attachNote.text}</div>}
+      <Async state={list} empty={(l) => l.length === 0}>
+        {(items) => (
+          <div className="xc-rows">
+            {items.map((a) => (
+              <div className="xc-row" key={a.id}>
+                <i className="xc-row-dot" style={{ background: 'var(--ink-muted)' }} />
+                <div className="xc-row-main">
+                  <div className="xc-row-top"><span className="xc-mono">{a.media_type}</span><span className="xc-meta">{a.byte_size.toLocaleString()} B</span></div>
+                  <p className="xc-hash" title={a.content_hash}>{elideHash(a.content_hash)}</p>
+                  <div className="xc-actions-row" style={{ marginTop: 4 }}>
+                    <button type="button" className="xc-btn" disabled={downloading === a.id} onClick={() => void download(a)}>{downloading === a.id ? 'Downloading…' : 'Download'}</button>
+                  </div>
                 </div>
               </div>
+            ))}
+            {downloadError && <div className="xc-callout xc-callout--conflict" role="alert"><IconWarn />{downloadError}</div>}
+          </div>
+        )}
+      </Async>
+    </>
+  )
+}
+
+// --- nothing selected: the workspace itself ---------------------------------------------------------------
+
+/** What the inspector shows before anything is selected: the workspace, so the pane is never dead space. */
+function WorkspaceSummary() {
+  const { model, stats, status, sessions, select, workspace, go, setOverlay } = useConsole()
+  const recent = sessions.slice(0, 4)
+  return (
+    <>
+      <div className="xc-inspector-head">
+        <p className="xc-eyebrow">Workspace</p>
+        <h3 className="xc-title">Nothing selected</h3>
+        <p className="xc-note">Select a node or an edge on the graph, a mark on the timeline, or a Recall result to inspect it.</p>
+      </div>
+      <div className="xc-scroll"><div className="xc-inspector-body">
+        <section>
+          <p className="xc-eyebrow xc-eyebrow--dim xc-section-title">{workspace.selected ? workspace.selected.label : workspace.primary ? 'Primary profile' : 'Workspace'}{workspace.canWrite ? '' : ' · read only'}</p>
+          <dl className="xc-kv">
+            <div><dt>Memories</dt><dd>{stats?.memories == null ? '—' : stats.memories.toLocaleString()}</dd></div>
+            <div><dt>Entities</dt><dd>{stats ? stats.entities.toLocaleString() : '—'}</dd></div>
+            <div><dt>Sessions</dt><dd>{stats ? stats.sessions.toLocaleString() : '—'}</dd></div>
+            <div><dt>Schema</dt><dd>{status ? `v${status.schema_version}` : '—'}</dd></div>
+            <div><dt>Identity</dt><dd>{status?.identity_mode ?? '—'}</dd></div>
+            <div><dt>Integrity check</dt><dd>{status?.integrity_check ?? '—'}</dd></div>
+          </dl>
+        </section>
+        {recent.length > 0 && (
+          <section>
+            <p className="xc-eyebrow xc-eyebrow--dim xc-section-title">Latest sessions</p>
+            <div className="xc-rows">
+              {recent.map((row) => {
+                const node = model?.nodes.find((n) => n.cls === 'session' && n.sessionId === row.external_session_id)
+                return (
+                  <div className="xc-row" key={row.id}>
+                    <i className="xc-row-dot" style={{ background: 'var(--status-anchored)' }} />
+                    <div className="xc-row-main">
+                      {node
+                        ? <button type="button" className="xc-link" onClick={() => select(node.id)}>{row.external_session_id}</button>
+                        : <span style={{ fontSize: 13 }}>{row.external_session_id}</span>}
+                      <p className="xc-meta">{stamp(row.started_at)} · {row.ended_at ? 'ended' : 'open'}</p>
+                    </div>
+                  </div>
+                )
+              })}
             </div>
-          ))}
-          {downloadError && <div className="xc-callout xc-callout--conflict" role="alert"><IconWarn />{downloadError}</div>}
-        </div>
-      )}
-    </Async>
+          </section>
+        )}
+        <section>
+          <p className="xc-eyebrow xc-eyebrow--dim xc-section-title">Go to</p>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+            <button type="button" className="xc-btn" aria-haspopup="dialog" onClick={() => setOverlay('recall')}>Recall</button>
+            <button type="button" className="xc-btn" aria-haspopup="dialog" onClick={() => setOverlay('review')}>Review</button>
+            <button type="button" className="xc-btn" aria-haspopup="dialog" onClick={() => setOverlay('integrity')}>Verify chains</button>
+            <button type="button" className="xc-btn" aria-haspopup="dialog" onClick={() => go('memories')}>Memories</button>
+          </div>
+        </section>
+      </div></div>
+    </>
   )
 }
 
@@ -605,7 +724,7 @@ function edgesOf(edges: CEdge[], id: string): CEdge[] {
 }
 
 function EntityInspector({ node }: { node: CNode }) {
-  const { model, select, reveal } = useConsole()
+  const { model, select, reveal, openPage } = useConsole()
   const relations = model ? edgesOf(model.edges, node.id).filter((e) => e.type === 'relation') : []
   return (
     <>
@@ -640,6 +759,9 @@ function EntityInspector({ node }: { node: CNode }) {
             </div>
           )}
         </section>
+        <div className="xc-actions-row" style={{ justifyContent: 'flex-start' }}>
+          <button type="button" className="xc-btn" aria-haspopup="dialog" onClick={() => openPage('entities', node.label)}>Neighbours and paths</button>
+        </div>
         <p className="xc-note">{node.time === null ? 'No timestamp: none of this entity’s evidence is placed in time.' : `Placed at ${shortStamp(node.time)} by its earliest evidence memory.`}</p>
       </div></div>
     </>
@@ -649,8 +771,10 @@ function EntityInspector({ node }: { node: CNode }) {
 // --- session ---------------------------------------------------------------------------------------
 
 function SessionInspector({ node }: { node: CNode }) {
-  const { model, sessions, workspace, select, setWindow } = useConsole()
+  const { model, sessions, workspace, select, setWindow, openPage, invocations } = useConsole()
   const row = sessions.find((s) => s.external_session_id === node.sessionId)
+  const runtime = node.sessionId ? sessionRuntime(invocations, node.sessionId) : null
+  const stops = interventionsForSession(interventions(invocations), node.sessionId).slice(-5).reverse()
   const root = useAsync(() => (node.sessionId ? api.sessionMerkleRoot(node.sessionId, workspace.scope) : Promise.resolve(null)), [node.sessionId, workspace.scope])
   // span of this session in time, padded so its first and last marks are not on the border
   const startMs = parseServerTime(row?.started_at) ?? node.time
@@ -674,12 +798,24 @@ function SessionInspector({ node }: { node: CNode }) {
           <div><dt>Started</dt><dd>{row ? stamp(row.started_at) : node.time ? shortStamp(node.time) : '—'}</dd></div>
           <div><dt>Ended</dt><dd>{row ? (row.ended_at ? stamp(row.ended_at) : 'open') : '—'}</dd></div>
           <div><dt>Exchanges</dt><dd>{exchanges.length}</dd></div>
+          {runtime && <div><dt>Runtime</dt><dd>{runtime.runtimes.join(', ') || 'not recorded'}</dd></div>}
+          {runtime && <div><dt>Tool calls</dt><dd>{runtime.invocations}</dd></div>}
+          {runtime && <div><dt>Policy</dt><dd>{runtime.allowed} allowed · {runtime.denied} denied · {runtime.asked} asked{runtime.undecided ? ` · ${runtime.undecided} undecided` : ''}</dd></div>}
         </dl>
-        {sessionSpan && (
-          <div>
-            <button type="button" className="xc-btn" onClick={() => setWindow(sessionSpan, 'custom')}>Window both lenses to this session</button>
+        {stops.length > 0 && (
+          <div className="xc-callout xc-callout--review" role="note">
+            <IconWarn />
+            <div style={{ minWidth: 0 }}>
+              <b>{stops.length === 1 ? 'The policy stopped a tool call' : 'The policy stopped tool calls'}</b>
+              <ul className="xc-list">{stops.map((i) => <li key={i.invocationId} className="xc-note">{describeIntervention(i)} <span className="xc-meta">{shortStamp(i.at)}</span></li>)}</ul>
+              <p className="xc-note">From the {invocations.length} most recent tool calls the console loaded.</p>
+            </div>
           </div>
         )}
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+          {node.sessionId && <button type="button" className="xc-btn" aria-haspopup="dialog" onClick={() => openPage('sessions', node.sessionId)}>Exchanges, replay, telemetry</button>}
+          {sessionSpan && <button type="button" className="xc-btn" onClick={() => setWindow(sessionSpan, 'custom')}>Window both lenses to this session</button>}
+        </div>
         <Async state={root}>
           {(r) => r === null ? null : (
             <div className={`xc-callout ${r.valid ? 'xc-callout--anchored' : 'xc-callout--conflict'}`}>

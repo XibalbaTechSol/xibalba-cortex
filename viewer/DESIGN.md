@@ -11,6 +11,19 @@ the *Top bar* layout option.
 
 | Board | Source | Notes |
 |---|---|---|
+| Graph lens, 3D — nothing selected: the inspector shows the workspace | `GraphLens.tsx, Graph3D.tsx, Inspector.tsx (WorkspaceSummary)` | Default view. 3D is the default; the lattice is faint; every cube owns one cell. |
+| Graph lens, 3D — an edge selected | `Graph3D.tsx (pickEdge), Inspector.tsx (EdgeInspector)` | Click a line (within 6px). The edge lights, its two ends stay lit, the rest recede; the inspector says what kind of edge it is and links both ends. |
+| Graph lens, 3D — a dragged cube is pinned | `Graph3D.tsx (drag, setPinned)` | Drag moves a cube on the plane facing the camera; it lands in the nearest free cell and stays pinned (outlined). Double-click unpins one; “Unpin n” in the bar unpins all. Pins are view-only; nothing is written. |
+| Graph lens, 3D — Snap to grid off | `GraphLens.tsx, Graph3D.tsx (setSnap), settings.ts` | Nodes sit where the force layout leaves them; the faint grid stays as a frame of reference. |
+| Graph lens, 3D — legend open | `GraphLens.tsx (LegendRow)` | The legend starts closed so it never covers the graph. Each row is also a switch for the same facet the rail has. |
+| Graph lens — the selection is hidden by a filter | `model.ts (selectionHidden), GraphLens.tsx` | The inspector still shows the item; the lens says it is not drawn and offers Reset facets. |
+| Graph lens, 3D — zoomed far out | `Graph3D.tsx (applyScreenFloor, latticeStride), gridSnap.ts` | Cubes keep a 5px floor, arrowheads and the selected edge keep a minimum size, labels that would overlap are dropped, the grid coarsens by powers of two, and pulling back stops at 2.5x the framing distance. |
+| Graph lens, 3D — zoomed in close | `Graph3D.tsx` | Zoom goes toward the pointer and stops at 16 units, so the camera never enters the cloud. Keyboard: arrows orbit, shift+arrows pan, + and − zoom, F frames everything, Esc clears. |
+| Graph lens, 2D — a toggle from 3D | `GraphLens.tsx` | Squares on a faint square grid, snapped to cells; same facets, selection and inspector. |
+| Graph lens, 2D — Snap to grid off | `GraphLens.tsx (snapNodes)` |  |
+| Facet rail — memory source, edge types and predicates | `FacetRail.tsx, model.ts` | Finer switches sit under the edge group they refine; the similarity cut-off runs 0.20–0.99. |
+| Graph lens — no WebGL, so 2D, and it says so | `GraphLens.tsx (no3d)` | The 3D choice is kept; the notice explains why 2D is showing. |
+| Phone — Graph in 2D | `Phone.tsx, GraphLens.tsx` |  |
 | Graph lens — the whole profile (read-only) | `GraphLens.tsx, FacetRail.tsx, Inspector.tsx` | Scope: Primary profile. Writes are hidden and the footer says why. |
 | Timeline lens — the same selection, placed in time | `TimelineLens.tsx, model.ts` | A memory is placed at its event time, else when the store recorded it; no-session memories are their own lane. |
 | Timeline lens — windowed to 7 days | `ChainRail.tsx, state.tsx` | The window is shared with the Graph lens. |
@@ -18,7 +31,7 @@ the *Top bar* layout option.
 | Collapsed rail — Timeline lens | `Shell.tsx (Rail), settings.ts` | Rail collapses to icons; also automatic on narrow windows. |
 | Top bar — Graph lens | `Shell.tsx (TopBar)` | Shield’s form of navigation, chosen in Settings → Layout. |
 | Top bar — Timeline lens | `Shell.tsx (TopBar)` |  |
-| Top bar — Sessions page | `pages/SessionsPage.tsx` |  |
+| Top bar — Sessions page · drawer | `pages/SessionsPage.tsx` |  |
 | Sign in — matches Shield | `SignIn.tsx` |  |
 | Sign in — create account | `SignIn.tsx` |  |
 | Recall — Hybrid, with per-channel ranks | `Recall.tsx` |  |
@@ -33,17 +46,17 @@ the *Top bar* layout option.
 | Integrity — server and browser verification | `Integrity.tsx, integrity.ts, merkleVerify.ts` | GET /api/session/{id}/verify-chain beside the browser-recomputed proofs. |
 | Integrity — checkpoints | `Integrity.tsx` |  |
 | Integrity — links | `Integrity.tsx` |  |
-| Memories | `pages/MemoriesPage.tsx` |  |
-| Memories — nothing matches | `pages/MemoriesPage.tsx` |  |
-| Entities — lookup and path | `pages/EntitiesPage.tsx, entities.ts` |  |
-| Sessions | `pages/SessionsPage.tsx, sessions.ts` |  |
-| Agents — identity and devices | `pages/AgentsPage.tsx, agents.ts` |  |
-| Operations | `pages/OperationsPage.tsx, ops.ts` |  |
-| Settings — Layout (rail or top bar) | `pages/SettingsPage.tsx, settings.ts` |  |
-| Settings — Inference policy | `pages/settings/InferenceSection.tsx, inferenceForm.ts` |  |
-| Settings — Embeddings | `pages/settings/EmbeddingsSection.tsx` |  |
-| Settings — Account (a token has no account) | `pages/settings/AccountSection.tsx, account.ts` |  |
-| Settings — Developer (an honest self-test failure) | `pages/settings/DeveloperSection.tsx` |  |
+| Memories · drawer | `pages/MemoriesPage.tsx` |  |
+| Memories — nothing matches · drawer | `pages/MemoriesPage.tsx` |  |
+| Entities — lookup and path · drawer | `pages/EntitiesPage.tsx, entities.ts` |  |
+| Sessions · drawer | `pages/SessionsPage.tsx, sessions.ts` |  |
+| Agents — identity and devices · drawer | `pages/AgentsPage.tsx, agents.ts` |  |
+| Operations · drawer | `pages/OperationsPage.tsx, ops.ts` |  |
+| Settings — Layout (rail or top bar) · drawer | `pages/SettingsPage.tsx, settings.ts` |  |
+| Settings — Inference policy · drawer | `pages/settings/InferenceSection.tsx, inferenceForm.ts` |  |
+| Settings — Embeddings · drawer | `pages/settings/EmbeddingsSection.tsx` |  |
+| Settings — Account (a token has no account) · drawer | `pages/settings/AccountSection.tsx, account.ts` |  |
+| Settings — Developer (an honest self-test failure) · drawer | `pages/settings/DeveloperSection.tsx` |  |
 | State — the API is unreachable | `state.tsx, Shell.tsx` |  |
 | Phone — Graph | `Phone.tsx` |  |
 | Phone — Timeline | `Phone.tsx, TimelineLens.tsx` |  |
@@ -57,11 +70,64 @@ the *Top bar* layout option.
 | Phone — Operations | `pages/OperationsPage.tsx` |  |
 | Phone — Agents | `pages/AgentsPage.tsx` |  |
 | Phone — Settings | `pages/SettingsPage.tsx` |  |
+| Inspector — provenance: who said it, from where, and the export | `Inspector.tsx (ProvenanceTab), VerifyPanel.tsx` | GET /api/memory/{id}/provenance; the export is the server’s own document. |
+| Inspector — neighbours in the graph | `Inspector.tsx (NeighborsTab)` |  |
+| Inspector — contradictions, and the actions that resolve them | `Inspector.tsx, MemoryActions.tsx` |  |
+| Inspector — telemetry attached to the memory | `Inspector.tsx (TelemetryTab)` |  |
+| Memories — writing a memory (agent workspace only) · drawer | `pages/MemoriesPage.tsx (NewMemory)` | Only a verified writable workspace sees New memory; it says whose memory it will be. |
+| Entities — a path between two entities · drawer | `pages/EntitiesPage.tsx, entities.ts` | Each hop names the relation that connects it. |
+| Sessions — replay, with its completeness stated · drawer | `pages/SessionsPage.tsx` | Replay says what it cannot prove: it does not execute tools. |
+| Sessions — telemetry summary · drawer | `pages/SessionsPage.tsx` |  |
+| Sessions — invocation correlations · drawer | `pages/SessionsPage.tsx` |  |
+| Settings — Top bar chosen (and Snap to grid) · drawer | `pages/SettingsPage.tsx, settings.ts` |  |
+| Graph lens — a workspace with no memories yet | `GraphLens.tsx` | The inspector still shows the workspace; the lens says why it is empty. |
+| Timeline lens — nothing to place | `TimelineLens.tsx` |  |
+| Recall — no results | `Recall.tsx` | Says what was searched and what to try, without implying a failure. |
+| Tablet (1024) — Graph | `console.css (max-width: 1180px)` | The facet rail becomes a strip above the lens; the rail shell collapses to icons. |
+| Tablet (1024) — Timeline | `console.css (max-width: 1180px)` |  |
+| Tablet (1024) — Memories | `pages/MemoriesPage.tsx` |  |
+| Tablet (820) — Settings | `pages/SettingsPage.tsx` |  |
+| Phone — Sign in | `SignIn.tsx` |  |
+| Phone — Recall: query on its own row, modes beneath | `Recall.tsx, console.css` |  |
+| Phone — Review | `Review.tsx` |  |
+| Phone — Graph with the legend open | `GraphLens.tsx` |  |
+| Sessions drawer over the Timeline lens | `PageDrawer.tsx, pages/SessionsPage.tsx` | The route keeps the lens: #timeline/sessions. Closing returns to the timeline exactly as it was. |
+| A session in the lens opens its own drawer | `Inspector.tsx (SessionInspector), state.tsx (openPage)` | “Exchanges, replay, telemetry” on a selected session opens the Sessions drawer aimed at that session. |
+| An entity in the graph opens neighbours and paths · drawer | `Inspector.tsx (EntityInspector), pages/EntitiesPage.tsx` | “Neighbours and paths” opens the Entities drawer with that entity already looked up. |
+| Inspector — link a memory to an entity | `MemoryActions.tsx (link)` | POST /api/memory/link-entities; says what it will write before it writes it. |
+| Inspector — mark two memories as contradicting | `MemoryActions.tsx (contradiction)` | POST /api/memory/contradictions; the edge appears on the graph as a dashed line. |
+| Review — PARA classifications | `Review.tsx (PARA)` | POST /api/para/classifications/{id}/decision |
+| Review — inference tasks by status | `Review.tsx (Tasks)` | Read-only: workers claim and complete tasks; the console only shows them. |
+| Review — a read-only workspace | `Review.tsx` | The queue can be inspected, not decided on; the drawer says why. |
+| Sessions — the memories a session wrote · drawer | `pages/SessionsPage.tsx` | GET /api/session/{id}/memories |
+| Sessions — decision trace lookup · drawer | `pages/SessionsPage.tsx` | GET /api/session/{id}/decision-trace; the trace id comes from the runtime that made the decision. |
+| Sessions — kernel intents · drawer | `pages/SessionsPage.tsx` | GET /api/session/{id}/kernel-intents |
+| Agents — pair a device · drawer | `pages/AgentsPage.tsx (PairForm)` | POST /api/agent-devices/associate |
+| Agents — a paired device, with rename, detach and revoke · drawer | `pages/AgentsPage.tsx` | Revoke is the danger-quiet button; detach keeps the pairing record. |
+| Settings — Account, signed in as an account · drawer | `pages/settings/AccountSection.tsx` | ILLUSTRATIVE DATA: the dev fixture signs in by token, which has no account, so /api/auth/me, /sessions and /events were stubbed with the real response shapes (accounts.py). |
+| Sign in — wrong email or password | `SignIn.tsx` | The server’s own message, shown as returned. The response is stubbed: the fixture has no account to fail against. |
+| Sign in — an account waiting for approval | `SignIn.tsx` | accounts.py: “account requires email verification or administrator approval”. Stubbed response. |
+| Sign in — session expired | `ConsoleApp.tsx, SignIn.tsx` | Any 401 returns here with this notice. |
+| Integrity — a new checkpoint, then reconcile | `Integrity.tsx` | POST /api/projections/{id}/checkpoint and /reconcile. |
+| Integrity — rebuild asks first | `Integrity.tsx` | Rebuild recomputes the projection for the whole store; it is confirmed and named. |
+| Operations — the full readiness check · drawer | `pages/OperationsPage.tsx` | GET /readyz; slower than the snapshot, so it is a button. |
+| Recall — lexical results | `Recall.tsx` | Plain text search; no trace is kept. |
+| Recall — the server refused | `Recall.tsx` | The server’s message, in a conflict callout. Stubbed response. |
+| Timeline — a session selected | `TimelineLens.tsx, Inspector.tsx (SessionInspector)` | The base for the runtime and end-session designs. |
 
 ## Planned — designed, not built
 
 | Board | Lands in | What it needs |
 |---|---|---|
+| the agent runtime on the timeline | `TimelineLens.tsx, Inspector.tsx (SessionInspector)` | Needs GET /api/session/{id}/runtime; the controller lives in the MCP process. Deny and ask decisions become marks on the lane. |
+| Operations: agent runtimes | `pages/OperationsPage.tsx` | Needs GET /api/runtimes. A row leads back to the Timeline, windowed to that runtime. |
+| Operations: workers | `pages/OperationsPage.tsx` | Needs GET /api/workers and a heartbeat each worker writes. “Not seen” is not “idle”. |
+| Operations: connectors and ingest | `pages/OperationsPage.tsx` | Needs GET /api/connectors. Each row leads back to the Graph or Timeline with the Memory source facet set. |
+| Settings: API tokens | `pages/settings/AccountSection.tsx` | Needs GET/POST /api/auth/tokens and /revoke. Shown once; the server keeps a hash. |
+| Settings: Profile (read-only) | `pages/SettingsPage.tsx` | Needs GET /api/profile/config, redacted. Read-only on purpose: configuration is set in config.yaml or the environment. |
+| export what the timeline is showing | `ChainRail.tsx` | Needs POST /api/provenance/export taking the window and facets. |
+| end a session | `pages/SessionsPage.tsx` | Needs POST /api/session/{id}/end. Starting a session stays implicit. |
+| import a document or transcript | `pages/MemoriesPage.tsx` | Needs POST /api/import (multipart). Imports arrive as memories with proposals in Review; nothing reaches the graph undecided. |
 | Forgot password | `SignIn.tsx (new mode)` | Needs UI only: POST /api/auth/password-reset/request exists. Unavailable delivery is the 503 state. |
 | Choose a new password | `SignIn.tsx (new mode)` | Needs UI only: POST /api/auth/password-reset/confirm exists (400 on an invalid or expired code). |
 | Accounts waiting for approval | `pages/settings/AccountSection.tsx` | Needs GET /api/auth/admin/pending (new). POST /api/auth/admin/approve exists. |
@@ -83,3 +149,42 @@ the *Top bar* layout option.
 - The scope picker offers **Primary profile · all memories · read only** explicitly. It is never chosen automatically, and it is the only way to see memories with no agent namespace.
 - On a phone, Memories rows are cards and Sessions shows the list or the detail, not both.
 - Timeline date labels thin themselves so neighbours stay at least 56px apart.
+
+
+## Information architecture
+
+Graph and Timeline are the two ways to work; they are the only destinations. Everything else opens **over** the lens it was opened from, as a drawer or a dialog, and the lens stays mounted underneath (camera, window and selection are kept).
+
+| Tool | Surface | Opened from |
+|---|---|---|
+| Memories | drawer (wide) | the Memories count in the facet rail; Tools strip; `#memories` |
+| Entities | drawer (wide) | the Entities count; an entity in the inspector (“Neighbours and paths”, aimed at it) |
+| Sessions | drawer (wide) | the Sessions count; a session in the inspector (“Exchanges, replay, telemetry”, aimed at it) |
+| Operations | drawer | the connection chip at the foot of the rail |
+| Agents | drawer | “Agents and devices”, under the scope picker |
+| Settings | drawer | Tools strip |
+| Recall, Review, Integrity | dialog / drawer | `⌘K`; Tools strip; the workspace summary in the inspector |
+
+The route keeps the lens under a drawer: `#timeline/sessions`. Esc, the scrim and the close button return to the lens. On a phone a drawer is a full-screen sheet and the tab bar is unchanged.
+
+## Graph lens: the spec to implement from
+
+| Behaviour | Rule |
+|---|---|
+| Default view | 3D. 2D is a toggle in the bar; the choice persists (`graphMode`). Without WebGL the lens shows 2D and says why. |
+| Nodes | Cubes (3D) and squares (2D). One node per lattice cell; priority is degree, then id; a node near a boundary keeps its cell (hysteresis 0.62). |
+| Snap to grid | A button in the bar and a Settings checkbox (`graphSnap`, default on). Off: nodes stay where the force layout leaves them; the grid stays. |
+| Grid | Faint, in both views. 3D: a true lattice through the volume plus a brighter bounding box. 2D: a square grid. Both coarsen by powers of two so lines stay ≥ 14px (3D) or ≥ 16px (2D) apart. |
+| Framing | 3D looks along the cloud’s thinnest axis (PCA), with a tilt, at the nearest distance that holds every cube in the real frustum (`framing.ts`). Layout changes re-frame until the person moves the camera; Fit re-arms it. 2D does the same with zoom-to-fit. |
+| Resolution | A node is never smaller than 5px (3D) / 3.5px (2D). Arrowheads ≥ 10px, selected-edge bar ≥ 2px. Overlapping labels are dropped, selected and hovered first. Zoom is bounded: near stop 16 units, far stop 2.5× the framing distance. |
+| Mouse | Click a node or a line (6px) to select; click empty space to clear; drag empty space to orbit, right-drag to pan, wheel to zoom toward the pointer. Drag a cube to pin it; double-click to unpin. |
+| Keyboard | Focus the canvas (Tab): arrows orbit, shift+arrows pan, + and − zoom, F or 0 frame everything, Esc clears the selection. |
+| Edges | Relation (accent, arrow subject→object), contradiction (dashed, review colour), similarity (dotted, anchored colour), structure (grey: contains, prompt, response, context, Merkle root). Each group, structure type and relation predicate has a switch. |
+| Honesty | Counts say they are for the sample. A hidden selection is announced. Pins and positions are view state; nothing is written to the store. |
+
+## Implementing from this design
+
+The boards are snapshots of the running console in `viewer/`, so each “built” board names the files that produce it.
+To work on one: `cd viewer && npm install && npm run dev`, seed with `python scripts/dev_seed_console.py`, and compare against the board.
+Gates before a change is done: `npx tsc -b`, `npx oxlint src`, `npx vitest run` (pure logic: `model`, `gridSnap`, `framing`, `graphStyle`, `settings`).
+Not covered by checked-in tests: the WebGL engine itself and the browser flows; both were verified by hand in Chromium (software WebGL).

@@ -12,7 +12,6 @@ import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
 import { useConsole } from './state'
 import { Actions, Brand, DESTINATION_ICON, ScopePicker, StatusBar, useIsCurrent } from './Shell'
 import { DESTINATIONS, GROUP_LABEL, NAV_GROUPS, destinationsIn, type Destination, type DestinationId } from './nav'
-import { PageHost } from './pages/PageHost'
 import { FacetRail } from './FacetRail'
 import { GraphLens } from './GraphLens'
 import { TimelineLens } from './TimelineLens'
@@ -109,7 +108,6 @@ export function PhoneWorkspace() {
   // anything that narrows the view is worth telling the user about while the controls are hidden
   const activeFilters = facets && model ? changedFacetCount(facets, model) : 0
   const windowed = timeWindow !== null
-  const onWorkspace = page === null
 
   return (
     <div className="xc-phone">
@@ -120,22 +118,16 @@ export function PhoneWorkspace() {
           <Actions />
         </div>
       </header>
-      <main className="xc-phone-main" data-page={!onWorkspace}>
-        {onWorkspace ? (
-          <>
-            <div className="xc-phone-actions">
-              <button type="button" className="xc-btn" onClick={() => setSheet('filters')} aria-haspopup="dialog">
-                Filters{activeFilters > 0 ? <b className="xc-count">{activeFilters}</b> : null}
-              </button>
-              <button type="button" className="xc-btn" onClick={() => setSheet('time')} aria-haspopup="dialog">
-                Time{windowed ? <b className="xc-count">1</b> : null}
-              </button>
-            </div>
-            {lens === 'graph' ? <GraphLens /> : <TimelineLens />}
-          </>
-        ) : (
-          <PageHost page={page} />
-        )}
+      <main className="xc-phone-main">
+        <div className="xc-phone-actions">
+          <button type="button" className="xc-btn" onClick={() => setSheet('filters')} aria-haspopup="dialog">
+            Filters{activeFilters > 0 ? <b className="xc-count">{activeFilters}</b> : null}
+          </button>
+          <button type="button" className="xc-btn" onClick={() => setSheet('time')} aria-haspopup="dialog">
+            Time{windowed ? <b className="xc-count">1</b> : null}
+          </button>
+        </div>
+        {lens === 'graph' ? <GraphLens /> : <TimelineLens />}
       </main>
       <TabBar moreOpen={sheet === 'more'} onMore={() => setSheet('more')} />
 
@@ -155,7 +147,7 @@ export function PhoneWorkspace() {
           <MoreList onPick={() => setSheet(null)} />
         </Sheet>
       )}
-      {selectedId && sheet === null && onWorkspace && (
+      {selectedId && sheet === null && page === null && (
         <Sheet title="Inspector" modal={false} onClose={() => select(null)}>
           <Inspector />
         </Sheet>

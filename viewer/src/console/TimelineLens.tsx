@@ -5,6 +5,7 @@
 
 import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent, type KeyboardEvent as ReactKeyboardEvent } from 'react'
 import { useConsole } from './state'
+import { describeIntervention, interventions, interventionsForSession } from './runtime'
 import { buildLanes, isNodeVisible, markRows, shortDay, shortStamp, thinTicks, type Lane } from './model'
 
 /** `.xc-mark` is 10px wide; two closer than this on screen would overlap. */
@@ -40,7 +41,9 @@ function ticksFor(domain: Domain): { at: number; label: string }[] {
 }
 
 export function TimelineLens() {
-  const { model, facets, window: timeWindow, sessionEnds, memoryInfo, selectedId, select, setWindow, loading, error, reload } = useConsole()
+  const { model, facets, window: timeWindow, sessionEnds, memoryInfo, selectedId, select, setWindow, loading, error, reload, invocations } = useConsole()
+  // policy denials and asks, drawn as marks on the lane of the session they happened in
+  const policyStops = useMemo(() => interventions(invocations), [invocations])
 
   // the axis width decides how many date labels fit, so measure it
   const axisRef = useRef<HTMLDivElement>(null)
@@ -203,6 +206,7 @@ export function TimelineLens() {
                 const node = model?.byId.get(m.nodeId)
                 return node && facets && isNodeVisible(node, facets, null) && inDomain(m.time)
               })
+              const stops = interventionsForSession(policyStops, lane.session.sessionId).filter((i) => inDomain(i.at))
               /* Marks are placed by time alone, so several written seconds apart land on the same
                  pixel and the topmost one swallows the others' clicks. `markRows` stacks them
                  across the lane instead of moving them along it, which would misreport when they
@@ -246,6 +250,18 @@ export function TimelineLens() {
                         onClick={() => select(m.nodeId)}
                       />
                     ))}
+                    {stops.map((i) => (
+                      <button
+                        key={i.invocationId}
+                        type="button"
+                        className="xc-mark"
+                        data-cls={i.verdict}
+                        style={{ left: `${pct(i.at)}%` }}
+                        aria-label={`${describeIntervention(i)} at ${shortStamp(i.at)}`}
+                        title={`${describeIntervention(i)} · ${shortStamp(i.at)}`}
+                        onClick={() => select(lane.session.id)}
+                      />
+                    ))}
                     {lane.root && rootAt !== null && inDomain(rootAt) && (
                       <button
                         type="button"
@@ -279,7 +295,7 @@ export function TimelineLens() {
         {cursorAt !== null && <span className="xc-note">{shortStamp(cursorAt)}</span>}
         <span className="xc-note" aria-hidden="true">·</span>
         <span className="xc-legend-inline xc-note">
-          ■ memory · ■ exchange (gray) · ◻ Merkle root (server-reported) ·{' '}
+          ■ memory · ■ exchange (gray) · ◻ Merkle root (server-reported) · ▮ denied by policy · ▯ asked for approval ·{' '}
           {untimedMemories > 0
             ? `${untimedMemories} memor${untimedMemories === 1 ? 'y has' : 'ies have'} no timestamp in the API and ${untimedMemories === 1 ? 'is' : 'are'} not placed`
             : 'every memory is placed'}

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { cellBounds, cellCentre, gridLines, latticeFrame, latticeLines, MAX_LATTICE_SEGMENTS, snapToGrid, type Point } from './gridSnap'
+import { cellBounds, cellCentre, gridLines, latticeFrame, latticeLines, latticeStride, MAX_LATTICE_SEGMENTS, snapToGrid, type Point } from './gridSnap'
 
 const pt = (id: string, x: number, y: number, z: number, priority = 0): Point => ({ id, x, y, z, priority })
 const keyOf = (c: { i: number; j: number; k: number }) => `${c.i},${c.j},${c.k}`
@@ -107,5 +107,36 @@ describe('latticeLines', () => {
 describe('latticeFrame', () => {
   it('is the twelve edges of the box', () => {
     expect(latticeFrame({ min: { i: 0, j: 0, k: 0 }, max: { i: 1, j: 1, k: 1 } }, 24, 1).length / 6).toBe(12)
+  })
+})
+
+describe('latticeLines stride', () => {
+  const b = { min: { i: 0, j: 0, k: 0 }, max: { i: 5, j: 5, k: 5 } }
+  it('draws fewer lines at a larger stride, and a subset of the finer lattice', () => {
+    const fine = latticeLines(b, 24, 1, 1), coarse = latticeLines(b, 24, 1, 2)
+    expect(coarse.length).toBeLessThan(fine.length)
+    const key = (a: Float32Array, n: number) => Array.from(a.slice(n, n + 6)).join(',')
+    const fineKeys = new Set<string>()
+    for (let n = 0; n < fine.length; n += 6) fineKeys.add(key(fine, n))
+    for (let n = 0; n < coarse.length; n += 6) expect(fineKeys.has(key(coarse, n))).toBe(true)
+  })
+  it('treats a stride below 1 as 1', () => {
+    expect(latticeLines(b, 24, 1, 0).length).toBe(latticeLines(b, 24, 1, 1).length)
+  })
+})
+
+describe('latticeStride', () => {
+  it('is 1 while cells are comfortably large on screen', () => {
+    expect(latticeStride(30)).toBe(1)
+    expect(latticeStride(14)).toBe(1)
+  })
+  it('doubles until the lines are far enough apart', () => {
+    expect(latticeStride(7)).toBe(2)
+    expect(latticeStride(3)).toBe(8)
+  })
+  it('stays finite for a degenerate size', () => {
+    expect(latticeStride(0)).toBe(1)
+    expect(latticeStride(NaN)).toBe(1)
+    expect(latticeStride(1e-9)).toBeLessThanOrEqual(1024)
   })
 })

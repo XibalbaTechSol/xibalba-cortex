@@ -34,7 +34,7 @@ src/xibalba_cortex/
 └── embedding_worker.py, para_worker.py,
     contradiction_worker.py                             # out-of-process background workers
 
-viewer/          # React 19 + Vite 8 + TS graph/timeline UI (react-force-graph-2d, three.js)
+viewer/          # React 19 + Vite 8 + TS console: Graph + Timeline lenses, tools as drawers (three.js, react-force-graph-2d)
 tests/           # pytest, testpaths=tests; tests/conformance/test_vectors.json
 docs/
 ├── wiki/         # canonical wiki source — synced to GitHub Wiki via scripts/sync_wiki.py
@@ -79,11 +79,12 @@ cd viewer && npm install
 npm run dev        # local dev server
 npm run build       # production build
 npm run lint         # oxlint
+npm run test:e2e     # headless Playwright against a seeded fixture (see viewer/README.md)
 npm run preview
 ```
 
 There is no root Makefile or CONTRIBUTING.md. The `.github/workflows/ci.yml` workflow runs the
-Python suite against the required sibling `integrity-core` checkout; run `uv run pytest -q`
+Python suite (job `test`) and the viewer's tsc, oxlint, vitest and Playwright (job `viewer`) against the required sibling `integrity-core` checkout; run `uv run pytest -q`
 locally before calling a change done.
 
 To run a single test: `uv run pytest tests/test_file.py::test_name`. Some tests are env-gated,
@@ -120,7 +121,9 @@ No `.env.example` — configuration is YAML/env-var driven through `config.py`'s
 Key env vars: `XIBALBA_CORTEX_HOME`, `XIBALBA_CORTEX_MODE` (local/hybrid/remote-inference),
 `XIBALBA_CORTEX_IDENTITY_MODE` (pseudonymous/full/omit), `XIBALBA_CORTEX_RETENTION_TIER`,
 `XIBALBA_ANCHOR_URL`, `XIBALBA_AUTO_ANCHOR_ON_SESSION_END`, `XIBALBA_AGENT_ID`, `XIBALBA_RUNTIME`,
-`XIBALBA_SESSION_ID`, `XIBALBA_ORACLE_URL`, `XIBALBA_GRAPH_HOOK_SURFACE`. Storage defaults to
+`XIBALBA_SESSION_ID`, `XIBALBA_ORACLE_URL`, `XIBALBA_GRAPH_HOOK_SURFACE`. Server-side locations the
+console's actions use (the browser is never told them): `XIBALBA_BACKUP_DIR`, `XIBALBA_VAULT_DIR`,
+`XIBALBA_DAG_HOME`, plus `CORTEX_PASSWORD_RESET_URL` and `CORTEX_SMTP_*` for reset email. Storage defaults to
 `~/.hermes/xibalba-cortex` (SQLite, local-only) — no Docker/containerization is set up for this
 service.
 

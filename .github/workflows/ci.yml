@@ -59,21 +59,52 @@ jobs:
       - run: uv run pytest -q
 
   viewer:
-    name: Cortex viewer and managed-service UI
+    name: viewer (tsc, oxlint, vitest, playwright)
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: viewer
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout xibalba-cortex
+        uses: actions/checkout@v4
+        with:
+          path: xibalba-cortex
+          persist-credentials: false
+      - name: Checkout integrity-core (sibling repo, integrity-sdk path dependency)
+        uses: actions/checkout@v4
+        with:
+          repository: XibalbaTechSol/integrity-core
+          ref: 4ddaae1965635224958e147f6eaaead06e3cdc41
+          path: integrity-core
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@v3
+        with:
+          version: ${{ env.UV_VERSION }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
       - uses: actions/setup-node@v4
         with:
-          node-version: '22'
+          node-version: "22"
           cache: npm
-          cache-dependency-path: viewer/package-lock.json
+          cache-dependency-path: xibalba-cortex/viewer/package-lock.json
+      - run: uv sync --extra otel --extra managed
+        working-directory: xibalba-cortex
       - run: npm ci
+        working-directory: xibalba-cortex/viewer
       - run: npm run build
-      - run: npm run lint
-      - run: npm run test -- --maxWorkers=1
+        working-directory: xibalba-cortex/viewer
+      - run: npx oxlint src e2e
+        working-directory: xibalba-cortex/viewer
+      - run: npx vitest run --maxWorkers=1
+        working-directory: xibalba-cortex/viewer
+      # The browser suite seeds a scratch profile, serves it with local_api, starts Vite and drives
+      # headless Chromium with software WebGL. See viewer/playwright.config.ts.
       - run: npx playwright install --with-deps chromium
-      - run: npx playwright test --workers=1 --reporter=line
+        working-directory: xibalba-cortex/viewer
+      - run: npx playwright test
+        working-directory: xibalba-cortex/viewer
+        env:
+          CI: "true"
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-failures
+          path: xibalba-cortex/viewer/test-results
