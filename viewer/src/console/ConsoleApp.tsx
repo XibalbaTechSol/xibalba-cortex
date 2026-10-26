@@ -11,6 +11,7 @@ import { SignIn } from './SignIn'
 import { Landing } from './Landing'
 import { HostedLanding } from './HostedLanding'
 import { edition } from './edition'
+import { clearHostedTransport, installHostedTransport, setHostedSession } from '../hostedApi'
 import { hostedRequest, workspaceSession, type HostedMe } from './hostedWorkspace'
 import { resetTokenFromSearch } from './passwordReset'
 import { Rail, StatusBar, TopBar, WorkspaceHeader } from './Shell'
@@ -133,9 +134,19 @@ export function ConsoleApp() {
     hostedRequest<HostedMe>('me').then((payload) => setMe(payload)).catch(() => setMe(null))
   }, [])
 
+  // The data layer learns the edition exactly once, here, before anything under the console can
+  // issue a call: with the mapping installed every `/api/*` path goes to the route the managed
+  // backend serves, or is refused locally. Self-hosted installs nothing, so its path is unchanged.
+  if (hostedEdition) installHostedTransport()
+
   useEffect(() => {
     if (hostedEdition) askHosted()
+    return () => { if (hostedEdition) clearHostedTransport() }
   }, [hostedEdition, askHosted])
+
+  // The entitlement the hosted write gate reads, and the CSRF token hosted mutations carry. One
+  // copy, fed from the `me` this component already fetches.
+  useEffect(() => { setHostedSession(me ?? null) }, [me])
 
   // The session: what this deployment serves, and whether it is a hosted workspace. The hosted
   // signal is the answer itself, not anything the answer listed -- see hostedWorkspace.ts.

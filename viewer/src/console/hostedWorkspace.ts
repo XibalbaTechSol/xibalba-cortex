@@ -12,6 +12,7 @@
 // Self-hosted reaches none of this: `workspaceSession(null)` is the whole path, and no network
 // call of any kind is made.
 
+import { hostedFetch } from '../hostedApi'
 import { DESTINATIONS, destinationsFrom, type Destination } from './nav'
 
 /** True when a resolved destination list contains the hosted-only destination. The declaration
@@ -101,18 +102,11 @@ export function keyRows(keys: readonly ApiKey[]): KeyRow[] {
 
 export interface HostedSession { csrf_token: string }
 
-/** A call to the hosted account API, shaped exactly like BillingPage's: same-origin cookie session,
- *  and the CSRF token (read from `me`) on every mutation. Only reached from a hosted session. */
-export async function hostedRequest<T>(path: string, init: RequestInit = {}, csrf?: string): Promise<T> {
-  const response = await fetch(`/api/managed/${path}`, {
-    ...init,
-    credentials: 'same-origin',
-    headers: { 'Content-Type': 'application/json', ...(csrf ? { 'X-Cortex-CSRF-Token': csrf } : {}), ...init.headers },
-  })
-  const data = await response.json().catch(() => ({}))
-  if (!response.ok) throw new Error(data.error || `Request failed (${response.status})`)
-  return data as T
-}
+/** A call to the hosted account API. This used to be its own fetch, byte-identical to the one in
+ *  BillingPage; both are now the single transport in hostedApi.ts, which owns the same-origin
+ *  cookie session, the CSRF token, the `Idempotency-Key` on writes, and the `ApiError` type the
+ *  console's 401 handling reads. Only reached from a hosted session. */
+export const hostedRequest = hostedFetch
 
 export const EXPORT_STARTED = 'Your memory export download has started.'
 export const EXPORT_FILENAME = 'cortex-memories.json'

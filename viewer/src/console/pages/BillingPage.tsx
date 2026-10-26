@@ -5,7 +5,8 @@
 import { useState } from 'react'
 import { useAsync } from '../useAsync'
 import { IconWarn } from '../icons'
-import { paymentDestination, planAction, planRows, upgradeRefusal, usageRows, type Plan } from '../billing'
+import { READ_ONLY_WORKSPACE, paymentDestination, planAction, planRows, upgradeRefusal, usageRows, type Plan } from '../billing'
+import { hostedRequest as managed } from '../hostedWorkspace'
 import { Page } from './Page'
 
 interface Catalog { plans: Plan[]; billing_configured: boolean }
@@ -14,17 +15,6 @@ interface Me {
   usage: { month: string; used: Record<string, number> }
   counts: Record<string, number>
   csrf_token: string
-}
-
-async function managed<T>(path: string, init: RequestInit = {}, csrf?: string): Promise<T> {
-  const response = await fetch(`/api/managed/${path}`, {
-    ...init,
-    credentials: 'same-origin',
-    headers: { 'Content-Type': 'application/json', ...(csrf ? { 'X-Cortex-CSRF-Token': csrf } : {}), ...init.headers },
-  })
-  const data = await response.json().catch(() => ({}))
-  if (!response.ok) throw new Error(data.error || `Request failed (${response.status})`)
-  return data as T
 }
 
 export function BillingPage() {
@@ -59,7 +49,7 @@ export function BillingPage() {
       {error && <div className="xc-callout xc-callout--conflict" role="alert"><IconWarn />{error}</div>}
       {catalog && me && (
         <>
-          {!me.entitlement.writable && <div className="xc-callout xc-callout--review" role="status"><IconWarn />This workspace is read-only. Your existing memories remain available to read. Update billing to resume writes.</div>}
+          {!me.entitlement.writable && <div className="xc-callout xc-callout--review" role="status"><IconWarn />{READ_ONLY_WORKSPACE}</div>}
           <section className="xc-win" aria-label="Subscription">
             <h2 className="xc-title">Subscription</h2>
             <p className="xc-note">Plan: {me.entitlement.plan.name} · status: {me.entitlement.status}{me.entitlement.cancel_at_period_end ? ' · cancels at the end of the paid period' : ''}</p>

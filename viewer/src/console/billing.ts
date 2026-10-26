@@ -21,6 +21,12 @@ export interface PlanRow {
 
 export const BILLING_UNAVAILABLE = 'Paid subscriptions are not available yet.'
 
+/** The existing wording for a workspace whose subscription no longer permits writes. It was
+ *  inline in BillingPage's callout; the data layer refuses a forbidden hosted write with this same
+ *  sentence so the control and the explanation say one thing rather than two. (`BILLING_UNAVAILABLE`
+ *  is about whether checkout is configured at all, which is a different refusal.) */
+export const READ_ONLY_WORKSPACE = 'This workspace is read-only. Your existing memories remain available to read. Update billing to resume writes.'
+
 export function planRows(plans: Plan[], currentPlanId: string): PlanRow[] {
   return plans.map((p) => ({
     id: p.id,

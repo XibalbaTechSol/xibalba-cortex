@@ -12,6 +12,9 @@
 // local_api.py, which is what lets the Secure, SameSite=Strict cookie be stored and sent back. A
 // cross-origin default (e.g. http://localhost:8420) would be blocked by CORS for credentialed
 // requests and as mixed content under HTTPS. Same model as the Shield UI.
+import { ApiError as ApiErrorClass } from './apiError'
+import { hostedActive, hostedSend } from './hostedApi'
+
 const DEFAULT_BASE_URL = import.meta.env.VITE_LOCAL_API_URL ?? (import.meta.env.DEV ? '/cortex-api' : '')
 const SIGNED_IN_KEY = 'xibalba-cortex.signed-in'
 const URL_STORAGE_KEY = 'xibalba-cortex.local-api-url'
@@ -25,6 +28,20 @@ const storedApiBaseUrl = sessionStorage.getItem(URL_STORAGE_KEY) ?? DEFAULT_BASE
 let apiBaseUrl = import.meta.env.DEV && /https?:\/\/(127\.0\.0\.1|localhost):8420/.test(storedApiBaseUrl)
   ? '/cortex-api'
   : storedApiBaseUrl
+
+/**
+ * Every request in this module goes out through here.
+ *
+ * Self-hosted: the bare `/api/*` path on the configured base, with the session cookie -- exactly
+ * what it has always been (src/apiSelfHosted.test.ts is the recorded table). Hosted: ConsoleApp has
+ * installed the mapping in hostedApi.ts, which rewrites the path to the route the managed backend
+ * actually serves, or refuses it locally when there is none. This is the ONLY edition branch in the
+ * data layer: no call site below asks which edition it is in.
+ */
+async function send(path: string, init: RequestInit = {}): Promise<Response> {
+  if (hostedActive()) return hostedSend(path, init)
+  return fetch(`${getApiBaseUrl()}${path}`, { credentials: 'include', ...init })
+}
 
 export function isSignedIn(): boolean {
   return signedIn
@@ -46,7 +63,7 @@ let csrfToken: string | null | undefined
 
 async function csrfHeader(): Promise<Record<string, string>> {
   if (csrfToken === undefined) {
-    const response = await fetch(`${getApiBaseUrl()}/api/auth/csrf`, { credentials: 'include' })
+    const response = await send('/api/auth/csrf')
     if (response.ok) {
       const body = (await response.json().catch(() => ({}))) as { csrf_token?: string }
       csrfToken = body.csrf_token ?? null
@@ -62,12 +79,15 @@ async function csrfHeader(): Promise<Record<string, string>> {
 
 /** fetch for a state-changing route: attaches the CSRF header and retries once if the token went stale. */
 async function mutatingFetch(path: string, init: RequestInit): Promise<Response> {
-  const send = async () => fetch(`${getApiBaseUrl()}${path}`, { ...init, credentials: 'include', headers: { ...(init.headers as Record<string, string> | undefined), ...(await csrfHeader()) } })
-  const response = await send()
+  // Hosted takes its CSRF token from `GET /api/managed/me`, not from `/api/auth/csrf`: that route
+  // does not exist there, and every hosted write used to fire it.
+  if (hostedActive()) return hostedSend(path, init)
+  const withToken = async () => fetch(`${getApiBaseUrl()}${path}`, { ...init, credentials: 'include', headers: { ...(init.headers as Record<string, string> | undefined), ...(await csrfHeader()) } })
+  const response = await withToken()
   if (response.status === 403 && csrfToken) {
     // the session may have been replaced since the token was fetched; ask again exactly once
     csrfToken = undefined
-    return send()
+    return withToken()
   }
   return response
 }
@@ -78,7 +98,7 @@ async function mutatingFetch(path: string, init: RequestInit): Promise<Response>
  * mark the viewer signed in. A production build has no such proxy and this just fails honestly.
  */
 export async function connectLocalDev(): Promise<void> {
-  const response = await fetch(`${getApiBaseUrl()}/api/status`, { credentials: 'include' })
+  const response = await send('/api/status')
   if (!response.ok) throw new Error('No local Cortex profile is reachable through the dev proxy. Start the local API, or sign in with an account.')
   markSignedIn(true)
 }
@@ -97,7 +117,7 @@ export function setApiBaseUrl(value: string): void {
 }
 
 export async function accountAuth(path: "signup" | "login", input: Record<string, string>): Promise<{account: Record<string, unknown>}> {
-  const response = await fetch(getApiBaseUrl() + "/api/auth/" + path, { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify(input) })
+  const response = await send("/api/auth/" + path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(input) })
   const payload = await response.json().catch(() => ({}))
   if (!response.ok) throw new Error(payload.error || response.status + " " + response.statusText)
   markSignedIn(true)
@@ -105,7 +125,7 @@ export async function accountAuth(path: "signup" | "login", input: Record<string
 }
 
 export async function accountMe(): Promise<{account: Record<string, unknown>; session_expires_at?: string | null}> {
-  const response = await fetch(getApiBaseUrl() + "/api/auth/me", { credentials: "include" })
+  const response = await send("/api/auth/me")
   const payload = await response.json().catch(() => ({}))
   if (!response.ok) throw new Error(payload.error || response.status + " " + response.statusText)
   // a valid bearer credential that is not an account session gets HTTP 200 with `{"error": ...}`
@@ -115,7 +135,7 @@ export async function accountMe(): Promise<{account: Record<string, unknown>; se
 }
 
 export async function accountSessions(): Promise<{sessions: Array<Record<string, unknown>>}> {
-  const response = await fetch(getApiBaseUrl() + "/api/auth/sessions", { credentials: "include" })
+  const response = await send("/api/auth/sessions")
   const payload = await response.json().catch(() => ({}))
   if (!response.ok) throw new Error(payload.error || response.status + " " + response.statusText)
   return payload
@@ -128,7 +148,7 @@ export async function accountRevokeSession(sessionId: string): Promise<void> {
 }
 
 export async function accountEvents(): Promise<{events: Array<Record<string, unknown>>}> {
-  const response = await fetch(getApiBaseUrl() + "/api/auth/events", { credentials: "include" })
+  const response = await send("/api/auth/events")
   const payload = await response.json().catch(() => ({}))
   if (!response.ok) throw new Error(payload.error || response.status + " " + response.statusText)
   return payload
@@ -137,7 +157,7 @@ export async function accountEvents(): Promise<{events: Array<Record<string, unk
 export async function accountLogout(): Promise<void> {
   // Always call the server: it owns the session record and the cookie, and this client cannot
   // tell whether a cookie is present.
-  await fetch(getApiBaseUrl() + "/api/auth/logout", { method: "POST", credentials: "include" })
+  await send("/api/auth/logout", { method: "POST" })
   markSignedIn(false)
 }
 
@@ -146,16 +166,16 @@ export async function accountLogout(): Promise<void> {
  * the account exists); rejects with an ApiError carrying 503 (no email delivery), 429 (rate limit) etc.
  */
 export async function accountRequestPasswordReset(email: string): Promise<void> {
-  const response = await fetch(getApiBaseUrl() + "/api/auth/password-reset/request", { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email }) })
+  const response = await send("/api/auth/password-reset/request", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email }) })
   const payload = await response.json().catch(() => ({}))
-  if (!response.ok) throw new ApiError(payload.error || response.status + " " + response.statusText, response.status)
+  if (!response.ok) throw new ApiErrorClass(payload.error || response.status + " " + response.statusText, response.status)
 }
 
 /** Set a new password with the secret from the emailed link. 400 means invalid, used or expired. */
 export async function accountConfirmPasswordReset(resetToken: string, newPassword: string): Promise<void> {
-  const response = await fetch(getApiBaseUrl() + "/api/auth/password-reset/confirm", { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ reset_token: resetToken, new_password: newPassword }) })
+  const response = await send("/api/auth/password-reset/confirm", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ reset_token: resetToken, new_password: newPassword }) })
   const payload = await response.json().catch(() => ({}))
-  if (!response.ok) throw new ApiError(payload.error || response.status + " " + response.statusText, response.status)
+  if (!response.ok) throw new ApiErrorClass(payload.error || response.status + " " + response.statusText, response.status)
 }
 
 export async function accountChangePassword(currentPassword: string, newPassword: string): Promise<void> {
@@ -880,20 +900,13 @@ export interface AgentSummary {
  * ("invalid or revoked token") cannot tell the console that the session ended: a 401 means sign in
  * again, a 403 means this credential may not do that, and the screens react differently to each.
  */
-export class ApiError extends Error {
-  readonly status: number
-  constructor(message: string, status: number) {
-    super(message)
-    this.name = 'ApiError'
-    this.status = status
-  }
-}
+export { ApiError } from './apiError'
 
 async function getJson<T>(path: string): Promise<T> {
-  const response = await fetch(`${getApiBaseUrl()}${path}`, { credentials: "include" })
+  const response = await send(path)
   if (!response.ok) {
     const body = await response.json().catch(() => ({ error: response.statusText }))
-    throw new ApiError(body.error ?? `request failed: ${response.status}`, response.status)
+    throw new ApiErrorClass(body.error ?? `request failed: ${response.status}`, response.status)
   }
   return response.json() as Promise<T>
 }
@@ -906,7 +919,7 @@ async function postJson<T>(path: string, payload: Record<string, unknown>): Prom
   })
   if (!response.ok) {
     const body = await response.json().catch(() => ({ error: response.statusText }))
-    throw new ApiError(body.error ?? `request failed: ${response.status}`, response.status)
+    throw new ApiErrorClass(body.error ?? `request failed: ${response.status}`, response.status)
   }
   return response.json() as Promise<T>
 }
@@ -1071,13 +1084,13 @@ async function uploadRaw<T>(path: string, file: File): Promise<T> {
   const response = await mutatingFetch(path, { method: 'POST', headers: { 'Content-Type': file.type || 'application/octet-stream' }, body: file })
   if (!response.ok) {
     const body = await response.json().catch(() => ({ error: response.statusText }))
-    throw new ApiError(body.error ?? `request failed: ${response.status}`, response.status)
+    throw new ApiErrorClass(body.error ?? `request failed: ${response.status}`, response.status)
   }
   return response.json() as Promise<T>
 }
 
 async function getBlob(path: string): Promise<Blob> {
-  const response = await fetch(`${getApiBaseUrl()}${path}`, { credentials: "include" })
+  const response = await send(path)
   if (!response.ok) throw new Error(`request failed: ${response.status}`)
   return response.blob()
 }
@@ -1088,14 +1101,14 @@ export const api = {
   operations: () => getJson<OperationsSnapshot>('/api/operations'),
   /** /readyz answers 503 with the same body when not ready, so a 503 is a result, not an error. */
   readiness: async (): Promise<ReadinessReport> => {
-    const response = await fetch(`${getApiBaseUrl()}/readyz`, { credentials: 'include' })
+    const response = await send('/readyz')
     const body = (await response.json().catch(() => null)) as ReadinessReport | null
     if (!body || typeof body.ready !== 'boolean') throw new Error(`readiness check failed: ${response.status} ${response.statusText}`)
     return body
   },
   /** Prometheus text exposition, unauthenticated by design. */
   metrics: async (): Promise<string> => {
-    const response = await fetch(`${getApiBaseUrl()}/metrics`, { credentials: 'include' })
+    const response = await send('/metrics')
     if (!response.ok) throw new Error(`metrics unavailable: ${response.status}`)
     return response.text()
   },
