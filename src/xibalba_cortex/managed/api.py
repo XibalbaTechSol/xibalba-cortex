@@ -355,6 +355,32 @@ def create_app(config: ManagedConfig, *, control: ManagedControl | None = None, 
         result = await run_in_threadpool(memory_operation, request, data)
         return JSONResponse(result, status_code=201 if request.method == "POST" else 200)
 
+    def import_operation(request, data):
+        account, principal, _ = authenticate(request, mutate=True)
+        require_scope(principal, "memory:write")
+        request_key = request.headers.get("idempotency-key", "")
+        if not 8 <= len(request_key) <= 128:
+            raise ApiError(400, "Supply an Idempotency-Key containing 8–128 characters")
+        fingerprint = hashlib.sha256(json.dumps(data, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+        tenant = service.tenant(account)
+        with service.write_guard(tenant):
+            service.consume(tenant, "writes", request_key=request_key, fingerprint=fingerprint)
+            with service.store(tenant) as store:
+                try:
+                    inserted = store.import_structured_bundle(data)
+                except ValueError as exc:
+                    raise ApiError(400, str(exc)) from exc
+                except RuntimeError as exc:
+                    if str(exc).startswith("memory quota exceeded:"):
+                        raise LimitExceeded("Stored-memory capacity reached; choose a larger plan") from None
+                    raise
+        return {"schema_version": "xibalba.managed_import.v1", "inserted": inserted}
+
+    async def structured_import(request):
+        rate_limit(request)
+        data = await payload(request)
+        return JSONResponse(await run_in_threadpool(import_operation, request, data), status_code=201)
+
     def export_operation(request):
         account, principal, _ = authenticate(request)
         require_scope(principal, "memory:read")
@@ -431,6 +457,7 @@ def create_app(config: ManagedConfig, *, control: ManagedControl | None = None, 
         Route("/api/managed/portal", portal, methods=["POST"]),
         Route("/api/managed/stripe/webhook", webhook, methods=["POST"]),
         Route("/api/managed/memories", memories, methods=["GET", "POST"]),
+        Route("/api/managed/import", structured_import, methods=["POST"]),
         Route("/api/managed/memories/{memory_id}", memories),
         Route("/api/managed/memories/{memory_id}/verify", memories),
         Route("/api/managed/export", export),

@@ -329,6 +329,37 @@ def test_managed_api_key_rejects_invalid_agent_id_list(setup):
     assert response.status_code == 400
 
 
+def test_structured_import_preserves_status_graph_and_provenance(setup):
+    _, _, _, _, client = setup
+    _, headers = register(setup)
+    bundle = {
+        "schema_version": "xibalba.structured_memory_bundle.v1",
+        "tables": {
+            "sessions": [],
+            "sources": [{"id": "source-1", "kind": "direct_user", "locator": "local:1", "role": None,
+                "session_id": None, "message_id": None, "tool_name": None, "observed_at": None,
+                "agent_id": "did:integrity:agent-a", "identity_mode": "full", "prompt_id": None,
+                "content_hash": "sha256:content", "metadata_json": "{}", "created_at": "2026-01-01 00:00:00"}],
+            "memories": [{"id": "memory-1", "source_id": "source-1", "content": "Alice works at Cortex",
+                "content_hash": "sha256:content", "status": "confirmed", "valid_from": None, "valid_to": None,
+                "supersedes_id": None, "derivation_family": "observed_event", "idempotency_key": "local:1",
+                "created_at": "2026-01-01 00:00:00"}],
+            "memory_events": [{"memory_id": "memory-1", "event_type": "create", "detail_json": "{}",
+                "node_id": "event-node-1", "parent_event_id": None, "created_at": "2026-01-01 00:00:00"}],
+            "entities": [{"id": "entity-1", "canonical_name": "Alice", "normalized_name": "alice", "entity_type": "person", "normalization_version": "v1", "created_at": "2026-01-01 00:00:00", "agent_id": "did:integrity:agent-a"},
+                {"id": "entity-2", "canonical_name": "Cortex", "normalized_name": "cortex", "entity_type": "product", "normalization_version": "v1", "created_at": "2026-01-01 00:00:00", "agent_id": "did:integrity:agent-a"}],
+            "entity_aliases": [],
+            "memory_entities": [{"memory_id": "memory-1", "entity_id": "entity-1", "evidence_quote": "Alice"}],
+            "relations": [{"id": "relation-1", "subject_entity_id": "entity-1", "predicate": "works_at", "object_entity_id": "entity-2", "object_literal": None, "evidence_memory_id": "memory-1", "confidence": 1.0, "status": "active", "valid_from": None, "valid_to": None, "created_at": "2026-01-01 00:00:00", "agent_id": "did:integrity:agent-a"}],
+            "meta_nodes": [],
+        },
+    }
+    response = client.post('/api/managed/import', json=bundle, headers={**headers, 'Idempotency-Key': 'structured-import-1'})
+    assert response.status_code == 201, response.text
+    assert response.json()['inserted']['memories'] == 1
+    assert client.get('/api/managed/memories', params={'q': 'Alice works at Cortex'}).json()['memories'][0]['status'] == 'confirmed'
+
+
 def test_password_recovery_revokes_sessions_and_cannot_replay(setup):
     _, service, _, mail, client = setup
     account, _ = register(setup)
