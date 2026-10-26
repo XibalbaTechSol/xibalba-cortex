@@ -1,6 +1,7 @@
 import { TAB_LABEL, tabsFor, type PageId } from '../nav'
 import { useConsole } from '../state'
 import { AgentsPage } from './AgentsPage'
+import { BillingPage } from './BillingPage'
 import { EntitiesPage } from './EntitiesPage'
 import { MemoriesPage } from './MemoriesPage'
 import { OperationsPage } from './OperationsPage'
@@ -59,6 +60,8 @@ function PageBody({ page }: { page: PageId }) {
       return <SessionsPage />
     case 'settings':
       return <SettingsPage />
+    case 'billing':
+      return <BillingPage />
     default:
       return (
         <main className="xc-page">
