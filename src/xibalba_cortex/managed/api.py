@@ -381,6 +381,29 @@ def create_app(config: ManagedConfig, *, control: ManagedControl | None = None, 
         data = await payload(request)
         return JSONResponse(await run_in_threadpool(import_operation, request, data), status_code=201)
 
+    def graph_operation(request, *, timeline=False):
+        account, principal, _ = authenticate(request)
+        require_scope(principal, "memory:read")
+        tenant = service.tenant(account)
+        service.consume(tenant, "retrievals")
+        try:
+            limit = max(1, min(int(request.query_params.get("limit", "500")), 1000))
+        except ValueError:
+            raise ApiError(400, "limit must be an integer") from None
+        with service.store(tenant) as store:
+            graph = store.graph_payload(limit=limit, similarity_threshold=0.75)
+            if timeline:
+                return {"sessions": store.list_sessions(limit=limit), "nodes": graph["nodes"]}
+            return graph
+
+    async def graph(request):
+        rate_limit(request)
+        return JSONResponse(await run_in_threadpool(graph_operation, request))
+
+    async def timeline(request):
+        rate_limit(request)
+        return JSONResponse(await run_in_threadpool(graph_operation, request, timeline=True))
+
     def export_operation(request):
         account, principal, _ = authenticate(request)
         require_scope(principal, "memory:read")
@@ -458,6 +481,8 @@ def create_app(config: ManagedConfig, *, control: ManagedControl | None = None, 
         Route("/api/managed/stripe/webhook", webhook, methods=["POST"]),
         Route("/api/managed/memories", memories, methods=["GET", "POST"]),
         Route("/api/managed/import", structured_import, methods=["POST"]),
+        Route("/api/managed/graph", graph, methods=["GET"]),
+        Route("/api/managed/timeline", timeline, methods=["GET"]),
         Route("/api/managed/memories/{memory_id}", memories),
         Route("/api/managed/memories/{memory_id}/verify", memories),
         Route("/api/managed/export", export),

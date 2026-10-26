@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
 import { Landing } from './Landing'
+import { ManagedGraphLens, ManagedTimelineLens } from './ManagedLenses'
 import './managed.css'
 
 type Plan = { id: string; name: string; monthly_cents: number; max_memories: number; writes_per_month: number; retrievals_per_month: number }
@@ -34,6 +35,7 @@ export function ManagedApp() {
   const [memories, setMemories] = useState<Memory[]>([])
   const [query, setQuery] = useState('')
   const [newKey, setNewKey] = useState('')
+  const [lens, setLens] = useState<'workspace' | 'graph' | 'timeline'>('workspace')
   const retryWrite = useRef<{ content: string; key: string } | null>(null)
 
   const refresh = useCallback(async () => {
@@ -158,10 +160,14 @@ export function ManagedApp() {
     </section>}
   </Landing></div>
 
+  if (lens === 'graph') return <div className="xc"><main className="xc-managed"><div className="xc-managed-inner"><ManagedGraphLens onBack={() => setLens('workspace')} /></div></main></div>
+  if (lens === 'timeline') return <div className="xc"><main className="xc-managed"><div className="xc-managed-inner"><ManagedTimelineLens onBack={() => setLens('workspace')} /></div></main></div>
+
   return <div className="xc"><main className="xc-managed"><div className="xc-managed-inner">
     <header className="xc-managed-head">
       <a className="xc-brand" href="/managed" aria-label="Xibalba Cortex"><img className="xc-managed-logo" src="/cortex-rail-mark.png" alt="" /><b>Xibalba Cortex</b></a>
       <span className="xc-tag">{account.entitlement.plan.name}</span>
+      <div className="xc-managed-nav" aria-label="Explore workspace"><button className="xc-btn" onClick={() => setLens('graph')}>Graph</button><button className="xc-btn" onClick={() => setLens('timeline')}>Timeline</button></div>
       <button className="xc-btn" disabled={busy} onClick={() => void act(async () => { await request('logout', { method: 'POST' }, account.csrf_token); setAccount(null); setMemories([]); setNewKey(''); setKeys([]); setQuery('') })}>Sign out</button>
     </header>
     <p className="xc-eyebrow">Managed workspace</p>

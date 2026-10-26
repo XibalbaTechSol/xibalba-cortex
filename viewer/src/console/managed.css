@@ -24,8 +24,22 @@
 .xc-managed-results { display: grid; gap: 16px; }
 .xc-managed-results article { border-top: 1px solid var(--hairline); padding-top: 12px; overflow-wrap: anywhere; }
 .xc-managed-key { display: block; margin-block: 12px; overflow-wrap: anywhere; font-size: 13px; }
+.xc-managed-nav { display: flex; gap: 8px; margin-left: auto; }
+.xc-managed-lens { min-height: 700px; }
+.xc-managed-lens-head { display: flex; align-items: start; justify-content: space-between; gap: 20px; padding-bottom: 24px; margin-bottom: 24px; border-bottom: 1px solid var(--hairline); }
+.xc-managed-graph { min-height: 620px; border: 1px solid var(--hairline); overflow: hidden; background: var(--surface); }
+.xc-managed-timeline { display: grid; gap: 18px; overflow-x: auto; padding: 10px 0 30px; }
+.xc-managed-time-axis { display: flex; justify-content: space-between; gap: 16px; color: var(--ink-muted); font: 12px var(--font-mono); min-width: 620px; }
+.xc-managed-lane { display: grid; grid-template-columns: 180px minmax(440px, 1fr); gap: 18px; align-items: center; min-width: 620px; }
+.xc-managed-lane-label { display: grid; gap: 4px; overflow-wrap: anywhere; }
+.xc-managed-lane-label span { color: var(--ink-muted); font-size: 12px; }
+.xc-managed-lane-track { position: relative; height: 34px; border-top: 1px solid var(--hairline); border-bottom: 1px solid var(--hairline); background: repeating-linear-gradient(90deg, transparent 0, transparent calc(12.5% - 1px), var(--hairline-faint) 12.5%); }
+.xc-managed-mark { position: absolute; top: 7px; width: 20px; height: 20px; padding: 0; transform: translateX(-50%); border: 1px solid var(--accent); border-radius: 50%; background: var(--surface); color: var(--ink); font: 600 10px var(--font-mono); cursor: pointer; }
+.xc-managed-mark:hover, .xc-managed-mark:focus-visible { background: var(--accent); color: var(--ink-on-accent); }
 @media (max-width: 760px) {
   .xc-managed-plans, .xc-managed-usage { grid-template-columns: minmax(0, 1fr); }
   .xc-managed-plan, .xc-managed-panel { padding: 20px; }
   .xc-managed { padding-top: 20px; }
+  .xc-managed-lens-head { flex-direction: column; }
+  .xc-managed-nav { width: 100%; margin-left: 0; }
 }

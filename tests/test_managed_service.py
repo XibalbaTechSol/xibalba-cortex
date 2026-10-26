@@ -358,6 +358,13 @@ def test_structured_import_preserves_status_graph_and_provenance(setup):
     assert response.status_code == 201, response.text
     assert response.json()['inserted']['memories'] == 1
     assert client.get('/api/managed/memories', params={'q': 'Alice works at Cortex'}).json()['memories'][0]['status'] == 'confirmed'
+    graph = client.get('/api/managed/graph')
+    assert graph.status_code == 200
+    assert {node['id'] for node in graph.json()['nodes']} >= {'memory:memory-1', 'entity:entity-1', 'entity:entity-2'}
+    assert any(edge['type'] == 'relation' for edge in graph.json()['edges'])
+    timeline = client.get('/api/managed/timeline')
+    assert timeline.status_code == 200
+    assert 'sessions' in timeline.json()
 
 
 def test_password_recovery_revokes_sessions_and_cannot_replay(setup):
