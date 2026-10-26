@@ -315,14 +315,31 @@ Pro and Team Price IDs". The code paths exist (`checkout`, `portal`,
 `stripe/webhook`, `stripe_gateway.py`, three-tier `plans.py`); what is missing is
 configuration and enforcement evidence.
 
-*Blocked on the operator:* the test secret key, webhook signing secret and Pro/Team price
-IDs must be supplied as Render environment variables. **No key is committed, printed or
-retained** — local env files have previously been found holding exposed credentials.
+*Decision (2026-10-26): build against a dummy key.* `ManagedConfig.billing_ready`
+already rejects any secret key containing `dummy`, `replace` or `placeholder`, and its
+docstring states the intent: "A local development service with dummy Stripe keys remains
+healthy while reporting why it cannot accept customers." So a dummy key is a coherent
+development posture, not a shortcut that lies:
 
-*Done when:* `/readyz` reports `stripe_sandbox` ready; a sandbox checkout upgrades a
-tenant's entitlement; a webhook replay is idempotent; and plan limits
-(`max_memories`, `writes_per_month`, `retrievals_per_month`) are proved enforced by a
-test that fails when the limit check is removed.
+- the service stays healthy;
+- `billing_configured` stays `false` and `stripe_sandbox` stays **not ready** — `/readyz`
+  keeps telling the truth, which is the property that matters;
+- paid plans remain unpurchasable, so no customer can be charged against a fake gateway.
+
+P3 therefore splits:
+
+- **P3a (unblocked, now):** checkout, portal and webhook paths exercised against a fake
+  gateway in tests — signature verification, webhook idempotency on replay, entitlement
+  transition, and plan-limit enforcement (`max_memories`, `writes_per_month`,
+  `retrievals_per_month`) each proved able to fail by removing the check. None of this
+  needs a real key.
+- **P3b (blocked on the operator):** real `sk_test_`, `whsec_` and Pro/Team `price_` IDs
+  set as Render environment variables, after which `/readyz` flipping `stripe_sandbox` to
+  ready is the evidence they took effect. **No key is committed, printed or retained** —
+  local env files have previously been found holding exposed credentials.
+
+*Done when:* P3a's tests pass and are proved able to fail; `/readyz` still reports
+`stripe_sandbox` unready, correctly, until P3b supplies real keys.
 
 ### P4 — Deferred production hardening
 
@@ -344,4 +361,5 @@ recorded here so the gap is visible rather than implied.
 2. **PR #73** (`local` -> `main`, OPEN, MERGEABLE) holds the only copies of
    `agent0_wallet.ts` and `agent0_integration.py`. **P0 is blocked on it**, per the
    interaction note above.
-3. **Stripe credentials** from the operator block P3 and nothing else.
+3. **Stripe credentials** from the operator block **P3b only**. P3a proceeds against a
+   dummy key with a fake gateway.
