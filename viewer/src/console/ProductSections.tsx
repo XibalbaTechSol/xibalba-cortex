@@ -2,7 +2,7 @@ import { useState, type FormEvent } from 'react'
 
 const REPO = 'https://github.com/XibalbaTechSol/xibalba-cortex'
 const DOCS = `${REPO}/blob/main`
-export const CONTACT_EMAIL = 'jacob.v.universe@gmail.com'
+export const CONTACT_EMAIL = 'contact@xibalba.dev'
 const plans = [
   { name: 'Free', price: 0, purpose: 'Explore a dedicated memory workspace.', memories: '1,000', writes: '250', reads: '1,000' },
   { name: 'Pro', price: 29, purpose: 'Connect agents to a larger working memory.', memories: '25,000', writes: '5,000', reads: '25,000' },
