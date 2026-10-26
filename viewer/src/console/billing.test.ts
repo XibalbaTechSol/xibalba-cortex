@@ -40,16 +40,31 @@ describe('planAction', () => {
 })
 
 describe('paymentDestination', () => {
+  it('returns the normalised href, not the raw input', () => {
+    expect(paymentDestination('https://CHECKOUT.stripe.com')).toBe('https://checkout.stripe.com/')
+  })
   it('accepts only https Stripe checkout and billing hosts', () => {
     expect(paymentDestination('https://checkout.stripe.com/c/pay/x')).toBe('https://checkout.stripe.com/c/pay/x')
     expect(paymentDestination('https://billing.stripe.com/p/session/y')).toBe('https://billing.stripe.com/p/session/y')
     expect(() => paymentDestination('http://checkout.stripe.com/x')).toThrow('The payment service returned an invalid destination')
     expect(() => paymentDestination('https://evil.example/x')).toThrow('The payment service returned an invalid destination')
+    expect(() => paymentDestination('https://checkout.stripe.com.evil.example/x')).toThrow('invalid destination')
+    expect(() => paymentDestination('https://evil.example/checkout.stripe.com')).toThrow('invalid destination')
+    expect(() => paymentDestination('https://evilstripe.com/x')).toThrow('invalid destination')
+    expect(() => paymentDestination('https://stripe.com/x')).toThrow('invalid destination')
+    expect(() => paymentDestination('https://evil.example/?stripe.com')).toThrow('invalid destination')
     expect(() => paymentDestination('not a url')).toThrow('The payment service returned an invalid destination')
   })
 })
 
 describe('usageRows', () => {
+  it('reads zero for every counter on a fresh month, where used has no keys', () => {
+    expect(usageRows(plans[1], { month: '2026-10', used: {} }, 0)).toEqual([
+      { label: 'Stored memories', value: '0 / 25,000' },
+      { label: 'Write requests', value: '0 / 5,000' },
+      { label: 'Retrieval requests', value: '0 / 25,000' },
+    ])
+  })
   it('reads used over allowed, treating an absent counter as zero', () => {
     expect(usageRows(plans[1], { month: '2026-10', used: { writes: 1200 } }, 3)).toEqual([
       { label: 'Stored memories', value: '3 / 25,000' },

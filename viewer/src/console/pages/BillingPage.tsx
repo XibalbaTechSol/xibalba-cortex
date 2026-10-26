@@ -59,7 +59,7 @@ export function BillingPage() {
       {error && <div className="xc-callout xc-callout--conflict" role="alert"><IconWarn />{error}</div>}
       {catalog && me && (
         <>
-          {!me.entitlement.writable && <div className="xc-callout xc-callout--review" role="status"><IconWarn />This workspace is read-only. Your existing memories remain available to read and export. Update billing to resume writes.</div>}
+          {!me.entitlement.writable && <div className="xc-callout xc-callout--review" role="status"><IconWarn />This workspace is read-only. Your existing memories remain available to read. Update billing to resume writes.</div>}
           <section className="xc-win" aria-label="Subscription">
             <h2 className="xc-title">Subscription</h2>
             <p className="xc-note">Plan: {me.entitlement.plan.name} · status: {me.entitlement.status}{me.entitlement.cancel_at_period_end ? ' · cancels at the end of the paid period' : ''}</p>
