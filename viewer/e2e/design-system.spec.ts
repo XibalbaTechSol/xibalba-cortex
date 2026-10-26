@@ -1,5 +1,6 @@
 import { test, expect, type Page } from '@playwright/test'
 import { stubConsoleApi } from './consoleFixture'
+import { managedFixture } from './managed-fixture'
 
 /* Conformance audit against the Industry design system (src/console/tokens.css).
  * The Cortex console is dark-only by decision, which is why there is no light
@@ -682,6 +683,22 @@ for (const width of [390, 1280, 1600]) {
     await stubConsoleApi(page)
     await page.goto('/')
     await expect(page.locator('.xc-landing')).toBeVisible()
+    await page.evaluate(() => document.fonts.ready)
+    const problems = await grammarSweep(page)
+    expect(problems, problems.join('\n')).toEqual([])
+  })
+}
+
+/* The hosted workspace at /managed is a second UI with its own stylesheet, and no test swept it:
+   grammarSweep appears above for the console routes and the landing, never here. This is the
+   gate that retiring that UI must turn green, so it asserts the same grammar as everything else
+   and is not softened. */
+for (const width of [390, 1280, 1600]) {
+  test(`the hosted workspace keeps its grammar at ${width}px`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 950 })
+    await managedFixture(page, { signedIn: true })
+    await page.goto('/managed')
+    await expect(page.locator('.xc')).toBeVisible()
     await page.evaluate(() => document.fonts.ready)
     const problems = await grammarSweep(page)
     expect(problems, problems.join('\n')).toEqual([])
