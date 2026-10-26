@@ -277,9 +277,17 @@ def create_app(config: ManagedConfig, *, control: ManagedControl | None = None, 
         rate_limit(request)
         account, _, _ = await run_in_threadpool(owner, request, mutate=request.method == 'POST')
         with closing(identity_connection(service.identity_home)) as db:
-            existing = db.execute("SELECT id,label,created_at,expires_at,revoked_at FROM ingest_tokens WHERE profile_id=? AND label LIKE 'managed-api:%' AND revoked_at IS NULL ORDER BY created_at DESC LIMIT 100", (account['profile_id'],)).fetchall()
+            existing = db.execute("SELECT id,label,created_at,expires_at,revoked_at,agent_id,agent_ids_json FROM ingest_tokens WHERE profile_id=? AND label LIKE 'managed-api:%' AND revoked_at IS NULL ORDER BY created_at DESC LIMIT 100", (account['profile_id'],)).fetchall()
         if request.method == 'GET':
-            return JSONResponse({'keys': [dict(row) for row in existing]})
+            result = []
+            for row in existing:
+                item = dict(row)
+                try:
+                    item['agent_ids'] = sorted({str(value).strip() for value in json.loads(item.pop('agent_ids_json') or '[]') if str(value).strip()})
+                except (TypeError, json.JSONDecodeError):
+                    item['agent_ids'] = [item['agent_id']] if item.get('agent_id') else []
+                result.append(item)
+            return JSONResponse({'keys': result})
         with closing(identity_connection(service.identity_home)) as db:
             active_count = db.execute("SELECT COUNT(*) FROM ingest_tokens WHERE profile_id=? AND label LIKE 'managed-api:%' AND revoked_at IS NULL AND (expires_at IS NULL OR expires_at>?)", (account['profile_id'], datetime.now(timezone.utc).isoformat())).fetchone()[0]
         if active_count >= 100:
@@ -288,14 +296,21 @@ def create_app(config: ManagedConfig, *, control: ManagedControl | None = None, 
         label = str(data.get("label", "")).strip()
         if not label or len(label) > 80:
             raise ApiError(400, "API key label must contain 1–80 characters")
-        agent_id = str(data.get("agent_id", "")).strip()
-        if agent_id and (not agent_id.startswith("did:integrity:") or len(agent_id) > 160):
-            raise ApiError(400, "agent_id must be a valid did:integrity identifier")
+        raw_agent_ids = data.get('agent_ids')
+        if raw_agent_ids is None:
+            raw_agent_ids = [data.get('agent_id', '')]
+        if not isinstance(raw_agent_ids, list):
+            raise ApiError(400, 'agent_ids must be an array of did:integrity identifiers')
+        agent_ids = sorted({str(value).strip() for value in raw_agent_ids if str(value).strip()})
+        if len(agent_ids) > 100:
+            raise ApiError(400, 'agent_ids may contain at most 100 identities')
+        if any(not value.startswith('did:integrity:') or len(value) > 160 for value in agent_ids):
+            raise ApiError(400, 'agent_ids must contain valid did:integrity identifiers')
         # Managed keys may read and write their own tenant; they cannot manage billing, mint
         # other keys, administer accounts, or select another profile.
         token = await run_in_threadpool(issue_token, service.identity_home, "managed-api:" + label,
             profile_id=account["profile_id"], roles=("writer",), scopes=("memory:read", "memory:write"),
-            ttl_hours=720, agent_id=agent_id or None)
+            ttl_hours=720, agent_ids=tuple(agent_ids))
         return JSONResponse({"token": token, "expires_in_days": 30}, status_code=201)
 
     def memory_operation(request, data):

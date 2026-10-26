@@ -307,6 +307,28 @@ def test_key_revocation_is_scoped_and_effective_immediately(setup):
     assert client.get('/api/managed/memories', headers={'Authorization': 'Bearer ' + key}).status_code == 401
 
 
+def test_managed_api_key_can_bind_multiple_agent_dids(setup):
+    _, _, _, _, client = setup
+    _, headers = register(setup)
+    response = client.post('/api/managed/keys', json={
+        'label': 'shared-device',
+        'agent_ids': ['did:integrity:agent-b', 'did:integrity:agent-a', 'did:integrity:agent-a'],
+    }, headers=headers)
+    assert response.status_code == 201
+    key = response.json()['token']
+    listed = client.get('/api/managed/keys').json()['keys']
+    assert listed[0]['agent_ids'] == ['did:integrity:agent-a', 'did:integrity:agent-b']
+    client.cookies.clear()
+    assert client.get('/api/managed/memories', headers={'Authorization': 'Bearer ' + key}).status_code == 200
+
+
+def test_managed_api_key_rejects_invalid_agent_id_list(setup):
+    _, _, _, _, client = setup
+    _, headers = register(setup)
+    response = client.post('/api/managed/keys', json={'label': 'bad', 'agent_ids': ['not-a-did']}, headers=headers)
+    assert response.status_code == 400
+
+
 def test_password_recovery_revokes_sessions_and_cannot_replay(setup):
     _, service, _, mail, client = setup
     account, _ = register(setup)
