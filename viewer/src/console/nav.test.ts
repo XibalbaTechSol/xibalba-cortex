@@ -87,13 +87,20 @@ describe('a server-declared destination set', () => {
   })
 
   it('tabsFor with one argument is unchanged for self-hosted', () => {
-    expect(tabsFor('settings')).toEqual(['settings', 'operations', 'agents', 'billing'])
+    expect(tabsFor('settings')).toEqual(['settings', 'operations', 'agents'])
   })
 
   it('an undeclared hash route resolves against the narrowed set', () => {
     const list = destinationsFrom(['graph', 'memories'])
     expect(parseRoute('#operations', builtFrom(list)).page).toBeNull()
     expect(parseRoute('#memories', builtFrom(list)).page).toBe('memories')
+  })
+
+  it('self-hosted does not list billing, but a server that declares it does', () => {
+    expect(DESTINATIONS.some((d) => d.id === 'billing')).toBe(false)
+    expect(BUILT.has('billing')).toBe(false)
+    expect(destinationsFrom(['billing']).map((d) => d.id)).toEqual(['billing'])
+    expect(tabsFor('settings')).toEqual(['settings', 'operations', 'agents'])
   })
 
   it('billing is a system destination with a tab label', () => {

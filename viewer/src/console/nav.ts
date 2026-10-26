@@ -70,23 +70,27 @@ export const ALL_DESTINATIONS: readonly Destination[] = [
   { id: 'billing', kind: 'page', label: 'Billing', group: 'system', hint: 'Plan, usage and invoices' },
 ]
 
-/** Pages whose surface exists. A page is added here in the same change that builds it. */
+/** Pages whose surface exists in the self-hosted build. A page is added here in the same change that
+ *  builds it. Managed-only destinations (`billing`) are deliberately absent: they are in
+ *  `ALL_DESTINATIONS` so a server can declare them, but self-hosted must not list them. */
 export const BUILT: ReadonlySet<DestinationId> = new Set<DestinationId>([
   'graph', 'timeline', 'recall', 'review', 'integrity',
-  'memories', 'entities', 'sessions', 'operations', 'agents', 'settings', 'billing',
+  'memories', 'entities', 'sessions', 'operations', 'agents', 'settings',
 ])
 
 export const DESTINATIONS: readonly Destination[] = ALL_DESTINATIONS.filter((d) => BUILT.has(d.id))
 
 /** The destinations a server declares, resolved against the registry.
  *
- *  Order and membership come from `ALL_DESTINATIONS` and `BUILT`, never from the payload: an id the
- *  console has no surface for is dropped, and the rail cannot be reordered by a response. An absent
- *  or empty declaration means the server declared nothing, so self-hosted keeps every built page. */
+ *  Order and membership come from `ALL_DESTINATIONS`, never from the payload: an id the console
+ *  does not know is dropped, and the rail cannot be reordered by a response. An absent or empty
+ *  declaration means the server declared nothing, so self-hosted keeps `DESTINATIONS` exactly.
+ *  A non-empty declaration is resolved against `ALL_DESTINATIONS`, not `BUILT`, because `BUILT`
+ *  is the self-hosted set and managed-only destinations (`billing`) are not in it. */
 export function destinationsFrom(ids: readonly string[] | null | undefined): readonly Destination[] {
   if (!ids || ids.length === 0) return DESTINATIONS
   const declared = new Set<string>(ids)
-  return ALL_DESTINATIONS.filter((d) => BUILT.has(d.id) && declared.has(d.id))
+  return ALL_DESTINATIONS.filter((d) => declared.has(d.id))
 }
 
 /** The ids in `list`, as the set `parseRoute` resolves a hash against. */

@@ -23,7 +23,7 @@ export const DESTINATION_ICON: Record<DestinationId, ReactNode> = {
   operations: <IconOperations />,
   agents: <IconAgents />,
   settings: <IconSettings />,
-  billing: <IconSettings />,
+  billing: <IconSettings />, // a billing icon is still owed; the icon set has no card/receipt glyph
 }
 
 /** Which destination is showing now: a lens/page by route, an overlay by being open. */
