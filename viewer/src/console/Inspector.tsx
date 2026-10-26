@@ -227,7 +227,7 @@ export function Inspector({ summary = false, onClose }: { summary?: boolean; onC
           <IconClose />
         </button>
       </div>
-      {notice && (
+      {notice && !inDrawer && (
         <div className="xc-callout xc-callout--anchored xc-notice" role="status">
           <IconCheck />
           <span style={{ flex: 1 }}>{notice}</span>

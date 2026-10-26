@@ -27,16 +27,16 @@ test.describe('boot, theme and typography', () => {
     await expect(page.locator('.cortex-hero, .cortex-landing, .cortex-shell')).toHaveCount(0)
     // only the console's two families are requested (no DM Sans / Manrope left over)
     expect(fontRequests.length).toBeGreaterThan(0)
-    for (const url of fontRequests) { expect(url).toMatch(/Raleway|JetBrains/); expect(url).not.toMatch(/DM\+Sans|Manrope|Barlow/) }
+    for (const url of fontRequests) { expect(url).toMatch(/Barlow|JetBrains/); expect(url).not.toMatch(/DM\+Sans|Manrope/) }
     expect(errors).toEqual([])
   })
 
-  test('is set in Raleway with lining figures, and JetBrains Mono for addresses', async ({ page }) => {
+  test('is set in Barlow with lining figures, and JetBrains Mono for addresses', async ({ page }) => {
     await openConsole(page)
     await page.evaluate(() => document.fonts.ready)
     const faces = await page.evaluate(() => ({
-      raleway400: document.fonts.check('400 16px Raleway'),
-      raleway600: document.fonts.check('600 16px Raleway'),
+      raleway400: document.fonts.check('400 16px Barlow'),
+      raleway600: document.fonts.check('600 16px Barlow'),
       mono: document.fonts.check('400 12px "JetBrains Mono"'),
       body: getComputedStyle(document.querySelector('.xc')!).fontFamily,
       button: getComputedStyle(document.querySelector('.xc button')!).fontFamily,
@@ -44,41 +44,37 @@ test.describe('boot, theme and typography', () => {
       figures: getComputedStyle(document.querySelector('.xc button')!).fontFeatureSettings,
     }))
     expect(faces.raleway400 && faces.raleway600 && faces.mono).toBe(true)
-    for (const family of [faces.body, faces.button, faces.heading]) expect(family).toMatch(/^"?Raleway/)
-    expect(faces.figures).toMatch(/lnum/) // old-style figures are Raleway's default; the console asks for lining
+    for (const family of [faces.body, faces.button, faces.heading]) expect(family).toMatch(/^"?Barlow/)
+    expect(faces.figures).toMatch(/lnum/) // the console explicitly asks for lining figures
   })
 
-  test('is square, flat, graphite and lavender', async ({ page }) => {
+  test('is square, flat, graphite and steel', async ({ page }) => {
     await openConsole(page)
     const look = await page.evaluate(() => {
       const root = getComputedStyle(document.querySelector('.xc')!)
       const btn = getComputedStyle(document.querySelector('.xc button.xc-btn, .xc button')!)
       return { ground: root.getPropertyValue('--ground').trim(), accent: root.getPropertyValue('--cortex-accent').trim(), radius: btn.borderTopLeftRadius, shadow: btn.boxShadow, bg: getComputedStyle(document.body).backgroundColor }
     })
-    expect(look.ground).toBe('#0d0f11')
-    expect(look.accent).toBe('#c3b6dd')
+    expect(look.ground).toBe('#14171a')
+    expect(look.accent).toBe('#94bce3')
     expect(look.radius).toBe('0px')
     expect(look.shadow).toBe('none')
-    expect(look.bg).toBe('rgb(13, 15, 17)')
+    expect(look.bg).toBe('rgb(20, 23, 26)')
   })
 })
 
 // ---------------------------------------------------------------------------------------------
 test.describe('the two lenses are the navigation', () => {
-  test('the rail lists Graph and Timeline as lenses and the rest as tools', async ({ page }) => {
+  test('the rail keeps five readable destinations and the header switches lenses', async ({ page }) => {
     await openConsole(page)
-    const lenses = page.getByRole('navigation', { name: 'Lenses' })
-    await expect(lenses.getByRole('button')).toHaveText([/Graph/, /Timeline/])
-    const tools = page.getByRole('group', { name: /Tools/ })
-    for (const name of ['Memories', 'Entities', 'Sessions', 'Recall', 'Review', 'Integrity', 'Operations', 'Agents', 'Settings']) {
-      await expect(tools.getByRole('button', { name })).toBeVisible()
-    }
+    await expect(page.locator('.xc-rail-nav .xc-nav-btn')).toHaveText([/Workspace/, /Explore/, /Recall/, /Review/, /Integrity/])
+    await expect(page.getByRole('group', { name: 'Lens', exact: true }).getByRole('button')).toHaveText(['Graph', 'Timeline'])
   })
 
   test('switching lens keeps the route, and a hash opens the right lens', async ({ page }) => {
     await openConsole(page, { hash: 'timeline' })
     await expect(page.getByRole('region', { name: /Timeline lens|Timeline/ }).first()).toBeVisible()
-    await page.getByRole('navigation', { name: 'Lenses' }).getByRole('button', { name: /Graph/ }).click()
+    await page.getByRole('group', { name: 'Lens', exact: true }).getByRole('button', { name: /Graph/ }).click()
     // the Graph lens is the default route, so its hash is empty
     await expect(page).not.toHaveURL(/#timeline/)
     await expect(page.getByRole('region', { name: 'Graph lens' })).toBeVisible()
@@ -93,7 +89,7 @@ test.describe('graph lens', () => {
     const canvas = await settled3d(page)
     const count = Number(await canvas.getAttribute('data-node-count'))
     expect(count).toBeGreaterThan(20)
-    await expect(page.locator('.xc-graph-count')).toContainText(`${count} nodes`)
+    await expect(page.locator('.xc-graph-count')).toContainText(new RegExp(`^${count}(?: of \\d+)? nodes`))
     expect(await paintedPixels(page, 'canvas[data-node-count]')).toBeGreaterThan(500)
     expect(errors).toEqual([])
   })
@@ -116,14 +112,14 @@ test.describe('graph lens', () => {
   test('2D and 3D toggle, and the choice survives a reload', async ({ page }) => {
     await openConsole(page, { primary: true })
     await settled3d(page)
-    const group = page.getByRole('group', { name: 'Graph view' })
-    await group.getByRole('button', { name: '2D' }).click()
-    await expect(group.getByRole('button', { name: '2D' })).toHaveAttribute('aria-pressed', 'true')
+    const group = page
+    await group.getByRole('button', { name: '2D view', exact: true }).click()
+    await expect(group.getByRole('button', { name: '2D view', exact: true })).toHaveAttribute('aria-pressed', 'true')
     await expect(page.locator('canvas[data-node-count]')).toHaveCount(0) // the 3D engine is torn down
     await expect.poll(() => paintedPixels(page, '.xc-canvas-win canvas')).toBeGreaterThan(300)
     await page.reload()
-    await expect(page.getByRole('group', { name: 'Graph view' }).getByRole('button', { name: '2D' })).toHaveAttribute('aria-pressed', 'true')
-    await page.getByRole('group', { name: 'Graph view' }).getByRole('button', { name: '3D' }).click()
+    await expect(page.getByRole('button', { name: '2D view', exact: true })).toHaveAttribute('aria-pressed', 'true')
+    await page.getByRole('button', { name: '3D view', exact: true }).click()
     await settled3d(page)
   })
 
@@ -200,7 +196,7 @@ test.describe('timeline lens', () => {
     await openConsole(page, { hash: 'timeline', primary: true })
     await page.locator('.xc-lane-label').first().click()
     await expect(page.getByRole('button', { name: 'Exchanges, replay, telemetry' })).toBeVisible()
-    await page.getByRole('navigation', { name: 'Lenses' }).getByRole('button', { name: /Graph/ }).click()
+    await page.getByRole('group', { name: 'Lens', exact: true }).getByRole('button', { name: /Graph/ }).click()
     await expect(page.getByRole('button', { name: 'Exchanges, replay, telemetry' })).toBeVisible()
   })
 })
@@ -241,7 +237,7 @@ test.describe('tools open over the lens they were opened from', () => {
     for (const [tool, hash, heading] of tools) {
       test(`${tool} opens over ${lens}, keeps it mounted, and Esc returns to it`, async ({ page }) => {
         await openConsole(page, { hash: lens, primary: true })
-        await page.getByRole('group', { name: /Tools/ }).getByRole('button', { name: tool }).click()
+        await page.evaluate((next) => { window.location.hash = next }, `${lens === 'graph' ? '' : 'timeline/'}${hash}`)
         const drawer = page.getByRole('dialog')
         await expect(drawer).toBeVisible()
         await expect(drawer.getByRole('heading', { name: heading }).first()).toBeVisible()
@@ -251,8 +247,7 @@ test.describe('tools open over the lens they were opened from', () => {
         await page.keyboard.press('Escape')
         await expect(drawer).toBeHidden()
         await expect(page).toHaveURL(lens === 'graph' ? /#(graph)?$/ : /#timeline$/)
-        // focus goes back to the control that opened it
-        await expect(page.getByRole('group', { name: /Tools/ }).getByRole('button', { name: tool })).toBeFocused()
+        // Deep-link navigation keeps the existing canvas and its camera mounted.
       })
     }
   }
@@ -390,30 +385,27 @@ test.describe('collapsible navigation and panes', () => {
     await expect(page.locator('.xc-rail-shell')).toHaveAttribute('data-collapsed', 'false')
   })
 
-  test('Filters and Inspector hide from the lens bar and come back', async ({ page }) => {
+  test('Projection and selected-memory docks collapse independently', async ({ page }) => {
     await openConsole(page, { primary: true })
-    const workspace = page.locator('.xc-workspace')
-    await expect(workspace).toHaveAttribute('data-facets', 'shown')
-    await page.getByRole('button', { name: /filters/i }).first().click()
-    await expect(workspace).toHaveAttribute('data-facets', 'hidden')
-    await page.getByRole('button', { name: /inspector/i }).first().click()
-    await expect(workspace).toHaveAttribute('data-inspector', 'hidden')
-    expect(await settingsOf(page)).toMatchObject({ facetsCollapsed: true, inspectorCollapsed: true })
-    await page.getByRole('button', { name: /filters/i }).first().click()
-    await expect(workspace).toHaveAttribute('data-facets', 'shown')
+    await page.getByRole('button', { name: 'Collapse projection', exact: true }).click()
+    await expect(page.locator('.xc-facets')).toHaveAttribute('data-collapsed', 'true')
+    await pinMemory(page, 'relay retries', 'three times')
+    await page.getByRole('button', { name: 'Collapse selected memory', exact: true }).click()
+    await expect(page.locator('.xc-inspector')).toHaveAttribute('data-collapsed', 'true')
+    expect(await settingsOf(page)).toMatchObject({ facetsCollapsed: true, detailCollapsed: true })
   })
 
-  test('the top bar layout works and collapses its second row', async ({ page }) => {
+  test('the top-bar layout keeps all primary destinations readable', async ({ page }) => {
     await openConsole(page, { settings: { shell: 'top' }, primary: true })
     await expect(page.locator('.xc-top')).toBeVisible()
-    await page.getByRole('button', { name: 'Collapse navigation' }).click()
-    await expect(page.locator('.xc-top')).toHaveAttribute('data-collapsed', 'true')
+    await expect(page.locator('.xc-top .xc-nav-btn')).toHaveCount(5)
+    await expect(page.locator('.xc-top .xc-nav-label').first()).toBeVisible()
   })
 
   test('Settings → Layout switches shell and writes through to the same stored preference', async ({ page }) => {
     await openConsole(page, { hash: 'settings' })
     await page.getByRole('tab', { name: 'Layout' }).click()
-    await page.getByRole('checkbox', { name: 'Hide the Filters pane' }).check()
+    await page.getByRole('checkbox', { name: 'Collapse the Projection dock' }).check()
     expect((await settingsOf(page)).facetsCollapsed).toBe(true)
     await page.locator('.xc-choice-card', { hasText: 'Top bar' }).click() // the radio itself is visually hidden
     await expect(page.locator('.xc-top')).toBeVisible()

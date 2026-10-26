@@ -43,6 +43,7 @@ export default defineConfig({
   // none depends on another's output, but one worker keeps the 3D engine from fighting for the
   // single software-GL context.
   fullyParallel: false,
+  maxFailures: process.env.CI ? 5 : undefined,
   workers: 1,
   retries: process.env.CI ? 1 : 0,
   reporter: [['list']],

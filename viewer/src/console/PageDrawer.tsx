@@ -27,7 +27,7 @@ const InDrawer = createContext(false)
 export const useInDrawer = (): boolean => useContext(InDrawer)
 
 export function PageDrawer({ page, children }: { page: PageId; children: ReactNode }) {
-  const { setPage } = useConsole()
+  const { setPage, notice, setNotice } = useConsole()
   const ref = useRef<HTMLDivElement>(null)
   const closeRef = useRef<HTMLButtonElement>(null)
   const titleId = useId()
@@ -46,6 +46,7 @@ export function PageDrawer({ page, children }: { page: PageId; children: ReactNo
           </div>
           <button ref={closeRef} type="button" className="xc-btn xc-btn--square" onClick={close} aria-label={`Close ${TAB_LABEL[page] ?? dest?.label ?? page}`}><IconClose /></button>
         </div>
+        {notice && <div className="xc-callout xc-callout--anchored" role="status"><span>{notice}</span><button type="button" className="xc-link" onClick={() => setNotice(null)}>Dismiss</button></div>}
         <div className="xc-drawer-scroll">{children}</div>
       </aside>
     </InDrawer.Provider>

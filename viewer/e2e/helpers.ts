@@ -29,7 +29,7 @@ export async function openConsole(page: Page, opts: OpenOptions = {}): Promise<v
       if (settings) localStorage.setItem('xibalba-cortex.console-settings', JSON.stringify({ shell: 'rail', railCollapsed: false, ...settings }))
     } catch { /* storage can be unavailable; the console falls back to its defaults */ }
   }, { signedOut: !!opts.signedOut, primary: !!opts.primary, settings: opts.settings ?? null })
-  await page.goto(`/#${opts.hash ?? 'graph'}`)
+  await page.goto(`/#${opts.signedOut ? 'signin' : opts.hash ?? 'graph'}`)
   if (opts.signedOut) {
     await expect(page.getByRole('button', { name: /sign in/i }).first()).toBeVisible()
   } else {

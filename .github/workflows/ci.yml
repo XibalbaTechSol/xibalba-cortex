@@ -55,7 +55,7 @@ jobs:
           python-version: ${{ env.PYTHON_VERSION }}
       # Fail with an explicit layout error before uv reports an opaque missing-distribution failure.
       - run: test -f ../integrity-core/integrity-sdk/pyproject.toml
-      - run: uv sync --extra otel --extra managed --extra managed
+      - run: uv sync --extra otel --extra managed
       - run: uv run pytest -q
 
   viewer:
