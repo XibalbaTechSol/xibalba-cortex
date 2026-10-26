@@ -212,6 +212,21 @@ describe('the hosted Idempotency-Key (finding 5)', () => {
     expect(other).not.toBe(first)
   })
 
+  it('keys on a digest, so a failed sign-in does not park a plaintext password in module state', async () => {
+    /* The key has to follow the payload, and the obvious way to do that -- using the payload AS
+       the Map key -- means a failed `login` or `signup` leaves the password in this module until
+       something else succeeds. `digest` is what stops that, and only an assertion about the
+       retained fingerprints can see it: every key-stability test passes either way. */
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ error: 'Wrong password' }), { status: 401, headers: { 'Content-Type': 'application/json' } })))
+    const { hostedFetch, pendingWriteFingerprints } = await import('./hostedApi')
+    await hostedFetch('login', { method: 'POST', body: JSON.stringify({ email: 'operator@example.com', password: 'correct-horse-battery' }) }).catch(() => {})
+    const retained = pendingWriteFingerprints()
+    // the failed write did keep a key, so the check below is over something
+    expect(retained).toHaveLength(1)
+    expect(retained.join(' ')).not.toContain('correct-horse-battery')
+    expect(retained.join(' ')).not.toContain('operator@example.com')
+  })
+
   it('starts a new key once a write succeeded, so writing the same text twice is two writes', async () => {
     const calls = installFetch(() => ({ id: 'm9' }))
     const { api, hosted } = await hostedModules()

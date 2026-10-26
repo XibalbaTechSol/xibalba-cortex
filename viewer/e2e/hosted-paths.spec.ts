@@ -90,8 +90,14 @@ test('a hosted console never asks for a route the managed backend does not serve
   await page.goto('/managed#timeline')
   await expect(page.locator('.xc-workspace')).toBeVisible()
 
+  /* Sign-out is its own escape: `ConsoleApp.signOut` calls `accountLogout()`, which posted to
+     `/api/auth/logout` on hosted too. Driving it here puts that path inside the sweep below. */
+  await page.locator('.xc-profile-btn').click()
+  await page.getByRole('menuitem', { name: 'Log out' }).click()
+  await expect(page.locator('.xc-workspace')).toHaveCount(0)
+
   // --- and the managed routes were really exercised, so the sweep below is not over an empty list
-  for (const path of ['me', 'graph', 'timeline', 'memories', 'memories/seed-0', 'plans']) {
+  for (const path of ['me', 'graph', 'timeline', 'memories', 'memories/seed-0', 'plans', 'logout']) {
     expect(calls.map((c) => c.path), path).toContain(path)
   }
   expect(requests.length).toBeGreaterThan(6)
@@ -117,7 +123,7 @@ test('a hosted console asks for none of the routes that would 404', async ({ pag
   }
 })
 
-test('a hosted write carries an Idempotency-Key, and a read-only subscription has no write control', async ({ page }) => {
+test('a hosted write reaches the managed route with its content and an Idempotency-Key', async ({ page }) => {
   const { calls } = await openHosted(page)
   await page.goto('/managed#memories')
   await expect(page.getByRole('button', { name: SEEDED, exact: true })).toBeVisible()
@@ -135,17 +141,22 @@ test('a hosted write carries an Idempotency-Key, and a read-only subscription ha
 test('a read-only hosted subscription offers no write control and says why', async ({ page }) => {
   const requests = recordApiRequests(page)
   await behaveLikeProduction(page)
-  const calls = await managedFixture(page, { signedIn: true, plan: 'pro', writable: false, seed: 1 })
+  await managedFixture(page, { signedIn: true, plan: 'pro', writable: false, seed: 1 })
   await page.goto('/managed#memories')
 
   // positive anchor: the workspace loaded and its memories are readable -- a read-only
   // subscription keeps every read, which is the whole point of the entitlement being per-write
   await expect(page.getByRole('button', { name: SEEDED, exact: true })).toBeVisible()
-  await expect(page.locator('.xc-status')).toContainText('read only')
   // the export is outside the writable check on purpose, so it proves the page rendered its actions
   await expect(page.getByRole('button', { name: 'Export memories', exact: true })).toBeVisible()
 
+  /* The absence comes BEFORE the status-bar check, not after. Both read the same signal
+     (`workspace.canWrite`), so with the status check first a mutation fails there and this is
+     never reached -- which is how an absence goes unproven. */
   await expect(page.getByRole('button', { name: 'New memory', exact: true })).toHaveCount(0)
-  expect(calls.filter((c) => c.path === 'memories' && c.method === 'POST')).toEqual([])
+  await expect(page.locator('.xc-status')).toContainText('read only')
+  /* Deliberately NOT asserting "no POST memories": under read-only nothing here attempts a write,
+     so that assertion holds with or without the gate. The gate on the CALL is proved in
+     src/hostedApi.test.ts (mutation M2), where a write IS attempted. */
   expect(requests.filter((r) => !r.startsWith('GET /api/managed/') && !r.startsWith('POST /api/managed/'))).toEqual([])
 })

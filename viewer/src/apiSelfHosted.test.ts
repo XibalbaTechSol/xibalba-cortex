@@ -266,4 +266,57 @@ describe('the self-hosted wire contract', () => {
       `POST ${BASE}/api/auth/password`,
     ])
   })
+
+  /* Method and URL are not the whole wire contract. Task 5d rewrote how `credentials`, the
+     headers and the body are composed at thirteen call sites, and none of that is visible in the
+     tables above. `console.spec.ts` cannot see it either: the dev proxy injects a bearer token, so
+     nothing there exercises the cookie credential. This records the rest. */
+  it('sends the session cookie on every request, and composes write headers and bodies unchanged', async () => {
+    const full: Array<{ url: string; method: string; credentials?: string; type?: string; csrf?: string; body?: unknown }> = []
+    vi.stubGlobal('fetch', vi.fn(async (url: string, init: RequestInit = {}) => {
+      const headers = (init.headers ?? {}) as Record<string, string>
+      full.push({
+        url, method: init.method ?? 'GET', credentials: init.credentials,
+        type: headers['Content-Type'], csrf: headers['X-Cortex-CSRF-Token'],
+        body: typeof init.body === 'string' ? init.body : init.body === undefined ? undefined : 'raw',
+      })
+      return new Response(JSON.stringify(String(url).endsWith('/api/auth/csrf') ? { csrf_token: 'tok' } : {}), { status: 200, headers: { 'Content-Type': 'application/json' } })
+    }))
+    const api = await import('./api')
+    await api.api.stats()
+    await api.api.createProposition({ content: 'c' })
+    await api.api.importDocument(file, 'a1')
+    await api.accountAuth('login', { email: 'a@example.com', password: 'p' })
+    await api.accountLogout()
+
+    // every request carries the cookie: local_api.py authenticates the browser with an HttpOnly,
+    // SameSite=Strict session cookie and nothing else
+    expect(full.every((c) => c.credentials === 'include')).toBe(true)
+    expect(full.map((c) => `${c.method} ${c.url}`)).toEqual([
+      `GET ${BASE}/api/stats`,
+      `GET ${BASE}/api/auth/csrf`,
+      `POST ${BASE}/api/memory/propositions`,
+      `POST ${BASE}/api/import?filename=notes.md&workspace_agent_id=a1`,
+      `POST ${BASE}/api/auth/login`,
+      `POST ${BASE}/api/auth/logout`,
+    ])
+    // the JSON write: declared type, the CSRF token from the csrf route, the payload verbatim
+    const write = full.find((c) => c.url.endsWith('/api/memory/propositions'))!
+    expect(write.type).toBe('application/json')
+    expect(write.csrf).toBe('tok')
+    expect(write.body).toBe(JSON.stringify({ content: 'c' }))
+    // the raw upload: the file's own media type, the bytes as the body, not a JSON envelope
+    const upload = full.find((c) => c.url.includes('/api/import'))!
+    expect(upload.type).toBe('text/markdown')
+    expect(upload.body).toBe('raw')
+    // sign-in declares JSON and needs no token (it has no session to forge against yet)
+    const login = full.find((c) => c.url.endsWith('/api/auth/login'))!
+    expect(login.type).toBe('application/json')
+    expect(login.csrf).toBeUndefined()
+    expect(login.body).toBe(JSON.stringify({ email: 'a@example.com', password: 'p' }))
+    // logout posts with no body and no declared type, exactly as it did
+    const logout = full.find((c) => c.url.endsWith('/api/auth/logout'))!
+    expect(logout.body).toBeUndefined()
+    expect(logout.type).toBeUndefined()
+  })
 })

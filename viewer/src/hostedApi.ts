@@ -210,6 +210,16 @@ export function hostedWritable(): boolean | undefined {
 
 // --- idempotency keys ---------------------------------------------------------------------------
 
+/** A stable, non-reversible digest of what is being written. The fingerprint must not BE the
+ *  payload: keying every hosted POST means a failed `login` or `signup` would otherwise leave the
+ *  plaintext password sitting in this module's Map until something succeeded. djb2 is enough --
+ *  this only has to tell two payloads apart within one session, never resist an attacker. */
+function digest(value: string): string {
+  let hash = 5381
+  for (let i = 0; i < value.length; i += 1) hash = ((hash << 5) + hash + value.charCodeAt(i)) | 0
+  return `${(hash >>> 0).toString(36)}-${value.length}`
+}
+
 function newKey(): string {
   try { return crypto.randomUUID() } catch { /* no WebCrypto: fall through */ }
   return `write-${Date.now()}-${Math.random().toString(36).slice(2, 12)}`
@@ -237,6 +247,13 @@ export function releaseWriteKey(fingerprint: string): void {
   writeKeys.delete(fingerprint)
 }
 
+/** The fingerprints currently holding a key, for the test that guards `digest`. Exported because
+ *  the property that matters is not "the key is stable" -- it is that nothing in this module's
+ *  state is the payload itself. A test cannot check that through the public call path. */
+export function pendingWriteFingerprints(): string[] {
+  return [...writeKeys.keys()]
+}
+
 // --- the transport ------------------------------------------------------------------------------
 
 const JSON_HEADERS = { 'Content-Type': 'application/json' }
@@ -253,7 +270,7 @@ const JSON_HEADERS = { 'Content-Type': 'application/json' }
 export async function hostedFetch<T>(path: string, init: RequestInit = {}, token?: string): Promise<T> {
   const method = (init.method ?? 'GET').toUpperCase()
   const sent = token ?? csrf
-  const fingerprint = `${method} ${path} ${typeof init.body === 'string' ? init.body : ''}`
+  const fingerprint = digest(`${method} ${path} ${typeof init.body === 'string' ? init.body : ''}`)
   const idempotency: Record<string, string> = method === 'POST' ? { 'Idempotency-Key': writeKeyFor(fingerprint) } : {}
   const response = await fetch(`/api/managed/${path}`, {
     ...init,
