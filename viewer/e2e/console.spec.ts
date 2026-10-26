@@ -32,19 +32,30 @@ test.describe('boot, theme and typography', () => {
   })
 
   test('is set in Barlow with lining figures, and JetBrains Mono for addresses', async ({ page }) => {
-    await openConsole(page)
+    /* Headings are read on an open page, not on the bare lens. The rail's brand is an image
+       lockup rather than a wordmark, and the lens canvas carries no heading of its own, so the
+       default view has no heading element to measure -- the old selector
+       (`.xc-win h1, .xc-win h2, .xc-title, .xc-brand b`) matched nothing there and
+       getComputedStyle was handed null. Headings live on the surfaces that have titles. */
+    await openConsole(page, { hash: 'memories' })
     await page.evaluate(() => document.fonts.ready)
-    const faces = await page.evaluate(() => ({
-      raleway400: document.fonts.check('400 16px Barlow'),
-      raleway600: document.fonts.check('600 16px Barlow'),
-      mono: document.fonts.check('400 12px "JetBrains Mono"'),
-      body: getComputedStyle(document.querySelector('.xc')!).fontFamily,
-      button: getComputedStyle(document.querySelector('.xc button')!).fontFamily,
-      heading: getComputedStyle(document.querySelector('.xc-win h1, .xc-win h2, .xc-title, .xc-brand b')!).fontFamily,
-      figures: getComputedStyle(document.querySelector('.xc button')!).fontFeatureSettings,
-    }))
-    expect(faces.raleway400 && faces.raleway600 && faces.mono).toBe(true)
-    for (const family of [faces.body, faces.button, faces.heading]) expect(family).toMatch(/^"?Barlow/)
+    const faces = await page.evaluate(() => {
+      const headings = [...document.querySelectorAll('.xc h1, .xc h2, .xc h3, .xc .xc-title')]
+      return {
+        barlow400: document.fonts.check('400 16px Barlow'),
+        barlow600: document.fonts.check('600 16px Barlow'),
+        mono: document.fonts.check('400 12px "JetBrains Mono"'),
+        body: getComputedStyle(document.querySelector('.xc')!).fontFamily,
+        button: getComputedStyle(document.querySelector('.xc button')!).fontFamily,
+        headingCount: headings.length,
+        headings: headings.map((h) => getComputedStyle(h).fontFamily),
+        figures: getComputedStyle(document.querySelector('.xc button')!).fontFeatureSettings,
+      }
+    })
+    expect(faces.barlow400 && faces.barlow600 && faces.mono).toBe(true)
+    // guard against a vacuous pass: an empty heading list would satisfy the loop below
+    expect(faces.headingCount, 'no heading rendered to measure').toBeGreaterThan(0)
+    for (const family of [faces.body, faces.button, ...faces.headings]) expect(family).toMatch(/^"?Barlow/)
     expect(faces.figures).toMatch(/lnum/) // the console explicitly asks for lining figures
   })
 
