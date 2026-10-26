@@ -148,11 +148,40 @@ test('the hosted phone layout lists only the declared destinations', async ({ pa
   await expect(tabbar.getByRole('button', { name: 'Review', exact: true })).toHaveCount(0)
   await tabbar.getByRole('button', { name: 'More', exact: true }).click()
   const more = page.locator('.xc-more')
+  /* `MoreList` filters out the phone's own PRIMARY four, so `review` can never appear here
+     whatever the declared list says -- an assertion about its absence would be unfailable, which
+     is the thing we keep finding. Review's exclusion is covered by the tab-bar check above, where
+     it IS reachable. What this sheet can get wrong is the rest: `integrity` and `operations` are
+     undeclared and must not be listed, and `billing` is declared and is only reachable here. */
+  // `Memories` first: it is listed either way, so it is the positive wait that makes the two
+  // absences below meaningful. The absences come before the `Billing` check on purpose -- with
+  // `Billing` first, a mutation of this very site fails there and the absences are never reached,
+  // which is how they went unproven in round 1.
   await expect(more.getByRole('button', { name: /^Memories/ })).toBeVisible()
-  await expect(more.getByRole('button', { name: /^Billing/ })).toBeVisible()
-  await expect(more.getByRole('button', { name: /^Review/ })).toHaveCount(0)
   await expect(more.getByRole('button', { name: /^Integrity/ })).toHaveCount(0)
   await expect(more.getByRole('button', { name: /^Operations/ })).toHaveCount(0)
+  await expect(more.getByRole('button', { name: /^Billing/ })).toBeVisible()
+})
+
+/* FIX 1: the OTHER `primaryDestinations(destinations)` site. `.xc-rail-nav` above exists only when
+   `settings.shell === 'rail'` -- the default -- at non-phone widths, so reverting `Shell.tsx`'s
+   TopBar line alone passed every check in this file. `.xc-nav` is that layout's navigation.
+
+   The layout is seeded into localStorage rather than driven through Settings -> Layout: clicking
+   through the settings page would make this test depend on that page as well as on the nav, and
+   the key seeded is the very preference that page writes (`console.spec.ts:431` and its
+   "writes through to the same stored preference" sibling cover the clicking). */
+test('the hosted top-bar layout lists only the declared destinations', async ({ page }) => {
+  await page.addInitScript(() => {
+    try { localStorage.setItem('xibalba-cortex.console-settings', JSON.stringify({ shell: 'top', railCollapsed: false })) } catch { /* no storage: the console keeps its default rail and this test is about the other one */ }
+  })
+  await managedFixture(page, { signedIn: true })
+  await page.goto('/managed#settings')
+  const nav = page.locator('.xc-nav')
+  await expect(nav.getByRole('button', { name: 'Workspace', exact: true })).toBeVisible()
+  await expect(nav.getByRole('button', { name: 'Explore', exact: true })).toBeVisible()
+  await expect(nav.getByRole('button', { name: 'Review', exact: true })).toHaveCount(0)
+  await expect(nav.getByRole('button', { name: 'Integrity', exact: true })).toHaveCount(0)
 })
 
 test('a hash route for an undeclared destination opens no page', async ({ page }) => {
