@@ -56,7 +56,7 @@ export async function loadConsoleData(scope: WorkspaceScope, similarity: number)
     memories: memories.status === 'fulfilled' ? memories.value : { info: new Map(), complete: false },
     memoriesError: memories.status === 'rejected' ? String(memories.reason) : null,
     sessions: sessions.status === 'fulfilled' ? sessions.value : [],
-    invocations: invocations.status === 'fulfilled' ? invocations.value : [],
+    invocations: invocations.status === 'fulfilled' && Array.isArray(invocations.value) ? invocations.value : [],
     stats: stats.status === 'fulfilled' ? stats.value : null,
     status: status.status === 'fulfilled' ? status.value : null,
   }
