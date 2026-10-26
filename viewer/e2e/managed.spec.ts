@@ -36,7 +36,11 @@ test('signup requires verification and never grants an immediate signed-in works
   await form.getByRole('button', { name: 'Create workspace', exact: true }).click()
   await expect(page.getByText('Check your email for a verification link.', { exact: false })).toBeVisible()
   expect(calls.filter((call) => call.path === 'login')).toHaveLength(0)
-  await expect(page.getByRole('heading', { name: 'Operator’s memory' })).toHaveCount(0)
+  /* "no signed-in workspace" has to name a thing that still exists. It used to be the second UI's
+     `Operator’s memory` heading (ManagedApp.tsx:177), which nothing renders now -- so that half of
+     the test could no longer fail. The console's signed-in marker is the workspace itself. */
+  await expect(page.locator('.xc-workspace')).toHaveCount(0)
+  await expect(page.getByRole('button', { name: 'Open operator profile settings' })).toHaveCount(0)
 })
 
 /* Owed to Task 5c, not deleted. Every assertion below names the second UI's own DOM -- its single
@@ -114,6 +118,41 @@ test('a hosted tab strip drops the peers the server did not declare', async ({ p
   await expect(tabs.getByRole('button', { name: 'Agents', exact: true })).toBeVisible()
   await expect(tabs.getByRole('button', { name: 'Billing', exact: true })).toBeVisible()
   await expect(tabs.getByRole('button', { name: 'Operations', exact: true })).toHaveCount(0)
+
+  /* The same rule, one level up. `PRIMARY_NAV` is graph/memories/recall/review/integrity, and a
+     hosted server declares neither `review` nor `integrity` -- their surfaces call bare `/api/*`,
+     which the managed backend answers 404. So the rail must offer three of the five, not five.
+     Without this, reverting `primaryDestinations(destinations)` to the default list puts Review
+     and Integrity back on the hosted rail and nothing fails. */
+  const rail = page.locator('.xc-rail-nav')
+  await expect(rail.getByRole('button', { name: 'Workspace', exact: true })).toBeVisible()
+  await expect(rail.getByRole('button', { name: 'Explore', exact: true })).toBeVisible()
+  await expect(rail.getByRole('button', { name: 'Recall', exact: true })).toBeVisible()
+  await expect(rail.getByRole('button', { name: 'Review', exact: true })).toHaveCount(0)
+  await expect(rail.getByRole('button', { name: 'Integrity', exact: true })).toHaveCount(0)
+})
+
+/* The third layout. `Phone.tsx` reads the same list three times -- the tab bar's four, the "is a
+   secondary destination current" check, and the More sheet's groups -- and none of it had
+   executable coverage. `review` is in the phone's PRIMARY four and is NOT declared by a hosted
+   server, so the tab bar is the sharpest place to see the difference; More is where `billing`
+   becomes reachable at all on a phone. */
+test('the hosted phone layout lists only the declared destinations', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 })
+  await managedFixture(page, { signedIn: true })
+  await page.goto('/managed')
+  const tabbar = page.locator('.xc-tabbar')
+  await expect(tabbar.getByRole('button', { name: 'Graph', exact: true })).toBeVisible()
+  await expect(tabbar.getByRole('button', { name: 'Timeline', exact: true })).toBeVisible()
+  await expect(tabbar.getByRole('button', { name: 'Recall', exact: true })).toBeVisible()
+  await expect(tabbar.getByRole('button', { name: 'Review', exact: true })).toHaveCount(0)
+  await tabbar.getByRole('button', { name: 'More', exact: true }).click()
+  const more = page.locator('.xc-more')
+  await expect(more.getByRole('button', { name: /^Memories/ })).toBeVisible()
+  await expect(more.getByRole('button', { name: /^Billing/ })).toBeVisible()
+  await expect(more.getByRole('button', { name: /^Review/ })).toHaveCount(0)
+  await expect(more.getByRole('button', { name: /^Integrity/ })).toHaveCount(0)
+  await expect(more.getByRole('button', { name: /^Operations/ })).toHaveCount(0)
 })
 
 test('a hash route for an undeclared destination opens no page', async ({ page }) => {
