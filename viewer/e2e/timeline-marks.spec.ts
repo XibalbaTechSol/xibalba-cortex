@@ -57,3 +57,64 @@ test('marks that coincide are given different rows', async ({ page }) => {
     }
   }
 })
+
+test('clicking empty timeline space inspects the nearest visible event', async ({ page }) => {
+  await page.setViewportSize({ width: 1600, height: 900 })
+  await openTimeline(page)
+  const axis = page.getByRole('slider', { name: 'Timeline time' })
+  await axis.click({ position: { x: 50, y: 12 } })
+  await expect(page.locator('.xc-mark[data-selected="true"]')).toHaveCount(1)
+  await expect(page.locator('.xc-inspector')).toBeVisible()
+  await expect(page.locator('.xc-tl-cursor')).toBeVisible()
+})
+
+test('dragging previews a stable time range, applies it on release, and resets', async ({ page }) => {
+  await page.setViewportSize({ width: 1600, height: 900 })
+  await openTimeline(page)
+  const axis = page.getByRole('slider', { name: 'Timeline time' })
+  for (const [start, end] of [[0.2, 0.7], [0.8, 0.25]]) {
+    const from = Number(await axis.getAttribute('aria-valuemin'))
+    const to = Number(await axis.getAttribute('aria-valuemax'))
+    const box = (await axis.boundingBox())!
+    await page.mouse.move(box.x + box.width * start, box.y + 14)
+    await page.mouse.down()
+    await page.mouse.move(box.x + box.width * end, box.y + 14, { steps: 8 })
+    await expect(page.locator('.xc-tl-brush')).toBeVisible()
+    expect(Number(await axis.getAttribute('aria-valuemin'))).toBe(from)
+    await page.mouse.up()
+    await expect(page.locator('.xc-tl-brush')).toHaveCount(0)
+    const expectedFrom = from + Math.min(start, end) * (to - from)
+    const expectedTo = from + Math.max(start, end) * (to - from)
+    // Browser pointer positions round to device pixels.
+    const tolerance = (to - from) / box.width * 2
+    expect(Math.abs(Number(await axis.getAttribute('aria-valuemin')) - expectedFrom)).toBeLessThan(tolerance)
+    expect(Math.abs(Number(await axis.getAttribute('aria-valuemax')) - expectedTo)).toBeLessThan(tolerance)
+    await page.getByRole('button', { name: 'All time', exact: true }).click()
+    await expect(axis).toHaveAttribute('aria-valuemin', String(from))
+    await expect(axis).toHaveAttribute('aria-valuemax', String(to))
+  }
+})
+
+test('timeline keyboard scrubbing and canceled gestures preserve event controls', async ({ page }) => {
+  await page.setViewportSize({ width: 1600, height: 900 })
+  await openTimeline(page)
+  const axis = page.getByRole('slider', { name: 'Timeline time' })
+  await axis.focus()
+  const before = Number(await axis.getAttribute('aria-valuenow'))
+  await axis.press('ArrowRight')
+  expect(Number(await axis.getAttribute('aria-valuenow'))).toBeGreaterThan(before)
+  await expect(page.locator('.xc-mark[data-selected="true"]')).toHaveCount(1)
+  await axis.press('End')
+  expect(await axis.getAttribute('aria-valuenow')).toBe(await axis.getAttribute('aria-valuemax'))
+  const box = (await axis.boundingBox())!
+  await page.mouse.move(box.x + box.width * .3, box.y + 12)
+  await page.mouse.down()
+  await page.mouse.move(box.x + box.width * .7, box.y + 12, { steps: 6 })
+  await expect(page.locator('.xc-tl-brush')).toBeVisible()
+  await axis.dispatchEvent('pointercancel')
+  await page.mouse.up()
+  await expect(page.locator('.xc-tl-brush')).toHaveCount(0)
+  await expect(page.getByRole('button', { name: 'All time', exact: true })).toHaveCount(0)
+  await page.locator('.xc-mark').first().click()
+  await expect(page.locator('.xc-mark').first()).toHaveAttribute('data-selected', 'true')
+})
