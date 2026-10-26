@@ -6,7 +6,13 @@ const plans = [
   { id: 'team', name: 'Team', monthly_cents: 14900, max_memories: 250000, writes_per_month: 50000, retrievals_per_month: 250000 },
 ]
 
-export async function managedFixture(page: Page, { billing = false, signedIn = false, plan = 'free', writable = true } = {}) {
+/* What the hosted edition declares at GET /api/managed/me (MANAGED_DESTINATIONS in
+   src/xibalba_cortex/managed/api.py). Without it the console would resolve a hosted session to
+   the self-hosted set, which has no `billing` -- so the fixture would be testing a deployment
+   that does not exist. `destinations` overrides it for a test that needs a narrower list. */
+const MANAGED_DESTINATIONS = ['graph', 'timeline', 'memories', 'recall', 'settings', 'agents', 'billing']
+
+export async function managedFixture(page: Page, { billing = false, signedIn = false, plan = 'free', writable = true, destinations = MANAGED_DESTINATIONS } = {}) {
   let session = signedIn
   const memories: Array<{ id: string; content: string; status: string }> = []
   let keys: Array<{ id: string; label: string; expires_at: string }> = []
@@ -21,7 +27,7 @@ export async function managedFixture(page: Page, { billing = false, signedIn = f
     if (path === 'login') { session = true; return send({ account: {}, csrf_token: 'fixture-csrf' }) }
     if (path === 'logout') { session = false; return send({ ok: true }) }
     if (!session) return send({ error: 'Sign in' }, 401)
-    if (path === 'me') return send({ account: { display_name: 'Operator', email: 'operator@example.com' }, entitlement: { plan: plans.find((p) => p.id === plan), status: writable ? 'free' : 'canceled', writable, period_end: null, cancel_at_period_end: false }, usage: { month: '2026-10', used: { writes: memories.length } }, counts: { memories: memories.length }, csrf_token: 'fixture-csrf' })
+    if (path === 'me') return send({ destinations, account: { display_name: 'Operator', email: 'operator@example.com' }, entitlement: { plan: plans.find((p) => p.id === plan), status: writable ? 'free' : 'canceled', writable, period_end: null, cancel_at_period_end: false }, usage: { month: '2026-10', used: { writes: memories.length } }, counts: { memories: memories.length }, csrf_token: 'fixture-csrf' })
     if (path === 'memories' && req.method() === 'POST') { memories.push({ id: 'm-' + memories.length, content: String(body.content), status: 'active' }); return send(memories.at(-1), 201) }
     if (path === 'memories') return send({ memories })
     if (path === 'keys' && req.method() === 'POST') { keys.push({ id: 'key-1', label: 'managed-api:agent', expires_at: '2026-11-25T00:00:00Z' }); return send({ token: 'fixture-only-managed-key', expires_in_days: 30 }, 201) }

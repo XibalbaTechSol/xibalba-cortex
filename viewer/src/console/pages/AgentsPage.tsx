@@ -10,7 +10,7 @@ import { PAIR_ACTION_COPY, countText, describeIdentity, pairActions, type PairAc
 import { elideHash, parseServerTime, shortStamp } from '../model'
 import { IconWarn } from '../icons'
 import { Page } from './Page'
-import { hostedRequest, keyRows, offersHostedWorkspace, parseAgentDids, type ApiKey, type HostedSession, type KeyRow } from '../hostedWorkspace'
+import { hostedRequest, keyRows, parseAgentDids, type ApiKey, type HostedSession, type KeyRow } from '../hostedWorkspace'
 import { registerAgentWithMetaMask } from '../../agent0_wallet'
 
 const stamp = (value: string | null | undefined): string => {
@@ -43,7 +43,7 @@ function mergeAgents(workspaces: readonly AgentWorkspace[], pairs: readonly Agen
 }
 
 export function AgentsPage() {
-  const { workspace, destinations, go, revision, reload, setNotice } = useConsole()
+  const { workspace, hosted, go, revision, reload, setNotice } = useConsole()
   const agents = useAsync(() => api.agents(200), [revision], { keepData: true })
   const devices = useAsync(() => api.agentDevices(), [revision], { keepData: true })
   const [associating, setAssociating] = useState(false)
@@ -99,14 +99,14 @@ export function AgentsPage() {
           />
         ))}
       </div>
-      {offersHostedWorkspace(destinations) && <HostedApiKeys />}
+      {hosted && <HostedApiKeys />}
       <ERC8004Directory />
     </Page>
   )
 }
 
-/** Issuing and revoking the workspace's agent API keys. Hosted only: a self-hosted server declares
- *  no `billing` destination, so `offersHostedWorkspace` is false and this never renders there.
+/** Issuing and revoking the workspace's agent API keys. Hosted only: a self-hosted console has no
+ *  hosted session (`hosted` is false without a network call), so this never renders there.
  *
  *  A freshly issued token is a credential. It lives in this component's state and nowhere else:
  *  it is never logged, never put in the hash or a notice, and never written to storage. Hiding it,

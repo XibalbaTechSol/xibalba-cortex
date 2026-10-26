@@ -14,7 +14,7 @@ import { NEW_MEMORY_CLASSES, NEW_MEMORY_STATUSES, buildNewMemory, type NewMemory
 import { IconSearch, IconWarn } from '../icons'
 import { ConfirmPanel } from '../ConfirmPanel'
 import { describeImport, formatBytes, importProblem } from '../workspaceActions'
-import { EXPORT_DOWNLOAD_PATH, EXPORT_FILENAME, EXPORT_STARTED, hostedRequest, offersHostedWorkspace } from '../hostedWorkspace'
+import { EXPORT_DOWNLOAD_PATH, EXPORT_FILENAME, EXPORT_STARTED, hostedRequest } from '../hostedWorkspace'
 import { Page } from './Page'
 
 const PAGE_SIZE = 40
@@ -28,7 +28,7 @@ const stamp = (value: string | null | undefined): string => {
 }
 
 export function MemoriesPage() {
-  const { workspace, destinations, selectedId, select, reload, revision, setNotice } = useConsole()
+  const { workspace, hosted, selectedId, select, reload, revision, setNotice } = useConsole()
   const scope = workspace.scope
   const [statuses, setStatuses] = useState<string[]>([...DEFAULT_STATUSES])
   const [draft, setDraft] = useState('')
@@ -62,9 +62,9 @@ export function MemoriesPage() {
     }
   }
 
-  // Bulk export: hosted only (a self-hosted server declares no `billing` destination). The `me` call
-  // is the session check -- without it an expired cookie would be downloaded as cortex-memories.json.
-  const hosted = offersHostedWorkspace(destinations)
+  // Bulk export: hosted only, gated on the session's own hosted signal rather than on the nav
+  // list. The `me` call below is the session check -- without it an expired cookie would be
+  // downloaded as cortex-memories.json.
   const [exporting, setExporting] = useState(false)
   const [exportError, setExportError] = useState('')
   const runExport = async () => {

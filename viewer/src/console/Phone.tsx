@@ -11,7 +11,7 @@
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
 import { useConsole } from './state'
 import { Actions, Brand, DESTINATION_ICON, ScopePicker, StatusBar, useIsCurrent } from './Shell'
-import { TAB_LABEL, type PageId, DESTINATIONS, GROUP_LABEL, NAV_GROUPS, destinationsIn, type Destination, type DestinationId } from './nav'
+import { TAB_LABEL, type PageId, GROUP_LABEL, NAV_GROUPS, destinationsIn, type Destination, type DestinationId } from './nav'
 import { FacetRail } from './FacetRail'
 import { GraphLens } from './GraphLens'
 import { TimelineLens } from './TimelineLens'
@@ -56,10 +56,10 @@ function Sheet({ title, onClose, children, modal = true }: { title: string; onCl
 const PRIMARY: DestinationId[] = ['graph', 'timeline', 'recall', 'review']
 
 function TabBar({ onMore, moreOpen }: { onMore: () => void; moreOpen: boolean }) {
-  const { go } = useConsole()
+  const { go, destinations } = useConsole()
   const isCurrent = useIsCurrent()
-  const tabs = PRIMARY.map((id) => DESTINATIONS.find((d) => d.id === id)).filter((d): d is Destination => !!d)
-  const secondaryCurrent = DESTINATIONS.some((d) => !PRIMARY.includes(d.id) && isCurrent(d))
+  const tabs = PRIMARY.map((id) => destinations.find((d) => d.id === id)).filter((d): d is Destination => !!d)
+  const secondaryCurrent = destinations.some((d) => !PRIMARY.includes(d.id) && isCurrent(d))
   return (
     <nav className="xc-tabbar" aria-label="Lenses and workflows">
       {tabs.map((d) => (
@@ -77,12 +77,12 @@ function TabBar({ onMore, moreOpen }: { onMore: () => void; moreOpen: boolean })
 }
 
 function MoreList({ onPick }: { onPick: () => void }) {
-  const { go } = useConsole()
+  const { go, destinations } = useConsole()
   const isCurrent = useIsCurrent()
   return (
     <div className="xc-more">
       {NAV_GROUPS.map((group) => {
-        const items = destinationsIn(group).filter((d) => !PRIMARY.includes(d.id))
+        const items = destinationsIn(group, destinations).filter((d) => !PRIMARY.includes(d.id))
         if (items.length === 0) return null
         return (
           <section key={group}>

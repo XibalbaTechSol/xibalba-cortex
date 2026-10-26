@@ -691,15 +691,24 @@ for (const width of [390, 1280, 1600]) {
 
 /* The hosted workspace at /managed was never swept: grammarSweep covered the console routes and
    the landing only. This is a regression guard, green today; the one-app consolidation must keep
-   it green. The Sign out assertion pins the SIGNED-IN screen, which both the current ManagedApp
-   and the console shell render, so a broken session cannot silently sweep the landing instead. */
+   it green. The account-control assertion pins the SIGNED-IN screen, so a broken session cannot
+   silently sweep the landing instead -- the landing has a "Sign in" button and no account control
+   at all, so it still fails there.
+
+   It was a plain `Sign out` button, which is what the second UI rendered and what the console's
+   phone layout and top-bar layout render (`Actions`, Shell.tsx). The console's DEFAULT desktop
+   layout is the rail, which puts the session in the rail foot instead: `ProfileButton`, whose
+   menu carries Log out. So the pin is the account control in either grammar rather than one
+   layout's wording. */
 for (const width of [390, 1280, 1600]) {
   test(`the hosted workspace keeps its grammar at ${width}px`, async ({ page }) => {
     await page.setViewportSize({ width, height: 950 })
     await managedFixture(page, { signedIn: true })
     await page.goto('/managed')
     await expect(page.locator('.xc')).toBeVisible()
-    await expect(page.getByRole('button', { name: 'Sign out' })).toBeVisible()
+    const account = page.getByRole('button', { name: 'Sign out' })
+      .or(page.getByRole('button', { name: 'Open operator profile settings' }))
+    await expect(account.first()).toBeVisible()
     await page.evaluate(() => document.fonts.ready)
     const problems = await grammarSweep(page)
     expect(problems, problems.join('\n')).toEqual([])

@@ -28,7 +28,7 @@ import {
   type TimeWindow,
 } from './model'
 import { useWorkspace, type Workspace } from './workspace'
-import { ALL_DESTINATIONS, DESTINATIONS, parseRoute, routeHash, type Destination, type DestinationId, type Lens, type OverlayId, type PageId } from './nav'
+import { ALL_DESTINATIONS, DESTINATIONS, builtFrom, parseRoute, routeHash, type Destination, type DestinationId, type Lens, type OverlayId, type PageId } from './nav'
 
 export type { Lens } from './nav'
 export type Overlay = OverlayId | null
@@ -40,6 +40,10 @@ export interface ConsoleValue {
    *  nothing, so this is `DESTINATIONS`; a hosted session narrows (and widens) it. A surface that
    *  only one edition offers reads this list rather than any edition flag. */
   destinations: readonly Destination[]
+  /** True when the hosted account API answered for this browser session. The one explicit signal
+   *  for a hosted-only capability (API keys, bulk export): never inferred from `destinations`,
+   *  so a hosted server that stopped declaring `billing` keeps its capabilities and says so. */
+  hosted: boolean
   // data
   model: GraphModel | null
   memoryInfo: ReadonlyMap<string, MemoryTimeInfo>
@@ -101,7 +105,7 @@ export function useConsole(): ConsoleValue {
 }
 
 
-export function ConsoleProvider({ children, onSignOut, destinations = DESTINATIONS }: { children: ReactNode; onSignOut: () => void; destinations?: readonly Destination[] }) {
+export function ConsoleProvider({ children, onSignOut, destinations = DESTINATIONS, hosted = false }: { children: ReactNode; onSignOut: () => void; destinations?: readonly Destination[]; hosted?: boolean }) {
   const workspace = useWorkspace()
   const { scope, loaded } = workspace
 
@@ -118,7 +122,13 @@ export function ConsoleProvider({ children, onSignOut, destinations = DESTINATIO
   const [timingNote, setTimingNote] = useState<string | null>(null)
   const [nonce, setNonce] = useState(0)
 
-  const [route, setRouteState] = useState(() => parseRoute(window.location.hash))
+  // Both hash resolutions use the declared set, not BUILT: on a hosted session `#operations` is a
+  // route to a surface the server does not serve, so it must fall back to the lens rather than
+  // opening a page that is in no navigation.
+  const built = useMemo(() => builtFrom(destinations), [destinations])
+  const builtRef = useRef(built)
+  builtRef.current = built
+  const [route, setRouteState] = useState(() => parseRoute(window.location.hash, built))
   const lens = route.lens
   const page = route.page
   const [selectedId, setSelectedId] = useState<string | null>(null)
@@ -181,10 +191,14 @@ export function ConsoleProvider({ children, onSignOut, destinations = DESTINATIO
   }, [scope])
 
   useEffect(() => {
-    const onHash = () => setRouteState(parseRoute(window.location.hash))
+    const onHash = () => setRouteState(parseRoute(window.location.hash, builtRef.current))
     window.addEventListener('hashchange', onHash)
     return () => window.removeEventListener('hashchange', onHash)
   }, [])
+
+  useEffect(() => {
+    setRouteState(parseRoute(window.location.hash, built))
+  }, [built])
 
   const applyRoute = useCallback((next: { lens: Lens; page: PageId | null }) => {
     window.location.hash = routeHash(next)
@@ -241,13 +255,13 @@ export function ConsoleProvider({ children, onSignOut, destinations = DESTINATIO
 
   const value = useMemo<ConsoleValue>(
     () => ({
-      workspace, destinations, model, memoryInfo, sessionEnds, sessions, stats, status, loading, error, unauthorized, invocations, timingNote, reload,
+      workspace, destinations, hosted, model, memoryInfo, sessionEnds, sessions, stats, status, loading, error, unauthorized, invocations, timingNote, reload,
       lens, setLens, page, setPage, openPage, pageArg, go, selectedId, select, reveal, focus, facets, setFacets,
       window: window_, preset, setWindow, applyPreset, similarity, setSimilarity, overlay, setOverlay,
       revision: nonce, notice, setNotice,
       signOut: onSignOut,
     }),
-    [workspace, destinations, model, memoryInfo, sessionEnds, sessions, stats, status, loading, error, unauthorized, invocations, timingNote, reload,
+    [workspace, destinations, hosted, model, memoryInfo, sessionEnds, sessions, stats, status, loading, error, unauthorized, invocations, timingNote, reload,
       lens, setLens, page, setPage, openPage, pageArg, go, selectedId, select, reveal, focus, facets, window_, preset, setWindow, applyPreset,
       similarity, overlay, onSignOut, nonce, notice],
   )

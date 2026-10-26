@@ -1,17 +1,59 @@
 // Pure helpers for the two hosted-workspace capabilities that used to live only in the second UI:
 // issuing a DID-bound API key (Agents) and exporting every memory in the workspace (Memories).
 //
-// The gate is `offersHostedWorkspace`, and it reads the server-declared destination list rather
-// than any edition flag: `billing` is the one destination a self-hosted server never declares
-// (nav.ts keeps it out of `BUILT` for exactly that reason), so its presence in the resolved list
-// is the session saying it is a hosted workspace. An absent declaration resolves to `DESTINATIONS`,
-// which has no `billing`, so self-hosted is false without a network call of any kind.
+// The gate is `workspaceSession`, and the signal it reads is explicit: the hosted account API
+// answered for this browser. It used to be inferred from the nav list instead -- `billing` is the
+// one destination a self-hosted server never declares -- which overloaded one signal: a hosted
+// deployment that stopped declaring `billing` would have silently lost its API keys and its
+// export. So the two questions are now separate. "Is this a hosted workspace?" is answered by the
+// session; "did it declare its billing destination?" is a check on the declaration, and a hosted
+// session missing it reports a fault instead of quietly dropping a surface.
+//
+// Self-hosted reaches none of this: `workspaceSession(null)` is the whole path, and no network
+// call of any kind is made.
 
-import type { Destination } from './nav'
+import { DESTINATIONS, destinationsFrom, type Destination } from './nav'
 
-/** True when this session is a hosted workspace, judged only by what the server declared. */
+/** True when a resolved destination list contains the hosted-only destination. The declaration
+ *  check, not the capability gate -- see `workspaceSession`. */
 export function offersHostedWorkspace(list: readonly Destination[]): boolean {
   return list.some((d) => d.id === 'billing')
+}
+
+export const BILLING_UNDECLARED = 'This hosted workspace did not declare its billing destination, so Billing is unreachable. The server’s destination list is wrong.'
+
+/** What `GET /api/managed/me` tells the console about the session itself. */
+export interface HostedMe {
+  destinations?: readonly string[] | null
+  /** Needed to sign out: the hosted API requires it on every mutation. */
+  csrf_token?: string
+}
+
+export interface WorkspaceSession {
+  /** True only because the hosted account API answered -- never because of what it listed. */
+  hosted: boolean
+  /** The destinations to navigate, resolved through nav.ts. */
+  destinations: readonly Destination[]
+  /** Set when a hosted session's declaration is missing `billing`. */
+  fault: string | null
+}
+
+/** The session, from the hosted `me` payload or `null` when there is no hosted session. */
+export function workspaceSession(me: HostedMe | null): WorkspaceSession {
+  if (!me) return { hosted: false, destinations: DESTINATIONS, fault: null }
+  const destinations = destinationsFrom(me.destinations)
+  return { hosted: true, destinations, fault: offersHostedWorkspace(destinations) ? null : BILLING_UNDECLARED }
+}
+
+const DECLARATION = /^MANAGED_DESTINATIONS\s*=\s*\(([^)]*)\)/m
+
+/** The ids `MANAGED_DESTINATIONS` declares, read out of the Python source that defines them.
+ *  Used by the test that guards the real declaration: a list copied into a test cannot catch the
+ *  backend dropping one. Throws rather than returning an empty list, which would pass vacuously. */
+export function declaredDestinations(source: string): string[] {
+  const match = DECLARATION.exec(source)
+  if (!match) throw new Error('MANAGED_DESTINATIONS is not declared in the source given')
+  return [...match[1].matchAll(/"([^"]+)"/g)].map((m) => m[1])
 }
 
 export const AGENT_DID_REQUIRED = 'Enter at least one agent DID'
