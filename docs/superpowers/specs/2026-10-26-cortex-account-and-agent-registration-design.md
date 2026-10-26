@@ -73,6 +73,31 @@ panels mount, not which application boots. `ManagedLenses.tsx` collapses into
 `GraphLens` / `TimelineLens` over an edition-aware data source, so the lenses stop being
 a managed-specific reimplementation.
 
+### Why the two editions diverged, and what stops it recurring
+
+They are two applications, not two skins. `main.tsx` selects `ManagedApp` or `ConsoleApp`
+and they share no layout: `ConsoleApp` composes `TopBar`, `Rail`, `WorkspaceHeader`,
+`FacetRail`, `ChainRail`, `Inspector` and `StatusBar`, and a grep of `ManagedApp` for any
+of those returns **0**. `ManagedApp` instead defines ~20 classes of its own
+(`xc-managed`, `xc-managed-inner`, `xc-managed-head`, `xc-managed-panel`, ...) while
+borrowing the Industry primitives (`xc-win`, `xc-btn`, `xc-field`, `xc-input`), which is
+why it reads as related rather than foreign. It arrived this way in one commit: PR #64 added
+`ManagedApp.tsx` (+204), `managed.css` (+31) and the `main.tsx` branch (+11) together.
+
+**The divergence was never caught because nothing tests it.** The Industry grammar sweep
+runs over console hash routes only —
+
+    const ROUTES = ['', 'timeline', 'memories', 'entities', 'sessions', 'operations', 'agents', 'settings']
+
+— and across the whole e2e suite `grammarSweep` appears 5 times while `/managed` appears 0
+times. Managed can drift arbitrarily far without a single red test.
+
+**Requirement:** `/managed` joins the swept destinations, so that after the consolidation
+the two editions are held identical by a test rather than by intent. This must be proved
+able to fail: add the route, confirm the sweep goes red against today's managed UI, and only
+then let the consolidation turn it green. A sweep that passes on first run has measured
+nothing.
+
 ### Registration: one surface, three proven paths
 
 | Path | Where the key lives | Status |
