@@ -689,16 +689,17 @@ for (const width of [390, 1280, 1600]) {
   })
 }
 
-/* The hosted workspace at /managed is a second UI with its own stylesheet, and no test swept it:
-   grammarSweep appears above for the console routes and the landing, never here. This is the
-   gate that retiring that UI must turn green, so it asserts the same grammar as everything else
-   and is not softened. */
+/* The hosted workspace at /managed was never swept: grammarSweep covered the console routes and
+   the landing only. This is a regression guard, green today; the one-app consolidation must keep
+   it green. The Sign out assertion pins the SIGNED-IN screen, which both the current ManagedApp
+   and the console shell render, so a broken session cannot silently sweep the landing instead. */
 for (const width of [390, 1280, 1600]) {
   test(`the hosted workspace keeps its grammar at ${width}px`, async ({ page }) => {
     await page.setViewportSize({ width, height: 950 })
     await managedFixture(page, { signedIn: true })
     await page.goto('/managed')
     await expect(page.locator('.xc')).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Sign out' })).toBeVisible()
     await page.evaluate(() => document.fonts.ready)
     const problems = await grammarSweep(page)
     expect(problems, problems.join('\n')).toEqual([])
