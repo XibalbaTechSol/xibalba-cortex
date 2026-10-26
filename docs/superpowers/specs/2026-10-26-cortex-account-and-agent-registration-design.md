@@ -114,7 +114,7 @@ and redeem is audited.
 4. Session cookie is set as above.
 5. **First-run gate.** Zero agents means "Connect an agent" *is* the first screen. The
    count is derived from the agent listing each edition already returns (the console's
-   agents endpoint; managed's ) rather than a new endpoint — add an explicit count
+   agents endpoint; managed's `me`) rather than a new endpoint — add an explicit count
    field only if that round trip proves too costly on first paint. This is the change that makes
    the stated flow work: today a fresh managed account lands on a workspace page of
    memory boxes with no agent and no prompt.
