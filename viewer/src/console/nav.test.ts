@@ -23,6 +23,34 @@ describe('parseRoute / routeHash', () => {
       expect(routeHash(parseRoute(hash, all))).toBe(hash)
     }
   })
+
+  /* A page opened from the timeline has to say so in the hash. state.tsx's setPage keeps
+   * `{ lens: route.lens, page: next }` precisely so Escape can return to the lens the page was
+   * opened from -- but that intent is only real if the pair survives a trip through the URL. */
+  it('keeps the lens a page was opened from', () => {
+    expect(parseRoute('#timeline/memories', all)).toEqual({ lens: 'timeline', page: 'memories' })
+    expect(parseRoute('#timeline/sessions', all)).toEqual({ lens: 'timeline', page: 'sessions' })
+    expect(routeHash({ lens: 'timeline', page: 'memories' })).toBe('#timeline/memories')
+  })
+
+  it('leaves a graph-opened page unprefixed, so existing links keep working', () => {
+    expect(routeHash({ lens: 'graph', page: 'memories' })).toBe('#memories')
+    expect(parseRoute('#graph/memories', all)).toEqual({ lens: 'graph', page: 'memories' })
+  })
+
+  it('round-trips a page under each lens', () => {
+    for (const hash of ['#timeline/memories', '#timeline/entities', '#timeline/sessions',
+      '#timeline/operations', '#timeline/agents', '#timeline/settings']) {
+      expect(routeHash(parseRoute(hash, all))).toBe(hash)
+    }
+  })
+
+  it('still falls back when the page under a lens is unknown or unbuilt', () => {
+    expect(parseRoute('#timeline/nonsense', all)).toEqual({ lens: 'timeline', page: null })
+    expect(parseRoute('#timeline/memories', new Set<DestinationId>(['graph', 'timeline'])))
+      .toEqual({ lens: 'timeline', page: null })
+    expect(parseRoute('#timeline/settings?tab=account', all)).toEqual({ lens: 'timeline', page: 'settings' })
+  })
 })
 
 describe('the destination registry', () => {

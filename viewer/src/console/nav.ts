@@ -116,18 +116,30 @@ export interface Route {
 
 const PAGE_IDS: readonly PageId[] = ['memories', 'entities', 'sessions', 'operations', 'agents', 'settings']
 
-/** `#timeline` -> timeline lens; `#settings` -> settings page; anything else -> the graph lens. An
- *  unbuilt page falls back to the graph rather than rendering nothing. */
+/** `#timeline` -> timeline lens; `#settings` -> settings page; `#timeline/settings` -> that page
+ *  opened over the timeline; anything else -> the graph lens. An unbuilt page falls back to its
+ *  lens rather than rendering nothing.
+ *
+ *  The lens prefix is what makes `{ lens, page }` survive the URL. state.tsx's `setPage` keeps
+ *  `{ lens: route.lens, page: next }` so that Escape returns to the lens a page was opened from,
+ *  but the hash used to carry only one of the two: `#timeline/memories` parsed to the timeline
+ *  with no page (the drawer never opened), and a page opened over the timeline serialised back
+ *  to a bare `#memories` (Escape then landed on the graph). */
 export function parseRoute(hash: string, built: ReadonlySet<DestinationId> = BUILT): Route {
-  const token = hash.replace(/^#\/?/, '').split(/[?/]/)[0]
-  if (token === 'timeline') return { lens: 'timeline', page: null }
-  const page = PAGE_IDS.find((p) => p === token)
-  if (page && built.has(page)) return { lens: 'graph', page }
-  return { lens: 'graph', page: null }
+  const path = hash.replace(/^#\/?/, '').split('?')[0]
+  const parts = path.split('/').filter(Boolean)
+  const lens: Lens = parts[0] === 'timeline' ? 'timeline' : 'graph'
+  // a leading lens token is consumed; without one the whole path is the page
+  const rest = parts[0] === 'timeline' || parts[0] === 'graph' ? parts.slice(1) : parts
+  const page = PAGE_IDS.find((p) => p === rest[0])
+  if (page && built.has(page)) return { lens, page }
+  return { lens, page: null }
 }
 
-/** The inverse of parseRoute. The default view (graph lens) has an empty hash. */
+/** The inverse of parseRoute. The default view (graph lens) has an empty hash, and a page opened
+ *  from the graph stays unprefixed so links written as `#settings` keep working. */
 export function routeHash(route: Route): string {
-  if (route.page) return `#${route.page}`
-  return route.lens === 'timeline' ? '#timeline' : ''
+  const prefix = route.lens === 'timeline' ? 'timeline' : ''
+  if (route.page) return prefix ? `#${prefix}/${route.page}` : `#${route.page}`
+  return prefix ? `#${prefix}` : ''
 }
