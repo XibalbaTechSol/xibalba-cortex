@@ -125,9 +125,13 @@ export function SignIn({ onSignedIn }: { onSignedIn: () => void }) {
   return (
     <main className="xc-auth">
       <section className="xc-auth-story">
-        <a className="xc-brand" href="#" onClick={(e) => e.preventDefault()}>
-          <span className="xc-brand-mark"><img src="/cortex-mark.png" alt="" /></span>
-          <b>Xibalba <i>Cortex</i></b>
+        <a className="xc-brand" href="#" aria-label="Xibalba Cortex" onClick={(e) => e.preventDefault()}>
+          {/* Its own derivative, not the rail's. Both are inverted from the same dark-ink export
+              by viewer/scripts/invert_logo_to_white.py, but the alpha stretch that makes the
+              hairline strokes read as solid white has to be the last thing done to the pixels --
+              so each size is built at the size it is painted. Scaling the rail's 248px asset up
+              to 300 here would undo it. */}
+          <img className="xc-brand-lockup" src="/cortex-lockup-hero.png" width={300} height={279} alt="" />
         </a>
         <div className="xc-auth-story-body">
           <p className="xc-eyebrow">Secure operator access</p>

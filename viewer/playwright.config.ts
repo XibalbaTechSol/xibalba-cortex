@@ -27,9 +27,9 @@ import { defineConfig, devices } from '@playwright/test'
 const repoRoot = resolve(import.meta.dirname, '..')
 const home = process.env.E2E_CORTEX_HOME ?? join(tmpdir(), 'cortex-e2e')
 const python = process.env.E2E_PYTHON ?? 'uv run python'
-const apiPort = 8420
-const uiPort = 5190
-const anchorPort = 8431
+const apiPort = Number(process.env.E2E_API_PORT ?? 28420)
+const uiPort = Number(process.env.E2E_UI_PORT ?? 25190)
+const anchorPort = Number(process.env.E2E_ANCHOR_PORT ?? 28431)
 // Server-side destinations the console's actions use. The browser is never told these; they are the
 // server's own configuration, set here for the fixture API only.
 const backupDir = join(tmpdir(), 'cortex-e2e-backups')
@@ -67,24 +67,24 @@ export default defineConfig({
       cwd: import.meta.dirname,
       url: `http://127.0.0.1:${anchorPort}/healthz`,
       timeout: 30_000,
-      reuseExistingServer: !process.env.CI,
+      reuseExistingServer: false,
     },
     {
       // seed, then serve. --reset only deletes the SQLite files the seed itself would create.
       command: `${python} scripts/dev_seed_console.py --home "${home}" --reset --scenario both && exec ${python} -m xibalba_cortex.local_api --home "${home}" --port ${apiPort}`,
       cwd: repoRoot,
-      env: { PYTHONPATH: join(repoRoot, 'src'), XIBALBA_BACKUP_DIR: backupDir, XIBALBA_ANCHOR_URL: `http://127.0.0.1:${anchorPort}/anchor` },
+      env: { PYTHONPATH: [join(repoRoot, 'src'), process.env.PYTHONPATH].filter(Boolean).join(':'), XIBALBA_BACKUP_DIR: backupDir, XIBALBA_ANCHOR_URL: `http://127.0.0.1:${anchorPort}/anchor` },
       url: `http://127.0.0.1:${apiPort}/healthz`,
       timeout: 180_000,
-      reuseExistingServer: !process.env.CI,
+      reuseExistingServer: false,
     },
     {
       command: `npx vite --host 127.0.0.1 --port ${uiPort} --strictPort`,
       cwd: import.meta.dirname,
-      env: { CORTEX_HOME: home },
+      env: { CORTEX_HOME: home, CORTEX_LOCAL_API_URL: `http://127.0.0.1:${apiPort}` },
       url: `http://127.0.0.1:${uiPort}/`,
       timeout: 120_000,
-      reuseExistingServer: !process.env.CI,
+      reuseExistingServer: false,
     },
   ],
 })

@@ -1,8 +1,8 @@
-# Cortex plugin distribution (0.1.0 pilot)
+# Cortex plugin distribution
 
-Cortex has three source-controlled native packages and two hosted connector
-setup templates. They share the installed Cortex backend; none embeds credentials
-or installs backend dependencies during a hook callback.
+Cortex includes source-controlled packages for Claude Code, Codex, and Gemini CLI,
+a separate Cindy plugin repository, and hosted connector setup templates. They share an installed Cortex
+backend; packages do not embed credentials or install backend dependencies at runtime.
 
 | Surface | Package | Visibility and capture |
 | --- | --- | --- |
@@ -11,13 +11,28 @@ or installs backend dependencies during a hook callback.
 | Gemini CLI | `plugins/cortex-gemini`, root `gemini-extension.json` | Git extension install; MCP memory, no full native observer |
 | Gemini personal assistant / Spark | `integrations/spark/connector-template.json` | Custom Connected App setup via HTTPS MCP and OAuth |
 | Perplexity consumer | `integrations/perplexity/connector-template.json` | Custom remote connector setup via HTTPS MCP |
+| Cindy desktop | [`cortex-cindy`](https://github.com/XibalbaTechSol/cortex-cindy) (`0.3.2`) | Importable `.cindy` package; memory tools and opt-in local history, file snapshots, activity metadata, and coverage audit |
 
 Spark and Perplexity templates are operator setup references, not manifests that
 can be imported into an undocumented app store. Replace `YOUR-CORTEX-HOST` with the
 deployed endpoint and follow `hosted-memory-connectors.md`. The Perplexity API
 runtime launcher is documented separately in `perplexity-runtime-recorder.md`.
 
-## Local backend prerequisite
+## Cindy desktop
+
+Download the [Cortex for Cindy package](https://github.com/XibalbaTechSol/cortex-cindy/raw/refs/heads/main/dist/xibalba-cortex-0.3.2.cindy)
+and import it through Cindy's Plugins settings (Cindy 0.1.115 or later). Follow the
+[comprehensive plugin README](https://github.com/XibalbaTechSol/cortex-cindy#readme) to configure
+an installed Cortex executable and dedicated profile, validate the selected account's
+history database, enable the desired recording options, and inspect coverage.
+
+Explicit memory tools support local stdio MCP or hosted HTTPS MCP. The SQLite
+history connector, file snapshots, and activity metadata delivery require local
+Cortex. Private reasoning text is excluded; visible plans/progress and available
+thinking boundaries have separate documented capture paths. The package is a
+Linux-tested pilot; a GitHub download is not a marketplace listing or review approval.
+
+## Local backend prerequisite (CLI packages)
 
 Install Cortex from the documented sibling integrity-core layout using `uv sync
 --extra otel`. Put that environment's `bin` directory on the application's PATH;

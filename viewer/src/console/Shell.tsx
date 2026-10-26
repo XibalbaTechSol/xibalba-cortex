@@ -2,12 +2,12 @@
 // the status bar. Both layouts render the same destination registry (nav.ts), so a surface added
 // there shows up in each, and the phone tab bar, without a second list to keep in step.
 
-import type { ReactNode } from 'react'
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { useConsole } from './state'
 import { useSettings } from './settingsContext'
-import { GROUP_LABEL, NAV_GROUPS, destinationsIn, type Destination, type DestinationId } from './nav'
+import { primaryDestinations, type Destination, type DestinationId } from './nav'
 import {
-  IconAgents, IconChevronDown, IconChevronLeft, IconChevronRight, IconChevronUp, IconEntities, IconGraph, IconIntegrity, IconMemories, IconOperations,
+  IconAgents, IconChevronLeft, IconChevronRight, IconEntities, IconGraph, IconIntegrity, IconMemories, IconOperations,
   IconRefresh, IconReview, IconSearch, IconSessions, IconSettings, IconSignOut, IconTimeline,
 } from './icons'
 
@@ -36,24 +36,30 @@ export function useIsCurrent(): (dest: Destination) => boolean {
   }
 }
 
-/** `tile` is the small square form used for tools: an icon over a short label. */
-export function NavButton({ dest, compact = false, tile = false }: { dest: Destination; compact?: boolean; tile?: boolean }) {
+export function NavButton({ dest }: { dest: Destination }) {
   const { go } = useConsole()
   const isCurrent = useIsCurrent()
   return (
     <button
       type="button"
-      className={`xc-nav-btn${tile ? ' xc-nav-btn--tile' : ''}`}
-      data-kind={dest.kind}
+      className="xc-nav-btn"
       aria-current={isCurrent(dest) ? 'page' : undefined}
-      aria-haspopup={dest.kind !== 'lens' ? 'dialog' : undefined}
-      aria-label={compact || tile ? dest.label : undefined}
+      aria-haspopup={dest.kind === 'overlay' ? 'dialog' : undefined}
+      /* The name is unconditional. It used to be set only when the rail's JS
+         collapse toggle was on, but the rail is also forced icon-only by CSS
+         between 761 and 1280px -- that media query hides `.xc-nav-label` and the
+         toggle both. So at those widths every button in the primary navigation
+         went nameless. Naming it always costs nothing when the label is visible:
+         the accessible name is the same string either way. */
+      aria-label={dest.label}
       title={dest.hint}
       onClick={() => go(dest.id)}
     >
       {DESTINATION_ICON[dest.id]}
       <span className="xc-nav-label">{dest.label}</span>
-      {dest.id === 'recall' && !tile && <span className="xc-kbd xc-nav-label">⌘K</span>}
+      {/* a keyboard hint, decorative for assistive tech: it would otherwise land
+          inside the accessible name as "Recall ⌘K". */}
+      {dest.id === 'recall' && <span className="xc-kbd xc-nav-label" aria-hidden="true">⌘K</span>}
     </button>
   )
 }
@@ -61,9 +67,17 @@ export function NavButton({ dest, compact = false, tile = false }: { dest: Desti
 export function Brand() {
   const { setLens } = useConsole()
   return (
-    <a className="xc-brand" href="#" onClick={(e) => { e.preventDefault(); setLens('graph') }}>
-      <span className="xc-brand-mark"><img src="/cortex-mark.png" alt="" /></span>
-      <b className="xc-nav-label">Xibalba <i>Cortex</i></b>
+    <a
+      className="xc-brand"
+      href="#"
+      aria-label="Xibalba Cortex"
+      onClick={(e) => { e.preventDefault(); setLens('graph') }}
+    >
+      {/* The same complete artwork at two display sizes. The collapsed derivative preserves
+          the wordmark and lower brain; neither version crops the logo. Both are decorative
+          because the link has its own accessible name. */}
+      <img className="xc-brand-lockup" src="/cortex-brain-compact-dark.png" alt="" />
+      <span className="xc-brand-mark"><img src="/cortex-rail-mark.png" alt="" /></span>
     </a>
   )
 }
@@ -79,8 +93,8 @@ function useConnection() {
 /** Not a store/agent pair, so it cannot collide with one (those join their ids with a NUL). */
 const PRIMARY_VALUE = '__primary__'
 
-export function ScopePicker({ manage = false }: { manage?: boolean }) {
-  const { workspace, openPage } = useConsole()
+export function ScopePicker() {
+  const { workspace } = useConsole()
   const { options, selected, primary, choose, choosePrimary } = workspace
   return (
     <label className="xc-scope">
@@ -105,12 +119,6 @@ export function ScopePicker({ manage = false }: { manage?: boolean }) {
       ) : (
         <span className="xc-input xc-scope-static">Primary profile · read only</span>
       )}
-      {/* agents and devices belong to the scope, so they open from it */}
-      {manage && (
-        <button type="button" className="xc-link xc-scope-manage" aria-haspopup="dialog" onClick={(e) => { e.preventDefault(); openPage('agents') }}>
-          Agents and devices
-        </button>
-      )}
     </label>
   )
 }
@@ -129,55 +137,144 @@ export function Actions() {
   )
 }
 
+/** The rail layout's own header, spanning the content column.
+ *
+ *  Reading order follows what each control answers: WHICH VIEW on the left (Graph / Timeline),
+ *  then WHICH MEMORIES and refetch on the right. All three are workspace controls -- they say
+ *  what is on screen and refresh it -- so they belong over the workspace, not inside the
+ *  navigation. Scope and Reload used to be split across the rail's top and its foot and both
+ *  vanished into icons whenever the rail collapsed; the lens switch used to live in the lens's
+ *  own toolbar, which meant it moved with the lens chrome and sat below the fold of the eye.
+ *  Connection and profile stay in the rail foot: those are about the session, not about what
+ *  the workspace is showing.
+ */
+export function WorkspaceHeader() {
+  const { reload, page } = useConsole()
+  const { state, text } = useConnection()
+  return (
+    <header className="xc-workspace-header">
+      {/* Only the workspace has lenses; a full page (Explore, Settings, ...) has none to switch,
+          and the spacer still pushes the right-hand group over without it. */}
+      {!page && <LensSwitch />}
+      <span className="xc-spacer" />
+      <ScopePicker />
+      {/* Connection sat in the rail foot, where a collapsed rail reduced it to a 7px dot with its
+          text hidden -- next to Reload it reads as what it is: whether the data on screen is
+          current, and the control that refetches it. */}
+      <div className="xc-conn" data-state={state} role="status" aria-live="polite" title={text}>
+        <i aria-hidden="true" />
+        <span>{text}</span>
+      </div>
+      <button type="button" className="xc-btn xc-btn--square" aria-label="Reload data" title="Reload data" onClick={reload}>
+        <IconRefresh />
+      </button>
+    </header>
+  )
+}
+
+/** Graph / Timeline, at the left of whichever header the shell is wearing.
+ *
+ *  The two lenses are two views of one workspace, not two destinations, so they share a single
+ *  nav link (`PRIMARY_NAV`'s "Workspace") and switch here instead. It used to sit in each lens's
+ *  own `.xc-bar` toolbar, which put it inside the thing it switches: the control moved with the
+ *  lens chrome and sat below the eye's first stop. Rendered once per shell -- WorkspaceHeader for
+ *  the rail layout, TopBar for the other -- so there is never a second copy to keep in step. */
+export function LensSwitch() {
+  const { lens, setLens } = useConsole()
+  return (
+    <div className="xc-ranges" role="group" aria-label="Lens">
+      <button type="button" className="xc-btn" aria-pressed={lens === 'graph'} onClick={() => setLens('graph')}>Graph</button>
+      <button type="button" className="xc-btn" aria-pressed={lens === 'timeline'} onClick={() => setLens('timeline')}>Timeline</button>
+    </div>
+  )
+}
+
+/** The account control at the foot of the rail: avatar, name, and a menu with Settings and
+ *  Log out. Deliberately the same control as Shield's (`ui/src/components/Dashboard.jsx`'s
+ *  `.profile-btn` / `.profile-menu`) down to the 28px avatar, the menu's placement above the
+ *  button and its two items, so an operator moving between the two consoles finds the same
+ *  thing in the same corner. The only addition is dismissal -- Escape and a click outside --
+ *  which Shield's does not do and which costs nothing visually. */
+export function ProfileButton() {
+  const { status, signOut, go } = useConsole()
+  const [open, setOpen] = useState(false)
+  const root = useRef<HTMLDivElement>(null)
+  const name = status?.profile_id || 'Operator profile'
+
+  const close = useCallback(() => setOpen(false), [])
+  useEffect(() => {
+    if (!open) return
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') close() }
+    const onDown = (e: MouseEvent) => {
+      if (!root.current?.contains(e.target as Node)) close()
+    }
+    document.addEventListener('keydown', onKey)
+    document.addEventListener('mousedown', onDown)
+    return () => {
+      document.removeEventListener('keydown', onKey)
+      document.removeEventListener('mousedown', onDown)
+    }
+  }, [open, close])
+
+  return (
+    <div className="xc-profile" ref={root}>
+      {open && (
+        <div className="xc-profile-menu" role="menu">
+          <button type="button" role="menuitem" onClick={() => { close(); go('settings') }}>Settings</button>
+          <button type="button" role="menuitem" onClick={() => { close(); signOut() }}>Log out</button>
+        </div>
+      )}
+      <button
+        type="button"
+        className="xc-profile-btn"
+        aria-label="Open operator profile settings"
+        aria-expanded={open}
+        aria-haspopup="menu"
+        title={name}
+        onClick={() => setOpen((v) => !v)}
+      >
+        <span className="xc-profile-avatar" aria-hidden="true">{name.trim().slice(0, 1).toUpperCase()}</span>
+        <span className="xc-profile-name xc-nav-label">{name}</span>
+      </button>
+    </div>
+  )
+}
+
 /** The top-bar layout: brand, connection, scope and actions on a row; every destination on a second. */
 export function TopBar() {
   const { state, text } = useConnection()
-  const { settings, update } = useSettings()
-  const collapsed = settings.railCollapsed
+  const { page } = useConsole()
   return (
-    <header className="xc-top" data-collapsed={collapsed}>
+    <header className="xc-top">
       <div className="xc-top-row">
-        <Brand />
+        {/* Brand and lens switch are one leading group so the group, not the brand alone, carries
+            the `margin-right: auto` that pushes connection, scope and actions to the right. */}
+        <div className="xc-top-lead">
+          <Brand />
+          {!page && <LensSwitch />}
+        </div>
+        <ScopePicker />
+        {/* Same order as WorkspaceHeader: scope, then connection beside the reload button that
+            Actions carries, so the two shells read the same way left to right. */}
         <div className="xc-conn" data-state={state} role="status" aria-live="polite">
           <i aria-hidden="true" />
           {text}
         </div>
-        <ScopePicker manage />
         <Actions />
-        <button
-          type="button"
-          className="xc-btn xc-btn--square"
-          aria-pressed={collapsed}
-          aria-label={collapsed ? 'Expand navigation' : 'Collapse navigation'}
-          title={collapsed ? 'Expand navigation' : 'Collapse navigation'}
-          onClick={() => update({ railCollapsed: !collapsed })}
-        >
-          {collapsed ? <IconChevronDown /> : <IconChevronUp />}
-        </button>
       </div>
       <nav className="xc-nav" aria-label="Lenses and workflows">
-        {NAV_GROUPS.map((group) => {
-          const items = destinationsIn(group)
-          if (items.length === 0) return null
-          return (
-            <div className="xc-nav-group" key={group}>
-              <span className="xc-nav-kicker">{GROUP_LABEL[group]}</span>
-              {items.map((d) => <NavButton key={d.id} dest={d} compact={collapsed} />)}
-            </div>
-          )
-        })}
+        {primaryDestinations().map((d) => <NavButton key={d.id} dest={d} />)}
       </nav>
     </header>
   )
 }
 
-/** The left-rail layout (the default). Collapsing keeps the icons and moves the scope to a badge. */
+/** The left-rail layout (the default). Collapsing keeps the icons; the lens switch, scope,
+ *  connection and reload live in WorkspaceHeader, over the content, so collapsing hides none of
+ *  them. What stays here is navigation and the account. */
 export function Rail() {
-  const { workspace, openPage } = useConsole()
   const { settings, update } = useSettings()
-  const { state, text } = useConnection()
   const collapsed = settings.railCollapsed
-  const scopeLabel = workspace.selected ? workspace.selected.label : 'Primary profile'
   return (
     <aside className="xc-rail-shell" data-collapsed={collapsed} aria-label="Navigation">
       <div className="xc-rail-head">
@@ -194,35 +291,12 @@ export function Rail() {
         </button>
       </div>
 
-      <div className="xc-rail-scope">
-        <ScopePicker manage={!collapsed} />
-        {/* shown only when collapsed: which workspace am I in, and can I write to it */}
-        <span className="xc-rail-badge" title={`${scopeLabel} · ${workspace.canWrite ? 'writable' : 'read only'}`}>
-          {workspace.canWrite ? 'RW' : 'RO'}
-        </span>
-      </div>
-
-      <nav className="xc-rail-nav" aria-label="Lenses">
-        <div className="xc-rail-group">
-          <p className="xc-rail-kicker">{GROUP_LABEL.lens}</p>
-          {destinationsIn('lens').map((d) => <NavButton key={d.id} dest={d} compact={collapsed} />)}
-        </div>
+      <nav className="xc-rail-nav" aria-label="Lenses and workflows">
+        {primaryDestinations().map((d) => <NavButton key={d.id} dest={d} />)}
       </nav>
 
-      {/* everything that is not a lens opens over the lens: small tiles, so the two lenses stay the nav */}
-      <div className="xc-rail-group xc-rail-tools" role="group" aria-label="Tools, each opens over the current lens">
-        <p className="xc-rail-kicker">{GROUP_LABEL.tools}</p>
-        <div className="xc-tool-strip">
-          {destinationsIn('tools').map((d) => <NavButton key={d.id} dest={d} tile />)}
-        </div>
-      </div>
-
       <div className="xc-rail-foot">
-        <button type="button" className="xc-conn xc-conn--button" data-state={state} aria-haspopup="dialog" title={`${text}. Open Operations`} onClick={() => openPage('operations')}>
-          <i aria-hidden="true" />
-          <span className="xc-nav-label">{text}</span>
-        </button>
-        <Actions />
+        <ProfileButton />
       </div>
     </aside>
   )

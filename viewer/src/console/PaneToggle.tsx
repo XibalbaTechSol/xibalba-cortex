@@ -7,7 +7,7 @@ import { IconPanelLeft, IconPanelRight } from './icons'
 
 export function PaneToggle({ side }: { side: 'filters' | 'inspector' }) {
   const { settings, update } = useSettings()
-  const collapsed = side === 'filters' ? settings.facetsCollapsed : settings.inspectorCollapsed
+  const collapsed = side === 'filters' ? settings.facetsCollapsed : settings.detailCollapsed
   const name = side === 'filters' ? 'Filters' : 'Inspector'
   return (
     <button
@@ -16,7 +16,7 @@ export function PaneToggle({ side }: { side: 'filters' | 'inspector' }) {
       aria-pressed={!collapsed}
       aria-label={collapsed ? `Show ${name}` : `Hide ${name}`}
       title={collapsed ? `Show ${name}` : `Hide ${name}`}
-      onClick={() => update(side === 'filters' ? { facetsCollapsed: !collapsed } : { inspectorCollapsed: !collapsed })}
+      onClick={() => update(side === 'filters' ? { facetsCollapsed: !collapsed } : { detailCollapsed: !collapsed })}
     >
       {side === 'filters' ? <IconPanelLeft /> : <IconPanelRight />}
     </button>

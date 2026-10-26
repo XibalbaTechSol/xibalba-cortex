@@ -1,9 +1,14 @@
+import { EVIDENCE_FACES, type NodeEvidence } from './model'
+
 // Pure sizing and colour rules shared by the 2D and 3D graph lenses, so the two read as one design
 // and so the rules that make a graph legible are tested rather than eyeballed.
 //
 // The reason these exist: react-force-graph takes node sizes and line widths in GRAPH units, which a
 // fit-to-screen zoom (often 0.3 to 0.6 for a few hundred nodes) shrinks to a few pixels and sub-pixel
 // hairlines. Sizes here are therefore expressed as a floor in SCREEN pixels.
+
+/** Grid stays subordinate to node faces and relationship edges in both renderers. */
+export const GRID_INK = { lattice: 0.035, frame: 0.055, flat: 0.02 } as const
 
 export const MIN_NODE_PX = 3.5
 export const MIN_LINK_PX = 1
@@ -64,4 +69,43 @@ export function boundingSphere(points: ReadonlyArray<{ x: number; y: number; z: 
   let radius = 0
   for (const p of points) radius = Math.max(radius, Math.hypot(p.x - cx, p.y - cy, p.z - cz))
   return { cx, cy, cz, radius }
+}
+
+/**
+ * The silhouette of a node shape as unit offsets from its centre, each in [-1, 1], to be scaled by
+ * the node's half-extent. The 2D lens traces these directly; the 3D lens builds the matching solid.
+ *
+ * Shared so the two lenses cannot drift into drawing different things for the same setting, and so
+ * the half-extent contract is testable: every point stays inside the box the layout reserves for a
+ * node, which is what keeps nodes off each other when they are snapped to the lattice.
+ */
+export const NODE_OUTLINE: Record<'box' | 'diamond' | 'facet', ReadonlyArray<readonly [number, number]>> = {
+  box: [[-1, -1], [1, -1], [1, 1], [-1, 1]],
+  diamond: [[0, -1], [1, 0], [0, 1], [-1, 0]],
+  // a hexagon, flat-topped, as the plan view of the 3D lens's icosahedron
+  facet: [[-0.5, -1], [0.5, -1], [1, 0], [0.5, 1], [-0.5, 1], [-1, 0]],
+}
+
+/** Trace a node's outline on a 2D context, centred on (x, y) with half-extent `h`. */
+export function traceNode(
+  ctx: { moveTo: (x: number, y: number) => void; lineTo: (x: number, y: number) => void; closePath: () => void },
+  shape: keyof typeof NODE_OUTLINE,
+  x: number,
+  y: number,
+  h: number,
+): void {
+  const pts = NODE_OUTLINE[shape] ?? NODE_OUTLINE.box
+  pts.forEach(([dx, dy], i) => {
+    const px = x + dx * h, py = y + dy * h
+    if (i === 0) ctx.moveTo(px, py)
+    else ctx.lineTo(px, py)
+  })
+  ctx.closePath()
+}
+
+
+/** Cube materials follow BoxGeometry's +X, -X, +Y, -Y, +Z, -Z groups. */
+export function faceColours(base: number, ground: number, evidence: NodeEvidence, conflict: number): number[] {
+  const dim = blendOver(base, ground, 0.30)
+  return EVIDENCE_FACES.map((face) => evidence[face] ? face === 'contradiction' ? conflict : base : dim)
 }

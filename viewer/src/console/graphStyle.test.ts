@@ -1,5 +1,6 @@
+import { EVIDENCE_FACES, NO_EVIDENCE } from './model'
 import { describe, expect, it } from 'vitest'
-import { MIN_LINK_PX, MIN_NODE_PX, blendOver, boundingSphere, fitDistance, linkWidth, nodeHalf } from './graphStyle'
+import { MIN_LINK_PX, MIN_NODE_PX, NODE_OUTLINE, blendOver, faceColours, boundingSphere, fitDistance, linkWidth, nodeHalf, traceNode } from './graphStyle'
 
 describe('nodeHalf', () => {
   it('never draws a node smaller than the screen floor, however far out the zoom is', () => {
@@ -27,8 +28,8 @@ describe('linkWidth', () => {
 
 describe('blendOver', () => {
   it('is the ground at alpha 0 and the colour at alpha 1', () => {
-    expect(blendOver(0xc3b6dd, 0x14171a, 0)).toBe(0x14171a)
-    expect(blendOver(0xc3b6dd, 0x14171a, 1)).toBe(0xc3b6dd)
+    expect(blendOver(0x94bce3, 0x14171a, 0)).toBe(0x14171a)
+    expect(blendOver(0x94bce3, 0x14171a, 1)).toBe(0x94bce3)
   })
   it('lands between them in each channel, and clamps alpha', () => {
     const mid = blendOver(0xffffff, 0x000000, 0.5)
@@ -60,5 +61,51 @@ describe('boundingSphere', () => {
     expect(s.cx).toBe(10)
     expect(s.cy).toBe(2.5)
     expect(s.radius).toBeCloseTo(Math.hypot(20, 2.5), 5)
+  })
+})
+
+describe('node outlines', () => {
+  it('keeps every shape inside the half-extent the layout reserves', () => {
+    // nodes are capped below the lattice cell so neighbours never touch; a shape that reached
+    // outside its own half-extent would break that for every shape but the box.
+    for (const [name, pts] of Object.entries(NODE_OUTLINE)) {
+      for (const [x, y] of pts) {
+        expect(Math.abs(x), `${name} x`).toBeLessThanOrEqual(1)
+        expect(Math.abs(y), `${name} y`).toBeLessThanOrEqual(1)
+      }
+    }
+  })
+
+  it('traces a closed path of the right length, scaled and centred', () => {
+    const calls: string[] = []
+    const ctx = {
+      moveTo: (x: number, y: number) => calls.push(`M${x},${y}`),
+      lineTo: (x: number, y: number) => calls.push(`L${x},${y}`),
+      closePath: () => calls.push('Z'),
+    }
+    traceNode(ctx, 'diamond', 100, 50, 10)
+    expect(calls).toEqual(['M100,40', 'L110,50', 'L100,60', 'L90,50', 'Z'])
+  })
+
+  it('falls back to the box for a shape it does not know, rather than drawing nothing', () => {
+    const calls: string[] = []
+    const ctx = {
+      moveTo: () => calls.push('M'), lineTo: () => calls.push('L'), closePath: () => calls.push('Z'),
+    }
+    traceNode(ctx, 'sphere' as 'box', 0, 0, 5)
+    expect(calls).toEqual(['M', 'L', 'L', 'L', 'Z'])
+  })
+})
+
+
+describe('metadata face colours', () => {
+  const base = 0x94bce3, ground = 0x14171a, conflict = 0xd88383
+  it('dims absent fields and lights each present field in BoxGeometry group order', () => {
+    const dim = blendOver(base, ground, 0.30)
+    expect(faceColours(base, ground, NO_EVIDENCE, conflict)).toEqual(Array(6).fill(dim))
+    for (const [index, face] of EVIDENCE_FACES.entries()) {
+      const colours = faceColours(base, ground, { ...NO_EVIDENCE, [face]: true }, conflict)
+      expect(colours).toEqual(Array.from({ length: 6 }, (_, i) => i === index ? face === 'contradiction' ? conflict : base : dim))
+    }
   })
 })

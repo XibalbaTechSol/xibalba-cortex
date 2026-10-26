@@ -2,16 +2,16 @@
 //
 // Layout is [facet rail | lens | inspector] above the chain rail and status bar. Switching lens
 // swaps only the centre pane; selection, facets and the time window live in ConsoleProvider so
-// they survive it. Every other surface is a dialog or a drawer over that workspace.
+// they survive it.
 
 import { useCallback, useEffect, useState } from 'react'
 import { accountLogout, isSignedIn } from '../api'
 import { ConsoleProvider, useConsole } from './state'
 import { SignIn } from './SignIn'
-import { Rail, StatusBar, TopBar } from './Shell'
+import { Landing } from './Landing'
+import { Rail, StatusBar, TopBar, WorkspaceHeader } from './Shell'
 import { SettingsProvider, useSettings } from './settingsContext'
 import { PageHost } from './pages/PageHost'
-import { PageDrawer } from './PageDrawer'
 import { FacetRail } from './FacetRail'
 import { GraphLens } from './GraphLens'
 import { TimelineLens } from './TimelineLens'
@@ -27,7 +27,7 @@ import { useMediaQuery } from './useMediaQuery'
 const EXPIRED = /\b401\b|authentication required|unauthorized|expired/i
 
 function Workspace() {
-  const { lens, page, overlay, setOverlay, error, model, unauthorized, signOut } = useConsole()
+  const { lens, page, overlay, setOverlay, error, model, unauthorized, signOut, selectedId } = useConsole()
 
   // ⌘K / Ctrl+K toggles Recall from anywhere, including inside inputs.
   useEffect(() => {
@@ -42,8 +42,6 @@ function Workspace() {
   }, [overlay, setOverlay])
 
   useEffect(() => {
-    // a 401 from a data call at any time (the session ended while the tab was open), or an auth-shaped
-    // error before anything has loaded (the first call was refused)
     if (unauthorized || (error && !model && EXPIRED.test(error))) {
       try { sessionStorage.setItem('xibalba-cortex.auth-notice', 'Session expired. Sign in again to reconnect to this Cortex profile.') } catch { /* private mode: sign-in just shows no notice */ }
       signOut()
@@ -53,19 +51,24 @@ function Workspace() {
   const phone = useMediaQuery('(max-width: 760px)')
   const { settings } = useSettings()
 
-  // The workspace is always the lens. A page (Memories, Settings, ...) opens as a drawer over it, so the
-  // two lenses stay the place the user works and everything else is a tool reached from where they are.
-  const content = (
+  // what sits to the right of (or below) the navigation: a full page, or the three-column workspace
+  const content = page ? (
     <>
-      {/* either side pane can be hidden from the lens bar; the lens takes the width */}
-      <main className="xc-workspace" data-facets={settings.facetsCollapsed ? 'hidden' : 'shown'} data-inspector={settings.inspectorCollapsed ? 'hidden' : 'shown'}>
-        {!settings.facetsCollapsed && <FacetRail />}
+      <PageHost page={page} />
+      <StatusBar />
+    </>
+  ) : (
+    <>
+      {/* The lens owns the whole workspace; the facets, the chain rail and the detail window
+          float over it. Previously these were three grid columns and a strip below, which left
+          the graph about half the page on a 1600px screen -- the one surface that most wants
+          the room. */}
+      <main className="xc-workspace" data-detail={selectedId ? 'open' : 'closed'}>
         {lens === 'graph' ? <GraphLens /> : <TimelineLens />}
-        {!settings.inspectorCollapsed && <Inspector />}
-      </main>
-      <div style={{ padding: '0 var(--gutter) 22px' }}>
+        <FacetRail />
         <ChainRail />
-      </div>
+        {selectedId && <Inspector />}
+      </main>
       <StatusBar />
     </>
   )
@@ -77,18 +80,16 @@ function Workspace() {
       ) : settings.shell === 'rail' ? (
         <div className="xc-shell" data-collapsed={settings.railCollapsed}>
           <Rail />
-          <div className="xc-main">{content}</div>
+          <div className="xc-main">
+            <WorkspaceHeader />
+            {content}
+          </div>
         </div>
       ) : (
         <>
           <TopBar />
           {content}
         </>
-      )}
-      {page && (
-        <PageDrawer page={page}>
-          <PageHost page={page} />
-        </PageDrawer>
       )}
       {overlay === 'recall' && <Recall />}
       {overlay === 'review' && <Review />}
@@ -97,13 +98,38 @@ function Workspace() {
   )
 }
 
+// Which signed-out surface a hash asks for. Sign-in is explicit -- `#signin`, or an expired
+// session, which leaves a notice behind for SignIn to show -- and everything else is the public
+// landing page. Deciding it from the hash rather than from a piece of state keeps the two
+// reachable by link, and keeps a visitor who was bounced out of `#memories` from landing on a
+// marketing page with no explanation.
+const SIGN_IN_HASH = '#signin'
+
+function wantsSignIn(hash: string): boolean {
+  if (hash === SIGN_IN_HASH) return true
+  try { return Boolean(sessionStorage.getItem('xibalba-cortex.auth-notice')) } catch { return false }
+}
+
 export function ConsoleApp() {
   const [signedIn, setSignedIn] = useState(isSignedIn)
+  const [hash, setHash] = useState(() => (typeof location === 'undefined' ? '' : location.hash))
+
+  useEffect(() => {
+    const onHash = () => setHash(location.hash)
+    window.addEventListener('hashchange', onHash)
+    return () => window.removeEventListener('hashchange', onHash)
+  }, [])
 
   const signOut = useCallback(() => {
     // the server owns the session record; clear the hint even if the call fails
     accountLogout().catch(() => {}).finally(() => setSignedIn(false))
   }, [])
+
+  const signedOut = wantsSignIn(hash) ? (
+    <SignIn onSignedIn={() => setSignedIn(true)} />
+  ) : (
+    <Landing onSignIn={() => { location.hash = SIGN_IN_HASH }} />
+  )
 
   return (
     <SettingsProvider>
@@ -113,7 +139,7 @@ export function ConsoleApp() {
             <Workspace />
           </ConsoleProvider>
         ) : (
-          <SignIn onSignedIn={() => setSignedIn(true)} />
+          signedOut
         )}
       </div>
     </SettingsProvider>

@@ -5,7 +5,7 @@
 import { expect, test, type Page } from '@playwright/test'
 import { openConsole, pinMemory, settled3d } from './helpers'
 
-const ANCHOR = 'http://127.0.0.1:8431'
+const ANCHOR = `http://127.0.0.1:${process.env.E2E_ANCHOR_PORT ?? 28431}`
 const unique = () => `${Date.now()}-${Math.floor(Math.random() * 1e6)}`
 
 test.describe('Attach a file', () => {
@@ -207,7 +207,7 @@ test.describe('Operations → Backup', () => {
     await expect(row.getByRole('status')).toContainText('Matches the live store')
 
     // the live store moves on; the same copy no longer matches
-    const wrote = await request.post('http://127.0.0.1:5190/cortex-api/api/memory/propositions', { data: { content: `Written after the backup ${unique()}.`, source: { kind: 'explicit_memory', locator: `e2e://after-${unique()}` }, status: 'active' } })
+    const wrote = await request.post('/cortex-api/api/memory/propositions', { data: { content: `Written after the backup ${unique()}.`, source: { kind: 'explicit_memory', locator: `e2e://after-${unique()}` }, status: 'active' } })
     expect(wrote.ok()).toBeTruthy()
     await row.getByRole('button', { name: 'Check against the live store' }).click()
     await expect(row.getByRole('status')).toContainText('Differs from the live store')

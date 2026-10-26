@@ -105,7 +105,7 @@ test.describe('reset password (the page the emailed link opens)', () => {
 // ---------------------------------------------------------------------------------------------
 // Settings → Access and Profile run against the real API: the dev proxy's credential is an operator
 // token, so token management works for real and approving accounts is (correctly) refused.
-const API = 'http://127.0.0.1:8420'
+const API = `http://127.0.0.1:${process.env.E2E_API_PORT ?? 28420}`
 
 test.describe('Settings → Access: API tokens', () => {
   test('issue a token, see its secret once, use it, then revoke it and watch it stop working', async ({ page, request }) => {

@@ -9,12 +9,8 @@ export type PageId = 'memories' | 'entities' | 'sessions' | 'operations' | 'agen
 export type OverlayId = 'recall' | 'review' | 'integrity'
 
 export type DestinationId = Lens | PageId | OverlayId
-/** lens = a primary view; page = a drawer over the lens (it keeps its route); overlay = a modal dialog */
 export type DestinationKind = 'lens' | 'page' | 'overlay'
-// Two groups, and the split is the product's information architecture: the Graph and Timeline lenses are
-// where people work; every other destination is a "tool" that opens over the lens it was opened from --
-// a dialog (Recall, Review, Integrity) or a drawer (everything that used to be a full page).
-export type NavGroup = 'lens' | 'tools'
+export type NavGroup = 'lens' | 'explore' | 'workflows' | 'system'
 
 export interface Destination {
   id: DestinationId
@@ -27,21 +23,49 @@ export interface Destination {
 
 export const GROUP_LABEL: Record<NavGroup, string> = {
   lens: 'Lens',
-  tools: 'Tools',
+  explore: 'Explore',
+  workflows: 'Workflows',
+  system: 'System',
+}
+
+/** The destinations the navigation actually lists, in order. Capped at five on purpose.
+ *
+ *  Eleven links was a list, not a navigation: it made the rail the tallest thing on screen and
+ *  pushed three administrative surfaces (Operations, Agents, Settings) to the same weight as the
+ *  graph. Those three now live behind the account control in the rail foot, exactly where Shield
+ *  keeps its own Settings, and reach each other through the tab strip below.
+ *
+ *  Nothing was deleted. Every destination still has its route and its surface, so `#sessions`
+ *  and `#operations` still resolve -- what changed is which five earn a permanent link. */
+export const PRIMARY_NAV: readonly DestinationId[] = ['graph', 'memories', 'recall', 'review', 'integrity']
+
+/** Sibling surfaces reachable as tabs once you are on one of them, keyed by any member.
+ *
+ *  This is what lets five links cover eleven surfaces without hiding eight of them: Explore's
+ *  three pages are peers of each other, and the three administrative pages are peers behind the
+ *  account menu. The lens pair (graph/timeline) is not here -- it switches inside the workspace
+ *  itself, because they are two views of one thing rather than two pages. */
+export const PAGE_TABS: Readonly<Record<string, readonly PageId[]>> = {
+  memories: ['memories', 'entities', 'sessions'],
+  entities: ['memories', 'entities', 'sessions'],
+  sessions: ['memories', 'entities', 'sessions'],
+  settings: ['settings', 'operations', 'agents'],
+  operations: ['settings', 'operations', 'agents'],
+  agents: ['settings', 'operations', 'agents'],
 }
 
 export const ALL_DESTINATIONS: readonly Destination[] = [
-  { id: 'graph', kind: 'lens', label: 'Graph', group: 'lens', hint: 'Knowledge graph' },
+  { id: 'graph', kind: 'lens', label: 'Workspace', group: 'lens', hint: 'Knowledge graph and timeline' },
   { id: 'timeline', kind: 'lens', label: 'Timeline', group: 'lens', hint: 'Sessions on a time axis' },
-  { id: 'memories', kind: 'page', label: 'Memories', group: 'tools', hint: 'Browse, filter and add memories' },
-  { id: 'entities', kind: 'page', label: 'Entities', group: 'tools', hint: 'Entity neighbours and paths' },
-  { id: 'sessions', kind: 'page', label: 'Sessions', group: 'tools', hint: 'Sessions, exchanges, replay and traces' },
-  { id: 'recall', kind: 'overlay', label: 'Recall', group: 'tools', hint: 'Ask the memory a question' },
-  { id: 'review', kind: 'overlay', label: 'Review', group: 'tools', hint: 'Proposals, PARA and tasks' },
-  { id: 'integrity', kind: 'overlay', label: 'Integrity', group: 'tools', hint: 'Verify chains and checkpoints' },
-  { id: 'operations', kind: 'page', label: 'Operations', group: 'tools', hint: 'Health, workers and queues' },
-  { id: 'agents', kind: 'page', label: 'Agents', group: 'tools', hint: 'Agents, devices and pairing' },
-  { id: 'settings', kind: 'page', label: 'Settings', group: 'tools', hint: 'Layout, inference, account' },
+  { id: 'memories', kind: 'page', label: 'Explore', group: 'explore', hint: 'Memories, entities and sessions' },
+  { id: 'entities', kind: 'page', label: 'Entities', group: 'explore', hint: 'Entity neighbours and paths' },
+  { id: 'sessions', kind: 'page', label: 'Sessions', group: 'explore', hint: 'Sessions, exchanges, replay and traces' },
+  { id: 'recall', kind: 'overlay', label: 'Recall', group: 'workflows', hint: 'Ask the memory a question' },
+  { id: 'review', kind: 'overlay', label: 'Review', group: 'workflows', hint: 'Proposals, PARA and tasks' },
+  { id: 'integrity', kind: 'overlay', label: 'Integrity', group: 'workflows', hint: 'Verify chains and checkpoints' },
+  { id: 'operations', kind: 'page', label: 'Operations', group: 'system', hint: 'Health, workers and queues' },
+  { id: 'agents', kind: 'page', label: 'Agents', group: 'system', hint: 'Agents, devices and pairing' },
+  { id: 'settings', kind: 'page', label: 'Settings', group: 'system', hint: 'Layout, inference, account' },
 ]
 
 /** Pages whose surface exists. A page is added here in the same change that builds it. */
@@ -56,34 +80,54 @@ export function destinationsIn(group: NavGroup, list: readonly Destination[] = D
   return list.filter((d) => d.group === group)
 }
 
-export const NAV_GROUPS: readonly NavGroup[] = ['lens', 'tools']
+/** The five, resolved to destinations and in `PRIMARY_NAV` order. Anything unbuilt drops out. */
+export function primaryDestinations(list: readonly Destination[] = DESTINATIONS): Destination[] {
+  return PRIMARY_NAV.map((id) => list.find((d) => d.id === id)).filter((d): d is Destination => !!d)
+}
+
+/** What a page calls itself inside a tab strip.
+ *
+ *  Separate from `Destination.label` because two of those labels now name the group a single
+ *  link fronts -- `memories` is listed as "Explore" -- and a tab called "Explore" sitting beside
+ *  "Entities" and "Sessions" would be nonsense. */
+export const TAB_LABEL: Readonly<Record<PageId, string>> = {
+  memories: 'Memories',
+  entities: 'Entities',
+  sessions: 'Sessions',
+  settings: 'Settings',
+  operations: 'Operations',
+  agents: 'Agents',
+}
+
+/** The tab strip to show on `page`, or an empty list when it has no peers. */
+export function tabsFor(page: PageId): readonly PageId[] {
+  return PAGE_TABS[page] ?? []
+}
+
+export const NAV_GROUPS: readonly NavGroup[] = ['lens', 'explore', 'workflows', 'system']
 
 // --- hash routes --------------------------------------------------------------------------------------
 
 export interface Route {
   lens: Lens
-  /** null = just the lens; otherwise the drawer open over it */
+  /** null = the workspace (a lens); otherwise a full-page surface */
   page: PageId | null
 }
 
 const PAGE_IDS: readonly PageId[] = ['memories', 'entities', 'sessions', 'operations', 'agents', 'settings']
 
-/** The route is a lens, and optionally a drawer open over it:
- *    ``            graph lens            `#timeline`           timeline lens
- *    `#settings`   settings over graph   `#timeline/sessions`  sessions over the timeline
- *  An unknown token falls back to the graph; an unbuilt page is ignored rather than rendering nothing. */
+/** `#timeline` -> timeline lens; `#settings` -> settings page; anything else -> the graph lens. An
+ *  unbuilt page falls back to the graph rather than rendering nothing. */
 export function parseRoute(hash: string, built: ReadonlySet<DestinationId> = BUILT): Route {
-  const [first, second] = hash.replace(/^#\/?/, '').split('?')[0].split('/')
-  const pageOf = (token: string | undefined): PageId | null => {
-    const page = PAGE_IDS.find((p) => p === token)
-    return page && built.has(page) ? page : null
-  }
-  if (first === 'timeline') return { lens: 'timeline', page: pageOf(second) }
-  return { lens: 'graph', page: pageOf(first) }
+  const token = hash.replace(/^#\/?/, '').split(/[?/]/)[0]
+  if (token === 'timeline') return { lens: 'timeline', page: null }
+  const page = PAGE_IDS.find((p) => p === token)
+  if (page && built.has(page)) return { lens: 'graph', page }
+  return { lens: 'graph', page: null }
 }
 
-/** The inverse of parseRoute. The default view (graph lens, no drawer) has an empty hash. */
+/** The inverse of parseRoute. The default view (graph lens) has an empty hash. */
 export function routeHash(route: Route): string {
-  if (route.lens === 'timeline') return route.page ? `#timeline/${route.page}` : '#timeline'
-  return route.page ? `#${route.page}` : ''
+  if (route.page) return `#${route.page}`
+  return route.lens === 'timeline' ? '#timeline' : ''
 }

@@ -7,8 +7,10 @@
 // Honest counting: only memories and exchanges are events here, and nodes the API gave no
 // timestamp for are reported as untimed instead of being given one.
 
-import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from 'react'
 import { useConsole } from './state'
+import { useSettings } from './settingsContext'
+import { resolveDrop } from './floating'
 import { histogram, shortStamp, type RangePreset } from './model'
 import { IconPause, IconPlay } from './icons'
 import { api } from '../api'
@@ -23,6 +25,50 @@ const REPLAY_TICK_MS = 70
 
 export function ChainRail() {
   const { model, facets, window: timeWindow, preset, setWindow, applyPreset } = useConsole()
+  const { settings, update } = useSettings()
+  const collapsed = settings.chainCollapsed
+  const pos = settings.chainPos
+
+  /* Dragging the rail by its grip. The pointer is captured on the grip, so the drag survives the
+     pointer leaving the rail -- without that, moving faster than React re-renders drops it. The
+     position is committed once on release rather than on every move: it is a persisted setting,
+     and writing it per-frame would put a storage write in the drag loop. */
+  const railRef = useRef<HTMLElement>(null)
+  const dragRef = useRef<{ dx: number; dy: number } | null>(null)
+  const [dragging, setDragging] = useState<{ x: number; y: number } | null>(null)
+
+  const workspaceOf = (el: HTMLElement | null): HTMLElement | null =>
+    el?.closest('.xc-workspace') as HTMLElement | null
+
+  const onGripDown = (e: ReactPointerEvent<HTMLElement>) => {
+    const rail = railRef.current
+    const ws = workspaceOf(rail)
+    if (!rail || !ws) return
+    const r = rail.getBoundingClientRect(), w = ws.getBoundingClientRect()
+    dragRef.current = { dx: e.clientX - r.left, dy: e.clientY - r.top }
+    setDragging({ x: r.left - w.left, y: r.top - w.top })
+    e.currentTarget.setPointerCapture(e.pointerId)
+    e.preventDefault()
+  }
+  const onGripMove = (e: ReactPointerEvent<HTMLElement>) => {
+    const d = dragRef.current
+    const ws = workspaceOf(railRef.current)
+    if (!d || !ws) return
+    const w = ws.getBoundingClientRect()
+    setDragging({ x: e.clientX - w.left - d.dx, y: e.clientY - w.top - d.dy })
+  }
+  const onGripUp = () => {
+    const d = dragRef.current
+    const rail = railRef.current
+    const ws = workspaceOf(rail)
+    dragRef.current = null
+    if (!d || !rail || !ws || !dragging) { setDragging(null); return }
+    const w = ws.getBoundingClientRect(), r = rail.getBoundingClientRect()
+    update({ chainPos: resolveDrop({ x: dragging.x, y: dragging.y, width: w.width, height: w.height, winWidth: r.width, winHeight: r.height }) })
+    setDragging(null)
+  }
+
+  const live = dragging ?? pos
   const hist = useMemo(() => (model ? histogram(model, BUCKETS) : null), [model])
 
   // Export what the window and the Filters show: one provenance bundle, after saying exactly what is in it.
@@ -114,9 +160,50 @@ export function ChainRail() {
     return start + span >= timeWindow.from && start <= timeWindow.to
   }
 
+  /* Folded down, the rail is just its handle on the workspace's bottom-right margin: the lens
+     gets the height back, and the handle still says how many events are in the window so the
+     number does not disappear with the histogram. */
+  if (collapsed) {
+    return (
+      <button
+        type="button"
+        className="xc-chain-handle"
+        onClick={() => update({ chainCollapsed: false })}
+        aria-expanded={false}
+        title="Show the chain rail"
+      >
+        <span className="xc-eyebrow">Chain rail</span>
+        <span className="xc-note">
+          {timeWindow ? `${shortStamp(timeWindow.from)} → ${shortStamp(timeWindow.to)}` : 'All time'} · {eventsInWindow.toLocaleString()}
+        </span>
+      </button>
+    )
+  }
+
   return (
-    <section className="xc-win xc-chain" aria-label="Chain rail">
+    <section
+      ref={railRef}
+      className="xc-win xc-chain"
+      aria-label="Chain rail"
+      data-floating={live ? 'true' : 'false'}
+      data-dragging={dragging ? 'true' : 'false'}
+      style={live ? ({ '--float-x': `${live.x}px`, '--float-y': `${live.y}px` } as CSSProperties) : undefined}
+    >
       <div className="xc-chain-top">
+        <span
+          className="xc-chain-grip"
+          role="button"
+          tabIndex={0}
+          aria-label={live ? 'Drag the chain rail; drop it near the bottom edge to dock it' : 'Drag the chain rail off its dock'}
+          title={live ? 'Drag; drop near the bottom edge to dock' : 'Drag to float'}
+          onPointerDown={onGripDown}
+          onPointerMove={onGripMove}
+          onPointerUp={onGripUp}
+          onPointerCancel={onGripUp}
+          onKeyDown={(e) => { if (e.key === 'Escape' && live) update({ chainPos: null }) }}
+        >
+          ⠿
+        </span>
         <button
           type="button"
           className="xc-btn xc-btn--square"
@@ -142,6 +229,16 @@ export function ChainRail() {
             </button>
           ))}
         </div>
+        <button
+          type="button"
+          className="xc-chain-fold"
+          onClick={() => update({ chainCollapsed: true })}
+          aria-expanded
+          aria-label="Hide the chain rail"
+          title="Hide the chain rail"
+        >
+          ▾
+        </button>
       </div>
 
       {exporting && (

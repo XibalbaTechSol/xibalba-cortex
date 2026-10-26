@@ -4,8 +4,13 @@
 
 import { useState } from 'react'
 import { useSettings } from '../settingsContext'
-import { DEFAULT_SETTINGS, type ShellLayout } from '../settings'
+import { DEFAULT_SETTINGS, GRAPH_CANVASES, NODE_SHAPES, type GraphCanvas, type NodeShape, type ShellLayout } from '../settings'
 import { Page } from './Page'
+
+/* A <select> hands back a string. These narrow it against the same lists the parser uses, so an
+   option added to the markup but not to the type cannot slip through as a setting nothing renders. */
+const asNodeShape = (v: string): NodeShape => (NODE_SHAPES.includes(v as NodeShape) ? (v as NodeShape) : DEFAULT_SETTINGS.nodeShape)
+const asGraphCanvas = (v: string): GraphCanvas => (GRAPH_CANVASES.includes(v as GraphCanvas) ? (v as GraphCanvas) : DEFAULT_SETTINGS.graphCanvas)
 import { InferenceSection } from './settings/InferenceSection'
 import { EmbeddingsSection } from './settings/EmbeddingsSection'
 import { AccountSection } from './settings/AccountSection'
@@ -43,7 +48,7 @@ function Wireframe({ layout }: { layout: ShellLayout }) {
 export function SettingsPage() {
   const { settings, update, reset } = useSettings()
   const [section, setSection] = useState<Section>('layout')
-  const isDefault = settings.shell === DEFAULT_SETTINGS.shell && settings.railCollapsed === DEFAULT_SETTINGS.railCollapsed && settings.facetsCollapsed === DEFAULT_SETTINGS.facetsCollapsed && settings.inspectorCollapsed === DEFAULT_SETTINGS.inspectorCollapsed && settings.graphMode === DEFAULT_SETTINGS.graphMode && settings.graphSnap === DEFAULT_SETTINGS.graphSnap
+  const isDefault = settings.shell === DEFAULT_SETTINGS.shell && settings.railCollapsed === DEFAULT_SETTINGS.railCollapsed && settings.graphMode === DEFAULT_SETTINGS.graphMode && settings.graphSnap === DEFAULT_SETTINGS.graphSnap && settings.nodeShape === DEFAULT_SETTINGS.nodeShape && settings.graphCanvas === DEFAULT_SETTINGS.graphCanvas
 
   return (
     <Page eyebrow="System" title="Settings" note={section === 'layout' ? 'Layout is a preference of this browser and is not stored in the Cortex profile. The other sections read and change the profile itself.' : 'These sections read and change the Cortex profile through the local API.'}>
@@ -82,13 +87,13 @@ export function SettingsPage() {
         </label>
         <label className="xc-check xc-settings-row">
           <input type="checkbox" checked={settings.facetsCollapsed} onChange={(e) => update({ facetsCollapsed: e.target.checked })} />
-          <span>Hide the Filters pane</span>
-          <span className="xc-note">The lens takes its width. Also a button at the left of the lens bar.</span>
+          <span>Collapse the Projection dock</span>
+          <span className="xc-note">Keep the filters in a narrow edge strip. Also available from the dock header.</span>
         </label>
         <label className="xc-check xc-settings-row">
-          <input type="checkbox" checked={settings.inspectorCollapsed} onChange={(e) => update({ inspectorCollapsed: e.target.checked })} />
-          <span>Hide the Inspector pane</span>
-          <span className="xc-note">Select things without it. Also a button at the right of the lens bar.</span>
+          <input type="checkbox" checked={settings.detailCollapsed} onChange={(e) => update({ detailCollapsed: e.target.checked })} />
+          <span>Collapse the selected-memory dock</span>
+          <span className="xc-note">Keep the selection while giving the graph more room. Also available from the dock header.</span>
         </label>
 
         <label className="xc-field xc-settings-row">Graph view
@@ -103,6 +108,24 @@ export function SettingsPage() {
           <input type="checkbox" checked={settings.graphSnap} onChange={(e) => update({ graphSnap: e.target.checked })} />
           <span>Snap graph nodes to the grid</span>
           <span className="xc-note">Each node takes its own cell of a faint grid, in 2D and 3D. Off, nodes stay wherever the force layout puts them. Also a button on the Graph lens.</span>
+        </label>
+
+        <label className="xc-field xc-settings-row">Node shape
+          <select className="xc-input" value={settings.nodeShape} onChange={(e) => update({ nodeShape: asNodeShape(e.target.value) })}>
+            <option value="box">Box — a cube in 3D, a square in 2D (default)</option>
+            <option value="diamond">Diamond — an octahedron in 3D</option>
+            <option value="facet">Facet — an icosahedron in 3D, a hexagon in 2D</option>
+          </select>
+          <span className="xc-note">The same form in both lenses: the Graph lens builds the solid, the 2D layout traces its silhouette. Every shape stays inside the cell the grid gives it, so snapping keeps working.</span>
+        </label>
+
+        <label className="xc-field xc-settings-row">Graph canvas
+          <select className="xc-input" value={settings.graphCanvas} onChange={(e) => update({ graphCanvas: asGraphCanvas(e.target.value) })}>
+            <option value="lattice">Spatial grid — faint outer planes (default)</option>
+            <option value="frame">Frame — the bounding box only</option>
+            <option value="plain">Plain — nothing behind the nodes</option>
+          </select>
+          <span className="xc-note">What the graph is drawn on. The 2D lens has no bounding frame of its own, so Frame and Plain both leave its field clear.</span>
         </label>
 
         <div className="xc-actions-row">

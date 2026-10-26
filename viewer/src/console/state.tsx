@@ -148,7 +148,6 @@ export function ConsoleProvider({ children, onSignOut }: { children: ReactNode; 
         setStatus(data.status)
         setError(null)
         setUnauthorized(false)
-        setUnauthorized(false)
         setTimingNote(
           data.memoriesError
             ? `Memory timestamps unavailable (${data.memoriesError}); only exchanges and sessions are placed in time.`
@@ -162,7 +161,6 @@ export function ConsoleProvider({ children, onSignOut }: { children: ReactNode; 
       .catch((e: unknown) => {
         if (mine !== requestId.current) return
         setError(e instanceof Error ? e.message : String(e))
-        setUnauthorized(e instanceof ApiError && e.status === 401)
         setUnauthorized(e instanceof ApiError && e.status === 401)
       })
       .finally(() => {

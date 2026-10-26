@@ -5,9 +5,11 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useConsole } from './state'
-import { PaneToggle } from './PaneToggle'
 import { describeIntervention, interventions, interventionsForSession } from './runtime'
-import { buildLanes, isNodeVisible, shortDay, shortStamp, thinTicks, type Lane } from './model'
+import { buildLanes, isNodeVisible, markRows, shortDay, shortStamp, thinTicks, type Lane } from './model'
+
+/** `.xc-mark` is 10px wide; two closer than this on screen would overlap. */
+const MARK_PX = 10
 
 interface Domain {
   from: number
@@ -94,17 +96,6 @@ export function TimelineLens() {
 
   return (
     <section className="xc-win xc-pane xc-canvas-win" aria-label="Timeline lens">
-      <div className="xc-bar">
-        <PaneToggle side="filters" />
-        <p className="xc-eyebrow">Timeline lens</p>
-        <span className="xc-note" aria-live="polite">
-          {loading && !model ? 'Loading…' : `${lanes.length} session${lanes.length === 1 ? '' : 's'}`}
-          {domain ? ` · ${shortStamp(domain.from)} → ${shortStamp(domain.to)}` : ''}
-        </span>
-        <span className="xc-spacer" />
-        <PaneToggle side="inspector" />
-      </div>
-
       <div className="xc-scroll">
         {!domain || lanes.length === 0 ? (
           <div className="xc-empty">
@@ -113,6 +104,15 @@ export function TimelineLens() {
           </div>
         ) : (
           <div className="xc-tl-grid" role="table" aria-label="Sessions on a time axis">
+            {/* The axis rules, drawn the full height of the plotting field rather than only
+                through the 31px head, so the area below the last lane reads as unused time on a
+                chart instead of as empty frame. Decoration only -- the head still carries the
+                labels and the accessible axis. */}
+            <div className="xc-tl-rules" aria-hidden="true">
+              {thinTicks(ticksFor(domain).filter((t) => pct(t.at) < 94), axisPx).map((t) => (
+                <span key={t.at} style={{ left: `${pct(t.at)}%` }} />
+              ))}
+            </div>
             <div className="xc-tl-head">
               <div>SESSION</div>
               <div className="xc-tl-ticks" aria-hidden="true" ref={axisRef}>
@@ -131,6 +131,12 @@ export function TimelineLens() {
                 return node && facets && isNodeVisible(node, facets, null) && inDomain(m.time)
               })
               const stops = interventionsForSession(policyStops, lane.session.sessionId).filter((i) => inDomain(i.at))
+              /* Marks are placed by time alone, so several written seconds apart land on the same
+                 pixel and the topmost one swallows the others' clicks. `markRows` stacks them
+                 across the lane instead of moving them along it, which would misreport when they
+                 happened. It needs real pixels, which is what `axisPx` already measures for the
+                 tick thinning. */
+              const rows = markRows(marks.map((m) => (pct(m.time) / 100) * axisPx), MARK_PX)
               const rootAt = lane.root && lane.root.time !== null ? (lane.end ?? lane.marks.at(-1)?.time ?? lane.start) : null
               const selected = !lane.synthetic && selectedId === lane.session.id
               return (
@@ -154,13 +160,14 @@ export function TimelineLens() {
                     {right > left && (
                       <i className="xc-lane-span" data-open={lane.end === null} style={{ left: `${left}%`, width: `${right - left}%` }} />
                     )}
-                    {marks.map((m) => (
+                    {marks.map((m, i) => (
                       <button
                         key={m.nodeId}
                         type="button"
                         className="xc-mark"
                         data-cls={m.cls}
                         data-selected={selectedId === m.nodeId}
+                        data-row={rows[i]}
                         style={{ left: `${pct(m.time)}%` }}
                         aria-label={`${m.cls} at ${shortStamp(m.time)}`}
                         title={`${m.cls} · ${shortStamp(m.time)}${m.status ? ` · ${m.status}` : ''}`}
@@ -200,7 +207,15 @@ export function TimelineLens() {
         )}
       </div>
 
+      {/* The session count and the span it covers used to sit in a toolbar strip of their own
+          under the workspace header. They are a caption, not a control, and the lens already
+          has a caption strip at its foot -- so they join it, and the lens keeps that row. */}
       <div className="xc-bar" style={{ borderTop: '1px solid var(--hairline)', borderBottom: 0 }}>
+        <span className="xc-note" aria-live="polite">
+          {loading && !model ? 'Loading…' : `${lanes.length} session${lanes.length === 1 ? '' : 's'}`}
+          {domain ? ` · ${shortStamp(domain.from)} → ${shortStamp(domain.to)}` : ''}
+        </span>
+        <span className="xc-note" aria-hidden="true">·</span>
         <span className="xc-legend-inline xc-note">
           ■ memory · ■ exchange (gray) · ◻ Merkle root (server-reported) · ▮ denied by policy · ▯ asked for approval ·{' '}
           {untimedMemories > 0
