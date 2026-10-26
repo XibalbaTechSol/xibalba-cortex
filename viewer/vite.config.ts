@@ -33,8 +33,10 @@ export default defineConfig({
     port: 5190,
     host: '127.0.0.1',
     proxy: managed ? {
+      '/api/contact': { target: process.env.CORTEX_MANAGED_API_URL ?? 'http://127.0.0.1:8430', changeOrigin: false },
       '/api/managed': { target: process.env.CORTEX_MANAGED_API_URL ?? 'http://127.0.0.1:8430', changeOrigin: false },
     } : {
+      '/api/contact': { target: process.env.CORTEX_LOCAL_API_URL ?? 'http://127.0.0.1:8420', changeOrigin: false },
       '/cortex-api': {
         target: process.env.CORTEX_LOCAL_API_URL ?? 'http://127.0.0.1:8420',
         changeOrigin: false,

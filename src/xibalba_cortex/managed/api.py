@@ -24,6 +24,7 @@ from starlette.middleware import Middleware
 from starlette.staticfiles import StaticFiles
 
 from .. import accounts
+from ..contact import ContactInbox, ContactError
 from ..email_delivery import EmailDeliveryError
 from ..ingest_tokens import issue_token, verify_token_record, _connect as identity_connection
 from .config import ManagedConfig
@@ -228,6 +229,18 @@ def create_app(config: ManagedConfig, *, control: ManagedControl | None = None, 
         event = service.stripe.verify_event(raw, request.headers.get("stripe-signature", ""))
         return JSONResponse(await run_in_threadpool(service.apply_event, event))
 
+    contact_inbox = ContactInbox()
+
+    async def contact(request):
+        rate_limit(request, auth=True)
+        origin_guard(request)
+        body = await payload(request)
+        try:
+            result = await run_in_threadpool(contact_inbox.submit, body, request.client.host if request.client else 'unknown')
+        except ContactError as exc:
+            raise ApiError(exc.status, str(exc)) from None
+        return JSONResponse(result, status_code=202)
+
     async def recovery(request):
         rate_limit(request, auth=True)
         origin_guard(request)
@@ -381,6 +394,7 @@ def create_app(config: ManagedConfig, *, control: ManagedControl | None = None, 
     routes = [
         Route("/healthz", lambda request: JSONResponse({"ok": True, "edition": "managed"})),
         Route("/api/managed/plans", plans),
+        Route("/api/contact", contact, methods=["POST"]),
         Route("/api/managed/signup", signup, methods=["POST"]),
         Route("/api/managed/verify", verify),
         Route("/api/managed/login", login, methods=["POST"]),

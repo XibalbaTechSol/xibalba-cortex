@@ -201,4 +201,3 @@ exposing the secret to browser JavaScript. Production authentication remains exp
 - Worker status is derived from the queue (no heartbeat: the v1 schema is frozen).
 - Rewrote `architecture/viewer-and-local-api.md` for the console; browser validation is now headless
   Playwright in CI (job `viewer`).
-

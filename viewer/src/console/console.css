@@ -3418,6 +3418,55 @@ body,
   .xc-landing-foot .xc-spacer { display: none; }
 }
 
+/* Public product page: shared tokens, restrained rules, readable content at every width. */
+.xc-landing-nav { flex-wrap: wrap; gap: 12px 20px; }
+.xc-product-intro { max-width: 780px; margin: 16px 0 24px; line-height: 1.6; }
+.xc-product-plans { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px; }
+.xc-product-plan { display: flex; flex-direction: column; gap: 18px; padding: 28px; min-width: 0; }
+.xc-product-plan:nth-child(2) { border-color: var(--accent); }
+.xc-product-price { margin: 0; font: 600 42px/1.1 var(--font-condensed); }
+.xc-product-price span { font: 400 15px var(--font-body); color: var(--ink-muted); }
+.xc-product-plan dl { margin: 0; }
+.xc-product-plan dl > div { display: flex; justify-content: space-between; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--hairline-faint); }
+.xc-product-plan dt { color: var(--ink-muted); font-size: 13px; }
+.xc-product-plan dd { margin: 0; font: 500 13px var(--font-mono); }
+.xc-product-plan > .xc-btn { margin-top: auto; text-decoration: none; justify-content: center; }
+.xc-product-compare { width: 100%; table-layout: fixed; border-collapse: collapse; font-size: 15px; line-height: 1.6; }
+.xc-product-compare caption { text-align: left; padding-bottom: 16px; }
+.xc-product-compare th, .xc-product-compare td { padding: 18px; border: 1px solid var(--hairline); text-align: left; vertical-align: top; overflow-wrap: anywhere; }
+.xc-product-compare th:first-child { width: 20%; }
+.xc-product-compare thead th { font: 600 13px var(--font-body); color: var(--accent); }
+.xc-product-compare tbody th { font-weight: 500; }
+.xc-product-compare td { color: var(--ink-muted); }
+.xc-product-sources { margin-top: 16px; line-height: 1.8; }
+.xc-product-contact { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr); gap: 64px; }
+.xc-product-contact > div > p { margin-bottom: 24px; line-height: 1.6; }
+.xc-product-contact .xc-link { overflow-wrap: anywhere; }
+.xc-product-contact-form { position: relative; padding: 28px; display: flex; flex-direction: column; gap: 18px; min-width: 0; }
+.xc-product-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.xc-product-contact-form .xc-field { min-width: 0; display: grid; gap: 8px; }
+.xc-product-contact-form .xc-input { width: 100%; min-width: 0; font-size: 15px; }
+.xc-product-contact-form textarea { resize: vertical; }
+.xc-product-honey { position: absolute; left: -10000px; width: 1px; height: 1px; overflow: hidden; }
+.xc-product-footer { display: block; padding-block: 40px 24px; }
+.xc-product-footer-grid { display: grid; grid-template-columns: minmax(0, 2fr) repeat(3, minmax(0, 1fr)); gap: 32px; }
+.xc-product-footer-grid nav { display: flex; flex-direction: column; align-items: flex-start; gap: 12px; min-width: 0; }
+.xc-product-footer-grid nav b { font-size: 13px; font-weight: 600; margin-bottom: 4px; }
+.xc-product-footer-grid > div > p { margin-bottom: 12px; }
+.xc-product-footer-bottom { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 12px; margin-top: 40px; padding-top: 20px; border-top: 1px solid var(--hairline); }
+@media (max-width: 760px) {
+  .xc-product-plans, .xc-product-contact, .xc-product-fields { grid-template-columns: minmax(0, 1fr); }
+  .xc-product-plan, .xc-product-contact-form { padding: 20px; }
+  .xc-product-contact { gap: 28px; }
+  .xc-product-footer-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 28px; }
+  .xc-product-footer-grid > div { grid-column: 1 / -1; }
+  .xc-product-compare, .xc-product-compare tbody, .xc-product-compare tr, .xc-product-compare th, .xc-product-compare td { display: block; width: auto; }
+  .xc-product-compare thead { display: none; }
+  .xc-product-compare tr { margin-bottom: 20px; border: 1px solid var(--hairline); }
+  .xc-product-compare th, .xc-product-compare td { border: 0; padding: 14px 16px; }
+  .xc-product-compare th:first-child { width: auto; border-bottom: 1px solid var(--hairline); }
+  .xc-product-compare td::before { content: attr(data-label); display: block; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .08em; color: var(--accent); margin-bottom: 6px; }
+}
 .xc-summary-toggle { position: absolute; bottom: 16px; left: 110px; z-index: 3; }
 /* Direct timeline selection stays behind event buttons and never intercepts them. */
 .xc-tl-grid { touch-action: pan-y; }

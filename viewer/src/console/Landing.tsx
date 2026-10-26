@@ -1,6 +1,7 @@
 // Shared public entry. Each edition describes only its implemented capabilities.
 
 import type { ReactNode } from 'react'
+import { ProductFooter, ProductSections } from './ProductSections'
 import { IconCheck, IconGraph, IconIntegrity, IconLock, IconSearch, IconTimeline } from './icons'
 
 const REPO = 'https://github.com/XibalbaTechSol/xibalba-cortex'
@@ -55,7 +56,10 @@ export function Landing({ onSignIn, children, managed = false }: { onSignIn: () 
         <nav className="xc-landing-nav" aria-label="Sections">
           <a className="xc-link" href="#what">What it is</a>
           <a className="xc-link" href="#how">How it runs</a>
-          <a className="xc-link" href={REPO} target="_blank" rel="noreferrer noopener">Source</a>
+          <a className="xc-link" href="#pricing">Plans</a>
+          <a className="xc-link" href="#compare">Compare</a>
+          <a className="xc-link" href="#docs">Docs</a>
+          <a className="xc-link" href="#contact">Contact</a>
         </nav>
         <button type="button" className="xc-btn xc-btn--primary" onClick={onSignIn}>Sign in</button>
       </header>
@@ -117,12 +121,9 @@ export function Landing({ onSignIn, children, managed = false }: { onSignIn: () 
       </section>
 
       {children}
+      <ProductSections showPricing={!managed} />
       </main>
-      <footer className="xc-landing-foot">
-        <span className="xc-meta">Xibalba Cortex · Graph memory for agents</span>
-        <span className="xc-spacer" />
-        <a className="xc-link" href={REPO} target="_blank" rel="noreferrer noopener">github.com/XibalbaTechSol/xibalba-cortex</a>
-      </footer>
+      <ProductFooter />
     </div>
   )
 }

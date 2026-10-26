@@ -130,7 +130,7 @@ export function ManagedApp() {
   if (loading) return <div className="xc"><main className="xc-managed"><p className="xc-note">Loading managed memory services…</p></main></div>
 
   if (!account) return <div className="xc"><Landing managed onSignIn={() => setAuthMode('login')}>
-    <section className="xc-landing-section" id="plans" aria-labelledby="managed-plans-title">
+    <section className="xc-landing-section" id="pricing" aria-labelledby="managed-plans-title">
       <p className="xc-eyebrow">Managed memory</p>
       <h2 className="xc-landing-h2" id="managed-plans-title">Choose the capacity you need</h2>
       {!authMode && messages}

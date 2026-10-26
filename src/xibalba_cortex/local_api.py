@@ -142,6 +142,7 @@ import requests
 import yaml
 
 from .config import load_config
+from .contact import ContactInbox, ContactError, same_origin
 from .connector_policy import ConnectorRateLimiter
 from .ingest_tokens import _connect, list_tokens, verify_token_record
 from .accounts import account_for_token, approve_account, list_pending_accounts, change_account_password, create_account, issue_account_session, request_password_reset, reset_password, revoke_account_session, revoke_account_session_by_id
@@ -590,6 +591,8 @@ def _make_handler(store: GraphStore, *, allowed_origins: frozenset[str],
             recent.append(now)
             auth_attempts[identity] = recent
             return True
+
+    contact_inbox = ContactInbox()
 
     class Handler(BaseHTTPRequestHandler):
         # Without a socket timeout, a client that opens a connection and never completes a
@@ -1253,6 +1256,21 @@ def _make_handler(store: GraphStore, *, allowed_origins: frozenset[str],
             request_limiter.wait()
             parsed = urlparse(self.path)
             parts = [p for p in parsed.path.split("/") if p]
+
+            if parts == ["api", "contact"]:
+                try:
+                    if not same_origin(self.headers.get("Origin", ""), self.headers.get("Host", "")):
+                        raise ContactError(403, "Send inquiries from this site.")
+                    if int(self.headers.get("Content-Length") or "0") > 8192:
+                        raise ContactError(413, "Inquiry is too large.")
+                    body = self._read_json_body()
+                    result = contact_inbox.submit(body, self.client_address[0])
+                    self._send_json(202, result)
+                except ContactError as exc:
+                    self._send_json(exc.status, {"error": str(exc)})
+                except (ValueError, UnicodeDecodeError):
+                    self._send_json(400, {"error": "Invalid inquiry."})
+                return
 
             is_decision_route = (
                 (len(parts) == 5 and parts[:3] == ["api", "para", "classifications"] and parts[4] == "decision")
