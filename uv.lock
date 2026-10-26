@@ -2995,6 +2995,10 @@ dependencies = [
 ]
 
 [package.optional-dependencies]
+managed = [
+    { name = "starlette" },
+    { name = "uvicorn" },
+]
 otel = [
     { name = "grpcio" },
     { name = "opentelemetry-api" },
@@ -3027,9 +3031,11 @@ requires-dist = [
     { name = "requests", specifier = ">=2.34.2" },
     { name = "sentence-transformers", specifier = ">=5.7.0" },
     { name = "sqlite-vec", specifier = ">=0.1.9" },
+    { name = "starlette", marker = "extra == 'managed'", specifier = ">=0.47,<2" },
     { name = "uvicorn", specifier = ">=0.30" },
+    { name = "uvicorn", marker = "extra == 'managed'", specifier = ">=0.30" },
 ]
-provides-extras = ["otel"]
+provides-extras = ["managed", "otel"]
 
 [package.metadata.requires-dev]
 dev = [

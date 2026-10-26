@@ -1,0 +1,31 @@
+.xc-managed { flex: 1; min-height: 0; overflow: auto; padding: 32px var(--gutter) 64px; }
+.xc-managed-inner { max-width: 1280px; margin-inline: auto; }
+.xc-managed-head { display: flex; align-items: center; flex-wrap: wrap; gap: 16px; padding-bottom: 24px; margin-bottom: 32px; border-bottom: 1px solid var(--hairline); }
+.xc-managed-logo { width: 48px; height: auto; }
+.xc-managed-title { font: 600 32px/1.12 var(--font-condensed); margin-block: 12px 32px; overflow-wrap: anywhere; }
+.xc-managed-plans { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px; }
+.xc-managed-plan { min-width: 0; padding: 24px; display: flex; flex-direction: column; gap: 16px; }
+.xc-managed-price { font: 600 42px/1.1 var(--font-condensed); }
+.xc-managed-price span { font: 400 15px/1.4 var(--font-body); color: var(--ink-muted); }
+.xc-managed-limits { margin: 0; display: grid; gap: 12px; }
+.xc-managed-limits > div { display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: 6px; border-bottom: 1px solid var(--hairline-faint); padding-bottom: 8px; }
+.xc-managed-limits dt { color: var(--ink-muted); font-size: 13px; }
+.xc-managed-limits dd { margin: 0; font: 500 15px var(--font-mono); }
+.xc-managed-plan > .xc-btn { margin-top: auto; }
+.xc-managed-note { margin-block: 24px 16px; }
+.xc-managed-form { max-width: 560px; display: grid; gap: 16px; }
+.xc-managed-form textarea { height: auto; min-height: 100px; resize: vertical; }
+.xc-managed-panel { padding: 24px; display: grid; gap: 20px; margin-bottom: 32px; }
+.xc-managed-usage { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 20px; color: var(--ink-muted); }
+.xc-managed-usage b { color: var(--ink); }
+.xc-managed-actions { display: flex; flex-wrap: wrap; gap: 12px; }
+.xc-managed-search { display: flex; gap: 12px; align-items: end; flex-wrap: wrap; }
+.xc-managed-search .xc-field { flex: 1; min-width: 180px; }
+.xc-managed-results { display: grid; gap: 16px; }
+.xc-managed-results article { border-top: 1px solid var(--hairline); padding-top: 12px; overflow-wrap: anywhere; }
+.xc-managed-key { display: block; margin-block: 12px; overflow-wrap: anywhere; font-size: 13px; }
+@media (max-width: 760px) {
+  .xc-managed-plans, .xc-managed-usage { grid-template-columns: minmax(0, 1fr); }
+  .xc-managed-plan, .xc-managed-panel { padding: 20px; }
+  .xc-managed { padding-top: 20px; }
+}
