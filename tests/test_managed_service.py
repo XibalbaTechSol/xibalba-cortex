@@ -271,6 +271,21 @@ def test_body_limits_and_missing_api_routes_do_not_fall_through(setup):
     assert client.get("/api/managed/me").headers["cache-control"] == "no-store"
 
 
+def test_managed_pilot_readiness_reports_dummy_key_and_local_origin_as_blockers(tmp_path, monkeypatch):
+    monkeypatch.delenv("CORTEX_SMTP_HOST", raising=False)
+    monkeypatch.delenv("CORTEX_SMTP_FROM", raising=False)
+    config = ManagedConfig(home=tmp_path, public_url="http://localhost:8430", stripe_secret_key="sk_test_dummy", allow_signup=False)
+    client = TestClient(create_app(config), base_url=config.public_url)
+    response = client.get("/readyz")
+    assert response.status_code == 503
+    body = response.json()
+    assert body["schema_version"] == "xibalba.managed_pilot_readiness.v1"
+    assert body["ready"] is False
+    assert body["checks"]["public_origin"]["ready"] is False
+    assert body["checks"]["stripe_sandbox"]["ready"] is False
+    assert body["checks"]["smtp_delivery"]["ready"] is False
+
+
 def test_tenant_storage_rejects_path_escape(setup):
     _, service, _, _, _ = setup
     with pytest.raises(PermissionError):

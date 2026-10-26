@@ -165,6 +165,10 @@ def create_app(config: ManagedConfig, *, control: ManagedControl | None = None, 
             "billing_configured": config.billing_ready, "signup_enabled": config.allow_signup,
             "hosted_inference_enabled": False})
 
+    async def ready(request):
+        result = service.config.pilot_readiness()
+        return JSONResponse(result, status_code=200 if result["ready"] else 503)
+
     async def signup(request):
         rate_limit(request, auth=True)
         origin_guard(request)
@@ -393,6 +397,7 @@ def create_app(config: ManagedConfig, *, control: ManagedControl | None = None, 
 
     routes = [
         Route("/healthz", lambda request: JSONResponse({"ok": True, "edition": "managed"})),
+        Route("/readyz", ready),
         Route("/api/managed/plans", plans),
         Route("/api/contact", contact, methods=["POST"]),
         Route("/api/managed/signup", signup, methods=["POST"]),
