@@ -403,10 +403,11 @@ _TRACES_PATH = "/v1/traces"
 _METRICS_PATH = "/v1/metrics"
 
 
-def _authenticate(headers: Any, home: Any) -> str | None:
+def _authenticate(headers: Any, store: GraphStore) -> tuple[int, str] | None:
     """Bearer-token check matching local_api.py's `_authenticate` (same `ingest_tokens` store,
-    same "no unauthenticated fallback" posture). Returns an error message to send as a 401, or
-    None if `headers` carries a valid, unrevoked, unexpired `memory:write`-scoped token.
+    same "no unauthenticated fallback" posture). Returns `(status, message)` to send, or
+    None if `headers` carries a valid, unrevoked, unexpired `memory:write`-scoped token
+    belonging to this store's profile.
 
     Every write into this receiver becomes real provenance evidence (memories, otel_events) --
     an unauthenticated OTLP receiver let any local process, or (with a non-default `--host`)
@@ -417,12 +418,25 @@ def _authenticate(headers: Any, home: Any) -> str | None:
     scheme, _, credentials = auth.partition(" ")
     token = credentials.strip() if scheme.lower() == "bearer" else ""
     if not token:
-        return "authentication required: Authorization: Bearer <token> (see xibalba-cortex-ingest-tokens)"
-    principal = verify_token_record(home, token)
+        return 401, "authentication required: Authorization: Bearer <token> (see xibalba-cortex-ingest-tokens)"
+    principal = verify_token_record(store.home, token)
     if principal is None:
-        return "invalid or revoked token"
+        return 401, "invalid or revoked token"
+    # A credential belongs to one profile. `verify_token_record` matches on the token hash
+    # alone and does not filter by profile, and managed hosting keeps every tenant's
+    # `ingest_tokens` rows in a single identity database (`CORTEX_MANAGED_HOME`) -- so without
+    # this, a token issued for profile B authenticated against a receiver serving profile A
+    # and its telemetry was written into A's store as real provenance evidence. local_api.py's
+    # `_authenticate` and otlp_grpc_receiver.py's interceptor both enforce this; the HTTP
+    # receiver was the one transport that did not.
+    if principal["profile_id"] != store.profile_id:
+        return 403, "credential is not authorized for this profile"
     if "memory:write" not in principal["scopes"]:
-        return "token lacks the memory:write scope this receiver requires"
+        # 401 rather than local_api.py's 403 for the same condition. Left as it was: the
+        # status is pinned by test_read_only_token_is_rejected_for_ingestion, and aligning
+        # the two transports' scope-failure codes is a separate change from closing the
+        # profile-binding gap.
+        return 401, "token lacks the memory:write scope this receiver requires"
     return None
 
 
@@ -432,10 +446,11 @@ def _make_handler(store: GraphStore):
     class Handler(BaseHTTPRequestHandler):
         def do_POST(self) -> None:  # noqa: N802 -- BaseHTTPRequestHandler's naming convention
             request_limiter.wait()
-            auth_error = _authenticate(self.headers, store.home)
+            auth_error = _authenticate(self.headers, store)
             if auth_error is not None:
-                body = json.dumps({"error": auth_error}).encode()
-                self.send_response(401)
+                status, message = auth_error
+                body = json.dumps({"error": message}).encode()
+                self.send_response(status)
                 self.send_header("Content-Type", "application/json")
                 self.send_header("Content-Length", str(len(body)))
                 self.end_headers()
