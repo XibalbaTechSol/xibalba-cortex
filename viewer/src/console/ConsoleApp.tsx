@@ -9,6 +9,7 @@ import { accountLogout, isSignedIn } from '../api'
 import { ConsoleProvider, useConsole } from './state'
 import { SignIn } from './SignIn'
 import { Landing } from './Landing'
+import { resetTokenFromSearch } from './passwordReset'
 import { Rail, StatusBar, TopBar, WorkspaceHeader } from './Shell'
 import { SettingsProvider, useSettings } from './settingsContext'
 import { PageHost } from './pages/PageHost'
@@ -87,7 +88,7 @@ function Workspace() {
           {content}
         </>
       )}
-      {!phone && page && <PageDrawer page={page}><PageHost page={page} /></PageDrawer>}
+      {page && <PageDrawer page={page}><PageHost page={page} /></PageDrawer>}
       {overlay === 'recall' && <Recall />}
       {overlay === 'review' && <Review />}
       {overlay === 'integrity' && <Integrity />}
@@ -103,7 +104,7 @@ function Workspace() {
 const SIGN_IN_HASH = '#signin'
 
 function wantsSignIn(hash: string): boolean {
-  if (hash === SIGN_IN_HASH) return true
+  if (hash === SIGN_IN_HASH || resetTokenFromSearch(window.location.search)) return true
   try { return Boolean(sessionStorage.getItem('xibalba-cortex.auth-notice')) } catch { return false }
 }
 
