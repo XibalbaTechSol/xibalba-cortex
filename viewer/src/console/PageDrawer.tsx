@@ -9,7 +9,7 @@
 import { createContext, useContext, useId, useRef, type ReactNode } from 'react'
 import { useConsole } from './state'
 import { useDialog } from './useDialog'
-import { ALL_DESTINATIONS, type PageId } from './nav'
+import { ALL_DESTINATIONS, TAB_LABEL, type PageId } from './nav'
 import { IconClose } from './icons'
 
 /** How wide a drawer needs to be. Lists with a detail pane need room; a form does not. */
@@ -41,10 +41,10 @@ export function PageDrawer({ page, children }: { page: PageId; children: ReactNo
         <div className="xc-drawer-head">
           <div>
             <p className="xc-eyebrow">Tool</p>
-            <h2 className="xc-drawer-title" id={titleId}>{dest?.label ?? page}</h2>
+            <h2 className="xc-drawer-title" id={titleId}>{TAB_LABEL[page] ?? dest?.label ?? page}</h2>
             {dest && <p className="xc-note">{dest.hint}</p>}
           </div>
-          <button ref={closeRef} type="button" className="xc-btn xc-btn--square" onClick={close} aria-label={`Close ${dest?.label ?? page}`}><IconClose /></button>
+          <button ref={closeRef} type="button" className="xc-btn xc-btn--square" onClick={close} aria-label={`Close ${TAB_LABEL[page] ?? dest?.label ?? page}`}><IconClose /></button>
         </div>
         <div className="xc-drawer-scroll">{children}</div>
       </aside>

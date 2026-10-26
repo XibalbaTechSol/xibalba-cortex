@@ -5,6 +5,8 @@ import { execFileSync } from 'node:child_process'
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 
+const managed = process.env.VITE_CORTEX_EDITION === 'managed'
+
 const cortexHome = process.env.CORTEX_HOME ?? resolve(homedir(), '.hermes/xibalba-cortex')
 const devTokenFile = process.env.CORTEX_DEV_TOKEN_FILE ?? resolve(cortexHome, '.viewer-dev.token')
 
@@ -30,7 +32,9 @@ export default defineConfig({
   server: {
     port: 5190,
     host: '127.0.0.1',
-    proxy: {
+    proxy: managed ? {
+      '/api/managed': { target: process.env.CORTEX_MANAGED_API_URL ?? 'http://127.0.0.1:8430', changeOrigin: false },
+    } : {
       '/cortex-api': {
         target: process.env.CORTEX_LOCAL_API_URL ?? 'http://127.0.0.1:8420',
         changeOrigin: false,

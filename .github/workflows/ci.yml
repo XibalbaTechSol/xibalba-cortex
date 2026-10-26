@@ -55,7 +55,7 @@ jobs:
           python-version: ${{ env.PYTHON_VERSION }}
       # Fail with an explicit layout error before uv reports an opaque missing-distribution failure.
       - run: test -f ../integrity-core/integrity-sdk/pyproject.toml
-      - run: uv sync --extra otel
+      - run: uv sync --extra otel --extra managed --extra managed
       - run: uv run pytest -q
 
   viewer:
@@ -85,15 +85,15 @@ jobs:
           node-version: "22"
           cache: npm
           cache-dependency-path: xibalba-cortex/viewer/package-lock.json
-      - run: uv sync --extra otel
+      - run: uv sync --extra otel --extra managed
         working-directory: xibalba-cortex
       - run: npm ci
         working-directory: xibalba-cortex/viewer
-      - run: npx tsc -b
+      - run: npm run build
         working-directory: xibalba-cortex/viewer
       - run: npx oxlint src e2e
         working-directory: xibalba-cortex/viewer
-      - run: npx vitest run
+      - run: npx vitest run --maxWorkers=1
         working-directory: xibalba-cortex/viewer
       # The browser suite seeds a scratch profile, serves it with local_api, starts Vite and drives
       # headless Chromium with software WebGL. See viewer/playwright.config.ts.

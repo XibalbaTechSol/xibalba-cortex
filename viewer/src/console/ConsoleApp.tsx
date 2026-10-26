@@ -12,6 +12,7 @@ import { Landing } from './Landing'
 import { Rail, StatusBar, TopBar, WorkspaceHeader } from './Shell'
 import { SettingsProvider, useSettings } from './settingsContext'
 import { PageHost } from './pages/PageHost'
+import { PageDrawer } from './PageDrawer'
 import { FacetRail } from './FacetRail'
 import { GraphLens } from './GraphLens'
 import { TimelineLens } from './TimelineLens'
@@ -52,12 +53,7 @@ function Workspace() {
   const { settings } = useSettings()
 
   // what sits to the right of (or below) the navigation: a full page, or the three-column workspace
-  const content = page ? (
-    <>
-      <PageHost page={page} />
-      <StatusBar />
-    </>
-  ) : (
+  const content = (
     <>
       {/* The lens owns the whole workspace; the facets, the chain rail and the detail window
           float over it. Previously these were three grid columns and a strip below, which left
@@ -91,6 +87,7 @@ function Workspace() {
           {content}
         </>
       )}
+      {!phone && page && <PageDrawer page={page}><PageHost page={page} /></PageDrawer>}
       {overlay === 'recall' && <Recall />}
       {overlay === 'review' && <Review />}
       {overlay === 'integrity' && <Integrity />}
