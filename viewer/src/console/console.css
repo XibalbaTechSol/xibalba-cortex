@@ -3394,3 +3394,30 @@ body,
   .xc-landing-card { padding: 20px; }
   .xc-landing-foot .xc-spacer { display: none; }
 }
+
+/* Direct timeline selection stays behind event buttons and never intercepts them. */
+.xc-tl-grid { touch-action: pan-y; }
+.xc-tl-ticks, .xc-lane-track { cursor: crosshair; }
+.xc-tl-ticks:focus-visible { outline: 1px solid var(--accent); outline-offset: -2px; }
+.xc-tl-feedback {
+  position: absolute;
+  inset: 0 0 0 var(--tl-label);
+  pointer-events: none;
+}
+.xc-tl-brush {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background: var(--accent-soft);
+  border-inline: 1px solid var(--accent);
+}
+.xc-tl-cursor {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  border-left: 1px solid var(--accent);
+  opacity: 0.6;
+}
+
+.xc-tl-caption { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.xc-tl-caption .xc-btn { min-height: 20px; padding: 1px 5px; font-size: 11px; }
