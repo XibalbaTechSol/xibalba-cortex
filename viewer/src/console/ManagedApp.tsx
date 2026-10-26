@@ -28,7 +28,8 @@ export function ManagedApp() {
   const [notice, setNotice] = useState(() => new URLSearchParams(location.search).has('verified') ? 'Email verified. Sign in to open your workspace.' : '')
   const [authMode, setAuthMode] = useState<'login' | 'signup' | 'forgot-password' | 'resend-verification' | 'reset' | null>(() => new URLSearchParams(location.search).has('reset_token') ? 'reset' : null)
   const resetToken = useRef(new URLSearchParams(location.search).get('reset_token') || '')
-  const [keys, setKeys] = useState<Array<{id: string; label: string; expires_at: string}>>([])
+  const [keys, setKeys] = useState<Array<{id: string; label: string; expires_at: string; agent_ids?: string[]}>>([])
+  const [agentDid, setAgentDid] = useState('')
   const [busy, setBusy] = useState(false)
   const [memories, setMemories] = useState<Memory[]>([])
   const [query, setQuery] = useState('')
@@ -196,10 +197,11 @@ export function ManagedApp() {
     </section>
     <section className="xc-win xc-managed-panel" aria-label="Agent API keys">
       <h2 className="xc-title">Connect an agent</h2>
-      <p className="xc-copy">Create a workspace-scoped key for the managed memory API. Keys expire after 30 days and are shown once.</p>
-      <button className="xc-btn" disabled={busy} onClick={() => void act(async () => { const result = await request<{ token: string }>('keys', { method: 'POST', body: JSON.stringify({ label: 'agent' }) }, account.csrf_token); setNewKey(result.token) })}>Create API key</button>
+      <p className="xc-copy">Bind a key to the agent’s stable <code>did:integrity:…</code> identity. The same DID can use MCP or the SDK; keys expire after 30 days and are shown once.</p>
+      <label className="xc-field">Agent DID<input className="xc-input" value={agentDid} onChange={(event) => setAgentDid(event.target.value)} placeholder="did:integrity:…" required /></label>
+      <button className="xc-btn" disabled={busy || !agentDid.trim()} onClick={() => void act(async () => { const result = await request<{ token: string }>('keys', { method: 'POST', body: JSON.stringify({ label: 'agent', agent_id: agentDid.trim() }) }, account.csrf_token); setNewKey(result.token) })}>Create API key</button>
       <button className="xc-btn" disabled={busy} onClick={() => void act(async () => { setKeys((await request<{keys: typeof keys}>('keys')).keys) })}>Show API keys</button>
-      {keys.map((key) => <div className="xc-managed-actions" key={key.id}><span className="xc-note">{key.label.replace(/^managed-api:/, '')} · expires {new Date(key.expires_at).toLocaleDateString()}</span><button className="xc-btn" disabled={busy} onClick={() => void act(async () => { await request('keys/revoke', { method: 'POST', body: JSON.stringify({ id: key.id }) }, account.csrf_token); setKeys(keys.filter((item) => item.id !== key.id)); setNewKey('') })}>Revoke key</button></div>)}
+      {keys.map((key) => <div className="xc-managed-actions" key={key.id}><span className="xc-note">{key.label.replace(/^managed-api:/, '')} · {key.agent_ids?.[0] || 'unbound'} · expires {new Date(key.expires_at).toLocaleDateString()}</span><button className="xc-btn" disabled={busy} onClick={() => void act(async () => { await request('keys/revoke', { method: 'POST', body: JSON.stringify({ id: key.id }) }, account.csrf_token); setKeys(keys.filter((item) => item.id !== key.id)); setNewKey('') })}>Revoke key</button></div>)}
       {newKey && <div><p className="xc-note">Copy this key now; it will disappear when you leave this page.</p><code className="xc-managed-key">{newKey}</code><button className="xc-btn" onClick={() => setNewKey('')}>Hide key</button></div>}
     </section>
     <section aria-labelledby="workspace-plans-title"><h2 className="xc-landing-h2" id="workspace-plans-title">Workspace plans</h2>{cards}{!catalog?.billing_configured && <p className="xc-note xc-managed-note">Paid subscriptions are not available yet.</p>}</section>

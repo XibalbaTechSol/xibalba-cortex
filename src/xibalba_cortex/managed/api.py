@@ -288,10 +288,14 @@ def create_app(config: ManagedConfig, *, control: ManagedControl | None = None, 
         label = str(data.get("label", "")).strip()
         if not label or len(label) > 80:
             raise ApiError(400, "API key label must contain 1–80 characters")
+        agent_id = str(data.get("agent_id", "")).strip()
+        if agent_id and (not agent_id.startswith("did:integrity:") or len(agent_id) > 160):
+            raise ApiError(400, "agent_id must be a valid did:integrity identifier")
         # Managed keys may read and write their own tenant; they cannot manage billing, mint
         # other keys, administer accounts, or select another profile.
         token = await run_in_threadpool(issue_token, service.identity_home, "managed-api:" + label,
-            profile_id=account["profile_id"], roles=("writer",), scopes=("memory:read", "memory:write"), ttl_hours=720)
+            profile_id=account["profile_id"], roles=("writer",), scopes=("memory:read", "memory:write"),
+            ttl_hours=720, agent_id=agent_id or None)
         return JSONResponse({"token": token, "expires_in_days": 30}, status_code=201)
 
     def memory_operation(request, data):
