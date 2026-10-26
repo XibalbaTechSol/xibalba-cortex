@@ -22,6 +22,12 @@ $149 per month. Paid actions are unavailable until real sandbox configuration is
 complete. Registration defaults to disabled. This run uses a separate data home;
 never point it at `~/.hermes/xibalba-cortex` or an existing operator profile.
 
+The liveness endpoint is `GET /healthz`. Before a private pilot, query `GET /readyz`;
+it returns `200` only when the selected HTTPS origin, real Stripe test resources,
+SMTP delivery, verified signup and writable managed storage are configured. With the
+development values above it returns `503` and names each open gate. Liveness does not
+authorize customer traffic.
+
 To enable email-verified signup and password recovery, configure the existing
 STARTTLS SMTP delivery settings `CORTEX_SMTP_HOST`, `CORTEX_SMTP_PORT` (587 by default),
 `CORTEX_SMTP_FROM`, and optional matching `CORTEX_SMTP_USERNAME`/`CORTEX_SMTP_PASSWORD`.
