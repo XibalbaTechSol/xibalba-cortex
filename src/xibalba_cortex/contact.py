@@ -52,7 +52,7 @@ class ContactInbox:
             raise ContactError(400, 'Please include your name and a message of at least 20 characters.')
         if not re.fullmatch(r'[^\s@]+@[^\s@]+\.[^\s@]+', values['email']):
             raise ContactError(400, 'Please enter a valid email address.')
-        recipient = os.environ.get('CORTEX_CONTACT_TO', 'jacob.v.universe@gmail.com').strip()
+        recipient = os.environ.get('CORTEX_CONTACT_TO', 'contact@xibalba.dev').strip()
         body = '\n'.join([f'Name: {values["name"]}', f'Reply to: {values["email"]}',
             f'Organization: {values["organization"]}', '', values['message']])
         try:
