@@ -126,10 +126,17 @@ function workspaceFromMe(me: Json): unknown {
       store_id: id,
       profile_id: id,
       agent_name: String(account.display_name || 'Your workspace'),
-      store_access: 'owner',
+      store_access: entitlement.writable === true ? 'writable' : 'read_only',
       writable: entitlement.writable === true,
       memories: Number(counts.memories ?? 0),
       memories_counted: true,
+      // `me` reports no session count and no identity attestation, and "not counted" is not zero:
+      // every field the Agents card reads is present and honest rather than absent and undefined.
+      sessions: 0,
+      sessions_counted: false,
+      last_seen_at: null,
+      on_chain: false,
+      identity_verified: false,
     }],
     oracle_reachable: false,
   }

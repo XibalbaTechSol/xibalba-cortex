@@ -123,12 +123,14 @@ describe('the hosted mapping, through api.ts', () => {
     const writable = await api.agents(200)
     expect(writable.agents).toEqual([{
       agent_id: 'profile-7', store_id: 'profile-7', profile_id: 'profile-7',
-      agent_name: 'Operator', store_access: 'owner', writable: true, memories: 3, memories_counted: true,
+      agent_name: 'Operator', store_access: 'writable', writable: true, memories: 3, memories_counted: true,
+      sessions: 0, sessions_counted: false, last_seen_at: null, on_chain: false, identity_verified: false,
     }])
     vi.resetModules()
     installFetch(() => ({ ...ME, entitlement: { ...ME.entitlement, writable: false, status: 'canceled' } }))
     const second = await hostedModules()
     expect((await second.api.agents(200)).agents[0].writable).toBe(false)
+    expect((await second.api.agents(200)).agents[0].store_access).toBe('read_only')
   })
 
   it('refuses a call the hosted backend has no route for without sending anything', async () => {
