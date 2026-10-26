@@ -21,6 +21,8 @@ class ManagedConfig:
     max_content_bytes: int = 16_384
     # A pinned, supported version; upgrades must be tested alongside webhook fixtures.
     stripe_api_version: str = "2025-06-30.basil"
+    supabase_url: str = ""
+    supabase_service_role_key: str = field(default="", repr=False)
 
     def __post_init__(self):
         object.__setattr__(self, "home", Path(self.home).expanduser().resolve())
@@ -48,6 +50,7 @@ class ManagedConfig:
         parts = urlsplit(self.public_url)
         public_origin = parts.scheme == "https" and parts.hostname not in {"localhost", "127.0.0.1", "::1"}
         smtp_ready = bool(os.environ.get("CORTEX_SMTP_HOST", "").strip() and os.environ.get("CORTEX_SMTP_FROM", "").strip())
+        supabase_ready = bool(self.supabase_url and self.supabase_service_role_key)
         storage_ready = self.home.is_dir() and os.access(self.home, os.W_OK)
         checks = {
             "public_origin": {"ready": public_origin, "detail": "HTTPS public origin is configured" if public_origin else "Set CORTEX_MANAGED_PUBLIC_URL to the selected HTTPS domain"},
@@ -55,6 +58,7 @@ class ManagedConfig:
             "smtp_delivery": {"ready": smtp_ready, "detail": "SMTP host and sender are configured" if smtp_ready else "Set CORTEX_SMTP_HOST and CORTEX_SMTP_FROM"},
             "registration": {"ready": self.allow_signup, "detail": "Verified signup is enabled" if self.allow_signup else "Set CORTEX_MANAGED_ALLOW_SIGNUP=true after delivery testing"},
             "persistent_storage": {"ready": storage_ready, "detail": "Managed data home is writable" if storage_ready else "Managed data home is not writable"},
+            "supabase_control_plane": {"ready": supabase_ready, "detail": "Supabase control-plane credentials are configured" if supabase_ready else "Set SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY"},
         }
         return {"schema_version": "xibalba.managed_pilot_readiness.v1", "ready": all(item["ready"] for item in checks.values()), "checks": checks, "disclaimer": "Pilot gate status only; this does not establish SLA, HA, backup or compliance evidence."}
 
@@ -70,4 +74,6 @@ class ManagedConfig:
             stripe_live=os.environ.get("CORTEX_STRIPE_LIVE", "false").lower() == "true",
             allow_signup=os.environ.get("CORTEX_MANAGED_ALLOW_SIGNUP", "false").lower() == "true",
             signup_daily_limit=int(os.environ.get("CORTEX_MANAGED_SIGNUP_DAILY_LIMIT", "20")),
+            supabase_url=os.environ.get("SUPABASE_URL", "").rstrip("/"),
+            supabase_service_role_key=os.environ.get("SUPABASE_SERVICE_ROLE_KEY", ""),
         )

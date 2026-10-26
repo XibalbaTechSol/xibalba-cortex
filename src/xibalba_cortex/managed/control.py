@@ -8,6 +8,7 @@ import sqlite3
 import time
 import threading
 import uuid
+import logging
 from contextlib import closing, contextmanager
 from datetime import datetime, timedelta, timezone
 
@@ -17,10 +18,13 @@ from ..store import GraphStore
 from .config import ManagedConfig
 from .plans import PLANS, WRITE_STATUSES
 from .stripe_gateway import BillingUnavailable, StripeGateway
+from .supabase_adapter import SupabaseAdapter
 
 
 class LimitExceeded(RuntimeError):
     pass
+
+log = logging.getLogger(__name__)
 
 
 class ManagedControl:
@@ -32,6 +36,7 @@ class ManagedControl:
         self.tenant_root.mkdir(mode=0o700, exist_ok=True)
         self.path = config.home / "managed.sqlite3"
         self.stripe = stripe or StripeGateway(config)
+        self.supabase = SupabaseAdapter(config.supabase_url, config.supabase_service_role_key) if config.supabase_url and config.supabase_service_role_key else None
         self._write_locks: dict[str, threading.RLock] = {}
         self._write_locks_guard = threading.Lock()
         if email_sender is None:
@@ -98,6 +103,11 @@ class ManagedControl:
                 identities.execute("UPDATE accounts SET email_verified=0, approval_status='pending' WHERE id=?", (account["id"],))
                 identities.commit()
             db.execute("INSERT INTO tenants(id,owner_account_id,created_at) VALUES(?,?,?)", (tenant_id, account["id"], int(time.time())))
+        if self.supabase:
+            try:
+                self.supabase.mirror_tenant({"id": tenant_id, "owner_account_id": account["id"], "plan": "free", "status": "free", "customer_id": None, "subscription_id": None, "period_end": None, "cancel_at_period_end": False})
+            except Exception:
+                log.exception("Supabase tenant mirror failed")
         self.send_verification(str(account["id"]), str(account["email"]))
 
     def send_verification(self, account_id: str, email: str) -> None:
@@ -202,6 +212,12 @@ class ManagedControl:
                 raise LimitExceeded(f"Monthly {meter} limit reached")
             if request_key:
                 db.execute("INSERT INTO operations VALUES(?,?,?)", (tenant["id"], request_key, fingerprint))
+            if self.supabase:
+                try:
+                    amount = db.execute("SELECT amount FROM usage WHERE tenant_id=? AND month=? AND meter=?", (tenant["id"], month, meter)).fetchone()["amount"]
+                    self.supabase.mirror_usage(tenant["id"], month, meter, int(amount))
+                except Exception:
+                    log.exception("Supabase usage mirror failed")
 
     @contextmanager
     def write_guard(self, tenant: dict):
@@ -328,5 +344,12 @@ class ManagedControl:
             if not isinstance(period_end, int):
                 raise ValueError("Subscription period is missing")
             db.execute("UPDATE tenants SET plan=?,status=?,subscription_id=?,period_end=?,cancel_at_period_end=? WHERE id=?", (plan_id, str(sub["status"]), sub_id, period_end, int(bool(sub.get("cancel_at_period_end"))), tenant["id"]))
+            mirrored = dict(tenant)
+            mirrored.update({"plan": plan_id, "status": str(sub["status"]), "subscription_id": sub_id, "period_end": period_end, "cancel_at_period_end": bool(sub.get("cancel_at_period_end"))})
+            if self.supabase:
+                try:
+                    self.supabase._request("PATCH", "cortex_tenants", payload={k: mirrored[k] for k in ("plan", "status", "subscription_id", "period_end", "cancel_at_period_end")}, params={"id": "eq." + tenant["id"]})
+                except Exception:
+                    log.exception("Supabase subscription mirror failed")
             db.execute("INSERT INTO stripe_events VALUES(?,?)", (event["id"], int(time.time())))
         return {"received": True}

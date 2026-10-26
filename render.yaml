@@ -1,0 +1,38 @@
+services:
+  - type: web
+    name: cortex-managed-dev
+    runtime: docker
+    dockerfilePath: ./deploy/render/Dockerfile
+    dockerContext: .
+    region: ohio
+    plan: free
+    healthCheckPath: /healthz
+    envVars:
+      - key: CORTEX_MANAGED_PUBLIC_URL
+        sync: false
+      - key: CORTEX_MANAGED_ALLOW_SIGNUP
+        value: "false"
+      - key: CORTEX_MANAGED_HOME
+        value: /data/cortex-managed
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: STRIPE_SECRET_KEY
+        sync: false
+      - key: STRIPE_WEBHOOK_SECRET
+        sync: false
+      - key: STRIPE_PRO_MONTHLY_PRICE_ID
+        sync: false
+      - key: STRIPE_TEAM_MONTHLY_PRICE_ID
+        sync: false
+      - key: CORTEX_SMTP_HOST
+        sync: false
+      - key: CORTEX_SMTP_PORT
+        value: "587"
+      - key: CORTEX_SMTP_FROM
+        sync: false
+      - key: CORTEX_SMTP_USERNAME
+        sync: false
+      - key: CORTEX_SMTP_PASSWORD
+        sync: false
