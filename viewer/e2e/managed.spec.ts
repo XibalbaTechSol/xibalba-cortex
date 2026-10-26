@@ -46,7 +46,9 @@ for (const width of [320, 390, 1280, 1600]) {
       await expect(card).toBeAttached()
       await expect(card).toContainText(price)
     }
-    await page.locator('#plans').scrollIntoViewIfNeeded()
+    /* `#plans` until dbc58b6 renamed the anchor to `#pricing` so the landing nav could link
+       to it; the test was not updated and has been red since. */
+    await page.locator('#pricing').scrollIntoViewIfNeeded()
     await expect(page.getByRole('button', { name: 'Choose Pro', exact: true })).toBeDisabled()
     await expect(page.getByText('Paid subscriptions are not available yet.', { exact: true })).toBeVisible()
     const overflow = await page.locator('.xc-landing').evaluate((el) => el.scrollWidth - el.clientWidth)
@@ -79,8 +81,15 @@ test('a workspace stores and searches memory, then creates and revokes an API ke
   await expect(page.locator('.xc-managed-results')).toContainText('Remember this test-only fact')
   const write = calls.find((call) => call.path === 'memories' && call.method === 'POST')!
   expect(write.body).toEqual({ content: 'Remember this test-only fact' })
+  /* A key is bound to the agent DIDs it is for, so the field is `required` and the button
+     stays disabled until it has one (ManagedApp.tsx:209, `!agentDids.trim()`). Before this,
+     the click waited out the full 90s timeout against a permanently disabled button. */
+  await page.getByLabel('Agent DIDs', { exact: true }).fill('did:integrity:test-agent-one\ndid:integrity:test-agent-two')
   await page.getByRole('button', { name: 'Create API key', exact: true }).click()
   await expect(page.locator('.xc-managed-key')).toHaveText('fixture-only-managed-key')
+  // the DIDs reach the API, de-duplicated and split on newlines or commas -- the point of the field
+  const issued = calls.find((call) => call.path === 'keys' && call.method === 'POST')!
+  expect(issued.body).toEqual({ label: 'agent', agent_ids: ['did:integrity:test-agent-one', 'did:integrity:test-agent-two'] })
   expect(await page.evaluate(() => Object.values(localStorage).join(' '))).not.toContain('fixture-only-managed-key')
   await page.getByRole('button', { name: 'Show API keys', exact: true }).click()
   await page.getByRole('button', { name: 'Revoke key', exact: true }).click()

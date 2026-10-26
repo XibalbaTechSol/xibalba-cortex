@@ -136,7 +136,11 @@ test('a full page has no lens to switch, so the header shows no switch', async (
 
   // Back on the workspace the switch returns -- the half of this test that actually discriminates,
   // since a build with the switch still in the lens toolbar also shows none of it on a page.
-  await page.locator('.xc-rail-nav button[aria-label="Workspace"]').click()
+  /* The drawer is `aria-modal="true"` and its scrim covers the rail on purpose (PageDrawer.tsx:4,
+     "Escape and the scrim close it"), so the rail button cannot be clicked through it -- the click
+     spent the full timeout being intercepted by `.xc-scrim`. Escape is how the UI leaves a page,
+     and it returns to the lens the page was opened from, which is the transition under test. */
+  await page.keyboard.press('Escape')
   await expect(page.locator(headerLens)).toBeVisible()
 })
 

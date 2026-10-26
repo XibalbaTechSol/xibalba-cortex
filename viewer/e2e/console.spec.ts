@@ -399,7 +399,18 @@ test.describe('collapsible navigation and panes', () => {
   test('Projection and selected-memory docks collapse independently', async ({ page }) => {
     await openConsole(page, { primary: true })
     await page.getByRole('button', { name: 'Collapse projection', exact: true }).click()
-    await expect(page.locator('.xc-facets')).toHaveAttribute('data-collapsed', 'true')
+    /* The projection pane is `.xc-pane.xc-rail[aria-label="Facets"]`; there has never been an
+       `.xc-facets` class -- not in the components and not in the stylesheet -- so the old
+       selector matched nothing and the assertion timed out waiting for it. `.xc-rail` alone is
+       ambiguous (the Integrity overlay carries a pane classed `xc-win xc-pane xc-rail`), so
+       this keys off the label, which is what actually names this pane. */
+    const projection = page.locator('.xc-pane[aria-label="Facets"]')
+    await expect(projection).toHaveCount(1)
+    await expect(projection).toHaveAttribute('data-collapsed', 'true')
+    // and it is the click that collapsed it, not a pane that reads collapsed from the start
+    await page.getByRole('button', { name: 'Expand projection', exact: true }).click()
+    await expect(projection).toHaveAttribute('data-collapsed', 'false')
+    await page.getByRole('button', { name: 'Collapse projection', exact: true }).click()
     await pinMemory(page, 'relay retries', 'three times')
     await page.getByRole('button', { name: 'Collapse selected memory', exact: true }).click()
     await expect(page.locator('.xc-inspector')).toHaveAttribute('data-collapsed', 'true')

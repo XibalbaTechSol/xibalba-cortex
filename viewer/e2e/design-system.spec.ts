@@ -280,9 +280,23 @@ async function grammarSweep(page: Page, expectWindows = true): Promise<string[]>
       }
       return self
     }
+    /* Deliberately unreachable content: a box laid out entirely to the side of the viewport
+       AND hidden from assistive technology is shown to nobody, sighted or not. The landing
+       page's spam honeypot (`.xc-product-honey`, a 1x1px label at `left: -10000px`) is the
+       case this exists for -- it has to stay in the DOM for a bot to fill in, and its label
+       text necessarily overflows a 1px box. Both halves are required because a layout bug can
+       push a box off to the side but cannot add `aria-hidden`; content merely below the fold
+       stays in the sweep, because scrolling reaches it.
+       Verified by mutation: dropping either `aria-hidden` or the off-stage offset puts
+       `text clipped label.xc-product-honey` back in the findings. */
+    const offstage = (e: Element) => {
+      const r = e.getBoundingClientRect()
+      return (r.right <= 0 || r.left >= innerWidth) && !!e.closest('[aria-hidden="true"]')
+    }
     const vis = (e: Element) => {
       const s = getComputedStyle(e), r = e.getBoundingClientRect()
       if (!(s.display !== 'none' && s.visibility !== 'hidden' && +s.opacity > 0.01 && r.width > 0 && r.height > 0)) return false
+      if (offstage(e)) return false
       if (typeof e.checkVisibility === 'function'
         && !e.checkVisibility({ contentVisibilityAuto: true, opacityProperty: true, visibilityProperty: true })) return false
       for (let p = e.parentElement; p; p = p.parentElement) {
@@ -378,15 +392,34 @@ async function grammarSweep(page: Page, expectWindows = true): Promise<string[]>
     for (const w of wins) {
       const pb = getComputedStyle(w, '::before')
       const arms = (pb.backgroundImage.match(/gradient/g) || []).length
+      /* A window inside a window carries no cross, by rule: console.css has
+         `.xc-win .xc-win::before { content: none }` so the marks are not repeated on every
+         pane nested in a drawer. Reading that as a violation condemned the deliberate rule --
+         every page hosted in the page drawer reported one. It is still checked, just
+         inverted: a nested window must NOT draw a cross, so re-adding one is caught. */
+      const nested = !!w.parentElement?.closest('.xc-win')
+      if (nested) {
+        if (pb.content !== 'none') out.push(`${name(w)} repeats the registration cross inside another window`)
+        continue
+      }
       if (pb.content === 'none' || arms < 8) { out.push(`${name(w)} is missing its registration cross (${arms} arms)`); continue }
       const bleed = -num(pb.top)
       if (bleed < 6) out.push(`${name(w)} cross bleeds only ${bleed}px; Industry offsets the corner -6px`)
       const r = w.getBoundingClientRect(), c = clip(w, false)
+      /* A window that covers the whole viewport has nowhere outside itself to bleed into. The
+         page drawer does exactly that below 760px -- measured at 390px it is 0,0 -> 390,900,
+         while at 1280px it sits inset 20px and its cross clears comfortably. Demanding an
+         outside bleed from a full-screen overlay asks for margin that does not exist, so the
+         cut-off check skips only that case, and only when the window really is full-bleed. */
+      const fullBleed = getComputedStyle(w).position === 'fixed'
+        && r.left <= 0 && r.top <= 0 && r.right >= innerWidth && r.bottom >= innerHeight
       const sides: string[] = []
-      if (r.left - bleed < c.l - 1) sides.push(`left by ${Math.round(c.l - (r.left - bleed))}px (${c.by.l ?? 'viewport'})`)
-      if (r.right + bleed > c.r + 1) sides.push(`right by ${Math.round(r.right + bleed - c.r)}px (${c.by.r ?? 'viewport'})`)
-      if (r.top - bleed < c.t - 1) sides.push(`top by ${Math.round(c.t - (r.top - bleed))}px (${c.by.t ?? 'viewport'})`)
-      if (r.bottom + bleed > c.b + 1) sides.push(`bottom by ${Math.round(r.bottom + bleed - c.b)}px (${c.by.b ?? 'viewport'})`)
+      if (!fullBleed) {
+        if (r.left - bleed < c.l - 1) sides.push(`left by ${Math.round(c.l - (r.left - bleed))}px (${c.by.l ?? 'viewport'})`)
+        if (r.right + bleed > c.r + 1) sides.push(`right by ${Math.round(r.right + bleed - c.r)}px (${c.by.r ?? 'viewport'})`)
+        if (r.top - bleed < c.t - 1) sides.push(`top by ${Math.round(c.t - (r.top - bleed))}px (${c.by.t ?? 'viewport'})`)
+        if (r.bottom + bleed > c.b + 1) sides.push(`bottom by ${Math.round(r.bottom + bleed - c.b)}px (${c.by.b ?? 'viewport'})`)
+      }
       if (sides.length) out.push(`${name(w)} registration cross cut off -- ${sides.join('; ')}`)
       const s = getComputedStyle(w)
       const missing = ['Top', 'Right', 'Bottom', 'Left'].filter((d) =>
