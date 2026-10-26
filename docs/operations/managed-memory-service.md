@@ -7,8 +7,8 @@ with dummy Stripe keys and does not change the local operator profile.
 
 When Railway is unavailable, create a Render Blueprint from `render.yaml` on the
 `feat/public-product-page` branch. The Blueprint provisions the managed container
-and a 10 GB persistent disk at `/data/cortex-managed`; it uses the Starter plan
-because Render's free web service does not provide durable disks.
+on Render's Free plan. The Free plan has ephemeral storage, so this is suitable
+for a UI/API pilot only; managed SQLite data can reset when the service restarts.
 
 After Render assigns the service URL, set `CORTEX_MANAGED_PUBLIC_URL` to that
 exact `https://` origin and redeploy. Keep `CORTEX_MANAGED_ALLOW_SIGNUP=false`

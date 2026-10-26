@@ -5,13 +5,9 @@ services:
     dockerfilePath: ./deploy/render/Dockerfile
     dockerContext: .
     region: ohio
-    plan: starter
+    plan: free
     healthCheckPath: /healthz
     autoDeploy: true
-    disk:
-      name: cortex-managed-data
-      mountPath: /data/cortex-managed
-      sizeGB: 10
     envVars:
       - key: CORTEX_MANAGED_PUBLIC_URL
         sync: false
