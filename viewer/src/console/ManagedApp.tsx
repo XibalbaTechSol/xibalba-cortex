@@ -61,7 +61,10 @@ export function ManagedApp() {
     setError(''); setNotice(''); setBusy(true)
     try { await work() } catch (e) {
       if (e instanceof ManagedError && e.status === 401) { setAccount(null); setNewKey(''); setKeys([]); setMemories([]); setAuthMode('login') }
-      setError(e instanceof Error ? e.message : 'Request failed')
+      const message = e instanceof Error ? e.message : 'Request failed'
+      setError(message === 'account requires email verification or administrator approval'
+        ? 'Your email is not verified yet. Open the newest “Verify your Cortex account” email, click its link, then sign in again.'
+        : message)
     }
     finally { setBusy(false) }
   }
