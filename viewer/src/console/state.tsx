@@ -28,7 +28,7 @@ import {
   type TimeWindow,
 } from './model'
 import { useWorkspace, type Workspace } from './workspace'
-import { ALL_DESTINATIONS, parseRoute, routeHash, type DestinationId, type Lens, type OverlayId, type PageId } from './nav'
+import { ALL_DESTINATIONS, DESTINATIONS, parseRoute, routeHash, type Destination, type DestinationId, type Lens, type OverlayId, type PageId } from './nav'
 
 export type { Lens } from './nav'
 export type Overlay = OverlayId | null
@@ -36,6 +36,10 @@ export type Preset = RangePreset | 'custom'
 
 export interface ConsoleValue {
   workspace: Workspace
+  /** The destinations this session serves, as the server declared them. Self-hosted declares
+   *  nothing, so this is `DESTINATIONS`; a hosted session narrows (and widens) it. A surface that
+   *  only one edition offers reads this list rather than any edition flag. */
+  destinations: readonly Destination[]
   // data
   model: GraphModel | null
   memoryInfo: ReadonlyMap<string, MemoryTimeInfo>
@@ -97,7 +101,7 @@ export function useConsole(): ConsoleValue {
 }
 
 
-export function ConsoleProvider({ children, onSignOut }: { children: ReactNode; onSignOut: () => void }) {
+export function ConsoleProvider({ children, onSignOut, destinations = DESTINATIONS }: { children: ReactNode; onSignOut: () => void; destinations?: readonly Destination[] }) {
   const workspace = useWorkspace()
   const { scope, loaded } = workspace
 
@@ -237,13 +241,13 @@ export function ConsoleProvider({ children, onSignOut }: { children: ReactNode; 
 
   const value = useMemo<ConsoleValue>(
     () => ({
-      workspace, model, memoryInfo, sessionEnds, sessions, stats, status, loading, error, unauthorized, invocations, timingNote, reload,
+      workspace, destinations, model, memoryInfo, sessionEnds, sessions, stats, status, loading, error, unauthorized, invocations, timingNote, reload,
       lens, setLens, page, setPage, openPage, pageArg, go, selectedId, select, reveal, focus, facets, setFacets,
       window: window_, preset, setWindow, applyPreset, similarity, setSimilarity, overlay, setOverlay,
       revision: nonce, notice, setNotice,
       signOut: onSignOut,
     }),
-    [workspace, model, memoryInfo, sessionEnds, sessions, stats, status, loading, error, unauthorized, invocations, timingNote, reload,
+    [workspace, destinations, model, memoryInfo, sessionEnds, sessions, stats, status, loading, error, unauthorized, invocations, timingNote, reload,
       lens, setLens, page, setPage, openPage, pageArg, go, selectedId, select, reveal, focus, facets, window_, preset, setWindow, applyPreset,
       similarity, overlay, onSignOut, nonce, notice],
   )

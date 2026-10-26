@@ -14,6 +14,7 @@ import { NEW_MEMORY_CLASSES, NEW_MEMORY_STATUSES, buildNewMemory, type NewMemory
 import { IconSearch, IconWarn } from '../icons'
 import { ConfirmPanel } from '../ConfirmPanel'
 import { describeImport, formatBytes, importProblem } from '../workspaceActions'
+import { EXPORT_DOWNLOAD_PATH, EXPORT_FILENAME, EXPORT_STARTED, hostedRequest, offersHostedWorkspace } from '../hostedWorkspace'
 import { Page } from './Page'
 
 const PAGE_SIZE = 40
@@ -27,7 +28,7 @@ const stamp = (value: string | null | undefined): string => {
 }
 
 export function MemoriesPage() {
-  const { workspace, selectedId, select, reload, revision, setNotice } = useConsole()
+  const { workspace, destinations, selectedId, select, reload, revision, setNotice } = useConsole()
   const scope = workspace.scope
   const [statuses, setStatuses] = useState<string[]>([...DEFAULT_STATUSES])
   const [draft, setDraft] = useState('')
@@ -61,6 +62,30 @@ export function MemoriesPage() {
     }
   }
 
+  // Bulk export: hosted only (a self-hosted server declares no `billing` destination). The `me` call
+  // is the session check -- without it an expired cookie would be downloaded as cortex-memories.json.
+  const hosted = offersHostedWorkspace(destinations)
+  const [exporting, setExporting] = useState(false)
+  const [exportError, setExportError] = useState('')
+  const runExport = async () => {
+    setExporting(true)
+    setExportError('')
+    try {
+      await hostedRequest('me')
+      const link = document.createElement('a')
+      link.href = EXPORT_DOWNLOAD_PATH
+      link.download = EXPORT_FILENAME
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      setNotice(EXPORT_STARTED)
+    } catch (e) {
+      setExportError(e instanceof Error ? e.message : 'Request failed')
+    } finally {
+      setExporting(false)
+    }
+  }
+
   const list = useAsync(
     () => api.memories({ limit: PAGE_SIZE, offset, statuses, agentId: scope.agentId, storeId: scope.storeId, query }),
     [scope, statuses, query, offset, revision],
@@ -86,14 +111,19 @@ export function MemoriesPage() {
       eyebrow="Explore"
       title="Memories"
       note="Every memory in this workspace, newest first. Search uses the store’s full-text index; use Recall for semantic and graph retrieval."
-      actions={workspace.canWrite
-        ? <>
-            <button type="button" className="xc-btn" onClick={() => { setImporting((v) => !v); setImportNote(null) }} aria-expanded={importing}>Import a document</button>
-            <button type="button" className="xc-btn xc-btn--primary" onClick={() => setAdding((v) => !v)} aria-expanded={adding}>New memory</button>
-          </>
-        // say why the button is missing rather than leaving the person to wonder where it went
-        : <p className="xc-note" role="note">Read only. Choose an agent workspace in Scope to add memories.</p>}
+      actions={<>
+        {/* Export is outside the writable check on purpose: a read-only subscription keeps it. */}
+        {hosted && <button type="button" className="xc-btn" disabled={exporting} onClick={() => void runExport()}>Export memories</button>}
+        {workspace.canWrite
+          ? <>
+              <button type="button" className="xc-btn" onClick={() => { setImporting((v) => !v); setImportNote(null) }} aria-expanded={importing}>Import a document</button>
+              <button type="button" className="xc-btn xc-btn--primary" onClick={() => setAdding((v) => !v)} aria-expanded={adding}>New memory</button>
+            </>
+          // say why the button is missing rather than leaving the person to wonder where it went
+          : <p className="xc-note" role="note">Read only. Choose an agent workspace in Scope to add memories.</p>}
+      </>}
     >
+      {exportError && <div className="xc-callout xc-callout--conflict" role="alert"><IconWarn />{exportError}</div>}
       {adding && workspace.canWrite && (
         <NewMemory
           agentId={workspace.selected?.agentId}

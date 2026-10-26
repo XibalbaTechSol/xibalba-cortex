@@ -10,6 +10,7 @@ import { PAIR_ACTION_COPY, countText, describeIdentity, pairActions, type PairAc
 import { elideHash, parseServerTime, shortStamp } from '../model'
 import { IconWarn } from '../icons'
 import { Page } from './Page'
+import { hostedRequest, keyRows, offersHostedWorkspace, parseAgentDids, type ApiKey, type HostedSession, type KeyRow } from '../hostedWorkspace'
 import { registerAgentWithMetaMask } from '../../agent0_wallet'
 
 const stamp = (value: string | null | undefined): string => {
@@ -42,7 +43,7 @@ function mergeAgents(workspaces: readonly AgentWorkspace[], pairs: readonly Agen
 }
 
 export function AgentsPage() {
-  const { workspace, go, revision, reload, setNotice } = useConsole()
+  const { workspace, destinations, go, revision, reload, setNotice } = useConsole()
   const agents = useAsync(() => api.agents(200), [revision], { keepData: true })
   const devices = useAsync(() => api.agentDevices(), [revision], { keepData: true })
   const [associating, setAssociating] = useState(false)
@@ -98,8 +99,88 @@ export function AgentsPage() {
           />
         ))}
       </div>
+      {offersHostedWorkspace(destinations) && <HostedApiKeys />}
       <ERC8004Directory />
     </Page>
+  )
+}
+
+/** Issuing and revoking the workspace's agent API keys. Hosted only: a self-hosted server declares
+ *  no `billing` destination, so `offersHostedWorkspace` is false and this never renders there.
+ *
+ *  A freshly issued token is a credential. It lives in this component's state and nowhere else:
+ *  it is never logged, never put in the hash or a notice, and never written to storage. Hiding it,
+ *  revoking any key, or leaving the page (which unmounts this component) drops it. */
+function HostedApiKeys() {
+  const [dids, setDids] = useState('')
+  const [rows, setRows] = useState<KeyRow[] | null>(null)
+  const [token, setToken] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+
+  const run = async (work: (csrf: string) => Promise<void>) => {
+    setBusy(true)
+    setError('')
+    try {
+      // `me` is also the session check: an expired cookie fails here instead of mid-write
+      const session = await hostedRequest<HostedSession>('me')
+      await work(session.csrf_token)
+    } catch (e) {
+      setToken('')
+      setError(e instanceof Error ? e.message : 'Request failed')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const issue = () => {
+    const parsed = parseAgentDids(dids)
+    if (!parsed.ok) { setError(parsed.error); return }
+    void run(async (csrf) => {
+      const issued = await hostedRequest<{ token: string }>('keys', { method: 'POST', body: JSON.stringify({ label: 'agent', agent_ids: parsed.agentIds }) }, csrf)
+      setToken(issued.token)
+    })
+  }
+
+  const list = () => void run(async () => {
+    setRows(keyRows((await hostedRequest<{ keys: ApiKey[] }>('keys')).keys))
+  })
+
+  const revoke = (id: string) => void run(async (csrf) => {
+    await hostedRequest('keys/revoke', { method: 'POST', body: JSON.stringify({ id }) }, csrf)
+    setRows((prev) => (prev ?? []).filter((row) => row.id !== id))
+    setToken('')
+  })
+
+  return (
+    <section className="xc-win" aria-labelledby="hosted-keys-title">
+      <p className="xc-eyebrow">Agent credentials</p>
+      <h2 className="xc-title" id="hosted-keys-title">Connect an agent with an API key</h2>
+      <p className="xc-copy">Bind a key to the agent’s stable <code>did:integrity:…</code> identity. The same DID can use MCP or the SDK; keys expire after 30 days and are shown once.</p>
+      <label className="xc-field">Agent DIDs
+        <textarea className="xc-input xc-input--mono" value={dids} onChange={(e) => setDids(e.target.value)} placeholder="did:integrity:…" rows={3} required />
+        <span className="xc-note">One DID per line, or separated with commas. One key can serve several agents on the same device.</span>
+      </label>
+      {error && <div className="xc-callout xc-callout--conflict" role="alert"><IconWarn />{error}</div>}
+      <div className="xc-actions-row">
+        <button type="button" className="xc-btn xc-btn--primary" disabled={busy || !dids.trim()} onClick={issue}>Create API key</button>
+        <button type="button" className="xc-btn" disabled={busy} onClick={list}>Show API keys</button>
+      </div>
+      {token && (
+        <div className="xc-actions-row" aria-label="New API key">
+          <code className="xc-mono">{token}</code>
+          <button type="button" className="xc-btn" onClick={() => setToken('')}>Hide key</button>
+          <p className="xc-note">Copy this key now. It is shown once and is gone when you hide it or leave this page.</p>
+        </div>
+      )}
+      {rows?.length === 0 && <p className="xc-note">This workspace has no API keys.</p>}
+      {rows?.map((row) => (
+        <div className="xc-actions-row" key={row.id}>
+          <span className="xc-note">{row.label} · {row.agents} · expires {row.expires}</span>
+          <button type="button" className="xc-btn" disabled={busy} onClick={() => revoke(row.id)}>Revoke key</button>
+        </div>
+      ))}
+    </section>
   )
 }
 
