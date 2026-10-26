@@ -280,9 +280,23 @@ async function grammarSweep(page: Page, expectWindows = true): Promise<string[]>
       }
       return self
     }
+    /* Deliberately unreachable content: a box laid out entirely to the side of the viewport
+       AND hidden from assistive technology is shown to nobody, sighted or not. The landing
+       page's spam honeypot (`.xc-product-honey`, a 1x1px label at `left: -10000px`) is the
+       case this exists for -- it has to stay in the DOM for a bot to fill in, and its label
+       text necessarily overflows a 1px box. Both halves are required because a layout bug can
+       push a box off to the side but cannot add `aria-hidden`; content merely below the fold
+       stays in the sweep, because scrolling reaches it.
+       Verified by mutation: dropping either `aria-hidden` or the off-stage offset puts
+       `text clipped label.xc-product-honey` back in the findings. */
+    const offstage = (e: Element) => {
+      const r = e.getBoundingClientRect()
+      return (r.right <= 0 || r.left >= innerWidth) && !!e.closest('[aria-hidden="true"]')
+    }
     const vis = (e: Element) => {
       const s = getComputedStyle(e), r = e.getBoundingClientRect()
       if (!(s.display !== 'none' && s.visibility !== 'hidden' && +s.opacity > 0.01 && r.width > 0 && r.height > 0)) return false
+      if (offstage(e)) return false
       if (typeof e.checkVisibility === 'function'
         && !e.checkVisibility({ contentVisibilityAuto: true, opacityProperty: true, visibilityProperty: true })) return false
       for (let p = e.parentElement; p; p = p.parentElement) {
