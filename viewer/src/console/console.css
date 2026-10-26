@@ -1670,8 +1670,15 @@ select.xc-input {
   display: flex;
   flex-direction: column;
 }
-/* components keep their own window chrome on desktop; inside a sheet the sheet is the window */
+/* components keep their own window chrome on desktop; inside a sheet the sheet is the window.
+   `.xc-pane` has to be here too, not just `.xc-win`: the facet rail carries `max-height: 280px`
+   from the <=1180px rule, which works on a tablet because `.xc-scroll` scrolls inside it -- and
+   `.xc-sheet-body .xc-scroll` below turns that scroll off so the sheet scrolls as one piece.
+   Without `max-height: none` the facet list spilled out of a 280px box and the StatusBar that
+   follows it in the sheet (Phone.tsx:137), being static and later in the DOM, painted over the
+   spilled switches and swallowed every click on them. */
 .xc-sheet-body > .xc-win,
+.xc-sheet-body > .xc-pane,
 .xc-sheet-body > .xc-status {
   border: 0;
   box-shadow: none;
@@ -1698,6 +1705,16 @@ select.xc-input {
   /* the desktop rule gave the lens a fixed 560px; on a phone it takes the screen */
   .xc-canvas-win {
     height: auto;
+  }
+  /* Recall's search icon, query, three retrieval modes and Close cannot share one 390px row.
+     The input has `min-width: 0` so it was the only thing that could give, and it gave
+     everything: 6px of field beside three full-width mode buttons. Giving `.xc-ranges` a
+     whole-line basis drops the modes beneath the field and leaves the row to the field. */
+  .xc-palette-query {
+    flex-wrap: wrap;
+  }
+  .xc-palette-query .xc-ranges {
+    flex: 1 0 100%;
   }
 }
 
