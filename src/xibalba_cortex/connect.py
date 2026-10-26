@@ -17,7 +17,9 @@ def connect(*, profile: str | Path, agent: str, harness: str, mcp_url: str, api_
     profile_root.mkdir(parents=True, exist_ok=True, mode=0o700); os.chmod(profile_root, 0o700)
     did, keypair, _ = load_or_create_did(agent, did_home_root=key_store_for_profile(profile_root))
     did_file = write_did_file(profile_root, did=did, public_key=keypair.public_bytes(), agent_id=agent, harness=harness, profile=profile_root.name)
-    env = {"XIBALBA_CORTEX_HOME": str(profile_root), "XIBALBA_AGENT_ID": did, "INTEGRITY_PROFILE_ROOT": str(profile_root)}
+    # Identity is the validated DID-file/key pair. Do not emit XIBALBA_AGENT_ID:
+    # that variable is an explicit override and could bypass pair validation.
+    env = {"XIBALBA_CORTEX_HOME": str(profile_root), "INTEGRITY_PROFILE_ROOT": str(profile_root)}
     return {"schema_version":"xibalba.cortex_connect.v1","did":did,"agent":agent,"harness":harness,"profile":str(profile_root),"did_file":str(did_file),"mcp_url":mcp_url.rstrip("/"),"api_url":api_url.rstrip("/"),"environment":env,
       "mcp_stdio":{"mcpServers":{"cortex":{"command":"xibalba-cortex","args":["--transport","stdio"],"env":env}}},
         "mcp_remote":{"url":mcp_url.rstrip("/"),"headers":{"Authorization":"Bearer " + chr(36) + "{CORTEX_API_KEY}"}},

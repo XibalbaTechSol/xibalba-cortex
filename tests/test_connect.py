@@ -9,7 +9,7 @@ def test_connect_provisions_and_reuses_did(tmp_path: Path):
     assert did_file.is_file()
     assert not list((tmp_path / "profile").rglob("private_key.pem"))
     assert first["mcp_remote"]["headers"]["Authorization"] == "Bearer " + chr(36) + "{CORTEX_API_KEY}"
-    assert first["mcp_stdio"]["mcpServers"]["cortex"]["env"]["XIBALBA_AGENT_ID"] == first["did"]
+    assert "XIBALBA_AGENT_ID" not in first["mcp_stdio"]["mcpServers"]["cortex"]["env"]
 
 def test_connect_rejects_bad_agent(tmp_path: Path):
     try:
