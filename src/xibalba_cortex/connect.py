@@ -1,6 +1,6 @@
 """Provision a Cortex DID and print MCP and SDK connection snippets."""
 from __future__ import annotations
-import argparse, json, os, re
+import argparse, json, os, re, sys
 from pathlib import Path
 from textwrap import dedent
 from typing import Any
@@ -43,7 +43,10 @@ def main(argv: list[str] | None = None) -> int:
     parser=argparse.ArgumentParser(prog="cortex",description=__doc__); sub=parser.add_subparsers(dest="command")
     command=sub.add_parser("connect",help="create or reuse a DID and print connection snippets")
     command.add_argument("--profile",type=Path,default=_default_profile()); command.add_argument("--agent",default="default"); command.add_argument("--harness",default="custom"); command.add_argument("--mcp-url",default="http://127.0.0.1:8421/mcp"); command.add_argument("--api-url",default="http://127.0.0.1:8421"); command.add_argument("--json",action="store_true")
-    args=parser.parse_args(argv)
+    raw = list(sys.argv[1:] if argv is None else argv)
+    if raw and raw[0] != "connect":
+        raw.insert(0, "connect")
+    args=parser.parse_args(raw)
     if args.command is None: parser.print_help(); return 2
     try: result=connect(profile=args.profile,agent=args.agent,harness=args.harness,mcp_url=args.mcp_url,api_url=args.api_url)
     except (OSError,ValueError,RuntimeError) as exc: parser.exit(2,f"cortex connect: {exc}\\n")
