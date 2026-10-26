@@ -46,7 +46,9 @@ for (const width of [320, 390, 1280, 1600]) {
       await expect(card).toBeAttached()
       await expect(card).toContainText(price)
     }
-    await page.locator('#plans').scrollIntoViewIfNeeded()
+    /* `#plans` until dbc58b6 renamed the anchor to `#pricing` so the landing nav could link
+       to it; the test was not updated and has been red since. */
+    await page.locator('#pricing').scrollIntoViewIfNeeded()
     await expect(page.getByRole('button', { name: 'Choose Pro', exact: true })).toBeDisabled()
     await expect(page.getByText('Paid subscriptions are not available yet.', { exact: true })).toBeVisible()
     const overflow = await page.locator('.xc-landing').evaluate((el) => el.scrollWidth - el.clientWidth)

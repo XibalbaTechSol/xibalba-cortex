@@ -53,7 +53,12 @@ test.describe('Operations → Connectors and ingest', () => {
     await openConsole(page, { hash: 'graph', primary: true })
     const canvas = await settled3d(page)
     const all = Number(await canvas.getAttribute('data-node-count'))
-    await page.getByRole('group', { name: /Tools/ }).getByRole('button', { name: 'Operations' }).click()
+    /* Operations lost its permanent nav link in 70935fb ("cut the navigation to five links") and
+       now lives behind the account control, so there is no `Tools` group to click. The graph has
+       to stay mounted for the node counts to be comparable, so this navigates in-page: the hash
+       is the route (nav.ts keeps `#operations` resolving) and state.tsx re-parses it on
+       `hashchange` without a reload. */
+    await page.evaluate(() => { location.hash = 'operations' })
     await page.getByRole('region', { name: 'Connectors and ingest' }).getByRole('listitem').filter({ hasText: 'integrity wiki' }).getByRole('button', { name: 'Show these on the Graph' }).click()
     await expect(page.getByRole('dialog')).toBeHidden()
     await expect.poll(async () => Number(await page.locator('canvas[data-node-count]').getAttribute('data-node-count')), { timeout: 20_000 }).toBeLessThan(all)
