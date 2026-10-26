@@ -1,0 +1,43 @@
+services:
+  - type: web
+    name: cortex-managed-pilot
+    runtime: docker
+    dockerfilePath: ./deploy/render/Dockerfile
+    dockerContext: .
+    region: ohio
+    plan: starter
+    healthCheckPath: /healthz
+    autoDeploy: true
+    disk:
+      name: cortex-managed-data
+      mountPath: /data/cortex-managed
+      sizeGB: 10
+    envVars:
+      - key: CORTEX_MANAGED_PUBLIC_URL
+        sync: false
+      - key: CORTEX_MANAGED_HOME
+        value: /data/cortex-managed
+      - key: CORTEX_MANAGED_ALLOW_SIGNUP
+        value: "false"
+      - key: CORTEX_STRIPE_LIVE
+        value: "false"
+      - key: STRIPE_SECRET_KEY
+        sync: false
+      - key: STRIPE_WEBHOOK_SECRET
+        sync: false
+      - key: STRIPE_PRO_MONTHLY_PRICE_ID
+        sync: false
+      - key: STRIPE_TEAM_MONTHLY_PRICE_ID
+        sync: false
+      - key: CORTEX_SMTP_HOST
+        sync: false
+      - key: CORTEX_SMTP_PORT
+        value: "587"
+      - key: CORTEX_SMTP_FROM
+        sync: false
+      - key: CORTEX_SMTP_USERNAME
+        sync: false
+      - key: CORTEX_SMTP_PASSWORD
+        sync: false
+      - key: CORTEX_CONTACT_TO
+        sync: false
