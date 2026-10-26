@@ -1,6 +1,13 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { destinationsFrom } from './nav'
 import { AGENT_DID_REQUIRED, keyRows, offersHostedWorkspace, parseAgentDids } from './hostedWorkspace'
+
+/* The expiry pin (`'en-US'` + `timeZone: 'UTC'`) is only observable away from UTC, and nothing in
+   this repo sets the runner's zone -- so the test sets it itself rather than inheriting whatever CI
+   happens to run in. America/Los_Angeles is negative-offset, where a UTC 00:30 expiry reads as the
+   previous day; the 23:30 fixture below covers the eastern observer (Asia/Tokyo reads it as the
+   next day). Node re-reads this assignment on the next Date use. */
+vi.stubEnv('TZ', 'America/Los_Angeles')
 
 /** What `GET /api/managed/me` declares (src/xibalba_cortex/managed/api.py, MANAGED_DESTINATIONS). */
 const MANAGED = ['graph', 'timeline', 'memories', 'recall', 'settings', 'agents', 'billing']
@@ -53,8 +60,13 @@ describe('keyRows', () => {
     expect(keyRows([key({ agent_ids: [] })])[0].agents).toBe('unbound')
     expect(keyRows([key()])[0].agents).toBe('unbound')
   })
+  /* Two instants on the same UTC day, one either side of midnight UTC: no single instant can
+     discriminate in both directions, because one instant has one local date per zone. 00:30Z reads
+     as 11/24 for every zone west of UTC, 23:30Z as 11/26 for every zone east of it, so dropping
+     the pin is red wherever this runs -- and, with TZ forced above, red even on a UTC runner. */
   it('dates the expiry in UTC, so the row does not read differently per machine', () => {
-    expect(keyRows([key()])[0].expires).toBe('11/25/2026')
+    expect(keyRows([key({ expires_at: '2026-11-25T00:30:00Z' })])[0].expires).toBe('11/25/2026')
+    expect(keyRows([key({ expires_at: '2026-11-25T23:30:00Z' })])[0].expires).toBe('11/25/2026')
   })
   it('keeps the id, so a row can be revoked', () => {
     expect(keyRows([key({ id: 'k9' })])[0].id).toBe('k9')
