@@ -20,8 +20,8 @@ def connect(*, profile: str | Path, agent: str, harness: str, mcp_url: str, api_
     env = {"XIBALBA_CORTEX_HOME": str(profile_root), "XIBALBA_AGENT_ID": did, "INTEGRITY_PROFILE_ROOT": str(profile_root)}
     return {"schema_version":"xibalba.cortex_connect.v1","did":did,"agent":agent,"harness":harness,"profile":str(profile_root),"did_file":str(did_file),"mcp_url":mcp_url.rstrip("/"),"api_url":api_url.rstrip("/"),"environment":env,
       "mcp_stdio":{"mcpServers":{"cortex":{"command":"xibalba-cortex","args":["--transport","stdio"],"env":env}}},
-      "mcp_remote":{"url":mcp_url.rstrip("/"),"headers":{"Authorization":"Bearer \${CORTEX_API_KEY}"}},
-      "sdk_snippet":dedent(f'''\\
+        "mcp_remote":{"url":mcp_url.rstrip("/"),"headers":{"Authorization":"Bearer " + chr(36) + "{CORTEX_API_KEY}"}},
+      "sdk_snippet":dedent(f'''
 import os
 from integrity_sdk import integrity
 agent = integrity.init(agent_id={agent!r}, harness={harness!r}, identity="persistent")
