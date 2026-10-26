@@ -113,7 +113,7 @@ function ERC8004Directory() {
   const [registering, setRegistering] = useState(false)
   const [registrationError, setRegistrationError] = useState<string | null>(null)
   const [registrationTx, setRegistrationTx] = useState<string | null>(null)
-  const results = useAsync(() => api.agent0Search(submitted), [submitted], { keepData: true })
+  const results = useAsync(() => submitted ? api.agent0Search(submitted) : Promise.resolve(null), [submitted], { keepData: true })
   const details = useAsync(() => selected ? api.agent0Agent(selected, true) : Promise.resolve(null), [selected], { keepData: true })
   const reputation = useAsync(() => selected ? api.agent0Reputation(selected) : Promise.resolve(null), [selected], { keepData: true })
   const submit = (event: FormEvent) => {
