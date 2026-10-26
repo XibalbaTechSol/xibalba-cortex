@@ -26,4 +26,4 @@ USER cortex
 EXPOSE 10000
 VOLUME ["/data/cortex-managed"]
 HEALTHCHECK --interval=30s --timeout=5s CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:10000/healthz', timeout=3)"
-CMD ["sh", "-c", "exec python -m xibalba_cortex.managed.api --host 0.0.0.0 --port $${PORT:-10000} --viewer-dist /app/viewer"]
+CMD ["python", "-m", "xibalba_cortex.managed.api", "--host", "0.0.0.0", "--port", "10000", "--viewer-dist", "/app/viewer"]
