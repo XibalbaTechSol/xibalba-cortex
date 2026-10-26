@@ -48,11 +48,13 @@ class ManagedConfig:
         parts = urlsplit(self.public_url)
         public_origin = parts.scheme == "https" and parts.hostname not in {"localhost", "127.0.0.1", "::1"}
         smtp_ready = bool(os.environ.get("CORTEX_SMTP_HOST", "").strip() and os.environ.get("CORTEX_SMTP_FROM", "").strip())
+        resend_ready = bool(os.environ.get("RESEND_API_KEY", "").strip() and os.environ.get("CORTEX_EMAIL_FROM", os.environ.get("CORTEX_SMTP_FROM", "")).strip())
+        email_ready = smtp_ready or resend_ready
         storage_ready = self.home.is_dir() and os.access(self.home, os.W_OK)
         checks = {
             "public_origin": {"ready": public_origin, "detail": "HTTPS public origin is configured" if public_origin else "Set CORTEX_MANAGED_PUBLIC_URL to the selected HTTPS domain"},
             "stripe_sandbox": {"ready": self.billing_ready and not self.stripe_live, "detail": "Stripe test mode and approved monthly prices are configured" if self.billing_ready and not self.stripe_live else "Configure real sk_test_, whsec_, Pro and Team Price IDs"},
-            "smtp_delivery": {"ready": smtp_ready, "detail": "SMTP host and sender are configured" if smtp_ready else "Set CORTEX_SMTP_HOST and CORTEX_SMTP_FROM"},
+            "smtp_delivery": {"ready": email_ready, "detail": "Resend or SMTP delivery is configured" if email_ready else "Configure Resend (RESEND_API_KEY and CORTEX_EMAIL_FROM) or SMTP"},
             "registration": {"ready": self.allow_signup, "detail": "Verified signup is enabled" if self.allow_signup else "Set CORTEX_MANAGED_ALLOW_SIGNUP=true after delivery testing"},
             "persistent_storage": {"ready": storage_ready, "detail": "Managed data home is writable" if storage_ready else "Managed data home is not writable"},
         }

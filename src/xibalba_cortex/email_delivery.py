@@ -1,4 +1,4 @@
-"""Fail-closed SMTP delivery for account recovery messages."""
+"""Fail-closed transactional email delivery for account recovery messages."""
 
 from __future__ import annotations
 
@@ -7,12 +7,32 @@ import smtplib
 import ssl
 from email.message import EmailMessage
 
+import requests
+
 
 class EmailDeliveryError(RuntimeError):
     """Raised when email delivery is not configured or does not complete."""
 
 
 def send_email(to_email: str, subject: str, body: str) -> None:
+    provider = os.environ.get("CORTEX_EMAIL_PROVIDER", "").strip().lower()
+    resend_key = os.environ.get("RESEND_API_KEY", "").strip()
+    sender = os.environ.get("CORTEX_EMAIL_FROM", os.environ.get("CORTEX_SMTP_FROM", "")).strip()
+    if provider == "resend" or resend_key:
+        if not resend_key or not sender:
+            raise EmailDeliveryError("RESEND_API_KEY and CORTEX_EMAIL_FROM are required")
+        try:
+            response = requests.post(
+                "https://api.resend.com/emails",
+                headers={"Authorization": f"Bearer {resend_key}", "Content-Type": "application/json"},
+                json={"from": sender, "to": [to_email], "subject": subject, "text": body},
+                timeout=15,
+            )
+            response.raise_for_status()
+        except (requests.RequestException, ValueError) as exc:
+            raise EmailDeliveryError("Resend delivery failed") from exc
+        return
+
     host = os.environ.get("CORTEX_SMTP_HOST", "").strip()
     sender = os.environ.get("CORTEX_SMTP_FROM", "").strip()
     if not host or not sender:

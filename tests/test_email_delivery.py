@@ -27,3 +27,19 @@ def test_send_email_uses_starttls_and_optional_authentication(monkeypatch):
     client.starttls.assert_called_once()
     client.login.assert_called_once_with("smtp-user", "smtp-password")
     client.send_message.assert_called_once()
+
+
+def test_send_email_uses_resend(monkeypatch):
+    monkeypatch.setenv("CORTEX_EMAIL_PROVIDER", "resend")
+    monkeypatch.setenv("RESEND_API_KEY", "re_test_key")
+    monkeypatch.setenv("CORTEX_EMAIL_FROM", "security@example.com")
+    response = MagicMock()
+    with patch("xibalba_cortex.email_delivery.requests.post", return_value=response) as post:
+        send_email("operator@example.com", "Verify", "body")
+    post.assert_called_once_with(
+        "https://api.resend.com/emails",
+        headers={"Authorization": "Bearer re_test_key", "Content-Type": "application/json"},
+        json={"from": "security@example.com", "to": ["operator@example.com"], "subject": "Verify", "text": "body"},
+        timeout=15,
+    )
+    response.raise_for_status.assert_called_once_with()
