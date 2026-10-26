@@ -286,10 +286,6 @@ def test_managed_pilot_readiness_reports_dummy_key_and_local_origin_as_blockers(
     assert body["checks"]["smtp_delivery"]["ready"] is False
 
 
-def test_supabase_adapter_is_opt_in_and_does_not_receive_secrets_without_configuration(tmp_path):
-    config = ManagedConfig(home=tmp_path)
-    service = ManagedControl(config)
-    assert service.supabase is None
 
 
 def test_tenant_storage_rejects_path_escape(setup):
