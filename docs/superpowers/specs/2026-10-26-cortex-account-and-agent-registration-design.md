@@ -1,7 +1,9 @@
 # Cortex accounts and agent registration — design
 
 **Date:** 2026-10-26
-**Status:** design approved in conversation; not yet planned or implemented
+**Status:** design approved in conversation; decisions recorded below; not yet planned
+or implemented. Scope was widened on 2026-10-26 from "the registration flow" to
+"production readiness", so the work is decomposed into sequenced sub-projects.
 **Branch:** `docs/account-registration-design`, cut from `origin/local`
 
 ## Intended outcome
@@ -255,16 +257,91 @@ Live state as validated 2026-10-26T07:16Z: `/healthz` 200 in 0.22s; `/` 307 -> `
 `stripe_sandbox` unready. **Free-tier signup is validatable end to end; paid plans are not
 until Stripe test keys and Pro/Team price IDs are configured.**
 
+## Production scope and sequencing
+
+Scope widened to production readiness: Stripe, auth, account creation, the agent
+registration workflow, and the console UI. That is five workstreams, so they are
+sequenced rather than attempted at once. Each has its own definition of done and its own
+implementation plan.
+
+### P0 — One app, and it is the console
+
+Delete `ManagedApp.tsx`, `ManagedLenses.tsx`, `managed.css` and the `main.tsx` fork.
+`main.tsx` boots `ConsoleApp` unconditionally. Destinations come from a server-declared
+set through the filter `nav.ts` already has. `/managed` joins the swept destinations, and
+the route is proved able to fail first.
+
+The managed **backend** is untouched and stays: `/api/managed/*`, tenants, entitlement,
+the Render pilot. Only the second UI goes.
+
+*Done when:* one app root; the hosted edition renders the console `Shell` and lenses; the
+grammar sweep covers `/managed` and is green; no `xc-managed-*` layout class survives
+except the billing panel's.
+
+*Interaction with PR #73:* that PR edits `ManagedApp.tsx` (+49), a file P0 deletes, so
+that half is discarded as the duplicate it is. Its console-side work is what we keep:
+`agent0_wallet.ts`, `agent0_integration.py` and the `AgentsPage` ERC-8004 directory. They
+are currently the **only** copies — they exist on `origin/local` and not on `main` — so
+P0 must not begin until they are merged or explicitly carried onto its branch.
+
+### P1 — One auth contract
+
+Managed stops owning authentication and issues the same session the console does. One
+`SignIn`, one `/api/auth/*` contract, an edition adapter behind it; `login`, `signup`,
+`me`, `logout`, `recovery/{action}` map onto it, and `keys` onto `auth/tokens`. Email
+verification before first sign-in becomes a policy flag, not a second code path.
+
+*Decision (2026-10-26):* **pilot auth now, federated next.** Email and password with an
+HttpOnly cookie session, verified signup, and DID-bound API keys — most of which already
+exists. The recorded production bar (federated identity, tenant-bound membership,
+short-lived scoped sessions, rotation, revocation, audited issuance) is **not** met by
+this and is deferred to P4 deliberately, not forgotten.
+
+*Done when:* a single auth client serves both editions; existing managed cookies keep
+working across the change; no user is signed out by the migration.
+
+### P2 — Agent registration workflow
+
+The first-run gate, the three registration paths, and the signed single-use enrollment
+code that replaces operator-asserted device pairing. Specified in full above.
+
+*Done when:* a new account with no agents is shown how to connect one as its first
+screen, and a binding cannot be created without a signature from the agent's key.
+
+### P3 — Stripe
+
+`/readyz` currently reports `stripe_sandbox` unready: "Configure real sk_test_, whsec_,
+Pro and Team Price IDs". The code paths exist (`checkout`, `portal`,
+`stripe/webhook`, `stripe_gateway.py`, three-tier `plans.py`); what is missing is
+configuration and enforcement evidence.
+
+*Blocked on the operator:* the test secret key, webhook signing secret and Pro/Team price
+IDs must be supplied as Render environment variables. **No key is committed, printed or
+retained** — local env files have previously been found holding exposed credentials.
+
+*Done when:* `/readyz` reports `stripe_sandbox` ready; a sandbox checkout upgrades a
+tenant's entitlement; a webhook replay is idempotent; and plan limits
+(`max_memories`, `writes_per_month`, `retrievals_per_month`) are proved enforced by a
+test that fails when the limit check is removed.
+
+### P4 — Deferred production hardening
+
+Federated identity (OIDC/SSO), tenant-bound membership, short-lived scoped sessions,
+rotation, revocation, audited issuance. Out of scope for the pilot by the decision in P1,
+recorded here so the gap is visible rather than implied.
+
 ## Out of scope
 
-- Federated identity (SSO/OIDC), tenant-bound membership and short-lived scoped sessions —
-  required for production, but a separate project from this flow.
-- Stripe configuration and paid-plan validation.
+- The P4 hardening set — deferred by decision, tracked above, not abandoned.
 - Any change to the Shield identity model.
+- Migrating the managed backend's storage or tenancy model.
 
 ## Dependencies
 
-1. **PR #72 must land first.** It takes `viewer` CI from 5 failures to 0. The `viewer` job
-   has never been green since it was added at 00:15Z on 2026-10-26, so no merge gate is
-   satisfiable until it does.
-2. **PR #73** (`local` -> `main`) carries the Agent0 unification this design builds on.
+1. **PR #72 — landed.** Merged at `6ad9428` on 2026-10-26T07:36Z with
+   `--match-head-commit`; `viewer` CI green for the first time; Render redeployed that
+   exact SHA and was validated at the artifact level.
+2. **PR #73** (`local` -> `main`, OPEN, MERGEABLE) holds the only copies of
+   `agent0_wallet.ts` and `agent0_integration.py`. **P0 is blocked on it**, per the
+   interaction note above.
+3. **Stripe credentials** from the operator block P3 and nothing else.
