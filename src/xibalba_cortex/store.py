@@ -6241,6 +6241,18 @@ class GraphStore:
             "disclaimer": "Commitment proves bundle inclusion under this construction, not truth, authorization, or external finality.",
         }
 
+    def export_structured_bundle(self, *, include_forgotten: bool = True) -> dict[str, object]:
+        """Export canonical rows needed to restore memories and their graph/provenance edges."""
+        from .structured_bundle import export_bundle
+        with self._lock:
+            return export_bundle(self._connection, include_forgotten=include_forgotten)
+
+    def import_structured_bundle(self, bundle: dict[str, object]) -> dict[str, int]:
+        """Atomically restore a structured bundle, preserving canonical IDs and statuses."""
+        from .structured_bundle import import_bundle
+        with self._lock:
+            return import_bundle(self._connection, bundle, max_memories=self.quotas["max_memories"])
+
     def audit_report(self, *, limit: int = 100) -> dict[str, object]:
         """Return a bounded operator audit view over canonical local evidence."""
         if not self.features["audit"]:

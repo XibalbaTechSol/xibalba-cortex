@@ -3,6 +3,20 @@
 This is the Free / Pro / Team service foundation. It does not enable paid service
 with dummy Stripe keys and does not change the local operator profile.
 
+## Render pilot fallback
+
+When Railway is unavailable, create a Render Blueprint from `render.yaml` on the
+`feat/public-product-page` branch. The Blueprint provisions the managed container
+on Render's Free plan. The Free plan has ephemeral storage, so this is suitable
+for a UI/API pilot only; managed SQLite data can reset when the service restarts.
+
+After Render assigns the service URL, set `CORTEX_MANAGED_PUBLIC_URL` to that
+exact `https://` origin and redeploy. Keep `CORTEX_MANAGED_ALLOW_SIGNUP=false`
+until SMTP is configured. Add Stripe test credentials and the Pro/Team test
+Price IDs in Render's environment settings before enabling billing; placeholder
+keys are intentionally rejected. Stripe webhooks should target
+`/api/managed/stripe/webhook`.
+
 ## Local development
 
 From a Cortex checkout with the sibling `integrity-core/integrity-sdk` available:
@@ -21,6 +35,12 @@ Open `http://localhost:8430/managed`. The catalog shows Free $0, Pro $29 and Tea
 $149 per month. Paid actions are unavailable until real sandbox configuration is
 complete. Registration defaults to disabled. This run uses a separate data home;
 never point it at `~/.hermes/xibalba-cortex` or an existing operator profile.
+
+The liveness endpoint is `GET /healthz`. Before a private pilot, query `GET /readyz`;
+it returns `200` only when the selected HTTPS origin, real Stripe test resources,
+SMTP delivery, verified signup and writable managed storage are configured. With the
+development values above it returns `503` and names each open gate. Liveness does not
+authorize customer traffic.
 
 To enable email-verified signup and password recovery, configure the existing
 STARTTLS SMTP delivery settings `CORTEX_SMTP_HOST`, `CORTEX_SMTP_PORT` (587 by default),

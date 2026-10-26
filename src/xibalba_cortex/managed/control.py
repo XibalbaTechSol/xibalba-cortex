@@ -23,6 +23,7 @@ class LimitExceeded(RuntimeError):
     pass
 
 
+
 class ManagedControl:
     def __init__(self, config: ManagedConfig, *, stripe=None, email_sender=None):
         self.config = config

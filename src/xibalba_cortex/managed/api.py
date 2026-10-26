@@ -165,6 +165,10 @@ def create_app(config: ManagedConfig, *, control: ManagedControl | None = None, 
             "billing_configured": config.billing_ready, "signup_enabled": config.allow_signup,
             "hosted_inference_enabled": False})
 
+    async def ready(request):
+        result = service.config.pilot_readiness()
+        return JSONResponse(result, status_code=200 if result["ready"] else 503)
+
     async def signup(request):
         rate_limit(request, auth=True)
         origin_guard(request)
@@ -273,9 +277,17 @@ def create_app(config: ManagedConfig, *, control: ManagedControl | None = None, 
         rate_limit(request)
         account, _, _ = await run_in_threadpool(owner, request, mutate=request.method == 'POST')
         with closing(identity_connection(service.identity_home)) as db:
-            existing = db.execute("SELECT id,label,created_at,expires_at,revoked_at FROM ingest_tokens WHERE profile_id=? AND label LIKE 'managed-api:%' AND revoked_at IS NULL ORDER BY created_at DESC LIMIT 100", (account['profile_id'],)).fetchall()
+            existing = db.execute("SELECT id,label,created_at,expires_at,revoked_at,agent_id,agent_ids_json FROM ingest_tokens WHERE profile_id=? AND label LIKE 'managed-api:%' AND revoked_at IS NULL ORDER BY created_at DESC LIMIT 100", (account['profile_id'],)).fetchall()
         if request.method == 'GET':
-            return JSONResponse({'keys': [dict(row) for row in existing]})
+            result = []
+            for row in existing:
+                item = dict(row)
+                try:
+                    item['agent_ids'] = sorted({str(value).strip() for value in json.loads(item.pop('agent_ids_json') or '[]') if str(value).strip()})
+                except (TypeError, json.JSONDecodeError):
+                    item['agent_ids'] = [item['agent_id']] if item.get('agent_id') else []
+                result.append(item)
+            return JSONResponse({'keys': result})
         with closing(identity_connection(service.identity_home)) as db:
             active_count = db.execute("SELECT COUNT(*) FROM ingest_tokens WHERE profile_id=? AND label LIKE 'managed-api:%' AND revoked_at IS NULL AND (expires_at IS NULL OR expires_at>?)", (account['profile_id'], datetime.now(timezone.utc).isoformat())).fetchone()[0]
         if active_count >= 100:
@@ -284,10 +296,21 @@ def create_app(config: ManagedConfig, *, control: ManagedControl | None = None, 
         label = str(data.get("label", "")).strip()
         if not label or len(label) > 80:
             raise ApiError(400, "API key label must contain 1–80 characters")
+        raw_agent_ids = data.get('agent_ids')
+        if raw_agent_ids is None:
+            raw_agent_ids = [data.get('agent_id', '')]
+        if not isinstance(raw_agent_ids, list):
+            raise ApiError(400, 'agent_ids must be an array of did:integrity identifiers')
+        agent_ids = sorted({str(value).strip() for value in raw_agent_ids if str(value).strip()})
+        if len(agent_ids) > 100:
+            raise ApiError(400, 'agent_ids may contain at most 100 identities')
+        if any(not value.startswith('did:integrity:') or len(value) > 160 for value in agent_ids):
+            raise ApiError(400, 'agent_ids must contain valid did:integrity identifiers')
         # Managed keys may read and write their own tenant; they cannot manage billing, mint
         # other keys, administer accounts, or select another profile.
         token = await run_in_threadpool(issue_token, service.identity_home, "managed-api:" + label,
-            profile_id=account["profile_id"], roles=("writer",), scopes=("memory:read", "memory:write"), ttl_hours=720)
+            profile_id=account["profile_id"], roles=("writer",), scopes=("memory:read", "memory:write"),
+            ttl_hours=720, agent_ids=tuple(agent_ids))
         return JSONResponse({"token": token, "expires_in_days": 30}, status_code=201)
 
     def memory_operation(request, data):
@@ -331,6 +354,55 @@ def create_app(config: ManagedConfig, *, control: ManagedControl | None = None, 
         data = await payload(request) if request.method == "POST" else None
         result = await run_in_threadpool(memory_operation, request, data)
         return JSONResponse(result, status_code=201 if request.method == "POST" else 200)
+
+    def import_operation(request, data):
+        account, principal, _ = authenticate(request, mutate=True)
+        require_scope(principal, "memory:write")
+        request_key = request.headers.get("idempotency-key", "")
+        if not 8 <= len(request_key) <= 128:
+            raise ApiError(400, "Supply an Idempotency-Key containing 8–128 characters")
+        fingerprint = hashlib.sha256(json.dumps(data, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+        tenant = service.tenant(account)
+        with service.write_guard(tenant):
+            service.consume(tenant, "writes", request_key=request_key, fingerprint=fingerprint)
+            with service.store(tenant) as store:
+                try:
+                    inserted = store.import_structured_bundle(data)
+                except ValueError as exc:
+                    raise ApiError(400, str(exc)) from exc
+                except RuntimeError as exc:
+                    if str(exc).startswith("memory quota exceeded:"):
+                        raise LimitExceeded("Stored-memory capacity reached; choose a larger plan") from None
+                    raise
+        return {"schema_version": "xibalba.managed_import.v1", "inserted": inserted}
+
+    async def structured_import(request):
+        rate_limit(request)
+        data = await payload(request)
+        return JSONResponse(await run_in_threadpool(import_operation, request, data), status_code=201)
+
+    def graph_operation(request, *, timeline=False):
+        account, principal, _ = authenticate(request)
+        require_scope(principal, "memory:read")
+        tenant = service.tenant(account)
+        service.consume(tenant, "retrievals")
+        try:
+            limit = max(1, min(int(request.query_params.get("limit", "500")), 1000))
+        except ValueError:
+            raise ApiError(400, "limit must be an integer") from None
+        with service.store(tenant) as store:
+            graph = store.graph_payload(limit=limit, similarity_threshold=0.75)
+            if timeline:
+                return {"sessions": store.list_sessions(limit=limit), "nodes": graph["nodes"]}
+            return graph
+
+    async def graph(request):
+        rate_limit(request)
+        return JSONResponse(await run_in_threadpool(graph_operation, request))
+
+    async def timeline(request):
+        rate_limit(request)
+        return JSONResponse(await run_in_threadpool(graph_operation, request, timeline=True))
 
     def export_operation(request):
         account, principal, _ = authenticate(request)
@@ -393,6 +465,7 @@ def create_app(config: ManagedConfig, *, control: ManagedControl | None = None, 
 
     routes = [
         Route("/healthz", lambda request: JSONResponse({"ok": True, "edition": "managed"})),
+        Route("/readyz", ready),
         Route("/api/managed/plans", plans),
         Route("/api/contact", contact, methods=["POST"]),
         Route("/api/managed/signup", signup, methods=["POST"]),
@@ -407,6 +480,9 @@ def create_app(config: ManagedConfig, *, control: ManagedControl | None = None, 
         Route("/api/managed/portal", portal, methods=["POST"]),
         Route("/api/managed/stripe/webhook", webhook, methods=["POST"]),
         Route("/api/managed/memories", memories, methods=["GET", "POST"]),
+        Route("/api/managed/import", structured_import, methods=["POST"]),
+        Route("/api/managed/graph", graph, methods=["GET"]),
+        Route("/api/managed/timeline", timeline, methods=["GET"]),
         Route("/api/managed/memories/{memory_id}", memories),
         Route("/api/managed/memories/{memory_id}/verify", memories),
         Route("/api/managed/export", export),

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
 import { Landing } from './Landing'
+import { ManagedGraphLens, ManagedTimelineLens } from './ManagedLenses'
 import './managed.css'
 
 type Plan = { id: string; name: string; monthly_cents: number; max_memories: number; writes_per_month: number; retrievals_per_month: number }
@@ -28,11 +29,13 @@ export function ManagedApp() {
   const [notice, setNotice] = useState(() => new URLSearchParams(location.search).has('verified') ? 'Email verified. Sign in to open your workspace.' : '')
   const [authMode, setAuthMode] = useState<'login' | 'signup' | 'forgot-password' | 'resend-verification' | 'reset' | null>(() => new URLSearchParams(location.search).has('reset_token') ? 'reset' : null)
   const resetToken = useRef(new URLSearchParams(location.search).get('reset_token') || '')
-  const [keys, setKeys] = useState<Array<{id: string; label: string; expires_at: string}>>([])
+  const [keys, setKeys] = useState<Array<{id: string; label: string; expires_at: string; agent_ids?: string[]}>>([])
+  const [agentDids, setAgentDids] = useState('')
   const [busy, setBusy] = useState(false)
   const [memories, setMemories] = useState<Memory[]>([])
   const [query, setQuery] = useState('')
   const [newKey, setNewKey] = useState('')
+  const [lens, setLens] = useState<'workspace' | 'graph' | 'timeline'>('workspace')
   const retryWrite = useRef<{ content: string; key: string } | null>(null)
 
   const refresh = useCallback(async () => {
@@ -61,7 +64,10 @@ export function ManagedApp() {
     setError(''); setNotice(''); setBusy(true)
     try { await work() } catch (e) {
       if (e instanceof ManagedError && e.status === 401) { setAccount(null); setNewKey(''); setKeys([]); setMemories([]); setAuthMode('login') }
-      setError(e instanceof Error ? e.message : 'Request failed')
+      const message = e instanceof Error ? e.message : 'Request failed'
+      setError(message === 'account requires email verification or administrator approval'
+        ? 'Your email is not verified yet. Open the newest “Verify your Cortex account” email, click its link, then sign in again.'
+        : message)
     }
     finally { setBusy(false) }
   }
@@ -154,10 +160,14 @@ export function ManagedApp() {
     </section>}
   </Landing></div>
 
+  if (lens === 'graph') return <div className="xc"><main className="xc-managed"><div className="xc-managed-inner"><ManagedGraphLens onBack={() => setLens('workspace')} /></div></main></div>
+  if (lens === 'timeline') return <div className="xc"><main className="xc-managed"><div className="xc-managed-inner"><ManagedTimelineLens onBack={() => setLens('workspace')} /></div></main></div>
+
   return <div className="xc"><main className="xc-managed"><div className="xc-managed-inner">
     <header className="xc-managed-head">
       <a className="xc-brand" href="/managed" aria-label="Xibalba Cortex"><img className="xc-managed-logo" src="/cortex-rail-mark.png" alt="" /><b>Xibalba Cortex</b></a>
       <span className="xc-tag">{account.entitlement.plan.name}</span>
+      <div className="xc-managed-nav" aria-label="Explore workspace"><button className="xc-btn" onClick={() => setLens('graph')}>Graph</button><button className="xc-btn" onClick={() => setLens('timeline')}>Timeline</button></div>
       <button className="xc-btn" disabled={busy} onClick={() => void act(async () => { await request('logout', { method: 'POST' }, account.csrf_token); setAccount(null); setMemories([]); setNewKey(''); setKeys([]); setQuery('') })}>Sign out</button>
     </header>
     <p className="xc-eyebrow">Managed workspace</p>
@@ -193,10 +203,12 @@ export function ManagedApp() {
     </section>
     <section className="xc-win xc-managed-panel" aria-label="Agent API keys">
       <h2 className="xc-title">Connect an agent</h2>
-      <p className="xc-copy">Create a workspace-scoped key for the managed memory API. Keys expire after 30 days and are shown once.</p>
-      <button className="xc-btn" disabled={busy} onClick={() => void act(async () => { const result = await request<{ token: string }>('keys', { method: 'POST', body: JSON.stringify({ label: 'agent' }) }, account.csrf_token); setNewKey(result.token) })}>Create API key</button>
+      <p className="xc-copy">Bind a key to the agent’s stable <code>did:integrity:…</code> identity. The same DID can use MCP or the SDK; keys expire after 30 days and are shown once.</p>
+      <label className="xc-field">Agent DIDs<textarea className="xc-input xc-input--mono" value={agentDids} onChange={(event) => setAgentDids(event.target.value)} placeholder="did:integrity:…" rows={3} required /></label>
+      <p className="xc-note">Enter one DID per line or separate them with commas. One key can serve multiple agents on the same device.</p>
+      <button className="xc-btn" disabled={busy || !agentDids.trim()} onClick={() => void act(async () => { const ids = [...new Set(agentDids.split(/[\n,]+/).map((value) => value.trim()).filter(Boolean))]; if (ids.length === 0) throw new Error('Enter at least one agent DID'); const result = await request<{ token: string }>('keys', { method: 'POST', body: JSON.stringify({ label: 'agent', agent_ids: ids }) }, account.csrf_token); setNewKey(result.token) })}>Create API key</button>
       <button className="xc-btn" disabled={busy} onClick={() => void act(async () => { setKeys((await request<{keys: typeof keys}>('keys')).keys) })}>Show API keys</button>
-      {keys.map((key) => <div className="xc-managed-actions" key={key.id}><span className="xc-note">{key.label.replace(/^managed-api:/, '')} · expires {new Date(key.expires_at).toLocaleDateString()}</span><button className="xc-btn" disabled={busy} onClick={() => void act(async () => { await request('keys/revoke', { method: 'POST', body: JSON.stringify({ id: key.id }) }, account.csrf_token); setKeys(keys.filter((item) => item.id !== key.id)); setNewKey('') })}>Revoke key</button></div>)}
+      {keys.map((key) => <div className="xc-managed-actions" key={key.id}><span className="xc-note">{key.label.replace(/^managed-api:/, '')} · {key.agent_ids?.length ? `${key.agent_ids.length} agent${key.agent_ids.length === 1 ? '' : 's'}` : 'unbound'} · expires {new Date(key.expires_at).toLocaleDateString()}</span><button className="xc-btn" disabled={busy} onClick={() => void act(async () => { await request('keys/revoke', { method: 'POST', body: JSON.stringify({ id: key.id }) }, account.csrf_token); setKeys(keys.filter((item) => item.id !== key.id)); setNewKey('') })}>Revoke key</button></div>)}
       {newKey && <div><p className="xc-note">Copy this key now; it will disappear when you leave this page.</p><code className="xc-managed-key">{newKey}</code><button className="xc-btn" onClick={() => setNewKey('')}>Hide key</button></div>}
     </section>
     <section aria-labelledby="workspace-plans-title"><h2 className="xc-landing-h2" id="workspace-plans-title">Workspace plans</h2>{cards}{!catalog?.billing_configured && <p className="xc-note xc-managed-note">Paid subscriptions are not available yet.</p>}</section>

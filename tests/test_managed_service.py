@@ -271,6 +271,23 @@ def test_body_limits_and_missing_api_routes_do_not_fall_through(setup):
     assert client.get("/api/managed/me").headers["cache-control"] == "no-store"
 
 
+def test_managed_pilot_readiness_reports_dummy_key_and_local_origin_as_blockers(tmp_path, monkeypatch):
+    monkeypatch.delenv("CORTEX_SMTP_HOST", raising=False)
+    monkeypatch.delenv("CORTEX_SMTP_FROM", raising=False)
+    config = ManagedConfig(home=tmp_path, public_url="http://localhost:8430", stripe_secret_key="sk_test_dummy", allow_signup=False)
+    client = TestClient(create_app(config), base_url=config.public_url)
+    response = client.get("/readyz")
+    assert response.status_code == 503
+    body = response.json()
+    assert body["schema_version"] == "xibalba.managed_pilot_readiness.v1"
+    assert body["ready"] is False
+    assert body["checks"]["public_origin"]["ready"] is False
+    assert body["checks"]["stripe_sandbox"]["ready"] is False
+    assert body["checks"]["smtp_delivery"]["ready"] is False
+
+
+
+
 def test_tenant_storage_rejects_path_escape(setup):
     _, service, _, _, _ = setup
     with pytest.raises(PermissionError):
@@ -288,6 +305,66 @@ def test_key_revocation_is_scoped_and_effective_immediately(setup):
     assert client.post('/api/managed/keys/revoke', json={'id': listed[0]['id']}, headers=headers).json()['revoked']
     client.cookies.clear()
     assert client.get('/api/managed/memories', headers={'Authorization': 'Bearer ' + key}).status_code == 401
+
+
+def test_managed_api_key_can_bind_multiple_agent_dids(setup):
+    _, _, _, _, client = setup
+    _, headers = register(setup)
+    response = client.post('/api/managed/keys', json={
+        'label': 'shared-device',
+        'agent_ids': ['did:integrity:agent-b', 'did:integrity:agent-a', 'did:integrity:agent-a'],
+    }, headers=headers)
+    assert response.status_code == 201
+    key = response.json()['token']
+    listed = client.get('/api/managed/keys').json()['keys']
+    assert listed[0]['agent_ids'] == ['did:integrity:agent-a', 'did:integrity:agent-b']
+    client.cookies.clear()
+    assert client.get('/api/managed/memories', headers={'Authorization': 'Bearer ' + key}).status_code == 200
+
+
+def test_managed_api_key_rejects_invalid_agent_id_list(setup):
+    _, _, _, _, client = setup
+    _, headers = register(setup)
+    response = client.post('/api/managed/keys', json={'label': 'bad', 'agent_ids': ['not-a-did']}, headers=headers)
+    assert response.status_code == 400
+
+
+def test_structured_import_preserves_status_graph_and_provenance(setup):
+    _, _, _, _, client = setup
+    _, headers = register(setup)
+    bundle = {
+        "schema_version": "xibalba.structured_memory_bundle.v1",
+        "tables": {
+            "sessions": [],
+            "sources": [{"id": "source-1", "kind": "direct_user", "locator": "local:1", "role": None,
+                "session_id": None, "message_id": None, "tool_name": None, "observed_at": None,
+                "agent_id": "did:integrity:agent-a", "identity_mode": "full", "prompt_id": None,
+                "content_hash": "sha256:content", "metadata_json": "{}", "created_at": "2026-01-01 00:00:00"}],
+            "memories": [{"id": "memory-1", "source_id": "source-1", "content": "Alice works at Cortex",
+                "content_hash": "sha256:content", "status": "confirmed", "valid_from": None, "valid_to": None,
+                "supersedes_id": None, "derivation_family": "observed_event", "idempotency_key": "local:1",
+                "created_at": "2026-01-01 00:00:00"}],
+            "memory_events": [{"memory_id": "memory-1", "event_type": "create", "detail_json": "{}",
+                "node_id": "event-node-1", "parent_event_id": None, "created_at": "2026-01-01 00:00:00"}],
+            "entities": [{"id": "entity-1", "canonical_name": "Alice", "normalized_name": "alice", "entity_type": "person", "normalization_version": "v1", "created_at": "2026-01-01 00:00:00", "agent_id": "did:integrity:agent-a"},
+                {"id": "entity-2", "canonical_name": "Cortex", "normalized_name": "cortex", "entity_type": "product", "normalization_version": "v1", "created_at": "2026-01-01 00:00:00", "agent_id": "did:integrity:agent-a"}],
+            "entity_aliases": [],
+            "memory_entities": [{"memory_id": "memory-1", "entity_id": "entity-1", "evidence_quote": "Alice"}],
+            "relations": [{"id": "relation-1", "subject_entity_id": "entity-1", "predicate": "works_at", "object_entity_id": "entity-2", "object_literal": None, "evidence_memory_id": "memory-1", "confidence": 1.0, "status": "active", "valid_from": None, "valid_to": None, "created_at": "2026-01-01 00:00:00", "agent_id": "did:integrity:agent-a"}],
+            "meta_nodes": [],
+        },
+    }
+    response = client.post('/api/managed/import', json=bundle, headers={**headers, 'Idempotency-Key': 'structured-import-1'})
+    assert response.status_code == 201, response.text
+    assert response.json()['inserted']['memories'] == 1
+    assert client.get('/api/managed/memories', params={'q': 'Alice works at Cortex'}).json()['memories'][0]['status'] == 'confirmed'
+    graph = client.get('/api/managed/graph')
+    assert graph.status_code == 200
+    assert {node['id'] for node in graph.json()['nodes']} >= {'memory:memory-1', 'entity:entity-1', 'entity:entity-2'}
+    assert any(edge['type'] == 'relation' for edge in graph.json()['edges'])
+    timeline = client.get('/api/managed/timeline')
+    assert timeline.status_code == 200
+    assert 'sessions' in timeline.json()
 
 
 def test_password_recovery_revokes_sessions_and_cannot_replay(setup):
