@@ -1386,3 +1386,55 @@ def test_dev_bypass_token_is_not_accepted(running_store):
         assert body["error"] == "invalid or revoked token"
     finally:
         _CURRENT_TOKEN = previous
+
+
+def _scoped_reads(port: int, query: str) -> dict[str, tuple[int, object]]:
+    return {
+        path: _get(port, f"{path}?{query}")
+        for path in ("/api/memories", "/api/graph", "/api/sessions", "/api/sessions/page")
+    }
+
+
+def test_a_paired_agent_with_no_memories_is_an_empty_workspace_not_a_missing_one(running_store):
+    # Regression: /api/agents lists every agent with a paired device, and the console selects the
+    # first listed workspace by default. A device paired before its agent wrote anything to this
+    # store was listed but every scoped read returned 404, so the console opened on "Unavailable".
+    store, port = running_store
+    store.store_memory("Someone else's memory.", source={"kind": "direct_user", "agent_id": "agent-a"}, status="confirmed")
+    store.associate_agent_device("claude", "workstation-1")
+
+    status, directory = _get(port, "/api/agents")
+    assert status == 200
+    paired = next(row for row in directory["agents"] if row["agent_id"] == "claude")
+    query = f"agent_id=claude&store_id={paired['store_id']}"
+
+    reads = _scoped_reads(port, query)
+    assert {path: code for path, (code, _) in reads.items()} == dict.fromkeys(reads, 200)
+    assert reads["/api/memories"][1]["memories"] == []
+    assert [n for n in reads["/api/graph"][1]["nodes"] if n["type"] == "memory"] == []
+    assert reads["/api/sessions"][1] == []
+    assert reads["/api/sessions/page"][1]["sessions"] == []
+
+
+def test_a_registered_agent_with_no_memories_can_open_its_listed_workspace(running_store):
+    global _CURRENT_TOKEN
+    store, port = running_store
+    store.identity_mode = "full"
+    did = "did:integrity:registered-but-empty"
+    _CURRENT_TOKEN = issue_token(store.home, "registered-empty-user", roles=("reader",), scopes=("memory:read",), agent_ids=(did,))
+
+    status, directory = _get(port, "/api/agents")
+    assert status == 200
+    workspace = directory["agents"][0]
+    reads = _scoped_reads(port, f"agent_id={did}&store_id={workspace['store_id']}")
+    assert {path: code for path, (code, _) in reads.items()} == dict.fromkeys(reads, 200)
+    assert reads["/api/memories"][1]["memories"] == []
+
+
+def test_an_agent_the_store_has_never_seen_is_still_not_found(running_store):
+    store, port = running_store
+    store.associate_agent_device("claude", "workstation-1")
+    status, directory = _get(port, "/api/agents")
+    store_id = directory["agents"][0]["store_id"]
+    for path, (code, _) in _scoped_reads(port, f"agent_id=never-seen&store_id={store_id}").items():
+        assert code == 404, path

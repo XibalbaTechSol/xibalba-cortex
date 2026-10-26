@@ -28,10 +28,10 @@ def test_the_committed_coverage_file_is_current():
     assert module.OUTPUT.read_text() == module.render(), "run: python scripts/ui_coverage.py --write"
 
 
-def test_withheld_tools_are_the_ones_that_would_hand_a_browser_a_server_path_or_act_outward():
+def test_no_tool_is_withheld_from_the_console_for_want_of_a_route():
+    """A tool was once withheld because it took a server path or acted outward and no safe browser route
+    existed. Each now has one: the browser sends an id, a hash or bytes, the server owns every path,
+    and outward actions are confirmed and named. If a tool is withheld again it must be decided here."""
     module = _load()
     withheld = {tool for tool, (status, _) in module.TOOLS.items() if status == "withheld"}
-    assert withheld == {
-        "memory_attach", "memory_backup", "memory_backup_reconcile", "memory_vault_inspect",
-        "memory_verify_integrity_link", "memory_anchor_session_root",
-    }
+    assert withheld == set()

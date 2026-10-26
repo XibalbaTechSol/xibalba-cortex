@@ -378,6 +378,25 @@ def approve_account(home: str | Path, *, email: str, verified: bool = True) -> b
     record_auth_event(home, event_type="account_approved", email=row["email"], profile_id=row["profile_id"])
     return True
 
+def list_pending_accounts(home: str | Path, *, profile_id: str | None = None) -> list[dict[str, object]]:
+    """Accounts that cannot sign in yet: waiting for approval or for email verification.
+
+    Never returns a hash or salt. Oldest first, so the request that has waited longest is on top.
+    """
+    _ensure_schema(home)
+    conn = _connect(home)
+    try:
+        rows = conn.execute(
+            "SELECT id, email, display_name, profile_id, role, email_verified, approval_status, created_at FROM accounts "
+            "WHERE (approval_status != 'approved' OR email_verified = 0) AND status = 'active' "
+            + ("AND profile_id = ? " if profile_id else "") + "ORDER BY created_at",
+            ((profile_id,) if profile_id else ()),
+        ).fetchall()
+        return [{**dict(row), "email_verified": bool(row["email_verified"])} for row in rows]
+    finally:
+        conn.close()
+
+
 def change_account_password(home: str | Path, *, token: str, current_password: str, new_password: str) -> bool:
     account = account_for_token(home, token)
     if account is None:

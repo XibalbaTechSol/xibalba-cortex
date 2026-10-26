@@ -48,6 +48,8 @@ export default defineConfig({
       },
     },
   },
+  // Production previews must not mint local operator credentials.
+  preview: { proxy: {} },
   build: {
     chunkSizeWarningLimit: 1500,
     rollupOptions: {
