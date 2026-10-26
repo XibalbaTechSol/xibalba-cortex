@@ -35,6 +35,8 @@ from ..agent0_integration import Agent0Gateway, Agent0Unavailable
 
 log = logging.getLogger(__name__)
 COOKIE = "cortex_managed_session"
+# UI destinations the hosted edition can serve; keep in step with the route table in create_app.
+MANAGED_DESTINATIONS = ("graph", "timeline", "memories", "recall", "settings", "agents", "billing")
 
 
 class ResponseHeaders:
@@ -242,7 +244,8 @@ def create_app(config: ManagedConfig, *, control: ManagedControl | None = None, 
             with service.store(tenant) as store:
                 counts = store.counts()
             return {"account": account, "entitlement": service.entitlement(tenant),
-                "usage": service.usage(tenant), "counts": counts, "csrf_token": csrf(token)}
+                "usage": service.usage(tenant), "counts": counts, "csrf_token": csrf(token),
+                "destinations": list(MANAGED_DESTINATIONS)}
         return JSONResponse(await run_in_threadpool(read_state))
 
     async def logout(request):

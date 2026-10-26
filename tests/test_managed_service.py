@@ -463,3 +463,13 @@ def test_recovery_delivery_failure_does_not_reveal_registered_email(setup):
     unknown = client.post('/api/managed/recovery/forgot-password', json={'email': 'unknown@example.com'})
     assert existing.status_code == unknown.status_code == 202
     assert existing.json() == unknown.json()
+
+
+def test_me_declares_the_destinations_this_edition_serves(setup):
+    register(setup)
+    client = setup[4]
+    response = client.get("/api/managed/me")
+    assert response.status_code == 200, response.text
+    assert response.json()["destinations"] == [
+        "graph", "timeline", "memories", "recall", "settings", "agents", "billing",
+    ]
