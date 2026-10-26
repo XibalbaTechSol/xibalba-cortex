@@ -22,6 +22,8 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+managed = ["starlette>=0.47,<2", "uvicorn>=0.30"]
+
 otel = [
   "opentelemetry-api>=1.35.0",
   "opentelemetry-sdk>=1.35.0",
@@ -32,11 +34,15 @@ otel = [
 ]
 
 [project.scripts]
+xibalba-cortex-managed = "xibalba_cortex.managed.api:main"
 xibalba-cortex-perplexity = "xibalba_cortex.perplexity_runtime:main"
 xibalba-cortex-hosted-connector = "xibalba_cortex.hosted_connector:main"
 xibalba-cortex-observer = "xibalba_cortex.observer_capture:main"
 xibalba-cortex-observer-install = "xibalba_cortex.observer_install:main"
 xibalba-cortex = "xibalba_cortex.server:main"
+cortex = "xibalba_cortex.connect:main"
+xibalba-cortex-connect = "xibalba_cortex.connect:main"
+xibalba-cortex-managed-import = "xibalba_cortex.managed_import:main"
 xibalba-cortex-raw-ingest = "xibalba_cortex.raw_body_ingest:main"
 xibalba-cortex-otlp-receiver = "xibalba_cortex.otlp_receiver:main"
 xibalba-cortex-otlp-grpc-receiver = "xibalba_cortex.otlp_grpc_receiver:main"

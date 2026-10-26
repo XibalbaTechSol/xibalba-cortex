@@ -52,10 +52,31 @@ export function AgentsPage() {
   return (
     <Page
       eyebrow="System"
-      title="Agents"
-      note="Each agent keeps its own namespace of memories, sessions and entities. A device is paired to an agent so its writes land in that namespace."
+      title="Add your agents"
+      note="Connect an agent once, then explore everything it records in the Graph and Timeline. Each agent keeps its own namespace of memories, sessions and entities."
       actions={canManage && <button type="button" className="xc-btn xc-btn--primary" onClick={() => setAssociating((v) => !v)} aria-expanded={associating}>Pair a device</button>}
     >
+      <section className="xc-win xc-agent-onboarding" aria-labelledby="connect-agents-title">
+        <div>
+          <p className="xc-eyebrow">Start here</p>
+          <h2 className="xc-title" id="connect-agents-title">Bring an agent into Cortex</h2>
+          <p className="xc-copy">Run <code>cortex connect</code> from the agent’s harness. It creates or reuses the agent’s DID, prints the MCP configuration and SDK snippet, and keeps every write in this workspace.</p>
+          <ol className="xc-agent-steps">
+            <li><b>Connect</b><span>Generate the DID and add the MCP server or SDK adapter.</span></li>
+            <li><b>Write</b><span>Let the agent record its first memory or session.</span></li>
+            <li><b>Explore</b><span>Open Graph or Timeline to inspect the resulting workspace.</span></li>
+          </ol>
+          <div className="xc-actions-row">
+            <button type="button" className="xc-btn xc-btn--primary" onClick={() => go('graph')}>Continue to Graph</button>
+            <button type="button" className="xc-btn" onClick={() => go('timeline')}>Open Timeline</button>
+          </div>
+        </div>
+        <div className="xc-agent-command" aria-label="Connect command">
+          <p className="xc-eyebrow">Connect command</p>
+          <code>cortex connect --agent &lt;name&gt; --harness &lt;harness&gt;</code>
+          <p className="xc-note">The DID file and key stay with the harness. Cortex uses that identity to keep agent memory scoped and attributable.</p>
+        </div>
+      </section>
       {agents.data && !agents.data.oracle_reachable && (
         <div className="xc-callout xc-callout--review" role="status"><IconWarn /><span>The integrity oracle is not reachable, so no agent’s on-chain status could be checked. “Not checked” below is not “off-chain”.</span></div>
       )}
@@ -64,6 +85,7 @@ export function AgentsPage() {
       {!canManage && <p className="xc-note">The selected workspace is read-only, so pairing is unavailable. Select a writable workspace to manage devices.</p>}
       {(agents.loading || devices.loading) && entries.length === 0 && <p className="xc-note" role="status">Loading…</p>}
       {!agents.loading && !error && entries.length === 0 && <div className="xc-empty"><h3 className="xc-title">No agents yet</h3><p>An agent appears here once it has written a memory or a device has been paired.</p></div>}
+      {entries.length > 0 && <h2 className="xc-title xc-agents-list-title">Connected agents</h2>}
       <div className="xc-opsgrid">
         {entries.map((entry) => (
           <AgentCard

@@ -14,7 +14,7 @@ import {
   type ReactNode,
   type SetStateAction,
 } from 'react'
-import type { Session, Stats, StoreStatus } from '../api'
+import { ApiError, type Invocation, type Session, type Stats, type StoreStatus } from '../api'
 import { loadConsoleData } from './data'
 import {
   buildModel,
@@ -49,6 +49,10 @@ export interface ConsoleValue {
   /** Set when timing had to fall back to exchange timestamps only. */
   timingNote: string | null
   reload: () => void
+  /** Recent correlated tool calls (policy decisions) for the Timeline and the session Inspector. */
+  invocations: Invocation[]
+  /** True when the last load failed with HTTP 401: the session ended, so the console returns to sign-in. */
+  unauthorized: boolean
   /** Bumps on every reload; per-item fetches key on it so they refresh after a write. */
   revision: number
   // ui
@@ -57,6 +61,10 @@ export interface ConsoleValue {
   /** null = the workspace; otherwise a full-page surface (Memories, Settings, ...) */
   page: PageId | null
   setPage: (page: PageId | null) => void
+  /** Open a drawer, optionally aimed at one thing in it (a session id, an entity name). */
+  openPage: (page: PageId, arg?: string) => void
+  /** What the open drawer was aimed at; the page reads it once per `nonce`. */
+  pageArg: { page: PageId; arg: string; nonce: number } | null
   /** open any destination by id, whatever its kind */
   go: (id: DestinationId) => void
   selectedId: string | null
@@ -101,6 +109,8 @@ export function ConsoleProvider({ children, onSignOut }: { children: ReactNode; 
   const [status, setStatus] = useState<StoreStatus | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [unauthorized, setUnauthorized] = useState(false)
+  const [invocations, setInvocations] = useState<Invocation[]>([])
   const [timingNote, setTimingNote] = useState<string | null>(null)
   const [nonce, setNonce] = useState(0)
 
@@ -115,6 +125,7 @@ export function ConsoleProvider({ children, onSignOut }: { children: ReactNode; 
   const [similarity, setSimilarity] = useState(0.75)
   const [overlay, setOverlay] = useState<Overlay>(null)
   const [notice, setNotice] = useState<string | null>(null)
+  const [pageArg, setPageArg] = useState<{ page: PageId; arg: string; nonce: number } | null>(null)
 
   // Responses can arrive out of order when the scope or threshold changes quickly; only the
   // newest request may write state.
@@ -132,9 +143,11 @@ export function ConsoleProvider({ children, onSignOut }: { children: ReactNode; 
         setMemoryInfo(data.memories.info)
         setSessionEnds(new Map(data.sessions.map((s) => [s.external_session_id, s.ended_at])))
         setSessions(data.sessions)
+        setInvocations(data.invocations)
         setStats(data.stats)
         setStatus(data.status)
         setError(null)
+        setUnauthorized(false)
         setTimingNote(
           data.memoriesError
             ? `Memory timestamps unavailable (${data.memoriesError}); only exchanges and sessions are placed in time.`
@@ -148,6 +161,7 @@ export function ConsoleProvider({ children, onSignOut }: { children: ReactNode; 
       .catch((e: unknown) => {
         if (mine !== requestId.current) return
         setError(e instanceof Error ? e.message : String(e))
+        setUnauthorized(e instanceof ApiError && e.status === 401)
       })
       .finally(() => {
         if (mine === requestId.current) setLoading(false)
@@ -175,6 +189,14 @@ export function ConsoleProvider({ children, onSignOut }: { children: ReactNode; 
   // choosing a lens leaves any page; choosing a page remembers which lens it was opened from
   const setLens = useCallback((next: Lens) => applyRoute({ lens: next, page: null }), [applyRoute])
   const setPage = useCallback((next: PageId | null) => applyRoute({ lens: route.lens, page: next }), [applyRoute, route.lens])
+  const openPage = useCallback(
+    (next: PageId, arg?: string) => {
+      setOverlay(null)
+      setPageArg((prev) => (arg ? { page: next, arg, nonce: (prev?.nonce ?? 0) + 1 } : null))
+      setPage(next)
+    },
+    [setPage],
+  )
   const go = useCallback(
     (id: DestinationId) => {
       const dest = ALL_DESTINATIONS.find((d) => d.id === id)
@@ -215,14 +237,14 @@ export function ConsoleProvider({ children, onSignOut }: { children: ReactNode; 
 
   const value = useMemo<ConsoleValue>(
     () => ({
-      workspace, model, memoryInfo, sessionEnds, sessions, stats, status, loading, error, timingNote, reload,
-      lens, setLens, page, setPage, go, selectedId, select, reveal, focus, facets, setFacets,
+      workspace, model, memoryInfo, sessionEnds, sessions, stats, status, loading, error, unauthorized, invocations, timingNote, reload,
+      lens, setLens, page, setPage, openPage, pageArg, go, selectedId, select, reveal, focus, facets, setFacets,
       window: window_, preset, setWindow, applyPreset, similarity, setSimilarity, overlay, setOverlay,
       revision: nonce, notice, setNotice,
       signOut: onSignOut,
     }),
-    [workspace, model, memoryInfo, sessionEnds, sessions, stats, status, loading, error, timingNote, reload,
-      lens, setLens, page, setPage, go, selectedId, select, reveal, focus, facets, window_, preset, setWindow, applyPreset,
+    [workspace, model, memoryInfo, sessionEnds, sessions, stats, status, loading, error, unauthorized, invocations, timingNote, reload,
+      lens, setLens, page, setPage, openPage, pageArg, go, selectedId, select, reveal, focus, facets, window_, preset, setWindow, applyPreset,
       similarity, overlay, onSignOut, nonce, notice],
   )
 

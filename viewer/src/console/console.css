@@ -33,6 +33,11 @@ body {
 .xc *,
 .xc *::before,
 .xc *::after {
+  /* Raleway's default figures are old-style (3, 4, 5, 7, 9 drop below the baseline), which reads as
+   * noise in counts, hashes and timestamps. Ask for lining figures on every element, not just the
+   * root: the `font:` shorthand used throughout this file resets font-feature-settings, so this is !important.
+   * https://developer.mozilla.org/en-US/docs/Web/CSS/font-feature-settings */
+  font-feature-settings: 'lnum' 1 !important;
   box-sizing: border-box;
 }
 /* icons are sized by their container; this is only the floor so an unstyled one is never huge */
@@ -153,7 +158,7 @@ body {
   content: none;
 }
 .xc-title {
-  font: 600 25px/1.12 var(--font-condensed);
+  font: 600 25px/1.12 var(--font-display);
   color: var(--ink);
 }
 .xc-title--sm {
@@ -513,7 +518,7 @@ select.xc-input {
   border-bottom: 2px solid transparent;
   background: transparent;
   color: var(--ink-muted);
-  font: 600 17px/1.2 var(--font-condensed);
+  font: 600 17px/1.2 var(--font-display);
   white-space: nowrap;
   cursor: pointer;
 }
@@ -543,7 +548,7 @@ select.xc-input {
   padding: 2px 6px;
   background: var(--status-review);
   color: var(--ink-on-accent);
-  font: 600 12px var(--font-condensed);
+  font: 600 12px var(--font-display);
 }
 .xc-soon {
   padding: 1px 5px;
@@ -870,7 +875,7 @@ select.xc-input {
   gap: 10px;
 }
 .xc-row-top b {
-  font: 600 16px/1.2 var(--font-condensed);
+  font: 600 16px/1.2 var(--font-display);
 }
 .xc-link {
   padding: 0;
@@ -1082,6 +1087,20 @@ select.xc-input {
 }
 .xc-mark[data-cls='root'][data-valid='false'] {
   border-color: var(--status-conflict);
+}
+.xc-mark[data-cls='deny'],
+.xc-mark[data-cls='ask'] {
+  /* a policy stop is a tall bar, not a square: it is a different kind of event, and shape is the
+     signal where colour could not be (deny fills, ask is outlined) */
+  top: 6px;
+  width: 5px;
+  height: 18px;
+  margin-left: -2px;
+  background: var(--status-conflict);
+}
+.xc-mark[data-cls='ask'] {
+  background: transparent;
+  border: 2px solid var(--status-review);
 }
 .xc-mark[data-selected='true'] {
   outline: 2px solid var(--ink);
@@ -1401,7 +1420,7 @@ select.xc-input {
   padding: 0 14px 10px 0;
   border-bottom: 1px solid var(--hairline);
   text-align: left;
-  font: 600 12px/1.3 var(--font-condensed);
+  font: 600 12px/1.3 var(--font-display);
   letter-spacing: 0.1em;
   text-transform: uppercase;
   color: var(--ink-muted);
@@ -1504,7 +1523,7 @@ select.xc-input {
   gap: 12px;
 }
 .xc-card-title {
-  font: 600 18px/1.2 var(--font-condensed);
+  font: 600 18px/1.2 var(--font-display);
   min-width: 0;
   overflow-wrap: anywhere;
 }
@@ -1596,7 +1615,7 @@ select.xc-input {
   border-top: 2px solid transparent;
   background: transparent;
   color: var(--ink-muted);
-  font: 600 14px/1 var(--font-condensed);
+  font: 600 14px/1 var(--font-display);
   cursor: pointer;
 }
 .xc-tabbar-btn svg {
@@ -1961,7 +1980,7 @@ select.xc-input {
   gap: 4px;
 }
 .xc-choice-text b {
-  font: 600 20px/1.1 var(--font-condensed);
+  font: 600 20px/1.1 var(--font-display);
 }
 /* two wireframes, drawn from the same proportions as the real shells */
 .xc-wire {
@@ -2355,7 +2374,7 @@ select.xc-input {
   padding: 12px 14px;
   border: 1px solid var(--hairline);
   background: var(--panel);
-  font: 500 16px/1.5 var(--font-condensed);
+  font: 500 16px/1.5 var(--font-display);
   overflow-wrap: anywhere;
 }
 @media (max-width: 1180px) {
@@ -2369,6 +2388,69 @@ select.xc-input {
 }
 
 /* ---------- operations page -------------------------------------------------------------------------- */
+.xc-agent-onboarding {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(220px, .65fr);
+  gap: clamp(18px, 4vw, 42px);
+  padding: clamp(18px, 3vw, 30px);
+  margin-bottom: var(--window-gap);
+}
+.xc-agent-onboarding h2,
+.xc-agent-onboarding p {
+  margin-top: 0;
+}
+.xc-agent-steps {
+  display: grid;
+  gap: 10px;
+  margin: 20px 0;
+  padding: 0;
+  list-style: none;
+  counter-reset: agent-step;
+}
+.xc-agent-steps li {
+  display: grid;
+  grid-template-columns: 82px minmax(0, 1fr);
+  gap: 12px;
+  align-items: baseline;
+  counter-increment: agent-step;
+}
+.xc-agent-steps li::before {
+  content: counter(agent-step, decimal-leading-zero);
+  color: var(--muted);
+  font: 600 11px/1 var(--mono);
+  letter-spacing: .08em;
+}
+.xc-agent-steps li b {
+  grid-column: 1;
+  grid-row: 1;
+}
+.xc-agent-steps li span {
+  grid-column: 2;
+  grid-row: 1;
+  color: var(--muted);
+}
+.xc-agent-command {
+  align-self: stretch;
+  display: grid;
+  align-content: center;
+  gap: 12px;
+  padding: 18px;
+  border: 1px solid var(--hairline);
+  min-width: 0;
+}
+.xc-agent-command code {
+  display: block;
+  overflow-wrap: anywhere;
+  font: 600 12px/1.55 var(--mono);
+}
+.xc-agents-list-title {
+  margin: calc(var(--window-gap) * 1.25) 0 var(--window-gap);
+}
+@media (max-width: 760px) {
+  .xc-agent-onboarding {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
 .xc-opsgrid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(min(340px, 100%), 1fr));
@@ -2512,6 +2594,10 @@ select.xc-input {
   inset: 0;
   overflow: hidden;
   user-select: none;
+}
+.xc-3d-host canvas:focus-visible {
+  outline: 1px solid var(--accent);
+  outline-offset: -1px;
 }
 .xc-3d-labels {
   position: absolute;
@@ -3394,3 +3480,132 @@ body,
   .xc-landing-card { padding: 20px; }
   .xc-landing-foot .xc-spacer { display: none; }
 }
+
+/* Public product page: shared tokens, restrained rules, readable content at every width. */
+.xc-landing-nav { flex-wrap: wrap; gap: 12px 20px; }
+.xc-product-intro { max-width: 780px; margin: 16px 0 24px; line-height: 1.6; }
+.xc-product-plans { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px; }
+.xc-product-plan { display: flex; flex-direction: column; gap: 18px; padding: 28px; min-width: 0; }
+.xc-product-plan:nth-child(2) { border-color: var(--accent); }
+.xc-product-price { margin: 0; font: 600 42px/1.1 var(--font-condensed); }
+.xc-product-price span { font: 400 15px var(--font-body); color: var(--ink-muted); }
+.xc-product-plan dl { margin: 0; }
+.xc-product-plan dl > div { display: flex; justify-content: space-between; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--hairline-faint); }
+.xc-product-plan dt { color: var(--ink-muted); font-size: 13px; }
+.xc-product-plan dd { margin: 0; font: 500 13px var(--font-mono); }
+.xc-product-plan > .xc-btn { margin-top: auto; text-decoration: none; justify-content: center; }
+.xc-product-compare { width: 100%; table-layout: fixed; border-collapse: collapse; font-size: 15px; line-height: 1.6; }
+.xc-product-compare caption { text-align: left; padding-bottom: 16px; }
+.xc-product-compare th, .xc-product-compare td { padding: 18px; border: 1px solid var(--hairline); text-align: left; vertical-align: top; overflow-wrap: anywhere; }
+.xc-product-compare th:first-child { width: 20%; }
+.xc-product-compare thead th { font: 600 13px var(--font-body); color: var(--accent); }
+.xc-product-compare tbody th { font-weight: 500; }
+.xc-product-compare td { color: var(--ink-muted); }
+.xc-product-sources { margin-top: 16px; line-height: 1.8; }
+.xc-product-contact { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr); gap: 64px; }
+.xc-product-contact > div > p { margin-bottom: 24px; line-height: 1.6; }
+.xc-product-contact .xc-link { overflow-wrap: anywhere; }
+.xc-product-contact-form { position: relative; padding: 28px; display: flex; flex-direction: column; gap: 18px; min-width: 0; }
+.xc-product-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.xc-product-contact-form .xc-field { min-width: 0; display: grid; gap: 8px; }
+.xc-product-contact-form .xc-input { width: 100%; min-width: 0; font-size: 15px; }
+.xc-product-contact-form textarea { resize: vertical; }
+.xc-product-honey { position: absolute; left: -10000px; width: 1px; height: 1px; overflow: hidden; }
+.xc-product-footer { display: block; padding-block: 40px 24px; }
+.xc-product-footer-grid { display: grid; grid-template-columns: minmax(0, 2fr) repeat(3, minmax(0, 1fr)); gap: 32px; }
+.xc-product-footer-grid nav { display: flex; flex-direction: column; align-items: flex-start; gap: 12px; min-width: 0; }
+.xc-product-footer-grid nav b { font-size: 13px; font-weight: 600; margin-bottom: 4px; }
+.xc-product-footer-grid > div > p { margin-bottom: 12px; }
+.xc-product-footer-bottom { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 12px; margin-top: 40px; padding-top: 20px; border-top: 1px solid var(--hairline); }
+@media (max-width: 760px) {
+  .xc-product-plans, .xc-product-contact, .xc-product-fields { grid-template-columns: minmax(0, 1fr); }
+  .xc-product-plan, .xc-product-contact-form { padding: 20px; }
+  .xc-product-contact { gap: 28px; }
+  .xc-product-footer-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 28px; }
+  .xc-product-footer-grid > div { grid-column: 1 / -1; }
+  .xc-product-compare, .xc-product-compare tbody, .xc-product-compare tr, .xc-product-compare th, .xc-product-compare td { display: block; width: auto; }
+  .xc-product-compare thead { display: none; }
+  .xc-product-compare tr { margin-bottom: 20px; border: 1px solid var(--hairline); }
+  .xc-product-compare th, .xc-product-compare td { border: 0; padding: 14px 16px; }
+  .xc-product-compare th:first-child { width: auto; border-bottom: 1px solid var(--hairline); }
+  .xc-product-compare td::before { content: attr(data-label); display: block; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .08em; color: var(--accent); margin-bottom: 6px; }
+}
+.xc-summary-toggle { position: absolute; bottom: 16px; left: 110px; z-index: 3; }
+/* Direct timeline selection stays behind event buttons and never intercepts them. */
+.xc-tl-grid { touch-action: pan-y; }
+.xc-tl-ticks, .xc-lane-track { cursor: crosshair; }
+.xc-tl-ticks:focus-visible { outline: 1px solid var(--accent); outline-offset: -2px; }
+.xc-tl-feedback {
+  position: absolute;
+  inset: 0 0 0 var(--tl-label);
+  pointer-events: none;
+}
+.xc-tl-brush {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background: var(--accent-soft);
+  border-inline: 1px solid var(--accent);
+}
+.xc-tl-cursor {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  border-left: 1px solid var(--accent);
+  opacity: 0.6;
+}
+
+.xc-tl-caption { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.xc-tl-caption .xc-btn { min-height: 20px; padding: 1px 5px; font-size: 11px; }
+
+/* a page drawer: the same frame as Review and Integrity, wider when it holds a list beside a detail */
+.xc-drawer--page {
+  width: min(560px, calc(100vw - 40px));
+}
+.xc-drawer--page[data-width='medium'] {
+  width: min(820px, calc(100vw - 40px));
+}
+.xc-drawer--page[data-width='wide'] {
+  width: min(1180px, calc(100vw - 40px));
+}
+.xc-drawer-title {
+  margin: 4px 0 2px;
+  font: 600 32px/1 var(--font-display);
+}
+.xc-drawer-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--hairline) transparent;
+}
+/* inside a drawer a page has no gutter of its own and no max width: the drawer is the frame */
+.xc-drawer--page .xc-page {
+  padding: 18px var(--window-padding) 28px;
+  max-width: none;
+  gap: 16px;
+}
+.xc-drawer--page .xc-page-head {
+  align-items: flex-start;
+}
+/* a page's list-plus-detail panes keep a working height instead of growing with the page */
+.xc-drawer--page .xc-memories,
+.xc-drawer--page .xc-sessions,
+.xc-drawer--page .xc-entities {
+  min-height: 0;
+}
+@media (max-width: 760px) {
+  .xc-drawer--page,
+  .xc-drawer--page[data-width] {
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: 100vw;
+  }
+  .xc-drawer--page .xc-page {
+    padding: 14px 16px 24px;
+  }
+}
+
+
+.xc-drawer--page .xc-inspector { position: relative; inset: auto; width: auto; max-width: none; }

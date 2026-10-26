@@ -63,6 +63,7 @@
 
   /* type */
   --font-condensed: 'Barlow Condensed', sans-serif;
+  --font-display: var(--font-condensed);
   --font-body: 'Barlow', system-ui, -apple-system, sans-serif;
   --font-mono: 'JetBrains Mono', monospace;
 

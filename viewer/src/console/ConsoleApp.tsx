@@ -9,9 +9,11 @@ import { accountLogout, isSignedIn } from '../api'
 import { ConsoleProvider, useConsole } from './state'
 import { SignIn } from './SignIn'
 import { Landing } from './Landing'
+import { resetTokenFromSearch } from './passwordReset'
 import { Rail, StatusBar, TopBar, WorkspaceHeader } from './Shell'
 import { SettingsProvider, useSettings } from './settingsContext'
 import { PageHost } from './pages/PageHost'
+import { PageDrawer } from './PageDrawer'
 import { FacetRail } from './FacetRail'
 import { GraphLens } from './GraphLens'
 import { TimelineLens } from './TimelineLens'
@@ -27,7 +29,7 @@ import { useMediaQuery } from './useMediaQuery'
 const EXPIRED = /\b401\b|authentication required|unauthorized|expired/i
 
 function Workspace() {
-  const { lens, page, overlay, setOverlay, error, model, signOut, selectedId } = useConsole()
+  const { lens, page, overlay, setOverlay, error, model, unauthorized, signOut, selectedId } = useConsole()
 
   // ⌘K / Ctrl+K toggles Recall from anywhere, including inside inputs.
   useEffect(() => {
@@ -42,22 +44,17 @@ function Workspace() {
   }, [overlay, setOverlay])
 
   useEffect(() => {
-    if (error && !model && EXPIRED.test(error)) {
+    if (unauthorized || (error && !model && EXPIRED.test(error))) {
       try { sessionStorage.setItem('xibalba-cortex.auth-notice', 'Session expired. Sign in again to reconnect to this Cortex profile.') } catch { /* private mode: sign-in just shows no notice */ }
       signOut()
     }
-  }, [error, model, signOut])
+  }, [error, model, unauthorized, signOut])
 
   const phone = useMediaQuery('(max-width: 760px)')
   const { settings } = useSettings()
 
   // what sits to the right of (or below) the navigation: a full page, or the three-column workspace
-  const content = page ? (
-    <>
-      <PageHost page={page} />
-      <StatusBar />
-    </>
-  ) : (
+  const content = (
     <>
       {/* The lens owns the whole workspace; the facets, the chain rail and the detail window
           float over it. Previously these were three grid columns and a strip below, which left
@@ -91,6 +88,7 @@ function Workspace() {
           {content}
         </>
       )}
+      {page && <PageDrawer page={page}><PageHost page={page} /></PageDrawer>}
       {overlay === 'recall' && <Recall />}
       {overlay === 'review' && <Review />}
       {overlay === 'integrity' && <Integrity />}
@@ -106,7 +104,7 @@ function Workspace() {
 const SIGN_IN_HASH = '#signin'
 
 function wantsSignIn(hash: string): boolean {
-  if (hash === SIGN_IN_HASH) return true
+  if (hash === SIGN_IN_HASH || resetTokenFromSearch(window.location.search)) return true
   try { return Boolean(sessionStorage.getItem('xibalba-cortex.auth-notice')) } catch { return false }
 }
 

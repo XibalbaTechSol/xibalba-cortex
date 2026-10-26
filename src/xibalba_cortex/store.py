@@ -906,6 +906,17 @@ class GraphStore:
         ).fetchone()
         return row is not None
 
+    def has_paired_device(self, agent_id: str) -> bool:
+        """Whether any device is paired to this exact agent id -- the other way
+        `agent_workspaces()` lists a namespace, before the agent has written anything here."""
+        value = str(agent_id or "").strip()
+        if not value:
+            return False
+        row = self._read_connection().execute(
+            "SELECT 1 FROM agent_devices WHERE agent_id = ? LIMIT 1", (value,)
+        ).fetchone()
+        return row is not None
+
     @staticmethod
     def local_device_id() -> str:
         """Stable operator-visible device identity, overridable for managed runtimes."""
@@ -1817,6 +1828,13 @@ class GraphStore:
                 "SELECT id FROM memories WHERE content_hash = ? ORDER BY rowid LIMIT 1",
                 (content_hash,),
             ).fetchone()
+        return row["id"] if row else None
+
+    def find_memory_id_by_idempotency_key(self, key: str) -> str | None:
+        """The memory a prior write with this idempotency key produced, if any. Lets a caller tell a
+        fresh write from a replay, which store_memory itself does not report."""
+        with self._lock:
+            row = self._connection.execute("SELECT id FROM memories WHERE idempotency_key = ?", (key,)).fetchone()
         return row["id"] if row else None
 
     def find_memory_id_by_locator(self, locator: str) -> str | None:
@@ -4082,6 +4100,24 @@ class GraphStore:
                 item["runtime_status"] = "orphan_outcome"
         return list(reversed(results[-limit:]))
 
+    # -- operational status for the operator console (console_status.py has the reasoning) -----------------
+    # Read-only, store-wide views. None of them writes, and none exposes a worker or connector control.
+
+    def runtime_overview(self) -> list[dict[str, object]]:
+        """Agent runtimes seen in memory sources and tool-call telemetry, with policy decisions."""
+        from .console_status import runtime_overview
+        return runtime_overview(self._read_connection(), self.invocation_correlations(limit=1000))
+
+    def worker_status(self) -> dict[str, object]:
+        """Background workers' state, derived from the work they leave in the queue."""
+        from .console_status import worker_status
+        return worker_status(self._read_connection(), self.embedding_coverage())
+
+    def connector_status(self, manifest: dict[str, dict[str, object]]) -> dict[str, object]:
+        """Each declared ingest connector with the evidence the store holds for it."""
+        from .console_status import connector_status
+        return connector_status(self._read_connection(), manifest)
+
     def record_exchange(
         self,
         external_session_id: str,
@@ -6204,6 +6240,18 @@ class GraphStore:
             "include_forgotten": include_forgotten,
             "disclaimer": "Commitment proves bundle inclusion under this construction, not truth, authorization, or external finality.",
         }
+
+    def export_structured_bundle(self, *, include_forgotten: bool = True) -> dict[str, object]:
+        """Export canonical rows needed to restore memories and their graph/provenance edges."""
+        from .structured_bundle import export_bundle
+        with self._lock:
+            return export_bundle(self._connection, include_forgotten=include_forgotten)
+
+    def import_structured_bundle(self, bundle: dict[str, object]) -> dict[str, int]:
+        """Atomically restore a structured bundle, preserving canonical IDs and statuses."""
+        from .structured_bundle import import_bundle
+        with self._lock:
+            return import_bundle(self._connection, bundle, max_memories=self.quotas["max_memories"])
 
     def audit_report(self, *, limit: int = 100) -> dict[str, object]:
         """Return a bounded operator audit view over canonical local evidence."""

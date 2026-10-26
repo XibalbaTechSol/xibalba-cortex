@@ -168,6 +168,19 @@ export async function stubConsoleApi(page: Page) {
     if (path.endsWith('/api/memories')) return json({ ...EMPTY_COLLECTIONS, memories: MEMORIES, items: MEMORIES, total: MEMORIES.length })
     // the live endpoint returns a bare array here; an object leaves Sessions
     // with nothing to iterate and unmounts the console.
+    if (path.endsWith('/api/invocations')) return json([])
+    if (path.endsWith('/api/profile/config')) return json({
+      profile_id: 'default', mode: 'local', identity_mode: 'full', retention_tier: 'standard',
+      storage: { backend: 'sqlite', pool_size: null, ssl_mode: null },
+      inference: {}, embeddings: {}, retrieval: {}, features: STATUS.features,
+      telemetry: {}, quotas: {}, auth: {}, remote: { configured: false },
+      destinations: { backup: false, vault: false, integrity_dag: false, anchor_service: false, oracle: false },
+      changed_by: 'configuration file or environment; restart required',
+    })
+    if (path.endsWith('/api/runtimes')) return json({ runtimes: [] })
+    if (path.endsWith('/api/workers')) return json({ as_of: iso(0), workers: [], basis: 'Synthetic fixture' })
+    if (path.endsWith('/api/connectors')) return json({ connectors: [], webhook_senders: [], ingest_by_source_kind: [], provider_telemetry: [], basis: 'Synthetic fixture' })
+    if (path.endsWith('/api/backups')) return json({ configured: false, backups: [] })
     if (path.endsWith('/api/sessions')) return json(SESSIONS)
     if (path.includes('/api/sessions/page')) return json({ sessions: SESSIONS, offset: 0, limit: 50, has_more: false, count_status: 'exact', store_id: 'store-fixture', profile_id: 'default' })
     if (path.endsWith('/api/operations')) return json(OPERATIONS)

@@ -211,6 +211,14 @@ def seed_agent(store: GraphStore) -> None:
             runtime="dev-seed", prompt_id=f"w1-{k}", idempotency_key=f"dev:w:ex:{k}",
         )
 
+    # a second OPEN session with one exchange, kept for ending: "End session" is irreversible, so tests
+    # and demos end this one and leave sess-w1 (which the rest of the fixture is built around) alone
+    store.start_session("sess-w2", retention_tier="digest", agent_id=AGENT)
+    store.store_memory("A spare session for ending.", source={**src("dev://agent/spare", "sess-w2")}, status="confirmed", evidence_class="observed_event", idempotency_key="dev:w:spare")
+    store.record_model_exchange("sess-w2", user_prompt="spare question", model_response="spare answer", runtime="dev-seed", prompt_id="w2-0", idempotency_key="dev:w:ex2:0")
+    # one integrity-link record (the memory cites no DAG node, so its state is "unlinked") so Integrity → Links has a row to verify
+    store.verify_integrity_link(a["id"])
+
     # runtime telemetry through the real batch path: one complete tool invocation with a kernel
     # decision (so kernel intents and the invocations list have a correlated triple), one that is
     # still awaiting its outcome, and one metric

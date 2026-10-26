@@ -9,7 +9,7 @@
     "lint": "oxlint",
     "preview": "vite preview",
     "test": "vitest run",
-    "test:ui": "node e2e/ui-auth-smoke.mjs"
+    "test:e2e": "playwright test"
   },
   "dependencies": {
     "@types/three": "^0.185.4",
