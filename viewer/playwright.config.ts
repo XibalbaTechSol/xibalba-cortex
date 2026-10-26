@@ -43,7 +43,12 @@ export default defineConfig({
   // none depends on another's output, but one worker keeps the 3D engine from fighting for the
   // single software-GL context.
   fullyParallel: false,
-  maxFailures: process.env.CI ? 5 : undefined,
+  /* No failure cap. `maxFailures: 5` on CI hid the true state of the suite three times in one
+     sitting: a red run reported 4 timeline failures when there were 6, then concealed the
+     projection-dock test, then concealed the design-system sweep entirely. Each "complete"
+     failure list was wrong, and each fix round started from a count that was short, so the
+     cap cost more wall-clock in re-runs than the early exit ever saved. A red run should
+     print everything that is red. */
   workers: 1,
   retries: process.env.CI ? 1 : 0,
   reporter: [['list']],
