@@ -13,10 +13,55 @@ for (const width of [320, 390, 1280, 1600]) {
     const box = (await mark.boundingBox())!
     expect(box.width).toBeGreaterThanOrEqual(width < 600 ? 220 : 380)
     await expect(page.locator('.xc-landing-top .xc-brand-mark')).toBeVisible()
-    await page.getByRole('link', { name: 'How it runs', exact: true }).click()
+    const nav = page.getByRole('navigation', { name: 'Sections' })
+    await nav.getByRole('link', { name: 'How it runs', exact: true }).click()
     await expect(page.locator('#how')).toBeInViewport()
-    await expect(page.locator('.xc-landing')).not.toContainText(/\bMIT\b|\blicen[cs]e\b/i)
+    // The page deliberately says nothing about licensing. \b matters: unanchored, "MIT"
+    // also matches the "mit" inside "submitted" in the contact form's status line.
+    await expect(page.locator('.xc-landing')).not.toContainText(/\bMIT\b|licen[cs]e/i)
     expect(await page.locator('.xc-landing').evaluate((el) => el.scrollWidth - el.clientWidth)).toBeLessThanOrEqual(1)
+    // The commercial sections: each nav anchor has to actually land on its section.
+    for (const [label, id] of [['Compare', '#compare'], ['Pricing', '#pricing'], ['Docs', '#docs'], ['Contact', '#contact']] as const) {
+      await nav.getByRole('link', { name: label, exact: true }).click()
+      await expect(page.locator(id)).toBeInViewport()
+    }
+
+    // Exactly three tiers, each with a price and a call to action.
+    const tiers = page.locator('.xc-landing-tier')
+    await expect(tiers).toHaveCount(3)
+    for (const name of ['Local', 'Pilot', 'Enterprise']) {
+      const tier = tiers.filter({ has: page.getByRole('heading', { name, exact: true }) })
+      await expect(tier).toHaveCount(1)
+      await expect(tier.locator('.xc-landing-tier-price b')).not.toBeEmpty()
+      await expect(tier.locator('.xc-landing-tier-cta')).toBeVisible()
+    }
+
+    // The comparison names both products and scrolls inside its own frame rather than
+    // widening the page. Guard against a vacuous pass: the rows have to exist.
+    const table = page.locator('.xc-landing-table')
+    await expect(table.locator('tbody tr').first()).toBeVisible()
+    expect(await table.locator('tbody tr').count()).toBeGreaterThan(4)
+    await expect(table.locator('thead')).toContainText('Supermemory')
+    const wrapOverflow = await page.locator('.xc-landing-tablewrap')
+      .evaluate((el) => el.scrollWidth - el.clientWidth)
+    if (width < 760) expect(wrapOverflow).toBeGreaterThan(0)
+
+    // Documentation links are real absolute URLs, not placeholders.
+    const docs = page.locator('.xc-landing-doc')
+    expect(await docs.count()).toBeGreaterThanOrEqual(6)
+    for (const href of await docs.evaluateAll((els) => els.map((e) => e.getAttribute('href')))) {
+      expect(href).toMatch(/^https:\/\/github\.com\/XibalbaTechSol\/xibalba-cortex\//)
+    }
+
+    // The footer carries its columns, and every link in it resolves somewhere.
+    await expect(page.locator('.xc-landing-foot-col')).toHaveCount(4)
+    for (const href of await page.locator('.xc-landing-foot a').evaluateAll((els) => els.map((e) => e.getAttribute('href')))) {
+      expect(href).toMatch(/^(https:\/\/|mailto:|#)/)
+    }
+
+    // Still no horizontal overflow on the page itself, now that a table is on it.
+    expect(await page.locator('.xc-landing').evaluate((el) => el.scrollWidth - el.clientWidth)).toBeLessThanOrEqual(1)
+
     await page.getByRole('button', { name: 'Open the console' }).click()
     await expect(page).toHaveURL(/#signin$/)
     await expect(page.locator('.xc-auth-formwrap')).toBeVisible()
@@ -34,49 +79,41 @@ test('an expired session goes directly to sign-in with its notice', async ({ pag
   await expect(page.locator('.xc-landing')).toHaveCount(0)
 })
 
-for (const width of [320, 390, 1600]) {
-  test(`plans, comparison, documentation and footer remain readable at ${width}px`, async ({ page }) => {
-    await page.setViewportSize({ width, height: 950 })
-    await page.goto('/')
-    await expect(page.getByRole('article', { name: 'Free subscription' })).toContainText('$0')
-    await expect(page.getByRole('article', { name: 'Pro subscription' })).toContainText('$29')
-    await expect(page.getByRole('article', { name: 'Team subscription' })).toContainText('$149')
-    await expect(page.locator('#compare')).toContainText('Supermemory')
-    await expect(page.locator('#compare a[href="https://supermemory.ai/product/"]')).toHaveCount(1)
-    await expect(page.locator('#docs a')).toHaveCount(3)
-    await page.getByRole('link', { name: 'Request Pro access' }).click()
-    await expect(page.getByRole('form', { name: 'Contact Cortex' })).toBeInViewport()
-    await expect(page.getByLabel('Interested in')).toHaveValue('Pro plan')
-    await expect(page.getByRole('navigation', { name: 'Company links' })).toContainText('Contact')
-    expect(await page.locator('.xc-landing').evaluate((el) => el.scrollWidth - el.clientWidth)).toBeLessThanOrEqual(1)
-  })
-}
+test('the contact form is labelled and refuses an invalid address', async ({ page }) => {
+  await stubConsoleApi(page)
+  await page.goto('/')
+  await page.getByRole('navigation', { name: 'Sections' })
+    .getByRole('link', { name: 'Contact', exact: true }).click()
 
-test('the contact form reports accepted delivery and clears the submitted fields', async ({ page }) => {
-  let sent: Record<string, string> | null = null
-  await page.route('**/api/contact', async route => {
-    sent = route.request().postDataJSON()
-    await route.fulfill({ status: 202, json: { message: 'Your inquiry has been sent.' } })
-  })
-  await page.goto('/#contact')
-  await page.getByLabel('Name', { exact: true }).fill('Test founder')
-  await page.getByLabel('Email', { exact: true }).fill('founder@example.com')
-  await page.getByLabel('Message', { exact: true }).fill('Please help me connect a local agent to a managed workspace.')
-  await page.getByRole('button', { name: 'Send inquiry' }).click()
-  await expect(page.getByRole('status')).toContainText('Your inquiry has been sent.')
-  expect(sent?.['email']).toBe('founder@example.com')
-  await expect(page.getByLabel('Message', { exact: true })).toHaveValue('')
+  const form = page.locator('.xc-landing-form')
+  const name = form.locator('#xc-contact-name')
+  const email = form.locator('#xc-contact-email')
+  const message = form.locator('#xc-contact-message')
+
+  for (const field of [name, email, message]) await expect(field).toHaveAttribute('required', '')
+  await expect(email).toHaveAttribute('type', 'email')
+
+  // Accessible names come from real <label>s, not placeholders.
+  await expect(form.getByLabel('Name', { exact: true })).toBeVisible()
+  await expect(form.getByLabel('Email', { exact: true })).toBeVisible()
+  await expect(form.getByLabel(/^What are you trying to build/)).toBeVisible()
+  await expect(form.getByLabel(/^Interest/)).toBeVisible()
+
+  // Prove the validity check can fail before trusting that it passes.
+  await name.fill('Dana Okonkwo')
+  await message.fill('Auditing an agent that touches regulated records.')
+  await email.fill('not-an-address')
+  expect(await email.evaluate((el) => (el as HTMLInputElement).checkValidity())).toBe(false)
+  expect(await form.evaluate((el) => (el as HTMLFormElement).checkValidity())).toBe(false)
+
+  await email.fill('dana@example.org')
+  expect(await email.evaluate((el) => (el as HTMLInputElement).checkValidity())).toBe(true)
+  expect(await form.evaluate((el) => (el as HTMLFormElement).checkValidity())).toBe(true)
+
+  // The status line is a live region, so the outcome is announced rather than only shown.
+  await expect(form.getByRole('status')).toHaveAttribute('aria-live', 'polite')
+  await expect(form.getByRole('status')).toContainText('nothing is submitted to a server')
 })
 
-test('failed contact delivery preserves the message and offers direct email', async ({ page }) => {
-  await page.route('**/api/contact', route => route.fulfill({ status: 503, json: { error: 'Your message could not be delivered. Please email us directly.' } }))
-  await page.goto('/#contact')
-  await page.getByLabel('Name', { exact: true }).fill('Test founder')
-  await page.getByLabel('Email', { exact: true }).fill('founder@example.com')
-  const message = 'Please help me connect a local agent to a managed workspace.'
-  await page.getByLabel('Message', { exact: true }).fill(message)
-  await page.getByRole('button', { name: 'Send inquiry' }).click()
-  await expect(page.getByRole('alert')).toContainText('could not be delivered')
-  await expect(page.getByLabel('Message', { exact: true })).toHaveValue(message)
-  await expect(page.locator('#contact a[href^="mailto:"]')).toBeVisible()
-})
+// The composed draft itself is covered by src/console/contact.test.ts, which can assert the
+// encoding directly rather than chasing an external-protocol navigation through the browser.
