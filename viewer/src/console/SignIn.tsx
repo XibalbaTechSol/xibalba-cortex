@@ -202,7 +202,7 @@ export function SignIn({ onSignedIn }: { onSignedIn: () => void }) {
           {(mode === 'login' || mode === 'signup') && <details className="xc-auth-advanced">
             <summary>Profile endpoint</summary>
             <label className="xc-field">Optional; the default is the same origin
-              <input className="xc-input xc-input--mono" name="endpoint" type="text" inputMode="url" autoCapitalize="none" autoCorrect="off" defaultValue={getApiBaseUrl()} />
+              <input className="xc-input xc-input--mono" name="endpoint" aria-label="Profile endpoint" type="text" inputMode="url" autoCapitalize="none" autoCorrect="off" defaultValue={getApiBaseUrl()} />
             </label>
           </details>}
 

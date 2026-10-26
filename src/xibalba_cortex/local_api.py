@@ -549,6 +549,12 @@ def _make_handler(store: GraphStore, *, allowed_origins: frozenset[str],
             persisted = candidate.storage_agent_id(selected)
             if persisted and candidate.has_agent_partition(persisted):
                 return candidate, persisted
+            # /api/agents also lists namespaces that exist before their first memory: an agent
+            # with a paired device in this store, and a registered agent this credential is
+            # bound to. Opening one must read as empty, not as "not found" -- the console
+            # selects the first listed workspace by default.
+            if candidate.has_paired_device(selected) or (candidate is store and selected in authorized):
+                return candidate, persisted or selected
             raise KeyError(selected)
         if not selected:
             return store, None

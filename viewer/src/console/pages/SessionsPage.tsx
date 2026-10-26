@@ -5,7 +5,7 @@
 // telemetry are the two writes, offered only in a writable workspace. Chain verification lives in
 // the Integrity drawer; this page links to it rather than repeating it.
 
-import { useEffect, useMemo, useState, type FormEvent } from 'react'
+import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
 import { api, type Exchange, type Session } from '../../api'
 import { useConsole } from '../state'
 import { useAsync, type AsyncState } from '../useAsync'
@@ -116,6 +116,11 @@ function SessionDetail({ session, onVerify, onBack }: { session: Session; onVeri
   const [error, setError] = useState<string | null>(null)
   const [confirmingEnd, setConfirmingEnd] = useState(false)
   const id = session.external_session_id
+  const scrollRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (scrollRef.current) scrollRef.current.scrollTop = 0
+  }, [id, tab])
 
   const end = async () => {
     setBusy(true)
@@ -166,7 +171,7 @@ function SessionDetail({ session, onVerify, onBack }: { session: Session; onVeri
       <div className="xc-tabs" role="tablist" aria-label="Session sections">
         {TABS.map(([t, label]) => <button key={t} type="button" role="tab" className="xc-tab" aria-selected={tab === t} onClick={() => setTab(t)}>{label}</button>)}
       </div>
-      <div className="xc-scroll"><div className="xc-inspector-body">
+      <div className="xc-scroll" ref={scrollRef}><div className="xc-inspector-body">
         {tab === 'exchanges' && <ExchangesTab id={id} />}
         {tab === 'memories' && <MemoriesTab id={id} />}
         {tab === 'replay' && <ReplayTab id={id} />}

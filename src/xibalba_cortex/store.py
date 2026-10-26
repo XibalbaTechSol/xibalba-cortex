@@ -906,6 +906,17 @@ class GraphStore:
         ).fetchone()
         return row is not None
 
+    def has_paired_device(self, agent_id: str) -> bool:
+        """Whether any device is paired to this exact agent id -- the other way
+        `agent_workspaces()` lists a namespace, before the agent has written anything here."""
+        value = str(agent_id or "").strip()
+        if not value:
+            return False
+        row = self._read_connection().execute(
+            "SELECT 1 FROM agent_devices WHERE agent_id = ? LIMIT 1", (value,)
+        ).fetchone()
+        return row is not None
+
     @staticmethod
     def local_device_id() -> str:
         """Stable operator-visible device identity, overridable for managed runtimes."""

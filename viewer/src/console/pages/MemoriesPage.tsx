@@ -155,7 +155,19 @@ export function MemoriesPage() {
               </thead>
               <tbody>
                 {rows.map((m) => (
-                  <tr key={m.id} data-selected={selectedId === `memory:${m.id}`} onClick={() => select(`memory:${m.id}`)}>
+                  <tr
+                    key={m.id}
+                    data-selected={selectedId === `memory:${m.id}`}
+                    tabIndex={0}
+                    role="button"
+                    onClick={() => select(`memory:${m.id}`)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault()
+                        select(`memory:${m.id}`)
+                      }
+                    }}
+                  >
                     <td className="xc-mono">{stamp(m.created_at)}</td>
                     <td><span className="xc-tag"><i />{m.status}</span></td>
                     <td>
