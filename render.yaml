@@ -14,7 +14,7 @@ services:
       - key: CORTEX_MANAGED_HOME
         value: /data/cortex-managed
       - key: CORTEX_MANAGED_ALLOW_SIGNUP
-        value: "false"
+        value: "true"
       - key: CORTEX_STRIPE_LIVE
         value: "false"
       - key: STRIPE_SECRET_KEY
