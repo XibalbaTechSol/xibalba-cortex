@@ -65,13 +65,65 @@ Session shape (already true of both editions; the design stops duplicating it): 
 cookie, `SameSite=Lax`, `Secure` when the public origin is HTTPS, CSRF token required on
 mutations.
 
-### Editions become a flag, not a second application
+### One app. The console is the app.
 
-`ManagedApp` dissolves into two panels — plans/billing, and tenant onboarding — mounted
-inside the console's existing `Shell`. `VITE_CORTEX_EDITION=managed` then selects which
-panels mount, not which application boots. `ManagedLenses.tsx` collapses into
-`GraphLens` / `TimelineLens` over an edition-aware data source, so the lenses stop being
-a managed-specific reimplementation.
+**Decision: there is one application, and it is the console.** The managed edition is that
+same application configured for hosting — not a sibling, not a variant shell.
+
+Deleted outright:
+
+- `viewer/src/console/ManagedApp.tsx`
+- `viewer/src/console/ManagedLenses.tsx`
+- `viewer/src/console/managed.css`
+- the `main.tsx` branch that chooses between two roots
+
+`main.tsx` boots `ConsoleApp` unconditionally. Every user, hosted or self-hosted, gets the
+console: the same `Shell` (`TopBar`, `Rail`, `WorkspaceHeader`, `FacetRail`, `ChainRail`,
+`Inspector`, `StatusBar`), the same `SignIn`, the same `GraphLens` / `TimelineLens`, the
+same Industry grammar.
+
+Managed then contributes exactly three things, none of them layout:
+
+1. a **plans/billing panel**, mounted as a destination like any other;
+2. **email verification before first sign-in**, as a policy flag;
+3. a **server-declared capability set**, below.
+
+### Capabilities, not a second UI
+
+The two editions' APIs are not the same size. Managed serves 20 routes under
+`/api/managed/*` (auth, memories, graph, timeline, keys, plans, billing, export/import);
+the console's client calls roughly 27 distinct `/api/*` paths, including `agent-devices`,
+`auth/tokens`, `backup`, `connectors`, `context/assemble`, `operations`,
+`retrieval/hybrid`, `settings/inference`, `stats`, `status` and `workers`. Most do not
+overlap.
+
+So "one app, like the console" cannot mean the hosted edition pretends to have a worker
+pool. It means the **same app, same shell, same grammar, with the navigation narrowed to
+what the server declares it can serve.**
+
+The seam for this already exists and must be reused rather than reinvented. `nav.ts`
+already resolves destinations through a built-set filter:
+
+    export const DESTINATIONS = ALL_DESTINATIONS.filter((d) => BUILT.has(d.id))
+
+The change is to source that set from the server for the current edition instead of a
+compile-time constant. `nav.ts`'s own comment states the property that makes this safe —
+a destination is declared in one place, appears in all three (nav, routes, surfaces) and
+"cannot drift between them".
+
+Consequence to accept deliberately: a hosted workspace initially lists fewer destinations
+than a self-hosted one. That is an honest statement about which endpoints exist, and each
+one closes by implementing the endpoint, not by changing the UI. The alternative —
+shrinking the console to managed's surface — was rejected: it would degrade the
+self-hosted product to match the hosted one.
+
+### API path shape
+
+The console client's base path becomes edition-aware so one data layer serves both. The
+hosted edition's `/api/managed/*` prefix is a deployment detail, not a second client:
+`login`, `signup`, `me`, `logout`, `recovery/{action}` map onto the single `/api/auth/*`
+contract, and `keys` onto `auth/tokens`. Where a managed route has no console equivalent
+(`plans`, `checkout`, `portal`), it is reached by the billing panel alone.
 
 ### Why the two editions diverged, and what stops it recurring
 
