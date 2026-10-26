@@ -1,0 +1,29 @@
+name: cortex-memory-managed
+services:
+  cortex-managed:
+    build:
+      context: ../..
+      dockerfile: deploy/managed/Dockerfile
+      additional_contexts:
+        integrity_sdk: ../../../integrity-core/integrity-sdk
+    env_file:
+      - .env
+    environment:
+      CORTEX_MANAGED_HOME: /data/cortex-managed
+    ports:
+      - "127.0.0.1:8430:8430"
+    volumes:
+      - managed-data:/data/cortex-managed
+    restart: unless-stopped
+    init: true
+    read_only: true
+    tmpfs:
+      - /tmp:size=32m,mode=1777
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 1g
+    cpus: 1.0
+volumes:
+  managed-data:

@@ -9,12 +9,11 @@ import { createRoot } from 'react-dom/client'
 async function boot(): Promise<void> {
   const root = createRoot(document.getElementById('root')!)
   await import('./console/console.css')
-  const { ConsoleApp } = await import('./console/ConsoleApp.tsx')
-  root.render(
-    <StrictMode>
-      <ConsoleApp />
-    </StrictMode>,
-  )
+  const managed = import.meta.env.VITE_CORTEX_EDITION === 'managed' || location.pathname.replace(/\/+$/, '') === '/managed'
+  const App = managed
+    ? (await import('./console/ManagedApp.tsx')).ManagedApp
+    : (await import('./console/ConsoleApp.tsx')).ConsoleApp
+  root.render(<StrictMode><App /></StrictMode>)
 }
 
 void boot()

@@ -1,16 +1,6 @@
-// The public landing page: the first thing an unauthenticated visitor sees.
-//
-// Cortex had one of these until the legacy viewer was archived, and it went with it -- the
-// console then opened straight onto sign-in, which tells a first-time visitor nothing about
-// what they are being asked to sign in to. This is that surface rebuilt on the Industry
-// grammar the console already uses: same tokens, same frames, same registration marks, dark
-// only. It is held to the same conformance sweep (e2e/design-system.spec.ts) for exactly that
-// reason -- "same theme" is a measurement here, not an intention.
-//
-// Everything stated below is drawn from the repo's own spec and README. No pricing, no hosted
-// service and no adoption claims: none of those exist yet, and a landing page is the worst
-// place to get ahead of what is actually built.
+// Shared public entry. Each edition describes only its implemented capabilities.
 
+import type { ReactNode } from 'react'
 import { IconCheck, IconGraph, IconIntegrity, IconLock, IconSearch, IconTimeline } from './icons'
 
 const REPO = 'https://github.com/XibalbaTechSol/xibalba-cortex'
@@ -44,7 +34,17 @@ const FACTS = [
   ['Bridges', 'Claude Code, Codex and agy, through one shared contract.'],
 ] as const
 
-export function Landing({ onSignIn }: { onSignIn: () => void }) {
+export function Landing({ onSignIn, children, managed = false }: { onSignIn: () => void; children?: ReactNode; managed?: boolean }) {
+  const primitives = managed ? [
+    PRIMITIVES[0],
+    { icon: <IconSearch />, title: 'Search what your agents recorded', body: 'Find matching memories through bounded lexical search. Each request stays within the authenticated workspace and its monthly allowance.', tool: 'GET /api/managed/memories' },
+    { icon: <IconLock />, title: 'An isolated workspace', body: 'Each customer has a separate memory store. Workspace-scoped API keys connect agents without granting access to billing or other customers’ memories.', tool: 'Workspace-scoped access' },
+  ] : PRIMITIVES
+  const facts = managed ? [
+    ['Storage', 'A separate persistent memory store for each workspace.'],
+    ['Access', 'An authenticated API and a managed web workspace.'],
+    ['Billing', 'Monthly subscriptions, with payment details handled by Stripe.'],
+  ] : FACTS
   return (
     <div className="xc-landing">
       <header className="xc-landing-top">
@@ -66,14 +66,13 @@ export function Landing({ onSignIn }: { onSignIn: () => void }) {
             built for 124px -- see viewer/scripts/invert_logo_to_white.py. */}
         <img className="xc-landing-mark" src="/cortex-lockup-hero.png" width={420} height={390} alt="" />
         <div className="xc-landing-hero-body">
-          <p className="xc-eyebrow">Graph memory for agents</p>
+          <p className="xc-eyebrow">{managed ? 'Managed memory for agents' : 'Graph memory for agents'}</p>
           <h1 id="xc-hero-title">Your agents’ memory.<br />Provably yours.</h1>
           <p className="xc-landing-lead">
-            A local-first memory server that records what your agents learned, where it came from, and
-            whether it still holds — as a graph you can walk and a chain you can verify.
+            {managed ? 'An isolated workspace for recording agent memories, searching them through an authenticated API, and retaining a verifiable event history.' : <>A local-first memory server that records what your agents learned, where it came from, and whether it still holds — as a graph you can walk and a chain you can verify.</>}
           </p>
           <div className="xc-landing-cta">
-            <button type="button" className="xc-btn xc-btn--primary" onClick={onSignIn}>Open the console</button>
+            <button type="button" className="xc-btn xc-btn--primary" onClick={onSignIn}>{managed ? 'Open your workspace' : 'Open the console'}</button>
             <a className="xc-btn" href={REPO} target="_blank" rel="noreferrer noopener">Read the source</a>
           </div>
         </div>
@@ -83,7 +82,7 @@ export function Landing({ onSignIn }: { onSignIn: () => void }) {
         <p className="xc-eyebrow">What it is</p>
         <h2 className="xc-landing-h2" id="xc-what-title">Memory with a verifiable foundation</h2>
         <div className="xc-landing-grid">
-          {PRIMITIVES.map((p) => (
+          {primitives.map((p) => (
             <article className="xc-win xc-landing-card" key={p.title}>
               <div className="xc-landing-card-icon" aria-hidden="true">{p.icon}</div>
               <h3 className="xc-title xc-title--sm">{p.title}</h3>
@@ -96,10 +95,10 @@ export function Landing({ onSignIn }: { onSignIn: () => void }) {
 
       <section className="xc-landing-section" id="how" aria-labelledby="xc-how-title">
         <p className="xc-eyebrow">How it runs</p>
-        <h2 className="xc-landing-h2" id="xc-how-title">Local first, and legible</h2>
+        <h2 className="xc-landing-h2" id="xc-how-title">{managed ? 'Hosted memory, clear boundaries' : 'Local first, and legible'}</h2>
         <div className="xc-landing-split">
           <dl className="xc-landing-facts">
-            {FACTS.map(([term, detail]) => (
+            {facts.map(([term, detail]) => (
               <div key={term}>
                 <dt className="xc-meta">{term}</dt>
                 <dd className="xc-copy">{detail}</dd>
@@ -108,17 +107,16 @@ export function Landing({ onSignIn }: { onSignIn: () => void }) {
           </dl>
           <article className="xc-win xc-landing-card">
             <div className="xc-landing-card-icon" aria-hidden="true"><IconGraph /></div>
-            <h3 className="xc-title xc-title--sm">Explore the memory graph</h3>
+            <h3 className="xc-title xc-title--sm">{managed ? 'A workspace for your agents' : 'Explore the memory graph'}</h3>
             <p className="xc-copy">
-              The same store, read two ways: a force-directed graph of memories, entities, sessions and
-              Merkle roots, and a timeline that places them on a real time axis. Select either and the
-              detail dock shows the chain, the provenance and the inference behind it.
+              {managed ? 'Record and retrieve memories, monitor your usage, connect agents with revocable API keys, and manage your subscription. Existing memories remain available to read and export if a subscription becomes read-only.' : <>The same store, read two ways: a force-directed graph of memories, entities, sessions and Merkle roots, and a timeline that places them on a real time axis. Select either and the detail dock shows the chain, the provenance and the inference behind it.</>}
             </p>
             <p className="xc-landing-icons" aria-hidden="true"><IconGraph /><IconTimeline /><IconLock /></p>
           </article>
         </div>
       </section>
 
+      {children}
       </main>
       <footer className="xc-landing-foot">
         <span className="xc-meta">Xibalba Cortex · Graph memory for agents</span>
