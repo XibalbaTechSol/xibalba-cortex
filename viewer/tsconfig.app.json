@@ -4,11 +4,7 @@
     "target": "es2023",
     "lib": ["ES2023", "DOM"],
     "module": "esnext",
-    /* "node" is here for the unit tests only: src/console/edition.test.ts reads the hosted
-       edition's own MANAGED_DESTINATIONS declaration out of the Python module that defines it,
-       because a list copied into a test cannot catch the backend dropping one. Application
-       code still has no business touching node APIs. */
-    "types": ["vite/client", "node"],
+    "types": ["vite/client"],
     "allowArbitraryExtensions": true,
     "skipLibCheck": true,
 

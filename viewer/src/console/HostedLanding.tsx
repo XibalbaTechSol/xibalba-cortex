@@ -6,8 +6,10 @@
 // costs the hosted deployment nothing: without it a hosted visitor would arrive at a page with no
 // prices, no plan choice and no way to create an account.
 //
-// Plan wording is not reimplemented -- `planRows`, `upgradeRefusal` and `Plan` are the same
-// helpers the signed-in Billing page uses, so the two surfaces cannot word a plan differently.
+// Plan wording is not reimplemented -- `planRows`, `Plan` and `BILLING_UNAVAILABLE` are the same
+// helpers and the same string the signed-in Billing page uses, so the two surfaces cannot word a
+// plan differently. `upgradeRefusal` is deliberately NOT used: it refuses every plan when billing
+// is unconfigured, and signed out the free plan must still offer "Start free".
 // The layout reuses the landing's own Industry primitives (`xc-landing-*`, `xc-win`, `xc-btn`,
 // `xc-field`, `xc-input`): none of the second UI's layout classes are carried over, and no new
 // CSS is added.

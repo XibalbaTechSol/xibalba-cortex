@@ -1,12 +1,10 @@
-import { readFileSync } from 'node:fs'
-import { resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
+// The hosted edition's own declaration, as text. `?raw` keeps this a build-graph import rather
+// than a filesystem read, so the test needs no node types and the path is checked at compile time.
+import MANAGED_SOURCE from '../../../src/xibalba_cortex/managed/api.py?raw'
 import { ALL_DESTINATIONS, DESTINATIONS, destinationsFrom } from './nav'
 import { editionOf, HOSTED_PATH } from './edition'
 import { BILLING_UNDECLARED, declaredDestinations, workspaceSession } from './hostedWorkspace'
-
-const MANAGED_API = resolve(import.meta.dirname, '../../../src/xibalba_cortex/managed/api.py')
-const MANAGED_SOURCE = readFileSync(MANAGED_API, 'utf8')
 
 /* Which edition's CONFIGURATION a boot uses. It selects copy and whether the console asks the
    hosted account API who it is -- never which component renders, which is why main.tsx has no

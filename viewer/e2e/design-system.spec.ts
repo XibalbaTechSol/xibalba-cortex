@@ -700,6 +700,29 @@ for (const width of [390, 1280, 1600]) {
    layout is the rail, which puts the session in the rail foot instead: `ProfileButton`, whose
    menu carries Log out. So the pin is the account control in either grammar rather than one
    layout's wording. */
+/* The hosted SIGNED-OUT page is new in the one-app consolidation: the public landing with the
+   hosted pricing section, plan cards and account form that used to be passed in from the second
+   UI. No sweep had seen it -- the sweep above runs signed in, and the landing sweep runs at `/`,
+   which is the self-hosted copy. Swept with the form closed and open, because opening it adds the
+   fields and a second heading. */
+for (const width of [390, 1280]) {
+  test(`the hosted landing keeps its grammar at ${width}px`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 950 })
+    await managedFixture(page)
+    await page.goto('/managed')
+    // the signed-out pin: the plan cards. A signed-in screen has none, so this is not vacuous.
+    await expect(page.getByRole('article', { name: 'Pro plan' })).toBeVisible()
+    await page.evaluate(() => document.fonts.ready)
+    const closed = await grammarSweep(page)
+    expect(closed, closed.join('\n')).toEqual([])
+    await page.getByRole('button', { name: 'Start free', exact: true }).click()
+    await expect(page.locator('#hosted-auth form')).toBeVisible()
+    await page.evaluate(() => document.fonts.ready)
+    const open = await grammarSweep(page)
+    expect(open, open.join('\n')).toEqual([])
+  })
+}
+
 for (const width of [390, 1280, 1600]) {
   test(`the hosted workspace keeps its grammar at ${width}px`, async ({ page }) => {
     await page.setViewportSize({ width, height: 950 })

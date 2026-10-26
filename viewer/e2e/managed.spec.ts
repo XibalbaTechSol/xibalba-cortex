@@ -129,8 +129,27 @@ test('a hash route for an undeclared destination opens no page', async ({ page }
 /* Self-hosted is the other half of the same proof: declaring nothing keeps every BUILT
    destination, so the Settings strip still carries Operations and still carries no Billing. */
 test('a server that declares nothing keeps every built destination', async ({ page }) => {
+  // The fixture is installed only to RECORD: a self-hosted console must ask the hosted account
+  // API nothing at all. The same recorder sees `me` in every hosted test above, so an empty list
+  // here is a measurement, not a dead route.
+  const calls = await managedFixture(page)
   await openConsole(page, { hash: 'settings' })
   const tabs = page.locator('.xc-page-tabs')
   await expect(tabs.getByRole('button', { name: 'Operations', exact: true })).toBeVisible()
   await expect(tabs.getByRole('button', { name: 'Billing', exact: true })).toHaveCount(0)
+  expect(calls).toEqual([])
+})
+
+/* Ruling C, at the consumers: the hosted-only capabilities are gated on the SESSION, not on the
+   nav list. This fixture is a hosted deployment that stopped declaring `billing` -- the defect
+   that gate change exists to prevent. API keys and bulk export must both survive it, and Billing
+   must be absent from the navigation, which is the declaration fault the console also logs. */
+test('hosted capabilities survive a declaration that dropped billing', async ({ page }) => {
+  await managedFixture(page, { signedIn: true, destinations: ['graph', 'memories', 'agents', 'settings'] })
+  await page.goto('/managed#agents')
+  await expect(page.getByRole('heading', { name: 'Connect an agent with an API key' })).toBeVisible()
+  await expect(page.getByLabel('Agent DIDs', { exact: false })).toBeVisible()
+  await expect(page.locator('.xc-page-tabs').getByRole('button', { name: 'Billing', exact: true })).toHaveCount(0)
+  await page.goto('/managed#memories')
+  await expect(page.getByRole('button', { name: 'Export memories', exact: true })).toBeVisible()
 })
