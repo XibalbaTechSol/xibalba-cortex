@@ -1,10 +1,14 @@
 from __future__ import annotations
 
+import json
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from threading import Thread
+
 import pytest
 
 from integrity_sdk.core import DecisionEnvelope, DecisionTraceError, FixtureJevProvider, GENESIS_PARENT
 from xibalba_cortex.decision_trace_view import render_decision_trace_html
-from xibalba_cortex.jev_gateway import JevGateway
+from xibalba_cortex.jev_gateway import HttpJevProvider, JevGateway
 from xibalba_cortex.store import GraphStore
 from xibalba_cortex.decision_trace_worker import process_decision_trace_advisories
 from integrity_sdk.core import JevAnalysis
@@ -78,6 +82,56 @@ def test_jev_gateway_rejects_provider_binding_mismatch_and_renders_audit_view():
     assert "Observational estimate" in html
     assert "Causal claim: <b>false</b>" in html
     assert "0x2222" in html
+
+
+def test_http_provider_discards_unbounded_free_text_before_trace_persistence(tmp_path):
+    canary = "PROVIDER-FREE-TEXT-CANARY-DO-NOT-RETAIN"
+    returned = {
+        "status": "available", "risk_category": "medium",
+        "transition_probabilities": {"continue": 0.4, "escalate": 0.6},
+        "prompt": canary, "completion": canary, "chain_of_thought": canary,
+        "tool_arguments": canary, "secret": canary, "provider_payload": canary,
+    }
+
+    class Handler(BaseHTTPRequestHandler):
+        def do_POST(self):
+            self.rfile.read(int(self.headers.get("Content-Length", "0")))
+            body = json.dumps(returned).encode()
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+
+        def log_message(self, *_args):
+            pass
+
+    server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+    thread = Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        event = _event("provider-content")
+        gateway = JevGateway(HttpJevProvider(f"http://127.0.0.1:{server.server_port}/analyze"))
+        advisory = gateway.analyze(event)
+        assert advisory.status == "available"
+        assert advisory.risk_category == "medium"
+        assert advisory.observed_event_hash == event.event_hash
+
+        store = GraphStore(tmp_path)
+        store.start_session("session-a", retention_tier="digest", agent_id="agent-a")
+        store.record_decision_trace_event("session-a", event, advisory=advisory)
+        projection = store.session_decision_trace("session-a", "trace-a")
+        serialized = json.dumps(projection)
+        assert canary not in serialized
+        assert set(projection["events"][0]["advisory"]) <= {
+            "provider_id", "status", "risk_category", "transition_probabilities",
+            "recommended_escalation", "observed_event_hash", "causal_claim",
+        }
+        store.close()
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=2)
 
 
 def test_unavailable_advisory_is_retried_and_attached_to_original_event(tmp_path):

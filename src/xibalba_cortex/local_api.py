@@ -1310,7 +1310,7 @@ def _make_handler(store: GraphStore, *, allowed_origins: frozenset[str],
             if parts == ["api", "settings", "inference"]:
                 try:
                     body = self._read_json_body()
-                    allowed = {"enabled", "provider", "harness", "profile_name", "allow_fallback", "task_types", "batch_size", "interval_seconds", "max_attempts", "timeout_seconds", "max_parallel_families", "combined_batching", "max_evidence_chars_per_memory", "max_items_per_type", "human_review_confidence_threshold", "task_confidence_thresholds", "promotion_policy", "contradictions_require_review"}
+                    allowed = {"enabled", "provider", "harness", "profile_name", "allow_fallback", "task_types", "batch_size", "interval_seconds", "max_attempts", "timeout_seconds", "max_parallel_families", "combined_batching", "max_evidence_chars_per_memory", "max_items_per_type", "human_review_confidence_threshold", "task_confidence_thresholds", "promotion_policy", "contradictions_require_review", "decision_trace_jev_endpoint", "decision_trace_jev_timeout_seconds"}
                     unknown = set(body) - allowed
                     if unknown:
                         raise ValueError(f"unsupported inference settings: {sorted(unknown)}")
