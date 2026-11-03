@@ -79,20 +79,28 @@ execution order that is the deployable test build the reorder was for. Specifica
   file — never through a pipe. **Phase 0 Task 5 Step 5 depends on this baseline**, and so
   does the merge gate.
 - `uv run pytest tests/test_managed_ingest.py` — **11 passed / 11** (2026-11-03).
-- `uv run pytest` (whole suite, 2026-11-03) — **5 failed**, and **all five are environmental,
-  pre-existing, and fail in isolation**. None of them imports `managed.ingest` or `ingest_turn`
+- `uv run pytest` (whole suite, 2026-11-03) — **5 failed, 2 since fixed, 3 remain**. All five
+  were environmental, pre-existing, and failed in isolation. None of them imports `managed.ingest` or `ingest_turn`
   (grep: 0 matches), so none is attributable to Phase 5. **Do not chase these as regressions**,
   and do not expect a locally-green `pytest` on this machine:
-  - `test_stdio_principal.py::test_stdio_fails_closed_without_an_agent_identity` and
-    `test_hermes_observer.py::test_runtime_telemetry_omits_unconfigured_agent_id` are
+  - **FIXED 2026-11-03.** `test_stdio_principal.py::test_stdio_fails_closed_without_an_agent_identity`
+    and `test_hermes_observer.py::test_runtime_telemetry_omits_unconfigured_agent_id` were
     **non-hermetic**. Both clear `XIBALBA_AGENT_ID` and friends but not the *on-disk* identity,
     and `_install_stdio_principal` resolves `agent.did.json` first, by design
     (`resolve_agent_id(profile_root=_default_home())`). This box has one provisioned at
     `/home/xibalba/.hermes/xibalba-cortex` — `did:integrity:8dd4171a…`, the very DID that
     appears in the observer failure — so the identity resolves and no `SystemExit` is raised.
     CI has no provisioned DID, which is the only reason these pass there. Scrubbing the env
-    vars does **not** fix them; a real fix points `XIBALBA_CORTEX_HOME` at `tmp_path`, as the
-    sibling test `test_stdio_binds_the_launched_agent_identity` already does.
+    vars does **not** fix them. Both now point `XIBALBA_CORTEX_HOME` at an empty `tmp_path`
+    through a `no_identity` fixture, so "unconfigured" is true wherever they run. **A third
+    test was vacuous for the same reason:**
+    `test_unscoped_stdio_requires_an_explicit_opt_in` took the identity branch and never
+    reached the escape hatch it exists to test, asserting nothing — it is now hermetic and
+    asserts the hatch binds no principal. Four mutation proofs were run: dropping the
+    `SystemExit` reds the fails-closed test, binding a principal in the hatch reds the opt-in
+    test, always stamping an `agent_id` reds the observer test, and **removing the fixture's
+    `XIBALBA_CORTEX_HOME` reds two of them** — which is what makes the fix load-bearing rather
+    than cosmetic.
   - `test_local_api.py::test_context_assemble_route_is_read_scoped_and_agent_scoped` and
     `::test_inference_task_routes` need the oracle on `localhost:8080`; it is not running
     (`ConnectionRefusedError`).
