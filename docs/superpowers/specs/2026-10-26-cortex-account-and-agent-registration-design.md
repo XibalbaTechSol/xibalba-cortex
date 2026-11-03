@@ -40,14 +40,15 @@ Checked against `origin/main` and `origin/local`.
 | Password reset | yes — `passwordReset.ts` | yes — separate `recovery/{action}` |
 | Register agent, CLI | yes — `cortex connect` (`src/xibalba_cortex/connect.py`) | same CLI, not surfaced in UI |
 | Register agent, DID -> API key | no | yes — DID textarea -> `agent_ids` |
-| Register agent, on-chain ERC-8004 | yes on `origin/local`, unmerged | yes on `origin/local`, unmerged |
+| Register agent, on-chain ERC-8004 | yes — merged to `main` by PR #73 | yes — same, via PR #73 |
 | Device pairing | operator-typed `deviceId` | no |
 | Graph + Timeline main view | yes — `GraphLens` / `TimelineLens` | yes — `ManagedLenses` + Graph/Timeline nav |
 
 **Therefore this is a consolidation, not a greenfield build.** Nearly every capability
 exists; it exists *twice*, divergently, and the unification work (PR #73, commit
-`9f43f50` "Unify Agent0 flows across local and managed Cortex") is blocked behind a red
-`viewer` CI job.
+`9f43f50` "Unify Agent0 flows across local and managed Cortex") was blocked behind a red
+`viewer` CI job; PR #72 turned that job green and PR #73 merged on 2026-10-26, so the
+unification has landed on `main`.
 
 Two earlier readings of mine were wrong and are corrected here, because the design was
 briefly argued from them:
