@@ -131,6 +131,15 @@ section.
 - **Never `git stash`** — the stack is shared across worktrees. Use a WIP commit.
 - Push with `xb-wt push` and verify with `ls-remote` or `rev-parse`; `push -u` can print
   "Everything up-to-date" and send nothing.
+- **The worktree already exists**, created by `xb-wt` at
+  `/mnt/storage/xibalba/Projects/worktrees/xibalba-cortex/account-registration-design`. Do
+  **not** create another, and never `EnterWorktree(name=...)` — that puts the tree in a
+  fifth location. If an execution sub-skill routes through `using-git-worktrees`, skip that
+  step: this constraint overrides it.
+- **There is no `tests/conftest.py`.** Every fixture a task names — `tmp_home`,
+  `frozen_clock`, `managed_client`, `managed_app`, `legacy_cookie`, `api_key` — must be
+  created by the first task that uses it, in `tests/conftest.py`, as part of that task's
+  Step 1. Do not assume any of them exist.
 
 ---
 
@@ -185,152 +194,218 @@ the billing panel's.
 
 ---
 
-## Phase 1 — One auth contract, with bounded sessions and real revocation
+## Phase 1 — One auth contract, with scoped sessions and real revocation
 
-The spec's P1, amended 2026-11-02: short-lived scoped sessions and working
-revocation/rotation move **in**; federated identity, audited issuance and tenant-bound
-membership stay in Phase 4.
+The spec's P1, amended 2026-11-02. **Corrected 2026-11-03 after reading the code:** an
+earlier revision of this phase planned a new `managed/auth.py` with a fresh
+`issue_session`. That would have built a *third* auth system. It is wrong, and here is what
+is actually true.
+
+**`accounts.py` is already the one shared implementation.** `issue_account_session(home, *,
+email, password, ttl_hours=24)` at `accounts.py:209` and `revoke_account_session` at `:473`
+are called by **both** editions — `managed/api.py:232` and `:253` go straight to them. So
+"managed stops owning authentication" is **largely already true**; what managed still owns
+separately is its cookie name (`cortex_managed_session`, `api.py:37`), its CSRF derivation
+(`api.py:99`) and its `recovery/{action}` routes.
+
+**Three of the four things this phase was going to build already exist:**
+
+| Claimed gap | Reality |
+|---|---|
+| Sessions expire | **Already.** `ttl_hours=24`, stored as `expires_at` on an `ingest_tokens` row (`accounts.py:244,253`) |
+| Expiry is enforced | **Already.** `ingest_tokens.py:147` verifies `revoked_at IS NULL AND (expires_at IS NULL OR expires_at > ?)` |
+| Revocation is effective | **Already.** `revoke_account_session` sets `revoked_at`; the same verify consults it |
+| Sessions are scoped | **No — this is the real gap.** `accounts.py:252` issues `all_known_scopes`: every scope any role grants |
+
+So the genuine work is narrower and sharper than "build auth": **narrow the session's
+scopes, shorten its lifetime, add rotation, and keep both editions on the one
+implementation.** The revocation tests still get written — a behaviour that works today and
+is untested is one refactor away from not working — but their "implement" step is mostly
+already done, which is the expected and correct outcome.
 
 ### File Structure
 
-- `src/xibalba_cortex/managed/auth.py` — **create.** The managed edition's implementation of
-  the one auth contract: issue, validate, expire, revoke, rotate. Managed's login/signup/me/
-  logout/recovery handlers become thin callers.
-- `src/xibalba_cortex/managed/api.py` — **modify.** Route handlers delegate to `auth.py`;
-  they hold no session logic.
-- `viewer/src/console/SignIn.tsx` — **modify.** One component for both editions.
-- `viewer/src/hostedApi.ts` — **modify.** Map `login`, `signup`, `me`, `logout`,
-  `recovery/{action}` onto the single `/api/auth/*` contract and `keys` onto `auth/tokens`.
-- `tests/test_managed_auth.py` — **create.**
+- `src/xibalba_cortex/accounts.py` — **modify.** The single auth implementation. Scope
+  narrowing, a shorter default TTL, and rotation land here, not in an edition.
+- `src/xibalba_cortex/managed/api.py` — **modify.** Keeps its cookie, CSRF and recovery
+  routes; gains nothing that belongs in `accounts.py`.
+- `viewer/src/console/SignIn.tsx`, `viewer/src/hostedApi.ts` — **modify.** One component,
+  one client contract.
+- `tests/conftest.py` — **create** (does not exist; see Global Constraints).
+- `tests/test_account_sessions.py` — **create.**
 
-### Task 1: Sessions carry a bounded lifetime and an enforced scope
+### Task 1: Record what session auth does today, before changing it
+
+The branch already set this precedent: `a23b01e` recorded the self-hosted wire contract
+before changing it. Do the same here, because this phase edits the one code path that can
+sign out every pilot user.
 
 **Files:**
-- Create: `src/xibalba_cortex/managed/auth.py`
-- Create: `tests/test_managed_auth.py`
-- Modify: `src/xibalba_cortex/managed/api.py`
+- Create: `tests/conftest.py`, `tests/test_account_sessions.py`
 
 **Interfaces:**
-- Consumes: the `accounts` and `tenants` tables `api.py` already reads; `profile_id` as the
-  workspace key.
-- Produces: `issue_session(account_id: str, *, scopes: tuple[str, ...], ttl_seconds: int) -> str`,
-  `validate_session(token: str, *, required_scope: str | None = None) -> dict | None`
-  returning the principal or `None`, and `SESSION_TTL_SECONDS: int`.
+- Consumes: `accounts.issue_account_session(home, *, email, password, ttl_hours=24) -> tuple[str, dict]`,
+  `accounts.revoke_account_session(home, token) -> bool`, and `ingest_tokens.verify_token_record`.
+- Produces: the `tmp_home` and `frozen_clock` fixtures every later task uses.
 
-- [ ] **Step 1: Write the failing tests**
+- [ ] **Step 1: Write the tests — and expect them to PASS**
+
+These are characterisation tests. They assert current behaviour so a later task cannot break
+it silently. This is the one place in the plan where a passing first run is correct.
 
 ```python
-def test_session_expires_after_its_ttl(tmp_home, frozen_clock):
-    token = issue_session("acct-1", scopes=("memory:read",), ttl_seconds=60)
-    assert validate_session(token) is not None
-    frozen_clock.advance(61)
-    assert validate_session(token) is None
+def test_a_session_expires_at_its_ttl_today(tmp_home, frozen_clock):
+    token, _ = issue_account_session(tmp_home, email=EMAIL, password=PW, ttl_hours=1)
+    assert verify_token_record(tmp_home, token) is not None
+    frozen_clock.advance(hours=1, seconds=1)
+    assert verify_token_record(tmp_home, token) is None
 
-def test_session_scope_is_enforced_not_advisory(tmp_home):
-    token = issue_session("acct-1", scopes=("memory:read",), ttl_seconds=60)
-    assert validate_session(token, required_scope="memory:read") is not None
-    assert validate_session(token, required_scope="memory:write") is None
+def test_revocation_is_consulted_on_the_next_request_today(tmp_home):
+    token, _ = issue_account_session(tmp_home, email=EMAIL, password=PW)
+    assert verify_token_record(tmp_home, token) is not None   # passes BEFORE
+    assert revoke_account_session(tmp_home, token) is True
+    assert verify_token_record(tmp_home, token) is None       # fails AFTER
+
+def test_a_session_today_carries_every_known_scope(tmp_home):
+    """Characterises the gap Task 2 closes. When Task 2 lands, this test is REPLACED by
+       test_a_session_carries_only_its_roles_scopes -- not deleted silently."""
+    token, _ = issue_account_session(tmp_home, email=EMAIL, password=PW)
+    record = verify_token_record(tmp_home, token)
+    assert "memory:write" in record["scopes"] and len(record["scopes"]) > 2
 ```
 
-- [ ] **Step 2: Run them and confirm they fail**
+- [ ] **Step 2: Run them and confirm they PASS**
 
-Run: `uv run pytest tests/test_managed_auth.py -v`
-Expected: FAIL — `managed.auth` does not exist.
+Run: `uv run pytest tests/test_account_sessions.py -v`
+Expected: PASS. A failure here means this plan's reading of `accounts.py` is wrong — stop
+and re-read rather than editing the test to match.
 
-- [ ] **Step 3: Implement `auth.py`**
+- [ ] **Step 3: Prove each can fail** — this is what makes Step 2's pass meaningful. Remove
+      the `expires_at` comparison from `ingest_tokens.py:147`; confirm only the expiry test
+      goes red. Make `revoke_account_session` a no-op returning `True`; confirm only the
+      revocation test goes red. Restore both.
+- [ ] **Step 4: Commit**
 
-Store expiry as an absolute UTC ISO timestamp, not a duration, so a restart cannot extend a
-session. Compare against `datetime.now(timezone.utc)`. Scope check is exact membership, not
-a prefix match.
+### Task 2: A session carries only the scopes its role grants
 
-- [ ] **Step 4: Run them and confirm they pass**
-
-- [ ] **Step 5: Prove each check can fail**
-
-Remove the expiry comparison; confirm only `test_session_expires_after_its_ttl` goes red.
-Replace the scope membership test with `True`; confirm only
-`test_session_scope_is_enforced_not_advisory` goes red. Restore both.
-
-- [ ] **Step 6: Commit**
-
-### Task 2: Existing managed cookies keep working
+The real gap. `accounts.py:252` computes `all_known_scopes` as every scope in
+`ROLE_SCOPES.values()`, so a viewer-role account session holds `memory:write`.
 
 **Files:**
-- Modify: `src/xibalba_cortex/managed/auth.py`
-- Modify: `tests/test_managed_auth.py`
+- Modify: `src/xibalba_cortex/accounts.py`
+- Modify: `tests/test_account_sessions.py`
 
 **Interfaces:**
-- Produces: nothing new; `validate_session` gains a legacy path.
+- Produces: no signature change. `issue_account_session` keeps its shape; only the stored
+  `scopes_json` narrows.
 
 - [ ] **Step 1: Write the failing test**
 
 ```python
-def test_a_cookie_issued_before_the_migration_still_authenticates(tmp_home, legacy_cookie):
-    assert validate_session(legacy_cookie) is not None
+def test_a_session_carries_only_its_roles_scopes(tmp_home):
+    token, _ = issue_account_session(tmp_home, email=VIEWER_EMAIL, password=PW)
+    record = verify_token_record(tmp_home, token)
+    assert "memory:read" in record["scopes"]
+    assert "memory:write" not in record["scopes"]
 ```
 
-Build `legacy_cookie` with the pre-migration writer, not by hand — a hand-built fixture
-proves only that the test author understood the old format.
+Replace `test_a_session_today_carries_every_known_scope` in the same commit, so the
+characterisation test's removal is visible in the diff rather than silent.
 
-- [ ] **Step 2: Run it and confirm it fails**
-- [ ] **Step 3: Accept the legacy shape in `validate_session`**, treating a legacy cookie as
-      carrying the full scope set and the default TTL from its issue time.
-- [ ] **Step 4: Run it and confirm it passes**
-- [ ] **Step 5: Prove it can fail** — reject unknown shapes unconditionally; confirm this
-      test alone goes red.
+- [ ] **Step 2: Run it and confirm it fails** — today the viewer session holds
+      `memory:write`.
+- [ ] **Step 3: Narrow the scopes to the account's own role.** `ROLE_SCOPES["admin"]`
+      literally contains `"*"`; the existing comment at `accounts.py:249-251` explains that
+      storing `"*"` verbatim would never match a concrete required scope. So expand `"*"` to
+      the concrete set **for an admin only**, and give every other role exactly its own
+      grants.
+- [ ] **Step 4: Run it and confirm it passes**, and confirm Task 1's two characterisation
+      tests are **still green** — nothing about expiry or revocation may change here.
+- [ ] **Step 5: Prove it can fail** — restore `all_known_scopes`; confirm this test goes red
+      and Task 1's stay green.
 - [ ] **Step 6: Commit**
 
-### Task 3: Revocation takes effect on the next request, and rotation does not sign anyone out
+### Task 3: Shorten the lifetime, and add rotation so shortening it is survivable
+
+A 24-hour session is not "short-lived". Shortening it alone would make users re-authenticate
+constantly, so the two land together: rotation is what makes a short TTL usable.
 
 **Files:**
-- Modify: `src/xibalba_cortex/managed/auth.py`
-- Modify: `tests/test_managed_auth.py`
+- Modify: `src/xibalba_cortex/accounts.py`, `src/xibalba_cortex/managed/api.py`,
+  `src/xibalba_cortex/local_api.py`
+- Modify: `tests/test_account_sessions.py`
 
 **Interfaces:**
-- Produces: `revoke_session(token: str) -> bool`,
-  `rotate_session(token: str) -> str | None`.
+- Produces: `rotate_account_session(home: str | Path, token: str) -> tuple[str, dict] | None`,
+  and a shortened `ttl_hours` default.
 
-- [ ] **Step 1: Write the failing tests** — this is Review Focus item 1.
+- [ ] **Step 1: Write the failing tests**
 
 ```python
-def test_revocation_is_consulted_on_the_next_request(tmp_home):
-    token = issue_session("acct-1", scopes=("memory:read",), ttl_seconds=600)
-    assert validate_session(token) is not None      # passes BEFORE
-    assert revoke_session(token) is True
-    assert validate_session(token) is None          # fails AFTER
-
 def test_rotation_replaces_the_credential_without_signing_the_holder_out(tmp_home):
-    token = issue_session("acct-1", scopes=("memory:read",), ttl_seconds=600)
-    fresh = rotate_session(token)
-    assert fresh is not None and fresh != token
-    assert validate_session(fresh) is not None
-    assert validate_session(token) is None
+    token, _ = issue_account_session(tmp_home, email=EMAIL, password=PW)
+    fresh, account = rotate_account_session(tmp_home, token)
+    assert fresh != token
+    assert verify_token_record(tmp_home, fresh) is not None
+    assert verify_token_record(tmp_home, token) is None
 
-def test_revoking_an_api_key_stops_ingestion_on_the_next_call(tmp_home, managed_client):
-    key = managed_client.create_key(agent_dids=["did:example:a"])
-    assert managed_client.ingest(key).status_code == 200
-    managed_client.revoke_key(key)
-    assert managed_client.ingest(key).status_code == 401
+def test_rotating_a_revoked_session_is_refused(tmp_home):
+    token, _ = issue_account_session(tmp_home, email=EMAIL, password=PW)
+    revoke_account_session(tmp_home, token)
+    assert rotate_account_session(tmp_home, token) is None
+
+def test_a_cookie_issued_before_the_change_still_authenticates(tmp_home):
+    """Build this with the PRE-change issuer, not by hand -- a hand-built fixture proves only
+       that the test author understood the old format."""
+    token = legacy_issued_session(tmp_home)
+    assert verify_token_record(tmp_home, token) is not None
 ```
 
-The third test's `ingest` call depends on Phase 5 Task 1. Write it now, mark it
-`@pytest.mark.xfail(reason="ingestion route lands in Phase 5 Task 1", strict=True)`, and
-remove the marker in Phase 5 Task 1 Step 4. `strict=True` means it fails the suite if it
-starts passing early, so the marker cannot be forgotten.
-
 - [ ] **Step 2: Run them and confirm they fail**
-- [ ] **Step 3: Implement revoke and rotate**, consulting the revocation state inside
-      `validate_session` so no caller can skip it.
-- [ ] **Step 4: Run them and confirm they pass** (the third still `xfail`)
-- [ ] **Step 5: Prove each can fail** — make `revoke_session` a no-op returning `True`;
-      confirm the revocation test goes red while rotation stays green.
+- [ ] **Step 3: Implement rotation and shorten the TTL.** ⚠️ **`local_api.py:453` carries a
+      comment that the cookie `max_age` must track `issue_account_session`'s `ttl_hours`
+      default**, and `managed/api.py:236` hardcodes `max_age=86400`. Change **all three**
+      together or a cookie will outlive its server-side session, which presents to the user
+      as a silent random logout.
+- [ ] **Step 4: Run them and confirm they pass**, and confirm every earlier test is green.
+- [ ] **Step 5: Prove each can fail** — have rotation return the same token; confirm only the
+      rotation test goes red.
 - [ ] **Step 6: Commit**
 
-### Task 4: One `SignIn`, one client contract
+### Task 4: API-key revocation stops ingestion
+
+`ingest_tokens.py:147` already consults `revoked_at`, so this is expected to need little or
+no implementation. It is here because it is Review Focus item 1 at the layer a customer
+actually touches, and because Phase 5 adds two new routes that must honour it.
 
 **Files:**
-- Modify: `viewer/src/console/SignIn.tsx`, `viewer/src/hostedApi.ts`
-- Modify: `viewer/src/hostedApi.test.ts`
+- Create: `tests/test_managed_keys.py`
+- Modify: `tests/conftest.py` (add `managed_app`, `api_key`)
+
+- [ ] **Step 1: Write the test**
+
+```python
+def test_revoking_an_api_key_stops_ingestion_on_the_next_call(managed_app, api_key):
+    assert managed_app.ingest(api_key).status_code == 200
+    managed_app.revoke_key(api_key)
+    assert managed_app.ingest(api_key).status_code == 401
+```
+
+The `ingest` call depends on Phase 5 Task 1. Mark it
+`@pytest.mark.xfail(reason="ingestion route lands in Phase 5 Task 1", strict=True)` and
+remove the marker in Phase 5 Task 1 Step 4. `strict=True` fails the suite if it starts
+passing early, so the marker cannot be forgotten.
+
+- [ ] **Step 2: Run it and confirm it xfails**
+- [ ] **Step 3: No implementation expected.** If it fails for a reason other than the missing
+      route, revocation is **not** consulted on that path — that is a real bug; fix it here.
+- [ ] **Step 4: Commit**
+
+### Task 5: One `SignIn`, one client contract
+
+**Files:**
+- Modify: `viewer/src/console/SignIn.tsx`, `viewer/src/hostedApi.ts`,
+  `viewer/src/hostedApi.test.ts`
 - Delete: managed's duplicated login / signup / forgot / reset / verify surface
 
 **Interfaces:**
@@ -343,7 +418,7 @@ starts passing early, so the marker cannot be forgotten.
 - [ ] **Step 2: Run it and confirm it fails**
 - [ ] **Step 3: Map the five auth paths and `keys` -> `auth/tokens`** in the existing hosted
       target table. Email verification is a policy flag read from the server declaration,
-      not a code path.
+      not a second code path.
 - [ ] **Step 4: Run it and confirm it passes**
 - [ ] **Step 5: Prove it can fail** — drop the `login` mapping; confirm the request-path
       assertion goes red.
@@ -353,9 +428,10 @@ starts passing early, so the marker cannot be forgotten.
       stale session state, run it, and prove it can fail by swallowing the `401`.
 - [ ] **Step 7: Commit**
 
-**Phase done when:** a single auth client serves both editions; sessions expire and are
-scope-checked; revocation is effective on the next request and rotation preserves the
-holder; a pre-migration cookie still authenticates.
+**Phase done when:** one auth implementation serves both editions; a session carries only
+its role's scopes; the TTL is short and rotation makes that usable; cookie `max_age` and
+server TTL agree in all three places; a pre-change cookie still authenticates; and
+revocation is proved effective at both the session and API-key layers.
 
 ---
 
@@ -640,7 +716,15 @@ Expected: FAIL — 404; the route does not exist.
       `test_revoking_an_api_key_stops_ingestion_on_the_next_call` and confirm it passes.
 - [ ] **Step 5: Prove it can fail** — drop `tool_calls` from the handler call; confirm the
       committed-tool-calls assertion goes red.
-- [ ] **Step 6: Commit**
+- [ ] **Step 6: Enforce the plan limits on this route.** Phase 3 Task 3 enforces
+      `writes_per_month`, `max_memories` and `retrievals_per_month` on the routes that
+      existed then. **This route is new and bypasses all three**, so a Free account could
+      ingest without limit. Write the test that a Free-tier ingest at the `writes_per_month`
+      boundary is refused and the same call succeeds on Pro, implement the check by calling
+      the same enforcement Phase 3 Task 3 built, and prove it can fail by removing the
+      check. Ingestion is the highest-volume write path in the product; unmetered is the
+      expensive failure.
+- [ ] **Step 7: Commit**
 
 ### Task 2: A token reaches its own workspace and no other
 
@@ -668,35 +752,56 @@ payload workspace precisely to prove it is ignored.
       red.
 - [ ] **Step 6: Commit**
 
-### Task 3: Mount the MCP app on the managed service
+### Task 3: Expose MCP on the managed service — BLOCKED on an operator decision
 
-**Files:**
-- Modify: `src/xibalba_cortex/managed/api.py`, `deploy/managed/Dockerfile`
-- Modify: `tests/test_managed_ingest.py`
+🚫 **Do not start this task.** An earlier revision said "mount the existing streamable-HTTP
+MCP app". Reading the code shows that would be a cross-tenant data leak, so the task is
+suspended pending a decision the operator has to make.
 
-**Interfaces:**
-- Consumes: `server.streamable_http_app(streamable_http_path=..., host=...)` and
-  `BearerTokenAuth(app, *, home, profile_id=None, required_scopes=(), rate_limit_per_minute=None)`
-  from `auth_middleware`, both as `server.py`'s `main()` already uses them.
+**Why the obvious implementation is unsafe.** `server.py:91` holds
+`_store: GraphStore | None = None` — a **process-global store**, initialised from
+`_default_home()` and a single `XIBALBA_CORTEX_PROFILE_ID` env var (`server.py:1742`). Every
+one of its ~89 tools reads that global. Mounted in the multi-tenant managed process, tenant
+B's authenticated request would be served tenant A's store. `BearerTokenAuth` does not help:
+it authenticates the request, it does not re-point the store.
 
-- [ ] **Step 1: Write the failing test** — an MCP `initialize` against `/mcp` with a valid
-      `managed-api:` bearer token succeeds; the same request with no token, and with a
-      revoked token, is refused.
-- [ ] **Step 2: Run it and confirm it fails**
-- [ ] **Step 3: Mount the MCP app behind `BearerTokenAuth`** with
-      `required_scopes=("memory:read",)` and a `rate_limit_per_minute`. Resolve `profile_id`
-      per request from the token, not from process configuration — the managed service is
-      multi-tenant where `server.py`'s `main()` is single-profile.
-- [ ] **Step 4: Run it and confirm it passes**
-- [ ] **Step 5: Prove it can fail** — mount without the auth wrapper; confirm the
-      no-token and revoked-token assertions go red.
-- [ ] **Step 6: Document the TLS boundary.** `server.py`'s startup warning records why:
-      the MCP server has no TLS of its own and bearer tokens travel in plaintext without a
-      TLS-terminating proxy. Render terminates TLS; a self-hosted operator must be told it
-      is required.
-- [ ] **Step 7: Commit**
+**The second problem: surface area.** Those ~89 tools include `memory_backup`,
+`memory_vault_inspect`, `memory_forget`, the inference-task lifecycle and the runtime
+bridge. `hosted_connector.py` deliberately exposes **three** (`cortex_remember`,
+`cortex_recall`, `cortex_connection_status`) and its own doc states that "administrative,
+review, deletion, and arbitrary runtime-ingestion tools are absent." Mounting the full
+server would publish all of them to the internet in one step.
 
-### Task 4: The two transports cannot drift
+**`hosted_connector.py` is the better reuse target, but it is not multi-tenant either.** It
+binds one profile per instance (`self.profile`, `hosted_connector.py:32`) and checks it per
+request (`:50`, `:58`), which is the right *shape* — a per-request subject-to-profile check
+rather than a global — but it still needs per-request profile resolution to serve many
+tenants from one process.
+
+**The decision the operator must make**, before any code:
+
+1. **Tool surface** — the connector's three tools plus `memory_ingest_agent_turn`
+   (recommended), or the full ~89-tool surface.
+2. **Which component** — extend `hosted_connector.py` to resolve the profile per request, or
+   make `server.py`'s store request-scoped.
+
+**This is a security-boundary change**, so per `SOUL.md` it gets a Devil's Advocate review
+before implementation, not after.
+
+Until it is decided, **Phase 5 ships Tasks 1, 2 and 5 only**, which already deliver the
+customer-visible outcome: a Grok bot or any HTTP client can record full turns into a hosted
+workspace over REST. MCP is the second transport, not the first.
+
+- [ ] **Step 0: Operator decides the tool surface and the component.** Blocking.
+- [ ] **Step 1: Devil's Advocate review** of the chosen approach, recorded.
+- [ ] Remaining steps to be planned once Step 0 fixes the design. Do not guess them.
+
+### Task 4: The two transports cannot drift — deferred with Task 3
+
+⏸ **Blocked by Task 3.** There is only one transport until the MCP decision is made, so
+there is nothing to compare. Keep this task written: the moment a second transport exists,
+this is the test that stops the duplication the spec was written about, and the spec records
+it as a hard requirement rather than a preference.
 
 **Files:**
 - Modify: `tests/test_managed_ingest.py`
@@ -794,10 +899,21 @@ likely to introduce an unsupported claim**, so every row of its matrix must cite
       reachable.
 - [ ] **Step 6: Commit**
 
-**Phase done when:** a Grok bot and a `curl` both record a full turn into a hosted workspace
-with tool calls present and the chain verifying; the identical-records test passes and is
-proved able to fail; a cross-workspace write is refused; and no README sentence lacks a
-backing file.
+**Phase done when** — split, because Task 3 is blocked:
+
+**Shippable now (Tasks 1, 2, 5, 6):** a Grok bot and a `curl` both record a full turn into a
+hosted workspace over REST, with tool calls present and the chain verifying; a
+cross-workspace write is refused; a Free-tier ingest is refused at its `writes_per_month`
+boundary; and no README sentence lacks a backing file.
+
+**Blocked (Tasks 3, 4):** MCP on managed, and the identical-records test that depends on a
+second transport existing. Resumes once the operator decides the tool surface and the
+component, and the Devil's Advocate review is recorded.
+
+This split is deliberate: the customer-visible outcome — hosted agents can finally record
+real provenance-bearing turns — does **not** depend on MCP. REST delivers it. MCP widens
+reach to clients that speak only MCP, which matters, but not at the cost of shipping a
+cross-tenant leak.
 
 ---
 
