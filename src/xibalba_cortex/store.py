@@ -13,6 +13,7 @@ import socket
 import sqlite3
 import threading
 import time
+from collections.abc import Sequence
 from functools import wraps
 import uuid
 from datetime import datetime, timedelta, timezone
@@ -5204,7 +5205,8 @@ class GraphStore:
 
     def list_inference_tasks(
         self, *, status: str = "pending", limit: int = 50, task_type: str | None = None,
-        agent_id: str | None = None,
+        agent_id: str | None = None, task_types: Sequence[str] | None = None,
+        provider_ids: Sequence[str | None] | None = None,
     ) -> list[dict[str, object]]:
         # Read-only connection (2026-09-15): polled by the viewer's Inference panel every 20s;
         # fetches full rows directly instead of id-then-refetch through the locked
@@ -5216,6 +5218,27 @@ class GraphStore:
         if task_type is not None:
             clauses.append("task_type = ?")
             params.append(task_type)
+        if task_types is not None:
+            if not task_types:
+                return []
+            placeholders = ", ".join("?" for _ in task_types)
+            clauses.append(f"task_type IN ({placeholders})")
+            params.extend(task_types)
+        if provider_ids is not None:
+            if not provider_ids:
+                return []
+            provider_values = [item for item in provider_ids if item is not None]
+            includes_legacy = any(item is None for item in provider_ids)
+            provider_clauses: list[str] = []
+            if provider_values:
+                placeholders = ", ".join("?" for _ in provider_values)
+                provider_clauses.append(
+                    f"json_extract(input_json, '$._contract.provider_id') IN ({placeholders})"
+                )
+                params.extend(provider_values)
+            if includes_legacy:
+                provider_clauses.append("json_extract(input_json, '$._contract.provider_id') IS NULL")
+            clauses.append(f"({' OR '.join(provider_clauses)})")
         if agent_id:
             # Include agent-owned memory/session/exchange tasks. Context bundles do not
             # have a durable ownership relation and are intentionally omitted from an

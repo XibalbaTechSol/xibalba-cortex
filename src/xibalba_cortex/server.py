@@ -1748,7 +1748,7 @@ def main() -> None:
     import uvicorn
     import threading
     import time
-    from .inference_loop import process_inference_cycle
+    from .inference_loop import has_inference_cycle_error, process_inference_cycle
     from .store import GraphStore
 
     def _inference_daemon():
@@ -1759,7 +1759,7 @@ def main() -> None:
             try:
                 inference_config = load_config(home=home).inference
                 result = process_inference_cycle(store, config=inference_config)
-                if any(isinstance(value, dict) and "error" in value for value in result.values()):
+                if has_inference_cycle_error(result):
                     print(f"Inference daemon cycle degraded: {result}")
             except Exception as e:
                 print(f"Inference daemon error: {e}")

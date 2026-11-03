@@ -26,6 +26,15 @@ from .store import GraphStore
 from .providers import NativeHarnessInferenceProvider
 
 
+def has_inference_cycle_error(value: object) -> bool:
+    """Return whether a cycle result contains an error at any nesting level."""
+    if isinstance(value, dict):
+        return "error" in value or any(has_inference_cycle_error(item) for item in value.values())
+    if isinstance(value, (list, tuple)):
+        return any(has_inference_cycle_error(item) for item in value)
+    return False
+
+
 def _run_safely(function: Any, store: GraphStore, *, limit: int) -> dict[str, Any]:
     try:
         return function(store, limit=limit)
@@ -78,12 +87,15 @@ def process_inference_cycle(
     except Exception as exc:
         expired = {"error": f"{type(exc).__name__}: {exc}"}
 
+    recovery: dict[str, Any] = {
+        "legacy_dead_lettered": int(legacy.get("dead_lettered", 0)),
+        **expired,
+    }
+    if "error" in legacy:
+        recovery["legacy_error"] = legacy["error"]
     result: dict[str, Any] = {
         "backfill": backfill,
-        "recovery": {
-            "legacy_dead_lettered": int(legacy.get("dead_lettered", 0)),
-            **expired,
-        },
+        "recovery": recovery,
     }
     jobs: dict[str, Any] = {}
     combined_types = enabled & {"extract_entities", "extract_relations", "classify_para"}

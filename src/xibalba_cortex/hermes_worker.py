@@ -93,7 +93,11 @@ def process_extraction_tasks(
 ) -> dict[str, int]:
     provider = NativeHarnessInferenceProvider(harness="hermes", profile_name=WORKER_PROFILE_NAME)
     effective_runner = runner or (lambda prompt: provider.infer(prompt))
-    tasks = [task for task in store.list_inference_tasks(status="pending", limit=max(limit, 100)) if task["task_type"] in {"extract_entities", "extract_relations"} and (task.get("input") or {}).get("_contract", {}).get("provider_id") in {None, "hermes", "native_harness"}][:limit]
+    tasks = store.list_inference_tasks(
+        status="pending", limit=max(limit, 100),
+        task_types=("extract_entities", "extract_relations"),
+        provider_ids=(None, "hermes", "native_harness"),
+    )[:limit]
     processed = completed = failed = 0
     for task in tasks:
         processed += 1

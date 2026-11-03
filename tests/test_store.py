@@ -1555,6 +1555,33 @@ def test_memory_inference_task_lifecycle_is_harness_facing(tmp_path):
     store.close()
 
 
+def test_inference_task_listing_filters_task_and_provider_before_limit(tmp_path):
+    store = GraphStore(tmp_path / "provider-filtered-queue")
+    memory = store.store_memory("Provider queue filtering.", source={"kind": "test"}, status="confirmed")
+    for index in range(120):
+        store.request_inference_task(
+            "extract_memory_metadata", subject_type="memory", subject_id=memory["id"],
+            input_payload={"source_content_hash": memory["content_hash"]},
+            idempotency_key=f"foreign-provider-{index}", provider_id="custom:foreign",
+        )
+    eligible = store.request_inference_task(
+        "extract_entities", subject_type="memory", subject_id=memory["id"],
+        input_payload={"source_content_hash": memory["content_hash"]},
+        idempotency_key="eligible-provider-task",
+    )
+
+    tasks = store.list_inference_tasks(
+        status="pending", limit=1, task_types=("extract_entities", "extract_relations"),
+        provider_ids=(None, "hermes", "native_harness"),
+    )
+    assert [task["id"] for task in tasks] == [eligible["id"]]
+    assert store.list_inference_tasks(
+        status="pending", limit=200, task_types=("extract_memory_metadata",),
+        provider_ids=("custom:foreign",),
+    )
+    store.close()
+
+
 def test_inference_task_cannot_be_claimed_twice(tmp_path):
     store = GraphStore(tmp_path / "claim")
     memory = store.store_memory("claim me", source={"kind": "test"}, status="active")
