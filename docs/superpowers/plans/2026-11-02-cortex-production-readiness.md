@@ -896,11 +896,14 @@ Why this task sits last in the phase: the README's claims become true as Tasks 1
 writing it earlier would publish a roadmap as a capability. **It is also the task most
 likely to introduce an unsupported claim**, so every row of its matrix must cite a file.
 
-- [ ] **Step 1: Resolve the tool count.** Read `tests/test_server.py`'s inventory assertion
-      and establish the real number. `README.md:164` and `README.md:336` both claim 80;
-      `server.py` has 89 `@server.tool` decorators. **Both current numbers are unsupported.**
-      Put no count in the README until the test settles it, then make the README quote the
-      test's number and say the test enforces it.
+- [x] **Step 1: Resolve the tool count — DONE by the controller 2026-11-03.** The
+      authoritative number is **89**.
+      `tests/test_server.py::test_all_tools_are_advertised` asserts an exact set of **89
+      unique** tool names (no duplicates), it matches the 89 `@server.tool` decorators in
+      `server.py`, and it **passes** today. So `README.md:164` and `README.md:336` are both
+      wrong by nine — correct them to 89, and keep the existing claim that a test enforces
+      the inventory, because it genuinely does. Cite the test by name,
+      `test_all_tools_are_advertised`, rather than "the exact inventory assertion".
 - [ ] **Step 2: Write the capability matrix first, before any prose.** One row per surface —
       local stdio MCP, hooks via `bridge.py`, Claude Code, Codex, Gemini CLI, Cindy, Grok,
       Perplexity, Spark, openclaw, generic `memory_ingest_agent_turn`, managed REST ingest,
