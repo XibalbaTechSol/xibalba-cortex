@@ -166,6 +166,52 @@ a real user first. Each has its test pinned to the task that owns the code.
 
 ---
 
+## Execution order — amended 2026-11-03
+
+**Phase 5 Tasks 1 and 2 run immediately after Phase 0**, ahead of Phases 1, 2 and 3.
+Operator decision: reach a deployable test build sooner. Those two tasks are what make the
+hosted product able to do the thing it currently cannot — record provenance-bearing turns —
+and Phases 1-3 harden auth and billing without unblocking testing.
+
+Running order: **Phase 0 → Phase 5 T1, T2 → Phase 1 → Phase 2 → Phase 3 → Phase 5 T3-T6.**
+
+**The reorder breaks no dependency.** Phase 5 Task 1 Step 6 was written as "call the
+enforcement Phase 3 Task 3 built". Verified 2026-11-03: **that enforcement already exists
+on `main`** and needs nothing from Phase 3 —
+
+- `ManagedControl.consume(tenant, meter, *, request_key=None, fingerprint="")`
+  (`control.py:183`) enforces `writes_per_month` and `retrievals_per_month` atomically
+  (`UPDATE usage SET amount=amount+1 WHERE ... AND amount<?`, raising `LimitExceeded` when
+  the row does not change), refuses writes on a read-only entitlement, and carries
+  idempotency through `request_key` + `fingerprint`.
+- `max_memories` is enforced by `GraphStore`'s own quotas, passed in `control.store()`
+  (`control.py:229`).
+- Routes already call it: `api.py:161, 369, 378, 405, 426`, inside
+  `service.write_guard(tenant)` and `service.store(tenant)`. `LimitExceeded` is mapped to a
+  response by the handler at `api.py:491` and registered at `api.py:534`.
+
+So Phase 5 Task 1 **calls the existing `service.consume(tenant, "writes", ...)`** rather
+than building anything, copying the shape of `api.py:368-370`. This also means **Phase 3
+Task 3 is mostly already implemented**; its remaining value is the three
+proved-able-to-fail tests, which is why it stays in the plan.
+
+**`control.store()` is also the workspace scoping Phase 5 Task 2 needs**, already hardened:
+it validates the tenant id's shape, rejects a symlinked tenant root, and rejects a resolved
+path whose parent is not the storage root (`control.py:216-224`). Task 2's job is therefore
+to prove the route derives its tenant from the **token** and never from the payload — not to
+build path isolation.
+
+**Fixture ownership moves with the order.** Phase 1 Task 4 was to create `managed_app` and
+`api_key` in `tests/conftest.py`; Phase 5 Task 1 now runs first, so **Phase 5 Task 1 creates
+them**. Phase 1 Task 4 reuses them.
+
+**Phase 1 Task 4's `xfail` inverts.** It was marked
+`@pytest.mark.xfail(strict=True)` because the ingest route did not exist yet. Under the new
+order it **does** exist, so Phase 1 Task 4 writes that test as an ordinary passing test with
+no marker, and Phase 5 Task 1 has no marker to remove.
+
+---
+
 ## Phase 0 — One app, and it is the console
 
 **Task detail lives in `docs/superpowers/plans/2026-10-26-p0-one-app-console.md`.** Do not
@@ -683,9 +729,14 @@ ingestion logic in a transport.
 - Consumes: `GraphStore.ingest_agent_turn(external_session_id, *, runtime, prompt, response,
   tool_calls=(), agent_id=None, prompt_id=None, prompt_time=None, response_time=None,
   metadata=None, idempotency_key=None) -> dict`; `verify_token_record` from
-  `ingest_tokens`; `account["profile_id"]` as the workspace key.
-- Produces: `ingest_turn(token: str, payload: dict) -> dict` and the route
-  `POST /api/managed/ingest`.
+  `ingest_tokens`; and the three managed primitives this route must reuse rather than
+  reinvent — `service.write_guard(tenant)`, `service.store(tenant)` (per-tenant `GraphStore`
+  with path-escape validation and `max_memories` quota) and
+  `service.consume(tenant, "writes", request_key=..., fingerprint=...)`. Copy the shape of
+  `api.py:368-370`.
+- Produces: `ingest_turn(token: str, payload: dict) -> dict`, the route
+  `POST /api/managed/ingest`, and the `managed_app` and `api_key` fixtures in
+  `tests/conftest.py` (which does not exist yet — create it).
 
 - [ ] **Step 1: Write the failing test**
 
@@ -716,14 +767,16 @@ Expected: FAIL — 404; the route does not exist.
       `test_revoking_an_api_key_stops_ingestion_on_the_next_call` and confirm it passes.
 - [ ] **Step 5: Prove it can fail** — drop `tool_calls` from the handler call; confirm the
       committed-tool-calls assertion goes red.
-- [ ] **Step 6: Enforce the plan limits on this route.** Phase 3 Task 3 enforces
-      `writes_per_month`, `max_memories` and `retrievals_per_month` on the routes that
-      existed then. **This route is new and bypasses all three**, so a Free account could
-      ingest without limit. Write the test that a Free-tier ingest at the `writes_per_month`
-      boundary is refused and the same call succeeds on Pro, implement the check by calling
-      the same enforcement Phase 3 Task 3 built, and prove it can fail by removing the
-      check. Ingestion is the highest-volume write path in the product; unmetered is the
-      expensive failure.
+- [ ] **Step 6: Meter this route like every other write.** A new route bypasses the limits
+      by default, and ingestion is the highest-volume write path in the product — unmetered
+      is the expensive failure, and it is reachable by anyone who signs up free. The
+      mechanism already exists (see **Execution order**), so this is a call, not a build:
+      wrap the write in `service.write_guard(tenant)` and call
+      `service.consume(tenant, "writes", request_key=..., fingerprint=...)` exactly as
+      `api.py:368-370` does. Write the test that a Free-tier ingest at the
+      `writes_per_month` boundary is refused with `LimitExceeded` and the same call succeeds
+      on Pro; prove it can fail by removing the `consume` call. Take `request_key` from an
+      `Idempotency-Key` header so a retried ingest does not double-charge.
 - [ ] **Step 7: Commit**
 
 ### Task 2: A token reaches its own workspace and no other
