@@ -29,6 +29,7 @@ from ..email_delivery import EmailDeliveryError
 from ..ingest_tokens import issue_token, verify_token_record, _connect as identity_connection
 from .config import ManagedConfig
 from .control import LimitExceeded, ManagedControl
+from .ingest import ingest_turn
 from .plans import PLANS
 from .stripe_gateway import BillingUnavailable
 from ..agent0_integration import Agent0Gateway, Agent0Unavailable
@@ -393,6 +394,20 @@ def create_app(config: ManagedConfig, *, control: ManagedControl | None = None, 
         result = await run_in_threadpool(memory_operation, request, data)
         return JSONResponse(result, status_code=201 if request.method == "POST" else 200)
 
+    def ingest_operation(request, data):
+        # authenticate() applies account state and, for cookie callers, Origin + CSRF; bearer keys carry neither.
+        _, principal, token = authenticate(request, mutate=True)
+        require_scope(principal, "memory:write")
+        request_key = request.headers.get("idempotency-key", "")
+        if not 8 <= len(request_key) <= 128:
+            raise ApiError(400, "Supply an Idempotency-Key containing 8–128 characters")
+        return ingest_turn(service, token, data, request_key=request_key)
+
+    async def ingest(request):
+        rate_limit(request)
+        data = await payload(request)
+        return JSONResponse(await run_in_threadpool(ingest_operation, request, data))
+
     def import_operation(request, data):
         account, principal, _ = authenticate(request, mutate=True)
         require_scope(principal, "memory:write")
@@ -521,6 +536,7 @@ def create_app(config: ManagedConfig, *, control: ManagedControl | None = None, 
         Route("/api/managed/stripe/webhook", webhook, methods=["POST"]),
         Route("/api/managed/memories", memories, methods=["GET", "POST"]),
         Route("/api/managed/import", structured_import, methods=["POST"]),
+        Route("/api/managed/ingest", ingest, methods=["POST"]),
         Route("/api/managed/graph", graph, methods=["GET"]),
         Route("/api/managed/timeline", timeline, methods=["GET"]),
         Route("/api/managed/agent0/search", agent0_search, methods=["GET"]),

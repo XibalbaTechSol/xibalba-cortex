@@ -1,0 +1,78 @@
+"""Shared fixtures for the managed (hosted) edition."""
+from contextlib import ExitStack
+from urllib.parse import parse_qs, urlsplit
+
+import pytest
+from starlette.testclient import TestClient
+
+from xibalba_cortex.managed.api import create_app
+from xibalba_cortex.managed.config import ManagedConfig
+from xibalba_cortex.managed.control import ManagedControl
+
+_PASSWORD = "correct-test-password"
+
+
+class ManagedApp:
+    """A managed service plus two clients over it: `owner` carries the account session cookie,
+    `client` carries nothing, so a bearer key is the only credential it ever presents."""
+
+    def __init__(self, config, service, mail, owner, client, stack):
+        self.config, self.service, self.mail, self.owner, self.client = config, service, mail, owner, client
+        self._stack = stack
+        self._accounts: dict[str, tuple[dict, dict]] = {}
+
+    def register(self, name: str):
+        """Sign up, verify and log `name` in on the owner client; returns (account, headers)."""
+        if name not in self._accounts:
+            email = f"{name}@example.com"
+            r = self.owner.post("/api/managed/signup", json={"email": email, "password": _PASSWORD, "display_name": name})
+            assert r.status_code == 202, r.text
+            token = parse_qs(urlsplit(self.mail[-1][2].splitlines()[-1]).query)["token"][0]
+            assert self.owner.get("/api/managed/verify", params={"token": token}, follow_redirects=False).status_code == 303
+            r = self.owner.post("/api/managed/login", json={"email": email, "password": _PASSWORD})
+            assert r.status_code == 200, r.text
+            body = r.json()
+            self._accounts[name] = (body["account"], {"Origin": self.config.public_url, "X-Cortex-CSRF-Token": body["csrf_token"]})
+        return self._accounts[name]
+
+    def issue_key(self, name: str, label: str = "agent") -> tuple[str, str]:
+        """Mint a `managed-api:` key for `name` through the real route. Returns (id, token)."""
+        _, headers = self.register(name)
+        r = self.owner.post("/api/managed/keys", headers=headers, json={"label": label})
+        assert r.status_code == 201, r.text
+        token = r.json()["token"]
+        listed = self.owner.get("/api/managed/keys", headers=headers).json()["keys"]
+        return listed[0]["id"], token
+
+    def revoke_key(self, name: str, key_id: str):
+        _, headers = self.register(name)
+        r = self.owner.post("/api/managed/keys/revoke", headers=headers, json={"id": key_id})
+        assert r.status_code == 200 and r.json()["revoked"] is True, r.text
+
+    def post(self, path, **kwargs):
+        return self.client.post(path, **kwargs)
+
+    def tenant(self, name: str) -> dict:
+        return self.service.tenant(self.register(name)[0])
+
+    def store(self, name: str):
+        """The named account's own tenant store, closed at teardown."""
+        return self._stack.enter_context(self.service.store(self.tenant(name)))
+
+
+@pytest.fixture
+def managed_app(tmp_path):
+    config = ManagedConfig(home=tmp_path, public_url="http://localhost:8430", allow_signup=True)
+    mail = []
+    service = ManagedControl(config, email_sender=lambda *args: mail.append(args))
+    app = create_app(config, control=service)
+    with ExitStack() as stack:
+        owner = stack.enter_context(TestClient(app, base_url=config.public_url))
+        client = stack.enter_context(TestClient(app, base_url=config.public_url))
+        yield ManagedApp(config, service, mail, owner, client, stack)
+
+
+@pytest.fixture
+def api_key(managed_app):
+    """A bearer token for account `acct-1`, minted through the real key route."""
+    return managed_app.issue_key("acct-1")[1]
