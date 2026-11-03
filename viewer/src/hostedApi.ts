@@ -23,13 +23,26 @@
 import { ApiError } from './apiError'
 import { READ_ONLY_WORKSPACE } from './console/billing'
 
-/** A console path the hosted backend has no route for. Refused locally: nothing is sent. */
+export const HOSTED_UNSUPPORTED = 'The hosted edition does not offer this yet.'
+
+/**
+ * A console path the hosted backend has no route for. Refused locally: nothing is sent.
+ *
+ * The MESSAGE is what a person reads, because it is what they read: `useAsync` (useAsync.ts:31)
+ * and MemoriesPage.tsx:59 render `e.message` straight into a user-visible callout, and this
+ * refusal reaches roughly eight Inspector panels, four Settings sections, Recall's two
+ * non-lexical modes, import and the memory actions. It used to say
+ * "The hosted edition does not serve GET /api/memory/seed-0/events." -- an HTTP method and an
+ * internal route name, in front of a customer. The call stays, in `call`, which nothing renders.
+ */
 export class HostedUnsupported extends ApiError {
-  constructor(what: string) {
-    // 501, not 404: nothing was asked of the server. The reason names the call so an error that
-    // reaches a panel says which capability this edition does not serve.
-    super(`The hosted edition does not serve ${what}.`, 501)
+  /** `METHOD /path`, for diagnostics. Deliberately not part of `message`. */
+  readonly call: string
+  constructor(call: string) {
+    // 501, not 404: nothing was asked of the server.
+    super(HOSTED_UNSUPPORTED, 501)
     this.name = 'HostedUnsupported'
+    this.call = call
   }
 }
 
@@ -51,12 +64,19 @@ interface HostedRoute {
   /** query parameters the managed route reads. Everything else is dropped: sending
    *  `similarity_threshold` or `agent_id` to a route that ignores them only misleads. */
   keep?: readonly string[]
-  /** reshape the managed response into what the console's reader expects */
-  adapt?: (data: Json) => unknown
+  /** reshape the managed response into what the console's reader expects. `params` is the
+   *  ORIGINAL console query, so an adapter can apply a parameter the managed route has no
+   *  equivalent for (see `applies`). */
+  adapt?: (data: Json, params?: URLSearchParams) => unknown
   /** rewrite the request body for the managed contract */
   body?: (data: Json) => unknown
   /** a write: gated on the entitlement and carries an Idempotency-Key */
   write?: true
+  /** Request parameters the managed route DOES honour, beyond `keep`'s pass-through: a parameter
+   *  listed here is applied by this module instead of by the server. `keep` says "send it on";
+   *  this says "the console may still rely on it". Anything in neither is a capability the hosted
+   *  edition does not have, and `supports()` is how a surface asks. */
+  applies?: readonly string[]
 }
 
 /** `/api/memory/*` -> a RegExp over the path with `*` as one path segment. */
@@ -92,8 +112,15 @@ const ROUTES: ReadonlyArray<readonly [string, HostedRoute]> = [
   ['GET /api/memories', {
     to: 'memories',
     keep: ['q'],
-    adapt: (d) => {
-      const memories = (d.memories ?? []) as unknown[]
+    // The managed route has no `status` parameter, but every row it returns carries its own
+    // `status`, so the filter the chips ask for is applied here instead of being dropped. The
+    // console's own default (`['active','confirmed']`) happens to match managed's server-side
+    // default, so only DESELECTING a chip used to lie -- it no longer lies either way.
+    applies: ['status'],
+    adapt: (d, params) => {
+      let memories = (d.memories ?? []) as Array<{ status?: string }>
+      const wanted = (params?.get('status') ?? '').split(',').map((v) => v.trim()).filter(Boolean)
+      if (wanted.length > 0) memories = memories.filter((m) => wanted.includes(String(m.status)))
       return { memories, has_more: false, offset: 0, limit: memories.length }
     },
   }],
@@ -104,7 +131,11 @@ const ROUTES: ReadonlyArray<readonly [string, HostedRoute]> = [
   ['GET /api/agent0/agent/*', { to: 'agent0/agent/$1', keep: ['full'] }],
   ['GET /api/agent0/reputation/*', { to: 'agent0/reputation/$1' }],
   ['GET /api/agents', { to: 'me', adapt: workspaceFromMe }],
-  ['POST /api/memory/propositions', { to: 'memories', write: true, body: (d) => ({ content: d.content ?? '' }) }],
+  // `applies: ['content']` is the honest statement of what survives: managed `memories` takes
+  // content only and api.py:376 forces `status="active"`, so a chosen status or evidence class
+  // would be silently substituted. `supports(..., 'status')` is false here, and the New-memory
+  // form reads that rather than offering a choice the write will not keep.
+  ['POST /api/memory/propositions', { to: 'memories', write: true, applies: ['content'], body: (d) => ({ content: d.content ?? '' }) }],
 ]
 
 const MATCHERS = ROUTES.map(([key, route]) => {
@@ -146,6 +177,8 @@ export interface HostedTarget {
   /** the managed path, relative to `/api/managed/` */
   path: string
   route: HostedRoute
+  /** the ORIGINAL console query, for an adapter that applies a parameter `keep` did not forward */
+  params: URLSearchParams
 }
 
 /** Where a console path goes on hosted, or null when the hosted backend has no route for it. */
@@ -165,9 +198,31 @@ export function hostedTarget(method: string, pathWithQuery: string): HostedTarge
       }
     }
     if ([...kept].length > 0) to += `?${kept.toString()}`
-    return { path: to, route }
+    return { path: to, route, params: new URLSearchParams(query) }
   }
   return null
+}
+
+/**
+ * Does THIS edition serve `method path`, and -- when `param` is given -- honour that request
+ * parameter?
+ *
+ * The capability query a surface asks instead of asking which edition it is in. It is derived from
+ * `ROUTES`, so there is still exactly one table: a surface cannot drift from what the transport
+ * will actually do, and adding a route turns its controls back on by itself. Self-hosted serves
+ * everything, so with no transport installed this is unconditionally true and no caller changes
+ * behaviour.
+ *
+ * `param` is supported when the managed route either receives it (`keep`) or this module applies
+ * it (`applies`). A parameter in neither is a filter the edition cannot honour, and a control
+ * bound to it would be a lie.
+ */
+export function supports(method: string, path: string, param?: string): boolean {
+  if (!active) return true
+  const target = hostedTarget(method, path)
+  if (!target) return false
+  if (!param) return true
+  return Boolean(target.route.keep?.includes(param) || target.route.applies?.includes(param))
 }
 
 // --- the session this transport speaks for ------------------------------------------------------
@@ -304,6 +359,6 @@ export async function hostedSend(path: string, init: RequestInit = {}): Promise<
 
   const sent = { ...init, body }
   const data = await hostedFetch<Json>(target.path, sent)
-  const adapted = target.route.adapt ? target.route.adapt(data) : data
+  const adapted = target.route.adapt ? target.route.adapt(data, target.params) : data
   return new Response(JSON.stringify(adapted ?? null), { status: 200, headers: JSON_HEADERS })
 }

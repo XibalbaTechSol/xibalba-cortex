@@ -52,7 +52,7 @@ export async function managedFixture(page: Page, { billing = false, signedIn = f
     if (path === 'login') { session = true; return send({ account: {}, csrf_token: 'fixture-csrf' }) }
     if (path === 'logout') { session = false; return send({ ok: true }) }
     if (!session) return send({ error: 'Sign in' }, 401)
-    if (path === 'me') return send({ destinations, account: { display_name: 'Operator', email: 'operator@example.com' }, entitlement: { plan: plans.find((p) => p.id === plan), status: writable ? 'free' : 'canceled', writable, period_end: null, cancel_at_period_end: false }, usage: { month: '2026-10', used: { writes: memories.length } }, counts: { memories: memories.length }, csrf_token: 'fixture-csrf' })
+    if (path === 'me') return send({ destinations, account: { display_name: 'Operator', email: 'operator@example.com', profile_id: 'fixture-profile' }, entitlement: { plan: plans.find((p) => p.id === plan), status: writable ? 'free' : 'canceled', writable, period_end: null, cancel_at_period_end: false }, usage: { month: '2026-10', used: { writes: memories.length } }, counts: { memories: memories.length }, csrf_token: 'fixture-csrf' })
     if (path === 'memories' && req.method() === 'POST') { memories.push(memoryRow('m-' + memories.length, String(body.content))); return send(memories.at(-1), 201) }
     if (path === 'memories') {
       const q = new URL(req.url()).searchParams.get('q') ?? ''
@@ -64,7 +64,14 @@ export async function managedFixture(page: Page, { billing = false, signedIn = f
        `timeline` is `{sessions, nodes}`, a single memory is `{memory}`. */
     if (path === 'graph') return send(graphPayload(memories))
     if (path === 'timeline') return send({ sessions: [fixtureSession], nodes: graphPayload(memories).nodes })
-    if (/^memories\/[^/]+\/verify$/.test(path)) return send({ memory_id: path.split('/')[1], valid: true, events: 1, chain_head: 'a'.repeat(64) })
+    /* `GraphStore.verify_chain` (store.py:1939-1944), which managed/api.py:386 returns
+       UNWRAPPED, exactly as local_api.py:1210 does. The four fields are the whole dict:
+       `head_node_id` is what VerifyPanel.tsx:53 renders, and `length` / `broken_at_event_id` are
+       what `describeMemoryChain` reads. An earlier version of this fixture answered
+       `{memory_id, valid, events, chain_head}` -- two invented fields and the one real reader's
+       field missing. Nothing asserted on it, so nothing was false; it was a landmine for the
+       next test. Shapes in this file are transcribed from the Python, never guessed. */
+    if (/^memories\/[^/]+\/verify$/.test(path)) return send({ valid: true, length: 1, broken_at_event_id: null, head_node_id: 'a'.repeat(64) })
     if (/^memories\/[^/]+$/.test(path)) {
       const found = memories.find((m) => m.id === decodeURIComponent(path.split('/')[1]))
       return found ? send({ memory: found }) : send({ error: 'No such memory' }, 404)
