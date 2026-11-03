@@ -175,21 +175,34 @@ for setup, recording policy, supported events and validation boundaries. Codex n
 integration with the client owning its app-server event stream. Live harness canaries, recorder streaming
 UI and timed playback remain open.
 
-## Production status (2026-09-04)
+## Production status (local readiness snapshot: 2026-11-03)
 
-**Current level: L1 controlled-pilot foundation, locally verified.** This checkout is
-ready for you to test on this computer with isolated Cortex profiles. The following
-are real local/CI results, not a production deployment claim:
+**Current level: L1 controlled-pilot foundation, locally verified.** Cortex is ready
+for isolated local-profile testing, but it is not production-certified or evidence of
+an external pilot deployment. The live
+`xibalba-cortex-operator production-readiness` report is the source of truth for this
+section; the latest run returned `ready: false` and explicitly classified the result as
+local readiness only—not deployment, SLA, or external-compliance evidence.
+
+Locally verified capabilities include:
 
 - 80-tool MCP surface, authenticated local HTTP API, token expiry/revocation, tenant
-  onboarding, profile-bound isolation, and review-gated inference are implemented.
-- Two-profile, eight-process inference validation passed with 200 total tasks,
-  zero cross-profile visibility, no starvation, and clean SQLite integrity checks.
-- Two-profile backup/restore drill passed `PRAGMA integrity_check` and canonical
-  Merkle reconciliation. Evidence is at
+  onboarding, profile-bound isolation, and review-gated inference.
+- Concurrent two-profile inference validation with zero cross-profile visibility,
+  zero starvation, and clean SQLite integrity checks.
+- Two-profile backup/restore with `PRAGMA integrity_check` and canonical Merkle
+  reconciliation. Evidence is at
   `/home/xibalba/Documents/CORTEX_STORAGE_DRILL_2026-09-04.json`.
-- Full backend tests and the viewer build pass. The authenticated Operations view visibly shows the
-  Production readiness card.
+- Connector retry/rate-limit/credential-boundary primitives and profile-aware local
+  connector paths, with local throttle and tenant-scoping evidence.
+- Independently runnable provenance-export verification, including tamper detection.
+
+The current gate ledger is: G1 tenancy foundation — local pass; G2 standalone
+deployability — externally blocked by the unpublished/local-path `integrity-sdk`; G3
+storage and durability — local pilot pass, without HA/PITR proof; G4 connector
+hardening — local pass; G5 real-data evaluation — open and requires a real pilot
+tenant; G6 governance and audit — local pass; G7 pilot burn-in — open and requires
+concurrent real tenants.
 
 ### Test Cortex locally on this computer
 
@@ -215,20 +228,17 @@ the viewer, and enter the token in the browser; the exact procedure is in
 
 ### What remains before production
 
-The following gates are still open and must not be inferred from the local checks:
+The following gaps remain open and must not be inferred from local checks:
 
 1. **Standalone installability:** `integrity-sdk` is still a local sibling dependency;
    `uv sync` fails from a clean checkout without `../integrity-core`. A published
    package or approved git dependency is required.
-2. **Connector hardening:** rate limits, retry/backoff, and per-tenant credential
-   custody for every production-tier connector.
-3. **Real pilot evidence:** evaluation against a real tenant's traffic and a
-   multi-tenant burn-in with no isolation incidents.
-4. **Hardened storage:** HA/PITR, off-host encrypted backup retention, and an
-   explicit production backend decision beyond the current SQLite single-instance
-   pilot architecture.
-5. **Governance/SLA:** independently runnable provenance-export verification,
-   operational access controls, and measured support/latency/durability commitments.
+2. **Real pilot evidence:** evaluation against real tenant traffic and a multi-tenant
+   burn-in with no isolation incidents.
+3. **Hardened storage:** HA/PITR, off-host encrypted backup retention, and an explicit
+   production backend decision beyond the current SQLite single-instance pilot.
+4. **Operational governance:** retention policy, production access controls, measured
+   support/latency/durability commitments, and any external tenant/SLA evidence.
 
 `xibalba-shield` is a separate repository and must be tested separately for its
 privileged eBPF/kernel gates; Cortex tests do not prove Shield production readiness.
