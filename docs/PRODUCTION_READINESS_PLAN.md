@@ -226,9 +226,16 @@ but nothing rejects writes past a quota.
 
 ### 5.3 Billing and metering
 
-No metering exists. A SaaS Cortex needs per-tenant counters for at least: memory count
-(already tracked per-store, not per-tenant), retrieval call volume, extraction task
-volume, and connector ingestion volume. **Gap, not yet started.**
+The managed service already records per-tenant monthly `writes` and `retrievals`
+counters with atomic quota reservation, idempotency handling, and plan-based limits;
+the authenticated account surface exposes those counters. The local operator path also
+reports per-profile memory counts and quotas. This is partial local/managed evidence,
+not billing or production usage proof.
+
+**Remaining gap:** add authoritative per-tenant counters for extraction-task volume and
+connector-ingestion volume, define their retention/export semantics, and reconcile them
+with any future billing or entitlement system. Do not infer complete usage metering
+from the existing writes/retrievals counters.
 
 ### 5.4 Support and SLA tiers
 
