@@ -334,7 +334,7 @@ across the suite and /managed 0 times. Recorded violations: <paste list>."
   the `destinations` field from Task 1.
 - Produces: nothing later tasks consume; this is P0's deliverable.
 
-- [x] **Step 1: Write the failing tests**
+- [ ] **Step 1: Write the failing tests**
 
 Add to `managed.spec.ts`, replacing assertions that named `xc-managed-*` layout: after
 sign-in at `/managed`, the console shell is present and the rail lists Billing.
@@ -400,7 +400,14 @@ read "not yet implemented" when in fact most of P0 had landed. Reconstructed fro
 | 2 — `nav.ts` resolves a server-declared set | **done** | `e84105e`, `35c31c0`; `state.tsx:128` calls `builtFrom` |
 | 3 — billing becomes an ordinary console page | **done** | `d084ec2`, `f1527dc` |
 | 4 — grammar sweep covers `/managed`, proved red first | **done** | `aa85a65`, `1238e8d` |
-| 5 — one app root, delete the second UI | **steps 1-3 done, 4-7 NOT done** | `1d07f89`, `096a205`; `main.tsx` boots `ConsoleApp` unconditionally |
+| 5 — one app root, delete the second UI | **step 3 done; steps 1, 2 and 4-7 NOT done** | `1d07f89`, `096a205`; `main.tsx` boots `ConsoleApp` unconditionally |
+
+Correction: an earlier revision of this section ticked Task 5 steps 1-3. Step 3 (boot one
+app, consume the declaration) did land. **Step 1 did not** — `grep -n -e 'xc-shell' -e
+'xc-managed-inner' viewer/e2e/managed.spec.ts` returns nothing, so the replacement
+assertions were never written, and step 2's recorded failure never happened either. The
+three `ManagedApp.tsx` mentions still in that file are explanatory comments, not
+assertions. Step 1 is therefore the next action, before the deletion, exactly as ordered.
 
 Work landed on the branch that this plan did not call for, and which P1 should account for
 rather than re-specify: the hosted data layer (`hostedApi.ts`, `89f3c37`, with the
