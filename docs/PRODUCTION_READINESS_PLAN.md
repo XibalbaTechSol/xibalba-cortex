@@ -178,9 +178,12 @@ with `pilot_ready` becoming a real (not aspirational) field.
 
 `governance` currently reports `state: local_only` with `provenance_export: true` —
 export capability exists but nothing external consumes or verifies it yet. Define what
-"production" governance means for a SaaS operator: audit log retention period, access
-control on the export path, and a defined verification procedure a tenant or auditor
-can actually run.
+"production" governance means for a SaaS operator: an audit-log retention policy,
+access control on the export path, and a defined verification procedure a tenant or
+auditor can actually run. The local retention policy and bounded operator procedure
+are documented in [`docs/operations/retention-policy.md`](operations/retention-policy.md);
+tenant-specific approval, backup/export controls, and compliance obligations remain
+deployment gates.
 
 **Deliverable:** a documented, testable provenance-export verification procedure usable
 by someone outside this repo's own operator tooling.
@@ -226,9 +229,16 @@ is implemented locally; it does not constitute hosted billing or external SaaS p
 
 ### 5.3 Billing and metering
 
-No metering exists. A SaaS Cortex needs per-tenant counters for at least: memory count
-(already tracked per-store, not per-tenant), retrieval call volume, extraction task
-volume, and connector ingestion volume. **Gap, not yet started.**
+The managed service already records per-tenant monthly `writes` and `retrievals`
+counters with atomic quota reservation, idempotency handling, and plan-based limits;
+the authenticated account surface exposes those counters. The local operator path also
+reports per-profile memory counts and quotas. This is partial local/managed evidence,
+not billing or production usage proof.
+
+**Remaining gap:** add authoritative per-tenant counters for extraction-task volume and
+connector-ingestion volume, define their retention/export semantics, and reconcile them
+with any future billing or entitlement system. Do not infer complete usage metering
+from the existing writes/retrievals counters.
 
 ### 5.4 Support and SLA tiers
 
