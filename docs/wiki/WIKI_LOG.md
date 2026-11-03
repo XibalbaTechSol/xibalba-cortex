@@ -201,3 +201,11 @@ exposing the secret to browser JavaScript. Production authentication remains exp
 - Worker status is derived from the queue (no heartbeat: the v1 schema is frozen).
 - Rewrote `architecture/viewer-and-local-api.md` for the console; browser validation is now headless
   Playwright in CI (job `viewer`).
+
+## [2026-11-03] docs | DecisionTrace retries and viewer status reconciled with Cortex PR #84
+
+- Documented the durable leased advisory retry queue, hash-bound recovery, configurable HTTPS or
+  loopback-only Jev endpoint, URL credential/query/fragment rejection, and provider-content discard.
+- Updated the Cortex resume status: PR #84 is merged; hosted Python and full viewer Playwright CI
+  passed. This remains implementation evidence and does not claim a production provider deployment.
+- No new wiki page was needed; the canonical DecisionTrace article and index remain the owners.

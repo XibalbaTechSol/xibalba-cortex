@@ -5,19 +5,21 @@ when a verification command produces new evidence, or when a blocker is resolved
 Do not create another numbered roadmap. The detailed production plan is reference
 material; its gate IDs map to this state.
 
-**Last verified:** 2026-09-14
+**Last verified:** 2026-11-03
 **Repository:** `/home/xibalba/Projects/xibalba-cortex`
-**Branch:** `feat/otel-compatible-integrity-telemetry`
-**Commit:** `ccaccdd` (CORE sync account binding, guarded setup script, and systemd service fix)
+**Source baseline:** `main` at `60194fc` (includes Cortex PR #84)
 **Local-only residue:** pre-existing untracked `LICENSE` (preserve; do not stage)
 
-## Documentation sync — 2026-10-04
+## Documentation sync — 2026-11-03
 
 The active DecisionTrace/Jev implementation is documented in
 `docs/wiki/concepts/decision-trace-and-jev.md`, `README.md`, and §12.8 of
-`SPECIFICATION.md`. This feature remains local/dirty implementation evidence on the current
-branch, not a production, external-pilot, or compliance certification claim. The canonical
-cross-product execution authority remains `/home/xibalba/Projects/integrity-core/docs/EXECUTION_PLAN.md`.
+`SPECIFICATION.md`. Cortex PR #84 (merge `66d0eeb`) completed the durable hash-bound advisory retry
+queue and configurable Jev endpoint. Hosted Python and the full viewer Playwright suite passed,
+including the DecisionTrace browser scenario. The provider-response canary test confirms free-text
+content is excluded from the stored advisory projection. This is CI-backed implementation evidence,
+not proof of a production Jev deployment, external pilot, or compliance certification. The
+cross-product execution authority remains the Integrity execution plan.
 
 ## Resume in one sentence
 
