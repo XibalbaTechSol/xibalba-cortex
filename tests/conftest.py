@@ -86,6 +86,9 @@ def api_key(managed_app):
 # account, so a home with no account in it cannot exercise session behaviour at all.
 
 ACCOUNT_EMAIL = "operator@example.com"
+# `reader` is the narrowest real role: memory:read and nothing else. There is no "viewer"
+# role in ROLE_SCOPES, which is what the plan's test sketch called this.
+READER_EMAIL = "reader@example.com"
 ACCOUNT_PASSWORD = "correct-test-password"
 
 
@@ -94,8 +97,17 @@ def tmp_home(tmp_path):
     """An identity home holding one verified, approved account ready to sign in."""
     home = tmp_path / "identity-home"
     home.mkdir()
-    create_account(home, email=ACCOUNT_EMAIL, password=ACCOUNT_PASSWORD, display_name="Operator")
-    approve_account(home, email=ACCOUNT_EMAIL, verified=True)
+    for email, display in ((ACCOUNT_EMAIL, "Operator"), (READER_EMAIL, "Reader")):
+        create_account(home, email=email, password=ACCOUNT_PASSWORD, display_name=display)
+        approve_account(home, email=email, verified=True)
+    # `create_account` has no role parameter and the column defaults to `operator`, so the
+    # read-only account is demoted directly. A session's scopes follow this column.
+    conn = ingest_tokens._connect(home)
+    try:
+        conn.execute("UPDATE accounts SET role='reader' WHERE email=?", (READER_EMAIL,))
+        conn.commit()
+    finally:
+        conn.close()
     return home
 
 
