@@ -286,25 +286,37 @@ def _scoped_source(store: GraphStore, principal: dict[str, object], source: dict
 def _operator_workspace_agent(
     store: GraphStore, principal: dict[str, object], requested: object, source: dict[str, object]
 ) -> str | None:
-    """The persisted agent partition an operator chose to write a new memory into, or None.
+    """The persisted agent partition a write should land in when the console names a workspace, or None.
 
-    The console writes on behalf of whichever agent workspace is selected. A credential that is
-    bound to an agent already writes as that agent (_scoped_source), and an unbound one used to be
-    unable to name a partition at all, so its writes landed in no workspace. This allows exactly one
-    thing: an operator or admin credential naming a partition that ALREADY has source rows. It
-    cannot create a partition, cannot be used by a bound or plain-writer credential, and cannot be
-    combined with an agent in the source (which would be two answers to "who wrote this").
+    The console writes on behalf of whichever agent workspace is selected, and always says which. Two
+    kinds of caller can legitimately be selecting one:
+
+      * a credential BOUND to an agent already writes as that agent (_scoped_source puts the agent in
+        the source), so naming that same workspace is redundant, not an escalation: it is accepted and
+        resolves to None, and naming ANY other agent's workspace is refused. (Refusing the redundant
+        case made every console write from a bound credential a 403.)
+      * an unbound operator or admin credential may name a partition that ALREADY has source rows. It
+        cannot create a partition, and cannot combine the choice with an agent in the source (which
+        would be two answers to "who wrote this").
+
+    A plain writer or reader, bound or not, cannot choose a workspace.
     """
     if requested is None or requested == "":
         return None
     if not isinstance(requested, str):
         raise ValueError("workspace_agent_id must be a string")
+    value = requested.strip()
+    bound = _principal_agent_ids(principal)
+    if bound:
+        own = set(bound) | {persisted for agent in bound if (persisted := store.storage_agent_id(agent))}
+        if value not in own:
+            raise PermissionError("credential is not authorized for this agent workspace")
+        return None
     roles = set(principal.get("roles") or [])
-    if _principal_agent_ids(principal) or not roles.intersection({"operator", "admin"}):
+    if not roles.intersection({"operator", "admin"}):
         raise PermissionError("only an unbound operator or admin credential may choose the workspace a memory is written to")
     if source.get("agent_id") is not None:
         raise ValueError("workspace_agent_id and source.agent_id are mutually exclusive")
-    value = requested.strip()
     if not store.has_agent_partition(value):
         raise PermissionError("no such agent workspace")
     return value
