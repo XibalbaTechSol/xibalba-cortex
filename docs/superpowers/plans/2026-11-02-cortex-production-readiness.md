@@ -618,6 +618,24 @@ or `placeholder`, so the service stays healthy, `billing_configured` stays `fals
 `/readyz` keeps reporting `stripe_sandbox` **not ready**, and no customer can be charged
 against a fake gateway.
 
+**Credentialed validation already happened, and it does not replace these tasks.**
+On 2026-11-03 the whole billing chain was driven by hand against the operator's real
+`sk_test_` key on a locally-run managed service: the `/readyz` billing gate, a genuine
+`cs_test_` Checkout Session through `POST /api/managed/checkout` with cookie auth and
+CSRF, a tampered webhook signature (rejected 400), a real active Pro subscription
+applied through `customer.subscription.created` (tenant `free` to `pro/active`), the
+same event id replayed (`duplicate: true`, one `stripe_events` row), an event for a
+customer owned by no tenant (`ignored`), a `livemode: true` event against a test
+deployment (rejected 400), a real Stripe cancellation applied through
+`customer.subscription.deleted` (tenant `canceled`, `writable: false`), and a write
+refused 403 while reads and export stayed 200. The ledger records the run and its three
+findings.
+
+That was one operator driving one happy path plus seven negatives once. It is evidence
+the code works; it is not a regression gate, and nobody can re-run it in CI without the
+live key. Every task below still owes its assertions **in the test suite, each proved able
+to fail** — the manual run tells you the expected values, not that the work is done.
+
 ### Task 1: Checkout and portal against a fake gateway
 
 **Files:**
