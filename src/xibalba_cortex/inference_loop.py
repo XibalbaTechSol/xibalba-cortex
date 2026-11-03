@@ -24,6 +24,8 @@ from .summary_worker import process_session_summary_tasks
 from .para_worker import process_para_tasks
 from .store import GraphStore
 from .providers import NativeHarnessInferenceProvider
+from .decision_trace_worker import process_decision_trace_advisories
+from .jev_gateway import local_jev_gateway
 
 
 def has_inference_cycle_error(value: object) -> bool:
@@ -50,6 +52,7 @@ def process_inference_cycle(
     limit: int = 5,
     max_attempts: int = 3,
     config: InferenceConfig | None = None,
+    jev_gateway: Any | None = None,
 ) -> dict[str, Any]:
     """Recover stale work and service every supported inference worker once."""
     policy = config or InferenceConfig(batch_size=limit, max_attempts=max_attempts)
@@ -98,6 +101,11 @@ def process_inference_cycle(
         "recovery": recovery,
     }
     jobs: dict[str, Any] = {}
+    jobs["decision_trace_advisories"] = lambda: _run_safely(
+        lambda current, limit: process_decision_trace_advisories(
+            current, jev_gateway or local_jev_gateway(), limit=limit, max_attempts=max_attempts,
+        ), store, limit=limit,
+    )
     combined_types = enabled & {"extract_entities", "extract_relations", "classify_para"}
     if config is not None and policy.combined_batching and combined_types:
         jobs["combined"] = lambda: process_combined_tasks(
@@ -124,7 +132,7 @@ def process_inference_cycle(
         cycle_started = time.perf_counter()
         with ThreadPoolExecutor(max_workers=min(policy.max_parallel_families, len(jobs) or 1), thread_name_prefix="cortex-inference") as executor:
             futures = {name: executor.submit(job) for name, job in jobs.items()}
-            for name in ("combined", "extraction", "para", "contradiction", "metadata", "summaries"):
+            for name in ("combined", "extraction", "para", "contradiction", "metadata", "summaries", "decision_trace_advisories"):
                 result[name] = futures[name].result() if name in futures else {"disabled": True}
         result["enabled"] = True
         result["duration_seconds"] = round(time.perf_counter() - cycle_started, 3)

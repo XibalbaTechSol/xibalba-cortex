@@ -461,6 +461,24 @@ CREATE TABLE IF NOT EXISTS decision_trace_events (
 CREATE INDEX IF NOT EXISTS idx_decision_trace_session ON decision_trace_events(session_id, sequence_number);
 CREATE INDEX IF NOT EXISTS idx_decision_trace_trace ON decision_trace_events(trace_id, sequence_number);
 
+-- Retryable advisory work is kept outside memory extraction tasks. Only the already-redacted
+-- envelope and its immutable event hash are retained; attempts are bounded and idempotent.
+CREATE TABLE IF NOT EXISTS decision_trace_advisory_tasks (
+    event_hash TEXT PRIMARY KEY,
+    session_id TEXT NOT NULL REFERENCES sessions(external_session_id) ON DELETE CASCADE,
+    trace_id TEXT NOT NULL,
+    envelope_json TEXT NOT NULL,
+    status TEXT NOT NULL CHECK (status IN ('pending', 'claimed', 'completed', 'failed')),
+    attempts INTEGER NOT NULL DEFAULT 0,
+    retry_after TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    claim_until TEXT,
+    last_error TEXT,
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_decision_trace_advisory_due
+ON decision_trace_advisory_tasks(status, retry_after, claim_until);
+
 -- Many-to-many, not two FK columns on exchanges: a single prompt can produce several response
 -- memories (thinking blocks, text, in Path C's terms -- verified against real transcript
 -- structure in the session that built this), and this stays flexible for that without
@@ -4471,6 +4489,59 @@ class GraphStore:
                 "ORDER BY sequence_number DESC LIMIT 1", (external_session_id, trace_id)
             ).fetchone()
         return str(row["event_hash"]) if row is not None else "0x" + "00" * 32
+
+    def enqueue_decision_trace_advisory(self, session_id: str, envelope: DecisionEnvelope) -> bool:
+        """Queue an unavailable advisory without delaying or altering trace capture."""
+        with self._lock:
+            cursor = self._connection.execute(
+                """INSERT OR IGNORE INTO decision_trace_advisory_tasks
+                (event_hash, session_id, trace_id, envelope_json, status)
+                VALUES (?, ?, ?, ?, 'pending')""",
+                (envelope.event_hash, session_id, envelope.trace_id, self._canonical_json(envelope.body())),
+            )
+            self._connection.commit()
+            return cursor.rowcount == 1
+
+    def claim_decision_trace_advisory_tasks(self, *, limit: int = 10, lease_seconds: int = 30) -> list[dict[str, object]]:
+        """Atomically lease due advisory retries; expired claims are recoverable."""
+        limit = max(1, min(int(limit), 100))
+        now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+        until = (datetime.now(timezone.utc) + timedelta(seconds=max(5, min(int(lease_seconds), 300)))).strftime("%Y-%m-%d %H:%M:%S")
+        with self._lock:
+            self._connection.execute("BEGIN IMMEDIATE")
+            try:
+                rows = self._connection.execute(
+                    "SELECT event_hash FROM decision_trace_advisory_tasks WHERE status='pending' AND retry_after<=? OR (status='claimed' AND claim_until<=?) ORDER BY created_at LIMIT ?",
+                    (now, now, limit),
+                ).fetchall()
+                claimed = []
+                for row in rows:
+                    self._connection.execute(
+                        "UPDATE decision_trace_advisory_tasks SET status='claimed', attempts=attempts+1, claim_until=?, updated_at=CURRENT_TIMESTAMP WHERE event_hash=?",
+                        (until, row["event_hash"]),
+                    )
+                    claimed.append(self._connection.execute("SELECT * FROM decision_trace_advisory_tasks WHERE event_hash=?", (row["event_hash"],)).fetchone())
+                self._connection.execute("COMMIT")
+            except Exception:
+                self._connection.execute("ROLLBACK")
+                raise
+        return [{**dict(row), "envelope": json.loads(row["envelope_json"])} for row in claimed]
+
+    def finish_decision_trace_advisory(self, event_hash: str, *, advisory: JevAnalysis | None = None, error: str | None = None, max_attempts: int = 8) -> None:
+        """Attach a validated advisory to its original leaf or schedule bounded retry."""
+        with self._lock:
+            row = self._connection.execute("SELECT * FROM decision_trace_advisory_tasks WHERE event_hash=?", (event_hash,)).fetchone()
+            if row is None or row["status"] != "claimed":
+                raise ValueError("advisory retry is missing or not claimed")
+            if advisory is not None and advisory.status == "available" and advisory.observed_event_hash == event_hash:
+                self._connection.execute("UPDATE decision_trace_events SET advisory_json=? WHERE event_hash=? AND advisory_json IS NULL", (self._canonical_json({"provider_id":advisory.provider_id,"status":advisory.status,"risk_category":advisory.risk_category,"transition_probabilities":dict(advisory.transition_probabilities),"recommended_escalation":advisory.recommended_escalation,"observed_event_hash":advisory.observed_event_hash,"causal_claim":False}), event_hash))
+                self._connection.execute("UPDATE decision_trace_advisory_tasks SET status='completed',claim_until=NULL,last_error=NULL,updated_at=CURRENT_TIMESTAMP WHERE event_hash=?", (event_hash,))
+            elif int(row["attempts"]) >= max_attempts:
+                self._connection.execute("UPDATE decision_trace_advisory_tasks SET status='failed',claim_until=NULL,last_error=?,updated_at=CURRENT_TIMESTAMP WHERE event_hash=?", ((error or "provider did not return a bound advisory")[:256], event_hash))
+            else:
+                delay = min(3600, 2 ** min(int(row["attempts"]), 10))
+                self._connection.execute("UPDATE decision_trace_advisory_tasks SET status='pending',retry_after=datetime('now', ?),claim_until=NULL,last_error=?,updated_at=CURRENT_TIMESTAMP WHERE event_hash=?", (f"+{delay} seconds", (error or "provider unavailable")[:256], event_hash))
+            self._connection.commit()
 
     def session_exchanges(self, external_session_id: str) -> list[dict[str, object]]:
         """A session's complete memory, walked in order -- the point of this whole mechanism:
