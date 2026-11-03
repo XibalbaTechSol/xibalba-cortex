@@ -164,6 +164,28 @@ def active_account_by_email(home: str | Path, *, email: str) -> dict[str, object
     }
 
 
+def account_status(home: str | Path, *, email: str) -> dict[str, object] | None:
+    """The sign-in gating fields for an account: role, approval, verification.
+
+    `active_account_by_email` deliberately returns only identity fields, and callers that need
+    to know *whether this account can sign in* were left reading the table themselves. Never
+    returns a hash or a salt.
+    """
+    row = _account(home, email)
+    if row is None:
+        return None
+    return {
+        "id": str(row["id"]),
+        "email": str(row["email"]),
+        "display_name": str(row["display_name"]),
+        "profile_id": str(row["profile_id"]),
+        "role": str(row["role"]),
+        "status": str(row["status"]),
+        "approval_status": str(row["approval_status"]),
+        "email_verified": bool(row["email_verified"]),
+    }
+
+
 def verify_account_password(home: str | Path, *, email: str, password: str) -> bool:
     """Verify an existing account password without creating a bearer session."""
     row = _account(home, email)
@@ -392,6 +414,42 @@ def approve_account(home: str | Path, *, email: str, verified: bool = True) -> b
         conn.close()
     record_auth_event(home, event_type="account_approved", email=row["email"], profile_id=row["profile_id"])
     return True
+
+def set_account_role(home: str | Path, *, email: str, role: str) -> bool:
+    """Set an account's role to one of `ROLE_SCOPES`.
+
+    Roles are not free text: `issue_account_session` falls back to "operator" for a role it
+    does not recognise, so an unvalidated write here would silently grant operator scopes
+    under a name nobody audits. Refuse instead.
+    """
+    if role not in ROLE_SCOPES:
+        raise ValueError(f"unknown role {role!r}; expected one of {', '.join(sorted(ROLE_SCOPES))}")
+    row = _account(home, email)
+    if row is None:
+        return False
+    conn = _connect(home)
+    try:
+        conn.execute("UPDATE accounts SET role=?, updated_at=? WHERE id=?", (role, _now(), row["id"]))
+        conn.commit()
+    finally:
+        conn.close()
+    record_auth_event(home, event_type="account_role_set", email=row["email"], profile_id=row["profile_id"], detail=role)
+    return True
+
+
+def recent_auth_events(home: str | Path, *, limit: int = 50) -> list[dict[str, object]]:
+    """The newest auth-trail rows, newest first. Never contains a secret."""
+    _ensure_schema(home)
+    conn = _connect(home)
+    try:
+        rows = conn.execute(
+            "SELECT profile_id, email, event_type, detail, created_at FROM auth_events ORDER BY id DESC LIMIT ?",
+            (int(limit),),
+        ).fetchall()
+        return [dict(row) for row in rows]
+    finally:
+        conn.close()
+
 
 def list_pending_accounts(home: str | Path, *, profile_id: str | None = None) -> list[dict[str, object]]:
     """Accounts that cannot sign in yet: waiting for approval or for email verification.

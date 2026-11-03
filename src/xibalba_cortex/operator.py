@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 from datetime import datetime, timezone
+import getpass
 import json
 import os
 from pathlib import Path
@@ -11,6 +12,7 @@ import sys
 import tempfile
 from typing import Any
 
+from . import accounts
 from .config import load_config
 from .providers import connector_manifest, provider_manifest
 from .ingest_tokens import list_tokens
@@ -210,8 +212,80 @@ def production_readiness(home: Path) -> dict[str, Any]:
     }
     return {"schema_version": "xibalba.production_readiness.v1", "ready": all(item["state"] == "ready" for item in checks.values()), "home": str(home), "checks": checks, "disclaimer": "Local readiness only; not deployment, SLA, or external compliance evidence."}
 
+def bootstrap_account(
+    home: Path,
+    *,
+    email: str,
+    display_name: str,
+    profile_id: str = "default",
+    role: str = "operator",
+) -> dict[str, Any]:
+    """Create the first sign-in-capable account, with no email round trip.
+
+    A fresh deployment has no account, and both editions gate sign-in behind one. The managed
+    control plane demotes a freshly registered account to `email_verified=0` /
+    `approval_status='pending'` (`managed/control.py`), and email delivery is fail-closed, so on
+    a deployment with no mail provider nobody can ever complete verification. This writes the
+    identity database directly: create, approve, set role.
+
+    The password is read from `CORTEX_BOOTSTRAP_PASSWORD` or prompted for; it is never a
+    command-line argument (argv is visible in `ps` and in shell history), never echoed, never
+    returned, and never written to the auth trail.
+
+    Re-running is safe. An account that already exists is approved in place and its password is
+    left alone, which is what rescues the pending account the managed path leaves behind.
+    """
+    if role not in accounts.ROLE_SCOPES:
+        raise ValueError(f"unknown role {role!r}; expected one of {', '.join(sorted(accounts.ROLE_SCOPES))}")
+
+    existing = accounts._account(home, email) is not None
+    password = ""
+    if not existing:
+        password = os.environ.get("CORTEX_BOOTSTRAP_PASSWORD", "")
+        if not password:
+            if not sys.stdin.isatty():
+                raise ValueError(
+                    "no password supplied: set CORTEX_BOOTSTRAP_PASSWORD, or run this on a "
+                    "terminal so it can prompt. A password is never passed in argv."
+                )
+            password = getpass.getpass(f"Password for {email}: ")
+            if password != getpass.getpass("Repeat: "):
+                raise ValueError("the two passwords did not match")
+        if not password:
+            raise ValueError("no password supplied")
+        accounts.create_account(
+            home, email=email, password=password, display_name=display_name, profile_id=profile_id
+        )
+    del password
+
+    accounts.approve_account(home, email=email, verified=True)
+    accounts.set_account_role(home, email=email, role=role)
+
+    account = accounts.account_status(home, email=email)
+    if account is None:  # pragma: no cover - approve+role just ran against this row
+        raise ValueError(f"account {email} is not active after bootstrap")
+    return {
+        "created": not existing,
+        "email": account["email"],
+        "display_name": account["display_name"],
+        "profile_id": account["profile_id"],
+        "role": account["role"],
+        "approval_status": account["approval_status"],
+        "email_verified": account["email_verified"],
+        "next": "sign in at the console with this email and the password you supplied",
+    }
+
+
 def run_command(args: argparse.Namespace) -> dict[str, Any]:
     home = Path(args.home) if args.home else _default_home()
+    if args.command == "bootstrap-account":
+        return bootstrap_account(
+            home,
+            email=args.email,
+            display_name=args.display_name,
+            profile_id=args.profile_id,
+            role=args.role,
+        )
     if args.command == "config":
         config = load_config(home=home)
         return config.redacted_dict()
@@ -297,6 +371,18 @@ def build_parser() -> argparse.ArgumentParser:
     readiness_parser = subparsers.add_parser("readiness", help="Check local disk/memory startup readiness.")
     readiness_parser.add_argument("--min-disk-bytes", type=int, default=2 * 1024**3)
     readiness_parser.add_argument("--min-memory-bytes", type=int, default=256 * 1024**2)
+
+    bootstrap_parser = subparsers.add_parser(
+        "bootstrap-account",
+        help="Create the first sign-in-capable account (no email step). Password via "
+             "CORTEX_BOOTSTRAP_PASSWORD or a prompt; never in argv.",
+    )
+    bootstrap_parser.add_argument("--email", required=True)
+    bootstrap_parser.add_argument("--display-name", default="Operator")
+    bootstrap_parser.add_argument("--profile-id", default="default")
+    bootstrap_parser.add_argument(
+        "--role", default="operator", choices=sorted(accounts.ROLE_SCOPES),
+    )
 
     config_parser = subparsers.add_parser("config", help="Show effective configuration.")
     config_parser.add_argument("show", nargs="?", default="show")
