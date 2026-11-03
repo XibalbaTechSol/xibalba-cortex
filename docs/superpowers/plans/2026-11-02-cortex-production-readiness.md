@@ -752,56 +752,83 @@ payload workspace precisely to prove it is ignored.
       red.
 - [ ] **Step 6: Commit**
 
-### Task 3: Expose MCP on the managed service — BLOCKED on an operator decision
+### Task 3: Extend `hosted_connector.py` with ingest and per-request profile resolution
 
-🚫 **Do not start this task.** An earlier revision said "mount the existing streamable-HTTP
-MCP app". Reading the code shows that would be a cross-tenant data leak, so the task is
-suspended pending a decision the operator has to make.
+**Decided 2026-11-03.** The operator chose: extend `hosted_connector.py`, exposing its
+existing three tools plus `memory_ingest_agent_turn`, with the profile resolved per request.
+The alternative — mounting `server.py`'s MCP app — is **rejected and must not be
+reconsidered by an implementer**: `server.py:91` holds a process-global `_store`, so all ~89
+tools would serve one workspace regardless of caller, and it would publish `memory_backup`,
+`memory_vault_inspect`, `memory_forget` and the inference-task lifecycle to the internet.
 
-**Why the obvious implementation is unsafe.** `server.py:91` holds
-`_store: GraphStore | None = None` — a **process-global store**, initialised from
-`_default_home()` and a single `XIBALBA_CORTEX_PROFILE_ID` env var (`server.py:1742`). Every
-one of its ~89 tools reads that global. Mounted in the multi-tenant managed process, tenant
-B's authenticated request would be served tenant A's store. `BearerTokenAuth` does not help:
-it authenticates the request, it does not re-point the store.
+**Files:**
+- Modify: `src/xibalba_cortex/hosted_connector.py`
+- Modify: `src/xibalba_cortex/managed/api.py` (mount the connector app)
+- Modify: `tests/test_managed_ingest.py`
 
-**The second problem: surface area.** Those ~89 tools include `memory_backup`,
-`memory_vault_inspect`, `memory_forget`, the inference-task lifecycle and the runtime
-bridge. `hosted_connector.py` deliberately exposes **three** (`cortex_remember`,
-`cortex_recall`, `cortex_connection_status`) and its own doc states that "administrative,
-review, deletion, and arbitrary runtime-ingestion tools are absent." Mounting the full
-server would publish all of them to the internet in one step.
+**Interfaces:**
+- Consumes: `GraphStore.ingest_agent_turn` (same handler as Task 1 — **no second ingestion
+  path**); `ingest_tokens.verify_token_record`; the connector's existing per-request
+  subject-to-profile check at `hosted_connector.py:50` and `:58`.
+- Produces: a fourth connector tool, `cortex_ingest_turn`, and a connector instance whose
+  profile comes from the request's credential rather than from `self.profile`.
 
-**`hosted_connector.py` is the better reuse target, but it is not multi-tenant either.** It
-binds one profile per instance (`self.profile`, `hosted_connector.py:32`) and checks it per
-request (`:50`, `:58`), which is the right *shape* — a per-request subject-to-profile check
-rather than a global — but it still needs per-request profile resolution to serve many
-tenants from one process.
+- [ ] **Step 0: Devil's Advocate review — BLOCKING.** This changes a security boundary
+      (a previously single-profile component becomes multi-tenant, on a public host), so
+      `SOUL.md` requires the review **before** implementation, not after. Record the outcome
+      in the task. ⚠️ The Devil's Advocate MCP connector is **not authenticated** in this
+      environment — it appears only as `authenticate` / `complete_authentication`. Either
+      authenticate it or run the review another way, but do not skip it and do not mark this
+      step done without a recorded outcome.
 
-**The decision the operator must make**, before any code:
+- [ ] **Step 1: Write the failing tests**
 
-1. **Tool surface** — the connector's three tools plus `memory_ingest_agent_turn`
-   (recommended), or the full ~89-tool surface.
-2. **Which component** — extend `hosted_connector.py` to resolve the profile per request, or
-   make `server.py`'s store request-scoped.
+The isolation test is the point of the task, so it is written first and written to fail for
+the right reason.
 
-**This is a security-boundary change**, so per `SOUL.md` it gets a Devil's Advocate review
-before implementation, not after.
+```python
+def test_each_credential_reaches_only_its_own_profile(connector_app, key_a, key_b):
+    connector_app.ingest(key_a, {**TURN, "external_session_id": "s-a"})
+    assert connector_app.store("profile-a").session_exchanges("s-a") != []
+    assert connector_app.store("profile-b").session_exchanges("s-a") == []
 
-Until it is decided, **Phase 5 ships Tasks 1, 2 and 5 only**, which already deliver the
-customer-visible outcome: a Grok bot or any HTTP client can record full turns into a hosted
-workspace over REST. MCP is the second transport, not the first.
+def test_a_revoked_credential_is_refused_on_the_next_call(connector_app, key_a):
+    assert connector_app.ingest(key_a, TURN).ok
+    connector_app.revoke(key_a)
+    assert not connector_app.ingest(key_a, TURN).ok
 
-- [ ] **Step 0: Operator decides the tool surface and the component.** Blocking.
-- [ ] **Step 1: Devil's Advocate review** of the chosen approach, recorded.
-- [ ] Remaining steps to be planned once Step 0 fixes the design. Do not guess them.
+def test_the_connector_exposes_exactly_four_tools(connector_app):
+    """The surface IS the security decision, so it is asserted, not assumed. A fifth tool
+       appearing without this test changing is the failure this catches."""
+    assert sorted(connector_app.tool_names()) == [
+        "cortex_connection_status", "cortex_ingest_turn", "cortex_recall", "cortex_remember",
+    ]
+```
 
-### Task 4: The two transports cannot drift — deferred with Task 3
+- [ ] **Step 2: Run them and confirm they fail**
+- [ ] **Step 3: Resolve the profile per request.** Replace the instance-level `self.profile`
+      comparison with the profile carried by the verified credential, keeping the existing
+      shape of the check at `:50` and `:58`. Add `cortex_ingest_turn` as a thin call into
+      `GraphStore.ingest_agent_turn` for the resolved profile — **no ingestion logic in the
+      tool.**
+- [ ] **Step 4: Run them and confirm they pass**
+- [ ] **Step 5: Prove each can fail** — restore the instance-level profile so a credential
+      reaches a fixed profile; confirm **only** the isolation test goes red. Add a fifth
+      tool; confirm only the surface test goes red. Restore both.
+- [ ] **Step 6: Enforce the plan limits here too**, by calling the same enforcement Phase 3
+      Task 3 built — the same reasoning as Task 1 Step 6. A Free-tier ingest at the
+      `writes_per_month` boundary is refused over MCP exactly as over REST.
+- [ ] **Step 7: Document the TLS boundary.** `server.py`'s startup warning records why: the
+      MCP transport has no TLS of its own and bearer tokens travel in plaintext without a
+      TLS-terminating proxy. Render terminates TLS; a self-hosted operator must be told it
+      is required.
+- [ ] **Step 8: Commit**
 
-⏸ **Blocked by Task 3.** There is only one transport until the MCP decision is made, so
-there is nothing to compare. Keep this task written: the moment a second transport exists,
-this is the test that stops the duplication the spec was written about, and the spec records
-it as a hard requirement rather than a preference.
+### Task 4: The two transports cannot drift
+
+Unblocked 2026-11-03 with Task 3. REST (Task 1) and the connector's `cortex_ingest_turn`
+(Task 3) are now two transports over `GraphStore.ingest_agent_turn`, so this is the test
+that stops them diverging — the hard requirement the spec records for having taken both.
 
 **Files:**
 - Modify: `tests/test_managed_ingest.py`
@@ -899,21 +926,15 @@ likely to introduce an unsupported claim**, so every row of its matrix must cite
       reachable.
 - [ ] **Step 6: Commit**
 
-**Phase done when** — split, because Task 3 is blocked:
+**Phase done when:** a Grok bot, a Cindy desktop and a `curl` all record a full turn into a
+hosted workspace — over MCP or REST — with tool calls present and the chain verifying; the
+identical-records test passes and is proved able to fail; a cross-workspace write is refused
+and each credential reaches only its own profile; the connector exposes exactly four tools;
+a Free-tier ingest is refused at its `writes_per_month` boundary on **both** transports; and
+no README sentence lacks a backing file.
 
-**Shippable now (Tasks 1, 2, 5, 6):** a Grok bot and a `curl` both record a full turn into a
-hosted workspace over REST, with tool calls present and the chain verifying; a
-cross-workspace write is refused; a Free-tier ingest is refused at its `writes_per_month`
-boundary; and no README sentence lacks a backing file.
-
-**Blocked (Tasks 3, 4):** MCP on managed, and the identical-records test that depends on a
-second transport existing. Resumes once the operator decides the tool surface and the
-component, and the Devil's Advocate review is recorded.
-
-This split is deliberate: the customer-visible outcome — hosted agents can finally record
-real provenance-bearing turns — does **not** depend on MCP. REST delivers it. MCP widens
-reach to clients that speak only MCP, which matters, but not at the cost of shipping a
-cross-tenant leak.
+Task 3 Step 0 (Devil's Advocate) gates the MCP half. Tasks 1, 2, 5 and 6 do not depend on
+it, so REST ingestion ships even if that review sends Task 3 back.
 
 ---
 
