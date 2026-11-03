@@ -716,7 +716,7 @@ for (const width of [390, 1280]) {
     const closed = await grammarSweep(page)
     expect(closed, closed.join('\n')).toEqual([])
     await page.getByRole('button', { name: 'Start free', exact: true }).click()
-    await expect(page.locator('#hosted-auth form')).toBeVisible()
+    await expect(page.locator('.xc-auth-form')).toBeVisible()
     await page.evaluate(() => document.fonts.ready)
     const open = await grammarSweep(page)
     expect(open, open.join('\n')).toEqual([])

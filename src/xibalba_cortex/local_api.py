@@ -148,7 +148,7 @@ from .config import load_config
 from .contact import ContactInbox, ContactError, same_origin
 from .connector_policy import ConnectorRateLimiter
 from .ingest_tokens import _connect, list_tokens, verify_token_record
-from .accounts import account_for_token, approve_account, list_pending_accounts, change_account_password, create_account, issue_account_session, request_password_reset, reset_password, revoke_account_session, revoke_account_session_by_id
+from .accounts import SESSION_TTL_HOURS as _ACCOUNT_SESSION_TTL_HOURS, account_for_token, approve_account, list_pending_accounts, change_account_password, create_account, issue_account_session, request_password_reset, reset_password, revoke_account_session, revoke_account_session_by_id
 from .providers import InferenceTaskContract, connector_manifest
 from .console_actions import (
     MAX_EXPORT_IDS, MAX_IMPORT_BYTES, clean_media_type, configured_backup_dir, import_document, list_backups,
@@ -450,9 +450,10 @@ def _run_kernel_bridge_self_test(store: GraphStore, *, session_id: str | None) -
 
 SESSION_COOKIE_NAME = "cortex_session"
 
-# Must track `accounts.issue_account_session`'s ttl_hours default so the cookie does not
-# outlive the server-side session record it points at.
-_SESSION_TTL_HOURS = 24
+# Derived, never restated: a cookie that outlives the server-side session record it points at
+# presents to the user as a silent random logout. The comment that used to sit here asked a
+# reader to keep two numbers in step by hand; this keeps them in step by construction.
+_SESSION_TTL_HOURS = _ACCOUNT_SESSION_TTL_HOURS
 
 # `Secure` is omitted only when the operator explicitly opts out for a plain-HTTP loopback
 # dev server; the deployed path runs behind Caddy TLS, where `Secure` must be set or the

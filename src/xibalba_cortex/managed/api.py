@@ -234,7 +234,7 @@ def create_app(config: ManagedConfig, *, control: ManagedControl | None = None, 
             email=str(data.get("email", "")), password=str(data.get("password", "")))
         service.tenant(account)
         response = JSONResponse({"account": account, "csrf_token": csrf(token)})
-        response.set_cookie(COOKIE, token, max_age=86400, httponly=True, secure=config.public_url.startswith("https:"), samesite="lax", path="/")
+        response.set_cookie(COOKIE, token, max_age=accounts.SESSION_TTL_HOURS * 3600, httponly=True, secure=config.public_url.startswith("https:"), samesite="lax", path="/")
         return response
 
     async def me(request):

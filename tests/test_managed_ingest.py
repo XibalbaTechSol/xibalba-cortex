@@ -117,8 +117,5 @@ def test_a_read_only_subscription_refuses_ingest_but_still_reads(managed_app, ap
     assert managed_app.client.get("/api/managed/memories", headers={"Authorization": "Bearer " + api_key}).status_code == 200
 
 
-def test_revoking_an_api_key_stops_ingestion_on_the_next_call(managed_app):
-    key_id, token = managed_app.issue_key("acct-1")
-    assert managed_app.post("/api/managed/ingest", headers=bearer(token), json=TURN).status_code == 200
-    managed_app.revoke_key("acct-1", key_id)
-    assert managed_app.post("/api/managed/ingest", headers=bearer(token, "ingest-key-0002"), json=TURN).status_code == 401
+# `test_revoking_an_api_key_stops_ingestion_on_the_next_call` lives in test_managed_keys.py,
+# its planned home under Phase 1 Task 4.

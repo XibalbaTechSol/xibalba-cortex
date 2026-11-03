@@ -1,15 +1,19 @@
-"""Shared fixtures for the managed (hosted) edition."""
+"""Shared fixtures: the managed (hosted) edition, plus the account-session primitives."""
 from contextlib import ExitStack
+from datetime import datetime, timedelta
 from urllib.parse import parse_qs, urlsplit
 
 import pytest
 from starlette.testclient import TestClient
 
+from xibalba_cortex import accounts, ingest_tokens
+from xibalba_cortex.accounts import approve_account, create_account
 from xibalba_cortex.managed.api import create_app
 from xibalba_cortex.managed.config import ManagedConfig
 from xibalba_cortex.managed.control import ManagedControl
 
 _PASSWORD = "correct-test-password"
+MANAGED_PASSWORD = _PASSWORD  # the password ManagedApp.register signs its accounts up with
 
 
 class ManagedApp:
@@ -76,3 +80,65 @@ def managed_app(tmp_path):
 def api_key(managed_app):
     """A bearer token for account `acct-1`, minted through the real key route."""
     return managed_app.issue_key("acct-1")[1]
+
+
+# ---------------------------------------------------------------------------
+# Account-session fixtures (Phase 1). `issue_account_session` authenticates a real
+# account, so a home with no account in it cannot exercise session behaviour at all.
+
+ACCOUNT_EMAIL = "operator@example.com"
+# `reader` is the narrowest real role: memory:read and nothing else. There is no "viewer"
+# role in ROLE_SCOPES, which is what the plan's test sketch called this.
+READER_EMAIL = "reader@example.com"
+ACCOUNT_PASSWORD = "correct-test-password"
+MANAGED_PASSWORD = _PASSWORD  # the password ManagedApp.register signs its accounts up with
+
+
+@pytest.fixture
+def tmp_home(tmp_path):
+    """An identity home holding one verified, approved account ready to sign in."""
+    home = tmp_path / "identity-home"
+    home.mkdir()
+    for email, display in ((ACCOUNT_EMAIL, "Operator"), (READER_EMAIL, "Reader")):
+        create_account(home, email=email, password=ACCOUNT_PASSWORD, display_name=display)
+        approve_account(home, email=email, verified=True)
+    # `create_account` has no role parameter and the column defaults to `operator`, so the
+    # read-only account is demoted directly. A session's scopes follow this column.
+    conn = ingest_tokens._connect(home)
+    try:
+        conn.execute("UPDATE accounts SET role='reader' WHERE email=?", (READER_EMAIL,))
+        conn.commit()
+    finally:
+        conn.close()
+    return home
+
+
+class _Clock:
+    """Shifts wall-clock time for the modules that read it, without sleeping."""
+
+    def __init__(self):
+        self.offset = timedelta(0)
+
+    def advance(self, **kwargs):
+        self.offset += timedelta(**kwargs)
+
+
+@pytest.fixture
+def frozen_clock(monkeypatch):
+    """Advance the clock that issues *and* verifies sessions.
+
+    Expiry is stored as an absolute `expires_at` at issue time and compared against
+    `datetime.now()` at verify time, in two different modules. Shifting only one of them
+    would let a test "expire" a session that the issuer never dated, so both move together.
+    """
+    clock = _Clock()
+    real = datetime
+
+    class Shifted(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return real.now(tz) + clock.offset
+
+    for module in (accounts, ingest_tokens):
+        monkeypatch.setattr(module, "datetime", Shifted)
+    return clock

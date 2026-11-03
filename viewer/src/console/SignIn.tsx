@@ -6,25 +6,46 @@
 // sees or stores a token. Only a non-secret "signed in" hint and the account summary go to
 // sessionStorage. There are no quick-fill credentials: a password does not belong in source.
 //
-// Four modes share the one form: sign in, create account, "forgot password" (ask for an emailed
-// link) and "reset password" (the page the emailed link opens, `?token=` in the address). The
-// wording for the last two lives in passwordReset.ts so it is tested; in particular, asking for a
-// link answers identically whether or not the account exists.
+// Five modes share the one form: sign in, create account, "forgot password" (ask for an emailed
+// link), "reset password" (the page the emailed link opens, `?token=` or managed's `?reset_token=`
+// in the address) and "resend verification", which only the hosted backend serves. The wording for
+// all of them lives in passwordReset.ts and authNotice.ts so it is tested; in particular, asking
+// for a link answers identically whether or not the account exists.
+//
+// This is the ONE sign-in surface. The hosted edition used to render its own duplicate of this
+// form (HostedLanding) because the console spoke `/api/auth/*` and the hosted backend served only
+// `/api/managed/*`; hostedApi.ts's table removed that reason. What differs between the editions is
+// therefore CAPABILITY, asked through `supports()`, never which component renders: a profile
+// endpoint you can point at exists where `/api/status` does, and resend-verification exists where
+// the hosted backend does.
 
 import { useEffect, useState, type FormEvent } from 'react'
-import { ApiError, accountAuth, accountConfirmPasswordReset, accountMe, accountRequestPasswordReset, api, connectLocalDev, getApiBaseUrl, setApiBaseUrl } from '../api'
+import { ApiError, accountAuth, accountConfirmPasswordReset, accountMe, accountRequestPasswordReset, accountResendVerification, api, connectLocalDev, getApiBaseUrl, setApiBaseUrl } from '../api'
+import { supports } from '../hostedApi'
 import { IconArrowRight, IconIntegrity, IconLock } from './icons'
+import { SIGNUP_PENDING, VERIFIED, signInError, verifiedFromSearch } from './authNotice'
 import { confirmNotice, requestNotice, resetTokenFromSearch, searchWithoutToken, validateNewPassword, type ResetNotice } from './passwordReset'
 
-type Mode = 'login' | 'signup' | 'forgot' | 'reset'
+type Mode = 'login' | 'signup' | 'forgot' | 'reset' | 'resend'
+
+/** `#signup` is how a plan card on the hosted landing opens this form on its second tab. */
+const SIGNUP_HASH = '#signup'
+
+/** Where the local profile endpoint is a thing at all: the edition that serves `/api/status`. */
+function localProfile(): boolean {
+  return supports('GET', '/api/status')
+}
 
 export function SignIn({ onSignedIn }: { onSignedIn: () => void }) {
-  const [mode, setMode] = useState<Mode>('login')
+  const [mode, setMode] = useState<Mode>(() => (typeof location !== 'undefined' && location.hash === SIGNUP_HASH ? 'signup' : 'login'))
   const [error, setError] = useState(() => {
     try { return sessionStorage.getItem('xibalba-cortex.auth-notice') ?? '' } catch { return '' }
   })
   const [busy, setBusy] = useState(false)
-  const [notice, setNotice] = useState<ResetNotice | null>(null)
+  // A clicked verification link lands here (managed/api.py:227 redirects to `?verified=1`).
+  const [notice, setNotice] = useState<ResetNotice | null>(
+    () => (typeof location !== 'undefined' && verifiedFromSearch(location.search) ? { tone: 'ok', text: VERIFIED } : null),
+  )
   // the secret from an emailed reset link, held in memory only
   const [resetToken, setResetToken] = useState<string | null>(null)
 
@@ -43,15 +64,19 @@ export function SignIn({ onSignedIn }: { onSignedIn: () => void }) {
     setNotice(null)
   }
 
+  /* Asking for an email: a reset link, or another verification link. One submit for both, because
+     both must answer identically whether or not the account exists -- a different wording for the
+     two would be a way to learn which addresses have accounts. */
   const submitForgot = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     const email = String(new FormData(event.currentTarget).get('email') ?? '').trim()
+    const resend = mode === 'resend'
     setBusy(true)
     setError('')
     setNotice(null)
     try {
-      await accountRequestPasswordReset(email)
-      setNotice(requestNotice(200))
+      await (resend ? accountResendVerification(email) : accountRequestPasswordReset(email))
+      setNotice(resend ? { tone: 'ok', text: 'If this account needs this action, an email has been sent.' } : requestNotice(200))
     } catch (e) {
       const note = requestNotice(e instanceof ApiError ? e.status : 0)
       setError(note.text)
@@ -95,15 +120,26 @@ export function SignIn({ onSignedIn }: { onSignedIn: () => void }) {
         password: String(form.get('password') ?? ''),
         display_name: String(form.get('displayName') ?? ''),
       })
+      /* No account in the answer means no session was opened: the hosted backend answers signup
+         202 and verifies the address first. There is nothing to ask `me` about, and opening a
+         workspace here would 401 on its first read. */
+      if (!payload.account) {
+        setMode('login')
+        setNotice({ tone: 'ok', text: SIGNUP_PENDING })
+        return
+      }
       const me = await accountMe()
       try {
         sessionStorage.setItem('xibalba-cortex.account', JSON.stringify({ ...(me.account ?? payload.account), session_expires_at: me.session_expires_at }))
         sessionStorage.removeItem('xibalba-cortex.auth-notice')
       } catch { /* the account summary is a convenience */ }
-      await api.status() // prove the endpoint is a Cortex profile before opening the workspace
+      /* Prove the endpoint is a Cortex profile before opening the workspace -- where that is
+         provable. The hosted backend serves no `/api/status`, and `me` has just answered from the
+         hosted account API, which proves the same thing for that edition. */
+      if (localProfile()) await api.status()
       onSignedIn()
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e))
+      setError(signInError(e instanceof Error ? e.message : String(e)))
     } finally {
       setBusy(false)
     }
@@ -148,9 +184,9 @@ export function SignIn({ onSignedIn }: { onSignedIn: () => void }) {
       </section>
 
       <section className="xc-auth-formwrap">
-        <form className="xc-auth-form" onSubmit={mode === 'forgot' ? submitForgot : mode === 'reset' ? submitReset : submit} aria-labelledby="signin-title">
+        <form className="xc-auth-form" onSubmit={mode === 'forgot' || mode === 'resend' ? submitForgot : mode === 'reset' ? submitReset : submit} aria-labelledby="signin-title">
           <span className="xc-lock" aria-hidden="true"><IconLock /></span>
-          {import.meta.env.DEV && (mode === 'login' || mode === 'signup') && (
+          {import.meta.env.DEV && localProfile() && (mode === 'login' || mode === 'signup') && (
             <button className="xc-btn" type="button" disabled={busy} onClick={connectLocal}>
               <IconIntegrity /> Connect to local Cortex
             </button>
@@ -162,12 +198,13 @@ export function SignIn({ onSignedIn }: { onSignedIn: () => void }) {
             </div>
           )}
           <h2 id="signin-title" className="xc-auth-title">
-            {mode === 'signup' ? 'Create your Cortex account' : mode === 'forgot' ? 'Reset your password' : mode === 'reset' ? 'Choose a new password' : 'Welcome back'}
+            {mode === 'signup' ? 'Create your Cortex account' : mode === 'forgot' ? 'Reset your password' : mode === 'reset' ? 'Choose a new password' : mode === 'resend' ? 'Resend verification email' : 'Welcome back'}
           </h2>
           <p className="xc-auth-lede">
             {mode === 'signup' ? 'Create an operator account for this Cortex profile.'
               : mode === 'forgot' ? 'Enter your account email. If it has an account, we email a link that works for 30 minutes.'
               : mode === 'reset' ? `Use at least 10 characters. The link you followed can be used once.`
+              : mode === 'resend' ? 'Enter your account email. If it still needs verifying, we send the link again.'
               : 'Enter your email and password to continue.'}
           </p>
 
@@ -189,6 +226,12 @@ export function SignIn({ onSignedIn }: { onSignedIn: () => void }) {
           {mode === 'login' && (
             <button type="button" className="xc-link xc-auth-forgot" onClick={() => switchMode('forgot')}>Forgot password?</button>
           )}
+          {/* Hosted only, and asked as a capability rather than as an edition: self-hosted verifies
+              no addresses and local_api.py serves no such route. This is the one piece of the
+              hosted edition's old duplicate form that `/api/auth/*` had no equivalent for. */}
+          {(mode === 'login' || mode === 'signup') && supports('POST', '/api/auth/verification/resend') && (
+            <button type="button" className="xc-link xc-auth-forgot" onClick={() => switchMode('resend')}>Resend verification email</button>
+          )}
           {mode === 'reset' && (
             <>
               <label className="xc-field">New password
@@ -199,7 +242,7 @@ export function SignIn({ onSignedIn }: { onSignedIn: () => void }) {
               </label>
             </>
           )}
-          {(mode === 'login' || mode === 'signup') && <details className="xc-auth-advanced">
+          {(mode === 'login' || mode === 'signup') && localProfile() && <details className="xc-auth-advanced">
             <summary>Profile endpoint</summary>
             <label className="xc-field">Optional; the default is the same origin
               <input className="xc-input xc-input--mono" name="endpoint" aria-label="Profile endpoint" type="text" inputMode="url" autoCapitalize="none" autoCorrect="off" defaultValue={getApiBaseUrl()} />
@@ -210,13 +253,14 @@ export function SignIn({ onSignedIn }: { onSignedIn: () => void }) {
           {error && <div className="xc-callout xc-callout--conflict" role="alert">{error}</div>}
 
           <button className="xc-btn xc-btn--primary xc-auth-submit" type="submit" disabled={busy}>
-            {busy ? (mode === 'forgot' || mode === 'reset' ? 'Working…' : 'Connecting…')
+            {busy ? (mode === 'login' || mode === 'signup' ? 'Connecting…' : 'Working…')
               : mode === 'signup' ? 'Create account'
               : mode === 'forgot' ? 'Send reset link'
               : mode === 'reset' ? 'Change password'
+              : mode === 'resend' ? 'Send verification email'
               : 'Sign in'} <IconArrowRight />
           </button>
-          {(mode === 'forgot' || mode === 'reset') && (
+          {mode !== 'login' && mode !== 'signup' && (
             <button type="button" className="xc-link xc-auth-forgot" onClick={() => { setResetToken(null); switchMode('login') }}>Back to sign in</button>
           )}
           <small className="xc-auth-note"><IconLock /> HttpOnly session cookie</small>

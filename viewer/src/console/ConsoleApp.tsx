@@ -5,7 +5,8 @@
 // they survive it.
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { accountLogout, isSignedIn } from '../api'
+import { accountLogout, isSignedIn, markSignedOut } from '../api'
+import { ApiError } from '../apiError'
 import { ConsoleProvider, useConsole } from './state'
 import { SignIn } from './SignIn'
 import { Landing } from './Landing'
@@ -14,6 +15,7 @@ import { edition } from './edition'
 import { clearHostedTransport, installHostedTransport, setHostedSession } from '../hostedApi'
 import { hostedRequest, workspaceSession, type HostedMe } from './hostedWorkspace'
 import { resetTokenFromSearch } from './passwordReset'
+import { verifiedFromSearch } from './authNotice'
 import { Rail, StatusBar, TopBar, WorkspaceHeader } from './Shell'
 import { SettingsProvider, useSettings } from './settingsContext'
 import { PageHost } from './pages/PageHost'
@@ -100,15 +102,23 @@ function Workspace() {
   )
 }
 
-// Which signed-out surface a hash asks for. Sign-in is explicit -- `#signin`, or an expired
-// session, which leaves a notice behind for SignIn to show -- and everything else is the public
-// landing page. Deciding it from the hash rather than from a piece of state keeps the two
-// reachable by link, and keeps a visitor who was bounced out of `#memories` from landing on a
-// marketing page with no explanation.
+// Which signed-out surface a hash asks for. Sign-in is explicit -- `#signin`, `#signup`, an
+// emailed link, or an expired session, which leaves a notice behind for SignIn to show -- and
+// everything else is the public landing page. Deciding it from the hash rather than from a piece
+// of state keeps the two reachable by link, and keeps a visitor who was bounced out of
+// `#memories` from landing on a marketing page with no explanation.
+//
+// The two emailed links are the hosted edition's, and both have to arrive at the form rather than
+// at the marketing page: `?reset_token=` (managed/control.py:137, read by resetTokenFromSearch
+// along with the console's own `?token=`) and `?verified=1` (managed/api.py:227's redirect after a
+// clicked verification link). Nothing covered either before the one-SignIn consolidation, because
+// HostedLanding happened to be the hosted edition's only signed-out surface.
 const SIGN_IN_HASH = '#signin'
+const SIGN_UP_HASH = '#signup'
 
 function wantsSignIn(hash: string): boolean {
-  if (hash === SIGN_IN_HASH || resetTokenFromSearch(window.location.search)) return true
+  if (hash === SIGN_IN_HASH || hash === SIGN_UP_HASH) return true
+  if (resetTokenFromSearch(window.location.search) || verifiedFromSearch(window.location.search)) return true
   try { return Boolean(sessionStorage.getItem('xibalba-cortex.auth-notice')) } catch { return false }
 }
 
@@ -131,7 +141,23 @@ export function ConsoleApp() {
 
   const askHosted = useCallback(() => {
     setMe(undefined)
-    hostedRequest<HostedMe>('me').then((payload) => setMe(payload)).catch(() => setMe(null))
+    hostedRequest<HostedMe>('me').then((payload) => setMe(payload)).catch((e: unknown) => {
+      /* The hosted account API says there is no session. Everything this browser held FOR that
+         session goes now -- the non-secret signed-in hint and the account summary -- or the next
+         boot renders a workspace before asking anyone, and every read in it 401s.
+         Two conditions, and both are load-bearing. A 401 is the session ENDING rather than the
+         server failing, so an unreachable backend must not read as "you were signed out". And
+         only a browser that BELIEVED it was signed in has anything to reset: a first-time visitor
+         to the hosted landing has no session either, and their `me` 401s exactly the same way --
+         sending them to a sign-in form with "session expired" on it would be a lie, and it would
+         make the public landing unreachable. */
+      if (e instanceof ApiError && e.status === 401 && isSignedIn()) {
+        markSignedOut()
+        setSignedIn(false)
+        try { sessionStorage.setItem('xibalba-cortex.auth-notice', 'Session expired. Sign in again to reconnect to this Cortex workspace.') } catch { /* private mode: sign-in just shows no notice */ }
+      }
+      setMe(null)
+    })
   }, [])
 
   // The data layer learns the edition exactly once, here, before anything under the console can
@@ -157,22 +183,33 @@ export function ConsoleApp() {
     if (session.fault) console.error(session.fault)
   }, [session.fault])
 
+  /* One logout, through the one data layer. `accountLogout` posts `/api/auth/logout`, which the
+     hosted mapping sends to `/api/managed/logout` carrying the CSRF token this transport holds --
+     so the second, direct `hostedRequest('logout')` that used to run beside it was the same
+     request twice, and the first of the two revoked the session the second then needed. The
+     order matters: the call goes out BEFORE `setMe(null)` clears the held token, and
+     `accountLogout` clears the local hint whether or not the server answers. */
   const signOut = useCallback(() => {
-    // the server owns the session record; clear the hint even if the call fails
-    if (session.hosted) {
-      void hostedRequest('logout', { method: 'POST' }, me?.csrf_token).catch(() => {}).finally(() => setMe(null))
-    }
-    accountLogout().catch(() => {}).finally(() => setSignedIn(false))
-  }, [session.hosted, me])
+    accountLogout().catch(() => {}).finally(() => {
+      setSignedIn(false)
+      setMe(null)
+    })
+  }, [])
 
-  // Hosted sign-in is the hosted landing's own form (`/api/managed/login`); the console's SignIn
-  // speaks `/api/auth/*`, which the hosted backend does not serve.
-  const signedOut = hostedEdition ? (
-    <HostedLanding onSignedIn={askHosted} />
-  ) : wantsSignIn(hash) ? (
-    <SignIn onSignedIn={() => setSignedIn(true)} />
+  /* ONE signed-out path for both editions: the sign-in form when something asked for it, and the
+     edition's public landing otherwise. The hosted edition used to be forced down a second path
+     here, because `SignIn` speaks `/api/auth/*` and the hosted backend serves only
+     `/api/managed/*` -- hostedApi.ts's table is what made that premise false, so the duplicate
+     login / signup / forgot / reset / verify form HostedLanding carried is gone. What is left of
+     HostedLanding is its product surface: the hosted copy and the server's own plan catalog, which
+     the self-hosted landing does not have. */
+  const openSignIn = useCallback((hashValue: string) => () => { location.hash = hashValue }, [])
+  const signedOut = wantsSignIn(hash) ? (
+    <SignIn onSignedIn={() => { setSignedIn(true); if (hostedEdition) askHosted() }} />
+  ) : hostedEdition ? (
+    <HostedLanding onSignIn={openSignIn(SIGN_IN_HASH)} onSignUp={openSignIn(SIGN_UP_HASH)} />
   ) : (
-    <Landing onSignIn={() => { location.hash = SIGN_IN_HASH }} />
+    <Landing onSignIn={openSignIn(SIGN_IN_HASH)} />
   )
 
   return (
@@ -180,7 +217,11 @@ export function ConsoleApp() {
       <div className="xc">
         {me === undefined ? (
           <main className="xc-page"><p className="xc-note" role="status">Loading your workspace…</p></main>
-        ) : signedIn || session.hosted ? (
+        ) : (hostedEdition ? session.hosted : signedIn) ? (
+          /* On hosted the SESSION is the gate, never the local hint: a pilot user who signed in
+             through the old HostedLanding has no hint at all, and requiring one would sign them
+             out -- while trusting one would open a workspace for a session that has ended. On
+             self-hosted there is no `me` to ask, so the hint remains the only signal there is. */
           <ConsoleProvider onSignOut={signOut} destinations={session.destinations} hosted={session.hosted}>
             <Workspace />
           </ConsoleProvider>
