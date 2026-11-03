@@ -13,6 +13,7 @@ from xibalba_cortex.managed.config import ManagedConfig
 from xibalba_cortex.managed.control import ManagedControl
 
 _PASSWORD = "correct-test-password"
+MANAGED_PASSWORD = _PASSWORD  # the password ManagedApp.register signs its accounts up with
 
 
 class ManagedApp:
@@ -90,6 +91,7 @@ ACCOUNT_EMAIL = "operator@example.com"
 # role in ROLE_SCOPES, which is what the plan's test sketch called this.
 READER_EMAIL = "reader@example.com"
 ACCOUNT_PASSWORD = "correct-test-password"
+MANAGED_PASSWORD = _PASSWORD  # the password ManagedApp.register signs its accounts up with
 
 
 @pytest.fixture

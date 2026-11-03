@@ -18,7 +18,7 @@ import uuid
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-from .ingest_tokens import _connect, _hash, effective_scopes, ROLE_SCOPES
+from .ingest_tokens import _connect, _hash, effective_scopes, verify_token_record, ROLE_SCOPES
 
 _ACCOUNT_SCHEMA = """
 CREATE TABLE IF NOT EXISTS accounts (
@@ -206,7 +206,14 @@ def record_auth_event(home: str | Path, *, event_type: str, email: str | None = 
     finally:
         conn.close()
 
-def issue_account_session(home: str | Path, *, email: str, password: str, ttl_hours: int = 24) -> tuple[str, dict[str, object]]:
+#: The account-session lifetime, in hours. **Every** cookie `max_age` must be derived from this
+#: and not restated: `managed/api.py`'s login cookie and `local_api.py`'s `_SESSION_TTL_HOURS`
+#: both used to carry their own 24, and a cookie that outlives its server-side session presents
+#: to the user as a silent random logout. `test_account_sessions.py` asserts they agree.
+SESSION_TTL_HOURS = 24
+
+
+def issue_account_session(home: str | Path, *, email: str, password: str, ttl_hours: int = SESSION_TTL_HOURS) -> tuple[str, dict[str, object]]:
     row = _account(home, email)
     normalized = _normalize_email(email)
     now = datetime.now(timezone.utc)
@@ -477,6 +484,50 @@ def reset_password(home: str | Path, *, reset_token: str, new_password: str) -> 
         conn.close()
     record_auth_event(home, event_type="password_reset_completed", email=email_row["email"] if email_row else None, profile_id=email_row["profile_id"] if email_row else None)
     return True
+
+def rotate_account_session(home: str | Path, token: str) -> tuple[str, dict[str, object]] | None:
+    """Replace a live session's credential without signing its holder out.
+
+    Rotation is what makes a short lifetime usable: the holder keeps working while the secret
+    on the wire is replaced. It deliberately reuses `verify_token_record`, so a revoked or
+    already-expired session is refused rather than resurrected -- otherwise a stolen cookie
+    would stay useful forever and the TTL would mean nothing.
+
+    The replacement is issued from the account's **current** role, not copied from the old row,
+    so rotation is also the migration path for a session issued before scopes were narrowed:
+    an over-broad row becomes a correct one without its holder re-authenticating.
+    """
+    record = verify_token_record(home, token)
+    if record is None:
+        return None
+    account = account_for_token(home, token)
+    if account is None:
+        return None
+    row = _account(home, str(account["email"]))
+    if row is None:
+        return None
+    account_role = row["role"] if row["role"] in ROLE_SCOPES else "operator"
+    role_grants = ROLE_SCOPES.get(account_role, frozenset())
+    if "*" in role_grants:
+        session_scopes = sorted({scope for grants in ROLE_SCOPES.values() for scope in grants if scope != "*"})
+    else:
+        session_scopes = sorted(role_grants)
+    fresh = secrets.token_urlsafe(32)
+    expires = (datetime.now(timezone.utc) + timedelta(hours=SESSION_TTL_HOURS)).isoformat()
+    conn = _connect(home)
+    try:
+        effective_ids = _effective_agent_ids(conn, str(row["id"]), row["agent_ids_json"])
+        conn.execute("INSERT INTO ingest_tokens(id,label,token_hash,profile_id,roles_json,scopes_json,expires_at,agent_id,agent_ids_json) VALUES(?,?,?,?,?,?,?,?,?)",
+            (str(uuid.uuid4()), f"account:{row['email']}", _hash(fresh), row["profile_id"], json.dumps([account_role]), json.dumps(session_scopes), expires, None, json.dumps(effective_ids)))
+        # Revoke the old credential only once its replacement exists, so a failure here cannot
+        # leave the holder with no working session at all.
+        conn.execute("UPDATE ingest_tokens SET revoked_at=CURRENT_TIMESTAMP WHERE token_hash=? AND label LIKE 'account:%' AND revoked_at IS NULL", (_hash(token),))
+        conn.commit()
+    finally:
+        conn.close()
+    record_auth_event(home, event_type="session_rotated", email=str(row["email"]), profile_id=row["profile_id"])
+    return fresh, account
+
 
 def revoke_account_session(home: str | Path, token: str) -> bool:
     conn = _connect(home)
