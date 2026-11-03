@@ -5,11 +5,31 @@ when a verification command produces new evidence, or when a blocker is resolved
 Do not create another numbered roadmap. The detailed production plan is reference
 material; its gate IDs map to this state.
 
-**Last verified:** 2026-09-14
+**Last verified:** 2026-11-03
 **Repository:** `/home/xibalba/Projects/xibalba-cortex`
-**Branch:** `feat/otel-compatible-integrity-telemetry`
-**Commit:** `ccaccdd` (CORE sync account binding, guarded setup script, and systemd service fix)
+**Branch:** `local` (declared pinned live-service branch)
+**Commit:** `60194fc` (current `origin/main` deployed to the pinned local checkout)
 **Local-only residue:** pre-existing untracked `LICENSE` (preserve; do not stage)
+
+## Current production-plan checkpoint — 2026-11-03
+
+The current deployed Cortex checkout is clean and fast-forwarded to `60194fc`.
+Merged and deployed production-plan work includes the one-console migration,
+shared role-scoped account sessions with expiry, rotation and revocation, the
+zero-agent first-run route, and signed short-lived rate-limited single-use
+enrollment codes with audit coverage. README and cross-product references now
+point to the canonical ecosystem authority in `integrity-core/docs/ecosystem/`.
+
+Live local verification on `60194fc`: all six local APIs and the embedding
+service are active; `/healthz` returns `xibalba.health.v1` with `status: ok` on
+ports 8420, 8422, 8423, 8424, 8427, and 8428; and
+`xibalba-cortex-core-sync.timer` is active. The latest CORE sync attempt failed
+because the configured CORE endpoint refused the connection. The operator
+readiness report remains local-only (`ready: false`): external pilot, SLA,
+compliance, HA/PITR, and real-tenant evaluation evidence are not established.
+
+PRs #88 and #89 are still awaiting viewer CI and must be merged only at the
+exact green CI head SHA.
 
 ## Documentation sync — 2026-10-04
 

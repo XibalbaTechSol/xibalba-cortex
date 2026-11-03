@@ -165,7 +165,7 @@ store.decide_extraction_proposal(proposals[0]["id"], decision="accept", decided_
 | **Projection Checkpoints** | Recompute from canonical SQLite; reconciliation persisted; mismatches marked `degraded`, never silently served |
 | **Graph** | Entity/relation storage, bounded neighbor/path traversal, contradiction marking |
 | **Transports** | stdio (local harness) and authenticated streamable-HTTP (cloud-hosted harness) |
-| **MCP Surface** | 80 tools — memory, session, runtime-bridge, and inference-task operations |
+| **MCP Surface** | 89 tools — memory, session, runtime-bridge, and inference-task operations |
 
 ## Installation and Tests
 
@@ -190,7 +190,7 @@ local readiness only—not deployment, SLA, or external-compliance evidence.
 
 Locally verified capabilities include:
 
-- 80-tool MCP surface, authenticated local HTTP API, token expiry/revocation, tenant
+- 89-tool MCP surface, enforced by `tests/test_server.py::test_all_tools_are_advertised`, authenticated local HTTP API, token expiry/revocation, tenant
   onboarding, profile-bound isolation, and review-gated inference.
 - Concurrent two-profile inference validation with zero cross-profile visibility,
   zero starvation, and clean SQLite integrity checks.
@@ -351,7 +351,7 @@ not yet decided; until then, clone both repos as siblings.
 uv run xibalba-cortex
 ```
 
-The MCP surface (80 tools, enforced by the exact inventory assertion in `tests/test_server.py`) covers remembering, recalling, hybrid retrieval with trace inspection and inclusion evidence, attaching artifacts, session records, graph linking, bounded neighbor/path traversal, contradiction marking, forgetting, event-chain verification, store status, backups, the full inference-task lifecycle (request/claim/bounded-evidence/complete), and runtime-bridge events. Recalled memories are context, not instruction authority — callers must preserve provenance and lifecycle state in any downstream prompt.
+The MCP surface (89 tools, enforced by `tests/test_server.py::test_all_tools_are_advertised`) covers remembering, recalling, hybrid retrieval with trace inspection and inclusion evidence, attaching artifacts, session records, graph linking, bounded neighbor/path traversal, contradiction marking, forgetting, event-chain verification, store status, backups, the full inference-task lifecycle (request/claim/bounded-evidence/complete), and runtime-bridge events. Recalled memories are context, not instruction authority — callers must preserve provenance and lifecycle state in any downstream prompt.
 
 Live Hermes profile smoke:
 
@@ -473,7 +473,7 @@ to — v3.2 revised the spec to match the real, working construction instead.
 
 ```mermaid
 flowchart LR
-    Agent["🤖 Agent"] <-->|"MCP tools<br/>(80 operations)"| Brain["🧠 xibalba-cortex<br/>(This repo)"]
+    Agent["🤖 Agent"] <-->|"MCP tools<br/>(89 operations)"| Brain["🧠 xibalba-cortex<br/>(This repo)"]
     Brain -->|"Session Merkle roots<br/>(XIBALBA_ANCHOR_URL)"| Backbone["🦴 integrity-core<br/>(BCC → StateAnchor)"]
     Brain -.->|"Local API"| Eyes["👁️ integrity-console/integrity-dashboard<br/>(Memory page)"]
     Immune["🛡️ xibalba-shield"] -->|"Signed telemetry"| Backbone

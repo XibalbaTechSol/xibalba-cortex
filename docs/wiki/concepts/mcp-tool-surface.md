@@ -26,7 +26,8 @@ from the agent's own memory, never an instruction to follow.
 
 ## Tool groups
 
-The server advertises 80 tools in the current contract inventory:
+The server advertises 89 tools in the current contract inventory, enforced by
+`tests/test_server.py::test_all_tools_are_advertised`:
 
 - **Store/recall**: `memory_remember`, `memory_recall`, `memory_similar`, `memory_embed`,
   `memory_get`.
