@@ -18,6 +18,7 @@ import { ConfirmPanel } from '../ConfirmPanel'
 import { END_SESSION_CONFIRMATION } from '../workspaceActions'
 import { useMediaQuery } from '../useMediaQuery'
 import { Page } from './Page'
+import { DecisionTracePanel } from '../DecisionTracePanel'
 
 const PAGE_SIZE = 30
 type Tab = 'exchanges' | 'memories' | 'replay' | 'telemetry' | 'trace' | 'kernel'
@@ -355,16 +356,7 @@ function TraceTab({ id }: { id: string }) {
                   <div className="xc-note">{t.disclaimer}</div>
                 </div>
               </div>
-              <a className="xc-btn" href={api.decisionTraceHtmlUrl(id, t.trace_id, workspace.scope)} target="_blank" rel="noreferrer">Open the audit view</a>
-              <ol className="xc-exchanges">
-                {t.events.map((e) => (
-                  <li key={e.event_id} className="xc-exchange">
-                    <div className="xc-card-top"><b className="xc-card-title">#{e.sequence_number}</b><span className="xc-meta">{stamp(e.created_at)}</span></div>
-                    <p className="xc-meta">event <span className="xc-hash" title={e.event_hash}>{elideHash(e.event_hash)}</span>{e.parent_event_hash ? <> · parent <span className="xc-hash" title={e.parent_event_hash}>{elideHash(e.parent_event_hash)}</span></> : ' · first event'}</p>
-                    <details><summary className="xc-meta">Envelope</summary><pre className="xc-pre">{JSON.stringify(e.envelope, null, 2)}</pre></details>
-                  </li>
-                ))}
-              </ol>
+              <DecisionTracePanel trace={t} auditUrl={api.decisionTraceHtmlUrl(id, t.trace_id, workspace.scope)} />
             </>
           )}
         </Loading>
