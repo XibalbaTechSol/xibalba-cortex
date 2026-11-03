@@ -79,6 +79,30 @@ execution order that is the deployable test build the reorder was for. Specifica
   file — never through a pipe. **Phase 0 Task 5 Step 5 depends on this baseline**, and so
   does the merge gate.
 - `uv run pytest tests/test_managed_ingest.py` — **11 passed / 11** (2026-11-03).
+- `uv run pytest` (whole suite, 2026-11-03) — **5 failed**, and **all five are environmental,
+  pre-existing, and fail in isolation**. None of them imports `managed.ingest` or `ingest_turn`
+  (grep: 0 matches), so none is attributable to Phase 5. **Do not chase these as regressions**,
+  and do not expect a locally-green `pytest` on this machine:
+  - `test_stdio_principal.py::test_stdio_fails_closed_without_an_agent_identity` and
+    `test_hermes_observer.py::test_runtime_telemetry_omits_unconfigured_agent_id` are
+    **non-hermetic**. Both clear `XIBALBA_AGENT_ID` and friends but not the *on-disk* identity,
+    and `_install_stdio_principal` resolves `agent.did.json` first, by design
+    (`resolve_agent_id(profile_root=_default_home())`). This box has one provisioned at
+    `/home/xibalba/.hermes/xibalba-cortex` — `did:integrity:8dd4171a…`, the very DID that
+    appears in the observer failure — so the identity resolves and no `SystemExit` is raised.
+    CI has no provisioned DID, which is the only reason these pass there. Scrubbing the env
+    vars does **not** fix them; a real fix points `XIBALBA_CORTEX_HOME` at `tmp_path`, as the
+    sibling test `test_stdio_binds_the_launched_agent_identity` already does.
+  - `test_local_api.py::test_context_assemble_route_is_read_scoped_and_agent_scoped` and
+    `::test_inference_task_routes` need the oracle on `localhost:8080`; it is not running
+    (`ConnectionRefusedError`).
+  - `test_store.py::test_memory_vectors_migrates_existing_l2_table_to_cosine_preserving_data`
+    fails in `DROP TABLE memory_vectors` with `sqlite3.OperationalError: SQL logic error`, a
+    local `sqlite_vec` extension behaviour.
+
+  **Consequence for the merge gate:** the "run exactly what CI runs" command can never read
+  fully green on this machine, so **CI is the gate, not the local run**. Judge a local pytest
+  by whether the failure set is exactly these five.
 
 **Environment prerequisite for any e2e run from a worktree.** `pyproject.toml`'s
 `[tool.uv.sources]` makes `integrity-sdk` an editable path dependency at
