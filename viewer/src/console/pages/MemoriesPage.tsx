@@ -14,6 +14,8 @@ import { NEW_MEMORY_CLASSES, NEW_MEMORY_STATUSES, buildNewMemory, type NewMemory
 import { IconSearch, IconWarn } from '../icons'
 import { ConfirmPanel } from '../ConfirmPanel'
 import { describeImport, formatBytes, importProblem } from '../workspaceActions'
+import { EXPORT_DOWNLOAD_PATH, EXPORT_FILENAME, EXPORT_STARTED, hostedRequest } from '../hostedWorkspace'
+import { supports } from '../../hostedApi'
 import { Page } from './Page'
 
 const PAGE_SIZE = 40
@@ -27,7 +29,7 @@ const stamp = (value: string | null | undefined): string => {
 }
 
 export function MemoriesPage() {
-  const { workspace, selectedId, select, reload, revision, setNotice } = useConsole()
+  const { workspace, hosted, selectedId, select, reload, revision, setNotice } = useConsole()
   const scope = workspace.scope
   const [statuses, setStatuses] = useState<string[]>([...DEFAULT_STATUSES])
   const [draft, setDraft] = useState('')
@@ -61,12 +63,42 @@ export function MemoriesPage() {
     }
   }
 
+  // Bulk export: hosted only, gated on the session's own hosted signal rather than on the nav
+  // list. The `me` call below is the session check -- without it an expired cookie would be
+  // downloaded as cortex-memories.json.
+  const [exporting, setExporting] = useState(false)
+  const [exportError, setExportError] = useState('')
+  const runExport = async () => {
+    setExporting(true)
+    setExportError('')
+    try {
+      await hostedRequest('me')
+      const link = document.createElement('a')
+      link.href = EXPORT_DOWNLOAD_PATH
+      link.download = EXPORT_FILENAME
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      setNotice(EXPORT_STARTED)
+    } catch (e) {
+      setExportError(e instanceof Error ? e.message : 'Request failed')
+    } finally {
+      setExporting(false)
+    }
+  }
+
   const list = useAsync(
     () => api.memories({ limit: PAGE_SIZE, offset, statuses, agentId: scope.agentId, storeId: scope.storeId, query }),
     [scope, statuses, query, offset, revision],
     { keepData: true },
   )
   const rows = list.data?.memories ?? []
+
+  /* Whether this edition honours a status filter at all. The hosted `memories` route has no
+     `status` parameter; the mapping applies the filter client-side over the rows it returns, which
+     is why this is true there too -- but it is asked rather than assumed, so if that ever stops
+     being true the chips disappear instead of quietly lying. */
+  const filtersByStatus = supports('GET', '/api/memories', 'status')
 
   const toggleStatus = (status: string) => {
     setOffset(0)
@@ -86,14 +118,19 @@ export function MemoriesPage() {
       eyebrow="Explore"
       title="Memories"
       note="Every memory in this workspace, newest first. Search uses the store’s full-text index; use Recall for semantic and graph retrieval."
-      actions={workspace.canWrite
-        ? <>
-            <button type="button" className="xc-btn" onClick={() => { setImporting((v) => !v); setImportNote(null) }} aria-expanded={importing}>Import a document</button>
-            <button type="button" className="xc-btn xc-btn--primary" onClick={() => setAdding((v) => !v)} aria-expanded={adding}>New memory</button>
-          </>
-        // say why the button is missing rather than leaving the person to wonder where it went
-        : <p className="xc-note" role="note">Read only. Choose an agent workspace in Scope to add memories.</p>}
+      actions={<>
+        {/* Export is outside the writable check on purpose: a read-only subscription keeps it. */}
+        {hosted && <button type="button" className="xc-btn" disabled={exporting} onClick={() => void runExport()}>Export memories</button>}
+        {workspace.canWrite
+          ? <>
+              <button type="button" className="xc-btn" onClick={() => { setImporting((v) => !v); setImportNote(null) }} aria-expanded={importing}>Import a document</button>
+              <button type="button" className="xc-btn xc-btn--primary" onClick={() => setAdding((v) => !v)} aria-expanded={adding}>New memory</button>
+            </>
+          // say why the button is missing rather than leaving the person to wonder where it went
+          : <p className="xc-note" role="note">Read only. Choose an agent workspace in Scope to add memories.</p>}
+      </>}
     >
+      {exportError && <div className="xc-callout xc-callout--conflict" role="alert"><IconWarn />{exportError}</div>}
       {adding && workspace.canWrite && (
         <NewMemory
           agentId={workspace.selected?.agentId}
@@ -140,11 +177,13 @@ export function MemoriesPage() {
               <button type="submit" className="xc-btn">Search</button>
               {query && <button type="button" className="xc-btn" onClick={() => { setDraft(''); setQuery(''); setOffset(0) }}>Clear</button>}
             </div>
-            <div className="xc-chips" role="group" aria-label="Status filter">
-              {ALL_STATUSES.map((s) => (
-                <button key={s} type="button" className="xc-chip" aria-pressed={statuses.includes(s)} onClick={() => toggleStatus(s)}>{s}</button>
-              ))}
-            </div>
+            {filtersByStatus
+              ? <div className="xc-chips" role="group" aria-label="Status filter">
+                  {ALL_STATUSES.map((s) => (
+                    <button key={s} type="button" className="xc-chip" aria-pressed={statuses.includes(s)} onClick={() => toggleStatus(s)}>{s}</button>
+                  ))}
+                </div>
+              : <p className="xc-note" role="note">This workspace does not filter by status, so every memory it holds is listed.</p>}
           </form>
 
           {list.error && <div className="xc-callout xc-callout--conflict" role="alert" style={{ margin: 16 }}><IconWarn />{list.error}</div>}
@@ -206,6 +245,13 @@ function NewMemory({ agentId, onDone, onCancel }: { agentId: string | undefined;
   const [content, setContent] = useState('')
   const [status, setStatus] = useState<NewMemoryStatus>('candidate')
   const [evidenceClass, setEvidenceClass] = useState<NewMemoryClass>('declared_intent')
+  /* Whether a chosen status and evidence class survive the write. On hosted they do not: the
+     managed route takes content only and the server stores every memory `active`
+     (managed/api.py:376). Offering two selects whose values are discarded is a write-side lie --
+     worse than a read-side one, because the stored record then disagrees with what was chosen.
+     So the selects are not rendered where they would not be kept, and the note says what is
+     recorded instead. */
+  const keepsMetadata = supports('POST', '/api/memory/propositions', 'status')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -230,19 +276,21 @@ function NewMemory({ agentId, onDone, onCancel }: { agentId: string | undefined;
       <label className="xc-field">Text
         <textarea className="xc-input" rows={4} value={content} onChange={(e) => setContent(e.target.value)} autoFocus />
       </label>
-      <div className="xc-newmemory-row">
-        <label className="xc-field">Status
-          <select className="xc-input" value={status} onChange={(e) => setStatus(e.target.value as NewMemoryStatus)}>
-            {NEW_MEMORY_STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
-          </select>
-        </label>
-        <label className="xc-field">Evidence class
-          <select className="xc-input" value={evidenceClass} onChange={(e) => setEvidenceClass(e.target.value as NewMemoryClass)}>
-            {NEW_MEMORY_CLASSES.map((c) => <option key={c} value={c}>{c.replace(/_/g, ' ')}</option>)}
-          </select>
-        </label>
-      </div>
-      <p className="xc-note">Recorded as a direct user statement from the console{agentId ? ', in the selected agent workspace' : ', in the primary profile'}. The store screens it like any other write.</p>
+      {keepsMetadata && (
+        <div className="xc-newmemory-row">
+          <label className="xc-field">Status
+            <select className="xc-input" value={status} onChange={(e) => setStatus(e.target.value as NewMemoryStatus)}>
+              {NEW_MEMORY_STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
+            </select>
+          </label>
+          <label className="xc-field">Evidence class
+            <select className="xc-input" value={evidenceClass} onChange={(e) => setEvidenceClass(e.target.value as NewMemoryClass)}>
+              {NEW_MEMORY_CLASSES.map((c) => <option key={c} value={c}>{c.replace(/_/g, ' ')}</option>)}
+            </select>
+          </label>
+        </div>
+      )}
+      <p className="xc-note">Recorded as a direct user statement from the console{agentId ? ', in the selected agent workspace' : ', in the primary profile'}. {keepsMetadata ? 'The store screens it like any other write.' : 'This workspace records every memory as active, so there is no status or evidence class to choose.'}</p>
       {error && <div className="xc-callout xc-callout--conflict" role="alert"><IconWarn />{error}</div>}
       <div className="xc-actions-row">
         <button type="button" className="xc-btn" onClick={onCancel} disabled={busy}>Cancel</button>

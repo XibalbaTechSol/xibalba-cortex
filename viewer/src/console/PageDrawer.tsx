@@ -20,6 +20,7 @@ const WIDTH: Record<PageId, 'wide' | 'medium' | 'narrow'> = {
   operations: 'medium',
   agents: 'medium',
   settings: 'medium',
+  billing: 'medium',
 }
 
 const InDrawer = createContext(false)

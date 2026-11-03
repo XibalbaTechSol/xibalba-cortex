@@ -1,9 +1,23 @@
 # Cortex accounts and agent registration — design
 
 **Date:** 2026-10-26
-**Status:** design approved in conversation; decisions recorded below; not yet planned
-or implemented. Scope was widened on 2026-10-26 from "the registration flow" to
-"production readiness", so the work is decomposed into sequenced sub-projects.
+**Status:** design approved in conversation 2026-10-26 and reaffirmed 2026-11-02.
+Scope was widened on 2026-10-26 from "the registration flow" to "production readiness", so
+the work is decomposed into sequenced sub-projects.
+
+**P0 is planned and mostly implemented**, not pending: see
+`docs/superpowers/plans/2026-10-26-p0-one-app-console.md`, whose "Execution status" section
+records that Tasks 1-4 and Task 5 steps 1-3 have landed on this branch and that the
+deletion of the second UI -- Task 5 step 4 onward -- has not. **P1 through P4 are not
+planned or implemented.** An earlier revision of this line said P0 was unimplemented too;
+that was wrong, and the plan's reconstruction from `git log` is the authority.
+
+**Reaffirmed 2026-11-02.** Asked to "remove the managed branch completely and go back to
+the ui we had with console", then build Stripe, auth, account creation, the agent
+registration workflow and the console UI. Removal depth was put to the operator as three
+options and the middle one was rejected along with the deepest: the **second UI goes, the
+capability seam stays** (`edition.ts`, `hostedApi.ts`, server-declared destinations), and
+the managed **backend** is untouched. That is P0 as already written below, unamended.
 **Branch:** `docs/account-registration-design`, cut from `origin/local`
 
 ## Intended outcome
@@ -32,14 +46,15 @@ Checked against `origin/main` and `origin/local`.
 | Password reset | yes — `passwordReset.ts` | yes — separate `recovery/{action}` |
 | Register agent, CLI | yes — `cortex connect` (`src/xibalba_cortex/connect.py`) | same CLI, not surfaced in UI |
 | Register agent, DID -> API key | no | yes — DID textarea -> `agent_ids` |
-| Register agent, on-chain ERC-8004 | yes on `origin/local`, unmerged | yes on `origin/local`, unmerged |
+| Register agent, on-chain ERC-8004 | yes — merged to `main` by PR #73 | yes — same, via PR #73 |
 | Device pairing | operator-typed `deviceId` | no |
 | Graph + Timeline main view | yes — `GraphLens` / `TimelineLens` | yes — `ManagedLenses` + Graph/Timeline nav |
 
 **Therefore this is a consolidation, not a greenfield build.** Nearly every capability
 exists; it exists *twice*, divergently, and the unification work (PR #73, commit
-`9f43f50` "Unify Agent0 flows across local and managed Cortex") is blocked behind a red
-`viewer` CI job.
+`9f43f50` "Unify Agent0 flows across local and managed Cortex") was blocked behind a red
+`viewer` CI job; PR #72 turned that job green and PR #73 merged on 2026-10-26, so the
+unification has landed on `main`.
 
 Two earlier readings of mine were wrong and are corrected here, because the design was
 briefly argued from them:
@@ -281,8 +296,8 @@ except the billing panel's.
 *Interaction with PR #73:* that PR edits `ManagedApp.tsx` (+49), a file P0 deletes, so
 that half is discarded as the duplicate it is. Its console-side work is what we keep:
 `agent0_wallet.ts`, `agent0_integration.py` and the `AgentsPage` ERC-8004 directory. They
-are currently the **only** copies — they exist on `origin/local` and not on `main` — so
-P0 must not begin until they are merged or explicitly carried onto its branch.
+were the **only** copies at the time of writing; PR #73 merged them to `main` on
+2026-10-26, so this precondition is **met** and P0 may begin.
 
 ### P1 — One auth contract
 
@@ -347,6 +362,86 @@ Federated identity (OIDC/SSO), tenant-bound membership, short-lived scoped sessi
 rotation, revocation, audited issuance. Out of scope for the pilot by the decision in P1,
 recorded here so the gap is visible rather than implied.
 
+## Amendment 2026-11-02 — decisions taken, and a new workstream
+
+Three decisions were taken with the operator today. They amend P1 and add P5; P0, P2 and P3
+stand as written.
+
+### P1 amended — sessions and revocation now, federation later
+
+The 2026-10-26 decision was "pilot auth now, federated next", deferring all six recorded
+production items to P4. That is **split**:
+
+**Into P1:** short-lived scoped sessions, and working revocation and rotation.
+**Left in P4:** federated identity (OIDC/SSO) and audited issuance.
+
+Tenant-bound membership sits with the P4 half, because it is meaningful only once an identity
+provider supplies the tenant. The two pulled forward are the two that bite a pilot soonest: a
+session that never expires and a credential that cannot be withdrawn are both live risk today,
+whereas absent SSO is only an onboarding limitation.
+
+*Done when:* a session has a bounded lifetime and a scope the server enforces; revoking a
+session or an API key takes effect on the next request, proved by a test that asserts the
+request fails **after** revocation and passed before it; rotation replaces a credential without
+signing the holder out. Existing managed cookies must survive the change, per P1's original
+constraint.
+
+### P5 — managed ingestion, and the custom-architecture story
+
+**The finding that motivates this.** `managed/api.py` serves 25 routes and **not one ingestion
+path**: no MCP endpoint, no `memory_ingest_agent_turn`, no `/api/managed/ingest`. The managed
+Dockerfile runs `python -m xibalba_cortex.managed.api` alone, so the streamable-HTTP MCP app is
+never mounted. Managed issues `managed-api:` bearer tokens, but the only route they can write
+to is `POST /api/managed/memories`, which accepts **content only** and stores every memory
+`active` (`managed/api.py:376`).
+
+So a hosted agent can record flat strings with no session, no tool calls and no provenance,
+while a self-hosted one gets the full Merkle-committed exchange through
+`memory_ingest_agent_turn`. The hosted product is missing the thing Cortex is for.
+
+**What already exists and must be reused, not reinvented.** `memory_ingest_agent_turn` captures
+a whole turn — prompt, response, every tool call, metadata — and its `runtime` is a **free
+string with no harness allowlist**, so a brand-new architecture is supported with zero code
+changes. Each tool call becomes a real `otel_event` committed into the exchange's Merkle node.
+Cindy already ships as `cortex-cindy` 0.3.2, an importable `.cindy` package whose memory tools
+speak local stdio **or** hosted HTTPS MCP. Grok needs no Cortex-side code to connect: Grok 4.3
+supports remote MCP tools natively through the xAI SDK, the OpenAI-compatible Responses API and
+the Voice Agent API, and Grok Build supports bring-your-own MCP.
+
+**Decision (2026-11-02): both transports, and a Grok adapter.**
+
+- **P5a — mount MCP on managed.** Serve the existing streamable-HTTP MCP app from the managed
+  service, authenticated by the `managed-api:` tokens it already issues, scoped to the caller's
+  workspace. This is what makes Grok, Cindy's hosted mode, and any future MCP-speaking
+  architecture work by supplying a URL and a token.
+- **P5b — a REST ingestion route.** `POST /api/managed/ingest`, mirroring
+  `memory_ingest_agent_turn`, for architectures with no MCP client: plain webhooks, X bot
+  runners, cron scripts.
+- **P5c — a Grok/xAI adapter.** `grok_adapter.py` alongside the existing
+  claude / cursor / gemini / codex / agy / openai_compatible family, so Grok is an adapted
+  runtime with identity and policy handling rather than only a free-string one.
+
+**The divergence risk, and the mitigation.** Taking P5a and P5b together reintroduces exactly
+the failure this spec was written about: a capability existing twice and drifting. The operator
+chose both deliberately, with that tension stated. The structural mitigation is therefore a
+**requirement, not a preference**: the two are **two transports over one shared handler**, and
+neither may hold ingestion logic of its own. A test asserts that the same turn submitted over
+MCP and over REST produces **identical stored records** — same exchange, same `otel_event`
+rows, same Merkle node — and that test must be proved able to fail by changing one transport
+alone. `grok_adapter.py` calls the same handler; it adds identity and policy, never a third
+ingestion path.
+
+**Security boundary.** Mounting MCP on a public host moves a previously localhost-only surface
+onto the internet. `server.py`'s own startup warning records why that matters: the MCP server
+has no TLS of its own and bearer tokens travel in plaintext without a TLS-terminating proxy in
+front. On Render that termination exists; a self-hosted operator must be told it is required.
+Workspace scoping is the other half — a token must reach its own workspace and no other, and
+that must be proved by a test that attempts a cross-workspace write and is refused.
+
+*Done when:* a Grok bot and a `curl` both record a full turn into a hosted workspace with tool
+calls present and the chain verifying; the identical-records test passes and is proved able to
+fail; a cross-workspace write is refused.
+
 ## Out of scope
 
 - The P4 hardening set — deferred by decision, tracked above, not abandoned.
@@ -358,8 +453,9 @@ recorded here so the gap is visible rather than implied.
 1. **PR #72 — landed.** Merged at `6ad9428` on 2026-10-26T07:36Z with
    `--match-head-commit`; `viewer` CI green for the first time; Render redeployed that
    exact SHA and was validated at the artifact level.
-2. **PR #73** (`local` -> `main`, OPEN, MERGEABLE) holds the only copies of
-   `agent0_wallet.ts` and `agent0_integration.py`. **P0 is blocked on it**, per the
-   interaction note above.
+2. **PR #73 — landed.** Merged into `main` at 2026-10-26T07:52:26Z. It held the only
+   copies of `agent0_wallet.ts` and `agent0_integration.py`; both are now present on the
+   branch, so **P0 is no longer blocked**. The interaction note above still applies to how
+   its `ManagedApp.tsx` half is treated: discarded as the duplicate it is.
 3. **Stripe credentials** from the operator block **P3b only**. P3a proceeds against a
    dummy key with a fake gateway.

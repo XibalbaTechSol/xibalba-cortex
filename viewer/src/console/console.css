@@ -3488,10 +3488,16 @@ body,
   gap: 64px;
   padding-block: 72px 88px;
 }
+/* 280px, not 420px, because the mark is raster and 280 is the largest size it is actually
+   sharp at. public/cortex-lockup-hero.png is 560x520, and that is every pixel the master
+   artwork holds -- ~/Pictures/cortex-logos/cortex-brain-compact-transparent.png carries a
+   549x509 ink bbox inside its 1280x670 canvas, so a bigger export would be interpolation,
+   not detail. 560/280 = exactly 2.00x, so this is crisp on HiDPI. Raise this only together
+   with a vector or genuinely >=840px export of the same lockup. */
 .xc-landing-mark {
   display: block;
   width: 100%;
-  max-width: 420px;
+  max-width: 280px;
   height: auto;
   margin-inline: auto;
 }
@@ -3565,7 +3571,6 @@ body,
   .xc-landing-top .xc-brand b { display: block; }
   .xc-landing-nav { order: 3; width: 100%; gap: 20px; }
   .xc-landing-hero { grid-template-columns: minmax(0, 1fr); gap: 36px; padding-block: 40px 56px; }
-  .xc-landing-mark { max-width: 280px; }
   .xc-landing-hero h1 { font-size: 32px; }
   .xc-landing-lead { font-size: 17px; }
   .xc-landing-grid,

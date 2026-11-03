@@ -1,6 +1,7 @@
 import { TAB_LABEL, tabsFor, type PageId } from '../nav'
 import { useConsole } from '../state'
 import { AgentsPage } from './AgentsPage'
+import { BillingPage } from './BillingPage'
 import { EntitiesPage } from './EntitiesPage'
 import { MemoriesPage } from './MemoriesPage'
 import { OperationsPage } from './OperationsPage'
@@ -11,10 +12,15 @@ import { SettingsPage } from './SettingsPage'
  *
  *  The rail lists five destinations; these tabs are how the other six stay reachable in one
  *  click from the one that fronts them, rather than being buried. Rendered only when a page
- *  actually has peers. */
+ *  actually has peers.
+ *
+ *  The peers come from the session's declared list, not from the default: a hosted server serves
+ *  seven destinations and `operations` is not one of them, so a strip built from the default list
+ *  would offer a tab that goes nowhere -- and would omit `billing`, which no self-hosted server
+ *  declares. One list, read from console state; there is no second copy here to drift. */
 function PageTabs({ page }: { page: PageId }) {
-  const { setPage } = useConsole()
-  const tabs = tabsFor(page)
+  const { setPage, destinations } = useConsole()
+  const tabs = tabsFor(page, destinations)
   if (tabs.length === 0) return null
   return (
     <nav className="xc-page-tabs" aria-label="Related pages">
@@ -59,6 +65,8 @@ function PageBody({ page }: { page: PageId }) {
       return <SessionsPage />
     case 'settings':
       return <SettingsPage />
+    case 'billing':
+      return <BillingPage />
     default:
       return (
         <main className="xc-page">

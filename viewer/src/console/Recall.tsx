@@ -10,6 +10,7 @@
 // believing a server flag. Memory content is rendered as plain text and labelled untrusted.
 
 import { useRef, useState, type FormEvent } from 'react'
+import { supports } from '../hostedApi'
 import { api, type ContextBlock, type HybridRetrieveResult, type Memory, type RetrievalTrace, type RetrievalTraceResultRecord } from '../api'
 import { verifyDomainMerkleProof } from '../merkleVerify'
 import { useConsole } from './state'
@@ -34,7 +35,13 @@ const truncate = (value: string, max: number): string => (value.length > max ? `
 export function Recall() {
   const { workspace, reveal, setOverlay } = useConsole()
   const scope = workspace.scope
-  const [mode, setMode] = useState<Mode>('hybrid')
+  /* Hybrid is the right default where hybrid retrieval exists. The hosted backend has no
+     `/api/retrieval/hybrid` route, so on hosted the primary action of a declared destination --
+     press Enter in Recall -- used to refuse on the first try. ManagedApp had lexical-only search
+     that worked on the first press, so that was a regression, not just a rough edge. The default
+     is now whichever mode this edition can serve; the buttons still offer all three, and the two
+     it cannot serve still refuse with a stated reason rather than pretending. */
+  const [mode, setMode] = useState<Mode>(() => (supports('POST', '/api/retrieval/hybrid') ? 'hybrid' : 'lexical'))
   const [query, setQuery] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)

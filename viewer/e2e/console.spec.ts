@@ -375,6 +375,17 @@ test.describe('writes happen only in a writable workspace', () => {
     await expect(page.getByRole('dialog').getByText(text.slice(0, 40))).toBeVisible()
   })
 
+  /* The hosted-only controls are gated on the server-declared destination list, and a self-hosted
+     server declares none -- so neither API-key issuance nor bulk export may appear here. */
+  test('self-hosted offers neither hosted-only control', async ({ page }) => {
+    await openConsole(page, { hash: 'memories' })
+    await expect(page.getByRole('button', { name: 'Export memories' })).toHaveCount(0)
+    await page.goto('/#agents')
+    await expect(page.getByRole('heading', { name: /Add your agents|Bring an agent into Cortex/ }).first()).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Create API key' })).toHaveCount(0)
+    await expect(page.getByRole('button', { name: 'Show API keys' })).toHaveCount(0)
+  })
+
   test('the primary profile never offers a write', async ({ page }) => {
     await openConsole(page, { hash: 'memories', primary: true })
     await expect(page.getByRole('button', { name: 'New memory' })).toHaveCount(0)

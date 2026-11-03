@@ -31,15 +31,30 @@ def test_stdio_binds_the_launched_agent_identity(monkeypatch, tmp_path):
     assert "memory:read" in principal["scopes"]
 
 
-def test_stdio_fails_closed_without_an_agent_identity(monkeypatch):
+@pytest.fixture
+def no_identity(monkeypatch, tmp_path):
+    """An identity-free profile home.
+
+    Clearing `XIBALBA_AGENT_ID` is not enough to make a machine identity-free:
+    `resolve_agent_id` falls back to the profile's `agent.did.json`, so on any box with a
+    provisioned DID these tests took the identity branch instead of the one they name. The
+    empty `tmp_path` home makes the outcome the same everywhere, CI included.
+    """
     monkeypatch.delenv("XIBALBA_AGENT_ID", raising=False)
+    monkeypatch.setenv("XIBALBA_CORTEX_HOME", str(tmp_path))
+    return tmp_path
+
+
+def test_stdio_fails_closed_without_an_agent_identity(monkeypatch, no_identity):
     monkeypatch.delenv("XIBALBA_CORTEX_ALLOW_UNSCOPED_STDIO", raising=False)
     with pytest.raises(SystemExit):
         _install_stdio_principal()
 
 
-def test_unscoped_stdio_requires_an_explicit_opt_in(monkeypatch):
+def test_unscoped_stdio_requires_an_explicit_opt_in(monkeypatch, no_identity):
     """The historical unscoped behavior stays reachable, but only deliberately."""
-    monkeypatch.delenv("XIBALBA_AGENT_ID", raising=False)
     monkeypatch.setenv("XIBALBA_CORTEX_ALLOW_UNSCOPED_STDIO", "1")
     _install_stdio_principal()
+    # Unscoped means exactly that: the escape hatch binds no principal. Without this the test
+    # passed on any box with a provisioned DID by taking the identity branch instead.
+    assert current_principal() is None

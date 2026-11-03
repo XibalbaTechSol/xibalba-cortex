@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { ALL_DESTINATIONS, BUILT, DESTINATIONS, NAV_GROUPS, destinationsIn, parseRoute, routeHash, type DestinationId } from './nav'
+import { ALL_DESTINATIONS, BUILT, DESTINATIONS, NAV_GROUPS, TAB_LABEL, builtFrom, destinationsFrom, destinationsIn, parseRoute, routeHash, tabsFor, type DestinationId } from './nav'
 
 const all = new Set<DestinationId>(ALL_DESTINATIONS.map((d) => d.id))
 
@@ -60,5 +60,51 @@ describe('the destination registry', () => {
   it('has unique ids and every group non-empty when everything is built', () => {
     expect(new Set(ALL_DESTINATIONS.map((d) => d.id)).size).toBe(ALL_DESTINATIONS.length)
     for (const g of NAV_GROUPS) expect(destinationsIn(g, ALL_DESTINATIONS).length).toBeGreaterThan(0)
+  })
+})
+
+describe('a server-declared destination set', () => {
+  it('an empty or absent declaration keeps every built destination', () => {
+    expect(destinationsFrom(null)).toEqual(DESTINATIONS)
+    expect(destinationsFrom(undefined)).toEqual(DESTINATIONS)
+    expect(destinationsFrom([])).toEqual(DESTINATIONS)
+  })
+
+  it('an unknown declared id is ignored rather than rendered', () => {
+    const ids = ['graph', 'wormhole']
+    expect(destinationsFrom(ids).map((d) => d.id)).toEqual(['graph'])
+  })
+
+  it('a declaration narrows to the intersection with BUILT, in canonical order', () => {
+    const ids = ['settings', 'graph', 'billing']
+    expect(destinationsFrom(ids).map((d) => d.id)).toEqual(['graph', 'settings', 'billing'])
+  })
+
+  it('a tab strip drops peers the server did not declare', () => {
+    const list = destinationsFrom(['settings', 'billing'])
+    expect(tabsFor('settings', list)).toEqual(['settings', 'billing'])
+    expect(tabsFor('billing', list)).toEqual(['settings', 'billing'])
+  })
+
+  it('tabsFor with one argument is unchanged for self-hosted', () => {
+    expect(tabsFor('settings')).toEqual(['settings', 'operations', 'agents'])
+  })
+
+  it('an undeclared hash route resolves against the narrowed set', () => {
+    const list = destinationsFrom(['graph', 'memories'])
+    expect(parseRoute('#operations', builtFrom(list)).page).toBeNull()
+    expect(parseRoute('#memories', builtFrom(list)).page).toBe('memories')
+  })
+
+  it('self-hosted does not list billing, but a server that declares it does', () => {
+    expect(DESTINATIONS.some((d) => d.id === 'billing')).toBe(false)
+    expect(BUILT.has('billing')).toBe(false)
+    expect(destinationsFrom(['billing']).map((d) => d.id)).toEqual(['billing'])
+    expect(tabsFor('settings')).toEqual(['settings', 'operations', 'agents'])
+  })
+
+  it('billing is a system destination with a tab label', () => {
+    expect(ALL_DESTINATIONS.find((d) => d.id === 'billing')?.group).toBe('system')
+    expect(TAB_LABEL.billing).toBe('Billing')
   })
 })

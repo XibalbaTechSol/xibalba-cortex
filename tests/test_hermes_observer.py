@@ -114,6 +114,10 @@ def test_runtime_telemetry_carries_configured_canonical_agent_id(tmp_path, monke
 
 def test_runtime_telemetry_omits_unconfigured_agent_id(tmp_path, monkeypatch):
     monkeypatch.delenv("XIBALBA_AGENT_ID", raising=False)
+    # `resolve_agent_id` falls back to the profile's `agent.did.json`, so clearing the env var
+    # alone left this asserting "unconfigured" on a machine that has an identity. Point the
+    # profile home at an empty directory so "unconfigured" is true wherever this runs.
+    monkeypatch.setenv("XIBALBA_CORTEX_HOME", str(tmp_path / "identity-free"))
     store, adapter = _adapter(tmp_path)
     adapter.post_api_request(session_id="s1", turn_id="turn-1", api_request_id="req-1")
     assert "agent_id" not in store.session_otel_events("s1")[0]["attributes"]

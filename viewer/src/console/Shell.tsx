@@ -23,6 +23,7 @@ export const DESTINATION_ICON: Record<DestinationId, ReactNode> = {
   operations: <IconOperations />,
   agents: <IconAgents />,
   settings: <IconSettings />,
+  billing: <IconSettings />, // a billing icon is still owed; the icon set has no card/receipt glyph
 }
 
 /** Which destination is showing now: a lens/page by route, an overlay by being open. */
@@ -243,7 +244,7 @@ export function ProfileButton() {
 /** The top-bar layout: brand, connection, scope and actions on a row; every destination on a second. */
 export function TopBar() {
   const { state, text } = useConnection()
-  const { page } = useConsole()
+  const { page, destinations } = useConsole()
   return (
     <header className="xc-top">
       <div className="xc-top-row">
@@ -263,7 +264,7 @@ export function TopBar() {
         <Actions />
       </div>
       <nav className="xc-nav" aria-label="Lenses and workflows">
-        {primaryDestinations().map((d) => <NavButton key={d.id} dest={d} />)}
+        {primaryDestinations(destinations).map((d) => <NavButton key={d.id} dest={d} />)}
       </nav>
     </header>
   )
@@ -273,6 +274,7 @@ export function TopBar() {
  *  connection and reload live in WorkspaceHeader, over the content, so collapsing hides none of
  *  them. What stays here is navigation and the account. */
 export function Rail() {
+  const { destinations } = useConsole()
   const { settings, update } = useSettings()
   const collapsed = settings.railCollapsed
   return (
@@ -292,7 +294,7 @@ export function Rail() {
       </div>
 
       <nav className="xc-rail-nav" aria-label="Lenses and workflows">
-        {primaryDestinations().map((d) => <NavButton key={d.id} dest={d} />)}
+        {primaryDestinations(destinations).map((d) => <NavButton key={d.id} dest={d} />)}
       </nav>
 
       <div className="xc-rail-foot">
