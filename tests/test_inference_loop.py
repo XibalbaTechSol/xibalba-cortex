@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from xibalba_cortex.inference_loop import process_inference_cycle
+from xibalba_cortex.inference_loop import has_inference_cycle_error, process_inference_cycle
 from xibalba_cortex.config import InferenceConfig
 import threading
 
@@ -56,6 +56,20 @@ def test_cycle_obeys_disabled_task_families(monkeypatch):
     assert result["para"]["completed"] == 1
     assert result["extraction"] == {"disabled": True}
     assert result["contradiction"] == {"disabled": True}
+
+
+def test_cycle_preserves_legacy_recovery_error_and_marks_nested_result_degraded():
+    class Store:
+        def reconcile_legacy_claimed_tasks(self):
+            raise RuntimeError("reconciliation unavailable")
+
+        def requeue_expired_inference_tasks(self, *, limit, max_attempts):
+            return {"expired": 0, "requeued": 0, "failed": 0, "dead_lettered": 0}
+
+    result = process_inference_cycle(Store(), limit=1)
+
+    assert result["recovery"]["legacy_error"] == "RuntimeError: reconciliation unavailable"
+    assert has_inference_cycle_error(result) is True
 
 
 def test_configured_cycle_runs_enabled_worker_families_on_parallel_threads(monkeypatch):
