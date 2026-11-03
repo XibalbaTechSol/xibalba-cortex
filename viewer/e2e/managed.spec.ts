@@ -126,9 +126,11 @@ test('read-only subscriptions retain export and search without permitting writes
   await expect(list).not.toContainText('Seeded memory 0')
   /* Deliberately NOT asserting "no POST memories": nothing here attempts a write -- the controls
      are asserted absent above -- and hostedApi.ts:354 refuses a hosted write client-side before
-     the network, so that assertion holds with or without the gate. hosted-paths.spec.ts:158-160
-     records the same refusal. The gate on the CALL is proved in src/hostedApi.test.ts (mutation
-     M2), where a write IS attempted. */
+     the network, so that assertion holds with or without the gate. hosted-paths.spec.ts declines
+     the same vacuous assertion for the same reason. The gate on the CALL is proved in
+     src/hostedApi.test.ts, `describe('the hosted write gate (finding 4)')`, where a write IS
+     attempted: it asserts READ_ONLY_WORKSPACE, status 402 and an empty call list, with the
+     converse case issuing POST /api/managed/memories once the subscription is active. */
   await page.goto('/managed#billing')
   await expect(page.getByText('This workspace is read-only.', { exact: false })).toBeVisible()
 })

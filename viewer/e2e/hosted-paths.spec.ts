@@ -157,6 +157,7 @@ test('a read-only hosted subscription offers no write control and says why', asy
   await expect(page.locator('.xc-status')).toContainText('read only')
   /* Deliberately NOT asserting "no POST memories": under read-only nothing here attempts a write,
      so that assertion holds with or without the gate. The gate on the CALL is proved in
-     src/hostedApi.test.ts (mutation M2), where a write IS attempted. */
+     src/hostedApi.test.ts, `describe('the hosted write gate (finding 4)')`, where a write IS
+     attempted. */
   expect(requests.filter((r) => !r.startsWith('GET /api/managed/') && !r.startsWith('POST /api/managed/'))).toEqual([])
 })
