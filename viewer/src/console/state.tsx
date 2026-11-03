@@ -115,6 +115,7 @@ export function ConsoleProvider({ children, onSignOut, destinations = DESTINATIO
   const [sessions, setSessions] = useState<Session[]>([])
   const [stats, setStats] = useState<Stats | null>(null)
   const [status, setStatus] = useState<StoreStatus | null>(null)
+  const [hasAgents, setHasAgents] = useState<boolean | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [unauthorized, setUnauthorized] = useState(false)
@@ -129,6 +130,13 @@ export function ConsoleProvider({ children, onSignOut, destinations = DESTINATIO
   const builtRef = useRef(built)
   builtRef.current = built
   const [route, setRouteState] = useState(() => parseRoute(window.location.hash, built))
+  /* First-run gate. A fresh workspace with nothing connected used to land on the graph lens --
+     an empty canvas with no indication that connecting an agent is the next step. The gate fires
+     once, only when this load asked for no destination of its own, and only on a definite zero
+     from the agent listing. An explicit hash is navigation and is always honoured. */
+  const landedWithoutADestination = useRef(parseRoute(window.location.hash, built).page === null
+    && !/[a-z]/i.test(window.location.hash.replace(/^#\/?/, '')))
+  const firstRunGateFired = useRef(false)
   const lens = route.lens
   const page = route.page
   const [selectedId, setSelectedId] = useState<string | null>(null)
@@ -160,6 +168,7 @@ export function ConsoleProvider({ children, onSignOut, destinations = DESTINATIO
         setInvocations(data.invocations)
         setStats(data.stats)
         setStatus(data.status)
+        setHasAgents(data.hasAgents)
         setError(null)
         setUnauthorized(false)
         setTimingNote(
@@ -200,6 +209,7 @@ export function ConsoleProvider({ children, onSignOut, destinations = DESTINATIO
     setRouteState(parseRoute(window.location.hash, built))
   }, [built])
 
+
   const applyRoute = useCallback((next: { lens: Lens; page: PageId | null }) => {
     window.location.hash = routeHash(next)
     setRouteState(next)
@@ -207,6 +217,17 @@ export function ConsoleProvider({ children, onSignOut, destinations = DESTINATIO
   // choosing a lens leaves any page; choosing a page remembers which lens it was opened from
   const setLens = useCallback((next: Lens) => applyRoute({ lens: next, page: null }), [applyRoute])
   const setPage = useCallback((next: PageId | null) => applyRoute({ lens: route.lens, page: next }), [applyRoute, route.lens])
+  /* Fire the first-run gate. Placed after `applyRoute` exists so the hash moves with the route:
+     a gate that only set state would leave the address bar pointing at the lens, and a reload
+     would bounce the user back to the empty canvas. */
+  useEffect(() => {
+    if (firstRunGateFired.current) return
+    if (hasAgents !== false) return                  // true, or null for "the listing did not answer"
+    if (!landedWithoutADestination.current) return   // an explicit destination is navigation
+    if (!built.has('agents')) return                 // the server does not serve the surface
+    firstRunGateFired.current = true
+    applyRoute({ lens: route.lens, page: 'agents' })
+  }, [hasAgents, built, applyRoute, route.lens])
   const openPage = useCallback(
     (next: PageId, arg?: string) => {
       setOverlay(null)
