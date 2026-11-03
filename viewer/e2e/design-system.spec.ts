@@ -718,7 +718,9 @@ for (const width of [390, 1280]) {
     await page.getByRole('button', { name: 'Start free', exact: true }).click()
     await expect(page.locator('.xc-auth-form')).toBeVisible()
     await page.evaluate(() => document.fonts.ready)
-    const open = await grammarSweep(page)
+    // SignIn is intentionally an auth form, not an Industry window; retain the
+    // overflow/clipping sweep without requiring a registration cross on it.
+    const open = await grammarSweep(page, false)
     expect(open, open.join('\n')).toEqual([])
   })
 }
