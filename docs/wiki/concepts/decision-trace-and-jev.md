@@ -40,6 +40,12 @@ analysis to the observed event hash, and sets `causal_claim` to `false`. The gat
 already-redacted envelope body; raw prompts, completions, tool arguments, and chain-of-thought are
 outside this projection.
 
+The background retry worker uses the local deterministic provider by default. To send retries to a
+Jev service, set `inference.decision_trace_jev_endpoint` in the profile's `config.yaml`, or set
+`XIBALBA_CORTEX_JEV_ENDPOINT`. Remote endpoints must use HTTPS; HTTP is allowed only for loopback
+development endpoints. `inference.decision_trace_jev_timeout_seconds` is bounded to 0.1–10 seconds.
+These advisory retries continue when unrelated Cortex inference task families are disabled.
+
 ## Rendered audit view
 
 `render_decision_trace_html(projection)` renders the trace ID, local verification status,

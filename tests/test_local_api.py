@@ -299,10 +299,14 @@ def test_inference_settings_round_trip_through_profile_config(running_store):
         "task_types": ["classify_para", "extract_entities"],
         "batch_size": 12,
         "interval_seconds": 1.25,
+        "decision_trace_jev_endpoint": "https://jev.example/analyze",
+        "decision_trace_jev_timeout_seconds": 2.5,
     }
     status, result = _post(port, "/api/settings/inference", updated)
     assert status == 200
     assert result["inference"]["batch_size"] == 12
+    assert result["inference"]["decision_trace_jev_endpoint"] == "https://jev.example/analyze"
+    assert result["inference"]["decision_trace_jev_timeout_seconds"] == 2.5
     assert (store.home / "config.yaml").exists()
 
     status, effective = _get(port, "/api/settings/inference")

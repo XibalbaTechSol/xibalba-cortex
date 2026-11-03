@@ -303,7 +303,7 @@ test.describe('tools open over the lens they were opened from', () => {
     await page.getByLabel('Trace ID').fill('trace-fixture-1')
     await page.getByRole('button', { name: 'Look up' }).click()
     await expect(page.getByText('Verified locally')).toBeVisible()
-    await expect(page.getByText('Jev advisory')).toBeVisible()
+    await expect(page.getByText('Jev advisory', { exact: true })).toBeVisible()
     await expect(page.getByText('high')).toBeVisible()
     await expect(page.getByText('Merkle proof verified').first()).toBeVisible()
     await expect(page.getByText(/causal claim: false/)).toBeVisible()

@@ -183,8 +183,11 @@ class HermesObserverAdapter:
             },
         }
         try:
-            analysis = self.jev_gateway.analyze(DecisionEnvelope(**envelope))
-            self.store.record_decision_trace_event(session_id, envelope, advisory=analysis)
+            decision_envelope = DecisionEnvelope(**envelope)
+            analysis = self.jev_gateway.analyze(decision_envelope)
+            self.store.record_decision_trace_event(session_id, decision_envelope, advisory=analysis)
+            if analysis.status == "unavailable":
+                self.store.enqueue_decision_trace_advisory(session_id, decision_envelope)
         except (DecisionTraceError, ValueError) as exc:
             # Observer failure must not change Hermes execution or the existing OTel path.
             self.store.record_telemetry_health("decision_trace", rejected=1, error=str(exc))

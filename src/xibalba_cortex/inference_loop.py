@@ -24,6 +24,8 @@ from .summary_worker import process_session_summary_tasks
 from .para_worker import process_para_tasks
 from .store import GraphStore
 from .providers import NativeHarnessInferenceProvider
+from .decision_trace_worker import process_decision_trace_advisories
+from .jev_gateway import HttpJevProvider, JevGateway, local_jev_gateway
 
 
 def has_inference_cycle_error(value: object) -> bool:
@@ -50,6 +52,7 @@ def process_inference_cycle(
     limit: int = 5,
     max_attempts: int = 3,
     config: InferenceConfig | None = None,
+    jev_gateway: Any | None = None,
 ) -> dict[str, Any]:
     """Recover stale work and service every supported inference worker once."""
     policy = config or InferenceConfig(batch_size=limit, max_attempts=max_attempts)
@@ -58,8 +61,23 @@ def process_inference_cycle(
     if limit < 1 or max_attempts < 1:
         raise ValueError("limit and max_attempts must be positive")
 
+    decision_trace_gateway = jev_gateway
+    if decision_trace_gateway is None and policy.decision_trace_jev_endpoint:
+        decision_trace_gateway = JevGateway(HttpJevProvider(
+            policy.decision_trace_jev_endpoint,
+            timeout_seconds=policy.decision_trace_jev_timeout_seconds,
+        ))
+    if decision_trace_gateway is None:
+        decision_trace_gateway = local_jev_gateway()
+
     if not policy.enabled:
-        return {"enabled": False, "recovery": {}, "extraction": {"disabled": True}, "para": {"disabled": True}, "contradiction": {"disabled": True}}
+        try:
+            advisory_result = process_decision_trace_advisories(
+                store, decision_trace_gateway, limit=limit, max_attempts=max_attempts,
+            )
+        except Exception as exc:
+            advisory_result = {"error": f"{type(exc).__name__}: {exc}"}
+        return {"enabled": False, "recovery": {}, "extraction": {"disabled": True}, "para": {"disabled": True}, "contradiction": {"disabled": True}, "decision_trace_advisories": advisory_result}
 
     provider = NativeHarnessInferenceProvider(harness=policy.harness, profile_name=policy.profile_name)
     runner = lambda prompt: provider.infer(prompt, timeout=policy.timeout_seconds)
@@ -98,6 +116,11 @@ def process_inference_cycle(
         "recovery": recovery,
     }
     jobs: dict[str, Any] = {}
+    jobs["decision_trace_advisories"] = lambda: _run_safely(
+        lambda current, limit: process_decision_trace_advisories(
+            current, decision_trace_gateway, limit=limit, max_attempts=max_attempts,
+        ), store, limit=limit,
+    )
     combined_types = enabled & {"extract_entities", "extract_relations", "classify_para"}
     if config is not None and policy.combined_batching and combined_types:
         jobs["combined"] = lambda: process_combined_tasks(
@@ -120,11 +143,16 @@ def process_inference_cycle(
         result["extraction"] = _run_safely(process_extraction_tasks, store, limit=limit)
         result["para"] = _run_safely(process_para_tasks, store, limit=limit)
         result["contradiction"] = _run_safely(process_contradiction_tasks, store, limit=limit)
+        result["decision_trace_advisories"] = _run_safely(
+            lambda current, limit: process_decision_trace_advisories(
+                current, decision_trace_gateway, limit=limit, max_attempts=max_attempts,
+            ), store, limit=limit,
+        )
     else:
         cycle_started = time.perf_counter()
         with ThreadPoolExecutor(max_workers=min(policy.max_parallel_families, len(jobs) or 1), thread_name_prefix="cortex-inference") as executor:
             futures = {name: executor.submit(job) for name, job in jobs.items()}
-            for name in ("combined", "extraction", "para", "contradiction", "metadata", "summaries"):
+            for name in ("combined", "extraction", "para", "contradiction", "metadata", "summaries", "decision_trace_advisories"):
                 result[name] = futures[name].result() if name in futures else {"disabled": True}
         result["enabled"] = True
         result["duration_seconds"] = round(time.perf_counter() - cycle_started, 3)
