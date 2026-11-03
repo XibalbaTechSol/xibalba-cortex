@@ -455,3 +455,74 @@ def test_only_an_unbound_operator_can_anchor(tmp_path, monkeypatch):
         assert writer.call("POST", "/api/session/sess-a/anchor", json_body={})[0] == 403
     finally:
         s.close()
+
+
+# --- review follow-ups: workspace selection by an agent-bound credential, and per-workspace idempotency ----------
+
+def _two_workspaces(s):
+    """Two agent partitions in one store (each needs source rows to exist), by their persisted ids."""
+    for agent in ("agent-a", "agent-b"):
+        s.store_memory(f"{agent} was here.", source={"kind": "explicit_memory", "locator": f"t://{agent}", "agent_id": agent}, status="active")
+    return s.storage_agent_id("agent-a"), s.storage_agent_id("agent-b")
+
+
+def test_the_same_document_imported_into_two_workspaces_lands_in_both(store):
+    a, b = _two_workspaces(store)
+    first = import_document(store, filename="relay.md", data=DOC, persisted_agent_id=a)
+    second = import_document(store, filename="relay.md", data=DOC, persisted_agent_id=b)
+    assert first["imported"] == 2 and first["already_present"] == 0
+    # the key used to be store-wide, so this was "already present" and nothing reached agent-b's workspace
+    assert second["imported"] == 2 and second["already_present"] == 0
+    assert {store.get_memory(i)["source"]["agent_id"] for i in second["memory_ids"]} == {b}
+    # and within one workspace a repeat is still a no-op
+    assert import_document(store, filename="relay.md", data=DOC, persisted_agent_id=a)["imported"] == 0
+
+
+def test_an_agent_bound_import_is_idempotent_per_its_own_agent(store):
+    for _ in range(2):
+        out = import_document(store, filename="r.md", data=DOC, source_agent_id="agent-a")
+    assert out["imported"] == 0 and out["already_present"] == 2
+    other = import_document(store, filename="r.md", data=DOC, source_agent_id="agent-b")
+    assert other["imported"] == 2
+
+
+def test_an_agent_bound_credential_may_name_its_own_workspace_for_import_and_new_memories(tmp_path):
+    s, a = _serve(tmp_path, roles=("writer",), scopes=("memory:read", "memory:write"), agent_id="agent-a")
+    try:
+        mine, theirs = _two_workspaces(s)
+        # the console always sends the selected workspace, which for a bound credential is its own
+        status, body = a.call("POST", f"/api/import?filename=r.md&workspace_agent_id={mine}", raw=DOC)
+        assert status == 200 and body["imported"] == 2, body
+        # the raw agent id it is bound to names the same workspace
+        status, body = a.call("POST", "/api/import?filename=r2.md&workspace_agent_id=agent-a", raw=b"# Other\n\nA second document.\n")
+        assert status == 200 and body["imported"] == 1, body
+        status, made = a.call("POST", "/api/memory/propositions", json_body={"content": "Written into my own workspace.", "source": {"kind": "explicit_memory", "locator": "t://mine"}, "workspace_agent_id": mine})
+        assert status == 200 and made["source"]["agent_id"] == mine, made
+        # but never another agent's workspace, and nothing was written there
+        status, body = a.call("POST", f"/api/import?filename=r3.md&workspace_agent_id={theirs}", raw=b"# Not yours\n\nShould be refused.\n")
+        assert status == 403, body
+        assert a.call("POST", "/api/memory/propositions", json_body={"content": "Not yours.", "source": {"kind": "explicit_memory", "locator": "t://theirs"}, "workspace_agent_id": theirs})[0] == 403
+        assert all("Not yours" not in m["content"] for m in s.list_memories(limit=500, statuses=("candidate", "active")))
+    finally:
+        s.close()
+
+
+def test_a_plain_writer_still_cannot_choose_a_workspace(tmp_path):
+    s, a = _serve(tmp_path, roles=("writer",), scopes=("memory:read", "memory:write"))
+    try:
+        mine, _ = _two_workspaces(s)
+        assert a.call("POST", f"/api/import?workspace_agent_id={mine}", raw=DOC)[0] == 403
+    finally:
+        s.close()
+
+
+def test_two_workspaces_writing_the_same_locator_and_content_each_keep_their_own_memory(store):
+    """The store-level cause behind the import finding: a source row is content-addressed, so a write into a
+    named partition must hash that partition, or the second workspace's memory is attributed to the first."""
+    a, b = _two_workspaces(store)
+    source = {"kind": "explicit_memory", "locator": "t://shared"}
+    in_a = store.store_memory("The very same sentence.", source=dict(source), status="active", persisted_agent_id=a, idempotency_key="k-a")
+    in_b = store.store_memory("The very same sentence.", source=dict(source), status="active", persisted_agent_id=b, idempotency_key="k-b")
+    assert store.get_memory(in_a["id"])["source"]["agent_id"] == a
+    assert store.get_memory(in_b["id"])["source"]["agent_id"] == b
+    assert store.get_memory(in_a["id"])["source"]["id"] != store.get_memory(in_b["id"])["source"]["id"]

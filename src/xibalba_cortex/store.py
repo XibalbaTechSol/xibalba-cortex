@@ -2041,6 +2041,13 @@ class GraphStore:
                 source.setdefault("device_name", pair["display_name"])
         source_payload = dict(source)
         source_payload["content_hash"] = content_digest
+        if persisted_agent_id is not None:
+            # A write into an existing partition names it OUTSIDE `source` (it is mutually exclusive with
+            # source.agent_id), so without this the same locator and content written into two workspaces
+            # hash to one source row, INSERT OR IGNORE keeps the first workspace's agent_id, and the
+            # second workspace's memory is silently attributed to the first. The partition is what
+            # distinguishes the source, so it is part of what is hashed. Unchanged for every other path.
+            source_payload["persisted_agent_id"] = persisted_agent_id
         # Hashed from the effective caller payload before identity-mode filtering so device
         # provenance participates in source deduplication while the persisted agent identity
         # remains governed by the profile policy.

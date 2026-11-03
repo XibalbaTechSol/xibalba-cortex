@@ -108,8 +108,8 @@ def import_document(
 ) -> dict[str, object]:
     """Store a document as candidate memories, and queue structural entity proposals for review.
 
-    Idempotent per (document bytes, chunk number): importing the same file twice stores nothing new
-    and says so. Nothing here writes to the knowledge graph: proposals wait in Review.
+    Idempotent per (workspace, document bytes, chunk number): importing the same file into the same
+    workspace twice stores nothing new and says so; a different workspace gets its own copy. Nothing here writes to the knowledge graph: proposals wait in Review.
     """
     text = decode_document(data)
     chunks = split_document(text)
@@ -119,11 +119,16 @@ def import_document(
         raise ValueError(f"the document splits into {len(chunks)} sections; the limit is {MAX_IMPORT_CHUNKS}. Split the file and import the parts")
     digest = hashlib.sha256(data).hexdigest()
     name = safe_display_name(filename, default="document")
+    # Idempotency is per WORKSPACE. store_memory looks a key up store-wide, so a key built from the
+    # document alone would make the second workspace's import find the first workspace's memories and
+    # report every section as "already present" while storing nothing in its own. The effective
+    # partition (the persisted agent id the memories will carry, or none) is part of the key.
+    partition = persisted_agent_id or (store.storage_agent_id(source_agent_id) if source_agent_id else None) or "-"
     imported: list[str] = []
     duplicates = 0
     proposals = 0
     for index, (title, body) in enumerate(chunks, start=1):
-        key = f"import:{digest}:{index}"
+        key = f"import:{partition}:{digest}:{index}"
         source: dict[str, object] = {
             "kind": "imported_document",
             "locator": f"import://{digest[:16]}/{name}#{index}",
