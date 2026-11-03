@@ -28,7 +28,11 @@ Cortex sits underneath your agent harness as a local Model Context Protocol serv
 - **Healthcare and finance verticals** where "did the agent touch a regulated record, and when" has to be independently verifiable, not just logged.
 - **Anyone building on the Integrity Protocol ecosystem** — Cortex is the cognitive store that anchors session evidence into the broader trust backbone (see [Ecosystem Role](#ecosystem-role) below), but works standalone with any MCP-speaking harness.
 
-**[Quick Start](#quick-start)** · **[Why Cortex](#why-cortex)** · **[Architecture](#architecture)** · **[Provenance & Evidence](#provenance--evidence)** · **[Hybrid Retrieval](#hybrid-retrieval-with-verifiable-traces)** · **[Reviewable Extraction](#reviewable-extraction-pipeline)** · **[Recipe](#recipe-verifiable-entity-extraction-from-a-session)** · **[MCP Operations](#mcp-operations)** · **[CLI](#cli)** · **[Ecosystem Role](#ecosystem-role)**
+**[Quick Start](#quick-start)** · **[Why Cortex](#why-cortex)** · **[Architecture](#architecture)** · **[Provenance & Evidence](#provenance--evidence)** · **[Hybrid Retrieval](#hybrid-retrieval-with-verifiable-traces)** · **[Reviewable Extraction](#reviewable-extraction-pipeline)** · **[Recipe](#recipe-verifiable-entity-extraction-from-a-session)** · **[MCP Operations](#mcp-operations)** · **[CLI](#cli)** · **[Ecosystem Role](#ecosystem-role)** · **[Ecosystem authority](docs/ecosystem/README.md)**
+
+## Ecosystem authority
+
+The cross-product execution authority is maintained in [integrity-core/docs/ecosystem/INTEGRITY_ECOSYSTEM_PLAN.md](https://github.com/XibalbaTechSol/integrity-core/blob/main/docs/ecosystem/INTEGRITY_ECOSYSTEM_PLAN.md). Cortex-specific documents define Cortex internals and operations only; they do not redefine cross-product identity, pack, receipt, evidence, or product boundaries.
 
 ## Hosted sessions and plugin installation
 
@@ -450,7 +454,7 @@ uv run xibalba-cortex-demo-seed               # deterministic demo data
 
 ## Ecosystem Role
 
-Cortex works standalone as a generic MCP memory server with any MCP-speaking agent — the generic ingestion path above means Claude Code, Codex, Antigravity CLI, or a cloud-hosted harness can all record turns into the same store with zero code change here per new harness. It is also the cognitive store in a three-repository ecosystem:
+Cortex works standalone as a generic MCP memory server with any MCP-speaking agent — the generic ingestion path above means Claude Code, Codex, Antigravity CLI, or a cloud-hosted harness can all record turns into the same store with zero code change here per new harness. It is also the cognitive store in a four-repository ecosystem:
 
 | Repository | Analogy | Role |
 |---|---|---|
@@ -514,7 +518,7 @@ The read-only projection is available through the local API at
 hashes, parent links, the domain-separated trace root, and inclusion proofs when available. Raw
 prompts, completions, tool arguments, and chain-of-thought remain outside the projection. See the
 canonical [DecisionTrace and Jev wiki page](docs/wiki/concepts/decision-trace-and-jev.md) and the
-[cross-product execution plan](../integrity-core/docs/EXECUTION_PLAN.md#b2a-jev-assisted-decisiontrace-m).
+[cross-product execution plan](../integrity-core/docs/ecosystem/INTEGRITY_ECOSYSTEM_PLAN.md#b2a-jev-assisted-decisiontrace-m).
 
 ## Privacy and Retention
 

@@ -17,7 +17,7 @@ The active DecisionTrace/Jev implementation is documented in
 `docs/wiki/concepts/decision-trace-and-jev.md`, `README.md`, and §12.8 of
 `SPECIFICATION.md`. This feature remains local/dirty implementation evidence on the current
 branch, not a production, external-pilot, or compliance certification claim. The canonical
-cross-product execution authority remains `/home/xibalba/Projects/integrity-core/docs/EXECUTION_PLAN.md`.
+cross-product execution authority remains `/home/xibalba/Projects/integrity-core/docs/ecosystem/INTEGRITY_ECOSYSTEM_PLAN.md`.
 
 ## Resume in one sentence
 
