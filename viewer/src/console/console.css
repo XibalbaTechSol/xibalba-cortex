@@ -3708,3 +3708,37 @@ body,
 
 
 .xc-drawer--page .xc-inspector { position: relative; inset: auto; width: auto; max-width: none; }
+
+/* DecisionTrace: the UI distinguishes observed events, advisory analysis, and proof state. */
+.xc-trace-panel { display: grid; gap: 14px; }
+.xc-trace-summary { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+.xc-trace-summary > div { border: 1px solid var(--frame-line); background: var(--ground-raised); padding: 11px 12px; min-width: 0; }
+.xc-trace-label { display: block; color: var(--ink-dim); font-size: 10px; letter-spacing: .12em; text-transform: uppercase; }
+.xc-trace-summary strong { display: block; margin-top: 4px; font-size: 13px; overflow-wrap: anywhere; }
+.xc-trace-good { color: var(--status-anchored); }
+.xc-trace-bad { color: var(--status-conflict); }
+.xc-trace-boundary { display: grid; gap: 3px; border-left: 3px solid var(--status-review); padding: 9px 12px; background: var(--status-review-soft); color: var(--ink-dim); font-size: 12px; }
+.xc-trace-boundary strong { color: var(--ink); font-size: 12px; }
+.xc-trace-actions { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.xc-trace-events { list-style: none; padding: 0 0 0 28px; margin: 0; position: relative; }
+.xc-trace-events::before { content: ''; position: absolute; top: 4px; bottom: 4px; left: 9px; width: 1px; background: var(--frame-line); }
+.xc-trace-event { position: relative; margin: 0 0 12px; }
+.xc-trace-event-marker { position: absolute; left: -28px; top: 13px; width: 20px; height: 20px; display: grid; place-items: center; border: 1px solid var(--accent); background: var(--ground); color: var(--accent); font: 700 10px/1 var(--font-mono); }
+.xc-trace-event-card { border: 1px solid var(--frame-line); background: var(--ground-raised); padding: 14px; }
+.xc-trace-event-title { margin: 7px 0 8px; font-size: 16px; font-weight: 650; }
+.xc-trace-meta { display: flex; flex-wrap: wrap; gap: 8px 14px; color: var(--ink-dim); font-size: 11px; }
+.xc-trace-advisory { display: grid; gap: 9px; margin-top: 12px; padding: 11px; border: 1px solid var(--frame-line); background: var(--ground); }
+.xc-trace-advisory--empty { gap: 3px; }
+.xc-trace-advisory-grid { display: flex; flex-wrap: wrap; gap: 8px 20px; color: var(--ink-dim); font-size: 12px; }
+.xc-trace-advisory-grid b { color: var(--ink); font-weight: 650; }
+.xc-trace-probabilities { display: grid; gap: 7px; }
+.xc-trace-probability { display: grid; grid-template-columns: 125px minmax(60px, 1fr) 42px; align-items: center; gap: 8px; color: var(--ink-dim); font-size: 11px; }
+.xc-trace-probability b { color: var(--ink); font-weight: 600; text-transform: capitalize; }
+.xc-trace-probability i { display: block; height: 5px; background: var(--frame-line); }
+.xc-trace-probability em { display: block; height: 100%; background: var(--accent); }
+.xc-trace-advisory small { color: var(--ink-dim); font-size: 10px; }
+.xc-trace-envelope { margin-top: 10px; }
+@media (max-width: 760px) {
+  .xc-trace-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .xc-trace-probability { grid-template-columns: 100px minmax(40px, 1fr) 38px; }
+}

@@ -282,6 +282,34 @@ test.describe('tools open over the lens they were opened from', () => {
     await page.getByRole('tab', { name: 'Invocations' }).click()
   })
 
+  test('Decision trace renders advisory, probability and proof boundaries', async ({ page }) => {
+    await page.route('**/api/session/*/decision-trace?*', async (route) => {
+      await route.fulfill({
+        contentType: 'application/json',
+        body: JSON.stringify({
+          trace_id: 'trace-fixture-1', session_id: 'sess-w1', root: `0x${'a'.repeat(64)}`, valid: true,
+          disclaimer: 'Observational correlation only; probabilities do not prove causality or execution.',
+          proofs: { '0': [], '1': ['0x' + 'b'.repeat(64)] },
+          events: [
+            { event_id: 'event-1', trace_id: 'trace-fixture-1', sequence_number: 0, event_hash: `0x${'1'.repeat(64)}`, parent_event_hash: null, created_at: '2026-10-05T12:00:00Z', envelope: { event_type: 'llm_call', timestamp: '2026-10-05T12:00:00Z', policy_decision: 'Observed model invocation' }, advisory: null },
+            { event_id: 'event-2', trace_id: 'trace-fixture-1', sequence_number: 1, event_hash: `0x${'2'.repeat(64)}`, parent_event_hash: `0x${'1'.repeat(64)}`, created_at: '2026-10-05T12:00:01Z', envelope: { event_type: 'jev_assessment', timestamp: '2026-10-05T12:00:01Z', policy_decision: 'Risk assessment recorded' }, advisory: { status: 'available', risk_category: 'high', recommended_escalation: true, transition_probabilities: { continue: 0.2, escalate: 0.8 } } },
+          ],
+        }),
+      })
+    })
+    await openConsole(page, { hash: 'sessions' })
+    await page.locator('.xc-sessions-list li').first().click()
+    await page.getByRole('tab', { name: 'Decision trace' }).click()
+    await page.getByLabel('Trace ID').fill('trace-fixture-1')
+    await page.getByRole('button', { name: 'Look up' }).click()
+    await expect(page.getByText('Verified locally')).toBeVisible()
+    await expect(page.getByText('Jev advisory')).toBeVisible()
+    await expect(page.getByText('high')).toBeVisible()
+    await expect(page.getByText('Merkle proof verified').first()).toBeVisible()
+    await expect(page.getByText(/causal claim: false/)).toBeVisible()
+    await expect(page.locator('.xc-trace-probability')).toHaveCount(2)
+  })
+
   test('Entities: look one up and find a path between two', async ({ page }) => {
     await openConsole(page, { hash: 'entities', primary: true })
     await page.getByLabel('From entity').fill('store.py')

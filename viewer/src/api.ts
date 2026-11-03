@@ -535,6 +535,7 @@ export interface DecisionTrace {
   events: DecisionTraceEvent[]
   root: string | null
   valid: boolean
+  proofs?: Record<string, unknown[]>
   disclaimer?: string
 }
 
