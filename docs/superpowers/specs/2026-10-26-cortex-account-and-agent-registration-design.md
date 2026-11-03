@@ -1,10 +1,16 @@
 # Cortex accounts and agent registration — design
 
 **Date:** 2026-10-26
-**Status:** design approved in conversation 2026-10-26 and reaffirmed 2026-11-02;
-decisions recorded below; not yet planned or implemented. Scope was widened on 2026-10-26
-from "the registration flow" to "production readiness", so the work is decomposed into
-sequenced sub-projects.
+**Status:** design approved in conversation 2026-10-26 and reaffirmed 2026-11-02.
+Scope was widened on 2026-10-26 from "the registration flow" to "production readiness", so
+the work is decomposed into sequenced sub-projects.
+
+**P0 is planned and mostly implemented**, not pending: see
+`docs/superpowers/plans/2026-10-26-p0-one-app-console.md`, whose "Execution status" section
+records that Tasks 1-4 and Task 5 steps 1-3 have landed on this branch and that the
+deletion of the second UI -- Task 5 step 4 onward -- has not. **P1 through P4 are not
+planned or implemented.** An earlier revision of this line said P0 was unimplemented too;
+that was wrong, and the plan's reconstruction from `git log` is the authority.
 
 **Reaffirmed 2026-11-02.** Asked to "remove the managed branch completely and go back to
 the ui we had with console", then build Stripe, auth, account creation, the agent
