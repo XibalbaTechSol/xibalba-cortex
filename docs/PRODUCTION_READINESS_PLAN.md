@@ -205,15 +205,17 @@ shared queue.
 
 ### 5.1 Tenancy and isolation
 
-See Workstream A/C. There is currently no tenant concept enforced anywhere in the
-runtime path beyond `profile_id`/`identity_mode` fields already present in the storage
-status output — those exist as schema fields, not as an enforced isolation boundary.
+See Workstream A/C. The local runtime enforces one profile home and SQLite store per
+tenant, with profile-bound bearer tokens and adversarial isolation coverage. This is
+local controlled-pilot evidence; it is not hosted tenancy, organization lifecycle, or
+external-tenant proof.
 
 ### 5.2 Pricing tiers
 
-The existing per-profile `quotas.max_memories` field (currently `null`/unlimited in the
-live store) is the natural quota lever for tiering. Proposed mapping, not yet
-implemented as billing logic:
+The existing per-profile `quotas.max_memories` field is the local quota lever for
+tiering. A configured quota is enforced fail-closed before a memory mutation and is
+covered by profile-scoped regression tests; the default local operator profile remains
+`null`/unlimited. The mapping below is a product proposal, not billing logic:
 
 | Tier | Memory quota | Connectors included | Retention tier |
 |---|---|---|---|
@@ -221,8 +223,9 @@ implemented as billing logic:
 | Team | higher/negotiated quota | + `codex_mcp`, `integrity_wiki`, `otel` | standard |
 | Enterprise | negotiated/unbounded | all implemented connectors | configurable via `XIBALBA_CORTEX_RETENTION_TIER` |
 
-**Gap:** no tier is enforced in code today; `quotas.max_memories` exists in the schema
-but nothing rejects writes past a quota.
+**Remaining gap:** tier selection, entitlement administration, and customer-facing
+plan changes are not implemented in the local operator flow. Quota enforcement itself
+is implemented locally; it does not constitute hosted billing or external SaaS proof.
 
 ### 5.3 Billing and metering
 
