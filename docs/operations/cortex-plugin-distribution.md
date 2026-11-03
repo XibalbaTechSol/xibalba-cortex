@@ -4,6 +4,9 @@ Cortex includes source-controlled packages for Claude Code, Codex, and Gemini CL
 a separate Cindy plugin repository, and hosted connector setup templates. They share an installed Cortex
 backend; packages do not embed credentials or install backend dependencies at runtime.
 
+For the per-surface status of each package (Shipped, Pilot or Planned) and the file that backs
+each claim, see the capability matrix in the root [`README.md`](../../README.md).
+
 | Surface | Package | Visibility and capture |
 | --- | --- | --- |
 | Claude Code | `plugins/cortex-claude` | Xibalba Claude marketplace; MCP memory plus native observation hooks |

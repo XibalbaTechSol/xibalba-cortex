@@ -1,179 +1,420 @@
 # Xibalba Cortex
 
-**A provenance-aware graph memory MCP server for AI agent harnesses — every fact linked to its source, every extraction reviewable before it's trusted, every trace cryptographically verifiable.**
+Give your agent harness one call — `memory_ingest_agent_turn` — and Cortex stores the prompt, the
+full response, every tool call and the harness metadata as linked, queryable memories. It stores
+them as evidence: each memory carries a content hash, each session turn is appended to a
+recomputable hash chain, and both can be re-verified later from the SQLite file alone, with no
+external service and no appeal to Cortex's own word.
 
-**Hash-Chained Provenance · Hybrid Retrieval · Reviewable Extraction · Isolated Inference Workers · Merkle-Verifiable Traces · MCP-Native**
+Cortex is a local-first graph memory server for AI agents. It speaks Model Context Protocol, it
+keeps everything in one SQLite profile directory on your disk, and it is built so that "why did
+the agent believe that" still has an answer months later.
+
+**About this document.** Every capability sentence below names the file, route or test that backs
+it. Where something is a pilot, a declared contract rather than an enforced one, or not wired up
+at all, it says so. Claims that could not be grounded in the code are absent rather than softened.
+
+---
+
+## Three ways in
+
+1. **Drop-in MCP.** Anything that speaks MCP gets all 89 tools over stdio. Config block below.
+2. **One generic call.** For a custom harness, `memory_ingest_agent_turn` takes a whole turn —
+   prompt, response, tool calls, metadata — in a single call (`src/xibalba_cortex/server.py`).
+   Over stdio, over streamable HTTP, or over managed REST.
+3. **Observation hooks.** The packaged Claude Code and Codex plugins run a dependency-free
+   launcher (`plugins/cortex-claude/scripts/bridge.py`) from harness hooks. It is local-only and
+   observation-only: it shells out to `xibalba-cortex-observer`, is configured entirely by
+   `XIBALBA_CORTEX_HOME` and `XIBALBA_CORTEX_CAPTURE_MODE`, and has no remote-endpoint support of
+   any kind.
+
+---
+
+## Two editions — pick one
+
+| | **Self-hosted** | **Managed / hosted** |
+| --- | --- | --- |
+| Entry point | `xibalba-cortex` (MCP; stdio or streamable HTTP) and `python -m xibalba_cortex.local_api` (HTTP, :8420) | `xibalba-cortex-managed` (ASGI, :8430) |
+| Code | `src/xibalba_cortex/server.py`, `src/xibalba_cortex/local_api.py` | `src/xibalba_cortex/managed/api.py` |
+| Auth routes | `/api/auth/*` | `/api/managed/*` |
+| Storage | one SQLite profile on your disk | one SQLite database per tenant, on the server's disk |
+| MCP surface | all 89 tools | none — nothing under `managed/` serves MCP |
+| Ingestion | `memory_ingest_agent_turn` | `POST /api/managed/ingest` (REST only) |
+| Billing, plans, quotas | no | Stripe plus per-plan metering (`managed/plans.py`, `managed/control.py`) |
+| Maturity | the path this repository is built and tested around | pilot |
+
+**Pick self-hosted** unless you specifically need multi-tenant hosting with billing. Self-hosted
+is where the whole tool surface, the operator API and the viewer live. The managed edition is a
+narrower product — accounts, API keys, plans, a REST ingest endpoint, graph and timeline reads,
+and export. It is not a hosted copy of the self-hosted feature set.
+
+---
+
+## Capability matrix
+
+One row per surface. **Shipped** means the code is in this repository and tested here. **Pilot**
+means the code is here and is explicitly not finished or not proven in production. **Planned**
+means there is nothing in this repository yet.
+
+| Surface | Status | What backs it |
+| --- | --- | --- |
+| Local stdio MCP, 89 tools | Shipped | `src/xibalba_cortex/server.py`; `tests/test_server.py::test_all_tools_are_advertised` asserts the exact set of 89 unique names |
+| Streamable-HTTP MCP, bearer auth | Shipped | `server.py` `--transport streamable-http` (defaults `127.0.0.1:8421`, path `/mcp`); `tests/test_streamable_http_auth_integration.py` |
+| Local operator HTTP API and viewer | Shipped | `src/xibalba_cortex/local_api.py` (:8420); `viewer/` (Vite dev server on :5190) |
+| Generic `memory_ingest_agent_turn` | Shipped | `server.py` → `store.py`; `tests/test_ingest_agent_turn.py` |
+| Hooks via `bridge.py`, local only | Shipped | `plugins/cortex-claude/scripts/bridge.py`; `XIBALBA_CORTEX_HOME` and `XIBALBA_CORTEX_CAPTURE_MODE`; no remote endpoint |
+| Claude Code plugin | Shipped | `plugins/cortex-claude/.mcp.json` runs `xibalba-cortex` as a **local stdio** command; `plugins/cortex-claude/hooks/` |
+| Codex plugin | Shipped | `plugins/cortex-codex/` (`mcp.json`, `plugin.json`, `hooks/`, `scripts/bridge.py`) |
+| Gemini CLI extension | Shipped | `plugins/cortex-gemini/gemini-extension.json`; `gemini-extension.json` at the repository root |
+| Antigravity (`agy`) hooks | Shipped | `plugins/agy-cortex/hooks.json`; `src/xibalba_cortex/agy_hook_bridge.py` |
+| openclaw plugin | Shipped | `integrations/openclaw/xibalba_cortex_plugin.mjs`; `src/xibalba_cortex/openclaw_bridge.py` |
+| Managed REST ingest | Pilot | `managed/api.py` → `managed/ingest.py`; `tests/test_managed_ingest.py`. The route is complete and on `origin/main`; the hosted service it belongs to is a pilot |
+| Managed MCP | Planned | no MCP transport exists under `src/xibalba_cortex/managed/`; the REST handler is `ingest_turn`'s only caller |
+| Hosted memory connector (Perplexity, Spark) | Pilot | `src/xibalba_cortex/hosted_connector.py` exposes exactly three tools: `cortex_remember`, `cortex_recall`, `cortex_connection_status`. Its own guide, [hosted memory connectors](docs/operations/hosted-memory-connectors.md), states it is not a complete managed hosting product and that arbitrary runtime-ingestion tools are absent |
+| Perplexity API runtime recorder | Pilot | `src/xibalba_cortex/perplexity_runtime.py`; `integrations/perplexity/connector-template.json`; [runtime recorder guide](docs/operations/perplexity-runtime-recorder.md) |
+| Cindy desktop | External, unverified here | ships from a separate repository, [cortex-cindy](https://github.com/XibalbaTechSol/cortex-cindy). Nothing in this repository pins, builds or tests it, so no version is claimed here |
+| Grok / xAI adapter | Planned | no `grok` or `xai` code exists under `src/` |
+
+---
+
+## Getting started (self-hosted)
+
+### Prerequisites
+
+- Python 3.12 or newer, and [`uv`](https://docs.astral.sh/uv/).
+- **A sibling `integrity-core` checkout.** `pyproject.toml` declares
+  `integrity-sdk = { path = "../integrity-core/integrity-sdk", editable = true }` under
+  `[tool.uv.sources]`, so `uv sync` fails in an isolated clone. There is no PyPI package and no
+  git-pinned alternative yet. Clone `integrity-core` next to this repository first.
+
+### Install and run the MCP server
 
 ```bash
 uv sync
 uv run xibalba-cortex
 ```
 
+`xibalba-cortex` speaks MCP over stdio and expects to be launched by a client, so running it in a
+terminal just waits on stdin. The profile directory comes from `XIBALBA_CORTEX_HOME`, else
+`$HERMES_HOME/xibalba-cortex`, else `~/.hermes/xibalba-cortex` (`server.py`), and is created on
+first use.
+
+A **stdio** caller presents no credential and none is required: scope enforcement
+(`server.py`) applies only when an HTTP principal is present, so a local stdio client has the
+full tool surface. Treat stdio access as equivalent to filesystem access to the profile.
+
+### Expose MCP over HTTP (authenticated)
+
+```bash
+uv run xibalba-cortex --transport streamable-http --host 127.0.0.1 --port 8421 --path /mcp
+```
+
+This transport requires `Authorization: Bearer <token>` on every call after `initialize`, and
+enforces the token's scopes. Issue a token first:
+
+```bash
+uv run xibalba-cortex-ingest-tokens --home ~/.hermes/xibalba-cortex \
+  issue --label my-client --role writer --ttl-hours 720
+```
+
+The secret is printed once; only its SHA-256 hash is stored. Put it in your own secret store —
+nothing here will show it to you again. Rotate by issuing and verifying a replacement before
+revoking the old token by id (`... revoke --id <token-id>`).
+
+The server terminates no TLS of its own. Reaching it from off-machine needs a TLS-terminating
+reverse proxy or tunnel in front of it; without one the bearer token travels in plaintext.
+Binding a non-loopback `--host` prints a startup warning, which is a reminder and not a safeguard.
+
+### Operator API and viewer
+
+```bash
+# terminal 1 — HTTP API for browsers
+uv run python -m xibalba_cortex.local_api \
+  --home ~/.hermes/xibalba-cortex \
+  --host 127.0.0.1 --port 8420 \
+  --allowed-origins http://localhost:5190
+
+# terminal 2 — the viewer
+cd viewer
+npm install
+npm run dev          # http://localhost:5190
+```
+
+`local_api` has no console script; run it as a module. Flags are `--home` (required), `--host`
+(default `localhost`), `--port` (default `8420`) and `--allowed-origins` (comma-separated; the
+default `*` never sends `Access-Control-Allow-Credentials`, so cookie auth will fail cross-origin
+until you pass explicit origins).
+
+Every `local_api` route except `/healthz`, `/readyz` and `/metrics` is authenticated — there is no
+unauthenticated fallback, so a deployment with no credentials issued simply has no working API.
+Browsers authenticate with an `HttpOnly` session cookie (`cortex_session`) set by
+`POST /api/auth/login` or `POST /api/auth/signup`; machine callers use the same bearer tokens as
+the HTTP MCP transport. The module docstring at the top of `local_api.py` is the authoritative
+route list, and each route is a thin wrapper over one public `GraphStore` method.
+
+One warning about the dev server: `viewer/vite.config.ts` **mints a real operator token** on the
+first `npm run dev`, writes it to `<CORTEX_HOME>/.viewer-dev.token` with mode `0600`, and injects
+it through a loopback-only Vite proxy. That is convenient locally and must never run against a
+profile you care about — point `CORTEX_HOME` at a scratch directory. For a populated scratch
+profile:
+
+```bash
+uv run python scripts/dev_seed_console.py --home /tmp/cortex-dev
+```
+
+### Run the managed edition locally
+
+```bash
+uv sync --extra managed
+uv run xibalba-cortex-managed --host 127.0.0.1 --port 8430
+```
+
+`ManagedConfig` (`managed/config.py`) refuses a non-HTTPS `public_url` outside loopback and
+reports billing readiness separately from liveness, so a local instance with placeholder Stripe
+keys stays healthy while telling you it cannot accept customers. The managed viewer build is the
+same application with `VITE_CORTEX_EDITION=managed`.
+
+### Tests
+
+```bash
+uv run pytest             # backend
+cd viewer && npm test     # viewer unit tests
+```
+
 ---
 
-![Xibalba Cortex knowledge graph](docs/assets/knowledge-graph.png)
+## MCP client configuration
 
-*Real headless-Chromium capture of the local viewer's populated knowledge graph — nodes, evidence-linked edges, session context, filters, bounded traversal controls. Captured 2026-08-12; graph contents are profile-dependent.*
+The server's own name is `xibalba-cortex` (`server.py`). The packaged Claude Code plugin
+registers it under the key `cortex` (`plugins/cortex-claude/.mcp.json`).
+
+```json
+{
+  "mcpServers": {
+    "cortex": {
+      "command": "uv",
+      "args": ["run", "--directory", "/absolute/path/to/xibalba-cortex", "xibalba-cortex"],
+      "env": {
+        "XIBALBA_CORTEX_HOME": "/absolute/path/to/your/cortex-profile"
+      }
+    }
+  }
+}
+```
+
+After `uv sync` the `xibalba-cortex` executable lives in the project's `.venv/bin` rather than on
+your `PATH`, which is why the block goes through `uv run --directory`. If you installed the
+package into an environment that is already on your `PATH`, `"command": "xibalba-cortex"` with no
+`args` works — that is exactly what the packaged plugin does.
+
+### The tool surface
+
+89 tools in three families. `tests/test_server.py::test_all_tools_are_advertised` asserts the
+exact set of 89 unique names, and that set matches the 89 `@server.tool` decorators in
+`server.py`.
+
+- **`memory_*` — 54 tools.** Writes (`memory_remember`, `memory_ingest_agent_turn`,
+  `memory_record_model_exchange`, `memory_ingest_connector_event`), lifecycle
+  (`memory_supersede`, `memory_forget`, `memory_contradict`), retrieval (`memory_recall`,
+  `memory_hybrid_retrieve`, `memory_similar`, `memory_context_assemble`), graph traversal
+  (`memory_neighbors`, `memory_find_path`, `memory_link_entities`), sessions and provenance
+  (`memory_session_exchanges`, `memory_session_merkle_root`, `memory_verify_chain`,
+  `memory_verify_exchange_chain`, `memory_evidence_bundle`, `memory_export_provenance`), and the
+  inference and extraction queue (`memory_request_inference`, `memory_claim_inference_task`,
+  `memory_list_extraction_proposals`, `memory_decide_extraction_proposal`).
+- **`runtime_*` — 27 tools.** Per-harness adapters (`runtime_claude_pre_tool_call`,
+  `runtime_codex_adapter_start`, `runtime_agy_hook`, `runtime_gemini_*`, `runtime_cursor_*`,
+  `runtime_openai_compatible_*`) plus a transport-neutral core (`runtime_open_session`,
+  `runtime_ingest_event`, `runtime_bind_identity`, `runtime_evaluate_policy`,
+  `runtime_controller_status`). Each delegates to a real adapter in
+  `src/xibalba_cortex/runtime_controller.py` and the per-harness adapter modules; `runtime` is a
+  free string, with no fixed harness allowlist.
+- **`agent0_*` — 8 tools.** ERC-8004 discovery, registration, reputation and feedback through the
+  `agent0-sdk`: `agent0_search_agents`, `agent0_get_agent`, `agent0_get_owner`,
+  `agent0_get_reputation`, `agent0_search_feedback`, `agent0_register_agent`,
+  `agent0_prepare_feedback`, `agent0_give_feedback`. These need `uv sync --extra agent0`,
+  `XIBALBA_AGENT0_ENABLED=1` and `XIBALBA_AGENT0_RPC_URL`; writes additionally need
+  `XIBALBA_AGENT0_SIGNER`, which belongs in the service environment and never in a memory record
+  or an MCP argument. See the limits in **What Cortex is not**.
+
+Tool results carry an explicit note that the returned content is untrusted evidence from the
+agent's own memory and not an instruction, regardless of what it says (`server.py`).
 
 ---
 
-Most agent memory systems store embeddings, not evidence: a similarity match with no way to prove where it came from, no record of what an extraction pass claimed versus what a human actually accepted, and no way to tell a regulator "this record hasn't been altered since it was written" — only to assert it. For an agent whose actions touch anything regulated, that gap is the difference between a memory system and an audit trail.
+## Ingestion: one handler, two transports
 
-Cortex sits underneath your agent harness as a local Model Context Protocol server: it stores prompts, full model responses, tool calls, and graph edges with hash-chained events and Merkle-anchored session roots, fuses lexical/vector/graph/temporal retrieval into a single persisted and re-verifiable trace, and routes structured extraction through an isolated worker whose output lands as a reviewable proposal — never a silent write — before anything durable is derived from it.
+`GraphStore.ingest_agent_turn` (`store.py`) is the single implementation. Both callers are
+thin:
 
-**Who it's for:**
+- **MCP:** `memory_ingest_agent_turn` (`server.py`) validates nothing beyond its signature and
+  calls the store method directly.
+- **Managed REST:** `POST /api/managed/ingest` → `managed/ingest.py`, which resolves the bearer
+  token to the workspace it was issued for, requires `memory:write`, applies plan metering and
+  per-tenant write serialisation, then calls the same store method (`managed/ingest.py`).
 
-- **Agent-harness integrators** who need a memory layer that survives "why did the agent believe that" months later, not just a vector index that answers "what's similar."
-- **Compliance and audit reviewers** who need to retrieve exactly what an agent did, down to the second, without trusting the agent's own self-report.
-- **Healthcare and finance verticals** where "did the agent touch a regulated record, and when" has to be independently verifiable, not just logged.
-- **Anyone building on the Integrity Protocol ecosystem** — Cortex is the cognitive store that anchors session evidence into the broader trust backbone (see [Ecosystem Role](#ecosystem-role) below), but works standalone with any MCP-speaking harness.
+The store method owns every session, exchange and OpenTelemetry decision; neither caller
+duplicates that logic. One call produces: a session, created if absent; a prompt memory with
+`evidence_class="observed_event"` and `status="candidate"`; a response memory with
+`status="confirmed"`; one `kind="span"` OTel event per tool call, named `tool_call.<name>`; and an
+exchange node that commits to the prompt and response content hashes *and* to the tool-call event
+hashes. All string content passes through `redaction.redact` before storage — which matters most
+on exactly this path, since it is the entry point for network-reachable, less-trusted callers.
 
-**[Quick Start](#quick-start)** · **[Why Cortex](#why-cortex)** · **[Architecture](#architecture)** · **[Provenance & Evidence](#provenance--evidence)** · **[Hybrid Retrieval](#hybrid-retrieval-with-verifiable-traces)** · **[Reviewable Extraction](#reviewable-extraction-pipeline)** · **[Recipe](#recipe-verifiable-entity-extraction-from-a-session)** · **[MCP Operations](#mcp-operations)** · **[CLI](#cli)** · **[Ecosystem Role](#ecosystem-role)**
+The managed path refuses, rather than ignores, a payload naming a workspace other than the
+token's own: a silent `200` would tell a misconfigured multi-workspace client that its turn landed
+somewhere it did not (`managed/ingest.py`). A payload may restate its own workspace; it can
+never select another's.
 
-## Hosted sessions and plugin installation
+`managed/ingest.py`'s module docstring says "REST and MCP are both thin callers of `ingest_turn`".
+That is stale — there is no managed MCP transport, and `managed/api.py` is `ingest_turn`'s
+only caller. The genuinely shared handler is `GraphStore.ingest_agent_turn`, one level down.
 
-Pilot packages for Claude Code, Codex and Gemini CLI are documented in
-[Plugin distribution](docs/operations/cortex-plugin-distribution.md).
-For Cindy, see [Cortex for Cindy](https://github.com/XibalbaTechSol/cortex-cindy) for the installable
-`.cindy` package, setup, capture coverage, file snapshots, privacy boundaries, and diagnostics.
-For Perplexity API sessions, see the [runtime recorder guide](docs/operations/perplexity-runtime-recorder.md).
-For Perplexity/Spark consumer memory access, see [hosted memory connectors](docs/operations/hosted-memory-connectors.md).
-GitHub packages are separate from official directory approval; recorder coverage is
-limited to events the selected runtime exposes.
+---
 
-## Why Cortex
+## Provenance: what is and is not claimed
 
-| | Plain vector-store agent memory | **Xibalba Cortex** |
-| --- | --- | --- |
-| **Recall method** | Embedding similarity only | Lexical + vector + graph + temporal, fused with Reciprocal Rank Fusion |
-| **Provenance** | None | Every memory carries `content_hash`, signed source, evidence class |
-| **Extraction review** | Auto-written, or not tracked at all | Proposal lifecycle: `proposed → accepted/dismissed/stale`, never auto-applied |
-| **Tamper evidence** | None | Hash-chained events, domain-separated Merkle roots, verifiable inclusion proofs |
-| **Retrieval auditability** | Not persisted | Every query persists a full trace: per-channel ranks, RRF params, candidate pool sizes, graph edges |
-| **Worker isolation** | N/A (no extraction step) | Extraction runs under a restricted Hermes profile — no default-agent memory/context leakage into evidence |
-| **Consistency verification** | N/A | Projection checkpoints recompute from canonical SQLite and flag drift, not just assert it |
+**Content hashes.** Every memory carries a `content_hash` over a canonical JSON encoding
+(`src/xibalba_cortex/canonical.py`). `memory_verify_chain` recomputes a single memory's event
+chain locally, with no external dependency.
 
-Cortex doesn't replace your agent harness's own memory or your vector store choice — it's the provenance and evidence layer underneath, MCP-native so any harness that speaks the protocol gets it for free.
+**Hash-chained events.** `src/xibalba_cortex/events.py` defines an append-only `Event` carrying a
+`previous_hash`, deliberately independent of SQLite so the same records can be replayed and
+verified by another implementation.
 
-## Quick Start
+**The session exchange chain.** `GraphStore.verify_exchange_chain` (`store.py`) recomputes
+every exchange's `node_id` from its prompt memory ids and content hashes, response ids and hashes,
+tool-call event ids and hashes, context contributions, and its parent `node_id`, then checks
+parent linkage. Reordering, forging or dropping an exchange changes the chain and is detectable by
+recomputation alone. Covered by `tests/test_store.py` and `tests/test_local_api.py`.
 
-```python
-# Store a memory with explicit, checkable provenance
-memory = memory_remember(
-    content="Patient record #4471 was reviewed for eligibility.",
-    source={"kind": "direct_model_response", "locator": "hermes://session/abc/exchange/12"},
-    evidence_class="observed_event",
-)
-# → {"id": "...", "content_hash": "sha256:...", "status": "candidate", ...}
+Two caveats the code itself makes:
 
-# Recall is fused, ranked, and traced -- not just a similarity lookup
-result = memory_hybrid_retrieve("eligibility review", limit=5)
-trace = memory_retrieval_trace(result["trace_id"])
-# → trace["rrf_params"], trace["candidate_pool_sizes"], per-result trace["results"][i]["channels"]
+- `session_merkle_root` (`store.py`) returns the **head of that hash chain** — the latest
+  exchange `node_id`, labelled `xibalba.exchange_chain.local_merkle_root.v1`. It is not an
+  external anchor and not a truth claim.
+- The verifier keeps a **legacy acceptance path** (`store.py`): a node that validates only
+  without `tool_call_event_hashes` is still accepted, flagged `legacy_commitment`. Older exchanges
+  therefore do not commit to tool-call content. Exchanges written by `ingest_agent_turn` do.
 
-# Every trace result is independently, cryptographically checkable through the store API
-# and the `memory_retrieval_trace_evidence` MCP tool.
-proof = store.retrieval_trace_evidence(result["trace_id"], rank=1)
-# → verify_domain_merkle_proof(proof) is True, without trusting the trace blob as a whole
-```
+**Inclusion proofs.** The actual Merkle construction is `session_merkle_evidence`
+(`store.py`): a domain-separated proof (`domain="exchange_batch"`,
+`xibalba.exchange_batch.merkle.v2`) that one ordered exchange leaf is included under the declared
+tree. Domain separation is tested in `tests/test_merkle_domains.py`. In the code's own words, it
+proves inclusion — it does not prove truth, authorization, completeness or external anchoring.
 
-Real tool/method signatures, verified against `src/xibalba_cortex/server.py` and `src/xibalba_cortex/store.py` — `memory_remember`, `memory_hybrid_retrieve`, `memory_retrieval_trace`, and `memory_retrieval_trace_evidence` are live MCP tools. The underlying `GraphStore.retrieval_trace_evidence()` method is also available to in-process callers.
+**Outward anchoring is opt-in and explicit.** `POST /api/session/{id}/anchor` (and
+`memory_anchor_session_root`) sends a session root to `XIBALBA_ANCHOR_URL`;
+`XIBALBA_AUTO_ANCHOR_ON_SESSION_END=1` does it on session close, and an anchor failure never
+blocks session teardown. `memory_verify_integrity_link` checks a link against `XIBALBA_DAG_HOME`.
+Nothing anchors unless you configure it.
 
-## Architecture
+**Forgetting keeps a receipt.** `memory_forget` removes user-visible content while retaining a
+residual tamper-evidence hash; `memory_supersede` leaves the superseded memory's chain intact. See
+[`docs/operations/store-contract.md`](docs/operations/store-contract.md).
 
-The store schema, hash-chain/Merkle model, and core MCP tool contract are **frozen for v1** as of 2026-08-12 — see [`SPECIFICATION.md`](SPECIFICATION.md) §0 for what's frozen versus open, and the full [Goals and Milestones](SPECIFICATION.md#11-goals-and-milestones) list. Full detail lives in the [wiki](docs/wiki/index.md).
+---
 
-```mermaid
-flowchart LR
-    Agent["🤖 Agent (any MCP harness)"] -->|"memory_remember /<br/>memory_ingest_agent_turn"| Store[("SQLite<br/>hash-chained events")]
-    Store --> Retrieve["hybrid_retrieve<br/>lexical + vector + graph + temporal"]
-    Retrieve --> Trace[("retrieval_traces<br/>domain-separated Merkle root")]
-    Store --> Task["memory_inference_tasks<br/>(claim / evidence bundle / complete)"]
-    Task -->|"isolated worker profile,<br/>4-tool MCP allowlist"| Worker["extraction / classification worker"]
-    Worker -->|"validated server-side<br/>in complete_inference_task"| Proposal[("extraction_proposals<br/>proposed → accepted/dismissed/stale")]
-    Store --> Checkpoint["projection_checkpoints<br/>recompute + reconcile"]
-    Trace -.->|"linked when available"| Checkpoint
-    Store --> Viewer["Local viewer / HTTP API"]
-```
+## Auth and scopes
 
-See [Ecosystem Role](#ecosystem-role) for how this connects to `integrity-core` and `xibalba-shield`.
+One credential table, `ingest_tokens` (`src/xibalba_cortex/ingest_tokens.py`), holds both
+machine tokens and browser session tokens, so every authenticated route has one authorization
+path. Rows store `token_hash` (SHA-256; never the secret), `profile_id`, `roles_json`,
+`scopes_json`, `agent_ids_json`, plus `expires_at` and `revoked_at`, so a credential can be
+time-boxed and killed independently.
 
-## Provenance & Evidence
+`ROLE_SCOPES` (`ingest_tokens.py`):
 
-Every memory carries a `content_hash`, a signed `source` (kind, locator, observed_at), and an `evidence_class` — never just raw text. Mutating operations (`memory_supersede`, `memory_forget`) never silently rewrite history: superseded memories keep their chain, and forgetting removes user-visible content while retaining a residual tamper-evidence hash (see [`docs/operations/store-contract.md`](docs/operations/store-contract.md)).
-
-Session-level integrity is a real hash chain, not a label: every event carries a `previous_hash`, `memory_verify_chain`/`memory_verify_exchange_chain` walk it and report the first break, and `memory_session_merkle_root` plus `memory_anchor_session_root` let a session's evidence be committed and, if `XIBALBA_ANCHOR_URL` is configured, anchored into `integrity-core`'s BCC middleware.
-
-## Hybrid Retrieval With Verifiable Traces
-
-`hybrid_retrieve` fuses four channels — lexical (FTS5/BM25), vector (cosine, caller-supplied embeddings), graph (1-hop neighbor expansion from query terms), and temporal (`temporal_at` filtering) — via Reciprocal Rank Fusion, and persists a full trace of the fusion itself, not just the final ranked list:
-
-- Per-channel **rank and raw score** for every result, not just channel-membership booleans
-- Pre-fusion **candidate pool sizes** per channel (discarded by most systems after fusion)
-- The **RRF parameters actually used** (`k`, per-channel weights) — never a hidden constant
-- **Graph edges**, not just "this result came from the graph channel" — predicate, object, seed term
-- A **domain-separated, order-sensitive Merkle root** (`xibalba.retrieval_trace.v1`) over per-result leaves, so `retrieval_trace_evidence(trace_id, rank=N)` returns an inclusion proof any caller can verify independently — no trust in the stored trace blob required.
-
-## Reviewable Extraction Pipeline
-
-Structured extraction (`extract_entities`, `extract_relations`, PARA classification) runs through a dedicated worker profile — a real, separate Hermes profile (`scripts/setup-cortex-worker-profile.sh` installs it) restricted to an explicit 4-tool MCP allowlist, with `memory.memory_enabled: false` and no `plugins` attached, so the extraction agent cannot pull the default agent's own recalled memory or context into what it treats as evidence. This isolation is live-verified, not just configured: a leak-probe prompt against the restricted profile returns `[]`.
-
-Output never writes directly. `complete_inference_task` validates schema, input-snapshot hash, and evidence-quote containment **server-side**, so validation gates completion regardless of which caller — in-process code or the isolated worker itself over MCP — invokes it. A passing extraction lands as one or more `extraction_proposals` rows in `proposed` state; `decide_extraction_proposal` accepts or dismisses, re-checking the source memory's current hash and refusing (→ `stale`) if it's diverged since the proposal was generated. Acceptance only ever inserts new derived records — it never mutates the source memory.
-
-## Recipe: Verifiable Entity Extraction From a Session
-
-```python
-memory = memory_remember(
-    content="Xibalba Solutions LLC operates the Integrity Protocol trust backend.",
-    source={"kind": "direct_model_response", "locator": "hermes://session/abc/exchange/3"},
-)
-
-task = memory_request_inference(
-    task_type="extract_entities", subject_type="memory", subject_id=memory["id"],
-    input_payload={"source_content_hash": memory["content_hash"]},
-)
-
-# The isolated worker profile claims the task, reads only its bounded evidence bundle,
-# and completes it -- all three calls go through the same 4-tool MCP allowlist:
-claimed = memory_claim_inference_task(task["id"], claimed_by="xibalba-cortex-worker")
-bundle = memory_evidence_bundle(task["id"])
-memory_complete_inference_task(
-    task["id"], claimed_by="xibalba-cortex-worker", claim_token=claimed["claim_token"],
-    output_payload={...},  # validated server-side before this ever lands as a proposal
-)
-
-# A human reviews before anything is trusted. Both the MCP and local HTTP operator
-# surfaces expose proposal listing and explicit decisions:
-proposals = store.list_extraction_proposals(status="proposed", task_id=task["id"])
-store.decide_extraction_proposal(proposals[0]["id"], decision="accept", decided_by="operator")
-```
-
-## Features at a Glance
-
-| Capability | Highlights |
+| Role | Scopes |
 | --- | --- |
-| **Provenance** | `content_hash` + signed source + evidence_class on every memory; hash-chained events; residual-hash forgetting |
-| **Session Integrity** | Hash-chain verification, session Merkle root, optional anchoring into `integrity-core` |
-| **Hybrid Retrieval** | Lexical + vector + graph + temporal fusion; persisted RRF params, candidate pools, per-channel ranks |
-| **Retrieval Trace Verification** | Domain-separated Merkle root per trace; per-result inclusion proofs via `retrieval_trace_evidence` |
-| **Extraction Worker Isolation** | Dedicated restricted Hermes profile; 4-tool MCP allowlist; live-verified leak probe |
-| **Extraction Proposal Lifecycle** | `proposed/accepted/dismissed/stale`; stale-hash rejection; never mutates source memory |
-| **Projection Checkpoints** | Recompute from canonical SQLite; reconciliation persisted; mismatches marked `degraded`, never silently served |
-| **Graph** | Entity/relation storage, bounded neighbor/path traversal, contradiction marking |
-| **Transports** | stdio (local harness) and authenticated streamable-HTTP (cloud-hosted harness) |
-| **MCP Surface** | 80 tools — memory, session, runtime-bridge, and inference-task operations |
+| `reader` | `memory:read` |
+| `writer` | `memory:read`, `memory:write` |
+| `reviewer` | `memory:read`, `proposal:decide` |
+| `operator` | `memory:read`, `memory:write`, `memory:delete`, `proposal:decide`, `agent0:write` |
+| `admin` | `*` |
 
-## Installation and Tests
+`effective_scopes(roles, requested)` (`ingest_tokens.py`) returns the **intersection** of what
+was requested with what the roles grant, so a token can never hold a scope its role does not
+confer. `admin`'s `*` is the single exception: it grants whatever was requested. Exercised by
+`tests/test_ingest_tokens.py` and `tests/test_account_sessions.py`.
 
-### Claude and Codex recorder observers
+**Accounts.** `src/xibalba_cortex/accounts.py` layers local accounts onto that table:
+scrypt-hashed passwords, failed-attempt counting with `locked_until`, an `auth_events` audit
+table, email verification and an approval status. `issue_account_session` writes the session into
+`ingest_tokens` with `expires_at = now + SESSION_TTL_HOURS` — one constant,
+`SESSION_TTL_HOURS = 24` (`accounts.py`), from which `local_api`'s cookie `Max-Age` is derived
+rather than restated.
 
-Local observer capture includes observation-only Claude and local Codex hook installers, plus a
-Codex app-server copied-event adapter, with a bounded queue, recoverable worker
-and profile-local diagnostic storage. See
-[`docs/architecture/claude-codex-observers.md`](docs/architecture/claude-codex-observers.md)
-for setup, recording policy, supported events and validation boundaries. Codex native hooks require explicit user trust; streaming deltas require
-integration with the client owning its app-server event stream. Live harness canaries, recorder streaming
-UI and timed playback remain open.
+Self-hosted auth routes, all under `/api/auth/*` in `local_api.py`: `signup`, `login`, `logout`,
+`me`, `csrf`, `sessions`, `sessions/revoke`, `events`, `password`, `password-reset/request`,
+`password-reset/confirm`, `tokens`, `tokens/revoke`, `admin/pending`, `admin/approve`. Login,
+signup and password-reset requests are rate-limited per email and client address. Password-reset
+delivery needs `CORTEX_PASSWORD_RESET_URL`, `CORTEX_SMTP_HOST` and `CORTEX_SMTP_FROM`; the raw
+reset token is never returned in a response, and a delivery failure returns `503` after deleting
+the token it had just issued.
+
+`rotate_account_session` (`accounts.py`) exists and is tested
+(`tests/test_account_sessions.py`), **but no HTTP route calls it.** Session rotation is not
+something a user of either edition can trigger today.
+
+**Cookie shape.** `_session_cookie` (`local_api.py`) emits `HttpOnly`, `Path=/`,
+`SameSite=None` and `Secure`, so this path requires TLS; the packaged `Caddyfile` terminates it.
+`SameSite=None` is there so a cross-origin browser caller can attach the cookie to
+`credentials: 'include'` fetches, and it gives up the free CSRF protection `Strict` provided — so
+every cookie-authenticated mutation must also carry `X-Cortex-CSRF-Token`, fetched from
+`GET /api/auth/csrf`. Bearer callers have no cookie to ride and are exempt. Set
+`XIBALBA_CORTEX_INSECURE_COOKIES=1` to drop `Secure` for a plain-HTTP loopback dev server.
+
+The managed edition uses its own cookie, `cortex_managed_session` (`managed/api.py`), and its own
+routes under `/api/managed/*`.
+
+---
+
+## Retrieval and reviewable extraction
+
+**Hybrid retrieval.** `GraphStore.hybrid_retrieve` (`store.py`) fuses lexical, vector, graph,
+temporal and exact-identifier signals and persists a trace. Missing vector or graph evidence is
+represented explicitly, and lexical retrieval continues in degraded mode rather than failing
+silently; post-fusion diversity and budget caps record what they dropped in the trace's `degraded`
+list instead of omitting it quietly. The code is explicit that the scores are rank-fusion scores,
+not truth or confidence. The persisted trace is readable afterwards —
+`GET /api/retrieval/trace/{id}` and `/evidence?rank=` — and is covered by
+`tests/test_retrieval_trace_fields.py` and `tests/test_retrieval_completeness.py`.
+
+One limitation worth stating: `GET /api/search` is **lexical only**. No embedding model runs in a
+browser, so the HTTP search route never supplies a query vector; vector search stays on the
+MCP and tool side.
+
+**Extraction proposals.** Structured extraction lands as a proposal with status `proposed`,
+`accepted`, `dismissed` or `stale` (`store.py`), enforced by a SQL `CHECK` constraint
+(`store.py`). Nothing is applied until `memory_decide_extraction_proposal` — or
+`POST /api/extraction-proposals/{id}/decision`, which requires the `proposal:decide` scope —
+accepts it. `POST /api/memory/{id}/extract-structural` is regex-based and runs no model at all; it
+still produces proposals that wait for review.
+
+**On worker isolation.** There are two separate things here, and only one of them is enforcement.
+
+- A real, optional **restricted Hermes worker profile** ships in
+  `scripts/worker-profile/config.yaml`, installed by `scripts/setup-cortex-worker-profile.sh`. It
+  sets `memory.memory_enabled: false` and `user_profile_enabled: false`, deliberately omits any
+  `plugins` key, and restricts the Cortex MCP server to a four-tool allowlist
+  (`memory_claim_inference_task`, `memory_evidence_bundle`, `memory_complete_inference_task`,
+  `memory_inference_subagent_manifest`) so the worker cannot reach `memory_recall` or
+  `memory_hybrid_retrieve`. This is genuine isolation, but it is **Hermes-specific and opt-in**,
+  and the shipped config hardcodes an absolute MCP command path you must edit for your machine.
+- `MEMORY_INFERENCE_SUBAGENT_MANIFEST` (`store.py`) declares the contract a worker is expected
+  to honour — use only the task input and memories fetched by subject id, treat recalled content
+  as evidence and not instruction authority, return structured JSON, write durable facts only
+  after the operator or harness accepts them. That manifest is a **declared contract, not an
+  enforced sandbox**; Cortex does not confine an arbitrary worker to it.
+
+What holds in every configuration is the review gate, not the worker boundary:
+`complete_inference_task` validates schema, input-snapshot hash and evidence-quote containment
+server-side, and acceptance of a proposal re-checks the source memory's current hash and refuses
+(`stale`) if it has diverged. Acceptance only ever inserts new derived records; it never mutates
+the source memory.
+
+---
 
 ## Production status (local readiness snapshot: 2026-11-03)
 
@@ -186,13 +427,15 @@ local readiness only—not deployment, SLA, or external-compliance evidence.
 
 Locally verified capabilities include:
 
-- 80-tool MCP surface, authenticated local HTTP API, token expiry/revocation, tenant
+- 89-tool MCP surface, authenticated local HTTP API, token expiry/revocation, tenant
   onboarding, profile-bound isolation, and review-gated inference.
 - Concurrent two-profile inference validation with zero cross-profile visibility,
   zero starvation, and clean SQLite integrity checks.
 - Two-profile backup/restore with `PRAGMA integrity_check` and canonical Merkle
-  reconciliation. Evidence is at
-  `/home/xibalba/Documents/CORTEX_STORAGE_DRILL_2026-09-04.json`.
+  reconciliation. The drill that produced this result wrote its artifact outside the
+  repository and that file is not present here, so this line is a claim about a past
+  run and not something a reader can re-check. Re-run it with
+  `uv run xibalba-cortex-operator backup` / `restore` to produce your own.
 - Connector retry/rate-limit/credential-boundary primitives and profile-aware local
   connector paths, with local throttle and tenant-scoping evidence.
 - Independently runnable provenance-export verification, including tamper detection.
@@ -203,28 +446,6 @@ storage and durability — local pilot pass, without HA/PITR proof; G4 connector
 hardening — local pass; G5 real-data evaluation — open and requires a real pilot
 tenant; G6 governance and audit — local pass; G7 pilot burn-in — open and requires
 concurrent real tenants.
-
-### Test Cortex locally on this computer
-
-```bash
-# Baseline suite and viewer build
-uv run pytest -q
-npm --prefix viewer install
-npm --prefix viewer run build
-
-# Provision two isolated local profiles and validate isolation/load
-uv run xibalba-cortex-tenant-onboard --root ~/.hermes/xibalba-cortex-tenants --tenant-id pilot-a
-uv run xibalba-cortex-tenant-onboard --root ~/.hermes/xibalba-cortex-tenants --tenant-id pilot-b
-uv run xibalba-cortex-tenant-validate --home ~/.hermes/xibalba-cortex-tenants/pilot-a \
-  --home ~/.hermes/xibalba-cortex-tenants/pilot-b --workers-per-profile 4 --writes-per-worker 25
-uv run xibalba-cortex-tenant-inference-validate --home ~/.hermes/xibalba-cortex-tenants/pilot-a \
-  --home ~/.hermes/xibalba-cortex-tenants/pilot-b --processes-per-profile 4 \
-  --tasks-per-process 25 --timeout-seconds 60
-```
-
-For the human UI, issue a finite-lived token, start `local_api.py` on loopback, run
-the viewer, and enter the token in the browser; the exact procedure is in
-[`viewer/README.md`](viewer/README.md). The UI is local operator evidence only.
 
 ### What remains before production
 
@@ -249,283 +470,68 @@ privileged eBPF/kernel gates; Cortex tests do not prove Shield production readin
 See [`docs/PRODUCTION_READINESS_PLAN.md`](docs/PRODUCTION_READINESS_PLAN.md) for the
 authoritative gate definitions and evidence boundaries.
 
-### Context continuity after a reboot
-
-### Local accounts, password reset, and CORS
-
-The local API includes profile-scoped account signup/login, session revocation,
-password change, and password-reset endpoints used by the viewer. Password-reset
-requests never return the raw token. Delivery requires `CORTEX_PASSWORD_RESET_URL`,
-`CORTEX_SMTP_HOST`, and `CORTEX_SMTP_FROM`; `CORTEX_SMTP_PORT` defaults to `587`,
-and optional authentication uses `CORTEX_SMTP_USERNAME` plus
-`CORTEX_SMTP_PASSWORD`. SMTP delivery requires STARTTLS. Missing configuration or
-delivery failure returns `503`, and the newly issued token is deleted before the
-request completes.
-
-The local API's CORS origin defaults from `CORTEX_ALLOWED_ORIGIN`, falling back to
-`*`; `--allowed-origin` overrides it. Set one exact viewer origin for any deployment.
-The container no longer bakes in a localhost origin, so production operators must
-provide `CORTEX_ALLOWED_ORIGIN` explicitly.
-
-Chat history is not the project control plane. The single active execution ledger is
-[`docs/PROJECT_STATE.md`](docs/PROJECT_STATE.md); do not create parallel plans. After
-the computer restarts, run:
-
-```bash
-./scripts/cortex-resume.sh
-```
-
-It prints the committed gate ledger, live Git state, and local readiness result. At
-the end of each session, update the current commit, exact verification results,
-evidence paths, next action, and blockers in that file, commit/push it, and store the
-same checkpoint as a Cortex `summary` memory.
-
-```bash
-uv sync
-uv run pytest -q
-```
-
-Full suite is validated in CI and locally; run `uv run pytest -q` for the current result. (The one skip and warnings are pre-existing and unrelated to recent work.) Viewer build is separate: `cd viewer && npm install && npm run build`. Local operator commands: `uv run xibalba-cortex-operator [readiness|status|backup|restore|verify-memory|verify-integrity-link|verify-session|integrity-links|production-readiness|evaluation-smoke|retention-sweep|audit]`.
-
-### CORE registration reconciliation
-
-The CORE oracle exposes the finality-bearing directory at `/v1/agents/snapshot`. Configure
-`AGENT_DIRECTORY_FINALIZED=true` only after the deployed indexer has applied its chain-finality
-policy. Cortex ships user-systemd service/timer templates under `packaging/systemd/`; install
-those units, copy `core-sync.env.example` to `~/.config/xibalba-cortex/core-sync.env`, then enable:
-
-```sh
-systemctl --user enable --now xibalba-cortex-core-sync.timer
-```
-
-The timer invokes `xibalba-cortex-sync-core-registrations` every five minutes. A non-finalized
-snapshot fails closed and leaves existing account authorization unchanged.
-
-The adapter also requires the snapshot's `finalized_block_number` and
-`finalized_block_hash`; the finalized cursor must cover `block_number` and the hash must be a
-32-byte hex block hash. The operator-controlled `finalized` bit is therefore not sufficient by
-itself to widen an account's agent namespace.
-
-### ERC-8004 / Agent0 integration
-
-Cortex can optionally expose the Agent0 SDK through MCP for ERC-8004 discovery,
-registration, agent inspection, reputation, and feedback. Install the optional
-dependency with `uv sync --extra agent0`.
-
-Read operations require `XIBALBA_AGENT0_ENABLED=1`,
-`XIBALBA_AGENT0_RPC_URL`, and optionally `XIBALBA_AGENT0_SUBGRAPH_URL`.
-On-chain registration and feedback additionally require
-`XIBALBA_AGENT0_SIGNER`; keep that value in the service environment and never
-place it in a memory record or MCP argument. The available MCP tools are
-`agent0_search_agents`, `agent0_get_agent`, `agent0_get_reputation`,
-`agent0_search_feedback`, `agent0_get_owner`, `agent0_register_agent`,
-`agent0_prepare_feedback`, and `agent0_give_feedback`.
-
-Agent0 data is external ERC-8004 evidence. It does not replace the Integrity
-Oracle, Integrity DIDs, AIS, BCC policy, or Cortex's local provenance store.
-
-The viewer's Agents page also supports client-signed test registration on Base
-Sepolia. Open **Register a test identity with MetaMask**, connect MetaMask, and
-approve the ERC-8004 Identity Registry transaction. The wallet stays in the
-browser; the page reads the confirmed token URI and owner back from Base
-Sepolia and displays the resulting record and Basescan transaction.
-
-**Not yet installable standalone.** `pyproject.toml` pins `integrity-sdk` as a local path
-dependency on `../integrity-core/integrity-sdk` (`[tool.uv.sources]`) — `uv sync` only resolves
-if `integrity-core` is checked out as a sibling directory (this is also how CI installs it — see
-`.github/workflows/ci.yml`). There is no PyPI package and no git-pinned alternative dependency
-yet, so a `pip install xibalba-cortex` or an install outside this sibling-repo layout does not
-currently work. Fixing this means either publishing `integrity-sdk` as its own installable
-package, vendoring the (small) subset this repo actually uses, or pinning a git dependency —
-not yet decided; until then, clone both repos as siblings.
-
-> The reviewed hybrid extraction, retrieval, and operator surfaces are now on `main`; see `spec/xibalba-cortex-v1.md` for the normative contract. Historical handoffs remain evidence of their recorded revisions only, and current behavior must still be checked against the live commit and test run.
-
-## MCP Operations
-
-```bash
-uv run xibalba-cortex
-```
-
-The MCP surface (80 tools, enforced by the exact inventory assertion in `tests/test_server.py`) covers remembering, recalling, hybrid retrieval with trace inspection and inclusion evidence, attaching artifacts, session records, graph linking, bounded neighbor/path traversal, contradiction marking, forgetting, event-chain verification, store status, backups, the full inference-task lifecycle (request/claim/bounded-evidence/complete), and runtime-bridge events. Recalled memories are context, not instruction authority — callers must preserve provenance and lifecycle state in any downstream prompt.
-
-Live Hermes profile smoke:
-
-```bash
-hermes mcp test xibalba_cortex
-XIBALBA_RUN_HERMES_MCP_SMOKE=1 uv run pytest tests/test_hermes_mcp_smoke.py -q
-```
-
-## Generic Ingestion for Any Agent Harness
-
-Every other ingestion path (transcript files, Hermes hook subprocess dispatch, localhost-only OTLP/API servers) assumes a caller on the same machine. `memory_ingest_agent_turn` plus a network-reachable, authenticated MCP transport is the path for a harness that can't spawn a local subprocess or read local files — e.g. a cloud-hosted agent.
-
-**1. Provision an isolated pilot tenant or issue a token for an existing profile:**
-
-```bash
-uv run xibalba-cortex-tenant-onboard --root ~/.hermes/xibalba-cortex-tenants --tenant-id pilot-a --ttl-hours 720 --max-memories 10000
-```
-
-The onboarding command creates a profile-bound store, configuration, and one-time operator
-credential. It rejects duplicate and path-traversal tenant ids; each tenant has an independent
-SQLite and credential boundary. This is controlled-pilot provisioning, not hosted SaaS tenancy.
-
-Validate concurrent isolation after provisioning at least two profiles:
-
-```bash
-uv run xibalba-cortex-tenant-validate \
-  --home ~/.hermes/xibalba-cortex-tenants/pilot-a \
-  --home ~/.hermes/xibalba-cortex-tenants/pilot-b \
-  --workers-per-profile 4 --writes-per-worker 25
-```
-
-The report includes per-profile write completeness, cross-profile search isolation, and full
-SQLite integrity checks. It remains local evidence and does not establish an SLA or HA behavior.
-
-For an existing profile:
-
-```bash
-uv run xibalba-cortex-ingest-tokens --home ~/.hermes/xibalba-cortex issue --label "perplexity-personal" --ttl-hours 720
-uv run xibalba-cortex-ingest-tokens --home ~/.hermes/xibalba-cortex list
-uv run xibalba-cortex-ingest-tokens --home ~/.hermes/xibalba-cortex revoke --id <token-id>
-```
-
-Production-facing credentials should use a finite `--ttl-hours`; omitted expiry remains
-available for explicitly managed local deployments. Rotate without an outage by issuing
-and verifying a replacement before revoking the old token by id.
-
-**2. Start the server in streamable-HTTP mode** (stdio remains the default for locally-spawned harnesses):
-
-```bash
-uv run xibalba-cortex --transport streamable-http --host 127.0.0.1 --port 8421 --path /mcp
-```
-
-Binds to `127.0.0.1` by default even in HTTP mode. **This server has no TLS of its own** — reaching it from off-machine requires a TLS-terminating reverse proxy or tunnel in front of it; without one, the bearer token travels in plaintext. Binding a non-loopback `--host` prints a loud startup warning as a reminder, not a safeguard.
-
-**3. Point a harness at it.** Every call after `initialize` needs `Authorization: Bearer <token>`. Google Antigravity CLI's `serverUrl` field and Perplexity's custom remote MCP connector are both concretely researched and documented in [`docs/wiki/`](docs/wiki/index.md).
-
-**4. One call captures a complete turn.** `memory_ingest_agent_turn(external_session_id, runtime, prompt, response, tool_calls=[...], ...)` — `runtime` is a free string, not a fixed harness allowlist. Everything is redacted for likely secrets before storage (`redaction.py`), and every call wraps the same hash-chained exchange/Merkle-root guarantees as local ingestion.
-
-## Codex Session Collection
-
-Codex stores local session JSONL under `~/.codex/sessions`. The Codex collector reconstructs completed turns and tool-call telemetry, then writes them through Cortex MCP using the same redaction, idempotency, and provenance path as any other agent. It does not copy raw JSONL files into the Cortex database, and incomplete turns are skipped.
-
-Run a one-time backfill or inspect the input without writing:
-
-```bash
-uv run xibalba-cortex-codex-mcp-backfill --dry-run
-uv run xibalba-cortex-codex-mcp-backfill
-```
-
-For continuous collection, use watch mode. The local user service below is the recommended setup:
-
-```bash
-systemctl --user enable --now xibalba-codex-mcp-backfill.service
-systemctl --user status xibalba-codex-mcp-backfill.service --no-pager
-tail -f ~/.hermes/logs/codex-mcp-backfill.log
-systemctl --user disable --now xibalba-codex-mcp-backfill.service
-```
-
-The service definition is installed at `~/.config/systemd/user/xibalba-codex-mcp-backfill.service`; its executable path and `XIBALBA_CORTEX_HOME` must match the active checkout and Cortex store.
-
-## Claude Code Integration
-
-To route Claude Code's `pre_tool_call` hooks into graph memory, configure `scripts/claude_pre_tool_hook.js` in your `~/.claude.json` or load it via Claude Code's extension mechanism to forward telemetry.
-
-## CLI
-
-Every operational surface ships as a `uv run` console script, no separate install:
-
-```bash
-uv run xibalba-cortex                        # MCP server (stdio or streamable-HTTP)
-uv run xibalba-cortex-operator <command>      # readiness, status, backup, restore, verification
-uv run xibalba-cortex-embedding-worker        # backfill/re-embed memory vectors, out-of-process
-uv run xibalba-cortex-para-worker             # PARA classification worker
-uv run xibalba-cortex-ingest-tokens <command> # issue/list/revoke bearer tokens for remote ingestion
-uv run xibalba-cortex-session-sync            # session synchronization
-uv run xibalba-cortex-transcript-ingest       # ingest transcript files
-uv run xibalba-cortex-codex-mcp-backfill      # backfill/watch Codex JSONL through MCP
-uv run xibalba-cortex-demo-seed               # deterministic demo data
-```
-
-## Ecosystem Role
-
-Cortex works standalone as a generic MCP memory server with any MCP-speaking agent — the generic ingestion path above means Claude Code, Codex, Antigravity CLI, or a cloud-hosted harness can all record turns into the same store with zero code change here per new harness. It is also the cognitive store in a three-repository ecosystem:
-
-| Repository | Analogy | Role |
-|---|---|---|
-| **`xibalba-cortex`** | 🧠 The Brain | Local cognitive store — memories, context, reasoning provenance, session Merkle roots |
-| `xibalba-shield` | 🛡️ The Immune System | Endpoint enforcement, kernel sensing, policy gating, semantic guardrails |
-| `integrity-core` | 🦴 The Backbone | On-chain identity, BCC, Oracle scoring, smart contracts. Since its 2026-09-28 restructure (Phase A1), the operator dashboard lives in [`integrity-console`](https://github.com/XibalbaTechSol/integrity-console) |
-
-`integrity-core`'s [current explanatory whitepaper](../integrity-core/docs/WHITEPAPER.md)
-names `xibalba-cortex` explicitly as **the reference implementation** of the protocol's memory
-primitive — a hash-chained, domain-separated memory store exposing verification
-(`memory_verify_chain`), per-session roots (`memory_session_merkle_root`), and anchoring to
-`StateAnchor`. Notably, this is the one case the whitepaper itself calls out where implementation
-experience corrected the specification, not the other way around: this repo stores payloads in a
-durable local store rather than content-addressed storage, which v3.0-as-written did not conform
-to — v3.2 revised the spec to match the real, working construction instead.
-
-```mermaid
-flowchart LR
-    Agent["🤖 Agent"] <-->|"MCP tools<br/>(80 operations)"| Brain["🧠 xibalba-cortex<br/>(This repo)"]
-    Brain -->|"Session Merkle roots<br/>(XIBALBA_ANCHOR_URL)"| Backbone["🦴 integrity-core<br/>(BCC → StateAnchor)"]
-    Brain -.->|"Local API"| Eyes["👁️ integrity-console/integrity-dashboard<br/>(Memory page)"]
-    Immune["🛡️ xibalba-shield"] -->|"Signed telemetry"| Backbone
-    Backbone -->|"AIS, identity, evidence"| Eyes
-    Eyes -->|"Operator interventions"| Agent
-```
-
-Session Merkle roots MAY be anchored into Integrity Protocol's oracle. Cortex is not the Integrity oracle and MUST NOT be described as a second verifier. Protocol specification: [`integrity-core` `docs/SPEC.md`](https://github.com/XibalbaTechSol/integrity-core/blob/main/docs/SPEC.md).
-
-Anchoring is opt-in: set `XIBALBA_ANCHOR_URL` and call `memory_anchor_session_root` manually, or set `XIBALBA_AUTO_ANCHOR_ON_SESSION_END=1` to anchor automatically on session close (anchor failures never block session teardown). See [`integrity-core/docs/architecture/ecosystem-dependencies.md`](https://github.com/XibalbaTechSol/integrity-core/blob/main/docs/architecture/ecosystem-dependencies.md) for ownership boundaries.
-
-### Shield's memories in Cortex
-
-Xibalba Shield's DID belongs to the Hermes `xibalba-shield` agent. Its memory is a separate
-Cortex profile store, `~/.hermes/xibalba-cortex-shield`, and every write carries Shield's DID.
-Shield writes two source kinds, both through `POST /api/memory/propositions` on the profile's
-local API:
-
-| `source.kind` | `evidence_class` | Written by | Content |
-|---|---|---|---|
-| `shield_event` | `observed_event` | the sensor's Cortex outbox worker | One material decision (by default `contain`, `deny` or `escalate`; set by `SHIELD_CORTEX_PUBLISH_ACTIONS`), allowlisted and redacted |
-| `shield_advisory` | `inference` | Shield's Hermes analyst (`xibalba-shield/shield/hermes_analyst.py`) | A model's advisory about one of those events: `classification`, `confidence`, `evidence_refs` and `recommendation` only |
-
-The advisory's locator is `shield-advisory://<device>/<event_id>`. Its metadata links the
-event's `shield://<device>/<event_id>` locator. The model's free-text `uncertainty` stays in
-Shield's local ledger and never reaches Cortex. Shield's interactive profile has tools and
-recalls from this store, so model prose must not become future context. Each new memory gets
-at most one automatic `classify_para` task; the analyst caps itself at 40 advisories a day.
-Routine `log_only` memories written before Shield's publish filter shipped were removed with
-the audited `memory_forget` path, which keeps deletion receipts.
-
-## DecisionTrace and Jev advisory correlation
-
-Cortex stores and renders a redacted, parent-linked projection of observable agent transitions for
-auditors and operators. The local `JevGateway` accepts the deterministic fixture provider for
-offline operation or an optional bounded JSON HTTP provider. A provider can return risk categories,
-transition probabilities, and escalation advice, but it cannot authorize an action, change Shield
-policy, or establish causality.
-
-The read-only projection is available through the local API at
-`GET /api/session/{id}/decision-trace?trace_id=...` and includes provider status, observed event
-hashes, parent links, the domain-separated trace root, and inclusion proofs when available. Raw
-prompts, completions, tool arguments, and chain-of-thought remain outside the projection. See the
-canonical [DecisionTrace and Jev wiki page](docs/wiki/concepts/decision-trace-and-jev.md) and the
-[cross-product execution plan](../integrity-core/docs/EXECUTION_PLAN.md#b2a-jev-assisted-decisiontrace-m).
-
-## Privacy and Retention
-
-The store is local SQLite under the configured profile home. Agent identity is controlled by `XIBALBA_CORTEX_IDENTITY_MODE`: `pseudonymous` by default, `full` for raw agent IDs, `omit` for none. Forgetting removes user-visible content while retaining a residual tamper-evidence hash — see [`docs/operations/store-contract.md`](docs/operations/store-contract.md).
-
-## Goals and Milestones
-
-Cortex's north star: give any AI agent harness a place to record what it did, with enough provenance and fidelity that a compliance reviewer can retrieve exactly what happened down to the second, without trusting the agent's own self-report — the recurring need behind "did the agent touch a regulated record, and when."
-
-- **Complete capture, not sampling** — full prompt, response, and every tool call, not a summary.
-- **Provenance an auditor can trust** — hash-chained events and Merkle roots make "this record hasn't been silently edited" verifiable, not just asserted.
-- **Untrusted-by-default retrieval** — recalled memory is context, never instruction authority.
-
-Covered today: local hash-chain/Merkle store, generic MCP tool surface, two transports, redaction on every ingestion path, per-harness bearer-token auth, isolated extraction workers with a reviewable proposal lifecycle, verifiable retrieval traces, and projection checkpoint/reconciliation. Deferred — real-time streaming queries, multi-tenant profile-sharing, automatic (not opt-in) anchoring, and a documented finance/healthcare audit-framework mapping. See [`SPECIFICATION.md`'s §11](SPECIFICATION.md#11-goals-and-milestones) for the full breakdown of what's deliberately left open rather than silently claimed.
+## What Cortex is not
+
+- **Not an identity authority.** Agent0 / ERC-8004 registration is external chain evidence. An
+  on-chain registration grants no workspace access by itself; workspace authorization comes only
+  from the credential in `ingest_tokens`. Cortex does not replace the Integrity Oracle, Integrity
+  DIDs, AIS or BCC policy.
+- **No key generation, anywhere.** The viewer's Agent0 registration path signs through an injected
+  EIP-1193 provider, so signing stays in the wallet extension. No key material ships in this
+  repository and none is generated in a page.
+- **Not a truth oracle.** Hash chains and inclusion proofs establish that records were not altered
+  and that a leaf is in a tree. They say nothing about whether the content is correct, authorized
+  or complete. The code says so in `session_merkle_evidence` and `hybrid_retrieve`; this README
+  repeats it on purpose.
+- **Not horizontally scalable as written.** The managed service pins `workers=1` because SQLite
+  tenant volumes require a single replica with persistent storage (`managed/api.py`). Ephemeral
+  and serverless filesystems are deliberately not supported.
+- **Not installable standalone.** See the sibling-checkout requirement above.
+- **Not a replacement** for your harness's own memory or your vector store. It is the provenance
+  layer underneath.
+- **The `local_api` surface deliberately omits destructive operations** such as restore and hard
+  purge.
+
+Remaining gates before anyone should call this production — standalone installability, connector
+hardening, real multi-tenant pilot evidence, hardened storage with HA and point-in-time recovery,
+and governance or SLA commitments — are defined with their evidence boundaries in
+[`docs/PRODUCTION_READINESS_PLAN.md`](docs/PRODUCTION_READINESS_PLAN.md). Do not infer any of them
+from the local checks above.
+
+---
+
+## Repository map
+
+| Path | What is there |
+| --- | --- |
+| `src/xibalba_cortex/store.py` | `GraphStore` — all query, write, chain and retrieval logic, unit-tested independently of any transport |
+| `src/xibalba_cortex/server.py` | the MCP server and all 89 tools; each is a thin wrapper over one store method |
+| `src/xibalba_cortex/local_api.py` | self-hosted HTTP API; its module docstring is the authoritative route list |
+| `src/xibalba_cortex/managed/` | managed edition: `api.py`, `ingest.py`, `control.py`, `plans.py`, `config.py`, `stripe_gateway.py` |
+| `src/xibalba_cortex/events.py`, `canonical.py` | portable event, canonical-JSON and Merkle primitives, independent of SQLite |
+| `src/xibalba_cortex/ingest_tokens.py`, `accounts.py` | the one credential table, roles, scopes, accounts and sessions |
+| `plugins/` | packaged harness plugins: `cortex-claude`, `cortex-codex`, `cortex-gemini`, `agy-cortex` |
+| `integrations/` | `openclaw`, `perplexity`, `spark`, `plugin-distribution` |
+| `viewer/` | React operator console and graph viewer — see [`viewer/README.md`](viewer/README.md) and [`viewer/DESIGN.md`](viewer/DESIGN.md) |
+| `tests/` | `pytest`; run with `uv run pytest` |
+| `scripts/` | operator and development scripts, including the worker profile installer and `dev_seed_console.py` |
+| [`SPECIFICATION.md`](SPECIFICATION.md) | the protocol and data-model specification |
+
+Operational guides live under `docs/operations/`, including
+[plugin distribution](docs/operations/cortex-plugin-distribution.md),
+[hosted memory connectors](docs/operations/hosted-memory-connectors.md),
+the [Perplexity runtime recorder](docs/operations/perplexity-runtime-recorder.md) and
+the [store contract](docs/operations/store-contract.md). Architecture notes are in
+`docs/architecture/`, and the wiki index is [`docs/wiki/index.md`](docs/wiki/index.md).
+
+## Ecosystem
+
+Cortex works standalone with any MCP-speaking harness. It is also the memory store in a
+three-repository ecosystem: `integrity-core` holds on-chain identity, BCC and oracle scoring;
+`xibalba-shield` does endpoint enforcement and kernel sensing; Cortex holds memories, context and
+session roots. Session roots **may** be anchored into Integrity Protocol's oracle. Cortex is not
+that oracle and must not be described as a second verifier.
+
+## Licence
+
+See [LICENSE](LICENSE).
