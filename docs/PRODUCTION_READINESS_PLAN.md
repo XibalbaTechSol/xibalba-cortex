@@ -178,9 +178,12 @@ with `pilot_ready` becoming a real (not aspirational) field.
 
 `governance` currently reports `state: local_only` with `provenance_export: true` —
 export capability exists but nothing external consumes or verifies it yet. Define what
-"production" governance means for a SaaS operator: audit log retention period, access
-control on the export path, and a defined verification procedure a tenant or auditor
-can actually run.
+"production" governance means for a SaaS operator: an audit-log retention policy,
+access control on the export path, and a defined verification procedure a tenant or
+auditor can actually run. The local retention policy and bounded operator procedure
+are documented in [`docs/operations/retention-policy.md`](operations/retention-policy.md);
+tenant-specific approval, backup/export controls, and compliance obligations remain
+deployment gates.
 
 **Deliverable:** a documented, testable provenance-export verification procedure usable
 by someone outside this repo's own operator tooling.
