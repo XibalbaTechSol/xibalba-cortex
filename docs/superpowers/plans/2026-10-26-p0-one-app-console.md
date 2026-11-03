@@ -400,7 +400,7 @@ read "not yet implemented" when in fact most of P0 had landed. Reconstructed fro
 | 2 — `nav.ts` resolves a server-declared set | **done** | `e84105e`, `35c31c0`; `state.tsx:128` calls `builtFrom` |
 | 3 — billing becomes an ordinary console page | **done** | `d084ec2`, `f1527dc` |
 | 4 — grammar sweep covers `/managed`, proved red first | **done** | `aa85a65`, `1238e8d` |
-| 5 — one app root, delete the second UI | **steps 1, 3, 4, 6, 7 done; step 5 pending the Playwright baseline** | `1d07f89`, `096a205`, `7f96180`, `b115f2f` |
+| 5 — one app root, delete the second UI | **done** (step 5 green: 198/198 Playwright) | `1d07f89`, `096a205`, `7f96180`, `b115f2f` |
 
 ### Update — 2026-11-03: the deletion has landed
 
@@ -414,9 +414,14 @@ current**. Verified in the working tree on 2026-11-03:
   `:228` asserts `.xc-managed-inner` has count 0.
 - Step 6 holds: the only two surviving `xc-managed` strings are that absence assertion and an
   explanatory comment, neither of which is a layout class.
-- **Step 5 is the one step still open**, because no Playwright baseline has ever been taken.
-  A full `CI=true npx playwright test` run is in flight; until it reads green, P0's
-  "done when" is unproved and the merge gate stays shut.
+- **Step 5 is done.** A full `CI=true npx playwright test` passed **198/198 in 30.4m**, with
+  `npm run build`, `oxlint` and vitest 368/368 beside it — recorded in
+  `.superpowers/sdd/2026-11-02-cortex-production-readiness/phase0-task5-report.md`. An earlier
+  revision of this note claimed no baseline had ever been taken; that was wrong, and the
+  evidence was already in the ledger. The mutation Step 3 asks for was also run: restoring the
+  edition fork in `main.tsx` reds the hosted grammar sweep.
+  **Caveat:** that run predates `b115f2f`, `40a48d2`, `6fe4e90` and `c137525`, so a confirming
+  re-run at the current tip was started on 2026-11-03.
 
 Correction: an earlier revision of this section ticked Task 5 steps 1-3. Step 3 (boot one
 app, consume the declaration) did land. **Step 1 did not** — `grep -n -e 'xc-shell' -e

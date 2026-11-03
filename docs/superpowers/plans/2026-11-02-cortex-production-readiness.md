@@ -39,15 +39,25 @@ Pushed and verified; `git log --oneline -1` should be at or after `587ff56`.
 **Progress as of 2026-11-03 — Phase 0 and Phase 5 Tasks 1-2 have landed.** Under the amended
 execution order that is the deployable test build the reorder was for. Specifically:
 
-- **Phase 0 is complete but for Task 5 Step 5.** The second UI is deleted (`7f96180` —
-  a commit whose `docs(plan):` subject does not mention it). The only open step is the
-  full-suite confirmation, which waits on a Playwright baseline that has still never been
-  taken. See the P0 plan's "Update — 2026-11-03".
+- **Phase 0 is complete, Task 5 Step 5 included.** The second UI is deleted (`7f96180` —
+  a commit whose `docs(plan):` subject does not mention it). **The Playwright baseline does
+  exist and is green: 198 passed, 0 failed, 30.4m**, recorded in
+  `.superpowers/sdd/2026-11-02-cortex-production-readiness/phase0-task5-report.md` at 01:16 on
+  2026-11-03, alongside `npm run build`, `oxlint` and vitest 368/368. Every claim in this
+  brief that "no baseline exists" was already stale when written. **Caveat:** that run predates
+  four later viewer commits (`b115f2f`, `40a48d2`, `6fe4e90`, `c137525`), so it green-lights
+  Step 5 at the commit it ran on, not at today's tip; a confirming re-run at the tip was
+  started 2026-11-03.
 - **Phase 5 Task 1 is complete**, metering and idempotency included: `587ff56` adds
   `managed/ingest.py`, `POST /api/managed/ingest`, the `managed_app`/`api_key` fixtures and
-  10 tests. All three of its mutation proofs were re-run on 2026-11-03 and each one goes red
-  as the plan predicts (dropping `tool_calls` reds the committed-tool-calls test; deleting
-  `service.consume` reds three metering tests).
+  10 tests. **Nine mutation proofs are recorded** in `phase5-task1-report.md`, not the three
+  the plan's steps name; two of them were independently re-run on 2026-11-03 and still go red.
+  **Read that report before touching this task** — it carries eight numbered concerns, and two
+  are live gaps rather than notes: (a) `ingest_turn` strips reserved `metadata` keys, but
+  `ingest_agent_turn` still merges caller metadata over its own, so **the self-hosted MCP path
+  keeps the exposure this route closed**; (b) account-state and CSRF checks live in
+  `api.authenticate`, not in `ingest_turn`, so **the MCP transport must repeat them** or it
+  will serve unverified accounts.
 - **Phase 5 Task 2 is complete**, with a semantic amendment recorded at its Step 3: a payload
   naming another workspace is **refused with 403, not silently ignored**. Its mutation proof
   — making the route honour the payload's workspace — goes red.
@@ -76,8 +86,9 @@ execution order that is the deployable test build the reorder was for. Specifica
 - `npx playwright test` — **no baseline exists yet.** A `--project=desktop` run was killed
   at 27 minutes having emitted nothing, because it was piped through `tail`. Take the
   baseline with `--reporter=line` redirected to a file, run in the background, and read the
-  file — never through a pipe. **Phase 0 Task 5 Step 5 depends on this baseline**, and so
-  does the merge gate.
+  file — never through a pipe. **Superseded: a full baseline was taken at 01:16 on 2026-11-03
+  and passed 198/198 in 30.4m** (`phase0-task5-report.md`). The 27-minute killed run was the
+  earlier attempt, not the final state.
 - `uv run pytest tests/test_managed_ingest.py` — **11 passed / 11** (2026-11-03).
 - `uv run pytest` (whole suite, 2026-11-03) — **5 failed, 2 since fixed, 3 remain**. All five
   were environmental, pre-existing, and failed in isolation. None of them imports `managed.ingest` or `ingest_turn`
@@ -146,6 +157,13 @@ npm run build && npx oxlint src e2e && npx vitest run --maxWorkers=1 && CI=true 
 serves `ManagedApp` and predates the `/readyz` route (`/readyz` returns the SPA HTML, so the
 request falls through to the `{path:path}` catch-all). It is useful only as the *before*
 screenshot for Phase 0. Do not treat it as a current build.
+
+**Phase 5 Task 3's blocking Step 0 is now actionable.** The previous session stopped short of
+Task 3 because its Step 0 requires a Devil's Advocate review (it moves a security boundary:
+per-request tenant→profile resolution on a shared connector) and the Devil's Advocate MCP
+connector was unauthenticated. **It is authenticated as of the 2026-11-03 session**, so the
+review can be run. Task 3 remains suspended on the *operator tool-surface decision* recorded
+below that — authentication removes only the review gate, not that decision.
 
 **Open question, unresolved, owned by Phase 5 Task 6.** The README claims "80 tools" in two
 places and cites `tests/test_server.py`'s inventory assertion as the enforcer, but
