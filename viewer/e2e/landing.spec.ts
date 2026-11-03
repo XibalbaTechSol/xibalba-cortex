@@ -11,7 +11,18 @@ for (const width of [320, 390, 1280, 1600]) {
     await expect(mark).toBeVisible()
     await expect.poll(() => mark.evaluate((el) => (el as HTMLImageElement).naturalWidth)).toBeGreaterThanOrEqual(420)
     const box = (await mark.boundingBox())!
-    expect(box.width).toBeGreaterThanOrEqual(width < 600 ? 220 : 380)
+    /* One floor at every width: the mark is capped at 280px everywhere now, because that is
+       the largest size its 560px raster is sharp at. The old desktop floor of 380 encoded the
+       previous 420px cap. */
+    expect(box.width).toBeGreaterThanOrEqual(220)
+    /* The mark must carry at least 2 device pixels per CSS pixel, or it is visibly soft on any
+       HiDPI screen -- the defect this cap was introduced to fix. Asserted as a ratio rather than
+       a fixed size so it keeps holding if either the asset or the cap changes. */
+    const density = await mark.evaluate((el) => {
+      const img = el as HTMLImageElement
+      return img.naturalWidth / img.getBoundingClientRect().width
+    })
+    expect(density).toBeGreaterThanOrEqual(2)
     await expect(page.locator('.xc-landing-top .xc-brand-mark')).toBeVisible()
     await page.getByRole('link', { name: 'How it runs', exact: true }).click()
     await expect(page.locator('#how')).toBeInViewport()
