@@ -14,17 +14,27 @@
 
 export const MIN_PASSWORD_LENGTH = 10
 
+/* The two names the emailed link can carry. The console's own link is `?token=`; managed's is
+   `?reset_token=` (managed/control.py:137), which HostedLanding used to read in its own duplicate
+   of this form. With one SignIn for both editions this helper is the only reader, so links already
+   sitting in pilot inboxes depend on both being accepted. `token` is first and therefore wins. */
+const TOKEN_PARAMS: readonly string[] = ['token', 'reset_token']
+
 /** The reset secret in a query string, or null. Only a plausible token is accepted. */
 export function resetTokenFromSearch(search: string): string | null {
-  const value = new URLSearchParams(search).get('token')
-  // token_urlsafe(32) is 43 URL-safe characters; accept a sane range rather than one exact length
-  return value && /^[A-Za-z0-9_-]{16,128}$/.test(value) ? value : null
+  const params = new URLSearchParams(search)
+  for (const name of TOKEN_PARAMS) {
+    const value = params.get(name)
+    // token_urlsafe(32) is 43 URL-safe characters; accept a sane range rather than one exact length
+    if (value && /^[A-Za-z0-9_-]{16,128}$/.test(value)) return value
+  }
+  return null
 }
 
-/** The same query string without `token`, with its other parameters (agent_id, store_id) intact. */
+/** The same query string without the token, with its other parameters (agent_id, store_id) intact. */
 export function searchWithoutToken(search: string): string {
   const params = new URLSearchParams(search)
-  params.delete('token')
+  for (const name of TOKEN_PARAMS) params.delete(name)
   const rest = params.toString()
   return rest ? `?${rest}` : ''
 }

@@ -13,6 +13,24 @@ describe('reading the reset link', () => {
     expect(resetTokenFromSearch(`?token=${'a'.repeat(129)}`)).toBeNull()
   })
 
+  /* managed's own reset email points at `/managed?reset_token=<secret>` (managed/control.py:137),
+     a different parameter name from the console's `?token=`. The hosted edition used to read it in
+     HostedLanding's own form; with one SignIn for both editions this helper is the only reader, so
+     links already sitting in pilot inboxes depend on it accepting both names. */
+  it('accepts managed’s reset_token as well as the console’s token', () => {
+    const token = 'A1b2C3d4E5f6G7h8I9j0K1l2M3n4O5p6Q7r8S9t0U1v'
+    expect(resetTokenFromSearch(`?reset_token=${token}`)).toBe(token)
+    expect(resetTokenFromSearch('?reset_token=short')).toBeNull()
+    // `token` still wins when both are present: it is the console's own, newer link
+    expect(resetTokenFromSearch(`?token=${token}&reset_token=${'z'.repeat(43)}`)).toBe(token)
+  })
+
+  it('removes managed’s reset_token from the address bar too, and nothing else', () => {
+    const token = 'A1b2C3d4E5f6G7h8I9j0K1l2M3n4O5p6Q7r8S9t0U1v'
+    expect(searchWithoutToken(`?reset_token=${token}`)).toBe('')
+    expect(searchWithoutToken(`?reset_token=${token}&verified=1`)).toBe('?verified=1')
+  })
+
   it('removes only the token from the address bar', () => {
     expect(searchWithoutToken('?token=abc')).toBe('')
     expect(searchWithoutToken('?agent_id=a%3Ab&token=abc&store_id=s')).toBe('?agent_id=a%3Ab&store_id=s')

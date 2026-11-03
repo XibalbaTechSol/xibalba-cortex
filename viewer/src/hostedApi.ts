@@ -117,6 +117,8 @@ const ROUTES: ReadonlyArray<readonly [string, HostedRoute]> = [
   ['POST /api/auth/logout', { to: 'logout' }],
   ['GET /api/auth/me', { to: 'me' }],
   ['POST /api/auth/password-reset/request', { to: 'recovery/forgot-password' }],
+  // The one auth action only the hosted backend has. See HOSTED_ONLY below.
+  ['POST /api/auth/verification/resend', { to: 'recovery/resend-verification' }],
   // managed's reset takes `{token, password}`; the console sends `{reset_token, new_password}`
   ['POST /api/auth/password-reset/confirm', {
     to: 'recovery/reset',
@@ -250,12 +252,23 @@ export function hostedTarget(method: string, pathWithQuery: string): HostedTarge
  * bound to it would be a lie.
  */
 export function supports(method: string, path: string, param?: string): boolean {
-  if (!active) return true
+  if (!active) return !HOSTED_ONLY.includes(`${method.toUpperCase()} ${path.split('?')[0]}`)
   const target = hostedTarget(method, path)
   if (!target) return false
   if (!param) return true
   return Boolean(target.route.keep?.includes(param) || target.route.applies?.includes(param))
 }
+
+/**
+ * Console paths that only the HOSTED backend serves.
+ *
+ * `supports()` answers true for everything when no transport is installed, which is right for
+ * every path `local_api.py` serves -- the self-hosted backend is the console's own. This is the
+ * converse: `recovery/resend-verification` exists on managed and nowhere else, so a control bound
+ * to it must be off on self-hosted. Without this, deleting HostedLanding's resend form would have
+ * either lost the capability or put a button on a self-hosted console that 404s.
+ */
+const HOSTED_ONLY: readonly string[] = ['POST /api/auth/verification/resend']
 
 // --- the session this transport speaks for ------------------------------------------------------
 
@@ -365,7 +378,16 @@ export async function hostedFetch<T>(path: string, init: RequestInit = {}, token
     headers: { ...JSON_HEADERS, ...(sent ? { 'X-Cortex-CSRF-Token': sent } : {}), ...idempotency, ...(init.headers as Record<string, string> | undefined) },
   })
   const data = (await response.json().catch(() => ({}))) as Json
-  if (!response.ok) throw new ApiError(String(data.error || `Request failed (${response.status})`), response.status)
+  if (!response.ok) {
+    /* A 401 is the session ending, so the state this module holds FOR that session goes with it.
+       The CSRF token and the entitlement were both minted by the cookie that just stopped being
+       accepted; keeping them means the next call signs a dead session and a read-only check
+       answers from an entitlement nobody holds. ConsoleApp returns the person to `SignIn`; this
+       is the data-layer half of the same reset. Only 401: a 502 is the server failing, not the
+       session ending, and clearing on it would log a working session out on a blip. */
+    if (response.status === 401) setHostedSession(null)
+    throw new ApiError(String(data.error || `Request failed (${response.status})`), response.status)
+  }
   if (method === 'POST') releaseWriteKey(fingerprint)
   // one copy of the session state: whoever asks `me` refreshes the entitlement for everyone
   if (path === 'me') setHostedSession(data as Parameters<typeof setHostedSession>[0])

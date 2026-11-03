@@ -26,16 +26,20 @@ test('signup requires verification and never grants an immediate signed-in works
   const calls = await managedFixture(page)
   await page.goto('/managed')
   await page.getByRole('button', { name: 'Start free', exact: true }).click()
-  /* The hosted account form is the console's own now (`#hosted-auth`, HostedLanding.tsx); the
-     `.xc-managed-auth` section it used to live in belonged to the second UI. Only the selector
-     moved -- every assertion below is the one that was here. */
-  const form = page.locator('#hosted-auth form')
-  await form.getByLabel('Name', { exact: true }).fill('Operator')
+  /* The hosted account form is the console's ONE `SignIn` now (Task 5 Step 6). It used to be
+     `#hosted-auth`, HostedLanding's own duplicate of it, which in turn replaced the second UI's
+     `.xc-managed-auth`. Only the selector and the field labels moved -- every assertion below is
+     the one that was here. A plan card opens SignIn already on its Create-account tab. */
+  const form = page.locator('.xc-auth-form')
+  await expect(form.getByRole('tab', { name: 'Create account' })).toHaveAttribute('aria-selected', 'true')
+  await form.getByLabel('Display name', { exact: true }).fill('Operator')
   await form.getByLabel('Email', { exact: true }).fill('operator@example.com')
   await form.getByLabel('Password', { exact: true }).fill('test-only-password')
-  await form.getByRole('button', { name: 'Create workspace', exact: true }).click()
-  await expect(page.getByText('Check your email for a verification link.', { exact: false })).toBeVisible()
+  await form.getByRole('button', { name: 'Create account', exact: true }).click()
+  await expect(page.getByText('Check your email', { exact: false })).toBeVisible()
   expect(calls.filter((call) => call.path === 'login')).toHaveLength(0)
+  // the hint that decides whether the NEXT boot renders a workspace was not written either
+  expect(await page.evaluate(() => sessionStorage.getItem('xibalba-cortex.signed-in'))).toBeNull()
   /* "no signed-in workspace" has to name a thing that still exists. It used to be the second UI's
      `Operator’s memory` heading (ManagedApp.tsx:177), which nothing renders now -- so that half of
      the test could no longer fail. The console's signed-in marker is the workspace itself. */
@@ -264,4 +268,66 @@ test('hosted capabilities survive a declaration that dropped billing', async ({ 
   await expect(page.locator('.xc-page-tabs').getByRole('button', { name: 'Billing', exact: true })).toHaveCount(0)
   await page.goto('/managed#memories')
   await expect(page.getByRole('button', { name: 'Export memories', exact: true })).toBeVisible()
+})
+
+
+/* Task 5 Step 6, the browser half: one `SignIn` serves the hosted edition, and managed's existing
+   401 behaviour survives the consolidation -- the user is returned to that same sign-in surface
+   with no stale session state behind them. The three pieces of state are api.ts's `signed-in`
+   hint, the account summary, and the CSRF token / entitlement hostedApi.ts holds; the last is
+   asserted in src/hostedApi.test.ts, where it is reachable. */
+test('the hosted edition signs in through the console’s one SignIn, and a 401 returns to it', async ({ page }) => {
+  const calls = await managedFixture(page)
+  await page.goto('/managed#signin')
+  const form = page.locator('.xc-auth-form')
+  await expect(form).toBeVisible()
+  await form.getByLabel('Email', { exact: true }).fill('operator@example.com')
+  await form.getByLabel('Password', { exact: true }).fill('a-long-enough-one')
+  await form.locator('.xc-auth-submit').click()
+  // the console shell, not a second app: the hosted sign-in now opens the same workspace
+  await expect(page.locator('.xc-shell')).toBeVisible()
+  /* `/api/auth/login` reached managed's own `login` route -- the mapping is what makes one
+     SignIn possible, and without it this click would 404 against the hosted backend. */
+  expect(calls.filter((call) => call.path === 'login' && call.method === 'POST')).toHaveLength(1)
+  expect(await page.evaluate(() => sessionStorage.getItem('xibalba-cortex.signed-in'))).toBe('1')
+
+  /* The session ends server-side, which is what a 401 means. A route registered later wins in
+     Playwright, so this shadows the fixture without unrouting it. */
+  await page.route('**/api/managed/**', (route) => route.fulfill({ status: 401, json: { error: 'Sign in to your managed workspace' } }))
+  await page.reload()
+  await expect(page.locator('.xc-auth-form')).toBeVisible()
+  /* No stale session state. These two come BEFORE the workspace absence on purpose: with the
+     absence first, a mutation that only fails to CLEAR would still be caught here, and a
+     mutation that renders a stale workspace is caught by the form assertion above either way. */
+  expect(await page.evaluate(() => sessionStorage.getItem('xibalba-cortex.signed-in'))).toBeNull()
+  expect(await page.evaluate(() => sessionStorage.getItem('xibalba-cortex.account'))).toBeNull()
+  await expect(page.locator('.xc-workspace')).toHaveCount(0)
+})
+
+/* The emailed links managed already sent. Both land on the ONE SignIn now: `?reset_token=` is
+   managed/control.py:137's wording and `?verified=1` is managed/api.py:227's redirect, and neither
+   may arrive at the marketing landing. No test covered either before the consolidation. */
+test('managed’s emailed reset link opens the reset form and sets the password', async ({ page }) => {
+  const token = 'A1b2C3d4E5f6G7h8I9j0K1l2M3n4O5p6Q7r8S9t0U1v'
+  const calls = await managedFixture(page)
+  await page.goto(`/managed?reset_token=${token}`)
+  await expect(page.getByRole('heading', { name: 'Choose a new password' })).toBeVisible()
+  // the secret is taken out of the address bar rather than left in history
+  expect(new URL(page.url()).search).not.toContain(token)
+  const form = page.locator('.xc-auth-form')
+  await form.getByLabel('New password', { exact: true }).fill('a-long-enough-one')
+  await form.getByLabel('Confirm new password', { exact: true }).fill('a-long-enough-one')
+  await form.locator('.xc-auth-submit').click()
+  await expect(page.getByText('Password changed', { exact: false })).toBeVisible()
+  // managed's recovery route, in managed's own body shape ({token, password})
+  const reset = calls.find((call) => call.path === 'recovery/reset')!
+  expect(reset.body).toEqual({ token, password: 'a-long-enough-one' })
+})
+
+test('managed’s verification redirect lands on sign-in, not on the marketing page', async ({ page }) => {
+  await managedFixture(page)
+  await page.goto('/managed?verified=1')
+  await expect(page.locator('.xc-auth-form')).toBeVisible()
+  await expect(page.getByText('Email verified', { exact: false })).toBeVisible()
+  await expect(page.getByRole('article', { name: 'Pro plan' })).toHaveCount(0)
 })

@@ -17,6 +17,8 @@ import { hostedActive, hostedSend } from './hostedApi'
 
 const DEFAULT_BASE_URL = import.meta.env.VITE_LOCAL_API_URL ?? (import.meta.env.DEV ? '/cortex-api' : '')
 const SIGNED_IN_KEY = 'xibalba-cortex.signed-in'
+// The account summary SignIn parks for the shell to render. Non-secret, and cleared with the hint.
+export const ACCOUNT_KEY = 'xibalba-cortex.account'
 const URL_STORAGE_KEY = 'xibalba-cortex.local-api-url'
 // Non-secret UI hint only: the real credential is the HttpOnly cookie, which this code cannot
 // read. This just lets the app render the authenticated shell without a round-trip first; any
@@ -52,7 +54,24 @@ function markSignedIn(value: boolean): void {
   // the CSRF token is derived from the session cookie, so a new session means a new token
   csrfToken = undefined
   if (value) sessionStorage.setItem(SIGNED_IN_KEY, '1')
-  else sessionStorage.removeItem(SIGNED_IN_KEY)
+  else {
+    sessionStorage.removeItem(SIGNED_IN_KEY)
+    // The account summary belongs to the session that ended. Left behind, it is the other half of
+    // a stale "you are signed in" state: the hint decides whether a workspace renders before any
+    // request, and this is what that workspace shows for the person in it.
+    sessionStorage.removeItem(ACCOUNT_KEY)
+  }
+}
+
+/**
+ * Forget the signed-out-able state without calling the server.
+ *
+ * For the case where the server has ALREADY said the session is over -- a 401 on the hosted `me`
+ * at boot. Calling `accountLogout` there would POST a logout for a session that does not exist;
+ * this clears the same local state and nothing else.
+ */
+export function markSignedOut(): void {
+  markSignedIn(false)
 }
 
 // local_api.py requires `X-Cortex-CSRF-Token` on every state-changing request that authenticates
@@ -116,11 +135,16 @@ export function setApiBaseUrl(value: string): void {
   sessionStorage.setItem(URL_STORAGE_KEY, normalized)
 }
 
-export async function accountAuth(path: "signup" | "login", input: Record<string, string>): Promise<{account: Record<string, unknown>}> {
+export async function accountAuth(path: "signup" | "login", input: Record<string, string>): Promise<{account?: Record<string, unknown>}> {
   const response = await send("/api/auth/" + path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(input) })
   const payload = await response.json().catch(() => ({}))
   if (!response.ok) throw new Error(payload.error || response.status + " " + response.statusText)
-  markSignedIn(true)
+  /* An `account` in the answer is the only evidence a session was opened. The hosted backend
+     answers signup 202 `{message}` -- verification precedes the first sign-in -- so marking the
+     hint unconditionally wrote "you are signed in" for a session that does not exist, and the
+     next boot rendered a workspace that could only 401. The caller reads `account` for the same
+     distinction rather than being told twice. */
+  if (payload.account) markSignedIn(true)
   return payload
 }
 
@@ -157,8 +181,16 @@ export async function accountEvents(): Promise<{events: Array<Record<string, unk
 export async function accountLogout(): Promise<void> {
   // Always call the server: it owns the session record and the cookie, and this client cannot
   // tell whether a cookie is present.
-  await send("/api/auth/logout", { method: "POST" })
-  markSignedIn(false)
+  try {
+    await send("/api/auth/logout", { method: "POST" })
+  } finally {
+    /* And always clear locally, even when that call is refused. managed's `logout` authenticates
+       with `mutate=True` (managed/api.py:252), so an ALREADY expired session answers 401 -- and
+       the hosted transport rejects on a non-2xx rather than returning the response. Without the
+       `finally`, the one case where the session is certainly gone was the one case that left the
+       hint behind, and the next boot opened a workspace on it. */
+    markSignedIn(false)
+  }
 }
 
 /**
@@ -167,6 +199,16 @@ export async function accountLogout(): Promise<void> {
  */
 export async function accountRequestPasswordReset(email: string): Promise<void> {
   const response = await send("/api/auth/password-reset/request", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email }) })
+  const payload = await response.json().catch(() => ({}))
+  if (!response.ok) throw new ApiErrorClass(payload.error || response.status + " " + response.statusText, response.status)
+}
+
+/**
+ * Ask for another verification email. Hosted only (`supports` answers for it): the self-hosted
+ * backend verifies nothing, so there is no such route and no control for it.
+ */
+export async function accountResendVerification(email: string): Promise<void> {
+  const response = await send("/api/auth/verification/resend", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email }) })
   const payload = await response.json().catch(() => ({}))
   if (!response.ok) throw new ApiErrorClass(payload.error || response.status + " " + response.statusText, response.status)
 }
