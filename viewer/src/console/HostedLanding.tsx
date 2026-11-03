@@ -1,7 +1,7 @@
 // The hosted edition's signed-out page: the public landing, with the hosted pricing section, the
 // plan cards and the account forms as its children.
 //
-// This content used to live in ManagedApp, passed into the same `<Landing managed>` from the
+// This content used to live in ManagedApp, passed into the same `<Landing hosted>` from the
 // second UI. It is re-homed here, on the console's own signed-out path, so that deleting that UI
 // costs the hosted deployment nothing: without it a hosted visitor would arrive at a page with no
 // prices, no plan choice and no way to create an account.
@@ -119,7 +119,7 @@ export function HostedLanding({ onSignedIn }: { onSignedIn: () => void }) {
   const rows = catalog ? planRows(catalog.plans, '') : []
 
   return (
-    <Landing managed onSignIn={() => setMode('login')}>
+    <Landing hosted onSignIn={() => setMode('login')}>
       <section className="xc-landing-section" id="pricing" aria-labelledby="hosted-plans-title">
         <p className="xc-eyebrow">Managed memory</p>
         <h2 className="xc-landing-h2" id="hosted-plans-title">Choose the capacity you need</h2>

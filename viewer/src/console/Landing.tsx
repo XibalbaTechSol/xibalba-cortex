@@ -35,13 +35,13 @@ const FACTS = [
   ['Bridges', 'Claude Code, Codex and agy, through one shared contract.'],
 ] as const
 
-export function Landing({ onSignIn, children, managed = false }: { onSignIn: () => void; children?: ReactNode; managed?: boolean }) {
-  const primitives = managed ? [
+export function Landing({ onSignIn, children, hosted = false }: { onSignIn: () => void; children?: ReactNode; hosted?: boolean }) {
+  const primitives = hosted ? [
     PRIMITIVES[0],
     { icon: <IconSearch />, title: 'Search what your agents recorded', body: 'Find matching memories through bounded lexical search. Each request stays within the authenticated workspace and its monthly allowance.', tool: 'GET /api/managed/memories' },
     { icon: <IconLock />, title: 'An isolated workspace', body: 'Each customer has a separate memory store. Workspace-scoped API keys connect agents without granting access to billing or other customers’ memories.', tool: 'Workspace-scoped access' },
   ] : PRIMITIVES
-  const facts = managed ? [
+  const facts = hosted ? [
     ['Storage', 'A separate persistent memory store for each workspace.'],
     ['Access', 'An authenticated API and a managed web workspace.'],
     ['Billing', 'Monthly subscriptions, with payment details handled by Stripe.'],
@@ -70,13 +70,13 @@ export function Landing({ onSignIn, children, managed = false }: { onSignIn: () 
             built for 124px -- see viewer/scripts/invert_logo_to_white.py. */}
         <img className="xc-landing-mark" src="/cortex-lockup-hero.png" width={420} height={390} alt="" />
         <div className="xc-landing-hero-body">
-          <p className="xc-eyebrow">{managed ? 'Managed memory for agents' : 'Graph memory for agents'}</p>
+          <p className="xc-eyebrow">{hosted ? 'Managed memory for agents' : 'Graph memory for agents'}</p>
           <h1 id="xc-hero-title">Your agents’ memory.<br />Provably yours.</h1>
           <p className="xc-landing-lead">
-            {managed ? 'An isolated workspace for recording agent memories, searching them through an authenticated API, and retaining a verifiable event history.' : <>A local-first memory server that records what your agents learned, where it came from, and whether it still holds — as a graph you can walk and a chain you can verify.</>}
+            {hosted ? 'An isolated workspace for recording agent memories, searching them through an authenticated API, and retaining a verifiable event history.' : <>A local-first memory server that records what your agents learned, where it came from, and whether it still holds — as a graph you can walk and a chain you can verify.</>}
           </p>
           <div className="xc-landing-cta">
-            <button type="button" className="xc-btn xc-btn--primary" onClick={onSignIn}>{managed ? 'Open your workspace' : 'Open the console'}</button>
+            <button type="button" className="xc-btn xc-btn--primary" onClick={onSignIn}>{hosted ? 'Open your workspace' : 'Open the console'}</button>
             <a className="xc-btn" href={REPO} target="_blank" rel="noreferrer noopener">Read the source</a>
           </div>
         </div>
@@ -99,7 +99,7 @@ export function Landing({ onSignIn, children, managed = false }: { onSignIn: () 
 
       <section className="xc-landing-section" id="how" aria-labelledby="xc-how-title">
         <p className="xc-eyebrow">How it runs</p>
-        <h2 className="xc-landing-h2" id="xc-how-title">{managed ? 'Hosted memory, clear boundaries' : 'Local first, and legible'}</h2>
+        <h2 className="xc-landing-h2" id="xc-how-title">{hosted ? 'Hosted memory, clear boundaries' : 'Local first, and legible'}</h2>
         <div className="xc-landing-split">
           <dl className="xc-landing-facts">
             {facts.map(([term, detail]) => (
@@ -111,9 +111,9 @@ export function Landing({ onSignIn, children, managed = false }: { onSignIn: () 
           </dl>
           <article className="xc-win xc-landing-card">
             <div className="xc-landing-card-icon" aria-hidden="true"><IconGraph /></div>
-            <h3 className="xc-title xc-title--sm">{managed ? 'A workspace for your agents' : 'Explore the memory graph'}</h3>
+            <h3 className="xc-title xc-title--sm">{hosted ? 'A workspace for your agents' : 'Explore the memory graph'}</h3>
             <p className="xc-copy">
-              {managed ? 'Record and retrieve memories, monitor your usage, connect agents with revocable API keys, and manage your subscription. Existing memories remain available to read and export if a subscription becomes read-only.' : <>The same store, read two ways: a force-directed graph of memories, entities, sessions and Merkle roots, and a timeline that places them on a real time axis. Select either and the detail dock shows the chain, the provenance and the inference behind it.</>}
+              {hosted ? 'Record and retrieve memories, monitor your usage, connect agents with revocable API keys, and manage your subscription. Existing memories remain available to read and export if a subscription becomes read-only.' : <>The same store, read two ways: a force-directed graph of memories, entities, sessions and Merkle roots, and a timeline that places them on a real time axis. Select either and the detail dock shows the chain, the provenance and the inference behind it.</>}
             </p>
             <p className="xc-landing-icons" aria-hidden="true"><IconGraph /><IconTimeline /><IconLock /></p>
           </article>
@@ -121,7 +121,7 @@ export function Landing({ onSignIn, children, managed = false }: { onSignIn: () 
       </section>
 
       {children}
-      <ProductSections showPricing={!managed} />
+      <ProductSections showPricing={!hosted} />
       </main>
       <ProductFooter />
     </div>
