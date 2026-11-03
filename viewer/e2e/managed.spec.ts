@@ -43,36 +43,46 @@ test('signup requires verification and never grants an immediate signed-in works
   await expect(page.getByRole('button', { name: 'Open operator profile settings' })).toHaveCount(0)
 })
 
-/* Owed to Task 5c, not deleted. Every assertion below names the second UI's own DOM -- its single
-   write form, its `.xc-managed-results` list, its `.xc-managed-key` block. Task 5a re-homed the
-   same capabilities onto the console's Memories and Agents pages, and 5c owns re-pointing these
-   and adding the behavioural coverage; 5b was told not to re-point the key/export assertions, so
-   they are marked rather than weakened. */
-test.fixme('a workspace stores and searches memory, then creates and revokes an API key', async ({ page }) => {
-  const calls = await managedFixture(page, { signedIn: true })
-  await page.goto('/managed')
-  await page.getByLabel('Memory', { exact: true }).fill('Remember this test-only fact')
-  await page.getByRole('button', { name: 'Save memory', exact: true }).click()
-  await expect(page.getByText('Memory saved with a verifiable event history.')).toBeVisible()
-  await page.getByLabel('Search memories', { exact: true }).fill('test-only')
-  await page.getByRole('button', { name: 'Search / list', exact: true }).click()
-  await expect(page.locator('.xc-managed-results')).toContainText('Remember this test-only fact')
+/* Re-homed from the second UI's single screen onto the console's own surfaces: the write is
+   Memories -> New memory, the search is Memories' search box, and the key is Agents' hosted
+   API-keys section (AgentsPage.tsx, HostedApiKeys). Seeded memories make the search a real filter:
+   without them the new memory is the only row, and "search finds it" could not fail. */
+test('a workspace stores and searches memory, then creates and revokes an API key', async ({ page }) => {
+  const calls = await managedFixture(page, { signedIn: true, seed: 2 })
+  await page.goto('/managed#memories')
+  await page.getByRole('button', { name: 'New memory', exact: true }).click()
+  await page.getByLabel('Text', { exact: true }).fill('Remember this test-only fact')
+  await page.getByRole('button', { name: 'Add memory', exact: true }).click()
+  await expect(page.getByRole('main').getByText(/Memory \S+ added to/)).toBeVisible()
   const write = calls.find((call) => call.path === 'memories' && call.method === 'POST')!
   expect(write.body).toEqual({ content: 'Remember this test-only fact' })
+  await page.getByLabel('Search memory text', { exact: true }).fill('test-only')
+  await page.getByRole('button', { name: 'Search', exact: true }).click()
+  const list = page.getByRole('region', { name: 'Memory list' })
+  await expect(list).toContainText('Remember this test-only fact')
+  // the search filters: a seeded memory that does not match is gone, so the line above is not just "everything is listed"
+  await expect(list).not.toContainText('Seeded memory 0')
+
+  await page.goto('/managed#agents')
   /* A key is bound to the agent DIDs it is for, so the field is `required` and the button
-     stays disabled until it has one (ManagedApp.tsx:209, `!agentDids.trim()`). Before this,
-     the click waited out the full 90s timeout against a permanently disabled button. */
-  await page.getByLabel('Agent DIDs', { exact: true }).fill('did:integrity:test-agent-one\ndid:integrity:test-agent-two')
-  await page.getByRole('button', { name: 'Create API key', exact: true }).click()
-  await expect(page.locator('.xc-managed-key')).toHaveText('fixture-only-managed-key')
+     stays disabled until it has one (AgentsPage.tsx, `!dids.trim()`). Before this rule was
+     asserted, the click waited out the full 90s timeout against a permanently disabled button. */
+  const create = page.getByRole('button', { name: 'Create API key', exact: true })
+  await expect(create).toBeDisabled()
+  await page.getByRole('textbox', { name: /^Agent DIDs/ }).fill('did:integrity:test-agent-one\ndid:integrity:test-agent-two')
+  await expect(create).toBeEnabled()
+  await create.click()
+  const issuedKey = page.getByLabel('New API key', { exact: true })
+  await expect(issuedKey.locator('code')).toHaveText('fixture-only-managed-key')
   // the DIDs reach the API, de-duplicated and split on newlines or commas -- the point of the field
   const issued = calls.find((call) => call.path === 'keys' && call.method === 'POST')!
   expect(issued.body).toEqual({ label: 'agent', agent_ids: ['did:integrity:test-agent-one', 'did:integrity:test-agent-two'] })
   expect(await page.evaluate(() => Object.values(localStorage).join(' '))).not.toContain('fixture-only-managed-key')
   await page.getByRole('button', { name: 'Show API keys', exact: true }).click()
   await page.getByRole('button', { name: 'Revoke key', exact: true }).click()
-  await expect(page.locator('.xc-managed-key')).toHaveCount(0)
+  await expect(issuedKey).toHaveCount(0)
   await expect(page.getByRole('button', { name: 'Revoke key', exact: true })).toHaveCount(0)
+  expect(calls.filter((call) => call.path === 'keys/revoke' && call.method === 'POST')).toHaveLength(1)
 })
 
 /* Plans for a SIGNED-IN hosted workspace are the console's Billing page (Task 3), reached at
@@ -92,15 +102,25 @@ test('choosing a paid plan uses Checkout; an existing paid plan changes through 
   expect(calls.filter((call) => call.path === 'checkout')).toHaveLength(0)
 })
 
-/* Owed to Task 5c for the same reason: "Save memory", "Search / list" and "Export memories" were
-   three controls on one managed screen. On the console the write lives on Memories, the export is
-   5a's control on Memories, and read-only comes from the workspace's own writability. */
-test.fixme('read-only subscriptions retain export and search without permitting writes', async ({ page }) => {
-  await managedFixture(page, { signedIn: true, plan: 'pro', writable: false })
-  await page.goto('/managed')
-  await expect(page.getByRole('button', { name: 'Save memory', exact: true })).toBeDisabled()
-  await expect(page.getByRole('button', { name: 'Search / list', exact: true })).toBeEnabled()
+/* A read-only subscription keeps search and export and is refused writes. On the console the write
+   control is not rendered rather than disabled (MemoriesPage.tsx), and the entitlement's own
+   wording is on Billing (billing.ts READ_ONLY_WORKSPACE). */
+test('read-only subscriptions retain export and search without permitting writes', async ({ page }) => {
+  const calls = await managedFixture(page, { signedIn: true, plan: 'pro', writable: false, seed: 2 })
+  await page.goto('/managed#memories')
   await expect(page.getByRole('button', { name: 'Export memories', exact: true })).toBeEnabled()
+  await expect(page.getByRole('note').filter({ hasText: 'Read only.' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'New memory', exact: true })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: 'Import a document', exact: true })).toHaveCount(0)
+  // search still works: it filters the existing memories
+  const list = page.getByRole('region', { name: 'Memory list' })
+  await expect(list).toContainText('Seeded memory 0')
+  await page.getByLabel('Search memory text', { exact: true }).fill('Seeded memory 1')
+  await page.getByRole('button', { name: 'Search', exact: true }).click()
+  await expect(list).toContainText('Seeded memory 1')
+  await expect(list).not.toContainText('Seeded memory 0')
+  expect(calls.filter((call) => call.path === 'memories' && call.method === 'POST')).toHaveLength(0)
+  await page.goto('/managed#billing')
   await expect(page.getByText('This workspace is read-only.', { exact: false })).toBeVisible()
 })
 
@@ -182,6 +202,19 @@ test('the hosted top-bar layout lists only the declared destinations', async ({ 
   await expect(nav.getByRole('button', { name: 'Explore', exact: true })).toBeVisible()
   await expect(nav.getByRole('button', { name: 'Review', exact: true })).toHaveCount(0)
   await expect(nav.getByRole('button', { name: 'Integrity', exact: true })).toHaveCount(0)
+})
+
+/* The one-app property itself. Every other test here would pass against a second UI that borrowed
+   the console's classes, and the grammar sweep did exactly that (it stayed green with the edition
+   fork restored). The console shell is the thing only the console renders, and Billing is reachable
+   from it only because the server declared it -- on the default rail layout it is a Settings peer
+   tab, not a rail entry. */
+test('the hosted workspace is the console shell, not a second app', async ({ page }) => {
+  await managedFixture(page, { signedIn: true })
+  await page.goto('/managed#settings')
+  await expect(page.locator('.xc-shell')).toBeVisible()
+  await expect(page.locator('.xc-page-tabs').getByRole('button', { name: /^Billing\b/ })).toBeVisible()
+  await expect(page.locator('.xc-managed-inner')).toHaveCount(0)
 })
 
 test('a hash route for an undeclared destination opens no page', async ({ page }) => {
