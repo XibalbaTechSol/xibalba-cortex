@@ -133,11 +133,18 @@ describe('the hosted mapping, through api.ts', () => {
     expect((await second.api.agents(200)).agents[0].store_access).toBe('read_only')
   })
 
+  /* The message is user-visible -- `useAsync` and MemoriesPage render `e.message` straight into
+     a callout -- so it must not name an HTTP method or an internal route. The diagnostic pair
+     lives on `.call`, which nothing renders. Both halves are asserted, because asserting only the
+     message would let the diagnostic be dropped silently. */
   it('refuses a call the hosted backend has no route for without sending anything', async () => {
     const calls = installFetch()
-    const { api } = await hostedModules()
+    const { api, hosted } = await hostedModules()
     const error = (await api.stats().catch((e: unknown) => e)) as Error
-    expect(error.message).toBe('The hosted edition does not serve GET /api/stats.')
+    expect(error.message).toBe(hosted.HOSTED_UNSUPPORTED)
+    expect(error.message).not.toMatch(/\/api\/|GET|POST/)
+    expect((error as { call?: string }).call).toBe('GET /api/stats')
+    expect((error as { status?: number }).status).toBe(501)
     expect(calls).toEqual([])
   })
 
