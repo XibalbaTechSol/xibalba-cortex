@@ -71,7 +71,7 @@ line's test is added to the task that owns the code.
   billing; it has no `entities`, `sessions`, `operations`, `review` or `integrity`
   endpoints.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```python
 def test_me_declares_the_destinations_this_edition_serves(managed_client):
@@ -81,22 +81,22 @@ def test_me_declares_the_destinations_this_edition_serves(managed_client):
     ]
 ```
 
-- [ ] **Step 2: Run it and confirm it fails**
+- [x] **Step 2: Run it and confirm it fails**
 
 Run: `uv run pytest tests/test_managed_service.py -k declares_the_destinations -q`
 Expected: FAIL — `KeyError: 'destinations'`.
 
-- [ ] **Step 3: Add the key to the `me` handler in `src/xibalba_cortex/managed/api.py`**
+- [x] **Step 3: Add the key to the `me` handler in `src/xibalba_cortex/managed/api.py`**
 
 Define the list as a module-level constant beside the route table so it is greppable from
 one place.
 
-- [ ] **Step 4: Run it and confirm it passes**
+- [x] **Step 4: Run it and confirm it passes**
 
 Run: `uv run pytest tests/test_managed_service.py -k declares_the_destinations -q`
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/xibalba_cortex/managed/api.py tests/test_managed_service.py
@@ -138,7 +138,7 @@ Two seams already exist and must be reused rather than duplicated:
   Add `export function builtFrom(list: readonly Destination[]): ReadonlySet<DestinationId>`
   so callers can hand `parseRoute` the declared set.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 ```ts
 test('an empty or absent declaration keeps every built destination', () => {
@@ -172,22 +172,22 @@ test('billing is a system destination with a tab label', () => {
 })
 ```
 
-- [ ] **Step 2: Run them and confirm they fail**
+- [x] **Step 2: Run them and confirm they fail**
 
 Run: `cd viewer && npx vitest run src/console/nav.test.ts`
 Expected: FAIL — `destinationsFrom is not a function`.
 
-- [ ] **Step 3: Implement `destinationsFrom`, `builtFrom`, the widened `tabsFor`, and the `billing` destination in `viewer/src/console/nav.ts`**
+- [x] **Step 3: Implement `destinationsFrom`, `builtFrom`, the widened `tabsFor`, and the `billing` destination in `viewer/src/console/nav.ts`**
 
 Order comes from `ALL_DESTINATIONS`, not from the server's array, so the rail cannot be
 reordered by a payload.
 
-- [ ] **Step 4: Run them and confirm they pass**
+- [x] **Step 4: Run them and confirm they pass**
 
 Run: `cd viewer && npx vitest run src/console/nav.test.ts`
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add viewer/src/console/nav.ts viewer/src/console/nav.test.ts
@@ -221,7 +221,7 @@ git commit -m "feat(viewer): resolve destinations from a server declaration"
 The logic lives in `billing.ts` so it is unit-testable without a DOM, matching
 `access.ts`, `account.ts` and `agents.ts` in this codebase.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 ```ts
 test('plan rows carry a formatted price and mark the current plan', () => {
@@ -240,24 +240,24 @@ test('an upgrade is refused with a reason when billing is unconfigured', () => {
 })
 ```
 
-- [ ] **Step 2: Run them and confirm they fail**
+- [x] **Step 2: Run them and confirm they fail**
 
 Run: `cd viewer && npx vitest run src/console/billing.test.ts`
 Expected: FAIL — module not found.
 
-- [ ] **Step 3: Implement `billing.ts`, then `BillingPage.tsx`**
+- [x] **Step 3: Implement `billing.ts`, then `BillingPage.tsx`**
 
 `BillingPage` renders through `Page` with eyebrow `System` and title `Billing`, and uses
 only Industry primitives. It calls the existing `/api/managed/{plans,checkout,portal}`
 routes. Carry over the copy `Paid subscriptions are not available yet.` verbatim from
 `ManagedApp.tsx` so the unconfigured state reads the same.
 
-- [ ] **Step 4: Run them and confirm they pass**
+- [x] **Step 4: Run them and confirm they pass**
 
 Run: `cd viewer && npx vitest run src/console/billing.test.ts`
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add viewer/src/console/billing.ts viewer/src/console/billing.test.ts \
@@ -280,7 +280,7 @@ git commit -m "feat(viewer): make billing an ordinary console page"
 This task's test is **expected to fail on completion** and is the gate Task 5 must turn
 green. Do not weaken it to make it pass here.
 
-- [ ] **Step 1: Write the test**
+- [x] **Step 1: Write the test**
 
 Follow the shape of `the public landing keeps its grammar at ${width}px`
 (`design-system.spec.ts:680`), which sweeps a path rather than a hash route:
@@ -299,13 +299,13 @@ for (const width of [390, 1280, 1600]) {
 }
 ```
 
-- [ ] **Step 2: Run it and record the failure**
+- [x] **Step 2: Run it and record the failure**
 
 Run: `cd viewer && npx playwright test e2e/design-system.spec.ts -g "hosted workspace" --project=desktop`
 Expected: FAIL. Record the violation list in the commit message — it is the evidence the
 check can fail, and the baseline Task 5 is measured against.
 
-- [ ] **Step 3: Commit the red test**
+- [x] **Step 3: Commit the red test**
 
 ```bash
 git add viewer/e2e/design-system.spec.ts
@@ -334,7 +334,7 @@ across the suite and /managed 0 times. Recorded violations: <paste list>."
   the `destinations` field from Task 1.
 - Produces: nothing later tasks consume; this is P0's deliverable.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Add to `managed.spec.ts`, replacing assertions that named `xc-managed-*` layout: after
 sign-in at `/managed`, the console shell is present and the rail lists Billing.
@@ -345,13 +345,13 @@ await expect(page.getByRole('button', { name: /^Billing\b/ })).toBeVisible()
 await expect(page.locator('.xc-managed-inner')).toHaveCount(0)
 ```
 
-- [ ] **Step 2: Run them and confirm they fail**
+- [x] **Step 2: Run them and confirm they fail**
 
 Run: `cd viewer && npx playwright test e2e/managed.spec.ts --project=desktop`
 Expected: FAIL — `.xc-shell` absent at `/managed`, because `ManagedApp` renders
 `.xc-managed-inner` instead.
 
-- [ ] **Step 3: Boot one app and consume the declaration**
+- [x] **Step 3: Boot one app and consume the declaration**
 
 In `main.tsx`, delete the `managed` constant and the conditional import; always render
 `ConsoleApp`. In `ConsoleApp.tsx`, read `destinations` from the session payload, resolve it with
@@ -387,6 +387,70 @@ git commit -m "feat(viewer): one app, and it is the console"
 ```
 
 ---
+
+## Execution status — recorded 2026-11-02
+
+Checkboxes above were never ticked as the work was done, which is why the spec's status line
+read "not yet implemented" when in fact most of P0 had landed. Reconstructed from
+`git log main..HEAD` and verified against the working tree:
+
+| Task | State | Evidence |
+|---|---|---|
+| 1 — hosted server declares its destinations | **done** | `b2b459e` |
+| 2 — `nav.ts` resolves a server-declared set | **done** | `e84105e`, `35c31c0`; `state.tsx:128` calls `builtFrom` |
+| 3 — billing becomes an ordinary console page | **done** | `d084ec2`, `f1527dc` |
+| 4 — grammar sweep covers `/managed`, proved red first | **done** | `aa85a65`, `1238e8d` |
+| 5 — one app root, delete the second UI | **steps 1-3 done, 4-7 NOT done** | `1d07f89`, `096a205`; `main.tsx` boots `ConsoleApp` unconditionally |
+
+Work landed on the branch that this plan did not call for, and which P1 should account for
+rather than re-specify: the hosted data layer (`hostedApi.ts`, `89f3c37`, with the
+self-hosted wire contract recorded first in `a23b01e`), API keys and bulk export re-homed
+into the console (`c1287a2`), and capability gating in Recall and MemoriesPage (`513ffcf`).
+
+### Resume point: Task 5, Step 4
+
+Still true in the working tree, so the deletion has genuinely not happened:
+
+- `ManagedApp.tsx` (22 KB), `ManagedLenses.tsx` and `managed.css` are all present.
+- `Landing.tsx:38` still takes a `managed` prop and branches on it ten times.
+- `grep -rn "xc-managed-" viewer/src | grep -v BillingPage` returns ~70 lines, so Step 6's
+  check fails today, as it should before the deletion.
+- Nothing imports `ManagedApp` or `ManagedLenses` any more: the only surviving references are
+  three explanatory comments and `e2e/managed.spec.ts`, which still asserts against
+  `ManagedApp.tsx:177` and `:209`. Step 1's replacement assertions are therefore the real
+  precondition for the deletion, not an afterthought.
+
+### Blocker cleared
+
+The "Blocked on" section below is satisfied: **PR #73 merged** into `main` at
+2026-10-26T07:52:26Z, and `viewer/src/agent0_wallet.ts` and
+`src/xibalba_cortex/agent0_integration.py` are both present on this branch. Task 5 may begin.
+
+### Suite state, measured 2026-11-02
+
+- `npx tsc -b` — clean.
+- `npx oxlint` — clean (13 pre-existing warnings, 0 errors).
+- `npx vitest run` — **368 passed / 368**, after `e9b8819`. One test was red: the WIP commit
+  moved the method and path off `HostedUnsupported.message` (which `useAsync` and
+  `MemoriesPage` render into a user-visible callout) onto `.call`, and the test still asserted
+  the old route-naming message. The test now asserts both halves and was proved able to fail.
+- `npx playwright test` — **blocked on local layout, not on code.** `pyproject.toml`'s
+  `[tool.uv.sources]` makes `integrity-sdk` an editable path dependency at
+  `../integrity-core/integrity-sdk`, and CI satisfies it by checking both repos out as
+  siblings. A worktree under `worktrees/xibalba-cortex/<topic>` has no such sibling, so
+  `uv run` fails metadata generation before any browser starts.
+
+  **To run the suite from a cortex worktree**, create the sibling the layout assumes:
+
+      ln -sfn /home/xibalba/Projects/integrity-core \
+              /mnt/storage/xibalba/Projects/worktrees/xibalba-cortex/integrity-core
+      test -f .../worktrees/xibalba-cortex/integrity-core/integrity-sdk/pyproject.toml
+
+  That is the same assertion CI makes (`ci.yml:57`). It is a read-only import path — the
+  venv's editable install already resolves there — and the integrity-core base must be
+  confirmed still clean afterward. `E2E_PYTHON` overrides `uv run python` for the API server
+  but does not help on its own, because `viewer/vite.config.ts` also shells out to
+  `uv run xibalba-cortex-ingest-tokens`.
 
 ## Blocked on
 
