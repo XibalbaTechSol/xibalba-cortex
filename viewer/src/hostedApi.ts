@@ -106,6 +106,38 @@ function pattern(path: string): RegExp {
  *    content and stores it `active`, so the chosen status and evidence class do not survive.
  */
 const ROUTES: ReadonlyArray<readonly [string, HostedRoute]> = [
+  // --- auth: one client contract, two backends ------------------------------------------------
+  // The console speaks `/api/auth/*`; managed answers `/api/managed/*` under different names. These
+  // rows are why there is no second sign-in surface. None carries `write: true`: that flag gates a
+  // call on the subscription being writable, and signing in or out is not a workspace write -- a
+  // read-only subscription must still be able to authenticate. `hostedFetch` attaches the CSRF
+  // token and an Idempotency-Key to every POST regardless, so managed's mutation guard is satisfied.
+  ['POST /api/auth/login', { to: 'login' }],
+  ['POST /api/auth/signup', { to: 'signup' }],
+  ['POST /api/auth/logout', { to: 'logout' }],
+  ['GET /api/auth/me', { to: 'me' }],
+  ['POST /api/auth/password-reset/request', { to: 'recovery/forgot-password' }],
+  // managed's reset takes `{token, password}`; the console sends `{reset_token, new_password}`
+  ['POST /api/auth/password-reset/confirm', {
+    to: 'recovery/reset',
+    body: (d) => ({ token: d.reset_token ?? '', password: d.new_password ?? '' }),
+  }],
+  // Managed calls them API keys and the console calls them tokens; one route, renamed. managed
+  // mints exactly one kind of key (`writer`, memory:read+write), so `grantable_roles` is empty
+  // rather than offering a picker the write would silently ignore, and the issue response carries
+  // no record -- `{token, expires_in_days}` is all managed returns.
+  ['GET /api/auth/tokens', { to: 'keys', adapt: (d) => ({ tokens: d.keys ?? [], grantable_roles: [] }) }],
+  ['POST /api/auth/tokens', {
+    to: 'keys', applies: ['label'],
+    body: (d) => ({ label: d.label ?? '', agent_ids: d.agent_ids ?? [] }),
+    adapt: (d) => ({ token: d.token, record: null }),
+  }],
+  ['POST /api/auth/tokens/revoke', {
+    to: 'keys/revoke',
+    body: (d) => ({ id: d.token_id ?? '' }),
+    adapt: (d) => ({ ok: Boolean(d.revoked) }),
+  }],
+
   ['GET /api/graph', { to: 'graph', keep: ['limit'] }],
 
   ['GET /api/sessions', { to: 'timeline', keep: ['limit'], adapt: (d) => d.sessions ?? [] }],

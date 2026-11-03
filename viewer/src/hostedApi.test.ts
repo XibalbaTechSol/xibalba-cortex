@@ -72,19 +72,40 @@ describe('hostedTarget', () => {
     expect(at('POST', '/api/memory/propositions')).toBe('memories')
   })
 
+  it('maps every auth path the console calls and the managed backend serves', async () => {
+    const { hostedTarget } = await import('./hostedApi')
+    const at = (method: string, path: string) => hostedTarget(method, path)?.path ?? null
+    expect(at('POST', '/api/auth/login')).toBe('login')
+    expect(at('POST', '/api/auth/signup')).toBe('signup')
+    expect(at('POST', '/api/auth/logout')).toBe('logout')
+    expect(at('GET', '/api/auth/me')).toBe('me')
+    expect(at('POST', '/api/auth/password-reset/request')).toBe('recovery/forgot-password')
+    expect(at('POST', '/api/auth/password-reset/confirm')).toBe('recovery/reset')
+    expect(at('GET', '/api/auth/tokens')).toBe('keys')
+    expect(at('POST', '/api/auth/tokens')).toBe('keys')
+    expect(at('POST', '/api/auth/tokens/revoke')).toBe('keys/revoke')
+  })
+
+  it('still refuses /api/auth/csrf, because managed carries the token in its payloads instead', async () => {
+    const { hostedTarget } = await import('./hostedApi')
+    // Mapping this to something would invent a route; the hosted CSRF token arrives on `login`
+    // and `me`, and `setHostedSession` is what stores it.
+    expect(hostedTarget('GET', '/api/auth/csrf')).toBeNull()
+  })
+
   it('has no route for the calls the managed backend answers 404, so they are never sent', async () => {
     const { hostedTarget } = await import('./hostedApi')
     // every one of these is a real console call; `managed/api.py` serves none of them
     for (const path of ['/api/stats', '/api/status', '/api/operations', '/api/invocations?limit=500',
       '/api/sessions/page?limit=50&offset=0', '/api/entity/Alice/neighbors?max_depth=1',
       '/api/memory/m1/events?', '/api/memory/m1/similar?limit=10', '/api/memory/m1/attachments?',
-      '/api/auth/tokens', '/api/auth/csrf', '/api/profile/config', '/api/runtimes', '/api/workers',
+      '/api/auth/csrf', '/api/profile/config', '/api/runtimes', '/api/workers',
       '/api/integrity-links?limit=50', '/api/extraction-proposals?status=proposed&limit=50',
       '/readyz', '/metrics']) {
       expect(hostedTarget('GET', path), path).toBeNull()
     }
     for (const path of ['/api/memory/m1/forget', '/api/memory/m1/supersede', '/api/import?filename=a.md',
-      '/api/backup', '/api/retrieval/hybrid', '/api/context/assemble', '/api/auth/logout']) {
+      '/api/backup', '/api/retrieval/hybrid', '/api/context/assemble']) {
       expect(hostedTarget('POST', path), path).toBeNull()
     }
     // the method matters: `memories` serves GET and POST, `graph` only GET
@@ -270,5 +291,21 @@ describe('the shared hosted transport', () => {
     expect(error).toBeInstanceOf(ApiError)
     expect((error as InstanceType<typeof ApiError>).status).toBe(401)
     expect((error as Error).message).toBe('Sign in')
+  })
+  it('signs up without ever issuing a login call, because verification precedes first sign-in', async () => {
+    const calls = installFetch(() => ({ message: 'Check your email.' }))
+    const { rest } = await hostedModules()
+    await rest.accountAuth('signup', { email: 'new@example.com', password: 'pw', display_name: 'New' })
+    expect(calls.map((c) => `${c.method} ${c.url}`)).toEqual(['POST /api/managed/signup'])
+    expect(calls.filter((c) => c.url.includes('login'))).toHaveLength(0)
+  })
+
+  it('reshapes the managed key list into the token list the console renders', async () => {
+    installFetch(() => ({ keys: [{ id: 'k1', label: 'managed-api:agent', agent_ids: [] }] }))
+    const { api } = await hostedModules()
+    const list = await api.authTokens()
+    expect(list.tokens).toHaveLength(1)
+    // managed mints one kind of key, so the console must not offer a role picker it cannot honour
+    expect(list.grantable_roles).toEqual([])
   })
 })
