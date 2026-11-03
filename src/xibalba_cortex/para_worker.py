@@ -70,11 +70,10 @@ def process_para_tasks(
     processed = completed = failed = 0
     # The shared queue may contain unrelated inference work. Filter before applying the
     # bounded page so PARA tasks are not starved by older metadata/extraction tasks.
-    tasks = [
-        task
-        for task in store.list_inference_tasks(status="pending", limit=max(limit, 500))
-        if task["task_type"] == "classify_para" and (task.get("input") or {}).get("_contract", {}).get("provider_id") in {None, "hermes", "native_harness"}
-    ][:limit]
+    tasks = store.list_inference_tasks(
+        status="pending", limit=max(limit, 500), task_types=("classify_para",),
+        provider_ids=(None, "hermes", "native_harness"),
+    )[:limit]
     for task in tasks:
         processed += 1
         claimed = None
