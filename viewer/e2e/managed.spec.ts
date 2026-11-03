@@ -106,12 +106,17 @@ test('choosing a paid plan uses Checkout; an existing paid plan changes through 
    control is not rendered rather than disabled (MemoriesPage.tsx), and the entitlement's own
    wording is on Billing (billing.ts READ_ONLY_WORKSPACE). */
 test('read-only subscriptions retain export and search without permitting writes', async ({ page }) => {
-  const calls = await managedFixture(page, { signedIn: true, plan: 'pro', writable: false, seed: 2 })
+  await managedFixture(page, { signedIn: true, plan: 'pro', writable: false, seed: 2 })
   await page.goto('/managed#memories')
   await expect(page.getByRole('button', { name: 'Export memories', exact: true })).toBeEnabled()
-  await expect(page.getByRole('note').filter({ hasText: 'Read only.' })).toBeVisible()
+  /* The absences come BEFORE the read-only note, per the lesson recorded in hosted-paths.spec.ts:
+     both read the same `workspace.canWrite`, so with the note asserted first a `writable: true`
+     mutation fails THERE and these two are never reached -- which is how an absence goes unproven.
+     Verified 2026-11-03: in the note-first order the mutation died at the note; in this order it
+     dies on 'New memory', so the absences are the assertions actually carrying the gate. */
   await expect(page.getByRole('button', { name: 'New memory', exact: true })).toHaveCount(0)
   await expect(page.getByRole('button', { name: 'Import a document', exact: true })).toHaveCount(0)
+  await expect(page.getByRole('note').filter({ hasText: 'Read only.' })).toBeVisible()
   // search still works: it filters the existing memories
   const list = page.getByRole('region', { name: 'Memory list' })
   await expect(list).toContainText('Seeded memory 0')
@@ -119,7 +124,11 @@ test('read-only subscriptions retain export and search without permitting writes
   await page.getByRole('button', { name: 'Search', exact: true }).click()
   await expect(list).toContainText('Seeded memory 1')
   await expect(list).not.toContainText('Seeded memory 0')
-  expect(calls.filter((call) => call.path === 'memories' && call.method === 'POST')).toHaveLength(0)
+  /* Deliberately NOT asserting "no POST memories": nothing here attempts a write -- the controls
+     are asserted absent above -- and hostedApi.ts:354 refuses a hosted write client-side before
+     the network, so that assertion holds with or without the gate. hosted-paths.spec.ts:158-160
+     records the same refusal. The gate on the CALL is proved in src/hostedApi.test.ts (mutation
+     M2), where a write IS attempted. */
   await page.goto('/managed#billing')
   await expect(page.getByText('This workspace is read-only.', { exact: false })).toBeVisible()
 })
