@@ -1,9 +1,17 @@
 # Cortex accounts and agent registration — design
 
 **Date:** 2026-10-26
-**Status:** design approved in conversation; decisions recorded below; not yet planned
-or implemented. Scope was widened on 2026-10-26 from "the registration flow" to
-"production readiness", so the work is decomposed into sequenced sub-projects.
+**Status:** design approved in conversation 2026-10-26 and reaffirmed 2026-11-02;
+decisions recorded below; not yet planned or implemented. Scope was widened on 2026-10-26
+from "the registration flow" to "production readiness", so the work is decomposed into
+sequenced sub-projects.
+
+**Reaffirmed 2026-11-02.** Asked to "remove the managed branch completely and go back to
+the ui we had with console", then build Stripe, auth, account creation, the agent
+registration workflow and the console UI. Removal depth was put to the operator as three
+options and the middle one was rejected along with the deepest: the **second UI goes, the
+capability seam stays** (`edition.ts`, `hostedApi.ts`, server-declared destinations), and
+the managed **backend** is untouched. That is P0 as already written below, unamended.
 **Branch:** `docs/account-registration-design`, cut from `origin/local`
 
 ## Intended outcome
@@ -281,8 +289,8 @@ except the billing panel's.
 *Interaction with PR #73:* that PR edits `ManagedApp.tsx` (+49), a file P0 deletes, so
 that half is discarded as the duplicate it is. Its console-side work is what we keep:
 `agent0_wallet.ts`, `agent0_integration.py` and the `AgentsPage` ERC-8004 directory. They
-are currently the **only** copies — they exist on `origin/local` and not on `main` — so
-P0 must not begin until they are merged or explicitly carried onto its branch.
+were the **only** copies at the time of writing; PR #73 merged them to `main` on
+2026-10-26, so this precondition is **met** and P0 may begin.
 
 ### P1 — One auth contract
 
@@ -358,8 +366,9 @@ recorded here so the gap is visible rather than implied.
 1. **PR #72 — landed.** Merged at `6ad9428` on 2026-10-26T07:36Z with
    `--match-head-commit`; `viewer` CI green for the first time; Render redeployed that
    exact SHA and was validated at the artifact level.
-2. **PR #73** (`local` -> `main`, OPEN, MERGEABLE) holds the only copies of
-   `agent0_wallet.ts` and `agent0_integration.py`. **P0 is blocked on it**, per the
-   interaction note above.
+2. **PR #73 — landed.** Merged into `main` at 2026-10-26T07:52:26Z. It held the only
+   copies of `agent0_wallet.ts` and `agent0_integration.py`; both are now present on the
+   branch, so **P0 is no longer blocked**. The interaction note above still applies to how
+   its `ManagedApp.tsx` half is treated: discarded as the duplicate it is.
 3. **Stripe credentials** from the operator block **P3b only**. P3a proceeds against a
    dummy key with a fake gateway.
