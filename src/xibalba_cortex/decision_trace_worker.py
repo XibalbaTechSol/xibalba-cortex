@@ -18,7 +18,9 @@ def process_decision_trace_advisories(
         processed += 1
         event_hash = str(task["event_hash"])
         try:
-            envelope = DecisionEnvelope(**task["envelope"])
+            envelope_body = dict(task["envelope"])
+            envelope_body.pop("envelope_version", None)
+            envelope = DecisionEnvelope(**envelope_body)
             advisory = gateway.analyze(envelope)
             store.finish_decision_trace_advisory(
                 event_hash, advisory=advisory, max_attempts=max_attempts,

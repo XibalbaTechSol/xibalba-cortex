@@ -4511,7 +4511,7 @@ class GraphStore:
             self._connection.execute("BEGIN IMMEDIATE")
             try:
                 rows = self._connection.execute(
-                    "SELECT event_hash FROM decision_trace_advisory_tasks WHERE status='pending' AND retry_after<=? OR (status='claimed' AND claim_until<=?) ORDER BY created_at LIMIT ?",
+                    "SELECT event_hash FROM decision_trace_advisory_tasks WHERE (status='pending' AND retry_after<=?) OR (status='claimed' AND claim_until<=?) ORDER BY created_at LIMIT ?",
                     (now, now, limit),
                 ).fetchall()
                 claimed = []
@@ -4527,6 +4527,15 @@ class GraphStore:
                 raise
         return [{**dict(row), "envelope": json.loads(row["envelope_json"])} for row in claimed]
 
+    def get_decision_trace_advisory_task(self, event_hash: str) -> dict[str, object]:
+        with self._lock:
+            row = self._connection.execute(
+                "SELECT * FROM decision_trace_advisory_tasks WHERE event_hash=?", (event_hash,)
+            ).fetchone()
+        if row is None:
+            raise KeyError(event_hash)
+        return {**dict(row), "envelope": json.loads(row["envelope_json"])}
+
     def finish_decision_trace_advisory(self, event_hash: str, *, advisory: JevAnalysis | None = None, error: str | None = None, max_attempts: int = 8) -> None:
         """Attach a validated advisory to its original leaf or schedule bounded retry."""
         with self._lock:
@@ -4534,7 +4543,7 @@ class GraphStore:
             if row is None or row["status"] != "claimed":
                 raise ValueError("advisory retry is missing or not claimed")
             if advisory is not None and advisory.status == "available" and advisory.observed_event_hash == event_hash:
-                self._connection.execute("UPDATE decision_trace_events SET advisory_json=? WHERE event_hash=? AND advisory_json IS NULL", (self._canonical_json({"provider_id":advisory.provider_id,"status":advisory.status,"risk_category":advisory.risk_category,"transition_probabilities":dict(advisory.transition_probabilities),"recommended_escalation":advisory.recommended_escalation,"observed_event_hash":advisory.observed_event_hash,"causal_claim":False}), event_hash))
+                self._connection.execute("UPDATE decision_trace_events SET advisory_json=? WHERE event_hash=? AND (advisory_json IS NULL OR json_extract(advisory_json, '$.status') IN ('unavailable', 'rejected'))", (self._canonical_json({"provider_id":advisory.provider_id,"status":advisory.status,"risk_category":advisory.risk_category,"transition_probabilities":dict(advisory.transition_probabilities),"recommended_escalation":advisory.recommended_escalation,"observed_event_hash":advisory.observed_event_hash,"causal_claim":False}), event_hash))
                 self._connection.execute("UPDATE decision_trace_advisory_tasks SET status='completed',claim_until=NULL,last_error=NULL,updated_at=CURRENT_TIMESTAMP WHERE event_hash=?", (event_hash,))
             elif int(row["attempts"]) >= max_attempts:
                 self._connection.execute("UPDATE decision_trace_advisory_tasks SET status='failed',claim_until=NULL,last_error=?,updated_at=CURRENT_TIMESTAMP WHERE event_hash=?", ((error or "provider did not return a bound advisory")[:256], event_hash))

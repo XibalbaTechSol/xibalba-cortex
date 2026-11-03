@@ -6,6 +6,8 @@ from integrity_sdk.core import DecisionEnvelope, DecisionTraceError, FixtureJevP
 from xibalba_cortex.decision_trace_view import render_decision_trace_html
 from xibalba_cortex.jev_gateway import JevGateway
 from xibalba_cortex.store import GraphStore
+from xibalba_cortex.decision_trace_worker import process_decision_trace_advisories
+from integrity_sdk.core import JevAnalysis
 
 
 def _event(event_id: str, parent: str = GENESIS_PARENT) -> DecisionEnvelope:
@@ -76,3 +78,43 @@ def test_jev_gateway_rejects_provider_binding_mismatch_and_renders_audit_view():
     assert "Observational estimate" in html
     assert "Causal claim: <b>false</b>" in html
     assert "0x2222" in html
+
+
+def test_unavailable_advisory_is_retried_and_attached_to_original_event(tmp_path):
+    store = GraphStore(tmp_path)
+    store.start_session("session-a", retention_tier="digest", agent_id="agent-a")
+    event = _event("retry-event")
+    unavailable = JevGateway(type("Down", (), {"provider_id": "jev.test", "analyze": lambda self, e: JevAnalysis("jev.test", "unavailable")})())
+    down = unavailable.analyze(event)
+    store.record_decision_trace_event("session-a", event, advisory=down)
+    assert store.enqueue_decision_trace_advisory("session-a", event) is True
+    assert store.enqueue_decision_trace_advisory("session-a", event) is False
+
+    recovered = JevGateway(FixtureJevProvider())
+    result = process_decision_trace_advisories(store, recovered, limit=1)
+    projection = store.session_decision_trace("session-a", "trace-a")
+    assert result == {"processed": 1, "completed": 1, "retried": 0, "failed": 0}
+    assert projection["events"][0]["event_hash"] == event.event_hash
+    assert projection["events"][0]["advisory"]["status"] == "available"
+
+
+def test_advisory_retry_is_bounded_and_reclaims_expired_lease(tmp_path):
+    store = GraphStore(tmp_path)
+    store.start_session("session-a", retention_tier="digest", agent_id="agent-a")
+    event = _event("exhaust-event")
+    store.record_decision_trace_event("session-a", event)
+    store.enqueue_decision_trace_advisory("session-a", event)
+    claim = store.claim_decision_trace_advisory_tasks(limit=1)[0]
+    with store._lock:
+        store._connection.execute("UPDATE decision_trace_advisory_tasks SET claim_until='2000-01-01 00:00:00' WHERE event_hash=?", (event.event_hash,))
+    reclaimed = store.claim_decision_trace_advisory_tasks(limit=1)[0]
+    assert reclaimed["attempts"] == claim["attempts"] + 1
+    store.finish_decision_trace_advisory(event.event_hash, error="provider unavailable", max_attempts=3)
+    for _ in range(7):
+        with store._lock:
+            store._connection.execute("UPDATE decision_trace_advisory_tasks SET retry_after='2000-01-01 00:00:00' WHERE event_hash=?", (event.event_hash,))
+        claimed = store.claim_decision_trace_advisory_tasks(limit=1)
+        if not claimed:
+            break
+        store.finish_decision_trace_advisory(event.event_hash, error="provider unavailable", max_attempts=3)
+    assert store.get_decision_trace_advisory_task(event.event_hash)["status"] == "failed"
