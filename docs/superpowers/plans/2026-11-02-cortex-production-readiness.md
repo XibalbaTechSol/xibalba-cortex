@@ -90,8 +90,10 @@ execution order that is the deployable test build the reorder was for. Specifica
   and passed 198/198 in 30.4m** (`phase0-task5-report.md`). The 27-minute killed run was the
   earlier attempt, not the final state.
 - `uv run pytest tests/test_managed_ingest.py` — **11 passed / 11** (2026-11-03).
-- `uv run pytest` (whole suite, 2026-11-03) — **5 failed, 2 since fixed, 3 remain**. All five
-  were environmental, pre-existing, and failed in isolation. None of them imports `managed.ingest` or `ingest_turn`
+- `uv run pytest` (whole suite, 2026-11-03) — first run **5 failed**; after the hermetic fix
+  and a re-run, **1 failed**. None was attributable to Phase 5. The surviving one is the
+  `sqlite_vec` case below. Of the original five: two were non-hermetic and are fixed, two were
+  load-sensitive and pass on a quiet machine, one remains. None of them imports `managed.ingest` or `ingest_turn`
   (grep: 0 matches), so none is attributable to Phase 5. **Do not chase these as regressions**,
   and do not expect a locally-green `pytest` on this machine:
   - **FIXED 2026-11-03.** `test_stdio_principal.py::test_stdio_fails_closed_without_an_agent_identity`
@@ -113,15 +115,24 @@ execution order that is the deployable test build the reorder was for. Specifica
     `XIBALBA_CORTEX_HOME` reds two of them** — which is what makes the fix load-bearing rather
     than cosmetic.
   - `test_local_api.py::test_context_assemble_route_is_read_scoped_and_agent_scoped` and
-    `::test_inference_task_routes` need the oracle on `localhost:8080`; it is not running
-    (`ConnectionRefusedError`).
+    `::test_inference_task_routes` were **transient, and both pass now.** The first reading of
+    this — "they need the oracle on `localhost:8080`" — was **wrong**: it came from the
+    Playwright webServer's log and a `curl`, not from these tests' own tracebacks, which lead
+    with `TimeoutError` and a server-side `BrokenPipeError`. They were run concurrently with a
+    198-test Playwright suite; on a re-run of the whole suite they passed. Treat them as
+    **load-sensitive**, and do not run the Python suite against a Playwright run if their
+    result matters.
   - `test_store.py::test_memory_vectors_migrates_existing_l2_table_to_cosine_preserving_data`
     fails in `DROP TABLE memory_vectors` with `sqlite3.OperationalError: SQL logic error`, a
     local `sqlite_vec` extension behaviour.
 
-  **Consequence for the merge gate:** the "run exactly what CI runs" command can never read
-  fully green on this machine, so **CI is the gate, not the local run**. Judge a local pytest
-  by whether the failure set is exactly these five.
+  **Consequence for the merge gate:** a local `uv run pytest` should now show **exactly one
+  failure**, the `sqlite_vec` one. Anything else is new and worth reading. Note also that
+  **CI has not run on this branch since 2026-10-26** — `gh run list` shows only a
+  `pull_request` run from PR #74's cycle, so CI triggers on PRs, not branch pushes, and
+  **none of the 40-plus commits since has been through CI.** The claim that CI passes the two
+  identity tests "because it has no provisioned DID" is therefore reasoning, not an
+  observation; the fix makes them independent of the host either way.
 
 **Environment prerequisite for any e2e run from a worktree.** `pyproject.toml`'s
 `[tool.uv.sources]` makes `integrity-sdk` an editable path dependency at
