@@ -34,7 +34,26 @@ those steps.
 
 **Branch:** `docs/account-registration-design`, worktree
 `/mnt/storage/xibalba/Projects/worktrees/xibalba-cortex/account-registration-design`.
-Pushed and verified; `git log --oneline -1` should be at or after `e4b8a60`.
+Pushed and verified; `git log --oneline -1` should be at or after `587ff56`.
+
+**Progress as of 2026-11-03 — Phase 0 and Phase 5 Tasks 1-2 have landed.** Under the amended
+execution order that is the deployable test build the reorder was for. Specifically:
+
+- **Phase 0 is complete but for Task 5 Step 5.** The second UI is deleted (`7f96180` —
+  a commit whose `docs(plan):` subject does not mention it). The only open step is the
+  full-suite confirmation, which waits on a Playwright baseline that has still never been
+  taken. See the P0 plan's "Update — 2026-11-03".
+- **Phase 5 Task 1 is complete**, metering and idempotency included: `587ff56` adds
+  `managed/ingest.py`, `POST /api/managed/ingest`, the `managed_app`/`api_key` fixtures and
+  10 tests. All three of its mutation proofs were re-run on 2026-11-03 and each one goes red
+  as the plan predicts (dropping `tool_calls` reds the committed-tool-calls test; deleting
+  `service.consume` reds three metering tests).
+- **Phase 5 Task 2 is complete**, with a semantic amendment recorded at its Step 3: a payload
+  naming another workspace is **refused with 403, not silently ignored**. Its mutation proof
+  — making the route honour the payload's workspace — goes red.
+- **Next action: Phase 1 Task 1**, unless the operator takes the branch through the merge
+  gate first. The milestone is reached, so that is an operator decision, and **merging is a
+  deploy.**
 
 **Repo state, verified 2026-11-02:**
 
@@ -54,10 +73,12 @@ Pushed and verified; `git log --oneline -1` should be at or after `e4b8a60`.
 
 - `npx tsc -b` clean; `npx oxlint` clean (13 pre-existing warnings, 0 errors).
 - `npx vitest run` — **368 passed / 368**.
-- `npx playwright test` — **no baseline exists.** A `--project=desktop` run was killed at
-  27 minutes having emitted nothing, because it was piped through `tail`. Re-take the
+- `npx playwright test` — **no baseline exists yet.** A `--project=desktop` run was killed
+  at 27 minutes having emitted nothing, because it was piped through `tail`. Take the
   baseline with `--reporter=line` redirected to a file, run in the background, and read the
-  file. **Phase 0 Task 5 Step 2 depends on this baseline.**
+  file — never through a pipe. **Phase 0 Task 5 Step 5 depends on this baseline**, and so
+  does the merge gate.
+- `uv run pytest tests/test_managed_ingest.py` — **11 passed / 11** (2026-11-03).
 
 **Environment prerequisite for any e2e run from a worktree.** `pyproject.toml`'s
 `[tool.uv.sources]` makes `integrity-sdk` an editable path dependency at
@@ -756,7 +777,7 @@ ingestion logic in a transport.
   `POST /api/managed/ingest`, and the `managed_app` and `api_key` fixtures in
   `tests/conftest.py` (which does not exist yet — create it).
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```python
 def test_a_full_turn_lands_with_its_tool_calls(managed_app, api_key):
@@ -771,21 +792,21 @@ def test_a_full_turn_lands_with_its_tool_calls(managed_app, api_key):
     assert managed_app.store("acct-1").verify_chain()["valid"] is True
 ```
 
-- [ ] **Step 2: Run it and confirm it fails**
+- [x] **Step 2: Run it and confirm it fails**
 
 Run: `uv run pytest tests/test_managed_ingest.py -v`
 Expected: FAIL — 404; the route does not exist.
 
-- [ ] **Step 3: Implement `ingest_turn` and the route.** Resolve the token to its
+- [x] **Step 3: Implement `ingest_turn` and the route.** Resolve the token to its
       `profile_id`, open that profile's store, and call `ingest_agent_turn` with the
       payload. Require the `memory:write` scope the managed key already carries. **Put no
       session, exchange or otel logic here** — the handler owns all of it.
-- [ ] **Step 4: Run it and confirm it passes.** Then remove the
+- [x] **Step 4: Run it and confirm it passes.** Then remove the
       `xfail` marker from Phase 1 Task 3's
       `test_revoking_an_api_key_stops_ingestion_on_the_next_call` and confirm it passes.
-- [ ] **Step 5: Prove it can fail** — drop `tool_calls` from the handler call; confirm the
+- [x] **Step 5: Prove it can fail** — drop `tool_calls` from the handler call; confirm the
       committed-tool-calls assertion goes red.
-- [ ] **Step 6: Meter this route like every other write.** A new route bypasses the limits
+- [x] **Step 6: Meter this route like every other write.** A new route bypasses the limits
       by default, and ingestion is the highest-volume write path in the product — unmetered
       is the expensive failure, and it is reachable by anyone who signs up free. The
       mechanism already exists (see **Execution order**), so this is a call, not a build:
@@ -795,14 +816,14 @@ Expected: FAIL — 404; the route does not exist.
       `writes_per_month` boundary is refused with `LimitExceeded` and the same call succeeds
       on Pro; prove it can fail by removing the `consume` call. Take `request_key` from an
       `Idempotency-Key` header so a retried ingest does not double-charge.
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ### Task 2: A token reaches its own workspace and no other
 
 **Files:**
 - Modify: `src/xibalba_cortex/managed/ingest.py`, `tests/test_managed_ingest.py`
 
-- [ ] **Step 1: Write the failing test** — this is Review Focus item 2.
+- [x] **Step 1: Write the failing test** — this is Review Focus item 2.
 
 ```python
 def test_a_token_cannot_write_into_another_workspace(managed_app, api_key_a):
@@ -815,13 +836,18 @@ def test_a_token_cannot_write_into_another_workspace(managed_app, api_key_a):
 The workspace must come from the **token**, never from the payload. The test passes a
 payload workspace precisely to prove it is ignored.
 
-- [ ] **Step 2: Run it and confirm it fails**
-- [ ] **Step 3: Derive the workspace from the token record only**, ignoring any
-      client-supplied workspace field.
-- [ ] **Step 4: Run it and confirm it passes**
-- [ ] **Step 5: Prove it can fail** — honour the payload's workspace; confirm this test goes
+- [x] **Step 2: Run it and confirm it fails**
+- [x] **Step 3: Derive the workspace from the token record only.** Amended 2026-11-03: a
+      client-supplied workspace field is **refused, not ignored**, when it names a workspace
+      other than the token's — `workspace_id`, `tenant_id` and `profile_id` all raise
+      `PermissionError` (403) before any write. Restating the key's own workspace is accepted.
+      A silent 200 would tell a misconfigured multi-workspace client that its turn landed in
+      the workspace it named when it landed in the key's. Plan Step 1's sketch used
+      `workspace_id` and asserted 401/403; the shipped tests cover all three field names.
+- [x] **Step 4: Run it and confirm it passes**
+- [x] **Step 5: Prove it can fail** — honour the payload's workspace; confirm this test goes
       red.
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ### Task 3: Extend `hosted_connector.py` with ingest and per-request profile resolution
 

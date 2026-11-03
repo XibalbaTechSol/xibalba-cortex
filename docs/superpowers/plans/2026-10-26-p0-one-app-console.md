@@ -334,7 +334,7 @@ across the suite and /managed 0 times. Recorded violations: <paste list>."
   the `destinations` field from Task 1.
 - Produces: nothing later tasks consume; this is P0's deliverable.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Add to `managed.spec.ts`, replacing assertions that named `xc-managed-*` layout: after
 sign-in at `/managed`, the console shell is present and the rail lists Billing.
@@ -358,7 +358,7 @@ In `main.tsx`, delete the `managed` constant and the conditional import; always 
 `destinationsFrom`, and pass that list to `destinationsIn`, `primaryDestinations` and
 `tabsFor`, and `builtFrom(list)` to `parseRoute`.
 
-- [ ] **Step 4: Delete the second UI**
+- [x] **Step 4: Delete the second UI**
 
 ```bash
 git rm viewer/src/console/ManagedApp.tsx viewer/src/console/ManagedLenses.tsx \
@@ -374,12 +374,12 @@ Run: `cd viewer && npm run build && npm run lint && npx vitest run && npx playwr
 Expected: PASS, and specifically `-g "hosted workspace"` now green. If it is still red,
 the violations are real grammar bugs in the consolidated UI: fix the UI, never the sweep.
 
-- [ ] **Step 6: Confirm no managed layout class survives**
+- [x] **Step 6: Confirm no managed layout class survives**
 
 Run: `grep -rn "xc-managed-" viewer/src | grep -v BillingPage`
 Expected: no output.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add -A
@@ -400,7 +400,23 @@ read "not yet implemented" when in fact most of P0 had landed. Reconstructed fro
 | 2 — `nav.ts` resolves a server-declared set | **done** | `e84105e`, `35c31c0`; `state.tsx:128` calls `builtFrom` |
 | 3 — billing becomes an ordinary console page | **done** | `d084ec2`, `f1527dc` |
 | 4 — grammar sweep covers `/managed`, proved red first | **done** | `aa85a65`, `1238e8d` |
-| 5 — one app root, delete the second UI | **step 3 done; steps 1, 2 and 4-7 NOT done** | `1d07f89`, `096a205`; `main.tsx` boots `ConsoleApp` unconditionally |
+| 5 — one app root, delete the second UI | **steps 1, 3, 4, 6, 7 done; step 5 pending the Playwright baseline** | `1d07f89`, `096a205`, `7f96180`, `b115f2f` |
+
+### Update — 2026-11-03: the deletion has landed
+
+The paragraph below described the tree as it stood on 2026-11-02 and is **no longer
+current**. Verified in the working tree on 2026-11-03:
+
+- `ManagedApp.tsx`, `ManagedLenses.tsx` and `managed.css` are **deleted** — removed in
+  `7f96180`, whose `docs(plan):` subject does not mention the deletion it carries. Step 4 is
+  done; the misleading subject is the only residue.
+- Step 1's replacement assertions **do** exist: `managed.spec.ts:226` asserts `.xc-shell` and
+  `:228` asserts `.xc-managed-inner` has count 0.
+- Step 6 holds: the only two surviving `xc-managed` strings are that absence assertion and an
+  explanatory comment, neither of which is a layout class.
+- **Step 5 is the one step still open**, because no Playwright baseline has ever been taken.
+  A full `CI=true npx playwright test` run is in flight; until it reads green, P0's
+  "done when" is unproved and the merge gate stays shut.
 
 Correction: an earlier revision of this section ticked Task 5 steps 1-3. Step 3 (boot one
 app, consume the declaration) did land. **Step 1 did not** — `grep -n -e 'xc-shell' -e

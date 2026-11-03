@@ -53,14 +53,25 @@ def test_ingest_without_memory_write_scope_is_refused_and_writes_nothing(managed
     assert managed_app.store("acct-1").list_sessions(limit=10) == []
 
 
-def test_the_workspace_comes_from_the_key_never_the_payload(managed_app, api_key):
+def test_a_payload_naming_another_workspace_is_refused_and_writes_nowhere(managed_app, api_key):
+    """The workspace comes from the token. A payload naming a different one is a client bug, and
+    answering 200 would tell that client its turn landed in B when it landed in A."""
     managed_app.register("acct-2")
     other = managed_app.tenant("acct-2")["id"]
+    for field in ("workspace_id", "tenant_id", "profile_id"):
+        r = managed_app.post("/api/managed/ingest", headers=bearer(api_key, key=f"scope-key-{field}"),
+            json={**TURN, field: other})
+        assert r.status_code == 403, f"{field}: {r.text}"
+        assert managed_app.store("acct-1").list_sessions(limit=10) == [], field
+        assert managed_app.store("acct-2").list_sessions(limit=10) == [], field
+
+
+def test_a_payload_workspace_that_matches_the_key_is_accepted(managed_app, api_key):
+    mine = managed_app.tenant("acct-1")["id"]
     r = managed_app.post("/api/managed/ingest", headers=bearer(api_key),
-        json={**TURN, "tenant_id": other, "profile_id": other})
+        json={**TURN, "workspace_id": mine, "tenant_id": mine, "profile_id": mine})
     assert r.status_code == 200, r.text
     assert len(managed_app.store("acct-1").session_exchanges("s-1")) == 1
-    assert managed_app.store("acct-2").list_sessions(limit=10) == []
 
 
 def test_caller_metadata_cannot_shadow_the_identity_the_handler_stamps(managed_app, api_key):

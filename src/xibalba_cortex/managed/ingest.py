@@ -16,6 +16,8 @@ from .control import LimitExceeded, ManagedControl
 MAX_TOOL_CALLS = 100
 MAX_IDENTIFIER = 256
 # Keys `ingest_agent_turn` stamps into every memory's source; caller metadata must not shadow them.
+# A caller may restate its own workspace in any of these; it may never select another's.
+_WORKSPACE_FIELDS = ("workspace_id", "tenant_id", "profile_id")
 _RESERVED_METADATA = frozenset({"session_id", "prompt_id", "agent_id", "runtime", "kind", "role", "observed_at", "locator"})
 
 
@@ -47,6 +49,13 @@ def ingest_turn(service: ManagedControl, token: str, payload: dict, *, request_k
     if "memory:write" not in principal["scopes"]:
         raise PermissionError("This API key lacks memory:write")
     # The workspace is the one the token was issued for. Nothing in the payload can select it.
+    # A payload may restate that workspace, but naming a different one is refused rather than
+    # ignored: a silent 200 would tell a misconfigured multi-workspace client that its turn
+    # landed in the workspace it asked for when it landed in the key's own.
+    for field in _WORKSPACE_FIELDS:
+        claimed = payload.get(field)
+        if claimed is not None and str(claimed) != principal["profile_id"]:
+            raise PermissionError("This API key does not write to that workspace")
     with service.db() as db:
         row = db.execute("SELECT * FROM tenants WHERE id=?", (principal["profile_id"],)).fetchone()
     if row is None:
