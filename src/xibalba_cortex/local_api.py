@@ -1301,6 +1301,34 @@ def _make_handler(store: GraphStore, *, allowed_origins: frozenset[str],
                     self._send_json(400, {"error": "Invalid inquiry."})
                 return
 
+            if parts == ["api", "enrollment", "redeem"]:
+                # Deliberately NOT behind `self._authenticate`: an agent enrolling for the
+                # first time holds no bearer token, and an operator role is exactly what it
+                # does not have. The credential here is the code plus an Ed25519 signature
+                # over it from the private key behind the DID being claimed -- which is why
+                # `redeem_code` is rate limited and why all four of its refusals return the
+                # same message. Handled before the auth preamble, as /api/contact is.
+                from base64 import b64decode
+
+                from .enrollment import EnrollmentRefused, redeem_code
+                try:
+                    body = self._read_json_body()
+                    self._send_json(200, redeem_code(
+                        str(body.get("code") or ""),
+                        did=str(body.get("did") or ""),
+                        device_id=str(body.get("device_id") or ""),
+                        public_key=b64decode(str(body.get("public_key") or "")),
+                        signature=b64decode(str(body.get("signature") or "")),
+                        home=store.home,
+                    ))
+                except EnrollmentRefused as exc:
+                    self._send_json(403, {"error": str(exc)})
+                except (ValueError, UnicodeDecodeError, TypeError):
+                    # A malformed body must read the same as a refused one, or the shape of
+                    # the request becomes an oracle of its own.
+                    self._send_json(403, {"error": "that enrollment code cannot be redeemed"})
+                return
+
             is_decision_route = (
                 (len(parts) == 5 and parts[:3] == ["api", "para", "classifications"] and parts[4] == "decision")
                 or (len(parts) == 4 and parts[:2] == ["api", "extraction-proposals"] and parts[3] == "decision")
@@ -1506,6 +1534,23 @@ def _make_handler(store: GraphStore, *, allowed_origins: frozenset[str],
                         return
                     recon = store.reconcile_backup(resolve_backup(directory, str(payload.get("name") or "")))
                     self._send_json(200, {"name": str(payload["name"]), "reconciliation": summarize_reconciliation(recon)})
+                elif parts == ["api", "enrollment", "codes"]:
+                    # Issue a single-use enrollment code for this workspace. Operator/admin
+                    # only, through the same gate that guards every other pairing action.
+                    # The code is returned here and nowhere else: only its hash is stored,
+                    # so it cannot be re-read, only reissued.
+                    _assert_pair_manager(principal)
+                    from .enrollment import DEFAULT_TTL_SECONDS, issue_code
+                    requested = payload.get("ttl_seconds")
+                    ttl = int(requested) if requested is not None else DEFAULT_TTL_SECONDS
+                    if not 1 <= ttl <= DEFAULT_TTL_SECONDS:
+                        raise ValueError(f"ttl_seconds must be between 1 and {DEFAULT_TTL_SECONDS}")
+                    workspace_id = str(payload.get("workspace_id") or store.profile_id)
+                    self._send_json(200, {
+                        "code": issue_code(workspace_id, ttl_seconds=ttl, home=store.home),
+                        "workspace_id": workspace_id,
+                        "ttl_seconds": ttl,
+                    })
                 elif parts == ["api", "agent-devices", "associate"]:
                     _assert_pair_manager(principal)
                     agent_id = str(payload.get("agent_id") or "").strip()
