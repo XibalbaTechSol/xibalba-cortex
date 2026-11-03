@@ -237,8 +237,12 @@ The following gaps remain open and must not be inferred from local checks:
    burn-in with no isolation incidents.
 3. **Hardened storage:** HA/PITR, off-host encrypted backup retention, and an explicit
    production backend decision beyond the current SQLite single-instance pilot.
-4. **Operational governance:** retention policy, production access controls, measured
-   support/latency/durability commitments, and any external tenant/SLA evidence.
+4. **Operational governance:** production access controls, measured
+   support/latency/durability commitments, and any external tenant/SLA evidence. The
+   local retention policy and dry-run/apply procedure are documented in
+   [`docs/operations/retention-policy.md`](docs/operations/retention-policy.md), but
+   tenant-specific approval, backup/export controls, and compliance obligations remain
+   deployment decisions.
 
 `xibalba-shield` is a separate repository and must be tested separately for its
 privileged eBPF/kernel gates; Cortex tests do not prove Shield production readiness.
