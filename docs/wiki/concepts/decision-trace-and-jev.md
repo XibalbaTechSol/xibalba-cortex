@@ -2,7 +2,7 @@
 title: DecisionTrace and Jev Advisory Correlation
 acronyms: [Jev, LLM, Merkle]
 created: 2026-10-04
-updated: 2026-10-04
+updated: 2026-11-03
 type: concept
 tags: [provenance, compliance, infrastructure]
 confidence: high
@@ -10,7 +10,13 @@ source_files:
   - src/xibalba_cortex/jev_gateway.py
   - src/xibalba_cortex/decision_trace_view.py
   - src/xibalba_cortex/hermes_observer.py
+  - src/xibalba_cortex/decision_trace_worker.py
+  - src/xibalba_cortex/config.py
+  - src/xibalba_cortex/store.py
   - src/xibalba_cortex/local_api.py
+  - tests/test_decision_trace.py
+  - viewer/src/console/DecisionTracePanel.tsx
+  - viewer/e2e/console.spec.ts
 ---
 
 # DecisionTrace and Jev Advisory Correlation
@@ -43,15 +49,23 @@ outside this projection.
 The background retry worker uses the local deterministic provider by default. To send retries to a
 Jev service, set `inference.decision_trace_jev_endpoint` in the profile's `config.yaml`, or set
 `XIBALBA_CORTEX_JEV_ENDPOINT`. Remote endpoints must use HTTPS; HTTP is allowed only for loopback
-development endpoints. `inference.decision_trace_jev_timeout_seconds` is bounded to 0.1–10 seconds.
-These advisory retries continue when unrelated Cortex inference task families are disabled.
+development endpoints. URLs with embedded credentials, query parameters, or fragments are rejected.
+`inference.decision_trace_jev_timeout_seconds` is bounded to 0.1–10 seconds. These advisory retries
+continue when unrelated Cortex inference task families are disabled.
+
+When a provider is unavailable, local capture remains immediate. The redacted event is placed in a
+durable leased SQLite retry queue; attempts use bounded retry/backoff, and a recovered advisory is
+attached only to its original event hash. A test plants prompt, completion, chain-of-thought, tool
+argument, secret, and provider-response canaries and confirms they do not enter the stored projection.
 
 ## Rendered audit view
 
 `render_decision_trace_html(projection)` renders the trace ID, local verification status,
 domain-separated root, event sequence, parent hashes, provider status, transition probabilities,
 and an explicit authority boundary. The view labels every probability as observational and shows
-that deterministic Shield/OPA/BCC remains responsible for enforcement.
+that deterministic Shield/OPA/BCC remains responsible for enforcement. The native viewer is covered
+by the hosted Playwright suite, including the advisory, transition probabilities, Merkle proof state,
+and explicit non-causality label (Cortex PR #84, merged).
 
 ## API boundary
 

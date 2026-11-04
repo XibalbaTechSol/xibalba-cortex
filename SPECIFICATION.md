@@ -306,6 +306,13 @@ observational and never prove causality, model intent, authorization, or executi
 malformed response, or unavailable provider leaves the trace and existing session evidence valid
 and marks only the advisory projection unavailable.
 
+Advisory recovery uses a durable leased SQLite queue so provider downtime does not delay local
+capture. A retry can annotate only the original event hash. The optional endpoint is configured by
+`inference.decision_trace_jev_endpoint` or `XIBALBA_CORTEX_JEV_ENDPOINT`; remote URLs require HTTPS,
+loopback HTTP is allowed for local development, and embedded credentials, query parameters, or
+fragments are rejected. Provider response text outside the bounded advisory schema is discarded
+before persistence.
+
 The local API exposes `GET /api/session/{id}/decision-trace?trace_id=...` for a read-only timeline,
 advisory annotations, domain-separated Merkle root, and inclusion proofs. Profile and tenant
 scope checks are applied before the projection is returned. Integrity receipt/checkpoint semantics
