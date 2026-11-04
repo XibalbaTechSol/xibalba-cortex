@@ -6,9 +6,11 @@ canonical storage. The native harness and local embedding worker remain the safe
 from __future__ import annotations
 
 import os
+import ipaddress
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlsplit
 
 import yaml
 
@@ -45,6 +47,8 @@ class InferenceConfig:
     task_confidence_thresholds: dict[str, float] = field(default_factory=dict)
     promotion_policy: str = "confidence_gated"
     contradictions_require_review: bool = True
+    decision_trace_jev_endpoint: str | None = None
+    decision_trace_jev_timeout_seconds: float = 1.0
 
 @dataclass(frozen=True)
 class AuthConfig:
@@ -214,11 +218,27 @@ def load_config(*, home: Path | str | None = None, environ: dict[str, str] | Non
         task_confidence_thresholds={str(k): float(v) for k, v in _mapping(inference_raw.get("task_confidence_thresholds"), "inference.task_confidence_thresholds").items()},
         promotion_policy=str(inference_raw.get("promotion_policy", "confidence_gated")),
         contradictions_require_review=bool(inference_raw.get("contradictions_require_review", True)),
+        decision_trace_jev_endpoint=env.get("XIBALBA_CORTEX_JEV_ENDPOINT", inference_raw.get("decision_trace_jev_endpoint")),
+        decision_trace_jev_timeout_seconds=float(inference_raw.get("decision_trace_jev_timeout_seconds", 1.0)),
     )
     supported_inference_tasks = {"extract_memory_metadata", "extract_entities", "extract_relations", "classify_para", "detect_contradictions", "summarize_session"}
     unknown_tasks = set(inference.task_types) - supported_inference_tasks
     if inference.provider != "native_harness":
         raise ValueError("inference.provider must currently be native_harness")
+    if not 0.1 <= inference.decision_trace_jev_timeout_seconds <= 10:
+        raise ValueError("inference.decision_trace_jev_timeout_seconds must be between 0.1 and 10")
+    if inference.decision_trace_jev_endpoint:
+        parsed_jev_endpoint = urlsplit(inference.decision_trace_jev_endpoint)
+        jev_host = parsed_jev_endpoint.hostname or ""
+        is_loopback = jev_host.lower() == "localhost"
+        try:
+            is_loopback = is_loopback or ipaddress.ip_address(jev_host).is_loopback
+        except ValueError:
+            pass
+        if parsed_jev_endpoint.scheme != "https" and not (parsed_jev_endpoint.scheme == "http" and is_loopback):
+            raise ValueError("inference.decision_trace_jev_endpoint must use HTTPS or loopback HTTP")
+        if not jev_host or parsed_jev_endpoint.username or parsed_jev_endpoint.password or parsed_jev_endpoint.query or parsed_jev_endpoint.fragment:
+            raise ValueError("inference.decision_trace_jev_endpoint must be an absolute URL without credentials, query, or fragment")
     if not inference.harness.strip() or not inference.profile_name.strip():
         raise ValueError("inference harness and profile_name must be non-empty")
     if unknown_tasks:

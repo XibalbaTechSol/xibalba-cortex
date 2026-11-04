@@ -16,6 +16,29 @@ def test_default_config_is_local_and_uses_native_harness_and_local_embeddings():
     assert config.storage.home == Path("/tmp/example-cortex")
 
 
+def test_decision_trace_jev_endpoint_supports_https_and_localhost_overrides(tmp_path):
+    (tmp_path / "config.yaml").write_text(
+        "inference:\n"
+        "  decision_trace_jev_endpoint: https://jev.example/analyze\n"
+        "  decision_trace_jev_timeout_seconds: 2.5\n"
+    )
+    config = load_config(home=tmp_path)
+    assert config.inference.decision_trace_jev_endpoint == "https://jev.example/analyze"
+    assert config.inference.decision_trace_jev_timeout_seconds == 2.5
+    assert load_config(home=tmp_path, environ={"XIBALBA_CORTEX_JEV_ENDPOINT": "http://127.0.0.1:8081/analyze"}).inference.decision_trace_jev_endpoint == "http://127.0.0.1:8081/analyze"
+
+
+@pytest.mark.parametrize("endpoint", [
+    "http://jev.example/analyze",
+    "https://user:password@jev.example/analyze",
+    "https://jev.example/analyze?token=secret",
+])
+def test_decision_trace_jev_endpoint_rejects_unsafe_urls(tmp_path, endpoint):
+    (tmp_path / "config.yaml").write_text(f"inference:\n  decision_trace_jev_endpoint: {endpoint}\n")
+    with pytest.raises(ValueError, match="decision_trace_jev_endpoint"):
+        load_config(home=tmp_path)
+
+
 def test_profile_config_supports_hybrid_mode_and_environment_overrides(tmp_path, monkeypatch):
     (tmp_path / "config.yaml").write_text(
         "mode: hybrid\n"

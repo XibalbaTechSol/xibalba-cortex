@@ -286,25 +286,37 @@ def _scoped_source(store: GraphStore, principal: dict[str, object], source: dict
 def _operator_workspace_agent(
     store: GraphStore, principal: dict[str, object], requested: object, source: dict[str, object]
 ) -> str | None:
-    """The persisted agent partition an operator chose to write a new memory into, or None.
+    """The persisted agent partition a write should land in when the console names a workspace, or None.
 
-    The console writes on behalf of whichever agent workspace is selected. A credential that is
-    bound to an agent already writes as that agent (_scoped_source), and an unbound one used to be
-    unable to name a partition at all, so its writes landed in no workspace. This allows exactly one
-    thing: an operator or admin credential naming a partition that ALREADY has source rows. It
-    cannot create a partition, cannot be used by a bound or plain-writer credential, and cannot be
-    combined with an agent in the source (which would be two answers to "who wrote this").
+    The console writes on behalf of whichever agent workspace is selected, and always says which. Two
+    kinds of caller can legitimately be selecting one:
+
+      * a credential BOUND to an agent already writes as that agent (_scoped_source puts the agent in
+        the source), so naming that same workspace is redundant, not an escalation: it is accepted and
+        resolves to None, and naming ANY other agent's workspace is refused. (Refusing the redundant
+        case made every console write from a bound credential a 403.)
+      * an unbound operator or admin credential may name a partition that ALREADY has source rows. It
+        cannot create a partition, and cannot combine the choice with an agent in the source (which
+        would be two answers to "who wrote this").
+
+    A plain writer or reader, bound or not, cannot choose a workspace.
     """
     if requested is None or requested == "":
         return None
     if not isinstance(requested, str):
         raise ValueError("workspace_agent_id must be a string")
+    value = requested.strip()
+    bound = _principal_agent_ids(principal)
+    if bound:
+        own = set(bound) | {persisted for agent in bound if (persisted := store.storage_agent_id(agent))}
+        if value not in own:
+            raise PermissionError("credential is not authorized for this agent workspace")
+        return None
     roles = set(principal.get("roles") or [])
-    if _principal_agent_ids(principal) or not roles.intersection({"operator", "admin"}):
+    if not roles.intersection({"operator", "admin"}):
         raise PermissionError("only an unbound operator or admin credential may choose the workspace a memory is written to")
     if source.get("agent_id") is not None:
         raise ValueError("workspace_agent_id and source.agent_id are mutually exclusive")
-    value = requested.strip()
     if not store.has_agent_partition(value):
         raise PermissionError("no such agent workspace")
     return value
@@ -1301,6 +1313,34 @@ def _make_handler(store: GraphStore, *, allowed_origins: frozenset[str],
                     self._send_json(400, {"error": "Invalid inquiry."})
                 return
 
+            if parts == ["api", "enrollment", "redeem"]:
+                # Deliberately NOT behind `self._authenticate`: an agent enrolling for the
+                # first time holds no bearer token, and an operator role is exactly what it
+                # does not have. The credential here is the code plus an Ed25519 signature
+                # over it from the private key behind the DID being claimed -- which is why
+                # `redeem_code` is rate limited and why all four of its refusals return the
+                # same message. Handled before the auth preamble, as /api/contact is.
+                from base64 import b64decode
+
+                from .enrollment import EnrollmentRefused, redeem_code
+                try:
+                    body = self._read_json_body()
+                    self._send_json(200, redeem_code(
+                        str(body.get("code") or ""),
+                        did=str(body.get("did") or ""),
+                        device_id=str(body.get("device_id") or ""),
+                        public_key=b64decode(str(body.get("public_key") or "")),
+                        signature=b64decode(str(body.get("signature") or "")),
+                        home=store.home,
+                    ))
+                except EnrollmentRefused as exc:
+                    self._send_json(403, {"error": str(exc)})
+                except (ValueError, UnicodeDecodeError, TypeError):
+                    # A malformed body must read the same as a refused one, or the shape of
+                    # the request becomes an oracle of its own.
+                    self._send_json(403, {"error": "that enrollment code cannot be redeemed"})
+                return
+
             is_decision_route = (
                 (len(parts) == 5 and parts[:3] == ["api", "para", "classifications"] and parts[4] == "decision")
                 or (len(parts) == 4 and parts[:2] == ["api", "extraction-proposals"] and parts[3] == "decision")
@@ -1310,7 +1350,7 @@ def _make_handler(store: GraphStore, *, allowed_origins: frozenset[str],
             if parts == ["api", "settings", "inference"]:
                 try:
                     body = self._read_json_body()
-                    allowed = {"enabled", "provider", "harness", "profile_name", "allow_fallback", "task_types", "batch_size", "interval_seconds", "max_attempts", "timeout_seconds", "max_parallel_families", "combined_batching", "max_evidence_chars_per_memory", "max_items_per_type", "human_review_confidence_threshold", "task_confidence_thresholds", "promotion_policy", "contradictions_require_review"}
+                    allowed = {"enabled", "provider", "harness", "profile_name", "allow_fallback", "task_types", "batch_size", "interval_seconds", "max_attempts", "timeout_seconds", "max_parallel_families", "combined_batching", "max_evidence_chars_per_memory", "max_items_per_type", "human_review_confidence_threshold", "task_confidence_thresholds", "promotion_policy", "contradictions_require_review", "decision_trace_jev_endpoint", "decision_trace_jev_timeout_seconds"}
                     unknown = set(body) - allowed
                     if unknown:
                         raise ValueError(f"unsupported inference settings: {sorted(unknown)}")
@@ -1506,6 +1546,23 @@ def _make_handler(store: GraphStore, *, allowed_origins: frozenset[str],
                         return
                     recon = store.reconcile_backup(resolve_backup(directory, str(payload.get("name") or "")))
                     self._send_json(200, {"name": str(payload["name"]), "reconciliation": summarize_reconciliation(recon)})
+                elif parts == ["api", "enrollment", "codes"]:
+                    # Issue a single-use enrollment code for this workspace. Operator/admin
+                    # only, through the same gate that guards every other pairing action.
+                    # The code is returned here and nowhere else: only its hash is stored,
+                    # so it cannot be re-read, only reissued.
+                    _assert_pair_manager(principal)
+                    from .enrollment import DEFAULT_TTL_SECONDS, issue_code
+                    requested = payload.get("ttl_seconds")
+                    ttl = int(requested) if requested is not None else DEFAULT_TTL_SECONDS
+                    if not 1 <= ttl <= DEFAULT_TTL_SECONDS:
+                        raise ValueError(f"ttl_seconds must be between 1 and {DEFAULT_TTL_SECONDS}")
+                    workspace_id = str(payload.get("workspace_id") or store.profile_id)
+                    self._send_json(200, {
+                        "code": issue_code(workspace_id, ttl_seconds=ttl, home=store.home),
+                        "workspace_id": workspace_id,
+                        "ttl_seconds": ttl,
+                    })
                 elif parts == ["api", "agent-devices", "associate"]:
                     _assert_pair_manager(principal)
                     agent_id = str(payload.get("agent_id") or "").strip()

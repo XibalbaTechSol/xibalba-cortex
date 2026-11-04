@@ -675,6 +675,9 @@ def test_memory_vectors_migrates_existing_l2_table_to_cosine_preserving_data(tmp
         "SELECT embedding FROM memory_vectors WHERE memory_id = ?", (memory["id"],)
     ).fetchone()[0]
     raw.execute("DELETE FROM schema_migrations WHERE version = 2")
+    # sqlite-vec cannot drop a populated vec0 virtual table in the same transaction as this
+    # unrelated migration-row delete; commit the simulated schema-version change first.
+    raw.commit()
     raw.execute("DROP TABLE memory_vectors")
     raw.execute(f"CREATE VIRTUAL TABLE memory_vectors USING vec0(memory_id TEXT PRIMARY KEY, embedding FLOAT[{EMBEDDING_DIM}])")
     raw.execute("INSERT INTO memory_vectors(memory_id, embedding) VALUES (?, ?)", (memory["id"], embedding_blob))

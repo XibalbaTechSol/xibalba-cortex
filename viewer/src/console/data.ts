@@ -38,16 +38,22 @@ export interface LoadedData {
   invocations: Invocation[]
   stats: Stats | null
   status: StoreStatus | null
+  /** Whether the workspace has at least one agent, or `null` when the listing did not answer.
+   *  Drives the first-run gate in `state.tsx`; `null` deliberately does not gate. */
+  hasAgents: boolean | null
 }
 
 export async function loadConsoleData(scope: WorkspaceScope, similarity: number): Promise<LoadedData> {
-  const [graph, memories, sessions, stats, status, invocations] = await Promise.allSettled([
+  const [graph, memories, sessions, stats, status, invocations, agents] = await Promise.allSettled([
     api.graph(500, similarity, scope),
     loadMemoryIndex(scope),
     api.sessions(200, scope),
     api.stats(),
     api.status(),
     api.invocations(500),
+    // Only "is there at least one?" is needed, so ask for one row rather than the page the
+    // Agents surface loads. Nothing here counts agents; a zero-length list is the whole signal.
+    api.agents(1),
   ])
   // The graph is the one hard requirement; everything else degrades with a stated reason.
   if (graph.status === 'rejected') throw graph.reason
@@ -59,5 +65,8 @@ export async function loadConsoleData(scope: WorkspaceScope, similarity: number)
     invocations: invocations.status === 'fulfilled' && Array.isArray(invocations.value) ? invocations.value : [],
     stats: stats.status === 'fulfilled' ? stats.value : null,
     status: status.status === 'fulfilled' ? status.value : null,
+    // `null` means the listing did not answer, which is not the same as "no agents". The
+    // first-run gate only fires on a definite zero, so a failed request leaves the landing alone.
+    hasAgents: agents.status === 'fulfilled' ? (agents.value.agents?.length ?? 0) > 0 : null,
   }
 }

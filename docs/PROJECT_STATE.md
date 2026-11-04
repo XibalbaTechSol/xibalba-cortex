@@ -7,37 +7,22 @@ material; its gate IDs map to this state.
 
 **Last verified:** 2026-11-03
 **Repository:** `/home/xibalba/Projects/xibalba-cortex`
-**Branch:** `local` (declared pinned live-service branch)
-**Commit:** `60194fc` (current `origin/main` deployed to the pinned local checkout)
+**Source baseline:** `main` at `60194fc` (includes Cortex PR #84)
 **Local-only residue:** pre-existing untracked `LICENSE` (preserve; do not stage)
 
-## Current production-plan checkpoint — 2026-11-03
-
-The current deployed Cortex checkout is clean and fast-forwarded to `60194fc`.
-Merged and deployed production-plan work includes the one-console migration,
-shared role-scoped account sessions with expiry, rotation and revocation, the
-zero-agent first-run route, and signed short-lived rate-limited single-use
-enrollment codes with audit coverage. README and cross-product references now
-point to the canonical ecosystem authority in `integrity-core/docs/ecosystem/`.
-
-Live local verification on `60194fc`: all six local APIs and the embedding
-service are active; `/healthz` returns `xibalba.health.v1` with `status: ok` on
-ports 8420, 8422, 8423, 8424, 8427, and 8428; and
-`xibalba-cortex-core-sync.timer` is active. The latest CORE sync attempt failed
-because the configured CORE endpoint refused the connection. The operator
-readiness report remains local-only (`ready: false`): external pilot, SLA,
-compliance, HA/PITR, and real-tenant evaluation evidence are not established.
-
-PRs #88 and #89 are still awaiting viewer CI and must be merged only at the
-exact green CI head SHA.
-
-## Documentation sync — 2026-10-04
+## Documentation sync — 2026-11-03
 
 The active DecisionTrace/Jev implementation is documented in
 `docs/wiki/concepts/decision-trace-and-jev.md`, `README.md`, and §12.8 of
-`SPECIFICATION.md`. This feature remains local/dirty implementation evidence on the current
-branch, not a production, external-pilot, or compliance certification claim. The canonical
-cross-product execution authority remains `/home/xibalba/Projects/integrity-core/docs/ecosystem/INTEGRITY_ECOSYSTEM_PLAN.md`.
+`SPECIFICATION.md`. Cortex PR #84 (merge `66d0eeb`) completed the durable hash-bound advisory retry
+queue and configurable Jev endpoint. Hosted Python and the full viewer Playwright suite passed,
+including the DecisionTrace browser scenario. The provider-response canary test confirms free-text
+content is excluded from the stored advisory projection. This is CI-backed implementation evidence,
+not proof of a production Jev deployment, external pilot, or compliance certification. The
+cross-product execution authority remains
+[`integrity-core/docs/ecosystem/INTEGRITY_ECOSYSTEM_PLAN.md`](https://github.com/XibalbaTechSol/integrity-core/blob/main/docs/ecosystem/INTEGRITY_ECOSYSTEM_PLAN.md),
+which supersedes the former `docs/EXECUTION_PLAN.md` pointer; that path is now a compatibility
+redirect.
 
 ## Resume in one sentence
 

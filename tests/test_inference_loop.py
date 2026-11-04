@@ -40,6 +40,7 @@ def test_cycle_reconciles_claims_and_services_all_inference_workers(monkeypatch)
         "extraction": {"processed": 1, "completed": 1, "failed": 0},
         "para": {"processed": 1, "completed": 1, "failed": 0},
         "contradiction": {"processed": 1, "completed": 1, "failed": 0},
+        "decision_trace_advisories": {"error": "AttributeError: 'Store' object has no attribute 'claim_decision_trace_advisory_tasks'"},
     }
 
 
@@ -56,6 +57,54 @@ def test_cycle_obeys_disabled_task_families(monkeypatch):
     assert result["para"]["completed"] == 1
     assert result["extraction"] == {"disabled": True}
     assert result["contradiction"] == {"disabled": True}
+
+
+def test_disabled_inference_still_retries_decision_trace_advisories(monkeypatch):
+    class Store:
+        pass
+
+    gateway = object()
+    seen = []
+    monkeypatch.setattr(
+        "xibalba_cortex.inference_loop.process_decision_trace_advisories",
+        lambda store, provider, **kwargs: seen.append((store, provider, kwargs)) or {"processed": 1},
+    )
+    config = InferenceConfig(enabled=False)
+
+    result = process_inference_cycle(Store(), config=config, jev_gateway=gateway)
+
+    assert result["decision_trace_advisories"] == {"processed": 1}
+    assert seen[0][1] is gateway
+
+
+def test_configured_jev_endpoint_is_used_for_advisory_retries(monkeypatch):
+    from xibalba_cortex import inference_loop
+
+    captured = {}
+
+    class Provider:
+        def __init__(self, endpoint, *, timeout_seconds):
+            captured.update(endpoint=endpoint, timeout=timeout_seconds)
+
+    class Store:
+        pass
+
+    monkeypatch.setattr(inference_loop, "HttpJevProvider", Provider)
+    monkeypatch.setattr(
+        inference_loop, "process_decision_trace_advisories",
+        lambda store, gateway, **kwargs: captured.update(provider=gateway.provider) or {"processed": 0},
+    )
+    process_inference_cycle(
+        Store(),
+        config=InferenceConfig(
+            enabled=False,
+            decision_trace_jev_endpoint="https://jev.example/analyze",
+            decision_trace_jev_timeout_seconds=2.5,
+        ),
+    )
+    assert captured["endpoint"] == "https://jev.example/analyze"
+    assert captured["timeout"] == 2.5
+    assert isinstance(captured["provider"], Provider)
 
 
 def test_cycle_preserves_legacy_recovery_error_and_marks_nested_result_degraded():
