@@ -506,11 +506,16 @@ def test_traces_endpoint_accepts_a_real_http_post_end_to_end(tmp_path):
     store.close()
 
 
-def _post_without_urlopen_retry(url: str, *, headers: dict[str, str]) -> tuple[int, dict]:
+def _post_without_urlopen_retry(url: str, *, headers: dict[str, str], payload: dict | None = None) -> tuple[int, dict]:
     """`urllib.request.urlopen` raises `HTTPError` on 4xx instead of returning it -- unwrap it
-    into the same (status, body) shape a successful response would give the test."""
+    into the same (status, body) shape a successful response would give the test.
+
+    `payload` overrides the default empty prompt record for tests that need to check whether
+    a record actually reached the store rather than only what the status code was."""
+    if payload is None:
+        payload = _payload({"eventName": "claude_code.user_prompt", "attributes": []})
     request = urllib.request.Request(
-        url, data=json.dumps(_payload({"eventName": "claude_code.user_prompt", "attributes": []})).encode(),
+        url, data=json.dumps(payload).encode(),
         headers={"Content-Type": "application/json", **headers}, method="POST",
     )
     try:
@@ -591,4 +596,75 @@ def test_revoked_token_is_rejected(tmp_path):
         f"http://localhost:{port}/v1/logs", headers={"Authorization": f"Bearer {raw_token}"}
     )
     assert status == 401
+    store.close()
+
+
+def test_token_for_another_profile_cannot_write_into_this_receivers_store(tmp_path):
+    """A credential is bound to one profile, on every transport.
+
+    `local_api.py:708` and `otlp_grpc_receiver.py:35` both reject a principal whose
+    `profile_id` is not the store's; the HTTP receiver did not, so a token issued for
+    profile B authenticated against a receiver serving profile A and its telemetry was
+    written into A's store as real provenance evidence. `verify_token_record` matches on
+    the token hash alone and does not filter by profile, and managed hosting keeps every
+    tenant's `ingest_tokens` rows in one identity database (`CORTEX_MANAGED_HOME`), so the
+    two profiles here are the same situation a hosted deployment is in.
+    """
+    store = GraphStore(tmp_path / "graph", profile_id="tenant-a")
+    foreign = issue_token(
+        store.home, "tenant-b-exporter", profile_id="tenant-b",
+        roles=("writer",), scopes=("memory:read", "memory:write"),
+    )
+    port = _free_test_port()
+    thread = threading.Thread(target=serve, kwargs={"store": store, "port": port}, daemon=True)
+    thread.start()
+    import time
+    time.sleep(0.3)
+
+    payload = _payload(
+        {"eventName": "claude_code.user_prompt",
+         "attributes": [_attr("prompt", "written by a credential for another profile")]},
+        resource_attrs=[("session.id", "cross-profile-session")],
+    )
+    status, body = _post_without_urlopen_retry(
+        f"http://localhost:{port}/v1/logs",
+        headers={"Authorization": f"Bearer {foreign}"},
+        payload=payload,
+    )
+    assert status == 403
+    assert body["error"] == "credential is not authorized for this profile"
+    assert store.session_memories("cross-profile-session") == []
+    store.close()
+
+
+def test_token_for_this_profile_still_writes(tmp_path):
+    """The other half of the profile check: it must not reject the store's own profile.
+
+    Without this, returning 403 unconditionally would pass the test above.
+    """
+    store = GraphStore(tmp_path / "graph", profile_id="tenant-a")
+    own = issue_token(
+        store.home, "tenant-a-exporter", profile_id="tenant-a",
+        roles=("writer",), scopes=("memory:read", "memory:write"),
+    )
+    port = _free_test_port()
+    thread = threading.Thread(target=serve, kwargs={"store": store, "port": port}, daemon=True)
+    thread.start()
+    import time
+    time.sleep(0.3)
+
+    payload = _payload(
+        {"eventName": "claude_code.user_prompt",
+         "attributes": [_attr("prompt", "written by this profile's own credential")]},
+        resource_attrs=[("session.id", "own-profile-session")],
+    )
+    status, _body = _post_without_urlopen_retry(
+        f"http://localhost:{port}/v1/logs",
+        headers={"Authorization": f"Bearer {own}"},
+        payload=payload,
+    )
+    assert status == 200
+    memories = store.session_memories("own-profile-session")
+    assert len(memories) == 1
+    assert memories[0]["content"] == "written by this profile's own credential"
     store.close()
