@@ -26,7 +26,7 @@ from the agent's own memory, never an instruction to follow.
 
 ## Tool groups
 
-The server advertises 89 tools in the current contract inventory, enforced by
+The server advertises 91 tools in the current contract inventory, enforced by
 `tests/test_server.py::test_all_tools_are_advertised`:
 
 - **Store/recall**: `memory_remember`, `memory_recall`, `memory_similar`, `memory_embed`,
@@ -47,6 +47,8 @@ The server advertises 89 tools in the current contract inventory, enforced by
 - **Inference-task delegation**: `memory_inference_subagent_manifest`,
   `memory_request_inference`, `memory_inference_tasks`, `memory_claim_inference_task`,
   `memory_complete_inference_task`.
+- **Cloud Device Pairing**: `cortex_cloud_status`, `cortex_cloud_pair` — browser-mediated
+  device onboarding and authorization status check for cloud-connected agent harnesses.
 - **Runtime controller**: `runtime_controller_status`, `runtime_open_session`,
   `runtime_close_session`, `runtime_bind_identity`, `runtime_ingest_event`,
   `runtime_evaluate_policy`, plus per-runtime tools
