@@ -545,3 +545,187 @@ redeem branch is an `if ... return` before the auth preamble so splitting on the
 have produced source-inspection tests that passed vacuously until a mutation was tried. The
 pattern is mine, not the plan's: any test that locates code by offset rather than by boundary
 should be assumed vacuous until a mutation says otherwise.
+
+Phase 2 Task 3: complete (commits bb1fe1d, bd9bade, tests: uv run pytest tests/test_enrollment_bind.py
+-> 5/5; npx playwright test e2e/registration.spec.ts -> 8/8; npx vitest run -> 387/387).
+Thirteen mutation proofs: A-F on the server, G-M on the console.
+Task 3: Ruling: the plan writes Task 3 as viewer-only -- "wire the bind result into the
+existing choose-then-go path" -- on the assumption that a redemption produces something the
+console lists. It does not. `redeem_code` marks the code used and writes an audit event; it
+creates no `agent_devices` row, so `agent_workspaces()` never sees the enrolled agent and
+`/api/agents` never returns it. Wiring the viewer to that would have been a test of a mock:
+an e2e proving the console reacts to a 0 -> 1 transition production cannot produce. So the
+bind is closed at the redeem route (outside the plan's Files list): it pairs the DID's
+persisted agent id with the redeeming device and returns `agent_id` + `store_id`. The agent
+id is resolved BEFORE the redemption because a code is single use -- otherwise attribution
+being disabled would burn the code and then fail to bind. `associate_agent_device` is NOT
+operator-gated here: the code IS the operator's authorisation. Cost if wrong: redemption now
+performs a pairing write that the issuing operator authorised only implicitly.
+Task 3: Ruling: `associate_agent_device` now invalidates the `agent_workspaces()` cache, and
+the GraphLens empty state now carries the `cortex connect` command -- both outside the plan's
+Files list. The cache is 60s and the console's header selector warms it on every page load,
+so without the invalidation a freshly enrolled agent is absent from the listing for up to a
+minute, long enough for whoever ran `cortex connect` to conclude it failed. Cost if wrong: a
+cache invalidation on a write path that is not hot.
+Task 3: Ruling: an AMBIGUOUS arrival does not navigate. With two namespaces appearing in one
+listing the console cannot know which redeemed the code, and `useWorkspace`'s "nothing
+selected, take the default" effect would select `options[0]` -- landing the person in a
+workspace they did not enroll. Cost if wrong: a rare two-at-once enrollment leaves the person
+on the Agents page to pick, instead of being taken somewhere.
+Task 3: Finding: the plan's own Step 5 mutation ("return a bind without an agent id; confirm
+the selection assertion goes red") CANNOT red in the single-agent case. `choose('', storeId)`
+leaves the scope unresolved, and `useWorkspace`'s auto-select effect then picks the only
+option, so the outcome is right by accident. The claim is carried instead by the two-agent
+test, where that same fallback would open the WRONG workspace; removing the ambiguity guard
+reds it. Same class as the Task 2 finding: the plan names a mechanism that is not the one
+protecting its own example.
+Task 3: Finding: `toHaveURL(/graph/)` can never pass. `routeHash` (nav.ts) gives the default
+lens no token, so the graph lens IS the empty hash -- my first assertion was unfalsifiable in
+the failing direction, and the transition had actually worked. "Opens the Graph lens" is now
+asserted as the Agents page closing. The canvas proves nothing either way; it stays mounted
+under the page drawer, as recorded in Task 1.
+Task 3: Finding: a `workspace.refresh()` I added to the open path was redundant and is gone
+-- `reload()` already refreshes the scope listing, and a mutation removing the call left all
+eight tests green. Noted because the line shipped with a comment confidently asserting it was
+load-bearing. A comment is not evidence either.
+Task 3: Finding: a source-inspection test from Task 2 broke on this task's own explanatory
+comment -- it asserted `"_assert_pair_manager" not in branch`, and the branch now legitimately
+MENTIONS the gate while explaining why the bind inside it is ungated. Tightened to match a
+call. Fourth task running in which a source-inspection test misbehaved.
+Task 3: BLOCKER (unchanged): SOUL.md wants a Devil's Advocate review before an identity-
+boundary change. ENGINE_NOT_IN_PLAN. The gate is UNMET, not passed -- and PRs #85-#88 were
+merged externally and auto-deployed the pilot while it was unmet.
+
+Phase 2 Task 4: complete (commit d02babd, tests: npx playwright test e2e/registration.spec.ts
+-> 11/11). Two mutation proofs (N, O), each redding only its own test.
+Task 4: Finding: the task's premise is false twice over. (1) The coverage it exists to rescue
+was never lost -- `main.tsx` boots ConsoleApp unconditionally, so managed.spec.ts navigating
+to /managed#agents has been driving the console's own HostedApiKeys all along; its assertions
+already cite AgentsPage.tsx. (2) "Re-home it onto the console's own route" is the wrong move:
+`editionOf()` (edition.ts) reads the literal path `/managed`, and the hosted deployment serves
+the app there (managed/api.py redirects `/`). I wrote the tests at `/#agents` first and both
+failed with the button ABSENT -- which is correct behaviour, not a bug: a self-hosted console
+has no hosted account and must not offer to issue a hosted credential. There is no
+console-route surface to re-home onto.
+Task 4: Ruling: delivered as the two rules asserted in Phase 2's own file plus a NEW test that
+a self-hosted console withholds the form entirely -- the edition boundary, which nothing
+tested before. Characterisation, so all three pass on first run; the mutations are what make
+them worth having. Cost if wrong: three tests that duplicate managed.spec.ts's two rules.
+Task 4: Note on process: the full viewer Playwright suite launched for Task 3's completion was
+killed, not read. I edited AgentsPage.tsx, GraphLens.tsx and registration.spec.ts while it was
+in flight, and the dev server serves from disk, so later tests in that run saw different code
+than earlier ones. A contaminated run is not a gate. Re-run on a settled tree.
+
+Phase 2 Task 3 ADDENDUM (commit f6d1b2f): the bind I added in bb1fe1d was exploitable three
+ways and the Task 3 "complete" line above was written before that was found. Mutation proofs
+P, Q, R.
+Task 3: Finding (security, mine, introduced and fixed): `associate_agent_device` upserts on a
+caller-chosen device_id (ON CONFLICT(device_id) DO UPDATE SET agent_id=..., status='active')
+and reactivates by default. So ANY valid code could (1) re-point a device paired to another
+agent -- a takeover, 200 before the fix; (2) undo a revocation, since the upsert reactivates
+-- also 200; (3) be burned by a malformed device_id, which redeem_code does not validate, so
+the code was marked redeemed and THEN failed the pairing write, reporting "cannot be redeemed"
+for a code that had been redeemed. The general rule this got wrong: with a single-use secret,
+every check must precede the mark. Cost if it had shipped: an operator-issued enrollment code
+doubled as a device-takeover and revocation-undo primitive.
+Task 3: Finding: a mutation dropping only the `status != "active"` clause left the revocation
+test green, because the test had paired the device to a DIFFERENT agent and the agent-id
+clause caught it. Rewritten to pair the device to the same agent that re-enrolls. Fifth
+instance this session of a test that passed for a reason other than the one it names.
+Task 3: Ruling: re-enrolling the same agent on the same ACTIVE device is permitted -- a repeat
+`cortex connect --code` is not a takeover. Cost if wrong: a code can be spent re-affirming a
+pairing that already exists.
+Task 3: OPEN (not fixed): the code's `workspace_id` is never checked against the store being
+bound into. The issue route accepts any caller-supplied workspace_id and defaults to
+store.profile_id; redemption binds into whatever store the request reached. The field is
+decorative at redeem time. Needs a decision: either assert workspace_id == _store_scope_id
+(store) at redeem, or drop the field. Left open rather than guessed at because it changes what
+an already-merged route means.
+
+Phase 3 Tasks 1 and 2: complete (commit 055a928, tests: uv run pytest tests/test_stripe_gateway.py
+-> 7/7; with tests/test_managed_service.py -> 33/33). Four mutation proofs (S, T, U, V).
+Phase 3: Finding: same shape as Task 4 -- most of what Phase 3 T1/T2 asks for already existed
+(FakeStripe, the `setup` fixture, 26 tests, checkout's known/unknown price handling). Mapped
+against what the plan names, four gaps were real: (1) `portal` was never called by ANY test,
+including the no-customer refusal the plan names for it; (2) nothing pinned FakeStripe to
+StripeGateway -- it subclasses object -- and it HAD already drifted: verify_event was missing
+the real `now` keyword, the parameter that makes the 300s signature window testable without
+moving the wall clock, so through the fixture that window was unreachable; (3) a webhook with
+NO signature header was untested (only present-and-wrong cases were); (4) replay idempotency
+was bundled into a test that also covers tampering, expiry and live/test separation, so the
+plan's Step 5 could not attribute a failure to it -- and it asserted the `duplicate` flag
+rather than the entitlement, which a handler could report while still applying the event.
+Phase 3: Ruling: the call-contract test compares parameter names/kinds/defaults, NOT
+annotations. The real gateway is typed and the double is not, so strict inspect.signature
+equality fails on a cosmetic difference while saying nothing about call compatibility. Cost if
+wrong: a return-annotation change on the gateway goes unnoticed by this test.
+Phase 3: Ruling: the plan's example fixture (`managed_app`, `post_signed_webhook`) does not
+exist; used the real `setup` fixture and imported FakeStripe/register/signed/subscribe from
+test_managed_service rather than writing a second double. Cost if wrong: tests/test_stripe_
+gateway.py depends on another test module's internals.
+Phase 3: Note: MUT V (dropping `now` from the fake) is an imprecise mutation -- it leaves the
+fake's body referencing an undefined `now`, so two webhook tests red as an artifact. The
+contract test redding is the genuine signal; the other two are not evidence.
+
+Phase 2 Task 5: complete (commit 73fb4b1, tests: npx vitest run src/agent0_wallet.test.ts
+-> 9/9). Four mutation proofs (Y, Z, AA, AB).
+Task 5: Finding: `receipt.status` was never checked. A REVERTED transaction fell through to
+the log scan, found no Registered event, and reported "Registration confirmed but no ERC-8004
+Registered event was found" -- the word "confirmed" to someone whose transaction the chain had
+rejected. Three of the four outcomes also surfaced as whatever string the wallet produced,
+which can carry an RPC URL or an internal fault string and tells the person nothing to do.
+Task 5: Ruling: added a FIFTH reason, `no-agent-id` -- a successful receipt carrying no
+Registered event is a real and different state (on chain, nothing to record) and folding it
+into `reverted` would be a lie in the other direction. The plan asked for four. Cost if wrong:
+one more branch for a caller to render.
+Task 5: Ruling: tested through viem against a fake EIP-1193 provider rather than by mocking
+viem. The question is what the real client does with what a wallet returns, and the flow needs
+exactly four provider methods, which makes it practical. Cost if wrong: a viem upgrade that
+calls a fifth method fails the fake with an explicit "unexpected method" error.
+Task 5: Note: MUT Y (the plan's Step 5 -- remove the receipt check) reds ONLY the revert test,
+not the "nothing half-registered" test: without the receipt check the flow still fails, on the
+missing event instead. Two separate things hold that guarantee; only one holds the honest
+message. Stated rather than claimed as broader coverage.
+Task 5: ORDER: this task was SKIPPED when Phase 2 was reported complete through Task 4 and
+Phase 3 was started. Caught on review, not by the ledger -- there was no Task 5 line to be
+missing from, which is the weakness of a ledger that only records what was done.
+
+Poll fix (commit 328b86c): a bug I introduced in bd9bade. `useAsync` nulls `data` in its catch
+even with keepData, so ONE failed /api/agents response cleared the interval and nothing
+reloaded again -- a dead connect screen while the agent had in fact enrolled. Poll now runs on
+`settledEmpty || error !== null`; NAVIGATION still requires a server-observed zero, because a
+failed listing says nothing about how many agents exist. Mutations W and X; X reds three tests
+including both hosted-key tests, demonstrating the "this page becomes unreachable" mode.
+
+HOUSEKEEPING: the branch history contained 26 .superpowers paths (~3,000 lines) from a
+`git add -A`. Stripped with an index-only filter-branch before any push; tree verified
+byte-identical afterwards, and the ignore commit's message reworded so a reviewer is not
+hunting for a removal diff that no longer exists. Secret scan over the branch history and the
+on-disk ledger (count-only, so nothing reaches a transcript): 0 matches for
+sk_test/sk_live/whsec/rk_live shapes. The operator's real key is NOT in this branch.
+
+Phase 3 Task 3: complete (commit 8737eb3, tests: uv run pytest tests/test_plan_limits.py
+-> 8/8). Four mutation proofs (AC, AD, AE, AF).
+Phase 3 T3: Finding: the limits were ALREADY enforced; the task title's suspicion ("not
+decorative") is wrong about the code. I briefly concluded the opposite and said so, because
+`consume` reads them via getattr(PLANS[plan], meter + "_per_month") -- a grep for
+writes_per_month/retrievals_per_month finds only plans.py. Corrected before writing anything.
+The real gap was COVERAGE: retrievals_per_month had no test at all; writes and max_memories
+were asserted only inside concurrency/capacity tests, so no test named the limit; the "allows
+on Pro" half was untested for all three; and the UTC month key was untested.
+Phase 3 T3: Finding: the plan's Step 5 ("remove one check at a time and confirm only that
+limit's test goes red. Three separate reverts, not one.") does not map onto the code. Reads
+and writes share ONE comparison -- `amount<?` in the meter UPDATE -- so removing it reds both
+rate tests and the reset test, and cannot be isolated further. What CAN be isolated: the
+retrieval metering call (reds only retrievals), the capacity refusal (reds only capacity), and
+the month key (reds only the reset).
+Phase 3 T3: Ruling: every refusal test asserts WHICH limit refused, not just 429. Three limits
+returning the same status are otherwise indistinguishable, and a capacity refusal passing as a
+rate refusal is the failure mode that makes the plan's Step 5 unattributable in the first
+place. Cost if wrong: the tests are coupled to the refusal wording.
+Phase 3 T3: Note: MUT AF was REFUSED by the mutation harness -- the UTC month pattern appears
+twice in control.py (usage() and consume()). The pattern-count assertion from the Task 1
+ruling did its job; retargeted at the consume() line by index.
+Phase 3 Task 4: NOT STARTABLE by an implementer, as the plan itself says -- the operator sets
+real sk_test_/whsec_/price_ values in Render and /readyz flipping stripe_sandbox to ready is
+the evidence. Left for the operator; no key committed, printed or retained.
