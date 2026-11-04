@@ -246,6 +246,65 @@ def create_app(config: ManagedConfig, *, control: ManagedControl | None = None, 
         response.set_cookie(COOKIE, token, max_age=accounts.SESSION_TTL_HOURS * 3600, httponly=True, secure=config.public_url.startswith("https:"), samesite="lax", path="/")
         return response
 
+    def get_tenant_workspaces(tenant, account, limit=100):
+        with service.store(tenant) as store:
+            workspaces = store.agent_workspaces(limit=limit)
+            for w in workspaces:
+                w["store_id"] = tenant["id"]
+                w["profile_id"] = tenant["id"]
+                w["store_access"] = "writable"
+                w["writable"] = True
+                w["memories_counted"] = True
+
+            with closing(identity_connection(service.identity_home)) as db:
+                token_rows = db.execute(
+                    "SELECT label, agent_id, agent_ids_json FROM ingest_tokens WHERE profile_id=? AND label LIKE 'managed-api:%' AND revoked_at IS NULL",
+                    (account["profile_id"],),
+                ).fetchall()
+
+            matched_dids = set()
+            for tr in token_rows:
+                raw_label = str(tr["label"]).replace("managed-api:", "")
+                agent_name = raw_label.split("@")[0] if "@" in raw_label else raw_label
+                agent_ids = []
+                if tr["agent_ids_json"]:
+                    try:
+                        agent_ids = json.loads(tr["agent_ids_json"])
+                    except Exception:
+                        pass
+                if not agent_ids and tr["agent_id"]:
+                    agent_ids = [tr["agent_id"]]
+
+                for did in agent_ids:
+                    did_str = str(did).strip()
+                    if not did_str:
+                        continue
+                    persisted = store.storage_agent_id(did_str) or did_str
+                    found = False
+                    for w in workspaces:
+                        if w.get("agent_id") in (did_str, persisted):
+                            w["agent_id"] = did_str
+                            w["agent_name"] = agent_name
+                            found = True
+                            matched_dids.add(did_str)
+                            break
+                    if not found and did_str not in matched_dids:
+                        matched_dids.add(did_str)
+                        workspaces.append({
+                            "agent_id": did_str,
+                            "store_id": tenant["id"],
+                            "profile_id": tenant["id"],
+                            "agent_name": agent_name,
+                            "store_access": "writable",
+                            "writable": True,
+                            "memories": 0,
+                            "memories_counted": True,
+                            "sessions": 0,
+                            "sessions_counted": True,
+                            "last_seen_at": None,
+                        })
+            return workspaces
+
     async def me(request):
         rate_limit(request)
         account, _, token = await run_in_threadpool(owner, request)
@@ -255,7 +314,8 @@ def create_app(config: ManagedConfig, *, control: ManagedControl | None = None, 
                 counts = store.counts()
             return {"account": account, "entitlement": service.entitlement(tenant),
                 "usage": service.usage(tenant), "counts": counts, "csrf_token": csrf(token),
-                "destinations": list(MANAGED_DESTINATIONS)}
+                "destinations": list(MANAGED_DESTINATIONS),
+                "agents": get_tenant_workspaces(tenant, account)}
         return JSONResponse(await run_in_threadpool(read_state))
 
     async def logout(request):
@@ -547,11 +607,19 @@ def create_app(config: ManagedConfig, *, control: ManagedControl | None = None, 
             if not 8 <= len(request_key) <= 128:
                 raise ApiError(400, "Supply an Idempotency-Key containing 8–128 characters")
             fingerprint = hashlib.sha256(json.dumps(data, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+            incoming_source = data.get("source") if isinstance(data.get("source"), dict) else {}
+            authorized_agents = principal.get("agent_ids") or ()
+            agent_id = incoming_source.get("agent_id") or (authorized_agents[0] if authorized_agents else principal["id"])
+            source_payload = {
+                "kind": incoming_source.get("kind", "agent_mcp" if authorized_agents else "direct_user"),
+                "agent_id": agent_id,
+                **{k: v for k, v in incoming_source.items() if k not in ("kind", "agent_id")},
+            }
             with service.write_guard(tenant):
                 service.consume(tenant, "writes", request_key=request_key, fingerprint=fingerprint)
                 with service.store(tenant) as store:
                     try:
-                        return store.store_memory(content, source={"kind": "direct_user", "agent_id": principal["id"]},
+                        return store.store_memory(content, source=source_payload,
                             status="active", idempotency_key=request_key)
                     except RuntimeError as exc:
                         if str(exc).startswith('memory quota exceeded:'):
@@ -567,7 +635,27 @@ def create_app(config: ManagedConfig, *, control: ManagedControl | None = None, 
             query = request.query_params.get("q", "").strip()
             if len(query) > 500:
                 raise ApiError(400, "Search query is too long")
-            return {"memories": store.search(query, limit=50) if query else store.list_memories(limit=50)}
+            agent_id = request.query_params.get("agent_id", "").strip() or None
+            if agent_id:
+                if not store.has_agent_partition(agent_id):
+                    resolved = store.storage_agent_id(agent_id)
+                    if resolved:
+                        agent_id = resolved
+            try:
+                limit = max(1, min(int(request.query_params.get("limit", "50")), 200))
+            except ValueError:
+                limit = 50
+            try:
+                offset = max(0, int(request.query_params.get("offset", "0")))
+            except ValueError:
+                offset = 0
+            statuses_raw = request.query_params.get("status") or request.query_params.get("statuses")
+            statuses = tuple(s.strip() for s in statuses_raw.split(",") if s.strip()) if statuses_raw else ("active", "confirmed")
+            if query:
+                rows = store.search(query, limit=limit, agent_id=agent_id, statuses=statuses)
+                return {"memories": rows, "has_more": False, "offset": 0, "limit": len(rows)}
+            rows = store.list_memories(limit=limit, offset=offset, statuses=statuses, agent_id=agent_id)
+            return {"memories": rows, "has_more": len(rows) == limit, "offset": offset, "limit": limit}
 
     async def memories(request):
         rate_limit(request)
@@ -681,6 +769,25 @@ def create_app(config: ManagedConfig, *, control: ManagedControl | None = None, 
                 yield b']}'
         return StreamingResponse(stream(), media_type='application/json', headers={'Content-Disposition': 'attachment; filename="cortex-memories.json"'})
 
+    def agents_operation(request):
+        account, principal, _ = authenticate(request)
+        require_scope(principal, "memory:read")
+        tenant = service.tenant(account)
+        try:
+            limit = max(1, min(int(request.query_params.get("limit", "100")), 500))
+        except ValueError:
+            limit = 100
+        workspaces = get_tenant_workspaces(tenant, account, limit=limit)
+        return {
+            "agents": workspaces,
+            "oracle_reachable": True,
+            "primary_profile_id": tenant["id"],
+        }
+
+    async def agents_list(request):
+        rate_limit(request)
+        return JSONResponse(await run_in_threadpool(agents_operation, request))
+
     async def error(request, exc):
         if isinstance(exc, ApiError):
             return JSONResponse({"error": exc.message}, status_code=exc.status)
@@ -741,6 +848,8 @@ def create_app(config: ManagedConfig, *, control: ManagedControl | None = None, 
         Route("/api/managed/memories/{memory_id}/verify", memories),
         Route("/api/managed/export", export),
         Route("/api/managed/export-download", export_download),
+        Route("/api/managed/agents", agents_list, methods=["GET"]),
+        Route("/api/auth/agents", agents_list, methods=["GET"]),
     ]
     app = Starlette(routes=routes, middleware=[Middleware(ResponseHeaders)], exception_handlers={kind: error for kind in (ApiError, LimitExceeded, BillingUnavailable, PermissionError, ValueError, KeyError, Exception)})
 
