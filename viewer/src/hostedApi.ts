@@ -148,7 +148,7 @@ const ROUTES: ReadonlyArray<readonly [string, HostedRoute]> = [
   ['GET /api/sessions', { to: 'timeline', keep: ['limit'], adapt: (d) => d.sessions ?? [] }],
   ['GET /api/memories', {
     to: 'memories',
-    keep: ['q'],
+    keep: ['q', 'agent_id'],
     // The managed route has no `status` parameter, but every row it returns carries its own
     // `status`, so the filter the chips ask for is applied here instead of being dropped. The
     // console's own default (`['active','confirmed']`) happens to match managed's server-side
@@ -161,7 +161,7 @@ const ROUTES: ReadonlyArray<readonly [string, HostedRoute]> = [
       return { memories, has_more: false, offset: 0, limit: memories.length }
     },
   }],
-  ['GET /api/search', { to: 'memories', keep: ['q'], adapt: (d) => d.memories ?? [] }],
+  ['GET /api/search', { to: 'memories', keep: ['q', 'agent_id'], adapt: (d) => d.memories ?? [] }],
   ['GET /api/memory/*/verify-chain', { to: 'memories/$1/verify' }],
   ['GET /api/memory/*', { to: 'memories/$1', adapt: (d) => d.memory }],
   ['GET /api/agent0/search', { to: 'agent0/search', keep: ['q'] }],
@@ -188,14 +188,29 @@ function workspaceFromMe(me: Json): unknown {
   const entitlement = (me.entitlement ?? {}) as Json
   const counts = (me.counts ?? {}) as Json
   const id = String(account.profile_id ?? 'managed')
+  const isWritable = entitlement.writable === true
+  const access = isWritable ? 'writable' : 'read_only'
+
+  if (Array.isArray(me.agents) && me.agents.length > 0) {
+    return {
+      agents: (me.agents as Array<Record<string, unknown>>).map((agent) => ({
+        ...agent,
+        store_access: isWritable ? (agent.store_access ?? access) : 'read_only',
+        writable: isWritable ? Boolean(agent.writable ?? true) : false,
+      })),
+      oracle_reachable: Boolean(me.oracle_reachable ?? false),
+      primary_profile_id: me.primary_profile_id ?? id,
+    }
+  }
+
   return {
     agents: [{
       agent_id: id,
       store_id: id,
       profile_id: id,
       agent_name: String(account.display_name || 'Your workspace'),
-      store_access: entitlement.writable === true ? 'writable' : 'read_only',
-      writable: entitlement.writable === true,
+      store_access: access,
+      writable: isWritable,
       memories: Number(counts.memories ?? 0),
       memories_counted: true,
       // `me` reports no session count and no identity attestation, and "not counted" is not zero:
