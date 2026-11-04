@@ -80,6 +80,8 @@ describe('hostedTarget', () => {
     expect(at('POST', '/api/auth/signup')).toBe('signup')
     expect(at('POST', '/api/auth/logout')).toBe('logout')
     expect(at('GET', '/api/auth/me')).toBe('me')
+    expect(at('GET', '/api/auth/device/pair/XBBA-1234')).toBe('device/pair/XBBA-1234')
+    expect(at('POST', '/api/auth/device/pair/XBBA-1234/approve')).toBe('device/pair/XBBA-1234/approve')
     expect(at('POST', '/api/auth/password-reset/request')).toBe('recovery/forgot-password')
     expect(at('POST', '/api/auth/password-reset/confirm')).toBe('recovery/reset')
     expect(at('GET', '/api/auth/tokens')).toBe('keys')

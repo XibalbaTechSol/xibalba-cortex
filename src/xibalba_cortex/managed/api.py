@@ -25,6 +25,7 @@ from starlette.staticfiles import StaticFiles
 
 from .. import accounts
 from ..contact import ContactInbox, ContactError
+from ..device_pairing import create_pairing_request, get_pairing_request, approve_pairing_request, poll_pairing_status
 from ..email_delivery import EmailDeliveryError
 from ..ingest_tokens import issue_token, verify_token_record, _connect as identity_connection
 from ..oauth import generate_pkce, sign_oauth_state, verify_oauth_state, get_oauth_provider, OAuthError
@@ -360,6 +361,82 @@ def create_app(config: ManagedConfig, *, control: ManagedControl | None = None, 
         response.set_cookie(COOKIE, token, max_age=accounts.SESSION_TTL_HOURS * 3600, httponly=True, secure=config.public_url.startswith("https:"), samesite="lax", path="/")
         return response
 
+    async def device_pair_request(request: Request):
+        rate_limit(request, auth=True)
+        data = await payload(request)
+        device_id = str(data.get("device_id", "")).strip()
+        agent_did = str(data.get("agent_did", "")).strip()
+        if not device_id or not agent_did:
+            raise ApiError(400, "device_id and agent_did are required")
+        if not agent_did.startswith("did:integrity:") or len(agent_did) > 160:
+            raise ApiError(400, "agent_did must be a valid did:integrity identifier")
+
+        result = await run_in_threadpool(
+            create_pairing_request,
+            service.identity_home,
+            device_id=device_id,
+            device_name=str(data.get("device_name", "")).strip() or device_id,
+            agent_did=agent_did,
+            agent_name=str(data.get("agent_name", "")).strip() or "default",
+            callback_url=str(data.get("callback_url", "")).strip() or None,
+        )
+        user_code = result["user_code"]
+        verification_url = f"{config.public_url.rstrip('/')}/managed#pair?code={user_code}"
+        return JSONResponse({
+            "device_code": result["device_code"],
+            "user_code": user_code,
+            "verification_url": verification_url,
+            "expires_in": result["expires_in"],
+            "interval": result["interval"],
+        }, status_code=201)
+
+    async def device_pair_info(request: Request):
+        rate_limit(request)
+        code = str(request.path_params["code"]).strip()
+        req = await run_in_threadpool(get_pairing_request, service.identity_home, code)
+        if not req:
+            raise ApiError(404, "Pairing request not found or expired")
+        return JSONResponse({
+            "code": req["user_code"],
+            "device_id": req["device_id"],
+            "device_name": req["device_name"],
+            "agent_did": req["agent_did"],
+            "agent_name": req["agent_name"],
+            "status": req["status"],
+            "expires_in": req["expires_in"],
+            "callback_url": req["callback_url"],
+        })
+
+    async def device_pair_approve(request: Request):
+        rate_limit(request)
+        account, _, _ = await run_in_threadpool(owner, request, mutate=True)
+        code = str(request.path_params["code"]).strip()
+        try:
+            result = await run_in_threadpool(
+                approve_pairing_request,
+                service.identity_home,
+                code,
+                account_id=account["id"],
+                tenant_id=account["profile_id"],
+                service_control=service,
+            )
+        except ValueError as exc:
+            raise ApiError(400, str(exc)) from exc
+
+        return JSONResponse({
+            "ok": True,
+            "token": result["token"],
+            "callback_url": result["callback_url"],
+            "device_id": result["device_id"],
+            "agent_did": result["agent_did"],
+        })
+
+    async def device_pair_status(request: Request):
+        rate_limit(request)
+        code = str(request.path_params["code"]).strip()
+        status = await run_in_threadpool(poll_pairing_status, service.identity_home, code)
+        return JSONResponse(status)
+
     async def checkout(request):
         rate_limit(request)
         account, _, _ = await run_in_threadpool(owner, request, mutate=True)
@@ -636,6 +713,14 @@ def create_app(config: ManagedConfig, *, control: ManagedControl | None = None, 
         Route("/api/auth/oauth/providers", oauth_providers, methods=["GET"]),
         Route("/api/auth/oauth/{provider}/authorize", oauth_authorize, methods=["GET"]),
         Route("/api/auth/oauth/{provider}/callback", oauth_callback, methods=["GET"]),
+        Route("/api/managed/device/pair/request", device_pair_request, methods=["POST"]),
+        Route("/api/managed/device/pair/{code}", device_pair_info, methods=["GET"]),
+        Route("/api/managed/device/pair/{code}/approve", device_pair_approve, methods=["POST"]),
+        Route("/api/managed/device/pair/{code}/status", device_pair_status, methods=["GET"]),
+        Route("/api/auth/device/pair/request", device_pair_request, methods=["POST"]),
+        Route("/api/auth/device/pair/{code}", device_pair_info, methods=["GET"]),
+        Route("/api/auth/device/pair/{code}/approve", device_pair_approve, methods=["POST"]),
+        Route("/api/auth/device/pair/{code}/status", device_pair_status, methods=["GET"]),
         Route("/api/managed/me", me),
         Route("/api/managed/logout", logout, methods=["POST"]),
         Route("/api/managed/keys", keys, methods=["GET", "POST"]),

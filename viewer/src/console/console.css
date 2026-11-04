@@ -1351,6 +1351,35 @@ select.xc-input {
 .xc-auth-divider span {
   padding: 0 12px;
 }
+.xc-pair-details {
+  display: grid;
+  gap: 8px;
+  padding: 16px;
+  background: var(--tint);
+  border: 1px solid var(--hairline);
+  margin: 6px 0;
+}
+.xc-pair-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 13px;
+  gap: 12px;
+}
+.xc-pair-label {
+  color: var(--ink-dim);
+  text-transform: uppercase;
+  font-size: 11px;
+  letter-spacing: 0.05em;
+  flex: none;
+}
+.xc-pair-val {
+  text-align: right;
+  word-break: break-all;
+}
+.xc-pair-val small.xc-dim {
+  color: var(--ink-dim);
+}
 
 /* ---------- responsive ------------------------------------------------------------------------- */
 @media (max-width: 1180px) {

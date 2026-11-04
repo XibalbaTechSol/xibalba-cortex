@@ -6,7 +6,7 @@ or documented route is not classified, so nothing becomes hidden by omission.
 ## Summary
 
 - **80 documented HTTP routes** and 23 more the handler serves but its docstring omits.
-- **89 MCP tools**: 45 have a console surface, 44 are machine protocols (27 of them `runtime_*` harness hooks), 0 are deliberately withheld from a browser.
+- **91 MCP tools**: 45 have a console surface, 46 are machine protocols (27 of them `runtime_*` harness hooks), 0 are deliberately withheld from a browser.
 
 Statuses: **console** = a surface covers it. **machine** = a protocol for workers or agent harnesses; a person should not be
 able to drive it from a button. **withheld** = would hand a browser a server filesystem path, or is outward-facing, or needs a
@@ -191,6 +191,8 @@ route that does not exist yet.
 | `agent0_register_agent` | machine | Outward on-chain registration; operator MCP action, no browser surface yet |
 | `agent0_prepare_feedback` | machine | External feedback preparation; no dedicated console surface yet |
 | `agent0_give_feedback` | machine | Outward on-chain feedback write; operator MCP action, no browser surface yet |
+| `cortex_cloud_status` | machine | Cortex Cloud connection and pairing status for agent harness onboarding |
+| `cortex_cloud_pair` | machine | Initiate browser-mediated Cortex Cloud pairing for agent harness onboarding |
 
 ### `runtime_*` (27 tools)
 

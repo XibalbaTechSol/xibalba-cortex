@@ -176,3 +176,74 @@ def test_signup_catches_email_delivery_error(tmp_path):
         )
         assert res.status_code == 202
         assert "message" in res.json()
+
+
+def test_device_pairing_api_endpoints(managed_setup):
+    config, service, mail, client = managed_setup
+
+    # 1. Initiate pairing from agent device
+    agent_did = "did:integrity:1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef"
+    req_res = client.post(
+        "/api/managed/device/pair/request",
+        json={
+            "device_id": "test-device-uuid",
+            "device_name": "Developer Laptop",
+            "agent_did": agent_did,
+            "agent_name": "claude-desktop",
+            "callback_url": "http://127.0.0.1:8435/callback",
+        },
+    )
+    assert req_res.status_code == 201
+    req_data = req_res.json()
+    assert req_data["device_code"]
+    assert req_data["user_code"]
+    assert "/managed#pair?code=" in req_data["verification_url"]
+
+    user_code = req_data["user_code"]
+    device_code = req_data["device_code"]
+
+    # 2. Get info
+    info_res = client.get(f"/api/managed/device/pair/{user_code}")
+    assert info_res.status_code == 200
+    info_data = info_res.json()
+    assert info_data["device_name"] == "Developer Laptop"
+    assert info_data["agent_did"] == agent_did
+    assert info_data["status"] == "pending"
+
+    # 3. Poll while pending
+    poll_res = client.get(f"/api/managed/device/pair/{device_code}/status")
+    assert poll_res.status_code == 200
+    assert poll_res.json()["status"] == "pending"
+
+    # 4. Authenticate user in browser
+    auth_res = client.get("/api/managed/oauth/google/authorize", follow_redirects=False)
+    state = parse_qs(urlsplit(auth_res.headers["location"]).query)["state"][0]
+    verified_info = OAuthUserInfo(
+        provider="google",
+        provider_user_id="google-sub-dev",
+        email="developer@example.com",
+        display_name="Dev User",
+        email_verified=True,
+    )
+    with patch("xibalba_cortex.oauth.GoogleOAuthProvider.exchange_code", return_value=verified_info):
+        login_res = client.get(f"/api/managed/oauth/google/callback?code=mock-code&state={state}", follow_redirects=False)
+        assert login_res.status_code == 303
+
+    # Get CSRF token
+    me_res = client.get("/api/managed/me")
+    csrf_token = me_res.json()["csrf_token"]
+    headers = {"Origin": config.public_url, "X-Cortex-CSRF-Token": csrf_token}
+
+    # 5. User approves pairing in browser
+    approve_res = client.post(f"/api/managed/device/pair/{user_code}/approve", headers=headers)
+    assert approve_res.status_code == 200
+    approve_data = approve_res.json()
+    assert approve_data["ok"] is True
+    assert approve_data["token"]
+    assert approve_data["callback_url"] == "http://127.0.0.1:8435/callback"
+
+    # 6. Poll after approval
+    poll_approved = client.get(f"/api/managed/device/pair/{device_code}/status")
+    assert poll_approved.status_code == 200
+    assert poll_approved.json()["status"] == "approved"
+    assert poll_approved.json()["token"] == approve_data["token"]
