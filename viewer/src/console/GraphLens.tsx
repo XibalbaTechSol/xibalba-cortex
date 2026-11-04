@@ -339,6 +339,9 @@ export function GraphLens() {
       <div className="xc-empty">
         <h3 className="xc-title">This workspace has no memories yet</h3>
         <p>Nodes appear here as agents write to this store.</p>
+        {/* The normal state one second after an agent enrolls. "It is empty" on its own
+            does not tell anyone what to do about it, so carry the command that fills it. */}
+        <p className="xc-note">Run <code>cortex connect</code> in the agent’s harness, then let it record a memory or open a session.</p>
       </div>
     )
   } else if (visible && visible.nodes.length === 0) {

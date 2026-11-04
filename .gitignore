@@ -10,3 +10,8 @@ uv.lock.bak
 .env.*
 !.env.example
 !*.env.example
+
+# superpowers SDD workspace: per-plan scratch (ledger, briefs, review packages).
+# Documented as git-ignored by the executing-plans/subagent-driven-development skills;
+# the rule was missing, so a `git add -A` committed 3k lines of it onto a feature branch.
+.superpowers/

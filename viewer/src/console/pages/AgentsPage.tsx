@@ -2,7 +2,7 @@
 // is on the integrity network. Pairing actions are offered only for a verified, writable workspace
 // and only to an operator credential (the server enforces that and its refusal is shown as-is).
 
-import { useState, type FormEvent } from 'react'
+import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
 import { api, type Agent0Record, type AgentDevicePair, type AgentWorkspace } from '../../api'
 import { useConsole } from '../state'
 import { useAsync } from '../useAsync'
@@ -42,6 +42,11 @@ function mergeAgents(workspaces: readonly AgentWorkspace[], pairs: readonly Agen
   return [...byAgent.values()]
 }
 
+/** How often this page re-reads the agent listing while it has nothing to show. The person
+ *  is looking at the connect screen in a browser and running `cortex connect --code` in a
+ *  terminal; nothing in the browser knows when that lands, so the console has to look. */
+const ENROLLMENT_POLL_MS = 3_000
+
 export function AgentsPage() {
   const { workspace, hosted, go, revision, reload, setNotice } = useConsole()
   const agents = useAsync(() => api.agents(200), [revision], { keepData: true })
@@ -50,6 +55,63 @@ export function AgentsPage() {
   const entries = mergeAgents(agents.data?.agents ?? [], devices.data?.pairs ?? [])
   const canManage = workspace.canWrite
   const error = agents.error ?? devices.error
+
+  /** The one path from "this agent exists" to "its workspace is open". The card's Open button
+   *  and the enrollment transition below both go through here, so exactly one piece of code
+   *  decides what selecting an agent means. */
+  const openWorkspace = useCallback((agentId: string, storeId: string) => {
+    /* `workspace.selected` is resolved against `useWorkspace`'s own agent listing, so an
+     * agent missing from it would leave the scope unresolved. No extra `workspace.refresh()`
+     * is needed here: every path that reaches this function either came from a listing that
+     * `useConsole`'s `reload()` had just fetched -- and `reload` refreshes the scope listing
+     * too -- or from a card rendered off the same mount-time fetch that filled `options`. A
+     * mutation that removed a refresh call from here left all eight tests green, which is
+     * what a redundant line looks like. */
+    workspace.choose(agentId, storeId)
+    go('graph')
+  }, [workspace, go])
+
+  /* The transition is the claim, not the count.
+   *
+   * A rule of "if an agent exists, open Graph" would make this page unreachable: every visit
+   * with an agent connected would bounce straight out of it. Only a zero that this session
+   * actually observed, followed by an arrival, may navigate. */
+  const opened = useRef(false)
+  // A SERVER-observed zero: not the empty render while the first fetch is in flight, and not
+  // a failed fetch either -- an error is not evidence that the workspace has no agents.
+  const settledEmpty = agents.data !== null && devices.data !== null && entries.length === 0
+  const [sawZero, setSawZero] = useState(false)
+  /* Exactly one, not the first of several. With two namespaces in the same listing the
+   * console cannot know which one redeemed the code, and `useWorkspace`'s "nothing selected,
+   * take the default" effect would quietly select `options[0]` -- landing the person in a
+   * workspace they did not enroll. An ambiguous arrival leaves them on this page, where the
+   * listing answers the question and they pick. */
+  const openable = entries.filter((entry) => entry.workspace?.store_id)
+  const arrived = openable.length === 1 ? openable[0] : null
+
+  useEffect(() => {
+    if (settledEmpty) setSawZero(true)
+  }, [settledEmpty])
+
+  /* Keep polling while there is nothing to open, INCLUDING after a failed listing.
+   * `useAsync` nulls `data` in its catch even with `keepData`, so a condition written on
+   * `settledEmpty` alone cleared this interval on the first transient error and nothing ever
+   * reloaded again -- the person watched a dead connect screen while their agent had in fact
+   * enrolled. A poll that gives up silently is worse than no poll. */
+  const nothingToOpen = arrived === null && (settledEmpty || error !== null)
+  useEffect(() => {
+    if (!nothingToOpen) return
+    const timer = setInterval(() => reload(), ENROLLMENT_POLL_MS)
+    return () => clearInterval(timer)
+  }, [nothingToOpen, reload])
+
+  useEffect(() => {
+    // `sawZero`, not the error path: a listing that failed says nothing about how many
+    // agents exist, so it must never license a navigation.
+    if (opened.current || !sawZero || !arrived?.workspace?.store_id) return
+    opened.current = true
+    openWorkspace(arrived.agentId, arrived.workspace.store_id)
+  }, [arrived, sawZero, openWorkspace])
 
   return (
     <Page
@@ -94,7 +156,7 @@ export function AgentsPage() {
             key={entry.agentId}
             entry={entry}
             canManage={canManage}
-            onOpen={() => { if (entry.workspace?.store_id) { workspace.choose(entry.agentId, entry.workspace.store_id); go('graph') } }}
+            onOpen={() => { if (entry.workspace?.store_id) openWorkspace(entry.agentId, entry.workspace.store_id) }}
             onChanged={(m) => { setNotice(m); reload() }}
           />
         ))}

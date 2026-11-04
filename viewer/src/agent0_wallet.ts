@@ -12,6 +12,38 @@ import {
 } from 'viem'
 import { baseSepolia } from 'viem/chains'
 
+/** Why an on-chain registration did not happen. Each one needs a different action from the
+ *  person -- install a wallet, switch network, approve the prompt, or look at the revert --
+ *  so they are distinguished here rather than left as whatever string the wallet produced. */
+export type RegistrationFailure =
+  | 'no-provider'
+  | 'wrong-chain'
+  | 'rejected'
+  | 'reverted'
+  | 'no-agent-id'
+
+export class AgentRegistrationError extends Error {
+  // Declared, not a constructor parameter property: `erasableSyntaxOnly` is on.
+  readonly reason: RegistrationFailure
+
+  constructor(reason: RegistrationFailure, message: string) {
+    super(message)
+    this.name = 'AgentRegistrationError'
+    this.reason = reason
+  }
+}
+
+/** EIP-1193 code 4001 is the person declining a prompt. viem wraps provider errors, so the
+ *  code can be several `cause` levels down. */
+function isUserRejection(error: unknown): boolean {
+  for (let current: unknown = error, depth = 0; current && depth < 10; depth += 1) {
+    const node = current as { code?: unknown; name?: unknown; cause?: unknown }
+    if (node.code === 4001 || node.name === 'UserRejectedRequestError') return true
+    current = node.cause
+  }
+  return false
+}
+
 export const BASE_SEPOLIA_CHAIN_ID = 84532
 export const BASE_SEPOLIA_IDENTITY_REGISTRY = '0x8004A818BFB912233c491871b3d84c89A494BD9e' as Address
 
@@ -53,7 +85,7 @@ export interface ClientAgentRecord {
 
 function requireProvider(): EIP1193Provider {
   const provider = (window as Window & { ethereum?: EIP1193Provider }).ethereum
-  if (!provider) throw new Error('MetaMask is not installed or is unavailable in this browser.')
+  if (!provider) throw new AgentRegistrationError('no-provider', 'No browser wallet is available. Install MetaMask, or open this console in a browser where it is enabled.')
   return provider
 }
 
@@ -88,13 +120,26 @@ function metadataEntries(metadata: Record<string, string> | undefined): Array<{ 
     .map(([key, value]) => ({ key: key.trim(), value: stringToHex(value) }))
 }
 
+/* Deliberately not built from the wallet's own error. A provider message can carry an RPC
+ * URL, a key, or an internal fault string, and none of it tells the person what to do. */
+const wrongChain = () => new AgentRegistrationError('wrong-chain',
+  `This wallet is not on Base Sepolia (chain ${BASE_SEPOLIA_CHAIN_ID}) and the network could not be selected for you. Switch to Base Sepolia in the wallet and try again.`)
+const rejection = () => new AgentRegistrationError('rejected',
+  'The wallet prompt was declined, so nothing was registered. Approve the prompt to continue.')
+
 async function ensureBaseSepolia(provider: EIP1193Provider): Promise<void> {
   const chainId = await provider.request({ method: 'eth_chainId' })
   if (Number.parseInt(String(chainId), 16) === BASE_SEPOLIA_CHAIN_ID) return
   try {
     await provider.request({ method: 'wallet_switchEthereumChain', params: [{ chainId: '0x14a34' }] })
+    return
   } catch (error) {
-    if ((error as { code?: number }).code !== 4902) throw error
+    if (isUserRejection(error)) throw rejection()
+    // 4902: the wallet does not know this chain yet, so offer to add it. Anything else is a
+    // chain problem the person has to resolve in the wallet.
+    if ((error as { code?: number }).code !== 4902) throw wrongChain()
+  }
+  try {
     await provider.request({
       method: 'wallet_addEthereumChain',
       params: [{
@@ -105,6 +150,9 @@ async function ensureBaseSepolia(provider: EIP1193Provider): Promise<void> {
         blockExplorerUrls: ['https://sepolia.basescan.org'],
       }],
     })
+  } catch (error) {
+    if (isUserRejection(error)) throw rejection()
+    throw wrongChain()
   }
 }
 
@@ -113,19 +161,36 @@ export async function registerAgentWithMetaMask(input: ClientRegistrationInput):
   const provider = requireProvider()
   await ensureBaseSepolia(provider)
   const wallet = createWalletClient({ chain: baseSepolia, transport: custom(provider) })
-  const [account] = await wallet.requestAddresses()
-  if (!account) throw new Error('MetaMask did not return an account.')
-  const uri = registrationUri(input)
-  const txHash = await wallet.writeContract({
-    address: BASE_SEPOLIA_IDENTITY_REGISTRY,
-    abi: identityRegistryAbi,
-    functionName: 'register',
-    args: [uri, metadataEntries(input.metadata)],
-    account,
-    chain: baseSepolia,
-  })
+  let account: Address | undefined
+  let txHash: Hex
+  try {
+    ;[account] = await wallet.requestAddresses()
+    if (!account) throw new AgentRegistrationError('rejected', 'The wallet returned no account, so nothing was registered.')
+    txHash = await wallet.writeContract({
+      address: BASE_SEPOLIA_IDENTITY_REGISTRY,
+      abi: identityRegistryAbi,
+      functionName: 'register',
+      args: [registrationUri(input), metadataEntries(input.metadata)],
+      account,
+      chain: baseSepolia,
+    })
+  } catch (error) {
+    // A decline at either prompt is the same answer from the person.
+    if (isUserRejection(error)) throw rejection()
+    throw error
+  }
   const publicClient = createPublicClient({ chain: baseSepolia, transport: custom(provider) })
   const receipt = await publicClient.waitForTransactionReceipt({ hash: txHash })
+  /* The receipt gates everything after it. Without this, a REVERTED transaction fell through
+   * to the log scan below, found no `Registered` event, and reported "Registration confirmed
+   * but no ERC-8004 Registered event was found" -- telling the person their registration had
+   * confirmed when the chain had rejected it. The caller writes the agent into the workspace
+   * from this function's resolved value, so throwing here is what keeps a failed transaction
+   * from leaving a half-registered agent behind. */
+  if (receipt.status !== 'success') {
+    throw new AgentRegistrationError('reverted',
+      `The registration transaction was rejected on chain and no agent was created. Transaction: ${txHash}`)
+  }
   let tokenId: bigint | undefined
   for (const log of receipt.logs) {
     try {
@@ -138,7 +203,7 @@ export async function registerAgentWithMetaMask(input: ClientRegistrationInput):
       // Ignore unrelated logs emitted by the transaction.
     }
   }
-  if (tokenId === undefined) throw new Error(`Registration confirmed but no ERC-8004 Registered event was found. Transaction: ${txHash}`)
+  if (tokenId === undefined) throw new AgentRegistrationError('no-agent-id', `The transaction succeeded but carried no ERC-8004 Registered event, so there is no agent id to record. Transaction: ${txHash}`)
   const agentId = `${BASE_SEPOLIA_CHAIN_ID}:${tokenId.toString()}`
   const record = await readAgent0Registration(provider, tokenId)
   return { account: getAddress(account), txHash, agentId, record }

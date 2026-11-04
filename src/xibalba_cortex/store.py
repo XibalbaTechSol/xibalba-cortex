@@ -2342,6 +2342,12 @@ class GraphStore:
                      last_seen_at = CURRENT_TIMESTAMP""",
                 (normalized_device, normalized_agent, label),
             )
+        # `agent_workspaces()` is cached for 60s and the console's header selector warms that
+        # cache on every page load, so without this an agent that has just been paired (by an
+        # operator, or by redeeming an enrollment code) is absent from the listing for up to a
+        # minute -- long enough for whoever ran `cortex connect` to conclude it failed.
+        with self._cache_lock:
+            self._agent_workspaces_cache = None
         return self.get_agent_device(normalized_device)
 
     def get_agent_device(self, device_id: str) -> dict[str, object]:
