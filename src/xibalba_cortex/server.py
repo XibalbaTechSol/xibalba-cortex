@@ -1843,31 +1843,28 @@ def cortex_cloud_pair(cloud_url: str | None = None) -> dict[str, object]:
     return trigger_cloud_pairing(cloud_url=cloud_url)
 
 
-def _install_stdio_principal(profile_root: Path | None = None) -> None:
+def _install_stdio_principal() -> None:
     """Bind the stdio server to the agent identity it was launched with.
 
     Without this, `current_principal()` is None for every stdio call and every agent-scope check
     in this module returns unchecked — authorization exists in code but not on the transport in
     use. The profile's validated `agent.did.json` is the primary identity source; an explicit
     `XIBALBA_AGENT_ID` remains supported for legacy harness launchers.
+
+    Fails closed when it is unset, because the alternative is to keep silently serving every
+    agent's namespace to whoever spawned the process. `XIBALBA_CORTEX_ALLOW_UNSCOPED_STDIO=1` is
+    the deliberate, visible escape hatch for a single-agent local setup that has not configured an
+    identity yet; it restores the historical unscoped behavior and nothing else.
     """
-    root = profile_root or _default_home()
-    agent_id = resolve_agent_id(profile_root=root)
+    agent_id = resolve_agent_id(profile_root=_default_home())
     if not agent_id:
-        try:
-            from integrity_sdk.did import key_store_for_profile, load_or_create_did, write_did_file
-            root.mkdir(parents=True, exist_ok=True, mode=0o700)
-            did, keypair, _ = load_or_create_did("default", did_home_root=key_store_for_profile(root))
-            write_did_file(root, did=did, public_key=keypair.public_bytes(), agent_id="default", harness="mcp", profile=root.name)
-            agent_id = did
-        except Exception:
-            if os.environ.get("XIBALBA_CORTEX_ALLOW_UNSCOPED_STDIO") == "1":
-                return
-            raise SystemExit(
-                "a Cortex agent DID is required: provision agent.did.json or set XIBALBA_AGENT_ID "
-                "as an explicit override. To accept unscoped local access deliberately, set "
-                "XIBALBA_CORTEX_ALLOW_UNSCOPED_STDIO=1."
-            )
+        if os.environ.get("XIBALBA_CORTEX_ALLOW_UNSCOPED_STDIO") == "1":
+            return
+        raise SystemExit(
+            "a Cortex agent DID is required: provision agent.did.json or set XIBALBA_AGENT_ID "
+            "as an explicit override. To accept unscoped local access deliberately, set "
+            "XIBALBA_CORTEX_ALLOW_UNSCOPED_STDIO=1."
+        )
     set_local_principal({
         "label": "local-stdio",
         "profile_id": get_store().profile_id,

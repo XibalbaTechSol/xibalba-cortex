@@ -134,3 +134,12 @@ def test_cortex_setup_harness(tmp_path: Path, monkeypatch):
     assert cursor_cfg.is_file()
     cursor_data = json.loads(cursor_cfg.read_text())
     assert cursor_data["mcpServers"]["cortex"]["command"] == "xibalba-cortex"
+
+    # Antigravity (agy) config
+    ret_agy = connect.main(["setup", "agy", "--cloud", "https://cloud.test", "--profile", str(tmp_path)])
+    assert ret_agy == 0
+    agy_cfg = tmp_path / ".gemini" / "antigravity-cli" / "mcp.json"
+    assert agy_cfg.is_file()
+    agy_data = json.loads(agy_cfg.read_text())
+    assert agy_data["mcpServers"]["cortex"]["command"] == "xibalba-cortex"
+    assert agy_data["mcpServers"]["cortex"]["args"] == ["--cloud", "https://cloud.test"]

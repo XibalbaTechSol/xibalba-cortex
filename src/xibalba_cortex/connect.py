@@ -284,8 +284,29 @@ def setup_harness(
         config_path.write_text(json.dumps(existing, indent=2), encoding="utf-8")
         configured.append(("Cursor", config_path))
 
+    if target in ("agy", "antigravity", "all"):
+        agy_mcp_path = Path.home() / ".gemini" / "antigravity-cli" / "mcp.json"
+        agy_mcp_path.parent.mkdir(parents=True, exist_ok=True)
+        existing: dict[str, Any] = {}
+        if agy_mcp_path.is_file():
+            try:
+                existing = json.loads(agy_mcp_path.read_text(encoding="utf-8"))
+            except Exception:
+                existing = {}
+
+        mcp_servers = existing.setdefault("mcpServers", {})
+        mcp_servers["cortex"] = {
+            "command": "xibalba-cortex",
+            "args": ["--cloud", active_cloud_url],
+            "env": {
+                "XIBALBA_CORTEX_HOME": str(profile),
+            },
+        }
+        agy_mcp_path.write_text(json.dumps(existing, indent=2), encoding="utf-8")
+        configured.append(("Antigravity (agy)", agy_mcp_path))
+
     if not configured:
-        print(f"Unknown harness '{harness}'. Choose 'claude', 'cursor', or 'all'.", file=sys.stderr)
+        print(f"Unknown harness '{harness}'. Choose 'claude', 'cursor', 'agy', or 'all'.", file=sys.stderr)
         return 1
 
     print("=" * 64)
@@ -320,8 +341,8 @@ def main(argv: list[str] | None = None) -> int:
     logout_cmd.add_argument("--profile", type=Path, default=_default_profile(), help="Cortex profile directory")
 
     # cortex setup
-    setup_cmd = sub.add_parser("setup", help="configure MCP in Claude Desktop, Cursor, etc.")
-    setup_cmd.add_argument("harness", nargs="?", default="claude", choices=["claude", "cursor", "all"])
+    setup_cmd = sub.add_parser("setup", help="configure MCP in Claude Desktop, Cursor, agy, etc.")
+    setup_cmd.add_argument("harness", nargs="?", default="claude", choices=["claude", "cursor", "agy", "all"])
     setup_cmd.add_argument("--cloud", default=DEFAULT_CLOUD_URL, help="Cortex Cloud endpoint")
     setup_cmd.add_argument("--profile", type=Path, default=_default_profile())
 

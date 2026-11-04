@@ -18,11 +18,14 @@ at all, it says so. Claims that could not be grounded in the code are absent rat
 
 ## Three ways in
 
-1. **Drop-in MCP.** Anything that speaks MCP gets all 89 tools over stdio. Config block below.
+1. **Drop-in MCP.** Anything that speaks MCP gets all 91 tools over stdio. Config block below.
 2. **One generic call.** For a custom harness, `memory_ingest_agent_turn` takes a whole turn —
    prompt, response, tool calls, metadata — in a single call (`src/xibalba_cortex/server.py`).
    Over stdio, over streamable HTTP, or over managed REST.
-3. **Observation hooks.** The packaged Claude Code and Codex plugins run a dependency-free
+3. **Browser-Mediated Device Pairing.** Connect agents on any machine to Cortex Cloud via
+   `cortex login` or `xibalba-cortex --cloud`. Authenticate in your browser with Google,
+   GitHub, or email/password with instant loopback completion and cloud dashboard sync.
+4. **Observation hooks.** The packaged Claude Code and Codex plugins run a dependency-free
    launcher (`plugins/cortex-claude/scripts/bridge.py`) from harness hooks. It is local-only and
    observation-only: it shells out to `xibalba-cortex-observer`, is configured entirely by
    `XIBALBA_CORTEX_HOME` and `XIBALBA_CORTEX_CAPTURE_MODE`, and has no remote-endpoint support of
@@ -58,8 +61,9 @@ means there is nothing in this repository yet.
 
 | Surface | Status | What backs it |
 | --- | --- | --- |
-| Local stdio MCP, 89 tools | Shipped | `src/xibalba_cortex/server.py`; `tests/test_server.py::test_all_tools_are_advertised` asserts the exact set of 89 unique names |
+| Local stdio MCP, 91 tools | Shipped | `src/xibalba_cortex/server.py`; `tests/test_server.py::test_all_tools_are_advertised` asserts the exact set of 91 unique names |
 | Streamable-HTTP MCP, bearer auth | Shipped | `server.py` `--transport streamable-http` (defaults `127.0.0.1:8421`, path `/mcp`); `tests/test_streamable_http_auth_integration.py` |
+| Managed MCP & Cloud Sync Bridge | Shipped | `src/xibalba_cortex/cloud_client.py`, `server.py` (`--cloud`), `device_pairing.py`; RFC 8628 + loopback callback browser auth, auto-provisioned DIDs, live cloud dashboard sync |
 | Local operator HTTP API and viewer | Shipped | `src/xibalba_cortex/local_api.py` (:8420); `viewer/` (Vite dev server on :5190) |
 | Generic `memory_ingest_agent_turn` | Shipped | `server.py` → `store.py`; `tests/test_ingest_agent_turn.py` |
 | Hooks via `bridge.py`, local only | Shipped | `plugins/cortex-claude/scripts/bridge.py`; `XIBALBA_CORTEX_HOME` and `XIBALBA_CORTEX_CAPTURE_MODE`; no remote endpoint |
@@ -69,7 +73,7 @@ means there is nothing in this repository yet.
 | Antigravity (`agy`) hooks | Shipped | `plugins/agy-cortex/hooks.json`; `src/xibalba_cortex/agy_hook_bridge.py` |
 | openclaw plugin | Shipped | `integrations/openclaw/xibalba_cortex_plugin.mjs`; `src/xibalba_cortex/openclaw_bridge.py` |
 | Managed REST ingest | Pilot | `managed/api.py` → `managed/ingest.py`; `tests/test_managed_ingest.py`. The route is complete and on `origin/main`; the hosted service it belongs to is a pilot |
-| Managed MCP | Planned | no MCP transport exists under `src/xibalba_cortex/managed/`; the REST handler is `ingest_turn`'s only caller |
+| Managed REST & OIDC social auth | Shipped | `src/xibalba_cortex/oauth.py`, `managed/api.py`, `viewer/src/console/SignIn.tsx`; Google & GitHub OAuth 2.0 PKCE, signed HMAC-SHA256 states, email-verified account linking |
 | Hosted memory connector (Perplexity, Spark) | Pilot | `src/xibalba_cortex/hosted_connector.py` exposes exactly three tools: `cortex_remember`, `cortex_recall`, `cortex_connection_status`. Its own guide, [hosted memory connectors](docs/operations/hosted-memory-connectors.md), states it is not a complete managed hosting product and that arbitrary runtime-ingestion tools are absent |
 | DecisionTrace and Jev advisory correlation | Shipped | `src/xibalba_cortex/jev_gateway.py`, `decision_trace_worker.py`, `store.py`; profile/store-scoped read-only API and `viewer/src/console/DecisionTracePanel.tsx`; `tests/test_decision_trace.py`; full viewer Playwright coverage in `viewer/e2e/console.spec.ts`. Advisory retries are durable and hash-bound; provider free text is excluded from persistence. Cortex PR #84 passed hosted Python and viewer CI before merge. |
 | Perplexity API runtime recorder | Pilot | `src/xibalba_cortex/perplexity_runtime.py`; `integrations/perplexity/connector-template.json`; [runtime recorder guide](docs/operations/perplexity-runtime-recorder.md) |
@@ -208,10 +212,37 @@ your `PATH`, which is why the block goes through `uv run --directory`. If you in
 package into an environment that is already on your `PATH`, `"command": "xibalba-cortex"` with no
 `args` works — that is exactly what the packaged plugin does.
 
+### Cortex Cloud & Browser-Mediated Device Pairing
+
+To connect your agent running on a local or remote device with your Cortex Cloud workspace:
+
+1. **One-Command Harness Setup**:
+   ```bash
+   cortex setup claude      # Automatically configures Claude Desktop
+   cortex setup cursor      # Automatically configures Cursor
+   cortex setup agy         # Automatically configures Antigravity (agy)
+   ```
+
+2. **Authenticate with Cortex Cloud**:
+   ```bash
+   cortex login
+   ```
+   This automatically generates a persistent Ed25519 agent identity, starts an ephemeral loopback listener (`127.0.0.1:<port>/callback`), and opens your browser. Log in using Google, GitHub, or email/password and click **Authorize Agent**. The minted scoped token (`managed-api:<agent>@<device>`) is securely saved to `~/.cortex/auth.json` (`0600`).
+   For headless environments or remote SSH sessions, RFC 8628 polling automatically completes authorization as soon as you confirm the code on any device.
+
+3. **Check Connection Status or Log Out**:
+   ```bash
+   cortex status            # View paired workspace, email, and memory counts
+   cortex logout            # Revoke local credentials
+   ```
+
+4. **Zero-Configuration Harness Launch**:
+   When launching `xibalba-cortex --cloud`, if no authentication token is detected, Cortex launches the browser pairing flow in the background. It outputs user instructions to `stderr` while keeping stdio strictly pure JSON-RPC. Once approved in the browser, all memory operations automatically sync to your Cortex Cloud dashboard.
+
 ### The tool surface
 
-89 tools in three families. `tests/test_server.py::test_all_tools_are_advertised` asserts the
-exact set of 89 unique names, and that set matches the 89 `@server.tool` decorators in
+91 tools in four families. `tests/test_server.py::test_all_tools_are_advertised` asserts the
+exact set of 91 unique names, and that set matches the 91 `@server.tool` decorators in
 `server.py`.
 
 - **`memory_*` — 54 tools.** Writes (`memory_remember`, `memory_ingest_agent_turn`,
@@ -237,6 +268,8 @@ exact set of 89 unique names, and that set matches the 89 `@server.tool` decorat
   `XIBALBA_AGENT0_ENABLED=1` and `XIBALBA_AGENT0_RPC_URL`; writes additionally need
   `XIBALBA_AGENT0_SIGNER`, which belongs in the service environment and never in a memory record
   or an MCP argument. See the limits in **What Cortex is not**.
+- **`cortex_cloud_*` — 2 tools.** Cloud pairing status (`cortex_cloud_status`) and interactive
+  pairing initiation (`cortex_cloud_pair`) for zero-friction browser onboarding in agent harnesses.
 
 Tool results carry an explicit note that the returned content is untrusted evidence from the
 agent's own memory and not an instruction, regardless of what it says (`server.py`).

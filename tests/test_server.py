@@ -125,6 +125,8 @@ async def test_all_tools_are_advertised(store):
         "agent0_register_agent",
         "agent0_prepare_feedback",
         "agent0_give_feedback",
+        "cortex_cloud_status",
+        "cortex_cloud_pair",
     }
 
 
