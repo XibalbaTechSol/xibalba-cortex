@@ -1,5 +1,6 @@
 import { expect, test, type Page } from '@playwright/test'
 import { stubConsoleApi } from './consoleFixture'
+import { managedFixture } from './managed-fixture'
 
 /* Phase 2, Task 1 — zero agents means "connect an agent" is the first screen.
  *
@@ -241,4 +242,75 @@ test('two agents arriving at once is not guessed at', async ({ page }) => {
   await expect(page.locator('.xc-opscard')).toHaveCount(2, { timeout: 20_000 })
   await expect(page, 'the console picked one of two simultaneous arrivals instead of letting the person choose').toHaveURL(/agents/)
   await expect(connectSurface(page), 'the connect surface vanished without anything being opened').toBeVisible()
+})
+
+/* Phase 2, Task 4 — the DID-bound API key path keeps working.
+ *
+ * The spec's second registration path, and the one that already existed: a key bound to the
+ * agent DIDs it is for. The plan expected Phase 0's deletion of `ManagedApp` to take this
+ * path's only test with it, so the assertion needed "re-homing onto the console's API-keys
+ * surface rather than quietly losing coverage".
+ *
+ * Two things turned out to be true instead. The coverage was never lost: `main.tsx` boots
+ * `ConsoleApp` unconditionally, so `managed.spec.ts` navigating to `/managed#agents` has been
+ * driving the console's own `HostedApiKeys` all along. And `/managed` is not a leftover to be
+ * re-homed away from -- `editionOf()` (edition.ts) reads that exact path, and the hosted
+ * deployment serves the app there (`managed/api.py` redirects `/`). A self-hosted console has
+ * no hosted API-keys surface, correctly, so there is nowhere else for this to live.
+ *
+ * So what this adds is the part that was actually missing: the rules asserted in Phase 2's
+ * own file, the edition boundary asserted explicitly, and a mutation proving they can fail.
+ * They pass on first run because the behaviour already exists -- this is characterisation.
+ * The plan's Step 5 is what makes them worth having: allowing an empty DIDs field reds the
+ * first one. */
+
+test('a hosted API key cannot be created without the DIDs it binds to', async ({ page }) => {
+  await managedFixture(page, { signedIn: true })
+
+  await page.goto('/managed#agents')
+
+  const create = page.getByRole('button', { name: 'Create API key', exact: true })
+  /* This rule is real, not cosmetic: before it was asserted, a click against a permanently
+   * disabled button waited out a 90-second CI timeout (PR #72). */
+  await expect(create, 'a key with no DIDs is bound to no agent, so the control must refuse first').toBeDisabled()
+
+  await page.getByRole('textbox', { name: /^Agent DIDs/ }).fill('did:integrity:agent-one\ndid:integrity:agent-two')
+  await expect(create).toBeEnabled()
+})
+
+test('the issued hosted key carries exactly the agent DIDs that were entered', async ({ page }) => {
+  const calls = await managedFixture(page, { signedIn: true })
+
+  await page.goto('/managed#agents')
+  await page.getByRole('textbox', { name: /^Agent DIDs/ }).fill('did:integrity:agent-one\ndid:integrity:agent-two')
+  await page.getByRole('button', { name: 'Create API key', exact: true }).click()
+
+  await expect(page.getByLabel('New API key', { exact: true })).toBeVisible()
+  // The binding is the point of the field: the DIDs must reach the API, split and in order.
+  const issued = calls.find((call) => call.path === 'keys' && call.method === 'POST')
+  expect(issued?.body, 'the key was issued without the agent binding it exists to carry').toEqual({
+    label: 'agent',
+    agent_ids: ['did:integrity:agent-one', 'did:integrity:agent-two'],
+  })
+  // A freshly issued key is a credential; it must not be left in browser storage.
+  expect(await page.evaluate(() => Object.values(localStorage).join(' '))).not.toContain('fixture-only-managed-key')
+})
+
+test('a self-hosted console offers no hosted API-key form at all', async ({ page }) => {
+  /* The edition boundary, which is why the two tests above live at `/managed` and not at `/`.
+   * `HostedApiKeys` issues a credential against the hosted account API; a self-hosted console
+   * has no hosted account, so the form must be absent rather than present-and-failing. This
+   * is also what makes "re-home it onto the console's own route" the wrong move: there is no
+   * such surface there to re-home onto. */
+  await stubConsoleApi(page)
+  await signedIn(page)
+
+  await page.goto('/#agents')
+
+  // the page itself is there, so this is not asserting against a blank screen
+  await expect(page.getByRole('heading', { name: 'Bring an agent into Cortex' })).toBeVisible()
+  await expect(
+    page.getByRole('button', { name: 'Create API key', exact: true }),
+    'a self-hosted console is offering to issue a hosted credential it has no account for',
+  ).toHaveCount(0)
 })
