@@ -20,9 +20,9 @@
 // the hosted backend does.
 
 import { useEffect, useState, type FormEvent } from 'react'
-import { ApiError, accountAuth, accountConfirmPasswordReset, accountMe, accountRequestPasswordReset, accountResendVerification, api, connectLocalDev, getApiBaseUrl, setApiBaseUrl } from '../api'
+import { ApiError, accountAuth, accountConfirmPasswordReset, accountMe, accountOAuthProviders, accountRequestPasswordReset, accountResendVerification, api, connectLocalDev, getApiBaseUrl, setApiBaseUrl, type OAuthProvider } from '../api'
 import { supports } from '../hostedApi'
-import { IconArrowRight, IconIntegrity, IconLock } from './icons'
+import { IconArrowRight, IconGitHub, IconGoogle, IconIntegrity, IconLock } from './icons'
 import { SIGNUP_PENDING, VERIFIED, signInError, verifiedFromSearch } from './authNotice'
 import { confirmNotice, requestNotice, resetTokenFromSearch, searchWithoutToken, validateNewPassword, type ResetNotice } from './passwordReset'
 
@@ -48,6 +48,26 @@ export function SignIn({ onSignedIn }: { onSignedIn: () => void }) {
   )
   // the secret from an emailed reset link, held in memory only
   const [resetToken, setResetToken] = useState<string | null>(null)
+  const [oauthProviders, setOauthProviders] = useState<OAuthProvider[]>([])
+
+  useEffect(() => {
+    accountOAuthProviders().then(setOauthProviders).catch(() => {})
+  }, [])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const params = new URLSearchParams(window.location.search)
+    const err = params.get('error')
+    if (err) {
+      if (err === 'unverified_email') {
+        setError('Your social account does not have a verified email. Please verify it or sign up with email and password.')
+      } else if (err === 'invalid_state') {
+        setError('Sign-in request timed out or was invalid. Please try again.')
+      } else {
+        setError(err)
+      }
+    }
+  }, [])
 
   // Opened from the emailed link: switch to the reset form and take the secret out of the address bar.
   useEffect(() => {
@@ -207,6 +227,23 @@ export function SignIn({ onSignedIn }: { onSignedIn: () => void }) {
               : mode === 'resend' ? 'Enter your account email. If it still needs verifying, we send the link again.'
               : 'Enter your email and password to continue.'}
           </p>
+
+          {(mode === 'login' || mode === 'signup') && oauthProviders.length > 0 && (
+            <>
+              <div className="xc-auth-social">
+                {oauthProviders.map((p) => (
+                  <a key={p.id} className="xc-btn xc-auth-social-btn" href={`/api/auth/oauth/${p.id}/authorize`}>
+                    {p.id === 'google' && <IconGoogle />}
+                    {p.id === 'github' && <IconGitHub />}
+                    Continue with {p.name}
+                  </a>
+                ))}
+              </div>
+              <div className="xc-auth-divider">
+                <span>or continue with email</span>
+              </div>
+            </>
+          )}
 
           {mode !== 'reset' && (
             <label className="xc-field">Email

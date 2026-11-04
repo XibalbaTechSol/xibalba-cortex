@@ -76,6 +76,7 @@ describe('hostedTarget', () => {
     const { hostedTarget } = await import('./hostedApi')
     const at = (method: string, path: string) => hostedTarget(method, path)?.path ?? null
     expect(at('POST', '/api/auth/login')).toBe('login')
+    expect(at('GET', '/api/auth/oauth/providers')).toBe('oauth/providers')
     expect(at('POST', '/api/auth/signup')).toBe('signup')
     expect(at('POST', '/api/auth/logout')).toBe('logout')
     expect(at('GET', '/api/auth/me')).toBe('me')

@@ -1309,6 +1309,48 @@ select.xc-input {
   width: 14px;
   height: 14px;
 }
+.xc-auth-social {
+  display: grid;
+  gap: 10px;
+}
+.xc-auth-social-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  font-weight: 500;
+  text-decoration: none;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+.xc-auth-social-btn:hover {
+  background: var(--tint);
+  border-color: var(--accent);
+  color: var(--ink);
+}
+.xc-auth-social-btn svg {
+  width: 18px;
+  height: 18px;
+}
+.xc-auth-divider {
+  display: flex;
+  align-items: center;
+  text-align: center;
+  margin: 6px 0;
+  color: var(--ink-dim);
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.xc-auth-divider::before,
+.xc-auth-divider::after {
+  content: '';
+  flex: 1;
+  border-bottom: 1px solid var(--hairline);
+}
+.xc-auth-divider span {
+  padding: 0 12px;
+}
 
 /* ---------- responsive ------------------------------------------------------------------------- */
 @media (max-width: 1180px) {

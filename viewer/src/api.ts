@@ -148,6 +148,22 @@ export async function accountAuth(path: "signup" | "login", input: Record<string
   return payload
 }
 
+export interface OAuthProvider {
+  id: string
+  name: string
+}
+
+export async function accountOAuthProviders(): Promise<OAuthProvider[]> {
+  try {
+    const response = await send("/api/auth/oauth/providers")
+    const payload = await response.json().catch(() => ({}))
+    if (!response.ok) return []
+    return (payload.providers ?? []) as OAuthProvider[]
+  } catch {
+    return []
+  }
+}
+
 export async function accountMe(): Promise<{account: Record<string, unknown>; session_expires_at?: string | null}> {
   const response = await send("/api/auth/me")
   const payload = await response.json().catch(() => ({}))

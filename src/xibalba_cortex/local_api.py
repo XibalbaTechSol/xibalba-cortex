@@ -148,7 +148,21 @@ from .config import load_config
 from .contact import ContactInbox, ContactError, same_origin
 from .connector_policy import ConnectorRateLimiter
 from .ingest_tokens import _connect, list_tokens, verify_token_record
-from .accounts import SESSION_TTL_HOURS as _ACCOUNT_SESSION_TTL_HOURS, account_for_token, approve_account, list_pending_accounts, change_account_password, create_account, issue_account_session, request_password_reset, reset_password, revoke_account_session, revoke_account_session_by_id
+from .accounts import (
+    SESSION_TTL_HOURS as _ACCOUNT_SESSION_TTL_HOURS,
+    account_for_token,
+    approve_account,
+    authenticate_or_create_oauth_account,
+    list_pending_accounts,
+    change_account_password,
+    create_account,
+    issue_account_session,
+    request_password_reset,
+    reset_password,
+    revoke_account_session,
+    revoke_account_session_by_id,
+)
+from .oauth import generate_pkce, sign_oauth_state, verify_oauth_state, get_oauth_provider, OAuthError
 from .providers import InferenceTaskContract, connector_manifest
 from .console_actions import (
     MAX_EXPORT_IDS, MAX_IMPORT_BYTES, clean_media_type, configured_backup_dir, import_document, list_backups,
@@ -675,6 +689,17 @@ def _make_handler(store: GraphStore, *, allowed_origins: frozenset[str],
             self.end_headers()
             self.wfile.write(encoded)
 
+        def _send_redirect(self, location: str, status: int = 303, *, extra_headers: tuple[tuple[str, str], ...] = ()) -> None:
+            with _REQUEST_METRICS_LOCK:
+                _REQUEST_METRICS["requests_total"] += 1
+                _REQUEST_METRICS[f"responses_{status}"] += 1
+            self.send_response(status)
+            self.send_header("Location", location)
+            for name, value in extra_headers:
+                self.send_header(name, value)
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+
         def _cookie_session_token(self) -> str:
             """Read the session token from the HttpOnly cookie.
 
@@ -871,6 +896,93 @@ def _make_handler(store: GraphStore, *, allowed_origins: frozenset[str],
                     self._send_json(200, {"events": [dict(row) for row in rows]})
                 finally:
                     conn.close()
+                return
+            if parts == ["api", "auth", "oauth", "providers"]:
+                providers = []
+                if os.environ.get("GOOGLE_CLIENT_ID", "").strip() and os.environ.get("GOOGLE_CLIENT_SECRET", "").strip():
+                    providers.append({"id": "google", "name": "Google"})
+                if os.environ.get("GITHUB_CLIENT_ID", "").strip() and os.environ.get("GITHUB_CLIENT_SECRET", "").strip():
+                    providers.append({"id": "github", "name": "GitHub"})
+                self._send_json(200, {"providers": providers})
+                return
+            if len(parts) == 5 and parts[:3] == ["api", "auth", "oauth"] and parts[4] == "authorize":
+                provider_name = parts[3].lower()
+                client_id = ""
+                client_secret = ""
+                if provider_name == "google":
+                    client_id = os.environ.get("GOOGLE_CLIENT_ID", "").strip()
+                    client_secret = os.environ.get("GOOGLE_CLIENT_SECRET", "").strip()
+                elif provider_name == "github":
+                    client_id = os.environ.get("GITHUB_CLIENT_ID", "").strip()
+                    client_secret = os.environ.get("GITHUB_CLIENT_SECRET", "").strip()
+                else:
+                    self._send_json(404, {"error": f"unsupported OAuth provider: {provider_name}"})
+                    return
+                if not client_id or not client_secret:
+                    self._send_json(400, {"error": f"OAuth provider {provider_name} is not configured"})
+                    return
+                verifier, challenge = generate_pkce()
+                host = self.headers.get("Host", "localhost")
+                scheme = "http" if _INSECURE_COOKIES else "https"
+                callback_uri = f"{scheme}://{host}/api/auth/oauth/{provider_name}/callback"
+                signed_state = sign_oauth_state(csrf_secret, provider=provider_name, code_verifier=verifier, redirect_uri=callback_uri)
+                try:
+                    oauth_prov = get_oauth_provider(provider_name, client_id, client_secret)
+                    auth_url = oauth_prov.authorization_url(state=signed_state, code_challenge=challenge, redirect_uri=callback_uri)
+                except OAuthError as exc:
+                    self._send_json(400, {"error": str(exc)})
+                    return
+                self._send_redirect(auth_url, 303)
+                return
+            if len(parts) == 5 and parts[:3] == ["api", "auth", "oauth"] and parts[4] == "callback":
+                provider_name = parts[3].lower()
+                error_code = params.get("error")
+                error_desc = params.get("error_description")
+                if error_code:
+                    self._send_redirect(f"/#error={error_desc or error_code}", 303)
+                    return
+                code = params.get("code")
+                state = params.get("state")
+                if not code or not state:
+                    self._send_redirect("/#error=missing_code_or_state", 303)
+                    return
+                try:
+                    verified = verify_oauth_state(csrf_secret, state, expected_provider=provider_name)
+                except OAuthError as exc:
+                    self._send_redirect(f"/#error={exc}", 303)
+                    return
+                client_id = ""
+                client_secret = ""
+                if provider_name == "google":
+                    client_id = os.environ.get("GOOGLE_CLIENT_ID", "").strip()
+                    client_secret = os.environ.get("GOOGLE_CLIENT_SECRET", "").strip()
+                elif provider_name == "github":
+                    client_id = os.environ.get("GITHUB_CLIENT_ID", "").strip()
+                    client_secret = os.environ.get("GITHUB_CLIENT_SECRET", "").strip()
+                if not client_id or not client_secret:
+                    self._send_redirect("/#error=provider_unconfigured", 303)
+                    return
+                host = self.headers.get("Host", "localhost")
+                scheme = "http" if _INSECURE_COOKIES else "https"
+                callback_uri = verified.get("u") or f"{scheme}://{host}/api/auth/oauth/{provider_name}/callback"
+                oauth_prov = get_oauth_provider(provider_name, client_id, client_secret)
+                try:
+                    user_info = oauth_prov.exchange_code(code=code, code_verifier=verified.get("v", ""), redirect_uri=callback_uri)
+                except Exception as exc:
+                    self._send_redirect(f"/#error={exc}", 303)
+                    return
+                if not user_info.email_verified:
+                    self._send_redirect("/#error=unverified_email", 303)
+                    return
+                token, account, _ = authenticate_or_create_oauth_account(
+                    store.home,
+                    provider=user_info.provider,
+                    provider_user_id=user_info.provider_user_id,
+                    email=user_info.email,
+                    display_name=user_info.display_name,
+                    profile_id=store.profile_id,
+                )
+                self._send_redirect("/", 303, extra_headers=(("Set-Cookie", _session_cookie(token, max_age=_ACCOUNT_SESSION_TTL_HOURS * 3600)),))
                 return
             if parts not in (["metrics"], ["healthz"], ["readyz"]):
                 principal = self._authenticate(required_scope="memory:read")

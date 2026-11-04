@@ -21,6 +21,11 @@ class ManagedConfig:
     signup_daily_limit: int = 20
     max_body_bytes: int = 65_536
     max_content_bytes: int = 16_384
+    google_client_id: str = ""
+    google_client_secret: str = field(default="", repr=False)
+    github_client_id: str = ""
+    github_client_secret: str = field(default="", repr=False)
+    require_email_verification: bool = True
     # A pinned, supported version; upgrades must be tested alongside webhook fixtures.
     stripe_api_version: str = "2025-06-30.basil"
     agent0: Agent0Config = field(default_factory=lambda: Agent0Config(chain_id=84532))
@@ -75,6 +80,11 @@ class ManagedConfig:
             stripe_live=os.environ.get("CORTEX_STRIPE_LIVE", "false").lower() == "true",
             allow_signup=os.environ.get("CORTEX_MANAGED_ALLOW_SIGNUP", "false").lower() == "true",
             signup_daily_limit=int(os.environ.get("CORTEX_MANAGED_SIGNUP_DAILY_LIMIT", "20")),
+            google_client_id=os.environ.get("GOOGLE_CLIENT_ID", "").strip(),
+            google_client_secret=os.environ.get("GOOGLE_CLIENT_SECRET", "").strip(),
+            github_client_id=os.environ.get("GITHUB_CLIENT_ID", "").strip(),
+            github_client_secret=os.environ.get("GITHUB_CLIENT_SECRET", "").strip(),
+            require_email_verification=os.environ.get("CORTEX_MANAGED_REQUIRE_EMAIL_VERIFICATION", "true").lower() in {"1", "true", "yes", "on"},
             agent0=Agent0Config(
                 enabled=os.environ.get("XIBALBA_AGENT0_ENABLED", "false").lower() in {"1", "true", "yes", "on"},
                 chain_id=int(os.environ.get("XIBALBA_AGENT0_CHAIN_ID", "84532")),
