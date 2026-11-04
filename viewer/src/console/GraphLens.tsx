@@ -455,7 +455,7 @@ export function GraphLens() {
           )}
         </div>
 
-        <button type="button" className="xc-summary-toggle xc-btn" aria-label="Workspace summary" onClick={() => { select(null); setSummaryOpen((v) => !v) }}>Workspace</button>
+        <button type="button" className="xc-summary-toggle xc-btn" aria-label="Workspace summary" onClick={() => { select(null); setSummaryOpen((v) => !v) }}>Summary</button>
         {summaryOpen && !selectedId && <Inspector summary onClose={() => setSummaryOpen(false)} />}
         <button type="button" className="xc-legend-toggle" aria-expanded={legendOpen} onClick={() => setLegendOpen((v) => !v)}>
           {legendOpen ? 'Hide legend' : 'Legend'}

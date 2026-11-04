@@ -706,6 +706,7 @@ select.xc-input {
   color: var(--ink-muted);
   max-height: calc(100% - 28px);
   overflow: auto;
+  z-index: 3;
 }
 .xc-legend > div {
   display: flex;
@@ -736,6 +737,7 @@ select.xc-input {
   letter-spacing: 0.1em;
   text-transform: uppercase;
   cursor: pointer;
+  z-index: 3;
 }
 .xc-legend-toggle:hover,
 .xc-legend-toggle[aria-expanded='true'] {
@@ -2920,9 +2922,34 @@ select.xc-input {
   height: 0;
   display: none;
 }
-.xc-scroll {
-  scrollbar-width: none;
-  scrollbar-color: auto;
+.xc-scroll,
+.xc-drawer-scroll,
+.xc-main > .xc-page {
+  scrollbar-width: thin;
+  scrollbar-color: var(--hairline-strong) transparent;
+}
+.xc-scroll::-webkit-scrollbar,
+.xc-drawer-scroll::-webkit-scrollbar,
+.xc-main > .xc-page::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+  display: block;
+}
+.xc-scroll::-webkit-scrollbar-track,
+.xc-drawer-scroll::-webkit-scrollbar-track,
+.xc-main > .xc-page::-webkit-scrollbar-track {
+  background: transparent;
+}
+.xc-scroll::-webkit-scrollbar-thumb,
+.xc-drawer-scroll::-webkit-scrollbar-thumb,
+.xc-main > .xc-page::-webkit-scrollbar-thumb {
+  background: var(--hairline-strong);
+  border-radius: 3px;
+}
+.xc-scroll::-webkit-scrollbar-thumb:hover,
+.xc-drawer-scroll::-webkit-scrollbar-thumb:hover,
+.xc-main > .xc-page::-webkit-scrollbar-thumb:hover {
+  background: var(--ink-dim);
 }
 
 /* A page fills what the shell gives it and scrolls inside itself. Before this it was
@@ -3120,6 +3147,10 @@ select.xc-input {
 }
 .xc-inspector .xc-tabs {
   flex-wrap: wrap;
+}
+.xc-inspector .xc-tab {
+  padding: 6px 10px;
+  font-size: 11.5px;
 }
 .xc-inspector pre,
 .xc-inspector code {
@@ -3629,7 +3660,7 @@ body,
   .xc-product-compare th:first-child { width: auto; border-bottom: 1px solid var(--hairline); }
   .xc-product-compare td::before { content: attr(data-label); display: block; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .08em; color: var(--accent); margin-bottom: 6px; }
 }
-.xc-summary-toggle { position: absolute; bottom: 16px; left: 110px; z-index: 3; }
+.xc-summary-toggle { position: absolute; bottom: 14px; left: 104px; z-index: 3; }
 /* Direct timeline selection stays behind event buttons and never intercepts them. */
 .xc-tl-grid { touch-action: pan-y; }
 .xc-tl-ticks, .xc-lane-track { cursor: crosshair; }
