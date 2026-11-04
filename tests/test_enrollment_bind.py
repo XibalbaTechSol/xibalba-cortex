@@ -158,3 +158,69 @@ def test_the_new_agent_is_visible_immediately_not_after_the_listing_cache_expire
         "the enrolled agent is missing from a listing that was warmed before the redemption, "
         "so the pairing write did not invalidate the cache"
     )
+
+
+# --- what the code may NOT be used to do ------------------------------------------------
+#
+# The bind is an upsert keyed on a `device_id` the CALLER chooses
+# (`associate_agent_device`: ON CONFLICT(device_id) DO UPDATE SET agent_id=..., status='active').
+# A code authorises enrolling a new agent. It must not also authorise re-pointing somebody
+# else's device, undoing a revocation, or burning itself against a malformed request.
+
+
+def test_a_code_cannot_re_point_a_device_already_paired_to_another_agent(served):
+    """Otherwise any valid code is a takeover: present an existing `device_id` beside your own
+    DID and the upsert moves that device's pairing to you."""
+    store, origin = served
+    victim = store.associate_agent_device("victim-agent", DEVICE)
+    attacker = _identity()
+    code = issue_code(WORKSPACE, home=store.home)
+
+    response = _redeem(origin, code, attacker, device_id=DEVICE)
+
+    assert response.status_code == 403, response.text
+    assert store.get_agent_device(DEVICE)["agent_id"] == victim["agent_id"], (
+        "an enrollment code re-pointed a device that was paired to a different agent"
+    )
+
+
+def test_a_code_cannot_reactivate_a_revoked_device(served):
+    """`associate_agent_device` reactivates by default, so without a check every code ever
+    issued is a way to undo a revocation."""
+    store, origin = served
+    identity = _identity()
+    # Paired to the SAME agent that is now re-enrolling, so the agent-id clause cannot be what
+    # refuses this: only the status clause can. (A mutation that dropped the status check left
+    # an earlier version of this test green, because it had used a different agent.) This is
+    # also the realistic attack -- your own device was revoked and you want it back.
+    own = store.storage_agent_id(identity[0])
+    store.associate_agent_device(own, DEVICE)
+    store.set_agent_device_status(DEVICE, "revoked")
+    code = issue_code(WORKSPACE, home=store.home)
+
+    response = _redeem(origin, code, identity, device_id=DEVICE)
+
+    assert response.status_code == 403, response.text
+    assert store.get_agent_device(DEVICE)["status"] == "revoked", (
+        "an enrollment code reactivated a revoked device"
+    )
+
+
+def test_a_malformed_device_id_does_not_burn_the_code(served):
+    """`redeem_code` does not validate `device_id`, so an empty one used to be marked redeemed
+    and only THEN fail on the pairing write -- refusing the caller with "cannot be redeemed"
+    for a code that had in fact been redeemed, and leaving nothing bound. The refusal has to
+    happen before the single-use mark."""
+    store, origin = served
+    identity = _identity()
+    code = issue_code(WORKSPACE, home=store.home)
+
+    refused = _redeem(origin, code, identity, device_id="")
+    assert refused.status_code == 403, refused.text
+
+    # the code must still be usable, because nothing was bound
+    second = _redeem(origin, code, identity, device_id=DEVICE)
+    assert second.status_code == 200, (
+        "a malformed device id burned the code: the refusal consumed a single-use secret "
+        "without binding anything"
+    )

@@ -1326,14 +1326,38 @@ def _make_handler(store: GraphStore, *, allowed_origins: frozenset[str],
                 try:
                     body = self._read_json_body()
                     did = str(body.get("did") or "")
-                    device_id = str(body.get("device_id") or "")
-                    # Resolved BEFORE the redemption, because a code is single use: if
-                    # attribution is disabled there is no agent_id to bind and the bind would
-                    # fail after the code had already been burned. Refused with the same
-                    # message as everything else here -- the reason is not the caller's.
+                    device_id = str(body.get("device_id") or "").strip()
+                    _refused = "that enrollment code cannot be redeemed"
+                    # EVERY check below happens before `redeem_code`, because a code is single
+                    # use: a refusal after the single-use mark would consume the secret and
+                    # bind nothing, and report "cannot be redeemed" for a code that had in
+                    # fact been redeemed. All refuse with the one message; the reason is not
+                    # the caller's to learn.
+                    if not device_id:
+                        raise EnrollmentRefused(_refused)
+                    # No agent_id to bind when attribution is disabled.
                     agent_id = store.storage_agent_id(did)
                     if agent_id is None:
-                        raise EnrollmentRefused("that enrollment code cannot be redeemed")
+                        raise EnrollmentRefused(_refused)
+                    # A code authorises enrolling AN AGENT. The pairing write is an upsert
+                    # keyed on a device_id the caller chooses
+                    # (`ON CONFLICT(device_id) DO UPDATE SET agent_id=..., status='active'`),
+                    # so without this check a code is also: a takeover -- present a device id
+                    # already paired to someone else and its pairing moves to you -- and a way
+                    # to undo a revocation, since the upsert reactivates by default. Both were
+                    # reachable with any valid code and are now refused.
+                    #
+                    # Re-enrolling the SAME agent on the SAME active device is allowed: that is
+                    # a repeat `cortex connect --code`, not a takeover.
+                    try:
+                        paired = store.get_agent_device(device_id)
+                    except KeyError:
+                        paired = None
+                    if paired is not None and (
+                        str(paired.get("agent_id")) != agent_id
+                        or str(paired.get("status")) != "active"
+                    ):
+                        raise EnrollmentRefused(_refused)
                     result = redeem_code(
                         str(body.get("code") or ""),
                         did=did,
