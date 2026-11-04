@@ -36,8 +36,11 @@ class FakeStripe:
         return {"id": price_id, "currency": "usd", "unit_amount": cents,
             "recurring": {"interval": "month", "interval_count": 1}, "active": True}
 
-    def verify_event(self, body, signature):
-        return StripeGateway(self.config).verify_event(body, signature)
+    def verify_event(self, body, signature, *, now=None):
+        # `now` is forwarded, not dropped: the real gateway takes it to make its 300-second
+        # signature window testable without moving the wall clock, and a double that omits
+        # the parameter makes that window unreachable through the fixture.
+        return StripeGateway(self.config).verify_event(body, signature, now=now)
 
     def request(self, method, path, *, data=None, idempotency_key=None):
         self.calls.append((method, path, data, idempotency_key))
