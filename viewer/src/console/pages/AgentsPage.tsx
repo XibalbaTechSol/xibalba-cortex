@@ -71,15 +71,16 @@ export function AgentsPage() {
     go('graph')
   }, [workspace, go])
 
-  /* Two refs, because the transition is the claim -- not the count.
+  /* The transition is the claim, not the count.
    *
    * A rule of "if an agent exists, open Graph" would make this page unreachable: every visit
    * with an agent connected would bounce straight out of it. Only a zero that this session
    * actually observed, followed by an arrival, may navigate. */
-  const observedZero = useRef(false)
   const opened = useRef(false)
-  // A server-observed zero, not the empty render while the first fetch is still in flight.
+  // A SERVER-observed zero: not the empty render while the first fetch is in flight, and not
+  // a failed fetch either -- an error is not evidence that the workspace has no agents.
   const settledEmpty = agents.data !== null && devices.data !== null && entries.length === 0
+  const [sawZero, setSawZero] = useState(false)
   /* Exactly one, not the first of several. With two namespaces in the same listing the
    * console cannot know which one redeemed the code, and `useWorkspace`'s "nothing selected,
    * take the default" effect would quietly select `options[0]` -- landing the person in a
@@ -89,20 +90,28 @@ export function AgentsPage() {
   const arrived = openable.length === 1 ? openable[0] : null
 
   useEffect(() => {
-    if (settledEmpty) observedZero.current = true
+    if (settledEmpty) setSawZero(true)
   }, [settledEmpty])
 
+  /* Keep polling while there is nothing to open, INCLUDING after a failed listing.
+   * `useAsync` nulls `data` in its catch even with `keepData`, so a condition written on
+   * `settledEmpty` alone cleared this interval on the first transient error and nothing ever
+   * reloaded again -- the person watched a dead connect screen while their agent had in fact
+   * enrolled. A poll that gives up silently is worse than no poll. */
+  const nothingToOpen = arrived === null && (settledEmpty || error !== null)
   useEffect(() => {
-    if (!settledEmpty) return
+    if (!nothingToOpen) return
     const timer = setInterval(() => reload(), ENROLLMENT_POLL_MS)
     return () => clearInterval(timer)
-  }, [settledEmpty, reload])
+  }, [nothingToOpen, reload])
 
   useEffect(() => {
-    if (opened.current || !observedZero.current || !arrived?.workspace?.store_id) return
+    // `sawZero`, not the error path: a listing that failed says nothing about how many
+    // agents exist, so it must never license a navigation.
+    if (opened.current || !sawZero || !arrived?.workspace?.store_id) return
     opened.current = true
     openWorkspace(arrived.agentId, arrived.workspace.store_id)
-  }, [arrived, openWorkspace])
+  }, [arrived, sawZero, openWorkspace])
 
   return (
     <Page

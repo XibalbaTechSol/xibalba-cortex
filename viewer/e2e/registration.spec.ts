@@ -141,18 +141,28 @@ const listedAgent = (agentId: string, deviceId: string) => ({
  *  redemption produces, driven from the test rather than waited for. */
 async function agentArrivesWhenRedeemed(page: Page, arrived = [listedAgent(ENROLLED_AGENT, ENROLLED_DEVICE)]) {
   let redeemed = false
+  /* Counted down by the route, armed by the test. Not "fail the Nth request": the initial
+   * page load issues several listing calls of its own (the first-run probe, the scope
+   * listing, this page's own), and failing those breaks the load instead of a poll. */
+  let failures = 0
   const body = (value: unknown) => ({ status: 200, contentType: 'application/json', body: JSON.stringify(value) })
-  await page.route('**/api/agents**', (route) => route.fulfill(body({
-    agents: redeemed ? arrived : [],
-    oracle_reachable: false,
-    primary_profile_id: 'default',
-  })))
+  await page.route('**/api/agents**', (route) => {
+    if (failures > 0) {
+      failures -= 1
+      return route.fulfill({ status: 500, contentType: 'application/json', body: '{"error":"transient"}' })
+    }
+    return route.fulfill(body({
+      agents: redeemed ? arrived : [],
+      oracle_reachable: false,
+      primary_profile_id: 'default',
+    }))
+  })
   await page.route('**/api/agent-devices**', (route) => route.fulfill(body({
     pairs: redeemed
       ? arrived.map((a) => ({ device_id: a.device_id, agent_id: a.agent_id, display_name: a.device_name, status: 'active', created_at: null, updated_at: null, last_seen_at: null }))
       : [],
   })))
-  return { redeem: () => { redeemed = true } }
+  return { redeem: () => { redeemed = true }, failNextPolls: (n: number) => { failures = n } }
 }
 
 /** The header scope selector. "The agent is selected" has to be asserted on something the
@@ -313,4 +323,26 @@ test('a self-hosted console offers no hosted API-key form at all', async ({ page
     page.getByRole('button', { name: 'Create API key', exact: true }),
     'a self-hosted console is offering to issue a hosted credential it has no account for',
   ).toHaveCount(0)
+})
+
+test('a transient listing error does not stop the console waiting for the agent', async ({ page }) => {
+  /* `useAsync` sets `data: null` in its catch even with `keepData`, so one failed
+   * `/api/agents` response made the "nothing to show" condition false, the interval was
+   * cleared, and nothing ever reloaded again -- the person sat watching a dead connect screen
+   * while `cortex connect --code` had already succeeded. A poll that gives up on the first
+   * transient error is worse than no poll, because it looks like it is still waiting. */
+  await stubConsoleApi(page)
+  await signedIn(page)
+  const enrollment = await agentArrivesWhenRedeemed(page)
+
+  await page.goto('/')
+  // armed only once the page has loaded, so the failures land on polls and not on the load
+  await expect(connectSurface(page)).toBeVisible()
+  enrollment.failNextPolls(2)
+
+  enrollment.redeem()
+
+  await expect(connectSurface(page), 'the poll died on a transient error and never saw the agent arrive')
+    .toHaveCount(0, { timeout: 30_000 })
+  await expect(scopePicker(page)).toHaveValue(`${ENROLLED_STORE}\u0000${ENROLLED_AGENT}`)
 })
