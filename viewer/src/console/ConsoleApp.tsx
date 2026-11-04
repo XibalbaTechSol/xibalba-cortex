@@ -70,7 +70,7 @@ function Workspace() {
         {lens === 'graph' ? <GraphLens /> : <TimelineLens />}
         <FacetRail />
         <ChainRail />
-        {selectedId && <Inspector />}
+        {selectedId && !page && <Inspector />}
       </main>
       <StatusBar />
     </>

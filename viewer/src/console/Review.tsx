@@ -64,7 +64,7 @@ export function Review() {
         <div className="xc-tabs" role="tablist" aria-label="Review sections">
           {([['proposals', 'Proposals', counts.proposals], ['para', 'PARA', counts.para], ['tasks', 'Tasks', undefined]] as const).map(([id, label, n]) => (
             <button key={id} type="button" role="tab" id={`rv-${id}`} className="xc-tab" aria-selected={tab === id} aria-controls="rv-panel" onClick={() => setTab(id)}>
-              {label}{n !== undefined && <b>{n}</b>}
+              {label} {n !== undefined && <b>{n}</b>}
             </button>
           ))}
         </div>

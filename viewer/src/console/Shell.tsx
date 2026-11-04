@@ -110,11 +110,14 @@ export function ScopePicker() {
             choose(agentId, storeId)
           }}
         >
-          {options.map((o) => (
-            <option key={`${o.storeId}\0${o.agentId}`} value={`${o.storeId}\0${o.agentId}`}>
-              {o.label} · {o.storeId.slice(0, 6)} · {o.writable ? 'writable' : 'read only'}
-            </option>
-          ))}
+          {options.map((o) => {
+            const shortStore = o.storeId.replace(/^store-/, '').slice(0, 8) || o.storeId.slice(0, 8)
+            return (
+              <option key={`${o.storeId}\0${o.agentId}`} value={`${o.storeId}\0${o.agentId}`}>
+                {o.label} · {shortStore} · {o.writable ? 'writable' : 'read only'}
+              </option>
+            )
+          })}
           <option value={PRIMARY_VALUE}>Primary profile · all memories · read only</option>
         </select>
       ) : (
