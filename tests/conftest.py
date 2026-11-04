@@ -142,3 +142,32 @@ def frozen_clock(monkeypatch):
     for module in (accounts, ingest_tokens):
         monkeypatch.setattr(module, "datetime", Shifted)
     return clock
+
+
+# ---------------------------------------------------------------------------
+# Hermetic embedding sidecar
+
+# Nothing listens here, so a connect is refused in under a millisecond and
+# `embed_query` returns None. Port 1 is privileged and unbindable in practice.
+_NO_EMBEDDING_SIDECAR = "http://127.0.0.1:1/embed"
+
+
+@pytest.fixture(autouse=True)
+def no_embedding_sidecar(monkeypatch):
+    """Point every test's embedding client at nothing that answers.
+
+    `embed_query` defaults to `http://127.0.0.1:8433/embed` and waits up to 8s for it.
+    Routes that embed a query (`/api/context/assemble`, `/api/retrieval/hybrid`) call it
+    inline, so on a developer machine that happens to be running the real sidecar those
+    routes inherit its latency -- measured here at 0.2s to 3.9s, and 1.6s for a trivial
+    ping. The HTTP test harness gives a request 5s. A sidecar that is merely slow rather
+    than broken therefore fails those tests while staying well inside embed_query's own
+    8s budget, and CI never sees it because no sidecar runs there: the suite passes or
+    fails on whether a process unrelated to the test is listening.
+
+    Refusing the connection outright makes the lexical-only path these tests already
+    assert against the path they actually take, everywhere. A test that wants a real
+    vector passes `query_vector` directly to the store, and a test of the client itself
+    patches `urlopen`; neither route goes through this variable.
+    """
+    monkeypatch.setenv("XIBALBA_CORTEX_EMBEDDING_URL", _NO_EMBEDDING_SIDECAR)
