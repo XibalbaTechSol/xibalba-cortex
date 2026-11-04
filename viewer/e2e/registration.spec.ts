@@ -104,3 +104,141 @@ test('an explicit destination in the hash is still honoured with zero agents', a
   await expect(connectSurface(page)).toHaveCount(0)
   await expect(workspaceCanvas(page)).toBeVisible()
 })
+
+/* Phase 2, Task 3 — a successful bind selects the agent and opens the Graph lens.
+ *
+ * The server half of this lives in `tests/test_enrollment_bind.py`: a redeemed enrollment
+ * code pairs the DID's agent id with its device, which is what puts it in the listing below,
+ * and returns the `agent_id`/`store_id` that `workspace.choose` needs. These tests cover the
+ * console's half -- that it notices the agent arriving and opens its workspace.
+ *
+ * Why a transition and not a reload: the person is looking at the connect screen in a browser
+ * while they run `cortex connect --code` in a terminal. Nothing in the browser knows the
+ * redemption happened, so the console has to be the thing that looks. */
+
+const ENROLLED_AGENT = 'did:integrity:00000000000000000000000000000000000000000000000000000000000000ff'
+const ENROLLED_DEVICE = 'enrolled-device-01'
+const ENROLLED_STORE = 'store-fixture'
+/* A second agent that arrives in the same listing, and the reason it exists: `useWorkspace`
+ * has a "nothing valid selected but namespaces exist, so take the default" effect. With a
+ * single agent in the listing that effect selects the right one by accident, so a mutation
+ * that bound no agent id at all (`choose('', storeId)`) still left the scope assertion
+ * green. Two agents means the default is NOT the enrolled one, and the assertion has to be
+ * carried by the bind. */
+const OTHER_AGENT = 'did:integrity:00000000000000000000000000000000000000000000000000000000000000aa'
+
+const listedAgent = (agentId: string, deviceId: string) => ({
+  agent_id: agentId, device_id: deviceId, agent_name: deviceId,
+  device_name: deviceId, pair_status: 'active', pair_updated_at: null,
+  memories: 0, memories_counted: true, sessions: 0, sessions_counted: false,
+  last_seen_at: null, store_id: ENROLLED_STORE, profile_id: 'default',
+  store_access: 'writable', writable: true, did: agentId, on_chain: false,
+  seen: true, handle: null, name: null, local_label: deviceId,
+})
+
+/** Zero agents until `redeem()` is called, one afterwards -- the 0 -> 1 transition a
+ *  redemption produces, driven from the test rather than waited for. */
+async function agentArrivesWhenRedeemed(page: Page, arrived = [listedAgent(ENROLLED_AGENT, ENROLLED_DEVICE)]) {
+  let redeemed = false
+  const body = (value: unknown) => ({ status: 200, contentType: 'application/json', body: JSON.stringify(value) })
+  await page.route('**/api/agents**', (route) => route.fulfill(body({
+    agents: redeemed ? arrived : [],
+    oracle_reachable: false,
+    primary_profile_id: 'default',
+  })))
+  await page.route('**/api/agent-devices**', (route) => route.fulfill(body({
+    pairs: redeemed
+      ? arrived.map((a) => ({ device_id: a.device_id, agent_id: a.agent_id, display_name: a.device_name, status: 'active', created_at: null, updated_at: null, last_seen_at: null }))
+      : [],
+  })))
+  return { redeem: () => { redeemed = true } }
+}
+
+/** The header scope selector. "The agent is selected" has to be asserted on something the
+ *  person can see -- the URL alone says only which lens is open, and the canvas proves
+ *  nothing either way because the lens stays mounted under the page drawer. */
+const scopePicker = (page: Page) => page.locator('.xc-scope select')
+
+test('an agent that arrives while the connect surface is open is selected, in the Graph lens', async ({ page }) => {
+  await stubConsoleApi(page)
+  await signedIn(page)
+  const enrollment = await agentArrivesWhenRedeemed(page)
+
+  await page.goto('/')
+  // The Task 1 gate put us here: zero agents, so "connect an agent" is the first screen.
+  await expect(connectSurface(page)).toBeVisible()
+
+  // ...and now the operator runs `cortex connect --code` in their terminal.
+  enrollment.redeem()
+
+  /* "Opens the Graph lens" is asserted as the Agents page *closing*, not as a hash saying
+   * "graph": `routeHash` (nav.ts) gives the default lens no token at all, so the graph lens
+   * is the empty hash and `toHaveURL(/graph/)` could never pass however well the wiring
+   * worked. The canvas is no use either -- it stays mounted and visible beneath the page
+   * drawer, so it is visible whether or not the drawer closed. */
+  await expect(connectSurface(page), 'the bind left the connect page open over the lens')
+    .toHaveCount(0, { timeout: 20_000 })
+  await expect(page, 'the bind left the route on the Agents page').not.toHaveURL(/agents/)
+  await expect(scopePicker(page), 'the Graph lens opened on some other workspace than the agent that just enrolled')
+    .toHaveValue(`${ENROLLED_STORE}\u0000${ENROLLED_AGENT}`)
+})
+
+test('an account that already has an agent is not thrown out of the Agents page', async ({ page }) => {
+  /* The control, and the reason the transition is a transition. A rule of "if there is an
+   * agent, go to Graph" would make the Agents page unreachable: every visit would bounce.
+   * Only a 0 -> 1 change observed while waiting may navigate. */
+  await stubConsoleApi(page)
+  await signedIn(page)
+
+  await page.goto('/#agents')
+  await expect(page.getByRole('heading', { name: 'Bring an agent into Cortex' })).toBeVisible()
+  await page.waitForTimeout(6_000) // longer than the poll interval
+
+  await expect(page, 'visiting Agents with an agent already connected bounced to Graph').toHaveURL(/agents/)
+})
+
+test('an enrolled agent with no memories is told how to write one, not shown an empty canvas', async ({ page }) => {
+  /* The second half of the plan's Step 1. A workspace that is empty *because the agent has
+   * not written yet* is the normal state one second after enrollment, and "no memories yet"
+   * on its own does not tell anyone what to do about it. */
+  await stubConsoleApi(page)
+  await signedIn(page)
+  await page.route('**/api/graph**', (route) => route.fulfill({
+    status: 200, contentType: 'application/json',
+    body: JSON.stringify({ nodes: [], edges: [], truncated: false }),
+  }))
+
+  await page.goto('/#graph')
+
+  const empty = page.getByRole('heading', { name: /no memories yet/i })
+  await expect(empty).toBeVisible()
+  await expect(
+    page.getByText('cortex connect', { exact: false }).first(),
+    'an empty workspace says it is empty but not how to fill it',
+  ).toBeVisible()
+})
+
+test('two agents arriving at once is not guessed at', async ({ page }) => {
+  /* What makes the single-agent case safe is that there is nothing to choose between. With
+   * two namespaces appearing in the same listing the console has no way to know which one
+   * redeemed the code, and `useWorkspace`'s "nothing selected, take the default" effect would
+   * quietly pick `options[0]` -- landing the person in a workspace they did not enroll. So
+   * the transition fires only for an unambiguous arrival; otherwise the listing is the answer
+   * and the person picks. */
+  await stubConsoleApi(page)
+  await signedIn(page)
+  const enrollment = await agentArrivesWhenRedeemed(page, [
+    listedAgent(OTHER_AGENT, 'other-device-01'),
+    listedAgent(ENROLLED_AGENT, ENROLLED_DEVICE),
+  ])
+
+  await page.goto('/')
+  await expect(connectSurface(page)).toBeVisible()
+  enrollment.redeem()
+
+  /* Both are listed as cards -- addressed as cards, not by their names: the scope picker
+   * carries the same names in hidden <option> elements, which a text locator matches first. */
+  await expect(page.locator('.xc-opscard')).toHaveCount(2, { timeout: 20_000 })
+  await expect(page, 'the console picked one of two simultaneous arrivals instead of letting the person choose').toHaveURL(/agents/)
+  await expect(connectSurface(page), 'the connect surface vanished without anything being opened').toBeVisible()
+})
