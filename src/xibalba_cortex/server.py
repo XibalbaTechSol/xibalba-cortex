@@ -15,10 +15,20 @@ from __future__ import annotations
 
 import asyncio
 import os
+import sys
+import threading
 from functools import wraps
 from pathlib import Path
+from typing import Any
 
 from mcp.server import MCPServer
+
+from xibalba_cortex.cloud_client import (
+    DEFAULT_CLOUD_URL,
+    CortexCloudClient,
+    DeviceAuthStore,
+    DevicePairingFlow,
+)
 
 from xibalba_cortex.agy_adapter import AgyNativeHookAdapter, AgyWrapperShim
 from xibalba_cortex.config import load_config
@@ -92,6 +102,152 @@ _store: GraphStore | None = None
 _controller: XibalbaRuntimeController | None = None
 _config = None
 _agent0 = None
+
+_cloud_client: CortexCloudClient | None = None
+_cloud_pairing_info: dict[str, Any] | None = None
+_cloud_pairing_thread: threading.Thread | None = None
+_cloud_sync_queue: list[dict[str, Any]] = []
+_cloud_lock = threading.Lock()
+
+
+def get_cloud_client() -> CortexCloudClient | None:
+    global _cloud_client
+    return _cloud_client
+
+
+def get_cloud_status() -> dict[str, object]:
+    with _cloud_lock:
+        info = dict(_cloud_pairing_info or {})
+    authenticated = _cloud_client is not None and _cloud_client.is_authenticated
+    info["authenticated"] = authenticated
+    if _cloud_client:
+        info["cloud_url"] = _cloud_client.cloud_url
+    return info
+
+
+def trigger_cloud_pairing(
+    cloud_url: str | None = None,
+    profile_root: Path | None = None,
+    open_browser: bool = True,
+) -> dict[str, object]:
+    init_cloud_sync(cloud_url=cloud_url or DEFAULT_CLOUD_URL, profile_root=profile_root, auto_pair=True, open_browser=open_browser)
+    return get_cloud_status()
+
+
+def init_cloud_sync(
+    cloud_url: str = DEFAULT_CLOUD_URL,
+    profile_root: Path | None = None,
+    auto_pair: bool = True,
+    open_browser: bool = True,
+) -> None:
+    global _cloud_client, _cloud_pairing_info, _cloud_pairing_thread
+    root = profile_root or _default_home()
+
+    creds = DeviceAuthStore.load(root)
+    if creds and creds.token:
+        _cloud_client = CortexCloudClient(cloud_url=creds.cloud_url or cloud_url, token=creds.token, profile_root=root)
+        with _cloud_lock:
+            _cloud_pairing_info = {
+                "status": "authenticated",
+                "agent_did": creds.agent_did,
+                "tenant_id": creds.tenant_id,
+                "device_name": creds.device_name,
+            }
+        return
+
+    if not auto_pair:
+        return
+
+    with _cloud_lock:
+        if _cloud_pairing_thread and _cloud_pairing_thread.is_alive():
+            return
+
+    def _pairing_worker():
+        global _cloud_client, _cloud_pairing_info
+        flow = DevicePairingFlow(
+            cloud_url=cloud_url,
+            profile_root=root,
+            agent_name=os.environ.get("XIBALBA_AGENT_NAME", "default"),
+            harness="mcp",
+        )
+
+        def _on_instructions(inst: dict[str, Any]):
+            with _cloud_lock:
+                _cloud_pairing_info = {
+                    "status": "pending_authorization",
+                    "user_code": inst["user_code"],
+                    "verification_uri": inst["verification_uri"],
+                    "agent_did": inst["agent_did"],
+                }
+            sys.stderr.write(
+                f"\n[Cortex] Cloud authorization required:\n"
+                f"  Please open in browser: {inst['verification_uri']}\n"
+                f"  Confirmation code: {inst['user_code']}\n"
+                f"  Agent DID: {inst['agent_did']}\n\n"
+            )
+            sys.stderr.flush()
+
+        try:
+            creds = flow.run_pairing(
+                open_browser=open_browser,
+                on_instructions=_on_instructions,
+                timeout_seconds=900,
+            )
+            with _cloud_lock:
+                _cloud_client = CortexCloudClient(cloud_url=creds.cloud_url, token=creds.token, profile_root=root)
+                _cloud_pairing_info = {
+                    "status": "authenticated",
+                    "agent_did": creds.agent_did,
+                    "tenant_id": creds.tenant_id,
+                    "device_name": creds.device_name,
+                }
+                while _cloud_sync_queue:
+                    item = _cloud_sync_queue.pop(0)
+                    try:
+                        _cloud_client.store_memory(
+                            item["content"],
+                            source=item.get("source"),
+                            status=item.get("status", "active"),
+                            idempotency_key=item.get("idempotency_key"),
+                        )
+                    except Exception as err:
+                        sys.stderr.write(f"[Cortex] Failed to sync queued memory: {err}\n")
+            sys.stderr.write(f"[Cortex] Successfully paired with Cortex Cloud workspace {creds.tenant_id}!\n")
+            sys.stderr.flush()
+        except Exception as exc:
+            with _cloud_lock:
+                _cloud_pairing_info = {"status": "error", "error": str(exc)}
+            sys.stderr.write(f"[Cortex] Device pairing error: {exc}\n")
+            sys.stderr.flush()
+
+    _cloud_pairing_thread = threading.Thread(target=_pairing_worker, daemon=True)
+    _cloud_pairing_thread.start()
+
+
+def _sync_memory_to_cloud(
+    content: str,
+    *,
+    source: dict[str, object] | None = None,
+    status: str = "candidate",
+    idempotency_key: str | None = None,
+) -> None:
+    if _cloud_client and _cloud_client.is_authenticated:
+        try:
+            threading.Thread(
+                target=_cloud_client.store_memory,
+                args=(content,),
+                kwargs={"source": source, "status": status, "idempotency_key": idempotency_key},
+                daemon=True,
+            ).start()
+        except Exception:
+            pass
+    elif _cloud_pairing_info and _cloud_pairing_info.get("status") == "pending_authorization":
+        _cloud_sync_queue.append({
+            "content": content,
+            "source": source,
+            "status": status,
+            "idempotency_key": idempotency_key,
+        })
 
 
 def get_store() -> GraphStore:
@@ -270,13 +426,15 @@ def memory_remember(
     its claude_code.user_prompt/api_request/tool_result OTel events) links this memory to
     later-ingested OTel telemetry for the same turn, retrievable via memory_otel_events.
     """
-    return get_store().store_memory(
+    result = get_store().store_memory(
         content,
         source=_scoped_source(source, require=current_principal() is not None),
         status=status,
         idempotency_key=idempotency_key,
         evidence_class=evidence_class,
     )
+    _sync_memory_to_cloud(content, source=source, status=status, idempotency_key=idempotency_key)
+    return result
 
 
 @server.tool()
@@ -1673,6 +1831,18 @@ def agent0_give_feedback(
     )
 
 
+@server.tool()
+def cortex_cloud_status() -> dict[str, object]:
+    """Check connection status and pairing state of this agent with Cortex Cloud."""
+    return get_cloud_status()
+
+
+@server.tool()
+def cortex_cloud_pair(cloud_url: str | None = None) -> dict[str, object]:
+    """Initiate or refresh Cortex Cloud pairing for this agent."""
+    return trigger_cloud_pairing(cloud_url=cloud_url)
+
+
 def _install_stdio_principal() -> None:
     """Bind the stdio server to the agent identity it was launched with.
 
@@ -1719,7 +1889,27 @@ def main() -> None:
     parser.add_argument("--host", default="127.0.0.1", help="streamable-http only")
     parser.add_argument("--port", type=int, default=8421, help="streamable-http only")
     parser.add_argument("--path", default="/mcp", help="streamable-http mount path")
+    parser.add_argument(
+        "--cloud",
+        nargs="?",
+        const=DEFAULT_CLOUD_URL,
+        default=os.environ.get("CORTEX_CLOUD_URL"),
+        help="Cortex Cloud endpoint for managed memory sync and browser pairing",
+    )
+    parser.add_argument(
+        "--no-cloud",
+        action="store_true",
+        help="Disable Cortex Cloud sync (local-only mode)",
+    )
     args = parser.parse_args()
+
+    # Cloud sync initialization
+    if not args.no_cloud and os.environ.get("XIBALBA_CORTEX_NO_CLOUD") != "1":
+        cloud_url = args.cloud or os.environ.get("CORTEX_CLOUD_URL")
+        home = _default_home()
+        # Initialize if explicitly requested or if auth credentials already exist
+        if cloud_url or DeviceAuthStore.load(home) is not None:
+            init_cloud_sync(cloud_url=cloud_url or DEFAULT_CLOUD_URL, profile_root=home, auto_pair=True)
 
     if args.transport == "stdio":
         _install_stdio_principal()

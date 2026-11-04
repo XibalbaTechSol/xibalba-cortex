@@ -25,8 +25,10 @@ from starlette.staticfiles import StaticFiles
 
 from .. import accounts
 from ..contact import ContactInbox, ContactError
+from ..device_pairing import create_pairing_request, get_pairing_request, approve_pairing_request, poll_pairing_status
 from ..email_delivery import EmailDeliveryError
 from ..ingest_tokens import issue_token, verify_token_record, _connect as identity_connection
+from ..oauth import generate_pkce, sign_oauth_state, verify_oauth_state, get_oauth_provider, OAuthError
 from .config import ManagedConfig
 from .control import LimitExceeded, ManagedControl
 from .ingest import ingest_turn
@@ -214,11 +216,18 @@ def create_app(config: ManagedConfig, *, control: ManagedControl | None = None, 
         try:
             await auth_work(service.register, email=str(data.get("email", "")),
                 password=str(data.get("password", "")), display_name=str(data.get("display_name", "")))
+        except EmailDeliveryError:
+            log.warning("Managed account verification email delivery failed")
         except ValueError as exc:
             if "already exists" not in str(exc):
                 raise
             # No account enumeration. A separate resend endpoint can use the same generic result.
-        return JSONResponse({"message": "Check your email to verify your account before signing in."}, status_code=202)
+        message = (
+            "Check your email to verify your account before signing in."
+            if config.require_email_verification
+            else "Account created. You may now sign in."
+        )
+        return JSONResponse({"message": message}, status_code=202)
 
     async def verify(request):
         rate_limit(request, auth=True)
@@ -255,6 +264,178 @@ def create_app(config: ManagedConfig, *, control: ManagedControl | None = None, 
         response = JSONResponse({"ok": True})
         response.delete_cookie(COOKIE, path="/", secure=config.public_url.startswith("https:"), httponly=True, samesite="lax")
         return response
+
+    def configured_oauth_providers() -> list[dict[str, str]]:
+        providers = []
+        if config.google_client_id and config.google_client_secret:
+            providers.append({"id": "google", "name": "Google"})
+        if config.github_client_id and config.github_client_secret:
+            providers.append({"id": "github", "name": "GitHub"})
+        return providers
+
+    async def oauth_providers(request: Request):
+        return JSONResponse({"providers": configured_oauth_providers()})
+
+    async def oauth_authorize(request: Request):
+        rate_limit(request, auth=True)
+        provider_name = str(request.path_params.get("provider", "")).lower()
+        client_id = ""
+        client_secret = ""
+        if provider_name == "google":
+            client_id, client_secret = config.google_client_id, config.google_client_secret
+        elif provider_name == "github":
+            client_id, client_secret = config.github_client_id, config.github_client_secret
+        else:
+            raise ApiError(404, f"Unsupported OAuth provider: {provider_name}")
+
+        if not client_id or not client_secret:
+            raise ApiError(400, f"OAuth provider {provider_name} is not configured")
+
+        verifier, challenge = generate_pkce()
+        callback_uri = f"{config.public_url.rstrip('/')}/api/managed/oauth/{provider_name}/callback"
+        signed_state = sign_oauth_state(csrf_secret, provider=provider_name, code_verifier=verifier, redirect_uri=callback_uri)
+
+        try:
+            provider = get_oauth_provider(provider_name, client_id, client_secret)
+            auth_url = provider.authorization_url(state=signed_state, code_challenge=challenge, redirect_uri=callback_uri)
+        except OAuthError as exc:
+            raise ApiError(400, str(exc)) from exc
+
+        return RedirectResponse(auth_url, status_code=303)
+
+    async def oauth_callback(request: Request):
+        rate_limit(request, auth=True)
+        provider_name = str(request.path_params.get("provider", "")).lower()
+
+        error_code = request.query_params.get("error")
+        error_desc = request.query_params.get("error_description")
+        if error_code:
+            log.warning("OAuth provider %s returned error: %s (%s)", provider_name, error_code, error_desc)
+            return RedirectResponse(f"/managed?error={error_desc or error_code}#signin", status_code=303)
+
+        code = request.query_params.get("code")
+        state = request.query_params.get("state")
+        if not code or not state:
+            return RedirectResponse("/managed?error=missing_code_or_state#signin", status_code=303)
+
+        try:
+            verified = verify_oauth_state(csrf_secret, state, expected_provider=provider_name)
+        except OAuthError as exc:
+            log.warning("OAuth state verification failed: %s", exc)
+            return RedirectResponse(f"/managed?error={exc}#signin", status_code=303)
+
+        client_id = ""
+        client_secret = ""
+        if provider_name == "google":
+            client_id, client_secret = config.google_client_id, config.google_client_secret
+        elif provider_name == "github":
+            client_id, client_secret = config.github_client_id, config.github_client_secret
+
+        if not client_id or not client_secret:
+            return RedirectResponse("/managed?error=provider_unconfigured#signin", status_code=303)
+
+        callback_uri = verified.get("u") or f"{config.public_url.rstrip('/')}/api/managed/oauth/{provider_name}/callback"
+        provider = get_oauth_provider(provider_name, client_id, client_secret)
+
+        try:
+            user_info = await run_in_threadpool(provider.exchange_code, code=code, code_verifier=verified.get("v", ""), redirect_uri=callback_uri)
+        except OAuthError as exc:
+            log.warning("OAuth token exchange failed: %s", exc)
+            return RedirectResponse(f"/managed?error={exc}#signin", status_code=303)
+        except Exception as exc:
+            log.exception("Unexpected error during OAuth token exchange")
+            return RedirectResponse("/managed?error=oauth_exchange_failed#signin", status_code=303)
+
+        if not user_info.email_verified:
+            return RedirectResponse("/managed?error=unverified_email#signin", status_code=303)
+
+        try:
+            token, account = await auth_work(service.oauth_login_or_register, user_info)
+        except LimitExceeded as exc:
+            return RedirectResponse(f"/managed?error={exc}#signin", status_code=303)
+        except Exception as exc:
+            log.exception("OAuth login or registration failed")
+            return RedirectResponse("/managed?error=oauth_account_failed#signin", status_code=303)
+
+        response = RedirectResponse("/managed", status_code=303)
+        response.set_cookie(COOKIE, token, max_age=accounts.SESSION_TTL_HOURS * 3600, httponly=True, secure=config.public_url.startswith("https:"), samesite="lax", path="/")
+        return response
+
+    async def device_pair_request(request: Request):
+        rate_limit(request, auth=True)
+        data = await payload(request)
+        device_id = str(data.get("device_id", "")).strip()
+        agent_did = str(data.get("agent_did", "")).strip()
+        if not device_id or not agent_did:
+            raise ApiError(400, "device_id and agent_did are required")
+        if not agent_did.startswith("did:integrity:") or len(agent_did) > 160:
+            raise ApiError(400, "agent_did must be a valid did:integrity identifier")
+
+        result = await run_in_threadpool(
+            create_pairing_request,
+            service.identity_home,
+            device_id=device_id,
+            device_name=str(data.get("device_name", "")).strip() or device_id,
+            agent_did=agent_did,
+            agent_name=str(data.get("agent_name", "")).strip() or "default",
+            callback_url=str(data.get("callback_url", "")).strip() or None,
+        )
+        user_code = result["user_code"]
+        verification_url = f"{config.public_url.rstrip('/')}/managed#pair?code={user_code}"
+        return JSONResponse({
+            "device_code": result["device_code"],
+            "user_code": user_code,
+            "verification_url": verification_url,
+            "expires_in": result["expires_in"],
+            "interval": result["interval"],
+        }, status_code=201)
+
+    async def device_pair_info(request: Request):
+        rate_limit(request)
+        code = str(request.path_params["code"]).strip()
+        req = await run_in_threadpool(get_pairing_request, service.identity_home, code)
+        if not req:
+            raise ApiError(404, "Pairing request not found or expired")
+        return JSONResponse({
+            "code": req["user_code"],
+            "device_id": req["device_id"],
+            "device_name": req["device_name"],
+            "agent_did": req["agent_did"],
+            "agent_name": req["agent_name"],
+            "status": req["status"],
+            "expires_in": req["expires_in"],
+            "callback_url": req["callback_url"],
+        })
+
+    async def device_pair_approve(request: Request):
+        rate_limit(request)
+        account, _, _ = await run_in_threadpool(owner, request, mutate=True)
+        code = str(request.path_params["code"]).strip()
+        try:
+            result = await run_in_threadpool(
+                approve_pairing_request,
+                service.identity_home,
+                code,
+                account_id=account["id"],
+                tenant_id=account["profile_id"],
+                service_control=service,
+            )
+        except ValueError as exc:
+            raise ApiError(400, str(exc)) from exc
+
+        return JSONResponse({
+            "ok": True,
+            "token": result["token"],
+            "callback_url": result["callback_url"],
+            "device_id": result["device_id"],
+            "agent_did": result["agent_did"],
+        })
+
+    async def device_pair_status(request: Request):
+        rate_limit(request)
+        code = str(request.path_params["code"]).strip()
+        status = await run_in_threadpool(poll_pairing_status, service.identity_home, code)
+        return JSONResponse(status)
 
     async def checkout(request):
         rate_limit(request)
@@ -526,6 +707,20 @@ def create_app(config: ManagedConfig, *, control: ManagedControl | None = None, 
         Route("/api/managed/signup", signup, methods=["POST"]),
         Route("/api/managed/verify", verify),
         Route("/api/managed/login", login, methods=["POST"]),
+        Route("/api/managed/oauth/providers", oauth_providers, methods=["GET"]),
+        Route("/api/managed/oauth/{provider}/authorize", oauth_authorize, methods=["GET"]),
+        Route("/api/managed/oauth/{provider}/callback", oauth_callback, methods=["GET"]),
+        Route("/api/auth/oauth/providers", oauth_providers, methods=["GET"]),
+        Route("/api/auth/oauth/{provider}/authorize", oauth_authorize, methods=["GET"]),
+        Route("/api/auth/oauth/{provider}/callback", oauth_callback, methods=["GET"]),
+        Route("/api/managed/device/pair/request", device_pair_request, methods=["POST"]),
+        Route("/api/managed/device/pair/{code}", device_pair_info, methods=["GET"]),
+        Route("/api/managed/device/pair/{code}/approve", device_pair_approve, methods=["POST"]),
+        Route("/api/managed/device/pair/{code}/status", device_pair_status, methods=["GET"]),
+        Route("/api/auth/device/pair/request", device_pair_request, methods=["POST"]),
+        Route("/api/auth/device/pair/{code}", device_pair_info, methods=["GET"]),
+        Route("/api/auth/device/pair/{code}/approve", device_pair_approve, methods=["POST"]),
+        Route("/api/auth/device/pair/{code}/status", device_pair_status, methods=["GET"]),
         Route("/api/managed/me", me),
         Route("/api/managed/logout", logout, methods=["POST"]),
         Route("/api/managed/keys", keys, methods=["GET", "POST"]),

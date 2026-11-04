@@ -113,9 +113,12 @@ const ROUTES: ReadonlyArray<readonly [string, HostedRoute]> = [
   // read-only subscription must still be able to authenticate. `hostedFetch` attaches the CSRF
   // token and an Idempotency-Key to every POST regardless, so managed's mutation guard is satisfied.
   ['POST /api/auth/login', { to: 'login' }],
+  ['GET /api/auth/oauth/providers', { to: 'oauth/providers' }],
   ['POST /api/auth/signup', { to: 'signup' }],
   ['POST /api/auth/logout', { to: 'logout' }],
   ['GET /api/auth/me', { to: 'me' }],
+  ['GET /api/auth/device/pair/*', { to: 'device/pair/$1' }],
+  ['POST /api/auth/device/pair/*/approve', { to: 'device/pair/$1/approve' }],
   ['POST /api/auth/password-reset/request', { to: 'recovery/forgot-password' }],
   // The one auth action only the hosted backend has. See HOSTED_ONLY below.
   ['POST /api/auth/verification/resend', { to: 'recovery/resend-verification' }],

@@ -205,6 +205,8 @@ TOOLS: dict[str, tuple[str, str]] = {
     "agent0_prepare_feedback": ("machine", "External feedback preparation; no dedicated console surface yet"),
     "agent0_register_agent": ("machine", "Outward on-chain registration; operator MCP action, no browser surface yet"),
     "agent0_give_feedback": ("machine", "Outward on-chain feedback write; operator MCP action, no browser surface yet"),
+    "cortex_cloud_status": ("machine", "Cortex Cloud connection and pairing status for agent harness onboarding"),
+    "cortex_cloud_pair": ("machine", "Initiate browser-mediated Cortex Cloud pairing for agent harness onboarding"),
 }
 RUNTIME_REASON = (
     "machine",

@@ -30,6 +30,7 @@ import { Review } from './Review'
 import { Integrity } from './Integrity'
 import { PhoneWorkspace } from './Phone'
 import { useMediaQuery } from './useMediaQuery'
+import { DevicePair } from './DevicePair'
 
 // A 401 from any call means the cookie session ended; send the user back to sign-in with a reason.
 const EXPIRED = /\b401\b|authentication required|unauthorized|expired/i
@@ -116,9 +117,23 @@ function Workspace() {
 const SIGN_IN_HASH = '#signin'
 const SIGN_UP_HASH = '#signup'
 
+function pairCodeFromUrl(hash: string, search: string): string | null {
+  const paramsSearch = new URLSearchParams(search)
+  const codeFromSearch = paramsSearch.get('code')
+  if (codeFromSearch) return codeFromSearch
+  const hashIdx = hash.indexOf('?')
+  if (hashIdx !== -1) {
+    const paramsHash = new URLSearchParams(hash.slice(hashIdx))
+    return paramsHash.get('code')
+  }
+  return null
+}
+
 function wantsSignIn(hash: string): boolean {
   if (hash === SIGN_IN_HASH || hash === SIGN_UP_HASH) return true
+  if (hash.startsWith('#pair') || hash.startsWith('#device')) return true
   if (resetTokenFromSearch(window.location.search) || verifiedFromSearch(window.location.search)) return true
+  if (pairCodeFromUrl(hash, typeof window !== 'undefined' ? window.location.search : '')) return true
   try { return Boolean(sessionStorage.getItem('xibalba-cortex.auth-notice')) } catch { return false }
 }
 
@@ -212,19 +227,21 @@ export function ConsoleApp() {
     <Landing onSignIn={openSignIn(SIGN_IN_HASH)} />
   )
 
+  const pairCode = pairCodeFromUrl(hash, typeof window !== 'undefined' ? window.location.search : '')
+
   return (
     <SettingsProvider>
       <div className="xc">
         {me === undefined ? (
           <main className="xc-page"><p className="xc-note" role="status">Loading your workspace…</p></main>
         ) : (hostedEdition ? session.hosted : signedIn) ? (
-          /* On hosted the SESSION is the gate, never the local hint: a pilot user who signed in
-             through the old HostedLanding has no hint at all, and requiring one would sign them
-             out -- while trusting one would open a workspace for a session that has ended. On
-             self-hosted there is no `me` to ask, so the hint remains the only signal there is. */
-          <ConsoleProvider onSignOut={signOut} destinations={session.destinations} hosted={session.hosted}>
-            <Workspace />
-          </ConsoleProvider>
+          pairCode ? (
+            <DevicePair code={pairCode} onDone={() => { location.hash = '#agents' }} />
+          ) : (
+            <ConsoleProvider onSignOut={signOut} destinations={session.destinations} hosted={session.hosted}>
+              <Workspace />
+            </ConsoleProvider>
+          )
         ) : (
           signedOut
         )}

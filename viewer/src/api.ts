@@ -148,6 +148,58 @@ export async function accountAuth(path: "signup" | "login", input: Record<string
   return payload
 }
 
+export interface OAuthProvider {
+  id: string
+  name: string
+}
+
+export async function accountOAuthProviders(): Promise<OAuthProvider[]> {
+  try {
+    const response = await send("/api/auth/oauth/providers")
+    const payload = await response.json().catch(() => ({}))
+    if (!response.ok) return []
+    return (payload.providers ?? []) as OAuthProvider[]
+  } catch {
+    return []
+  }
+}
+
+export interface DevicePairInfo {
+  code: string
+  device_id: string
+  device_name: string
+  agent_did: string
+  agent_name: string
+  status: string
+  expires_in: number
+  callback_url?: string | null
+}
+
+export interface DevicePairApproval {
+  ok: boolean
+  token: string
+  callback_url?: string | null
+  device_id: string
+  agent_did: string
+}
+
+export async function getDevicePairInfo(code: string): Promise<DevicePairInfo> {
+  const response = await send(`/api/auth/device/pair/${encodeURIComponent(code)}`)
+  const payload = await response.json().catch(() => ({}))
+  if (!response.ok) throw new Error(payload.error || `Request failed (${response.status})`)
+  return payload as DevicePairInfo
+}
+
+export async function approveDevicePairing(code: string): Promise<DevicePairApproval> {
+  const response = await send(`/api/auth/device/pair/${encodeURIComponent(code)}/approve`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+  })
+  const payload = await response.json().catch(() => ({}))
+  if (!response.ok) throw new Error(payload.error || `Request failed (${response.status})`)
+  return payload as DevicePairApproval
+}
+
 export async function accountMe(): Promise<{account: Record<string, unknown>; session_expires_at?: string | null}> {
   const response = await send("/api/auth/me")
   const payload = await response.json().catch(() => ({}))

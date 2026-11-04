@@ -81,6 +81,19 @@ CREATE TABLE IF NOT EXISTS password_reset_tokens (
     used_at TEXT,
     created_at TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS oauth_identities (
+    id TEXT PRIMARY KEY,
+    account_id TEXT NOT NULL,
+    provider TEXT NOT NULL,
+    provider_user_id TEXT NOT NULL,
+    email TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY(account_id) REFERENCES accounts(id) ON DELETE CASCADE,
+    UNIQUE(provider, provider_user_id)
+);
+CREATE INDEX IF NOT EXISTS idx_oauth_identities_account ON oauth_identities(account_id);
+CREATE INDEX IF NOT EXISTS idx_oauth_identities_provider ON oauth_identities(provider, provider_user_id);
 """
 
 def _now() -> str:
@@ -201,6 +214,14 @@ def _account(home: str | Path, email: str) -> sqlite3.Row | None:
     finally:
         conn.close()
 
+def _account_by_id(home: str | Path, account_id: str) -> sqlite3.Row | None:
+    _ensure_schema(home)
+    conn = _connect(home)
+    try:
+        return conn.execute("SELECT * FROM accounts WHERE id=? AND status='active'", (str(account_id),)).fetchone()
+    finally:
+        conn.close()
+
 
 def _registered_agent_ids(conn: sqlite3.Connection, account_id: str) -> list[str]:
     """Read only active, finalized registrations; legacy JSON is a fallback projection."""
@@ -265,6 +286,19 @@ def issue_account_session(home: str | Path, *, email: str, password: str, ttl_ho
             conn.close()
         record_auth_event(home, event_type="login_failed", email=normalized, profile_id=row["profile_id"], detail="locked" if locked else "invalid password")
         raise ValueError("invalid email or password")
+    return _issue_session_for_account_row(home, row, event_type="login_succeeded", ttl_hours=ttl_hours)
+
+
+def _issue_session_for_account_row(
+    home: str | Path,
+    row: sqlite3.Row | dict[str, Any],
+    *,
+    event_type: str = "login_succeeded",
+    ttl_hours: int = SESSION_TTL_HOURS,
+    detail: str | None = None,
+) -> tuple[str, dict[str, object]]:
+    normalized = _normalize_email(row["email"])
+    now = datetime.now(timezone.utc)
     conn = _connect(home)
     try:
         effective_ids = _effective_agent_ids(conn, str(row["id"]), row["agent_ids_json"])
@@ -272,27 +306,137 @@ def issue_account_session(home: str | Path, *, email: str, password: str, ttl_ho
         token = secrets.token_urlsafe(32)
         expires = (now + timedelta(hours=ttl_hours)).isoformat()
         account_role = row["role"] if row["role"] in ROLE_SCOPES else "operator"
-        # Store the scopes this role actually grants, not every scope any role grants.
-        # Both of today's readers pass the row through `effective_scopes`, which intersects it
-        # with the role, so a broad row grants nothing extra as things stand. It is still wrong
-        # to write one: least privilege would rest entirely on every present and future reader
-        # remembering to narrow, and a row claiming `memory:write` for a read-only account is
-        # one forgetful reader away from being true. The row now describes its own authority.
-        #
-        # `ROLE_SCOPES["admin"]` is the literal {"*"}, and storing "*" verbatim would never
-        # match a concrete required scope like "memory:read" at auth time -- so an admin, and
-        # only an admin, stores the expanded concrete set.
         role_grants = ROLE_SCOPES.get(account_role, frozenset())
         if "*" in role_grants:
             session_scopes = sorted({scope for grants in ROLE_SCOPES.values() for scope in grants if scope != "*"})
         else:
             session_scopes = sorted(role_grants)
-        conn.execute("INSERT INTO ingest_tokens(id,label,token_hash,profile_id,roles_json,scopes_json,expires_at,agent_id,agent_ids_json) VALUES(?,?,?,?,?,?,?,?,?)", (str(uuid.uuid4()), f"account:{row['email']}", _hash(token), row["profile_id"], json.dumps([account_role]), json.dumps(session_scopes), expires, None, json.dumps(effective_ids)))
+        conn.execute(
+            "INSERT INTO ingest_tokens(id,label,token_hash,profile_id,roles_json,scopes_json,expires_at,agent_id,agent_ids_json) VALUES(?,?,?,?,?,?,?,?,?)",
+            (str(uuid.uuid4()), f"account:{row['email']}", _hash(token), row["profile_id"], json.dumps([account_role]), json.dumps(session_scopes), expires, None, json.dumps(effective_ids)),
+        )
         conn.commit()
     finally:
         conn.close()
-    record_auth_event(home, event_type="login_succeeded", email=normalized, profile_id=row["profile_id"])
-    return token, {"id": row["id"], "email": row["email"], "display_name": row["display_name"], "profile_id": row["profile_id"], "role": row["role"], "status": row["status"], "email_verified": bool(row["email_verified"]), "approval_status": row["approval_status"], "controller_address": row["controller_address"], "agent_ids": effective_ids, "created_at": row["created_at"]}
+    record_auth_event(home, event_type=event_type, email=normalized, profile_id=row["profile_id"], detail=detail)
+    return token, {
+        "id": row["id"],
+        "email": row["email"],
+        "display_name": row["display_name"],
+        "profile_id": row["profile_id"],
+        "role": row["role"],
+        "status": row["status"],
+        "email_verified": bool(row["email_verified"]),
+        "approval_status": row["approval_status"],
+        "controller_address": row["controller_address"],
+        "agent_ids": effective_ids,
+        "created_at": row["created_at"],
+    }
+
+
+def authenticate_or_create_oauth_account(
+    home: str | Path,
+    *,
+    provider: str,
+    provider_user_id: str,
+    email: str,
+    display_name: str,
+    profile_id: str = "default",
+    ttl_hours: int = SESSION_TTL_HOURS,
+) -> tuple[str, dict[str, object], bool]:
+    """Authenticate an account via an external verified OAuth identity.
+
+    If an identity is linked, signs in immediately.
+    If an account with the verified email exists, links the identity and signs in.
+    If no account exists, provisions a new verified operator account and signs in.
+    Returns (token, account_summary, created_flag).
+    """
+    _ensure_schema(home)
+    normalized_email = _normalize_email(email)
+    provider = provider.strip().lower()
+    provider_user_id = str(provider_user_id).strip()
+
+    conn = _connect(home)
+    try:
+        identity_row = conn.execute(
+            "SELECT account_id FROM oauth_identities WHERE provider=? AND provider_user_id=?",
+            (provider, provider_user_id),
+        ).fetchone()
+        account_id = identity_row["account_id"] if identity_row else None
+    finally:
+        conn.close()
+
+    created = False
+    account_row: sqlite3.Row | None = None
+    if account_id:
+        account_row = _account_by_id(home, account_id)
+        if not account_row:
+            # Stale link: clear it
+            conn = _connect(home)
+            try:
+                conn.execute("DELETE FROM oauth_identities WHERE provider=? AND provider_user_id=?", (provider, provider_user_id))
+                conn.commit()
+            finally:
+                conn.close()
+            account_id = None
+
+    if not account_id or not account_row:
+        existing = _account(home, normalized_email)
+        if existing:
+            account_id = existing["id"]
+            conn = _connect(home)
+            try:
+                now = _now()
+                conn.execute(
+                    "INSERT OR REPLACE INTO oauth_identities(id, account_id, provider, provider_user_id, email, updated_at) VALUES(?,?,?,?,?,?)",
+                    (str(uuid.uuid4()), account_id, provider, provider_user_id, normalized_email, now),
+                )
+                conn.execute("UPDATE accounts SET email_verified=1, approval_status='approved' WHERE id=?", (account_id,))
+                conn.commit()
+            finally:
+                conn.close()
+            account_row = _account_by_id(home, account_id)
+        else:
+            # Create new account with high-entropy unguessable password
+            random_pw = secrets.token_urlsafe(48)
+            created_acc = create_account(
+                home,
+                email=normalized_email,
+                password=random_pw,
+                display_name=display_name or normalized_email.split("@")[0],
+                profile_id=profile_id,
+            )
+            account_id = created_acc["id"]
+            created = True
+            conn = _connect(home)
+            try:
+                now = _now()
+                conn.execute(
+                    "INSERT INTO oauth_identities(id, account_id, provider, provider_user_id, email, created_at, updated_at) VALUES(?,?,?,?,?,?,?)",
+                    (str(uuid.uuid4()), account_id, provider, provider_user_id, normalized_email, now, now),
+                )
+                conn.execute("UPDATE accounts SET email_verified=1, approval_status='approved' WHERE id=?", (account_id,))
+                conn.commit()
+            finally:
+                conn.close()
+            account_row = _account_by_id(home, account_id)
+
+    if account_row is None:
+        raise ValueError("Failed to retrieve or create account for OAuth identity")
+
+    if not account_row["email_verified"] or account_row["approval_status"] != "approved":
+        record_auth_event(home, event_type="login_blocked", email=normalized_email, profile_id=account_row["profile_id"], detail="approval required")
+        raise ValueError("account requires administrator approval")
+
+    token, summary = _issue_session_for_account_row(
+        home,
+        account_row,
+        event_type="oauth_account_created" if created else "oauth_login_succeeded",
+        detail=f"provider:{provider}",
+        ttl_hours=ttl_hours,
+    )
+    return token, summary, created
+
 
 def account_for_token(home: str | Path, token: str) -> dict[str, object] | None:
     record = None

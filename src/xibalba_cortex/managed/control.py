@@ -13,6 +13,7 @@ from datetime import datetime, timedelta, timezone
 
 from .. import accounts
 from ..ingest_tokens import _connect as identity_connection
+from ..oauth import OAuthUserInfo
 from ..store import GraphStore
 from .config import ManagedConfig
 from .plans import PLANS, WRITE_STATUSES
@@ -95,11 +96,59 @@ class ManagedControl:
             tenant_id = "t-" + uuid.uuid4().hex
             account = accounts.create_account(self.identity_home, email=email, password=password,
                 display_name=display_name, profile_id=tenant_id)
-            with closing(identity_connection(self.identity_home)) as identities:
-                identities.execute("UPDATE accounts SET email_verified=0, approval_status='pending' WHERE id=?", (account["id"],))
-                identities.commit()
+            if self.config.require_email_verification:
+                with closing(identity_connection(self.identity_home)) as identities:
+                    identities.execute("UPDATE accounts SET email_verified=0, approval_status='pending' WHERE id=?", (account["id"],))
+                    identities.commit()
             db.execute("INSERT INTO tenants(id,owner_account_id,created_at) VALUES(?,?,?)", (tenant_id, account["id"], int(time.time())))
-        self.send_verification(str(account["id"]), str(account["email"]))
+        if self.config.require_email_verification:
+            self.send_verification(str(account["id"]), str(account["email"]))
+
+    def oauth_login_or_register(self, user_info: OAuthUserInfo) -> tuple[str, dict[str, object]]:
+        """Authenticate via an external OAuth provider, provisioning a tenant if new."""
+        existing_acc = accounts._account(self.identity_home, user_info.email)
+        conn = accounts._connect(self.identity_home)
+        try:
+            id_row = conn.execute(
+                "SELECT account_id FROM oauth_identities WHERE provider=? AND provider_user_id=?",
+                (user_info.provider, user_info.provider_user_id),
+            ).fetchone()
+            linked_account_id = id_row["account_id"] if id_row else None
+        finally:
+            conn.close()
+
+        tenant_id = None
+        if linked_account_id or existing_acc:
+            target_id = linked_account_id or existing_acc["id"]
+            with self.db() as db:
+                tenant_row = db.execute("SELECT id FROM tenants WHERE owner_account_id=?", (target_id,)).fetchone()
+                if tenant_row:
+                    tenant_id = tenant_row["id"]
+
+        if not tenant_id:
+            with self.db(write=True) as db:
+                day = int(time.time()) // 86400 * 86400
+                if db.execute("SELECT COUNT(*) FROM tenants WHERE created_at>=?", (day,)).fetchone()[0] >= self.config.signup_daily_limit:
+                    raise LimitExceeded("Daily registration capacity reached; try again tomorrow")
+            tenant_id = "t-" + uuid.uuid4().hex
+
+        token, account, created = accounts.authenticate_or_create_oauth_account(
+            self.identity_home,
+            provider=user_info.provider,
+            provider_user_id=user_info.provider_user_id,
+            email=user_info.email,
+            display_name=user_info.display_name,
+            profile_id=tenant_id,
+        )
+
+        with self.db(write=True) as db:
+            existing_tenant = db.execute("SELECT 1 FROM tenants WHERE owner_account_id=?", (account["id"],)).fetchone()
+            if not existing_tenant:
+                db.execute("INSERT INTO tenants(id,owner_account_id,created_at) VALUES(?,?,?)", (tenant_id, account["id"], int(time.time())))
+
+        self.tenant(account)
+        return token, account
+
 
     def send_verification(self, account_id: str, email: str) -> None:
         token = secrets.token_urlsafe(32)
