@@ -134,6 +134,15 @@ or presenting an unknown session count as a measured zero. They do not prove tha
 deployment has mounted the intended profile directories; verify the live `/api/agents` response
 and selected store before relying on a rendered view.
 
+## Managed Edition & Multi-Agent Scope Switching
+
+In the managed (hosted) edition (`src/xibalba_cortex/managed/api.py`), agent workspaces and memory scoping are adapted seamlessly through the single unified console (`viewer/src/hostedApi.ts`):
+
+- **Workspace Discovery**: `GET /api/managed/agents` and `GET /api/managed/me` inspect both persisted memory source partitions (`store.agent_workspaces()`) and active paired agent tokens (`ingest_tokens` with label `managed-api:<name>@<device>`). Paired agents (e.g. `agy`, `hermes`, `claude`, `codex`, `cursor`) appear in the workspace list even before their first write.
+- **Wire Contract Adaptation**: `viewer/src/hostedApi.ts` maps `GET /api/agents` to `me` and derives `agents` from `me.agents`. If present, each agent workspace is assigned `store_access` and `writable` from the account's plan entitlement, allowing the console's `useWorkspace` hook to populate the header Scope dropdown.
+- **Agent-Scoped Retrieval**: `GET /api/managed/memories` and `GET /api/managed/search` accept `agent_id`. If supplied, the managed API dynamically resolves DID identities to stored partition values via `store.storage_agent_id(agent_id)` and filters results strictly to that agent's namespace.
+- **Primary Workspace Scope**: When the primary workspace is chosen (no `agent_id`), the API returns all memories across the tenant, providing unified auditing across all connected agents.
+
 ## PARA and inference integration
 
 Review lists extraction proposals and PARA classifications and offers accept (a two-step action that first says what it will write) or reject; the Tasks tab is read-only. No classification or proposal moves a memory or the graph automatically. The console does not claim or complete inference tasks: that is the worker protocol, and a person must not be able to impersonate a worker.

@@ -221,6 +221,8 @@ To connect your agent running on a local or remote device with your Cortex Cloud
    cortex setup claude      # Automatically configures Claude Desktop
    cortex setup cursor      # Automatically configures Cursor
    cortex setup agy         # Automatically configures Antigravity (agy)
+   cortex setup hermes      # Automatically configures Hermes agent
+   cortex setup codex       # Automatically configures Codex
    ```
 
 2. **Authenticate with Cortex Cloud**:
@@ -230,13 +232,29 @@ To connect your agent running on a local or remote device with your Cortex Cloud
    This automatically generates a persistent Ed25519 agent identity, starts an ephemeral loopback listener (`127.0.0.1:<port>/callback`), and opens your browser. Log in using Google, GitHub, or email/password and click **Authorize Agent**. The minted scoped token (`managed-api:<agent>@<device>`) is securely saved to `~/.cortex/auth.json` (`0600`).
    For headless environments or remote SSH sessions, RFC 8628 polling automatically completes authorization as soon as you confirm the code on any device.
 
-3. **Check Connection Status or Log Out**:
+3. **Multi-Agent Identity & Scoped Memory Isolation**:
+   Each agent harness on your workstation operates under an isolated cryptographic DID (`did:integrity:...`) with dedicated local profile storage and keypairs:
+   - **AGY** (`~/.gemini/antigravity-cli/xibalba-cortex-agy`)
+   - **Hermes** (`~/.hermes/xibalba-cortex`)
+   - **Claude Code** (`~/.claude/xibalba-cortex-claude`)
+   - **Claude Desktop** (`~/.config/Claude/xibalba-cortex-desktop`)
+   - **Codex** (`~/.codex/xibalba-cortex-codex`)
+   - **Cursor** (`~/.cursor/xibalba-cortex-cursor`)
+
+   Every agent token is issued with `agent_ids: [<did>]`. When an agent writes memory via MCP (`memory_remember`) or REST (`POST /api/managed/memories`), the memory partition is strictly bound to that agent's DID.
+
+4. **Console Scope Switching in Cortex Cloud**:
+   In the Cortex Cloud Web UI (`/managed`), the header **Scope** dropdown dynamically reflects all registered agent harnesses for your tenant account.
+   - **Agent-Specific Scope**: Selecting an agent (e.g. `hermes`, `claude`, `agy`) filters memories, search results, and session timelines strictly to that agent's DID.
+   - **Primary Profile**: Switching to the primary workspace allows operators to view, search, and audit all memories across all connected agents in one unified dashboard.
+
+5. **Check Connection Status or Log Out**:
    ```bash
-   cortex status            # View paired workspace, email, and memory counts
+   cortex status            # View paired workspace, email, agent DID, and memory counts
    cortex logout            # Revoke local credentials
    ```
 
-4. **Zero-Configuration Harness Launch**:
+6. **Zero-Configuration Harness Launch**:
    When launching `xibalba-cortex --cloud`, if no authentication token is detected, Cortex launches the browser pairing flow in the background. It outputs user instructions to `stderr` while keeping stdio strictly pure JSON-RPC. Once approved in the browser, all memory operations automatically sync to your Cortex Cloud dashboard.
 
 ### The tool surface

@@ -215,3 +215,20 @@ exposing the secret to browser JavaScript. Production authentication remains exp
 - Updated the Cortex resume status: PR #84 is merged; hosted Python and full viewer Playwright CI
   passed. This remains implementation evidence and does not claim a production provider deployment.
 - No new wiki page was needed; the canonical DecisionTrace article and index remain the owners.
+
+## [2026-11-04] update | Agent-scoped memories, browser-mediated MCP device pairing & console scope switcher
+
+- Implemented browser-mediated device pairing for Model Context Protocol (MCP) servers (`cortex login`,
+  `xibalba-cortex --cloud`) with loopback completion, RFC 8628 fallback, and zero standard-stream pollution.
+- Enhanced managed API with agent-scoped memory persistence in `POST /api/managed/memories` via caller
+  token `agent_ids` or source payload.
+- Added workspace discovery in `GET /api/managed/agents` and `GET /api/managed/me`, overlaying both
+  stored memory source partitions and paired `managed-api:*` token identities.
+- Extended `GET /api/managed/memories` and `GET /api/managed/search` with dynamic `agent_id` parameter
+  resolution via `store.storage_agent_id(agent_id)`.
+- Adapted hosted console (`viewer/src/hostedApi.ts`) to populate the header Scope dropdown with
+  individual agent workspaces and primary profile, allowing real-time switching of memory exploration
+  and timeline views.
+- Verified across all 6 workstation agent harnesses (`agy`, `hermes`, `claude`, `claude-desktop`, `codex`,
+  `cursor`) with unique cryptographic DIDs and live cloud synchronization.
+
