@@ -36,8 +36,8 @@ those steps.
 `/mnt/storage/xibalba/Projects/worktrees/xibalba-cortex/account-registration-design`.
 Pushed and verified; `git log --oneline -1` should be at or after `587ff56`.
 
-**Progress as of 2026-11-03 — Phase 0 and Phase 5 Tasks 1-2 have landed.** Under the amended
-execution order that is the deployable test build the reorder was for. Specifically:
+**Progress as of 2026-11-03 — Phase 0, Phase 1, and Phase 2 Tasks 1-2 have landed.** Under the amended
+execution order, the current merged/deployed state is:
 
 - **Phase 0 is complete, Task 5 Step 5 included.** The second UI is deleted (`7f96180` —
   a commit whose `docs(plan):` subject does not mention it). **The Playwright baseline does
@@ -61,9 +61,15 @@ execution order that is the deployable test build the reorder was for. Specifica
 - **Phase 5 Task 2 is complete**, with a semantic amendment recorded at its Step 3: a payload
   naming another workspace is **refused with 403, not silently ignored**. Its mutation proof
   — making the route honour the payload's workspace — goes red.
-- **Next action: Phase 1 Task 1**, unless the operator takes the branch through the merge
-  gate first. The milestone is reached, so that is an operator decision, and **merging is a
-  deploy.**
+- **Phase 1 is complete through its planned auth contract work**, including scoped sessions,
+  expiry, rotation, cookie alignment, and revocation coverage.
+- **Phase 2 Task 1 is complete**: a zero-agent workspace opens on the connect-an-agent
+  surface (`5fae39e`, PR #86).
+- **Phase 2 Task 2 is complete**: enrollment-code issuance and redemption are signed,
+  short-lived, rate-limited, single-use, audited, and wired to the API/CLI (`bdca9e4`,
+  PR #87).
+- **Next action:** wait for green viewer CI on PR #88 and PR #89, then merge each at the
+  exact CI-tested head SHA. After that, continue Phase 2 Tasks 3-5 and Phase 3.
 
 **Repo state, verified 2026-11-02:**
 
@@ -176,11 +182,12 @@ connector was unauthenticated. **It is authenticated as of the 2026-11-03 sessio
 review can be run. Task 3 remains suspended on the *operator tool-surface decision* recorded
 below that — authentication removes only the review gate, not that decision.
 
-**Open question, unresolved, owned by Phase 5 Task 6.** The README claims "80 tools" in two
-places and cites `tests/test_server.py`'s inventory assertion as the enforcer, but
-`server.py` carries 89 `@server.tool` decorators and the assertion could not be located by
-name. **Do not put any tool count in the README until the test is read and the real number
-established.** Both numbers are currently unsupported.
+**Open question, resolved 2026-11-03.** The README now claims 89 tools and cites
+`tests/test_server.py::test_all_tools_are_advertised`, which asserts the exact unique
+inventory. The previous README claim of "80 tools" was stale. The remaining Phase 5
+Task 6 documentation work is to keep every capability claim backed by the current
+implementation and evidence ledger; it must not promote local readiness to external
+production evidence.
 
 ---
 

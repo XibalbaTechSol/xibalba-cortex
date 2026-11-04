@@ -19,7 +19,10 @@ queue and configurable Jev endpoint. Hosted Python and the full viewer Playwrigh
 including the DecisionTrace browser scenario. The provider-response canary test confirms free-text
 content is excluded from the stored advisory projection. This is CI-backed implementation evidence,
 not proof of a production Jev deployment, external pilot, or compliance certification. The
-cross-product execution authority remains the Integrity execution plan.
+cross-product execution authority remains
+[`integrity-core/docs/ecosystem/INTEGRITY_ECOSYSTEM_PLAN.md`](https://github.com/XibalbaTechSol/integrity-core/blob/main/docs/ecosystem/INTEGRITY_ECOSYSTEM_PLAN.md),
+which supersedes the former `docs/EXECUTION_PLAN.md` pointer; that path is now a compatibility
+redirect.
 
 ## Resume in one sentence
 

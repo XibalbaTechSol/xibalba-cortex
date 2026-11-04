@@ -528,10 +528,16 @@ the [store contract](docs/operations/store-contract.md). Architecture notes are 
 ## Ecosystem
 
 Cortex works standalone with any MCP-speaking harness. It is also the memory store in a
-three-repository ecosystem: `integrity-core` holds on-chain identity, BCC and oracle scoring;
-`xibalba-shield` does endpoint enforcement and kernel sensing; Cortex holds memories, context and
-session roots. Session roots **may** be anchored into Integrity Protocol's oracle. Cortex is not
-that oracle and must not be described as a second verifier.
+four-repository ecosystem: `integrity-core` holds on-chain identity, BCC and oracle scoring;
+`xibalba-shield` does endpoint enforcement and kernel sensing; `integrity-console` is the operator
+surface; Cortex holds memories, context and session roots. Session roots **may** be anchored into
+Integrity Protocol's oracle. Cortex is not that oracle and must not be described as a second
+verifier.
+
+**Cross-product authority.** The execution authority for the ecosystem is
+[`integrity-core/docs/ecosystem/INTEGRITY_ECOSYSTEM_PLAN.md`](https://github.com/XibalbaTechSol/integrity-core/blob/main/docs/ecosystem/INTEGRITY_ECOSYSTEM_PLAN.md).
+The documents in this repository define Cortex internals and operations only; they do not redefine
+cross-product identity, pack, receipt, evidence or product boundaries.
 
 ## Licence
 
