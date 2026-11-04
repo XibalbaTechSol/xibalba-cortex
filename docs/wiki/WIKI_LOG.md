@@ -1,5 +1,11 @@
 # Xibalba Cortex Wiki — Log
 
+## [2026-11-04] update | OIDC social login, browser-mediated MCP device pairing & 91 tools
+
+- Reconciled MCP tool count from 89 to 91 in `concepts/mcp-tool-surface.md`, adding `cortex_cloud_status` and `cortex_cloud_pair`.
+- Verified browser-mediated device pairing flow with ephemeral loopback and RFC 8628 polling fallback.
+- Added scoped device-token verification fallback to `cortex status` CLI.
+
 ## [2026-09-08] update | Inference/provider compatibility repair and validation
 
 - Repaired unknown-session observer reads so blank or non-string Hermes messages remain a safe no-op instead of raising `KeyError`.

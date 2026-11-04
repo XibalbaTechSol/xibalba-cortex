@@ -143,3 +143,47 @@ def test_cortex_setup_harness(tmp_path: Path, monkeypatch):
     agy_data = json.loads(agy_cfg.read_text())
     assert agy_data["mcpServers"]["cortex"]["command"] == "xibalba-cortex"
     assert agy_data["mcpServers"]["cortex"]["args"] == ["--cloud", "https://cloud.test"]
+
+
+def test_cortex_status_scoped_device_token(tmp_path: Path, capsys):
+    class _ScopedHandler(http.server.BaseHTTPRequestHandler):
+        def log_message(self, format, *args):
+            pass
+
+        def do_GET(self):
+            if self.path == "/api/managed/me":
+                self.send_response(403)
+                self.send_header("Content-Type", "application/json")
+                self.end_headers()
+                self.wfile.write(json.dumps({"error": "Billing requires session"}).encode("utf-8"))
+            elif self.path.startswith("/api/managed/memories"):
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.end_headers()
+                self.wfile.write(json.dumps({"memories": [{"id": "mem-1"}]}).encode("utf-8"))
+            else:
+                self.send_response(404)
+                self.end_headers()
+
+    mock_server = http.server.HTTPServer(("127.0.0.1", 0), _ScopedHandler)
+    mock_port = mock_server.server_port
+    mock_thread = threading.Thread(target=mock_server.serve_forever, daemon=True)
+    mock_thread.start()
+
+    try:
+        creds = DeviceCredentials(
+            cloud_url=f"http://127.0.0.1:{mock_port}",
+            token="scoped-dev-token",
+            tenant_id="tenant-scoped-test",
+            agent_did="did:integrity:test12345",
+        )
+        DeviceAuthStore.save(creds, profile_root=tmp_path)
+
+        ret = connect.main(["status", "--profile", str(tmp_path)])
+        assert ret == 0
+        captured = capsys.readouterr()
+        assert "Cloud Connection: VERIFIED" in captured.out
+        assert "1 records synced" in captured.out
+    finally:
+        mock_server.shutdown()
+        mock_server.server_close()

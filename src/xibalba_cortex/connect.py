@@ -211,8 +211,15 @@ def status_flow(*, profile: Path | None = None) -> int:
         print(f"Approval Status:  {account.get('approval_status', 'N/A')}")
         print(f"Stored Memories:  {counts.get('memories', 0)}")
         print(f"Active Sessions:  {counts.get('sessions', 0)}")
-    except Exception as exc:
-        print(f"Cloud check:      Unreachable or session expired ({exc})")
+    except Exception:
+        # Fall back to testing memory API with scoped device token
+        try:
+            mems = client.search_memories(limit=1)
+            print("-" * 64)
+            print("Cloud Connection: VERIFIED (Device token active & authorized)")
+            print(f"Cloud Memories:   Accessible ({len(mems)} records synced)")
+        except Exception as exc:
+            print(f"Cloud check:      Unreachable or session expired ({exc})")
 
     print("=" * 64)
     return 0
