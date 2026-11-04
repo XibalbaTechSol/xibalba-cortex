@@ -297,8 +297,10 @@ def test_the_redeem_route_is_wired_and_is_deliberately_unauthenticated():
     branch = after.split('\n                return', 1)[0]
     assert "redeem_code(" in branch
     # It must NOT be behind the pairing gate; an operator role is exactly what the
-    # enrolling agent does not have.
-    assert "_assert_pair_manager" not in branch
+    # enrolling agent does not have. Matched as a CALL, not as a bare name: the branch
+    # legitimately *mentions* the gate in a comment explaining why the bind inside it is
+    # not gated, and a substring match turned that explanation into a test failure.
+    assert "_assert_pair_manager(" not in branch
 
 
 def test_connect_accepts_a_code_and_signs_it_with_the_agents_own_key():

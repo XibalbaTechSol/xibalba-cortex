@@ -1325,14 +1325,37 @@ def _make_handler(store: GraphStore, *, allowed_origins: frozenset[str],
                 from .enrollment import EnrollmentRefused, redeem_code
                 try:
                     body = self._read_json_body()
-                    self._send_json(200, redeem_code(
+                    did = str(body.get("did") or "")
+                    device_id = str(body.get("device_id") or "")
+                    # Resolved BEFORE the redemption, because a code is single use: if
+                    # attribution is disabled there is no agent_id to bind and the bind would
+                    # fail after the code had already been burned. Refused with the same
+                    # message as everything else here -- the reason is not the caller's.
+                    agent_id = store.storage_agent_id(did)
+                    if agent_id is None:
+                        raise EnrollmentRefused("that enrollment code cannot be redeemed")
+                    result = redeem_code(
                         str(body.get("code") or ""),
-                        did=str(body.get("did") or ""),
-                        device_id=str(body.get("device_id") or ""),
+                        did=did,
+                        device_id=device_id,
                         public_key=b64decode(str(body.get("public_key") or "")),
                         signature=b64decode(str(body.get("signature") or "")),
                         home=store.home,
-                    ))
+                    )
+                    # The redemption is what *authorises* the bind; this is the bind. Without
+                    # it `redeem_code` only marks the code used, so the enrolled agent never
+                    # reaches `agent_workspaces()` and the console has nothing to select.
+                    #
+                    # `associate_agent_device` is operator-gated on its own route
+                    # (`_assert_pair_manager`). It is not gated here because the code IS the
+                    # operator's authorisation: an operator issued it for this workspace, and
+                    # the signature proves the redeemer holds the key behind the DID.
+                    store.associate_agent_device(agent_id, device_id, display_name=device_id)
+                    # `workspace.choose(agentId, storeId)` in the console needs both of these,
+                    # and neither is derivable by the agent from the rest of the response.
+                    result["agent_id"] = agent_id
+                    result["store_id"] = _store_scope_id(store)
+                    self._send_json(200, result)
                 except EnrollmentRefused as exc:
                     self._send_json(403, {"error": str(exc)})
                 except (ValueError, UnicodeDecodeError, TypeError):
