@@ -706,6 +706,7 @@ select.xc-input {
   color: var(--ink-muted);
   max-height: calc(100% - 28px);
   overflow: auto;
+  z-index: 3;
 }
 .xc-legend > div {
   display: flex;
@@ -736,6 +737,7 @@ select.xc-input {
   letter-spacing: 0.1em;
   text-transform: uppercase;
   cursor: pointer;
+  z-index: 3;
 }
 .xc-legend-toggle:hover,
 .xc-legend-toggle[aria-expanded='true'] {
@@ -2986,10 +2988,6 @@ select.xc-input {
      read every hash and JSON fragment in a ~30-character column. 42vw is 672px there: one
      tab row, and still under half the workspace at every width the dock opens at. */
   --dock-right: clamp(460px, 42vw, 820px);
-  --dock-bottom: 0px;
-}
-.xc-workspace:has(> .xc-chain:not([data-floating='true'])) {
-  --dock-bottom: 174px;
 }
 .xc-workspace[data-detail='closed'] {
   --dock-right: 0px;
@@ -3028,19 +3026,15 @@ select.xc-input {
    cannot be transitioned (a custom property is not an animatable type without @property), but
    the computed `left`/`right` it feeds can. */
 .xc-workspace > .xc-chain,
-.xc-workspace > .xc-canvas-win,
 .xc-workspace > .xc-canvas-win > .xc-legend,
 .xc-workspace > .xc-canvas-win > .xc-legend-toggle {
-  transition: left 180ms cubic-bezier(0.22, 0.61, 0.36, 1),
-              right 180ms cubic-bezier(0.22, 0.61, 0.36, 1),
-              bottom 180ms cubic-bezier(0.22, 0.61, 0.36, 1);
+  transition: left 180ms cubic-bezier(0.22, 0.61, 0.36, 1), right 180ms cubic-bezier(0.22, 0.61, 0.36, 1);
 }
 @media (prefers-reduced-motion: reduce) {
   .xc-workspace > .xc-inspector {
     animation: none;
   }
   .xc-workspace > .xc-chain,
-  .xc-workspace > .xc-canvas-win,
   .xc-workspace > .xc-canvas-win > .xc-legend,
   .xc-workspace > .xc-canvas-win > .xc-legend-toggle {
     transition: none;
@@ -3058,7 +3052,6 @@ select.xc-input {
 .xc-workspace > .xc-canvas-win {
   left: calc(var(--dock-left) + 7px);
   right: calc(var(--dock-right) + 7px);
-  bottom: calc(var(--dock-bottom) + 7px);
 }
 .xc-workspace > .xc-canvas-win > .xc-bar {
   padding-left: 16px;
@@ -3068,7 +3061,6 @@ select.xc-input {
   left: calc(var(--dock-left) + 16px);
   right: calc(var(--dock-right) + 16px);
   bottom: 16px;
-  margin: 0;
 }
 
 /* A docked panel is chrome, not a window: it is flush to two edges, so a frame with
