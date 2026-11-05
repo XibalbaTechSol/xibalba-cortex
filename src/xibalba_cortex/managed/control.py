@@ -50,6 +50,8 @@ class ManagedControl:
         # can be injected by tests and migration tools or built from the server
         # DSN configured for the managed service.
         self._db_factory = db_factory or self._sqlite_db
+        if config.storage_backend == "supabase":
+            self._validate_supabase_schema()
         self._write_locks: dict[str, threading.RLock] = {}
         self._write_locks_guard = threading.Lock()
         if email_sender is None:
@@ -85,6 +87,38 @@ class ManagedControl:
                 """)
         if bootstrap_schema:
             self.path.chmod(0o600)
+
+    def _validate_supabase_schema(self) -> None:
+        """Fail startup unless the configured Supabase database is reachable and migrated."""
+        required_tables = {
+            "tenants", "tenant_memberships", "usage", "operations", "stripe_events",
+            "checkout_requests", "email_verifications", "auth_identity_migrations",
+        }
+        required_mapping_columns = {
+            "auth_user_id", "legacy_account_id", "tenant_id", "migration_batch",
+            "owner_link_created", "membership_role_before", "account_email",
+            "account_display_name", "account_role", "account_status",
+            "account_email_verified", "account_approval_status",
+        }
+        try:
+            with self.db() as db:
+                tables = {
+                    row["tablename"] for row in db.execute(
+                        "SELECT tablename FROM pg_tables WHERE schemaname=current_schema()"
+                    ).fetchall()
+                }
+                columns = {
+                    row["column_name"] for row in db.execute(
+                        "SELECT column_name FROM information_schema.columns "
+                        "WHERE table_schema=current_schema() AND table_name='auth_identity_migrations'"
+                    ).fetchall()
+                }
+        except Exception:
+            raise RuntimeError("Supabase managed database connection or schema check failed") from None
+        missing_tables = required_tables - tables
+        missing_columns = required_mapping_columns - columns
+        if missing_tables or missing_columns:
+            raise RuntimeError("Supabase managed database is missing required Cortex migrations")
 
     @contextmanager
     def _sqlite_db(self, *, write=False):

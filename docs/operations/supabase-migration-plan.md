@@ -18,7 +18,9 @@ cutover from moving Cortex's canonical memory store.
   yet.
 - Cortex PR #104 contains signature-verified Supabase sessions, explicit
   subject-to-account migration, rollback, a gated new-account provisioner, and
-  Render Blueprint settings for Supabase Auth and managed control storage.
+  Render Blueprint settings for Supabase Auth and managed control storage. It
+  also fails startup if Supabase is unreachable or required migrations are
+  missing.
   Refresh the PR head and CI status immediately before merge; CI is not
   considered green based on an earlier commit.
 - The live `cortex-managed-pilot` service is Render Free, tracks `main`, and
@@ -47,7 +49,9 @@ cutover from moving Cortex's canonical memory store.
    service has `CORTEX_MANAGED_STORAGE_BACKEND=supabase`,
    `CORTEX_MANAGED_IDENTITY_BACKEND=supabase_auth`, the expected project URL,
    and the public publishable key. Treat `render.yaml` as desired configuration
-   until the live runtime proves it took effect.
+   until the live runtime proves it took effect. Render Free rejected creation
+   of a one-off probe job, so startup preflight and the first database-backed
+   request are the available runtime checks on this plan.
 3. **Verify live Supabase storage.** Check health and logs, then confirm server
    writes land in `cortex` tables and RLS remains enabled with no client write
    policies. A green `/healthz` alone is not sufficient.

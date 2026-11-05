@@ -47,17 +47,20 @@ def test_supabase_backend_fails_closed_without_a_database_url(tmp_path):
         ManagedControl(config, email_sender=lambda *args: None)
 
 
-def test_supabase_backend_builds_factory_from_server_database_url(tmp_path):
+def test_supabase_backend_builds_factory_from_server_database_url(tmp_path, monkeypatch):
     config = ManagedConfig(home=tmp_path, storage_backend="supabase",
                            supabase_database_url="postgresql://example.invalid/cortex")
+    monkeypatch.setattr(ManagedControl, "_validate_supabase_schema", lambda self: None)
     service = ManagedControl(config, bootstrap_schema=False, email_sender=lambda *args: None)
     assert isinstance(service._db_factory, SupabaseManagedDbFactory)
 
 
-def test_supabase_backend_skips_sqlite_bootstrap_by_default(tmp_path):
+def test_supabase_backend_skips_sqlite_bootstrap_by_default(tmp_path, monkeypatch):
     config = ManagedConfig(home=tmp_path, storage_backend="supabase",
                            supabase_url="https://example.supabase.co",
                            supabase_database_url="postgresql://example.invalid/cortex")
+    validations = []
+    monkeypatch.setattr(ManagedControl, "_validate_supabase_schema", lambda self: validations.append(True))
 
     @contextmanager
     def db_factory(*, write=False):
@@ -65,12 +68,14 @@ def test_supabase_backend_skips_sqlite_bootstrap_by_default(tmp_path):
 
     service = ManagedControl(config, db_factory=db_factory, email_sender=lambda *args: None)
     assert service._db_factory is db_factory
+    assert validations == [True]
 
 
-def test_supabase_backend_rejects_explicit_sqlite_bootstrap(tmp_path):
+def test_supabase_backend_rejects_explicit_sqlite_bootstrap(tmp_path, monkeypatch):
     config = ManagedConfig(home=tmp_path, storage_backend="supabase",
                            supabase_url="https://example.supabase.co",
                            supabase_database_url="postgresql://example.invalid/cortex")
+    monkeypatch.setattr(ManagedControl, "_validate_supabase_schema", lambda self: None)
     with pytest.raises(ValueError, match="schema must be managed by migrations"):
         ManagedControl(config, bootstrap_schema=True, email_sender=lambda *args: None)
 
