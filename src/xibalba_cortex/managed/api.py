@@ -126,6 +126,8 @@ def create_app(config: ManagedConfig, *, control: ManagedControl | None = None, 
             principal = verify_token_record(service.identity_home, token) if token else None
         if principal is None:
             raise ApiError(401, "Sign in to your managed workspace")
+        if auth_verifier is not None and not cookie_auth and str(principal["label"]).startswith("account:"):
+            raise ApiError(401, "Use Supabase Auth to sign in to your managed workspace")
         if auth_verifier is None or not cookie_auth:
             account = accounts.account_for_token(service.identity_home, token)
         if account is None:
