@@ -19,19 +19,26 @@ T = TypeVar("T")
 class ConnectorRateLimiter:
     """Thread-safe token bucket for one connector/profile pair."""
 
-    def __init__(self, *, rate_per_second: float = 2.0, burst: int = 4) -> None:
+    def __init__(
+        self,
+        *,
+        rate_per_second: float = 2.0,
+        burst: int = 4,
+        clock: Callable[[], float] = time.monotonic,
+    ) -> None:
         if rate_per_second <= 0 or burst < 1:
             raise ValueError("rate_per_second must be positive and burst must be at least 1")
         self.rate_per_second = float(rate_per_second)
         self.capacity = float(burst)
         self._tokens = self.capacity
-        self._updated = time.monotonic()
+        self.clock = clock
+        self._updated = self.clock()
         self._lock = threading.Lock()
 
     def wait(self) -> None:
         while True:
             with self._lock:
-                now = time.monotonic()
+                now = self.clock()
                 self._tokens = min(self.capacity, self._tokens + (now - self._updated) * self.rate_per_second)
                 self._updated = now
                 if self._tokens >= 1:
@@ -39,6 +46,22 @@ class ConnectorRateLimiter:
                     return
                 delay = (1 - self._tokens) / self.rate_per_second
             time.sleep(delay)
+
+    def try_acquire(self) -> float | None:
+        """Attempt to consume 1 token without blocking.
+
+        Returns None if a token was acquired. If the bucket is exhausted,
+        returns the float delay (in seconds) until 1 token will be available,
+        without consuming any tokens.
+        """
+        with self._lock:
+            now = self.clock()
+            self._tokens = min(self.capacity, self._tokens + (now - self._updated) * self.rate_per_second)
+            self._updated = now
+            if self._tokens >= 1.0:
+                self._tokens -= 1.0
+                return None
+            return (1.0 - self._tokens) / self.rate_per_second
 
 
 def retry_call(
