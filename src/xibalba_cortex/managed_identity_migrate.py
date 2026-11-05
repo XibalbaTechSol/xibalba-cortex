@@ -30,11 +30,7 @@ def main(argv: list[str] | None = None) -> int:
                       storage_backend="supabase", identity_backend="sqlite_compat"),
         db_factory=SupabaseManagedDbFactory(dsn), bootstrap_schema=False)
     if args.action == "rollback":
-        with service.db() as db:
-            rows = db.execute("SELECT auth_user_id FROM auth_identity_migrations WHERE migration_batch=?", (args.batch,)).fetchall()
-        for row in rows:
-            service.unlink_auth_subject(str(row["auth_user_id"]), batch_id=args.batch)
-        result = {"batch_id": args.batch, "rolled_back": len(rows)}
+        result = {"batch_id": args.batch, "rolled_back": service.rollback_auth_subject_batch(args.batch)}
     else:
         if args.manifest is None:
             parser.error("--manifest is required for preview/apply")

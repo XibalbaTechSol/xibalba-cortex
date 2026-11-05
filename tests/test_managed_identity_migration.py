@@ -67,7 +67,7 @@ def test_auth_subject_migration_and_batch_rollback_preserve_legacy_identity(tmp_
     finally:
         managed_api.SupabaseAuthVerifier = original_verifier
 
-    service.unlink_auth_subject(auth_subject, batch_id="test-batch")
+    assert service.rollback_auth_subject_batch("test-batch") == 1
     assert service.account_for_auth_subject(auth_subject) is None
     with service.db() as db:
         tenant = db.execute("SELECT id,owner_account_id,owner_user_id FROM tenants WHERE id=?", (tenant_id,)).fetchone()
@@ -104,7 +104,7 @@ def test_rollback_removes_owner_link_and_membership_created_by_migration(tmp_pat
         assert db.execute("SELECT role FROM tenant_memberships WHERE tenant_id=? AND user_id=?",
                           (tenant_id, auth_subject)).fetchone()["role"] == "owner"
 
-    service.unlink_auth_subject(auth_subject, batch_id="created-links-batch")
+    assert service.rollback_auth_subject_batch("created-links-batch") == 1
     with service.db() as db:
         tenant = db.execute("SELECT owner_account_id,owner_user_id FROM tenants WHERE id=?", (tenant_id,)).fetchone()
         membership = db.execute("SELECT 1 FROM tenant_memberships WHERE tenant_id=? AND user_id=?",
