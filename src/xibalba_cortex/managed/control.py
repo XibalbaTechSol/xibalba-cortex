@@ -30,8 +30,12 @@ class LimitExceeded(RuntimeError):
 class ManagedControl:
     def __init__(self, config: ManagedConfig, *, stripe=None, email_sender=None,
                  db_factory: ManagedDbFactoryLike | None = None,
-                 bootstrap_schema: bool = True):
+                 bootstrap_schema: bool | None = None):
         self.config = config
+        if bootstrap_schema is None:
+            bootstrap_schema = config.storage_backend != "supabase"
+        elif bootstrap_schema and config.storage_backend == "supabase":
+            raise ValueError("Supabase schema must be managed by migrations, not SQLite bootstrap")
         if config.storage_backend == "supabase" and db_factory is None:
             if not config.supabase_database_url:
                 raise RuntimeError("CORTEX_MANAGED_DATABASE_URL is required for Supabase managed storage")
