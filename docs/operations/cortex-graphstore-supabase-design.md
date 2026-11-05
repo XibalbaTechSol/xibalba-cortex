@@ -34,6 +34,14 @@ The managed request surface currently calls `agent_workspaces`, `counts`,
 managed package; finish the inventory by tracing delegated helpers and worker
 entry points before finalizing the interface.
 
+At the current managed construction site, inference and embedding features are
+disabled. The managed package does not start a GraphStore background worker;
+the repository's worker entry points open local `GraphStore` instances from
+operator-supplied homes. Task, retry, embedding, and projection tables remain
+part of the schema inventory for future managed use and faithful exports, but
+moving worker execution into hosted service processes is a separate rollout
+gate.
+
 `GraphStore` also keeps an `identity_salt` file beside each database and uses it
 to HMAC pseudonymous agent IDs. Hosted storage must preserve that pseudonym
 stability across restarts. Decide whether the hosted profile uses a durable,
