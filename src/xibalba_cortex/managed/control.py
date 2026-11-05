@@ -76,7 +76,8 @@ class ManagedControl:
                     token_hash TEXT PRIMARY KEY, account_id TEXT NOT NULL, expires_at INTEGER NOT NULL
                 );
                 """)
-        self.path.chmod(0o600)
+        if bootstrap_schema:
+            self.path.chmod(0o600)
 
     @contextmanager
     def _sqlite_db(self, *, write=False):
@@ -309,8 +310,9 @@ class ManagedControl:
             raise BillingUnavailable('Stripe billing is not configured')
         self.validate_price(self.stripe.request('GET', '/prices/' + price_id), plan_id)
         tenant = self.tenant(account)
+        row_lock = " FOR UPDATE" if self.config.storage_backend == "supabase" else ""
         with self.db(write=True) as db:
-            row = dict(db.execute("SELECT * FROM tenants WHERE id=?", (tenant["id"],)).fetchone())
+            row = dict(db.execute("SELECT * FROM tenants WHERE id=?" + row_lock, (tenant["id"],)).fetchone())
             if row["subscription_id"] and row["status"] not in {"canceled", "incomplete_expired"}:
                 raise ValueError("Manage the existing subscription through the billing portal")
             if not row["customer_id"]:
@@ -320,6 +322,7 @@ class ManagedControl:
         # Persist the attempt before talking to Stripe. A crash after Stripe creates a session
         # reuses the same key on retry instead of creating a second billable subscription.
         with self.db(write=True) as db:
+            db.execute("SELECT id FROM tenants WHERE id=?" + row_lock, (tenant["id"],)).fetchone()
             pending = db.execute("SELECT * FROM checkout_requests WHERE tenant_id=?", (tenant["id"],)).fetchone()
             if pending and pending["checkout_id"]:
                 session = self.stripe.request("GET", "/checkout/sessions/" + pending["checkout_id"])
