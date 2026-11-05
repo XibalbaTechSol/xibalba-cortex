@@ -18,7 +18,7 @@ from ..store import GraphStore
 from .config import ManagedConfig
 from .plans import PLANS, WRITE_STATUSES
 from .stripe_gateway import BillingUnavailable, StripeGateway
-from .storage import ManagedDbFactoryLike
+from .storage import ManagedDbFactoryLike, SupabaseManagedDbFactory
 
 
 class LimitExceeded(RuntimeError):
@@ -32,7 +32,9 @@ class ManagedControl:
                  bootstrap_schema: bool = True):
         self.config = config
         if config.storage_backend == "supabase" and db_factory is None:
-            raise RuntimeError("Supabase managed storage is not enabled until the Postgres adapter is configured")
+            if not config.supabase_database_url:
+                raise RuntimeError("CORTEX_MANAGED_DATABASE_URL is required for Supabase managed storage")
+            db_factory = SupabaseManagedDbFactory(config.supabase_database_url)
         self.identity_home = config.home / "identity"
         self.tenant_root = config.home / "tenants"
         config.home.mkdir(parents=True, mode=0o700, exist_ok=True)
@@ -40,8 +42,8 @@ class ManagedControl:
         self.path = config.home / "managed.sqlite3"
         self.stripe = stripe or StripeGateway(config)
         # SQLite remains the default for local mode. A Postgres/Supabase factory
-        # can be injected later without changing API, billing, or authorization
-        # call sites; the factory must preserve the transaction context contract.
+        # can be injected by tests and migration tools or built from the server
+        # DSN configured for the managed service.
         self._db_factory = db_factory or self._sqlite_db
         self._write_locks: dict[str, threading.RLock] = {}
         self._write_locks_guard = threading.Lock()

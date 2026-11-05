@@ -14,7 +14,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends git ca-certific
     && rm -rf /var/lib/apt/lists/*
 RUN git clone --depth 1 https://github.com/XibalbaTechSol/integrity-core.git /app/integrity-core
 COPY pyproject.toml uv.lock README.md ./
-RUN uv export --frozen --extra managed --no-dev --prune sentence-transformers --no-emit-project --output-file /tmp/requirements.txt \
+RUN uv export --frozen --extra managed --extra managed-supabase --no-dev --prune sentence-transformers --no-emit-project --output-file /tmp/requirements.txt \
     && uv pip install --system --no-cache -r /tmp/requirements.txt \
     && useradd --system --uid 10001 --create-home cortex \
     && install -d -o cortex -g cortex /data/cortex-managed

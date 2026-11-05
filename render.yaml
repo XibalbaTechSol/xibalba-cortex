@@ -13,6 +13,16 @@ services:
         sync: false
       - key: CORTEX_MANAGED_HOME
         value: /data/cortex-managed
+      - key: CORTEX_MANAGED_STORAGE_BACKEND
+        value: sqlite
+      - key: CORTEX_MANAGED_IDENTITY_BACKEND
+        value: sqlite_compat
+      - key: SUPABASE_URL
+        value: https://ftspunijfgcbkuybobhf.supabase.co
+      - key: SUPABASE_JWT_AUDIENCE
+        value: authenticated
+      - key: CORTEX_MANAGED_DATABASE_URL
+        sync: false
       - key: CORTEX_MANAGED_ALLOW_SIGNUP
         value: "true"
       - key: CORTEX_STRIPE_LIVE

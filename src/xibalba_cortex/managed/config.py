@@ -12,11 +12,11 @@ from ..config import Agent0Config
 class ManagedConfig:
     home: Path
     storage_backend: str = "sqlite"
-    # Temporary compatibility bridge: control-plane rows live in Supabase,
-    # while account/password/session primitives remain in the per-service
-    # SQLite identity home until Supabase Auth verification is wired in.
+    # Legacy account/password/session primitives remain in the per-service
+    # SQLite identity home while Supabase Auth subjects are explicitly mapped.
     identity_backend: str = "sqlite_compat"
     supabase_url: str = ""
+    supabase_database_url: str = field(default="", repr=False)
     supabase_jwt_audience: str = "authenticated"
     public_url: str = "http://localhost:8430"
     stripe_secret_key: str = field(default="", repr=False)
@@ -90,6 +90,7 @@ class ManagedConfig:
             storage_backend=os.environ.get("CORTEX_MANAGED_STORAGE_BACKEND", "sqlite").strip().lower(),
             identity_backend=os.environ.get("CORTEX_MANAGED_IDENTITY_BACKEND", "sqlite_compat").strip().lower(),
             supabase_url=os.environ.get("SUPABASE_URL", "").strip(),
+            supabase_database_url=os.environ.get("CORTEX_MANAGED_DATABASE_URL", "").strip(),
             supabase_jwt_audience=os.environ.get("SUPABASE_JWT_AUDIENCE", "authenticated").strip(),
             public_url=os.environ.get("CORTEX_MANAGED_PUBLIC_URL", "http://localhost:8430").rstrip("/"),
             stripe_secret_key=os.environ.get("STRIPE_SECRET_KEY", ""),
