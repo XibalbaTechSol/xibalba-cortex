@@ -1,26 +1,30 @@
 # Cortex project state
 
-## Supabase migration handoff — 2026-11-05
+## Supabase migration handoff — 2026-11-05 (updated after deploy)
 
 The current Cortex Auth/control-plane cutover is tracked in
 [`docs/operations/supabase-migration-plan.md`](operations/supabase-migration-plan.md).
 Production Supabase schema is applied through
-`20261105113334_auth_identity_account_snapshot`; one confirmed Auth user exists,
-but the Cortex tenant and identity-mapping tables were empty at the last query.
-PR #104 is on `feat/supabase-auth-cutover`; its latest head and CI state must be
-refreshed before merge. The live Render service is Free with no persistent disk.
-The operator approved recreating old profiles, but no SQLite export has been
-claimed. The plan explicitly keeps the still-local per-tenant GraphStore out of
-the completed Supabase control-plane/Auth cutover claim.
+`20261105113334_auth_identity_account_snapshot`; a read-only post-deploy query
+found one confirmed Auth user and zero Cortex tenants, memberships, or identity
+mappings.
+PR #104 merged at `3db967c` after green CI on `0cc72d9`; Render deployment
+`dep-dbm7i7p7lnhs738pjae0` is live, and `/healthz` returns healthy. `/readyz`
+remains 503 for Stripe sandbox configuration. Auth exchange and a resulting
+tenant row have not yet been verified by a completed user sign-in. The live
+Render service is Free with no persistent disk. The operator approved
+recreating old profiles, but no SQLite export has been claimed. The plan keeps
+the still-local per-tenant GraphStore out of the completed Supabase
+control-plane/Auth cutover claim.
 
 **This is the single resume authority.** Update this file when a gate changes,
 when a verification command produces new evidence, or when a blocker is resolved.
 Do not create another numbered roadmap. The detailed production plan is reference
 material; its gate IDs map to this state.
 
-**Last verified:** 2026-11-03
+**Last verified:** 2026-11-05
 **Repository:** `/home/xibalba/Projects/xibalba-cortex`
-**Source baseline:** `main` at `60194fc` (includes Cortex PR #84)
+**Source baseline:** `main` at `3db967c` (includes Cortex PR #104)
 **Local-only residue:** pre-existing untracked `LICENSE` (preserve; do not stage)
 
 ## Documentation sync — 2026-11-03

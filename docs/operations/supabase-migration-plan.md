@@ -12,17 +12,26 @@ cutover from moving Cortex's canonical memory store.
   through `20261105113334_auth_identity_account_snapshot` applied.
 - Google and GitHub provider handoffs and product redirect allow-lists were
   validated. A completed user-consent callback has not yet been observed.
-- One confirmed Supabase Auth user exists. `cortex.tenants`,
-  `cortex.tenant_memberships`, and `cortex.auth_identity_migrations` were each
-  empty at the last production query. The user therefore has no Cortex mapping
-  yet.
+- A read-only post-deploy Supabase query found one confirmed Auth user and
+  zero rows in `cortex.tenants`, `cortex.tenant_memberships`, and
+  `cortex.auth_identity_migrations`. The user therefore still has no Cortex
+  mapping; no authenticated sign-in has created a workspace yet.
 - Cortex PR #104 contains signature-verified Supabase sessions, explicit
   subject-to-account migration, rollback, a gated new-account provisioner, and
   Render Blueprint settings for Supabase Auth and managed control storage. It
   also fails startup if Supabase is unreachable or required migrations are
-  missing.
-  Refresh the PR head and CI status immediately before merge; CI is not
-  considered green based on an earlier commit.
+  missing. It merged at `3db967c` after Python and viewer CI passed on
+  `0cc72d9`; Render deploy `dep-dbm7i7p7lnhs738pjae0` is live on that merge
+  commit.
+- Live `GET /healthz` returns `{"ok":true,"edition":"managed"}`. `GET /readyz`
+  returns 503 for the unconfigured Stripe sandbox; its other reported checks
+  are ready. `GET /api/managed/plans` reports signup enabled and billing
+  unconfigured.
+- The first post-deploy Supabase-backed sign-in has not yet been exercised.
+  The last production query before deploy found zero Cortex tenant/membership/
+  subject mappings. Do not infer backend selection from `/healthz` or the
+  generic writable-storage readiness check; confirm the actual Postgres path
+  with the first authenticated database-backed request and its resulting row.
 - The live `cortex-managed-pilot` service is Render Free, tracks `main`, and
   has no persistent disk. Before this cutover it used SQLite. The operator
   accepted that old profiles may be recreated. No claim is made that runtime
@@ -40,9 +49,9 @@ cutover from moving Cortex's canonical memory store.
 
 ### A. Cortex Auth and managed control-plane cutover
 
-1. **Close PR #104 on exact green head.** Confirm every required CI job passes
-   on the current head; merge using the CI SHA and existing workspace rules.
-   `main` auto-deploys the Render service.
+1. **DONE — merge and deploy the Auth/control-plane cutover.** PR #104 merged
+   with CI green at `0cc72d9`; Render deploy `dep-dbm7i7p7lnhs738pjae0` is live
+   on `3db967c`.
 2. **Verify Render deployment inputs without printing secrets.** Confirm
    `CORTEX_MANAGED_DATABASE_URL` exists, points to the `integrity-userapi`
    Postgres connection, and is reachable from Render. Confirm the deployed
@@ -50,8 +59,8 @@ cutover from moving Cortex's canonical memory store.
    `CORTEX_MANAGED_IDENTITY_BACKEND=supabase_auth`, the expected project URL,
    and the public publishable key. Treat `render.yaml` as desired configuration
    until the live runtime proves it took effect. Render Free rejected creation
-   of a one-off probe job, so startup preflight and the first database-backed
-   request are the available runtime checks on this plan.
+   of a one-off probe job, so the startup preflight and first authenticated
+   database-backed request are the available runtime checks on this plan.
 3. **Verify live Supabase storage.** Check health and logs, then confirm server
    writes land in `cortex` tables and RLS remains enabled with no client write
    policies. A green `/healthz` alone is not sufficient.
@@ -65,10 +74,10 @@ cutover from moving Cortex's canonical memory store.
    migration rollback removes only links created by that batch. Document that
    recreating old profiles creates new account IDs unless a reviewed mapping is
    explicitly imported.
-6. **Resolve operational readiness.** Keep signup gated to verified Auth users;
-   decide whether Cortex pilot signup can be enabled while `/readyz` remains
-   blocked on Stripe sandbox. Record Stripe as a separate billing gate, not an
-   Auth or storage failure.
+6. **Resolve operational readiness.** Signup is enabled and verified Auth
+   users are required by provisioning. Decide whether to keep pilot signup
+   enabled while `/readyz` remains blocked on Stripe sandbox. Record Stripe as
+   a separate billing gate, not an Auth or storage failure.
 
 ### B. Cortex canonical memory storage
 
