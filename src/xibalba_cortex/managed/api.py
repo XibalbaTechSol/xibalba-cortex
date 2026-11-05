@@ -224,7 +224,18 @@ def create_app(config: ManagedConfig, *, control: ManagedControl | None = None, 
             "hosted_inference_enabled": False})
 
     async def ready(request):
-        result = service.config.pilot_readiness()
+        database_ready = None
+        if service.config.storage_backend == "supabase":
+            def probe_managed_database():
+                with service.db() as db:
+                    db.execute("SELECT 1").fetchone()
+            try:
+                await run_in_threadpool(probe_managed_database)
+                database_ready = True
+            except Exception:
+                database_ready = False
+                log.warning("Managed readiness database probe failed")
+        result = service.config.pilot_readiness(managed_database_ready=database_ready)
         return JSONResponse(result, status_code=200 if result["ready"] else 503)
 
     async def signup(request):

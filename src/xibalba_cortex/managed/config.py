@@ -62,7 +62,7 @@ class ManagedConfig:
         key_prefix = "sk_live_" if self.stripe_live else "sk_test_"
         return bool(self.stripe_secret_key.startswith(key_prefix) and not any(word in self.stripe_secret_key.lower() for word in ("dummy", "replace", "placeholder")) and self.stripe_webhook_secret.startswith("whsec_") and self.pro_price_id.startswith("price_") and self.team_price_id.startswith("price_"))
 
-    def pilot_readiness(self) -> dict[str, object]:
+    def pilot_readiness(self, *, managed_database_ready: bool | None = None) -> dict[str, object]:
         """Return the gates that must be closed before enabling a hosted pilot.
 
         This is deliberately stricter than liveness. A local development service with
@@ -74,14 +74,17 @@ class ManagedConfig:
         resend_ready = bool(os.environ.get("RESEND_API_KEY", "").strip() and os.environ.get("CORTEX_EMAIL_FROM", os.environ.get("CORTEX_SMTP_FROM", "")).strip())
         email_ready = smtp_ready or resend_ready
         storage_ready = self.home.is_dir() and os.access(self.home, os.W_OK)
+        supabase_control = self.storage_backend == "supabase"
+        database_ready = managed_database_ready if supabase_control else storage_ready
         checks = {
             "public_origin": {"ready": public_origin, "detail": "HTTPS public origin is configured" if public_origin else "Set CORTEX_MANAGED_PUBLIC_URL to the selected HTTPS domain"},
             "stripe_sandbox": {"ready": self.billing_ready and not self.stripe_live, "detail": "Stripe test mode and approved monthly prices are configured" if self.billing_ready and not self.stripe_live else "Configure real sk_test_, whsec_, Pro and Team Price IDs"},
             "smtp_delivery": {"ready": email_ready, "detail": "Resend or SMTP delivery is configured" if email_ready else "Configure Resend (RESEND_API_KEY and CORTEX_EMAIL_FROM) or SMTP"},
             "registration": {"ready": self.allow_signup, "detail": "Verified signup is enabled" if self.allow_signup else "Set CORTEX_MANAGED_ALLOW_SIGNUP=true after delivery testing"},
-            "persistent_storage": {"ready": storage_ready, "detail": "Managed data home is writable" if storage_ready else "Managed data home is not writable"},
+            "managed_database": {"ready": bool(database_ready), "detail": "Supabase managed database is reachable" if supabase_control and database_ready else "Supabase managed database probe failed" if supabase_control else "Local managed database home is writable" if storage_ready else "Local managed database home is not writable"},
+            "canonical_memory_store": {"ready": not supabase_control, "detail": "Canonical memory store is still tenant-local SQLite and has not migrated to Supabase" if supabase_control else "Tenant-local SQLite memory store is in use"},
         }
-        return {"schema_version": "xibalba.managed_pilot_readiness.v1", "ready": all(item["ready"] for item in checks.values()), "checks": checks, "disclaimer": "Pilot gate status only; this does not establish SLA, HA, backup or compliance evidence."}
+        return {"schema_version": "xibalba.managed_pilot_readiness.v1", "ready": all(item["ready"] for item in checks.values()), "backends": {"managed_control": self.storage_backend, "authentication": self.identity_backend, "canonical_memory_store": "tenant_local_sqlite"}, "checks": checks, "disclaimer": "Pilot gate status only; this does not establish SLA, HA, backup or compliance evidence."}
 
     @classmethod
     def from_env(cls) -> ManagedConfig:
