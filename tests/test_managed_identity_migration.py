@@ -20,16 +20,17 @@ def test_auth_subject_migration_and_batch_rollback_preserve_legacy_identity(tmp_
     unique = uuid.uuid4().hex
     email = f"legacy-{unique}@example.test"
     tenant_id = "t-" + uuid.uuid4().hex
+    auth_subject = str(uuid.uuid4())
     account = create_account(service.identity_home, email=email,
                              password="migration-test-password", display_name="Legacy", profile_id=tenant_id)
-    with service.db(write=True) as db:
-        db.execute("INSERT INTO tenants(id,owner_account_id,created_at) VALUES(?,?,?)",
-                   (tenant_id, account["id"], 1))
-    auth_subject = str(uuid.uuid4())
     with service.db(write=True) as db:
         db.execute("INSERT INTO auth.users(id,aud,role,email,encrypted_password,confirmed_at,created_at,updated_at) "
                    "VALUES(?, 'authenticated','authenticated',?,'',now(),now(),now())",
                    (auth_subject, email))
+        db.execute("INSERT INTO tenants(id,owner_account_id,owner_user_id,created_at) VALUES(?,?,?,?)",
+                   (tenant_id, account["id"], auth_subject, 1))
+        db.execute("INSERT INTO tenant_memberships(tenant_id,user_id,role) VALUES(?,?,'member')",
+                   (tenant_id, auth_subject))
 
     preview = service.migrate_auth_subjects(
         [{"auth_user_id": auth_subject, "legacy_account_id": account["id"]}], batch_id="test-batch")
@@ -71,5 +72,43 @@ def test_auth_subject_migration_and_batch_rollback_preserve_legacy_identity(tmp_
     with service.db() as db:
         tenant = db.execute("SELECT id,owner_account_id,owner_user_id FROM tenants WHERE id=?", (tenant_id,)).fetchone()
         mapping = db.execute("SELECT 1 FROM auth_identity_migrations WHERE auth_user_id=?", (auth_subject,)).fetchone()
+        membership = db.execute("SELECT role FROM tenant_memberships WHERE tenant_id=? AND user_id=?",
+                                 (tenant_id, auth_subject)).fetchone()
     assert tenant["id"] == tenant_id and tenant["owner_account_id"] == account["id"]
-    assert tenant["owner_user_id"] is None and mapping is None
+    assert str(tenant["owner_user_id"]) == auth_subject and mapping is None
+    assert membership["role"] == "member"
+
+
+@pytest.mark.skipif(not os.environ.get("CORTEX_MANAGED_TEST_DSN"), reason="requires local Supabase Postgres")
+def test_rollback_removes_owner_link_and_membership_created_by_migration(tmp_path):
+    dsn = os.environ["CORTEX_MANAGED_TEST_DSN"]
+    config = ManagedConfig(home=tmp_path, storage_backend="supabase", supabase_url="http://127.0.0.1:54321")
+    service = ManagedControl(config, db_factory=SupabaseManagedDbFactory(dsn), bootstrap_schema=False)
+    unique = uuid.uuid4().hex
+    tenant_id, auth_subject = "t-" + unique, str(uuid.uuid4())
+    account = create_account(service.identity_home, email=f"new-{unique}@example.test",
+                             password="migration-test-password", display_name="New legacy", profile_id=tenant_id)
+    with service.db(write=True) as db:
+        db.execute("INSERT INTO auth.users(id,aud,role,email,encrypted_password,confirmed_at,created_at,updated_at) "
+                   "VALUES(?, 'authenticated','authenticated',?,'',now(),now(),now())",
+                   (auth_subject, f"new-{unique}@example.test"))
+        db.execute("INSERT INTO tenants(id,owner_account_id,created_at) VALUES(?,?,?)",
+                   (tenant_id, account["id"], 1))
+
+    service.migrate_auth_subjects(
+        [{"auth_user_id": auth_subject, "legacy_account_id": account["id"]}],
+        batch_id="created-links-batch", apply=True,
+    )
+    with service.db() as db:
+        assert str(db.execute("SELECT owner_user_id FROM tenants WHERE id=?", (tenant_id,)).fetchone()["owner_user_id"]) == auth_subject
+        assert db.execute("SELECT role FROM tenant_memberships WHERE tenant_id=? AND user_id=?",
+                          (tenant_id, auth_subject)).fetchone()["role"] == "owner"
+
+    service.unlink_auth_subject(auth_subject, batch_id="created-links-batch")
+    with service.db() as db:
+        tenant = db.execute("SELECT owner_account_id,owner_user_id FROM tenants WHERE id=?", (tenant_id,)).fetchone()
+        membership = db.execute("SELECT 1 FROM tenant_memberships WHERE tenant_id=? AND user_id=?",
+                                 (tenant_id, auth_subject)).fetchone()
+    assert tenant["owner_account_id"] == account["id"] and tenant["owner_user_id"] is None
+    assert membership is None
+    assert service.account_for_auth_subject(auth_subject) is None
