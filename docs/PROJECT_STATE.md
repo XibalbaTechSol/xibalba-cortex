@@ -5,8 +5,9 @@
 The current Cortex Auth/control-plane cutover is tracked in
 [`docs/operations/supabase-migration-plan.md`](operations/supabase-migration-plan.md).
 Production Supabase schema is applied through
-`20261105113334_auth_identity_account_snapshot`; one confirmed Auth user exists,
-but the Cortex tenant and identity-mapping tables were empty at the last query.
+`20261105113334_auth_identity_account_snapshot`; a read-only post-deploy query
+found one confirmed Auth user and zero Cortex tenants, memberships, or identity
+mappings.
 PR #104 merged at `3db967c` after green CI on `0cc72d9`; Render deployment
 `dep-dbm7i7p7lnhs738pjae0` is live, and `/healthz` returns healthy. `/readyz`
 remains 503 for Stripe sandbox configuration. Auth exchange and a resulting

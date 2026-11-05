@@ -12,10 +12,10 @@ cutover from moving Cortex's canonical memory store.
   through `20261105113334_auth_identity_account_snapshot` applied.
 - Google and GitHub provider handoffs and product redirect allow-lists were
   validated. A completed user-consent callback has not yet been observed.
-- One confirmed Supabase Auth user exists. `cortex.tenants`,
-  `cortex.tenant_memberships`, and `cortex.auth_identity_migrations` were each
-  empty at the last production query. The user therefore has no Cortex mapping
-  yet.
+- A read-only post-deploy Supabase query found one confirmed Auth user and
+  zero rows in `cortex.tenants`, `cortex.tenant_memberships`, and
+  `cortex.auth_identity_migrations`. The user therefore still has no Cortex
+  mapping; no authenticated sign-in has created a workspace yet.
 - Cortex PR #104 contains signature-verified Supabase sessions, explicit
   subject-to-account migration, rollback, a gated new-account provisioner, and
   Render Blueprint settings for Supabase Auth and managed control storage. It
