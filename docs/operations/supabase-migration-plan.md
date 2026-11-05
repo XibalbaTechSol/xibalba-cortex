@@ -98,12 +98,15 @@ cutover from moving Cortex's canonical memory store.
 
 ### B. Cortex canonical memory storage
 
-7. **Design the GraphStore target before implementation.** Inventory every
-   table, trigger, transaction boundary, integrity hash, backup/restore path,
-   worker, and query used by managed routes. Define a tenant-keyed Supabase
-   Postgres representation, ownership model, RLS policies, and a tested
-   rollback/export format. Do not treat the current control-plane importer as a
-   GraphStore migration.
+7. **DESIGN PROPOSED — GraphStore target.** The design proposal at
+   [`docs/operations/cortex-graphstore-supabase-design.md`](cortex-graphstore-supabase-design.md)
+   inventories the current SQLite domains and specifies the hosted target,
+   tenant scoping/RLS, search and vector projections, transactional behavior,
+   integrity reconciliation, and export/rollback requirements. This is a
+   reviewable design, not an implemented or benchmarked migration. Remaining
+   before B8: finish exact consumer/attachment/vector-table inventory, review
+   the target contract, and benchmark representative Postgres workloads. Do
+   not treat the current control-plane importer as a GraphStore migration.
 8. **Build a Postgres-backed managed store behind a narrow store interface.**
    Preserve canonical event-chain and tamper-evidence semantics; avoid loading
    or replacing whole SQLite database files per request. Keep local operator
