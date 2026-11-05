@@ -330,8 +330,19 @@ describe('the shared hosted transport', () => {
   })
 })
 
-describe('hosted Supabase Google OAuth', () => {
-  it('starts Google authorization with a PKCE challenge and keeps the verifier in session storage', async () => {
+describe('hosted Supabase OAuth', () => {
+  it('shows only the providers enabled in the shared Supabase Auth project', async () => {
+    vi.stubEnv('VITE_SUPABASE_URL', 'https://project.supabase.co')
+    vi.stubEnv('VITE_SUPABASE_PUBLISHABLE_KEY', 'sb_publishable_test-key')
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ external: { google: true, github: true, facebook: false } }), { status: 200 })))
+    const { rest } = await hostedModules()
+    expect(await rest.accountOAuthProviders()).toEqual([
+      { id: 'google', name: 'Google' },
+      { id: 'github', name: 'GitHub' },
+    ])
+  })
+
+  it.each(['google', 'github'])('starts %s authorization with a PKCE challenge and keeps the verifier in session storage', async (provider) => {
     vi.stubEnv('VITE_SUPABASE_URL', 'https://project.supabase.co')
     vi.stubEnv('VITE_SUPABASE_PUBLISHABLE_KEY', 'sb_publishable_test-key')
     const store = new Map<string, string>()
@@ -339,10 +350,10 @@ describe('hosted Supabase Google OAuth', () => {
     let redirected = ''
     vi.stubGlobal('window', { location: { origin: 'https://console.example', pathname: '/signin', assign: (url: string) => { redirected = url } } })
     const { rest } = await hostedModules()
-    await rest.accountOAuthAuthorize('google')
+    await rest.accountOAuthAuthorize(provider)
     const url = new URL(redirected)
     expect(url.origin + url.pathname).toBe('https://project.supabase.co/auth/v1/authorize')
-    expect(url.searchParams.get('provider')).toBe('google')
+    expect(url.searchParams.get('provider')).toBe(provider)
     expect(url.searchParams.get('redirect_to')).toBe('https://console.example/signin')
     expect(url.searchParams.get('apikey')).toBe('sb_publishable_test-key')
     expect(url.searchParams.get('code_challenge_method')).toBe('s256')

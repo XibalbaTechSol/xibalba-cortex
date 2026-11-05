@@ -19,6 +19,11 @@ services:
         value: sqlite_compat
       - key: SUPABASE_URL
         value: https://ftspunijfgcbkuybobhf.supabase.co
+      # Vite inlines these at image build time; they are public client settings.
+      - key: VITE_SUPABASE_URL
+        value: https://ftspunijfgcbkuybobhf.supabase.co
+      - key: VITE_SUPABASE_PUBLISHABLE_KEY
+        value: sb_publishable_ZZIA53qqwfRW-dMcH7Yrjg_0dInAgiq
       - key: SUPABASE_JWT_AUDIENCE
         value: authenticated
       - key: CORTEX_MANAGED_DATABASE_URL

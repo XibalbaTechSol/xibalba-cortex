@@ -52,15 +52,16 @@ Supabase identity to a legacy account by email. Preview a JSON manifest with
 volume remain intact during rollback. Apply migration
 `20261105102100_auth_subject_mapping.sql` before running the CLI.
 
-For local Google sign-in, set `SUPABASE_AUTH_EXTERNAL_GOOGLE_CLIENT_ID` and
-`SUPABASE_AUTH_EXTERNAL_GOOGLE_CLIENT_SECRET` in the root `.env`; never commit
-that file. The Google OAuth client must allow the Supabase Auth callback URL
-(`http://127.0.0.1:54321/auth/v1/callback` locally, or
-`<project-url>/auth/v1/callback` for a hosted project). The viewer uses PKCE,
-then exchanges the verified access token for the managed Cortex cookie. Do not
-enable hosted sign-in until existing operators have been migrated and the
-project URL, publishable/anon key, redirect allow-list, and Google callback are
-configured for that environment.
+For local Google or GitHub sign-in, set the provider's client ID and secret in
+the root `.env`; never commit that file. Local Supabase development needs OAuth
+apps whose callback URL is `http://127.0.0.1:54321/auth/v1/callback`. Hosted
+products can share the production Supabase project's provider credentials and
+callback (`https://ftspunijfgcbkuybobhf.supabase.co/auth/v1/callback`); add each
+product's return URL to that project's Auth redirect allow-list. The viewer
+uses PKCE, then exchanges the verified access token for the managed Cortex
+cookie. Do not enable hosted sign-in until existing operators have been
+migrated and the project URL, publishable/anon key, redirect allow-list, and
+provider callback are configured for that environment.
 
 The Vite viewer reads `VITE_SUPABASE_URL` and
 `VITE_SUPABASE_PUBLISHABLE_KEY`; use `viewer/.env.example` as the local template.
