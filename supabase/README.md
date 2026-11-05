@@ -28,9 +28,12 @@ supabase db lint
 ```
 
 The migrations establish managed tenant, entitlement, usage, billing, and
-email-verification state. Migration `0002_auth_subject_mapping.sql` adds the
-reversible identity bridge used by the Python managed service; existing account
-links still require an explicit manifest and apply operation.
+email-verification state. Migration `20261105102100_auth_subject_mapping.sql`
+adds the reversible identity bridge used by the Python managed service; existing
+account links still require an explicit manifest and apply operation. The
+timestamped `20261105064544` and `20261105064615` migrations establish the
+existing Integrity User API baseline already present in the linked Supabase
+project, so local and hosted migration histories stay ordered and consistent.
 
 ## Supabase Auth identity bridge
 
@@ -47,7 +50,7 @@ Supabase identity to a legacy account by email. Preview a JSON manifest with
 <manifest.json>`, apply it with `apply`, and reverse only that batch with
 `rollback`. The legacy SQLite account, password record, tenant ID, and graph
 volume remain intact during rollback. Apply migration
-`0002_auth_subject_mapping.sql` before running the CLI.
+`20261105102100_auth_subject_mapping.sql` before running the CLI.
 
 For local Google sign-in, set `SUPABASE_AUTH_EXTERNAL_GOOGLE_CLIENT_ID` and
 `SUPABASE_AUTH_EXTERNAL_GOOGLE_CLIENT_SECRET` in the root `.env`; never commit
