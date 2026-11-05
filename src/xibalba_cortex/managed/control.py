@@ -21,6 +21,15 @@ from .plans import PLANS, WRITE_STATUSES
 from .stripe_gateway import BillingUnavailable, StripeGateway
 from .storage import ManagedDbFactoryLike, SupabaseManagedDbFactory
 
+_AUTH_USER_SNAPSHOT_SQL = """
+    SELECT email, raw_user_meta_data,
+           CASE WHEN jsonb_exists(to_jsonb(auth_user), 'email_confirmed_at')
+                THEN to_jsonb(auth_user)->>'email_confirmed_at'
+                ELSE to_jsonb(auth_user)->>'confirmed_at'
+           END AS email_confirmed_at
+    FROM auth.users AS auth_user WHERE id=?
+"""
+
 
 class LimitExceeded(RuntimeError):
     pass
@@ -179,7 +188,7 @@ class ManagedControl:
                 pass
             else:
                 auth_user = db.execute(
-                    "SELECT email,email_confirmed_at,raw_user_meta_data FROM auth.users WHERE id=?", (subject,)
+                    _AUTH_USER_SNAPSHOT_SQL, (subject,)
                 ).fetchone()
                 if not auth_user or not auth_user["email"] or auth_user["email_confirmed_at"] is None:
                     raise PermissionError("A confirmed Supabase Auth user is required")
@@ -246,7 +255,7 @@ class ManagedControl:
         owner_link_created = tenant["owner_user_id"] is None
         if account is None:
             auth_user = db.execute(
-                "SELECT email,raw_user_meta_data,email_confirmed_at FROM auth.users WHERE id=?", (subject,)
+                _AUTH_USER_SNAPSHOT_SQL, (subject,)
             ).fetchone()
             if auth_user is None:
                 raise LookupError("Supabase Auth user does not exist")
