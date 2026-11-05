@@ -69,8 +69,13 @@ cutover from moving Cortex's canonical memory store.
    SQLite and compatibility auth. Apply the desired settings in the Render
    service configuration, supplying the Supabase database connection value
    through Render's protected environment editor. Then verify
-   `CORTEX_MANAGED_DATABASE_URL` exists, points to the `integrity-userapi`
-   Postgres connection, and is reachable from Render. Confirm the deployed
+   `CORTEX_MANAGED_DATABASE_URL` exists, points to Supabase project
+   `ftspunijfgcbkuybobhf`, and is reachable from Render. The Render workspace
+   also contains a separate Render Postgres resource named
+   `integrity-userapi-db` (`dpg-dbld7sqjnfac73flo1p0-a`); do not mistake it for
+   the Supabase project. Render services are IPv4-only, so use Supabase's IPv4
+   shared pooler (session mode is the initial recommendation for this
+   persistent service) unless the Supabase project has an IPv4 add-on. Confirm the deployed
    service has `CORTEX_MANAGED_STORAGE_BACKEND=supabase`,
    `CORTEX_MANAGED_IDENTITY_BACKEND=supabase_auth`, the expected project URL,
    and the public publishable key. Treat `render.yaml` as desired configuration
