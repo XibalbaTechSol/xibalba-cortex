@@ -1,6 +1,6 @@
 # Cortex project state
 
-## Supabase migration handoff — 2026-11-05 (updated after deploy)
+## Supabase migration handoff — 2026-11-05 (runtime configuration gap found)
 
 The current Cortex Auth/control-plane cutover is tracked in
 [`docs/operations/supabase-migration-plan.md`](operations/supabase-migration-plan.md).
@@ -8,14 +8,20 @@ Production Supabase schema is applied through
 `20261105113334_auth_identity_account_snapshot`; a read-only post-deploy query
 found one confirmed Auth user and zero Cortex tenants, memberships, or identity
 mappings.
-PR #104 merged at `3db967c` after green CI on `0cc72d9`; Render deployment
-`dep-dbm7i7p7lnhs738pjae0` is live, and `/healthz` returns healthy. `/readyz`
-remains 503 for Stripe sandbox configuration. Auth exchange and a resulting
-tenant row have not yet been verified by a completed user sign-in. The live
-Render service is Free with no persistent disk. The operator approved
-recreating old profiles, but no SQLite export has been claimed. The plan keeps
-the still-local per-tenant GraphStore out of the completed Supabase
-control-plane/Auth cutover claim.
+PR #104's Auth/control-plane code and PR #106's backend reporting both merged
+with green CI. Render deployment `dep-dbm8bt2vcj2c7388djfg` is live at `5a8fb70`
+and `/healthz` returns healthy. The new `/readyz` response revealed the live
+service still selects `sqlite` and `sqlite_compat`; deployment code did not
+apply the Supabase settings in `render.yaml`. The service therefore has not
+completed the production Auth/control-plane cutover. Configure the Render
+environment with the protected Supabase database connection and required
+backend selectors, then verify readiness reports Supabase and its DB probe
+passes before attempting Auth sign-in. `/readyz` remains 503 for Stripe and
+also reports canonical memory storage as tenant-local SQLite after the
+backend switch. Auth exchange and a resulting tenant row remain unverified.
+The live Render service is Free with no persistent disk. The operator approved
+recreating old profiles, but no SQLite export has been claimed. See the detailed
+gates in `docs/operations/supabase-migration-plan.md`.
 
 **This is the single resume authority.** Update this file when a gate changes,
 when a verification command produces new evidence, or when a blocker is resolved.
@@ -24,7 +30,7 @@ material; its gate IDs map to this state.
 
 **Last verified:** 2026-11-05
 **Repository:** `/home/xibalba/Projects/xibalba-cortex`
-**Source baseline:** `main` at `3db967c` (includes Cortex PR #104)
+**Source baseline:** `main` at `5a8fb70` (includes Cortex PRs #104 and #106)
 **Local-only residue:** pre-existing untracked `LICENSE` (preserve; do not stage)
 
 ## Documentation sync — 2026-11-03
