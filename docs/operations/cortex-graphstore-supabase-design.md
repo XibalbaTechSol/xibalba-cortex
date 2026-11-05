@@ -70,11 +70,15 @@ table with a tenant-scoped pgvector relation keyed by memory and model. Keep
 `embeddings_meta` authoritative only for model/revision/hash metadata; vector
 values remain a separately verifiable projection.
 
-`attachments.storage_locator` identifies the current byte store. The migration
-must determine the actual managed attachment byte location before selecting
-Supabase Storage. The target is private object storage with tenant-scoped
-paths, recorded content hash and byte length, and a verification pass. A row
-copy alone does not migrate attachment bytes.
+`attach_media()` writes content-addressed bytes beneath
+`<GraphStore home>/blobs/sha256/<first-two-hash-chars>/<sha256>`, then records
+that local path in `attachments.storage_locator` in the same operation as its
+`attach_media` event. In managed hosting, the bytes therefore live beneath the
+per-tenant local home and disappear with Render's ephemeral filesystem. The
+target is a private Supabase Storage bucket with tenant-scoped paths, recorded
+content hash and byte length, and a verification pass. A row copy alone does
+not migrate attachment bytes. Keep `storage_locator` out of the canonical
+evidence payload or define a path-independent locator before changing it.
 
 ## Target boundary and ownership
 
@@ -141,11 +145,15 @@ parameter.
   quotas atomically per tenant, using a tenant-scoped row lock or a conditional
   counter update; do not assume application-process locks coordinate Render
   instances.
-- Use Supabase's transaction pooler for the runtime if the connection model
-  supports the driver's transaction needs. Size the pool to the service's
-  instance and worker limits; verify prepared-statement compatibility and
-  database connection budgets. Keep migrations and long-running reconciliation
-  jobs off the request pool.
+- The current Render service does not support IPv6. Supabase direct Postgres
+  endpoints on the Free plan require IPv6, so the deployment must use an IPv4
+  shared-pooler endpoint unless the Supabase project has an IPv4 add-on. Start
+  with the session pooler for this persistent Render service. Evaluate the
+  transaction pooler only after configuring psycopg for its limits (including
+  prepared statements and transaction-local session state) and measuring the
+  current connect-per-store-operation pattern. Size connections against the
+  Render instance/worker count and Supabase database limits. Keep migrations
+  and long-running reconciliation jobs off the request connection path.
 
 ## Integrity, search, and background work
 
@@ -223,3 +231,11 @@ keeps the local SQLite authority and defines a separate Postgres-backed
 managed store. The prior benchmark did not measure PostgreSQL, so it is not
 evidence that the hosted Postgres design meets production latency or cost
 targets. Benchmark that workload before production rollout.
+
+## Platform references checked for this proposal
+
+- [Supabase Postgres connection methods and IPv4/IPv6 support](https://supabase.com/docs/guides/database/connecting-to-postgres)
+- [Supabase connection pooling and limits](https://supabase.com/docs/guides/database/connecting-to-postgres/pooling-and-limits)
+- [Supabase Row Level Security](https://supabase.com/docs/guides/database/postgres/row-level-security)
+- [Render IPv6 networking note](https://render.com/docs/troubleshooting-deploys)
+- [Supabase changelog](https://supabase.com/changelog): reviewed current database changes; the API table auto-exposure change is avoided by keeping canonical GraphStore tables in a non-exposed schema.

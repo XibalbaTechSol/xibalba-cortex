@@ -104,9 +104,11 @@ cutover from moving Cortex's canonical memory store.
    tenant scoping/RLS, search and vector projections, transactional behavior,
    integrity reconciliation, and export/rollback requirements. This is a
    reviewable design, not an implemented or benchmarked migration. Remaining
-   before B8: finish exact consumer/attachment/vector-table inventory, review
-   the target contract, and benchmark representative Postgres workloads. Do
-   not treat the current control-plane importer as a GraphStore migration.
+   before B8: trace delegated worker consumers, verify attachment migration and
+   pseudonym salt handling, review the target contract, select a supported
+   Supabase pooler for Render's IPv4-only runtime, and benchmark representative
+   Postgres workloads. Do not treat the current control-plane importer as a
+   GraphStore migration.
 8. **Build a Postgres-backed managed store behind a narrow store interface.**
    Preserve canonical event-chain and tamper-evidence semantics; avoid loading
    or replacing whole SQLite database files per request. Keep local operator
