@@ -18,6 +18,7 @@ from ..store import GraphStore
 from .config import ManagedConfig
 from .plans import PLANS, WRITE_STATUSES
 from .stripe_gateway import BillingUnavailable, StripeGateway
+from .storage import ManagedDbFactoryLike
 
 
 class LimitExceeded(RuntimeError):
@@ -26,7 +27,8 @@ class LimitExceeded(RuntimeError):
 
 
 class ManagedControl:
-    def __init__(self, config: ManagedConfig, *, stripe=None, email_sender=None):
+    def __init__(self, config: ManagedConfig, *, stripe=None, email_sender=None,
+                 db_factory: ManagedDbFactoryLike | None = None):
         self.config = config
         self.identity_home = config.home / "identity"
         self.tenant_root = config.home / "tenants"
@@ -34,6 +36,10 @@ class ManagedControl:
         self.tenant_root.mkdir(mode=0o700, exist_ok=True)
         self.path = config.home / "managed.sqlite3"
         self.stripe = stripe or StripeGateway(config)
+        # SQLite remains the default for local mode. A Postgres/Supabase factory
+        # can be injected later without changing API, billing, or authorization
+        # call sites; the factory must preserve the transaction context contract.
+        self._db_factory = db_factory or self._sqlite_db
         self._write_locks: dict[str, threading.RLock] = {}
         self._write_locks_guard = threading.Lock()
         if email_sender is None:
@@ -69,7 +75,7 @@ class ManagedControl:
         self.path.chmod(0o600)
 
     @contextmanager
-    def db(self, *, write=False):
+    def _sqlite_db(self, *, write=False):
         conn = sqlite3.connect(self.path, timeout=15)
         conn.row_factory = sqlite3.Row
         conn.execute("PRAGMA journal_mode=WAL")
@@ -84,6 +90,10 @@ class ManagedControl:
             raise
         finally:
             conn.close()
+
+    def db(self, *, write=False):
+        """Open the configured managed control-plane transaction."""
+        return self._db_factory(write=write)
 
     def register(self, *, email: str, password: str, display_name: str) -> None:
         if not self.config.allow_signup:
