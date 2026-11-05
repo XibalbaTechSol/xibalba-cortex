@@ -8,6 +8,7 @@ import pytest
 
 from xibalba_cortex.managed.config import ManagedConfig
 from xibalba_cortex.managed.control import ManagedControl
+from xibalba_cortex.managed.storage import SupabaseManagedDbFactory, SupabaseStorageUnavailable
 
 
 def test_managed_control_uses_injected_transaction_factory(tmp_path):
@@ -43,3 +44,10 @@ def test_supabase_backend_fails_closed_without_a_factory(tmp_path):
     config = ManagedConfig(home=tmp_path, storage_backend="supabase")
     with pytest.raises(RuntimeError, match="Postgres adapter"):
         ManagedControl(config, email_sender=lambda *args: None)
+
+
+def test_postgres_factory_requires_optional_driver():
+    factory = SupabaseManagedDbFactory("postgresql://example.invalid/cortex")
+    with pytest.raises(SupabaseStorageUnavailable, match="managed-supabase extra"):
+        with factory():
+            pass

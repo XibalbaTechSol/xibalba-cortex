@@ -28,7 +28,8 @@ class LimitExceeded(RuntimeError):
 
 class ManagedControl:
     def __init__(self, config: ManagedConfig, *, stripe=None, email_sender=None,
-                 db_factory: ManagedDbFactoryLike | None = None):
+                 db_factory: ManagedDbFactoryLike | None = None,
+                 bootstrap_schema: bool = True):
         self.config = config
         if config.storage_backend == "supabase" and db_factory is None:
             raise RuntimeError("Supabase managed storage is not enabled until the Postgres adapter is configured")
@@ -49,8 +50,9 @@ class ManagedControl:
             email_sender = send_email
         self.email_sender = email_sender
         accounts._ensure_schema(self.identity_home)
-        with self.db() as db:
-            db.executescript("""
+        if bootstrap_schema:
+            with self.db() as db:
+                db.executescript("""
                 CREATE TABLE IF NOT EXISTS tenants (
                     id TEXT PRIMARY KEY, owner_account_id TEXT NOT NULL UNIQUE,
                     plan TEXT NOT NULL DEFAULT 'free', status TEXT NOT NULL DEFAULT 'free',
@@ -73,7 +75,7 @@ class ManagedControl:
                 CREATE TABLE IF NOT EXISTS email_verifications (
                     token_hash TEXT PRIMARY KEY, account_id TEXT NOT NULL, expires_at INTEGER NOT NULL
                 );
-            """)
+                """)
         self.path.chmod(0o600)
 
     @contextmanager
