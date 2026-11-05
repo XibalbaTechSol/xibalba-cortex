@@ -52,6 +52,25 @@ Supabase identity to a legacy account by email. Preview a JSON manifest with
 volume remain intact during rollback. Apply migration
 `20261105102100_auth_subject_mapping.sql` before running the CLI.
 
+Before switching a hosted instance from SQLite to Supabase, quiesce writes and
+copy its control-plane rows from the persistent `managed.sqlite3` file. Keep the
+legacy file and tenant GraphStore directories on the Render disk. Run the
+storage migration command on the instance that can read that disk:
+
+```sh
+xibalba-cortex-managed-storage-migrate preview --batch cortex-control-2026-11
+xibalba-cortex-managed-storage-migrate apply --batch cortex-control-2026-11
+```
+
+The command imports tenants, usage, idempotency records, Stripe event IDs,
+pending checkouts, and email verification tokens. It is idempotent and refuses
+conflicting rows. Its rollback removes only rows inserted by that batch and
+only while those rows remain unchanged. Verify imported counts before applying
+the explicit Auth subject mapping, then switch the service to
+`CORTEX_MANAGED_STORAGE_BACKEND=supabase` and
+`CORTEX_MANAGED_IDENTITY_BACKEND=supabase_auth`. Roll back Auth links first if
+needed; roll back imported control state only before Supabase becomes writable.
+
 For local Google or GitHub sign-in, set the provider's client ID and secret in
 the root `.env`; never commit that file. Local Supabase development needs OAuth
 apps whose callback URL is `http://127.0.0.1:54321/auth/v1/callback`. Hosted
