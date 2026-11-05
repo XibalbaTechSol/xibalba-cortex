@@ -16,6 +16,8 @@ class ManagedConfig:
     # while account/password/session primitives remain in the per-service
     # SQLite identity home until Supabase Auth verification is wired in.
     identity_backend: str = "sqlite_compat"
+    supabase_url: str = ""
+    supabase_jwt_audience: str = "authenticated"
     public_url: str = "http://localhost:8430"
     stripe_secret_key: str = field(default="", repr=False)
     stripe_webhook_secret: str = field(default="", repr=False)
@@ -41,6 +43,10 @@ class ManagedConfig:
             raise ValueError("storage_backend must be sqlite or supabase")
         if self.identity_backend not in {"sqlite_compat", "supabase_auth"}:
             raise ValueError("identity_backend must be sqlite_compat or supabase_auth")
+        if self.identity_backend == "supabase_auth" and not self.supabase_url:
+            raise ValueError("supabase_url is required for Supabase Auth")
+        if self.identity_backend == "supabase_auth" and self.storage_backend != "supabase":
+            raise ValueError("Supabase Auth requires Supabase managed storage for subject mapping")
         parts = urlsplit(self.public_url)
         if parts.scheme not in {"http", "https"} or not parts.hostname or parts.username or parts.password or parts.query or parts.fragment or parts.path not in {"", "/"}:
             raise ValueError("public_url must be an origin without credentials, path, query or fragment")
@@ -83,6 +89,8 @@ class ManagedConfig:
             home=Path(os.environ.get("CORTEX_MANAGED_HOME", "/data/cortex-managed")),
             storage_backend=os.environ.get("CORTEX_MANAGED_STORAGE_BACKEND", "sqlite").strip().lower(),
             identity_backend=os.environ.get("CORTEX_MANAGED_IDENTITY_BACKEND", "sqlite_compat").strip().lower(),
+            supabase_url=os.environ.get("SUPABASE_URL", "").strip(),
+            supabase_jwt_audience=os.environ.get("SUPABASE_JWT_AUDIENCE", "authenticated").strip(),
             public_url=os.environ.get("CORTEX_MANAGED_PUBLIC_URL", "http://localhost:8430").rstrip("/"),
             stripe_secret_key=os.environ.get("STRIPE_SECRET_KEY", ""),
             stripe_webhook_secret=os.environ.get("STRIPE_WEBHOOK_SECRET", ""),

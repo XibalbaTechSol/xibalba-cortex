@@ -34,6 +34,7 @@ from .control import LimitExceeded, ManagedControl
 from .ingest import ingest_turn
 from .plans import PLANS
 from .stripe_gateway import BillingUnavailable
+from .supabase_auth import SupabaseAuthVerifier
 from ..agent0_integration import Agent0Gateway, Agent0Unavailable
 
 log = logging.getLogger(__name__)
@@ -76,6 +77,8 @@ def create_app(config: ManagedConfig, *, control: ManagedControl | None = None, 
     export_slots = asyncio.Semaphore(2)
     auth_slots = asyncio.Semaphore(4)
     agent0_gateway: Agent0Gateway | None = None
+    auth_verifier = (SupabaseAuthVerifier(config.supabase_url, audience=config.supabase_jwt_audience)
+                     if config.identity_backend == "supabase_auth" else None)
 
     async def auth_work(function, *args, **kwargs):
         async with auth_slots:
@@ -108,10 +111,23 @@ def create_app(config: ManagedConfig, *, control: ManagedControl | None = None, 
         if not token:
             scheme, _, candidate = request.headers.get("authorization", "").partition(" ")
             token = candidate if scheme.lower() == "bearer" else ""
-        principal = verify_token_record(service.identity_home, token) if token else None
+        if auth_verifier is not None and cookie_auth:
+            try:
+                claims = auth_verifier.verify(token)
+                account = service.account_for_auth_subject(claims["sub"])
+            except Exception:
+                log.info("Supabase Auth access token rejected")
+                account = None
+            if account is None:
+                raise ApiError(401, "Sign in to your managed workspace")
+            principal = {"label": "account:" + account["id"], "profile_id": account["profile_id"],
+                         "scopes": ["memory:read", "memory:write"], "auth_subject": claims["sub"]}
+        else:
+            principal = verify_token_record(service.identity_home, token) if token else None
         if principal is None:
             raise ApiError(401, "Sign in to your managed workspace")
-        account = accounts.account_for_token(service.identity_home, token)
+        if auth_verifier is None or not cookie_auth:
+            account = accounts.account_for_token(service.identity_home, token)
         if account is None:
             # API keys are looked up through their profile, never through an email supplied by
             # the caller. Their scopes are enforced separately for each memory operation.
@@ -239,11 +255,32 @@ def create_app(config: ManagedConfig, *, control: ManagedControl | None = None, 
         rate_limit(request, auth=True)
         origin_guard(request)
         data = await payload(request)
+        if auth_verifier is not None:
+            raise ApiError(410, "Use Supabase Auth sign-in and submit its access token as the managed session")
         token, account = await auth_work(accounts.issue_account_session, service.identity_home,
             email=str(data.get("email", "")), password=str(data.get("password", "")))
         service.tenant(account)
         response = JSONResponse({"account": account, "csrf_token": csrf(token)})
         response.set_cookie(COOKIE, token, max_age=accounts.SESSION_TTL_HOURS * 3600, httponly=True, secure=config.public_url.startswith("https:"), samesite="lax", path="/")
+        return response
+
+    async def supabase_session(request):
+        rate_limit(request, auth=True)
+        origin_guard(request)
+        if auth_verifier is None:
+            raise ApiError(404, "Supabase Auth session exchange is disabled")
+        data = await payload(request)
+        token = str(data.get("access_token", ""))
+        try:
+            claims = auth_verifier.verify(token)
+        except Exception:
+            raise ApiError(401, "Supabase access token is invalid") from None
+        account = service.account_for_auth_subject(claims["sub"])
+        if account is None:
+            raise ApiError(403, "Supabase identity is not linked to a managed workspace")
+        response = JSONResponse({"account": account, "csrf_token": csrf(token)})
+        response.set_cookie(COOKIE, token, max_age=max(0, int(claims["exp"]) - int(time.time())),
+                            httponly=True, secure=config.public_url.startswith("https:"), samesite="lax", path="/")
         return response
 
     def get_tenant_workspaces(tenant, account, limit=100):
@@ -320,7 +357,8 @@ def create_app(config: ManagedConfig, *, control: ManagedControl | None = None, 
 
     async def logout(request):
         _, _, token = await run_in_threadpool(owner, request, mutate=True)
-        await run_in_threadpool(accounts.revoke_account_session, service.identity_home, token)
+        if auth_verifier is None:
+            await run_in_threadpool(accounts.revoke_account_session, service.identity_home, token)
         response = JSONResponse({"ok": True})
         response.delete_cookie(COOKIE, path="/", secure=config.public_url.startswith("https:"), httponly=True, samesite="lax")
         return response
@@ -814,6 +852,7 @@ def create_app(config: ManagedConfig, *, control: ManagedControl | None = None, 
         Route("/api/managed/signup", signup, methods=["POST"]),
         Route("/api/managed/verify", verify),
         Route("/api/managed/login", login, methods=["POST"]),
+        Route("/api/managed/auth/session", supabase_session, methods=["POST"]),
         Route("/api/managed/oauth/providers", oauth_providers, methods=["GET"]),
         Route("/api/managed/oauth/{provider}/authorize", oauth_authorize, methods=["GET"]),
         Route("/api/managed/oauth/{provider}/callback", oauth_callback, methods=["GET"]),

@@ -100,6 +100,78 @@ class ManagedControl:
         """Open the configured managed control-plane transaction."""
         return self._db_factory(write=write)
 
+    def account_for_auth_subject(self, subject: str) -> dict | None:
+        """Resolve a verified Supabase subject to its pre-migration Cortex account."""
+        with self.db() as db:
+            row = db.execute(
+                "SELECT owner_account_id,id FROM tenants WHERE owner_user_id=?", (subject,)
+            ).fetchone()
+        if row is None:
+            return None
+        with closing(identity_connection(self.identity_home)) as identities:
+            account = identities.execute(
+                "SELECT id,email,display_name,profile_id,status,email_verified,approval_status,role "
+                "FROM accounts WHERE id=? AND status='active'", (row["owner_account_id"],)
+            ).fetchone()
+        return dict(account) if account else None
+
+    def link_auth_subject(self, subject: str, account_id: str, *, batch_id: str = "interactive") -> None:
+        """Attach a Supabase subject only to its existing stable Cortex tenant."""
+        with self.db(write=True) as db:
+            tenant = db.execute("SELECT id,owner_user_id FROM tenants WHERE owner_account_id=?", (account_id,)).fetchone()
+            if tenant is None:
+                raise LookupError("legacy Cortex account has no managed tenant")
+            if tenant["owner_user_id"] not in (None, subject):
+                raise ValueError("managed tenant is already linked to another Supabase subject")
+            db.execute(
+                "INSERT INTO auth_identity_migrations(auth_user_id,legacy_account_id,tenant_id,migration_batch) "
+                "VALUES(?,?,?,?) ON CONFLICT (auth_user_id) DO NOTHING",
+                (subject, account_id, tenant["id"], batch_id),
+            )
+            db.execute("UPDATE tenants SET owner_user_id=? WHERE owner_account_id=?", (subject, account_id))
+            db.execute(
+                "INSERT INTO tenant_memberships(tenant_id,user_id,role) "
+                "SELECT id,?, 'owner' FROM tenants WHERE owner_account_id=? "
+                "ON CONFLICT (tenant_id,user_id) DO NOTHING", (subject, account_id)
+            )
+
+    def unlink_auth_subject(self, subject: str, *, batch_id: str | None = None) -> None:
+        """Rollback subject links while leaving all legacy account and tenant data intact."""
+        with self.db(write=True) as db:
+            predicate = "auth_user_id=?" if batch_id is None else "auth_user_id=? AND migration_batch=?"
+            params = (subject,) if batch_id is None else (subject, batch_id)
+            mapped = db.execute("SELECT tenant_id FROM auth_identity_migrations WHERE " + predicate, params).fetchone()
+            if mapped:
+                db.execute("DELETE FROM tenant_memberships WHERE tenant_id=? AND user_id=?", (mapped["tenant_id"], subject))
+                db.execute("UPDATE tenants SET owner_user_id=NULL WHERE id=? AND owner_user_id=?", (mapped["tenant_id"], subject))
+                db.execute("DELETE FROM auth_identity_migrations WHERE " + predicate, params)
+
+    def migrate_auth_subjects(self, links: list[dict[str, str]], *, batch_id: str, apply: bool = False) -> dict:
+        """Validate or apply explicit Auth-subject to existing-account links."""
+        if not batch_id.strip() or not links:
+            raise ValueError("batch_id and at least one identity link are required")
+        seen_subjects, seen_accounts = set(), set()
+        normalized = []
+        for item in links:
+            subject, account_id = item.get("auth_user_id", "").strip(), item.get("legacy_account_id", "").strip()
+            if not subject or not account_id or subject in seen_subjects or account_id in seen_accounts:
+                raise ValueError("identity links must contain unique non-empty subjects and account IDs")
+            seen_subjects.add(subject); seen_accounts.add(account_id)
+            with closing(identity_connection(self.identity_home)) as identities:
+                account = identities.execute("SELECT id,email_verified,approval_status FROM accounts WHERE id=? AND status='active'", (account_id,)).fetchone()
+            with self.db() as db:
+                tenant = db.execute("SELECT id,owner_user_id FROM tenants WHERE owner_account_id=?", (account_id,)).fetchone()
+                prior = db.execute("SELECT legacy_account_id FROM auth_identity_migrations WHERE auth_user_id=?", (subject,)).fetchone()
+            if account is None or tenant is None or not account["email_verified"] or account["approval_status"] != "approved":
+                raise ValueError("each mapping must target an active, verified account with a managed tenant")
+            if tenant["owner_user_id"] not in (None, subject) or (prior and prior["legacy_account_id"] != account_id):
+                raise ValueError("identity mapping conflicts with an existing subject link")
+            normalized.append({"auth_user_id": subject, "legacy_account_id": account_id})
+        if apply:
+            for item in normalized:
+                self.link_auth_subject(item["auth_user_id"], item["legacy_account_id"], batch_id=batch_id)
+        return {"batch_id": batch_id, "count": len(normalized), "applied": apply, "links": normalized}
+
     def register(self, *, email: str, password: str, display_name: str) -> None:
         if not self.config.allow_signup:
             raise BillingUnavailable("Managed registration is not enabled on this deployment")
