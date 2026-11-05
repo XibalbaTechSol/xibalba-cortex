@@ -23,6 +23,14 @@ The live Render service is Free with no persistent disk. The operator approved
 recreating old profiles, but no SQLite export has been claimed. See the detailed
 gates in `docs/operations/supabase-migration-plan.md`.
 
+The first managed GraphStore target design is drafted in
+`docs/operations/cortex-graphstore-supabase-design.md`. It keeps local operator
+profiles on SQLite and proposes a tenant-keyed, RLS-protected Postgres store
+for managed hosting. It is design-only; exact runtime consumers, attachment
+bytes, dynamic vector tables, workload benchmarks, implementation, and
+rollback drill remain open. The live Render Supabase environment configuration
+gate remains first for production Auth/control-plane validation.
+
 **This is the single resume authority.** Update this file when a gate changes,
 when a verification command produces new evidence, or when a blocker is resolved.
 Do not create another numbered roadmap. The detailed production plan is reference
@@ -30,7 +38,7 @@ material; its gate IDs map to this state.
 
 **Last verified:** 2026-11-05
 **Repository:** `/home/xibalba/Projects/xibalba-cortex`
-**Source baseline:** `main` at `5a8fb70` (includes Cortex PRs #104 and #106)
+**Source baseline:** `main` at `3bea069` (includes Cortex PRs #104, #106, and #107)
 **Local-only residue:** pre-existing untracked `LICENSE` (preserve; do not stage)
 
 ## Documentation sync — 2026-11-03
