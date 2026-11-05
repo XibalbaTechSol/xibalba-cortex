@@ -18,6 +18,7 @@ from ..store import GraphStore
 from .config import ManagedConfig
 from .plans import PLANS, WRITE_STATUSES
 from .stripe_gateway import BillingUnavailable, StripeGateway
+from .storage import ManagedDbFactoryLike
 
 
 class LimitExceeded(RuntimeError):
@@ -26,14 +27,22 @@ class LimitExceeded(RuntimeError):
 
 
 class ManagedControl:
-    def __init__(self, config: ManagedConfig, *, stripe=None, email_sender=None):
+    def __init__(self, config: ManagedConfig, *, stripe=None, email_sender=None,
+                 db_factory: ManagedDbFactoryLike | None = None,
+                 bootstrap_schema: bool = True):
         self.config = config
+        if config.storage_backend == "supabase" and db_factory is None:
+            raise RuntimeError("Supabase managed storage is not enabled until the Postgres adapter is configured")
         self.identity_home = config.home / "identity"
         self.tenant_root = config.home / "tenants"
         config.home.mkdir(parents=True, mode=0o700, exist_ok=True)
         self.tenant_root.mkdir(mode=0o700, exist_ok=True)
         self.path = config.home / "managed.sqlite3"
         self.stripe = stripe or StripeGateway(config)
+        # SQLite remains the default for local mode. A Postgres/Supabase factory
+        # can be injected later without changing API, billing, or authorization
+        # call sites; the factory must preserve the transaction context contract.
+        self._db_factory = db_factory or self._sqlite_db
         self._write_locks: dict[str, threading.RLock] = {}
         self._write_locks_guard = threading.Lock()
         if email_sender is None:
@@ -41,8 +50,9 @@ class ManagedControl:
             email_sender = send_email
         self.email_sender = email_sender
         accounts._ensure_schema(self.identity_home)
-        with self.db() as db:
-            db.executescript("""
+        if bootstrap_schema:
+            with self.db() as db:
+                db.executescript("""
                 CREATE TABLE IF NOT EXISTS tenants (
                     id TEXT PRIMARY KEY, owner_account_id TEXT NOT NULL UNIQUE,
                     plan TEXT NOT NULL DEFAULT 'free', status TEXT NOT NULL DEFAULT 'free',
@@ -65,11 +75,11 @@ class ManagedControl:
                 CREATE TABLE IF NOT EXISTS email_verifications (
                     token_hash TEXT PRIMARY KEY, account_id TEXT NOT NULL, expires_at INTEGER NOT NULL
                 );
-            """)
+                """)
         self.path.chmod(0o600)
 
     @contextmanager
-    def db(self, *, write=False):
+    def _sqlite_db(self, *, write=False):
         conn = sqlite3.connect(self.path, timeout=15)
         conn.row_factory = sqlite3.Row
         conn.execute("PRAGMA journal_mode=WAL")
@@ -84,6 +94,10 @@ class ManagedControl:
             raise
         finally:
             conn.close()
+
+    def db(self, *, write=False):
+        """Open the configured managed control-plane transaction."""
+        return self._db_factory(write=write)
 
     def register(self, *, email: str, password: str, display_name: str) -> None:
         if not self.config.allow_signup:
