@@ -12,13 +12,13 @@ create table if not exists cortex.tenants (
   owner_account_id text not null unique,
   owner_user_id uuid references auth.users(id) on delete set null,
   plan text not null default 'free' check (plan in ('free', 'pro', 'team')),
-  status text not null default 'free' check (status in ('free', 'active', 'past_due', 'canceled', 'read_only')),
-  stripe_customer_id text unique,
-  stripe_subscription_id text,
-  period_end timestamptz,
-  cancel_at_period_end boolean not null default false,
-  created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now(),
+  status text not null default 'free' check (status in ('free', 'active', 'past_due', 'canceled', 'read_only', 'unpaid', 'incomplete', 'incomplete_expired', 'paused', 'trialing')),
+  customer_id text unique,
+  subscription_id text,
+  period_end bigint,
+  cancel_at_period_end integer not null default 0,
+  created_at bigint not null default extract(epoch from now())::bigint,
+  updated_at bigint not null default extract(epoch from now())::bigint,
   unique (owner_account_id)
 );
 
@@ -26,7 +26,7 @@ create table if not exists cortex.tenant_memberships (
   tenant_id text not null references cortex.tenants(id) on delete cascade,
   user_id uuid not null references auth.users(id) on delete cascade,
   role text not null default 'owner' check (role in ('owner', 'admin', 'member', 'read_only')),
-  created_at timestamptz not null default now(),
+  created_at bigint not null default extract(epoch from now())::bigint,
   primary key (tenant_id, user_id)
 );
 
@@ -43,29 +43,29 @@ create table if not exists cortex.operations (
   request_key text not null,
   fingerprint text not null,
   result jsonb,
-  created_at timestamptz not null default now(),
+  created_at bigint not null default extract(epoch from now())::bigint,
   primary key (tenant_id, request_key)
 );
 
 create table if not exists cortex.stripe_events (
   id text primary key,
-  processed_at timestamptz not null default now()
+  processed_at bigint not null default extract(epoch from now())::bigint
 );
 
 create table if not exists cortex.checkout_requests (
   tenant_id text primary key references cortex.tenants(id) on delete cascade,
   plan text not null check (plan in ('pro', 'team')),
-  attempt_id text not null,
+  attempt text not null,
   checkout_id text,
-  checkout_url text,
-  created_at timestamptz not null default now()
+  url text,
+  created_at bigint not null default extract(epoch from now())::bigint
 );
 
 create table if not exists cortex.email_verifications (
   token_hash text primary key,
   account_id text not null,
-  expires_at timestamptz not null,
-  created_at timestamptz not null default now()
+  expires_at bigint not null,
+  created_at bigint not null default extract(epoch from now())::bigint
 );
 
 create index if not exists idx_cortex_memberships_user

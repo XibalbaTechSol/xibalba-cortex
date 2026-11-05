@@ -15,6 +15,7 @@ from xibalba_cortex.managed.config import ManagedConfig
 from xibalba_cortex.managed.control import LimitExceeded, ManagedControl
 from xibalba_cortex.managed.plans import PLANS
 from xibalba_cortex.managed.stripe_gateway import BillingUnavailable, StripeGateway
+from managed_test_support import managed_control_options
 
 
 class FakeStripe:
@@ -74,7 +75,8 @@ def setup(tmp_path):
         pro_price_id="price_pro", team_price_id="price_team")
     mail = []
     stripe = FakeStripe(config)
-    service = ManagedControl(config, stripe=stripe, email_sender=lambda *args: mail.append(args))
+    config, storage_options = managed_control_options(config)
+    service = ManagedControl(config, stripe=stripe, email_sender=lambda *args: mail.append(args), **storage_options)
     with TestClient(create_app(config, control=service), base_url=config.public_url) as client:
         yield config, service, stripe, mail, client
 
@@ -368,6 +370,34 @@ def test_structured_import_preserves_status_graph_and_provenance(setup):
     timeline = client.get('/api/managed/timeline')
     assert timeline.status_code == 200
     assert 'sessions' in timeline.json()
+
+
+def test_existing_tenant_export_replays_into_a_new_tenant(setup):
+    """A managed tenant's structured data can be replayed without losing graph state."""
+    _, service, _, _, client = setup
+    source, source_headers = register(setup)
+    created = client.post(
+        '/api/managed/memories',
+        json={'content': 'Replay this tenant record'},
+        headers={**source_headers, 'Idempotency-Key': 'replay-source-1'},
+    )
+    assert created.status_code == 201, created.text
+    with service.store(service.tenant(source)) as store:
+        bundle = store.export_structured_bundle()
+    assert bundle['schema_version'] == 'xibalba.structured_memory_bundle.v1'
+
+    target, target_headers = register(setup, name='replay-target')
+    imported = client.post(
+        '/api/managed/import',
+        json=bundle,
+        headers={**target_headers, 'Idempotency-Key': 'replay-target-1'},
+    )
+    assert imported.status_code == 201, imported.text
+    assert imported.json()['inserted']['memories'] == 1
+    memories = client.get('/api/managed/memories', params={'q': 'Replay this tenant record'}, headers=target_headers)
+    assert memories.status_code == 200
+    assert [memory['content'] for memory in memories.json()['memories']] == ['Replay this tenant record']
+    assert service.tenant(target)['owner_account_id'] == target['id']
 
 
 def test_password_recovery_revokes_sessions_and_cannot_replay(setup):

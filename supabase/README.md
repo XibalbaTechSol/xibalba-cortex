@@ -31,3 +31,14 @@ The migration currently establishes tenant membership, plan/entitlement
 metadata, usage reservation state, idempotency records, billing event
 deduplication, checkout state, and email-verification state. It does not yet
 change the Python managed service or migrate existing tenant data.
+
+## Identity bridge status
+
+The first Python adapter deliberately uses `CORTEX_MANAGED_IDENTITY_BACKEND=sqlite_compat`:
+managed control-plane state is in Supabase, while password hashes, sessions,
+OAuth links, and device-pairing records remain in the service's private SQLite
+identity home. The `owner_account_id` text key is the compatibility boundary;
+`owner_user_id` and `tenant_memberships` are reserved for the subsequent
+Supabase Auth cutover. A deployment must not claim full Supabase identity until
+JWT verification, subject-to-account migration, and replay/rollback tests are
+complete.

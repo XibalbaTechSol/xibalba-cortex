@@ -12,6 +12,7 @@ from xibalba_cortex.email_delivery import EmailDeliveryError
 from xibalba_cortex.managed.api import create_app
 from xibalba_cortex.managed.config import ManagedConfig
 from xibalba_cortex.managed.control import ManagedControl
+from managed_test_support import managed_control_options
 from xibalba_cortex.oauth import OAuthUserInfo
 
 
@@ -27,7 +28,8 @@ def managed_setup(tmp_path):
         github_client_secret="mock-github-client-secret",
     )
     mail = []
-    service = ManagedControl(config, email_sender=lambda *args: mail.append(args))
+    config, storage_options = managed_control_options(config)
+    service = ManagedControl(config, email_sender=lambda *args: mail.append(args), **storage_options)
     app = create_app(config, control=service)
     with TestClient(app, base_url=config.public_url) as client:
         yield config, service, mail, client
@@ -35,7 +37,8 @@ def managed_setup(tmp_path):
 
 def test_oauth_providers_unconfigured(tmp_path):
     config = ManagedConfig(home=tmp_path, public_url="http://localhost:8430")
-    service = ManagedControl(config)
+    config, storage_options = managed_control_options(config)
+    service = ManagedControl(config, **storage_options)
     app = create_app(config, control=service)
     with TestClient(app, base_url=config.public_url) as client:
         res = client.get("/api/managed/oauth/providers")
@@ -166,7 +169,8 @@ def test_signup_catches_email_delivery_error(tmp_path):
     def failing_email_sender(*args, **kwargs):
         raise EmailDeliveryError("SMTP connection refused")
 
-    service = ManagedControl(config, email_sender=failing_email_sender)
+    config, storage_options = managed_control_options(config)
+    service = ManagedControl(config, email_sender=failing_email_sender, **storage_options)
     app = create_app(config, control=service)
     with TestClient(app, base_url=config.public_url) as client:
         # Should not raise 500 / 503; gracefully returns 202
