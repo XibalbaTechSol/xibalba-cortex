@@ -20,7 +20,7 @@
 // the hosted backend does.
 
 import { useEffect, useState, type FormEvent } from 'react'
-import { ApiError, accountAuth, accountConfirmPasswordReset, accountMe, accountOAuthProviders, accountRequestPasswordReset, accountResendVerification, api, connectLocalDev, getApiBaseUrl, setApiBaseUrl, type OAuthProvider } from '../api'
+import { ApiError, accountAuth, accountConfirmPasswordReset, accountMe, accountOAuthAuthorize, accountOAuthProviders, accountRequestPasswordReset, accountResendVerification, api, completeSupabaseOAuth, connectLocalDev, getApiBaseUrl, setApiBaseUrl, type OAuthProvider } from '../api'
 import { supports } from '../hostedApi'
 import { IconArrowRight, IconGitHub, IconGoogle, IconIntegrity, IconLock } from './icons'
 import { SIGNUP_PENDING, VERIFIED, signInError, verifiedFromSearch } from './authNotice'
@@ -68,6 +68,25 @@ export function SignIn({ onSignedIn }: { onSignedIn: () => void }) {
       }
     }
   }, [])
+
+  useEffect(() => {
+    completeSupabaseOAuth().then(async (completed) => {
+      if (!completed) return
+      const me = await accountMe()
+      try { sessionStorage.setItem('xibalba-cortex.account', JSON.stringify(me.account ?? {})) } catch { /* session hint only */ }
+      onSignedIn()
+    }).catch((e) => setError(signInError(e instanceof Error ? e.message : String(e))))
+  }, [onSignedIn])
+
+  const beginOAuth = async (provider: string) => {
+    setBusy(true)
+    setError('')
+    try { await accountOAuthAuthorize(provider) }
+    catch (e) {
+      setBusy(false)
+      setError(e instanceof Error ? e.message : String(e))
+    }
+  }
 
   // Opened from the emailed link: switch to the reset form and take the secret out of the address bar.
   useEffect(() => {
@@ -232,7 +251,7 @@ export function SignIn({ onSignedIn }: { onSignedIn: () => void }) {
             <>
               <div className="xc-auth-social">
                 {oauthProviders.map((p) => (
-                  <a key={p.id} className="xc-btn xc-auth-social-btn" href={`/api/auth/oauth/${p.id}/authorize`}>
+                  <a key={p.id} className="xc-btn xc-auth-social-btn" href={`/api/auth/oauth/${p.id}/authorize`} onClick={(event) => { event.preventDefault(); void beginOAuth(p.id) }}>
                     {p.id === 'google' && <IconGoogle />}
                     {p.id === 'github' && <IconGitHub />}
                     Continue with {p.name}
