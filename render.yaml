@@ -14,9 +14,9 @@ services:
       - key: CORTEX_MANAGED_HOME
         value: /data/cortex-managed
       - key: CORTEX_MANAGED_STORAGE_BACKEND
-        value: sqlite
+        value: supabase
       - key: CORTEX_MANAGED_IDENTITY_BACKEND
-        value: sqlite_compat
+        value: supabase_auth
       - key: SUPABASE_URL
         value: https://ftspunijfgcbkuybobhf.supabase.co
       # Vite inlines these at image build time; they are public client settings.
