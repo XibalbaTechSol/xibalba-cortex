@@ -113,6 +113,7 @@ const ROUTES: ReadonlyArray<readonly [string, HostedRoute]> = [
   // read-only subscription must still be able to authenticate. `hostedFetch` attaches the CSRF
   // token and an Idempotency-Key to every POST regardless, so managed's mutation guard is satisfied.
   ['POST /api/auth/login', { to: 'login' }],
+  ['POST /api/auth/supabase/session', { to: 'auth/session' }],
   ['GET /api/auth/oauth/providers', { to: 'oauth/providers' }],
   ['POST /api/auth/signup', { to: 'signup' }],
   ['POST /api/auth/logout', { to: 'logout' }],

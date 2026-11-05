@@ -1,7 +1,7 @@
 """Preview, apply, or roll back a Cortex to Supabase Auth identity mapping batch.
 
 The mapping manifest is JSON: {"links":[{"auth_user_id":"...","legacy_account_id":"..."}]}.
-Set CORTEX_MANAGED_TEST_DSN or CORTEX_MANAGED_DATABASE_URL to the server-side Postgres DSN.
+Set CORTEX_MANAGED_DATABASE_URL to the server-side Postgres DSN.
 """
 from __future__ import annotations
 

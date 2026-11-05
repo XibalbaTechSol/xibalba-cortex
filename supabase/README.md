@@ -27,18 +27,34 @@ supabase db reset
 supabase db lint
 ```
 
-The migration currently establishes tenant membership, plan/entitlement
-metadata, usage reservation state, idempotency records, billing event
-deduplication, checkout state, and email-verification state. It does not yet
-change the Python managed service or migrate existing tenant data.
+The migrations establish managed tenant, entitlement, usage, billing, and
+email-verification state. Migration `0002_auth_subject_mapping.sql` adds the
+reversible identity bridge used by the Python managed service; existing account
+links still require an explicit manifest and apply operation.
 
-## Identity bridge status
+## Supabase Auth identity bridge
 
-The first Python adapter deliberately uses `CORTEX_MANAGED_IDENTITY_BACKEND=sqlite_compat`:
-managed control-plane state is in Supabase, while password hashes, sessions,
-OAuth links, and device-pairing records remain in the service's private SQLite
-identity home. The `owner_account_id` text key is the compatibility boundary;
-`owner_user_id` and `tenant_memberships` are reserved for the subsequent
-Supabase Auth cutover. A deployment must not claim full Supabase identity until
-JWT verification, subject-to-account migration, and replay/rollback tests are
-complete.
+The managed API can use `CORTEX_MANAGED_IDENTITY_BACKEND=supabase_auth` with
+`CORTEX_MANAGED_STORAGE_BACKEND=supabase` and `SUPABASE_URL`. It verifies access
+tokens against the project's JWKS, resolves the verified `sub` through
+`cortex.tenants.owner_user_id`, and issues the existing HttpOnly Cortex session
+cookie. API keys continue to use their existing machine-identity path. Legacy
+password login is disabled in this mode.
+
+Existing operators must be linked explicitly; the adapter never matches a
+Supabase identity to a legacy account by email. Preview a JSON manifest with
+`xibalba-cortex-managed-identity-migrate preview --batch <id> --manifest
+<manifest.json>`, apply it with `apply`, and reverse only that batch with
+`rollback`. The legacy SQLite account, password record, tenant ID, and graph
+volume remain intact during rollback. Apply migration
+`0002_auth_subject_mapping.sql` before running the CLI.
+
+For local Google sign-in, set `SUPABASE_AUTH_EXTERNAL_GOOGLE_CLIENT_ID` and
+`SUPABASE_AUTH_EXTERNAL_GOOGLE_CLIENT_SECRET` in the root `.env`; never commit
+that file. The Google OAuth client must allow the Supabase Auth callback URL
+(`http://127.0.0.1:54321/auth/v1/callback` locally, or
+`<project-url>/auth/v1/callback` for a hosted project). The viewer uses PKCE,
+then exchanges the verified access token for the managed Cortex cookie. Do not
+enable hosted sign-in until existing operators have been migrated and the
+project URL, publishable/anon key, redirect allow-list, and Google callback are
+configured for that environment.

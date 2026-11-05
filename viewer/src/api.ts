@@ -20,6 +20,7 @@ const SIGNED_IN_KEY = 'xibalba-cortex.signed-in'
 // The account summary SignIn parks for the shell to render. Non-secret, and cleared with the hint.
 export const ACCOUNT_KEY = 'xibalba-cortex.account'
 const URL_STORAGE_KEY = 'xibalba-cortex.local-api-url'
+const SUPABASE_OAUTH_VERIFIER_KEY = 'xibalba-cortex.supabase-oauth-verifier'
 // Non-secret UI hint only: the real credential is the HttpOnly cookie, which this code cannot
 // read. This just lets the app render the authenticated shell without a round-trip first; any
 // stale value is corrected by the next 401.
@@ -169,6 +170,9 @@ export interface OAuthProvider {
 }
 
 export async function accountOAuthProviders(): Promise<OAuthProvider[]> {
+  if (hostedActive() && import.meta.env.VITE_SUPABASE_URL && import.meta.env.VITE_SUPABASE_ANON_KEY) {
+    return [{ id: 'google', name: 'Google' }]
+  }
   try {
     const response = await send("/api/auth/oauth/providers")
     const payload = await response.json().catch(() => ({}))
@@ -177,6 +181,54 @@ export async function accountOAuthProviders(): Promise<OAuthProvider[]> {
   } catch {
     return []
   }
+}
+
+/** Start Google OAuth through Supabase Auth using PKCE; the access token never enters browser storage. */
+export async function accountOAuthAuthorize(provider: string): Promise<void> {
+  const supabaseUrl = String(import.meta.env.VITE_SUPABASE_URL ?? '').replace(/\/+$/, '')
+  const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
+  if (!hostedActive() || !supabaseUrl || !anonKey || provider !== 'google') {
+    window.location.assign(`/api/auth/oauth/${encodeURIComponent(provider)}/authorize`)
+    return
+  }
+  const bytes = crypto.getRandomValues(new Uint8Array(32))
+  const verifier = btoa(String.fromCharCode(...bytes)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(verifier))
+  const challenge = btoa(String.fromCharCode(...new Uint8Array(digest))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
+  sessionStorage.setItem(SUPABASE_OAUTH_VERIFIER_KEY, verifier)
+  const authorize = new URL(`${supabaseUrl}/auth/v1/authorize`)
+  authorize.searchParams.set('provider', provider)
+  authorize.searchParams.set('redirect_to', `${window.location.origin}${window.location.pathname}`)
+  authorize.searchParams.set('code_challenge', challenge)
+  authorize.searchParams.set('code_challenge_method', 's256')
+  authorize.searchParams.set('apikey', anonKey)
+  window.location.assign(authorize.toString())
+}
+
+/** Complete Supabase's PKCE callback and exchange its verified access token for the managed cookie. */
+export async function completeSupabaseOAuth(): Promise<boolean> {
+  if (!hostedActive() || !import.meta.env.VITE_SUPABASE_URL || !import.meta.env.VITE_SUPABASE_ANON_KEY) return false
+  const params = new URLSearchParams(window.location.search)
+  const code = params.get('code')
+  if (!code) return false
+  const verifier = sessionStorage.getItem(SUPABASE_OAUTH_VERIFIER_KEY)
+  sessionStorage.removeItem(SUPABASE_OAUTH_VERIFIER_KEY)
+  window.history.replaceState(null, '', `${window.location.pathname}${window.location.hash || ''}`)
+  if (!verifier) throw new Error('Google sign-in could not be completed. Please try again.')
+  const base = String(import.meta.env.VITE_SUPABASE_URL).replace(/\/+$/, '')
+  const response = await fetch(`${base}/auth/v1/token?grant_type=pkce`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json', apikey: import.meta.env.VITE_SUPABASE_ANON_KEY },
+    body: JSON.stringify({ auth_code: code, code_verifier: verifier }),
+  })
+  const auth = await response.json().catch(() => ({}))
+  if (!response.ok || !auth.access_token) throw new Error(auth.msg || auth.message || auth.error_description || auth.error || 'Google sign-in failed')
+  const exchange = await hostedSend('/api/auth/supabase/session', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ access_token: auth.access_token }),
+  })
+  const session = await exchange.json().catch(() => ({}))
+  if (!exchange.ok) throw new Error(session.error || exchange.statusText)
+  markSignedIn(true)
+  return true
 }
 
 export interface DevicePairInfo {
