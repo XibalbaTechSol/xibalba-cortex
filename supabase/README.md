@@ -61,3 +61,7 @@ then exchanges the verified access token for the managed Cortex cookie. Do not
 enable hosted sign-in until existing operators have been migrated and the
 project URL, publishable/anon key, redirect allow-list, and Google callback are
 configured for that environment.
+
+The Vite viewer reads `VITE_SUPABASE_URL` and
+`VITE_SUPABASE_PUBLISHABLE_KEY`; use `viewer/.env.example` as the local template.
+The redirect allow-list includes the viewer's local development port, 5190.

@@ -15,6 +15,14 @@
 import { ApiError as ApiErrorClass } from './apiError'
 import { hostedActive, hostedSend } from './hostedApi'
 
+function supabaseProjectUrl(): string {
+  return String(import.meta.env.VITE_SUPABASE_URL ?? '').replace(/\/+$/, '')
+}
+
+function supabasePublishableKey(): string | undefined {
+  return import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || import.meta.env.VITE_SUPABASE_ANON_KEY
+}
+
 const DEFAULT_BASE_URL = import.meta.env.VITE_LOCAL_API_URL ?? (import.meta.env.DEV ? '/cortex-api' : '')
 const SIGNED_IN_KEY = 'xibalba-cortex.signed-in'
 // The account summary SignIn parks for the shell to render. Non-secret, and cleared with the hint.
@@ -137,10 +145,12 @@ export function setApiBaseUrl(value: string): void {
 }
 
 export async function accountAuth(path: "signup" | "login", input: Record<string, string>): Promise<{account?: Record<string, unknown>}> {
-  if (hostedActive() && import.meta.env.VITE_SUPABASE_URL && import.meta.env.VITE_SUPABASE_ANON_KEY) {
-    const base = String(import.meta.env.VITE_SUPABASE_URL).replace(/\/+$/, '')
+  const supabaseUrl = supabaseProjectUrl()
+  const publishableKey = supabasePublishableKey()
+  if (hostedActive() && supabaseUrl && publishableKey) {
+    const base = supabaseUrl
     const response = await fetch(`${base}/auth/v1/${path === 'signup' ? 'signup' : 'token?grant_type=password'}`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json', apikey: import.meta.env.VITE_SUPABASE_ANON_KEY },
+      method: 'POST', headers: { 'Content-Type': 'application/json', apikey: publishableKey },
       body: JSON.stringify(path === 'signup' ? { email: input.email, password: input.password, data: { display_name: input.display_name } } : { email: input.email, password: input.password }),
     })
     const auth = await response.json().catch(() => ({}))
@@ -170,7 +180,7 @@ export interface OAuthProvider {
 }
 
 export async function accountOAuthProviders(): Promise<OAuthProvider[]> {
-  if (hostedActive() && import.meta.env.VITE_SUPABASE_URL && import.meta.env.VITE_SUPABASE_ANON_KEY) {
+  if (hostedActive() && supabaseProjectUrl() && supabasePublishableKey()) {
     return [{ id: 'google', name: 'Google' }]
   }
   try {
@@ -185,9 +195,9 @@ export async function accountOAuthProviders(): Promise<OAuthProvider[]> {
 
 /** Start Google OAuth through Supabase Auth using PKCE; the access token never enters browser storage. */
 export async function accountOAuthAuthorize(provider: string): Promise<void> {
-  const supabaseUrl = String(import.meta.env.VITE_SUPABASE_URL ?? '').replace(/\/+$/, '')
-  const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
-  if (!hostedActive() || !supabaseUrl || !anonKey || provider !== 'google') {
+  const supabaseUrl = supabaseProjectUrl()
+  const publishableKey = supabasePublishableKey()
+  if (!hostedActive() || !supabaseUrl || !publishableKey || provider !== 'google') {
     window.location.assign(`/api/auth/oauth/${encodeURIComponent(provider)}/authorize`)
     return
   }
@@ -201,13 +211,15 @@ export async function accountOAuthAuthorize(provider: string): Promise<void> {
   authorize.searchParams.set('redirect_to', `${window.location.origin}${window.location.pathname}`)
   authorize.searchParams.set('code_challenge', challenge)
   authorize.searchParams.set('code_challenge_method', 's256')
-  authorize.searchParams.set('apikey', anonKey)
+  authorize.searchParams.set('apikey', publishableKey)
   window.location.assign(authorize.toString())
 }
 
 /** Complete Supabase's PKCE callback and exchange its verified access token for the managed cookie. */
 export async function completeSupabaseOAuth(): Promise<boolean> {
-  if (!hostedActive() || !import.meta.env.VITE_SUPABASE_URL || !import.meta.env.VITE_SUPABASE_ANON_KEY) return false
+  const supabaseUrl = supabaseProjectUrl()
+  const publishableKey = supabasePublishableKey()
+  if (!hostedActive() || !supabaseUrl || !publishableKey) return false
   const params = new URLSearchParams(window.location.search)
   const code = params.get('code')
   if (!code) return false
@@ -215,9 +227,9 @@ export async function completeSupabaseOAuth(): Promise<boolean> {
   sessionStorage.removeItem(SUPABASE_OAUTH_VERIFIER_KEY)
   window.history.replaceState(null, '', `${window.location.pathname}${window.location.hash || ''}`)
   if (!verifier) throw new Error('Google sign-in could not be completed. Please try again.')
-  const base = String(import.meta.env.VITE_SUPABASE_URL).replace(/\/+$/, '')
+  const base = supabaseUrl
   const response = await fetch(`${base}/auth/v1/token?grant_type=pkce`, {
-    method: 'POST', headers: { 'Content-Type': 'application/json', apikey: import.meta.env.VITE_SUPABASE_ANON_KEY },
+    method: 'POST', headers: { 'Content-Type': 'application/json', apikey: publishableKey },
     body: JSON.stringify({ auth_code: code, code_verifier: verifier }),
   })
   const auth = await response.json().catch(() => ({}))

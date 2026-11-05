@@ -333,7 +333,7 @@ describe('the shared hosted transport', () => {
 describe('hosted Supabase Google OAuth', () => {
   it('starts Google authorization with a PKCE challenge and keeps the verifier in session storage', async () => {
     vi.stubEnv('VITE_SUPABASE_URL', 'https://project.supabase.co')
-    vi.stubEnv('VITE_SUPABASE_ANON_KEY', 'public-anon-key')
+    vi.stubEnv('VITE_SUPABASE_PUBLISHABLE_KEY', 'sb_publishable_test-key')
     const store = new Map<string, string>()
     vi.stubGlobal('sessionStorage', { getItem: (k: string) => store.get(k) ?? null, setItem: (k: string, v: string) => void store.set(k, v), removeItem: (k: string) => void store.delete(k) })
     let redirected = ''
@@ -344,6 +344,7 @@ describe('hosted Supabase Google OAuth', () => {
     expect(url.origin + url.pathname).toBe('https://project.supabase.co/auth/v1/authorize')
     expect(url.searchParams.get('provider')).toBe('google')
     expect(url.searchParams.get('redirect_to')).toBe('https://console.example/signin')
+    expect(url.searchParams.get('apikey')).toBe('sb_publishable_test-key')
     expect(url.searchParams.get('code_challenge_method')).toBe('s256')
     expect(url.searchParams.get('code_challenge')).toMatch(/^[A-Za-z0-9_-]{43}$/)
     expect(store.get('xibalba-cortex.supabase-oauth-verifier')).toMatch(/^[A-Za-z0-9_-]{43}$/)
