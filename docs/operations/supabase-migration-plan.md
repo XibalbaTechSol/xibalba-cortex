@@ -19,7 +19,8 @@ cutover from moving Cortex's canonical memory store.
 - Cortex PR #104 contains signature-verified Supabase sessions, explicit
   subject-to-account migration, rollback, a gated new-account provisioner, and
   Render Blueprint settings for Supabase Auth and managed control storage.
-  Latest head: `2266ef1`; CI was still running at this status check.
+  Refresh the PR head and CI status immediately before merge; CI is not
+  considered green based on an earlier commit.
 - The live `cortex-managed-pilot` service is Render Free, tracks `main`, and
   has no persistent disk. Before this cutover it used SQLite. The operator
   accepted that old profiles may be recreated. No claim is made that runtime
