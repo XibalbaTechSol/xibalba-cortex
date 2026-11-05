@@ -68,3 +68,46 @@ def test_retry_call_retries_google_style_rate_limit_response():
 
     assert retry_call(flaky, limiter=ConnectorRateLimiter(rate_per_second=1000), initial_delay=0) == "ok"
     assert attempts == 2
+
+
+def test_try_acquire_sheds_instead_of_blocking_and_reports_retry_after():
+    """Inbound ingress must shed load, not sleep on it.
+
+    `wait()` is right for an outbound connector -- it paces our own calls. On an inbound
+    server it converts overload into unbounded latency while holding a request thread, so
+    the receiver needs a non-blocking form that tells the caller how long to wait.
+    """
+    clock = [0.0]
+    limiter = ConnectorRateLimiter(rate_per_second=10.0, burst=2, clock=lambda: clock[0])
+
+    assert limiter.try_acquire() is None       # burst token 1
+    assert limiter.try_acquire() is None       # burst token 2
+    retry_after = limiter.try_acquire()         # bucket empty
+    assert retry_after is not None
+    assert 0 < retry_after <= 0.1               # 1 token at 10/s
+
+    clock[0] += 0.1                             # one token refills
+    assert limiter.try_acquire() is None
+
+
+def test_try_acquire_does_not_consume_a_token_when_it_sheds():
+    """A shed request must not spend budget, or a flood would starve the bucket forever."""
+    clock = [0.0]
+    limiter = ConnectorRateLimiter(rate_per_second=1.0, burst=1, clock=lambda: clock[0])
+
+    assert limiter.try_acquire() is None
+    for _ in range(50):
+        assert limiter.try_acquire() is not None
+
+    clock[0] += 1.0
+    assert limiter.try_acquire() is None
+
+
+def test_injected_clock_means_the_limiter_tests_never_sleep():
+    """The clock is injectable so these assertions are exact rather than timing-dependent."""
+    clock = [100.0]
+    limiter = ConnectorRateLimiter(rate_per_second=2.0, burst=1, clock=lambda: clock[0])
+    assert limiter.try_acquire() is None
+    assert limiter.try_acquire() == pytest.approx(0.5)
+    clock[0] += 0.25
+    assert limiter.try_acquire() == pytest.approx(0.25)
