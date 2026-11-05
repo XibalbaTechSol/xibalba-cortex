@@ -120,66 +120,87 @@ class ManagedControl:
     def link_auth_subject(self, subject: str, account_id: str, *, batch_id: str = "interactive") -> None:
         """Attach a Supabase subject only to its existing stable Cortex tenant."""
         with self.db(write=True) as db:
-            tenant = db.execute("SELECT id,owner_user_id FROM tenants WHERE owner_account_id=?", (account_id,)).fetchone()
-            if tenant is None:
-                raise LookupError("legacy Cortex account has no managed tenant")
-            if tenant["owner_user_id"] is not None and str(tenant["owner_user_id"]) != subject:
-                raise ValueError("managed tenant is already linked to another Supabase subject")
-            existing = db.execute(
-                "SELECT auth_user_id,legacy_account_id,tenant_id,migration_batch "
-                "FROM auth_identity_migrations WHERE auth_user_id=? OR legacy_account_id=? OR tenant_id=?",
-                (subject, account_id, tenant["id"]),
-            ).fetchone()
-            if existing:
-                if (existing["auth_user_id"] == subject and existing["legacy_account_id"] == account_id
-                        and existing["tenant_id"] == tenant["id"] and existing["migration_batch"] == batch_id):
-                    return
-                raise ValueError("identity is already linked by another migration batch")
-            membership = db.execute(
-                "SELECT role FROM tenant_memberships WHERE tenant_id=? AND user_id=?",
-                (tenant["id"], subject),
-            ).fetchone()
-            owner_link_created = tenant["owner_user_id"] is None
+            self._link_auth_subject_in_db(db, subject, account_id, batch_id)
+
+    @staticmethod
+    def _link_auth_subject_in_db(db, subject: str, account_id: str, batch_id: str) -> None:
+        tenant = db.execute("SELECT id,owner_user_id FROM tenants WHERE owner_account_id=?", (account_id,)).fetchone()
+        if tenant is None:
+            raise LookupError("legacy Cortex account has no managed tenant")
+        if tenant["owner_user_id"] is not None and str(tenant["owner_user_id"]) != subject:
+            raise ValueError("managed tenant is already linked to another Supabase subject")
+        existing = db.execute(
+            "SELECT auth_user_id,legacy_account_id,tenant_id,migration_batch "
+            "FROM auth_identity_migrations WHERE auth_user_id=? OR legacy_account_id=? OR tenant_id=?",
+            (subject, account_id, tenant["id"]),
+        ).fetchone()
+        if existing:
+            if (str(existing["auth_user_id"]) == subject and existing["legacy_account_id"] == account_id
+                    and existing["tenant_id"] == tenant["id"] and existing["migration_batch"] == batch_id):
+                return
+            raise ValueError("identity is already linked by another migration batch")
+        membership = db.execute(
+            "SELECT role FROM tenant_memberships WHERE tenant_id=? AND user_id=?",
+            (tenant["id"], subject),
+        ).fetchone()
+        owner_link_created = tenant["owner_user_id"] is None
+        db.execute(
+            "INSERT INTO auth_identity_migrations(auth_user_id,legacy_account_id,tenant_id,migration_batch,"
+            "owner_link_created,membership_role_before) VALUES(?,?,?,?,?,?)",
+            (subject, account_id, tenant["id"], batch_id, owner_link_created,
+             membership["role"] if membership else None),
+        )
+        if owner_link_created:
+            db.execute("UPDATE tenants SET owner_user_id=? WHERE id=?", (subject, tenant["id"]))
+        if membership is None:
             db.execute(
-                "INSERT INTO auth_identity_migrations(auth_user_id,legacy_account_id,tenant_id,migration_batch,"
-                "owner_link_created,membership_role_before) VALUES(?,?,?,?,?,?)",
-                (subject, account_id, tenant["id"], batch_id, owner_link_created,
-                 membership["role"] if membership else None),
+                "INSERT INTO tenant_memberships(tenant_id,user_id,role) VALUES(?,?,'owner')",
+                (tenant["id"], subject),
             )
-            if owner_link_created:
-                db.execute("UPDATE tenants SET owner_user_id=? WHERE id=?", (subject, tenant["id"]))
-            if membership is None:
-                db.execute(
-                    "INSERT INTO tenant_memberships(tenant_id,user_id,role) VALUES(?,?,'owner')",
-                    (tenant["id"], subject),
-                )
-            elif membership["role"] != "owner":
-                db.execute(
-                    "UPDATE tenant_memberships SET role='owner' WHERE tenant_id=? AND user_id=?",
-                    (tenant["id"], subject),
-                )
+        elif membership["role"] != "owner":
+            db.execute(
+                "UPDATE tenant_memberships SET role='owner' WHERE tenant_id=? AND user_id=?",
+                (tenant["id"], subject),
+            )
 
     def unlink_auth_subject(self, subject: str, *, batch_id: str | None = None) -> None:
         """Rollback subject links while leaving all legacy account and tenant data intact."""
         with self.db(write=True) as db:
-            predicate = "auth_user_id=?" if batch_id is None else "auth_user_id=? AND migration_batch=?"
-            params = (subject,) if batch_id is None else (subject, batch_id)
-            mapped = db.execute(
-                "SELECT tenant_id,owner_link_created,membership_role_before "
-                "FROM auth_identity_migrations WHERE " + predicate, params
-            ).fetchone()
-            if mapped:
-                if mapped["membership_role_before"] is None:
-                    db.execute("DELETE FROM tenant_memberships WHERE tenant_id=? AND user_id=?", (mapped["tenant_id"], subject))
-                else:
-                    db.execute(
-                        "UPDATE tenant_memberships SET role=? WHERE tenant_id=? AND user_id=?",
-                        (mapped["membership_role_before"], mapped["tenant_id"], subject),
-                    )
-                if mapped["owner_link_created"]:
-                    db.execute("UPDATE tenants SET owner_user_id=NULL WHERE id=? AND owner_user_id=?",
-                                (mapped["tenant_id"], subject))
-                db.execute("DELETE FROM auth_identity_migrations WHERE " + predicate, params)
+            self._unlink_auth_subject_in_db(db, subject, batch_id)
+
+    @staticmethod
+    def _unlink_auth_subject_in_db(db, subject: str, batch_id: str | None = None) -> None:
+        predicate = "auth_user_id=?" if batch_id is None else "auth_user_id=? AND migration_batch=?"
+        params = (subject,) if batch_id is None else (subject, batch_id)
+        mapped = db.execute(
+            "SELECT tenant_id,owner_link_created,membership_role_before "
+            "FROM auth_identity_migrations WHERE " + predicate, params
+        ).fetchone()
+        if mapped:
+            if mapped["membership_role_before"] is None:
+                db.execute("DELETE FROM tenant_memberships WHERE tenant_id=? AND user_id=?", (mapped["tenant_id"], subject))
+            else:
+                db.execute(
+                    "UPDATE tenant_memberships SET role=? WHERE tenant_id=? AND user_id=?",
+                    (mapped["membership_role_before"], mapped["tenant_id"], subject),
+                )
+            if mapped["owner_link_created"]:
+                db.execute("UPDATE tenants SET owner_user_id=NULL WHERE id=? AND owner_user_id=?",
+                            (mapped["tenant_id"], subject))
+            db.execute("DELETE FROM auth_identity_migrations WHERE " + predicate, params)
+
+    def rollback_auth_subject_batch(self, batch_id: str) -> int:
+        """Rollback every subject in a batch atomically, restoring captured prior state."""
+        if not batch_id.strip():
+            raise ValueError("batch_id is required")
+        with self.db(write=True) as db:
+            rows = db.execute(
+                "SELECT auth_user_id FROM auth_identity_migrations WHERE migration_batch=?",
+                (batch_id,),
+            ).fetchall()
+            for row in rows:
+                self._unlink_auth_subject_in_db(db, str(row["auth_user_id"]), batch_id)
+        return len(rows)
 
     def migrate_auth_subjects(self, links: list[dict[str, str]], *, batch_id: str, apply: bool = False) -> dict:
         """Validate or apply explicit Auth-subject to existing-account links."""
@@ -205,8 +226,9 @@ class ManagedControl:
                 raise ValueError("identity mapping conflicts with an existing subject link")
             normalized.append({"auth_user_id": subject, "legacy_account_id": account_id})
         if apply:
-            for item in normalized:
-                self.link_auth_subject(item["auth_user_id"], item["legacy_account_id"], batch_id=batch_id)
+            with self.db(write=True) as db:
+                for item in normalized:
+                    self._link_auth_subject_in_db(db, item["auth_user_id"], item["legacy_account_id"], batch_id)
         return {"batch_id": batch_id, "count": len(normalized), "applied": apply, "links": normalized}
 
     def register(self, *, email: str, password: str, display_name: str) -> None:
