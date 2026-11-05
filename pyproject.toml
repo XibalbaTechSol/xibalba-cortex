@@ -23,6 +23,7 @@ dependencies = [
 
 [project.optional-dependencies]
 managed = ["starlette>=0.47,<2", "uvicorn>=0.30"]
+managed-supabase = ["psycopg[binary]>=3.2,<4"]
 
 otel = [
   "opentelemetry-api>=1.35.0",
