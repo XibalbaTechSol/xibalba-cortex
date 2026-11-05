@@ -1,9 +1,4 @@
-"""Storage seams for the managed control plane.
-
-The first implementation remains SQLite. The callable contract is deliberately
-small so a Postgres/Supabase implementation can be introduced without changing
-the managed API, billing rules, or tenant authorization code.
-"""
+"""SQLite and Supabase/Postgres transaction factories for managed control state."""
 from __future__ import annotations
 
 from contextlib import AbstractContextManager
@@ -92,11 +87,11 @@ class _CompatConnection:
 
 
 class SupabaseManagedDbFactory:
-    """Opt-in Postgres transaction factory for the managed control plane.
+    """Postgres transaction factory; legacy account records remain in local SQLite.
 
-    The migration must be applied before this factory is enabled. Identity
-    remains a separate compatibility concern until the account migration lands;
-    the current control contract therefore keeps ``owner_account_id`` as text.
+    Apply the Cortex schema and import existing control-plane rows before
+    selecting this factory in a managed deployment. Auth subjects are then
+    linked explicitly while ``owner_account_id`` remains stable.
     """
 
     def __init__(self, dsn: str):

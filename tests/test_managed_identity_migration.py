@@ -1,4 +1,5 @@
 import os
+import json
 import uuid
 
 import pytest
@@ -112,3 +113,57 @@ def test_rollback_removes_owner_link_and_membership_created_by_migration(tmp_pat
     assert tenant["owner_account_id"] == account["id"] and tenant["owner_user_id"] is None
     assert membership is None
     assert service.account_for_auth_subject(auth_subject) is None
+
+
+@pytest.mark.skipif(not os.environ.get("CORTEX_MANAGED_TEST_DSN"), reason="requires local Supabase Postgres")
+def test_supabase_new_account_provisioning_is_idempotent_and_rollback_safe(tmp_path):
+    dsn = os.environ["CORTEX_MANAGED_TEST_DSN"]
+    config = ManagedConfig(home=tmp_path, storage_backend="supabase", identity_backend="supabase_auth",
+                           supabase_url="http://127.0.0.1:54321", allow_signup=True)
+    service = ManagedControl(config, db_factory=SupabaseManagedDbFactory(dsn), bootstrap_schema=False,
+                             email_sender=lambda *args: None)
+    subject, email = str(uuid.uuid4()), f"provision-{uuid.uuid4().hex}@example.test"
+    with service.db(write=True) as db:
+        db.execute(
+            "INSERT INTO auth.users(id,aud,role,email,encrypted_password,confirmed_at,raw_user_meta_data,created_at,updated_at) "
+            "VALUES(?, 'authenticated','authenticated',?,'',now(),?::jsonb,now(),now())",
+            (subject, email, json.dumps({"full_name": "Provisioned User"})),
+        )
+
+    first = service.provision_auth_subject(subject, batch_id="provision-test:" + subject)
+    second = service.provision_auth_subject(subject, batch_id="provision-test:" + subject)
+    assert first["id"] == "supabase:" + subject
+    assert first["email"] == email and first["display_name"] == "Provisioned User"
+    assert second["profile_id"] == first["profile_id"]
+    with service.db() as db:
+        membership = db.execute(
+            "SELECT role FROM tenant_memberships WHERE tenant_id=? AND user_id=?",
+            (first["profile_id"], subject),
+        ).fetchone()
+    assert membership["role"] == "owner"
+
+    batch_id = "provision-test:" + subject
+    assert service.rollback_auth_subject_batch(batch_id) == 1
+    restored = service.provision_auth_subject(subject, batch_id=batch_id)
+    assert restored["profile_id"] == first["profile_id"]
+
+
+@pytest.mark.skipif(not os.environ.get("CORTEX_MANAGED_TEST_DSN"), reason="requires local Supabase Postgres")
+def test_supabase_new_account_never_links_a_legacy_profile_by_email(tmp_path):
+    dsn = os.environ["CORTEX_MANAGED_TEST_DSN"]
+    config = ManagedConfig(home=tmp_path, storage_backend="supabase", identity_backend="supabase_auth",
+                           supabase_url="http://127.0.0.1:54321", allow_signup=True)
+    service = ManagedControl(config, db_factory=SupabaseManagedDbFactory(dsn), bootstrap_schema=False,
+                             email_sender=lambda *args: None)
+    subject, email = str(uuid.uuid4()), f"collision-{uuid.uuid4().hex}@example.test"
+    create_account(service.identity_home, email=email, password="migration-test-password",
+                   display_name="Legacy profile", profile_id="t-" + uuid.uuid4().hex)
+    with service.db(write=True) as db:
+        db.execute(
+            "INSERT INTO auth.users(id,aud,role,email,encrypted_password,confirmed_at,created_at,updated_at) "
+            "VALUES(?, 'authenticated','authenticated',?,'',now(),now(),now())",
+            (subject, email),
+        )
+
+    with pytest.raises(PermissionError, match="explicitly migrated by account ID"):
+        service.provision_auth_subject(subject)

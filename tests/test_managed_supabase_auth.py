@@ -1,10 +1,15 @@
 import time
 import uuid
+from dataclasses import replace
 
 import jwt
 import pytest
 from cryptography.hazmat.primitives.asymmetric import rsa
+from starlette.testclient import TestClient
 
+from xibalba_cortex import accounts
+from xibalba_cortex.managed import api as managed_api
+from xibalba_cortex.managed.api import create_app
 from xibalba_cortex.managed.supabase_auth import SupabaseAuthVerifier
 
 
@@ -54,3 +59,24 @@ def test_supabase_auth_rejects_non_loopback_http_and_non_origin_urls(url):
 def test_supabase_auth_accepts_secure_or_loopback_origins(url):
     verifier = SupabaseAuthVerifier(url, jwks_client=object())
     assert verifier.issuer == url.rstrip("/") + "/auth/v1"
+
+
+def test_supabase_auth_mode_rejects_legacy_account_bearer_and_keeps_api_keys(managed_app, monkeypatch):
+    account, _ = managed_app.register("supabase-cutover")
+    legacy_token, _ = accounts.issue_account_session(
+        managed_app.service.identity_home,
+        email=account["email"],
+        password="correct-test-password",
+    )
+    api_key = managed_app.issue_key("supabase-cutover")[1]
+    config = replace(managed_app.config, storage_backend="supabase", identity_backend="supabase_auth",
+                     supabase_url="http://localhost:54321")
+    monkeypatch.setattr(managed_api, "SupabaseAuthVerifier", lambda *args, **kwargs: object())
+    app = create_app(config, control=managed_app.service)
+
+    with TestClient(app, base_url=config.public_url) as client:
+        legacy = client.get("/api/managed/memories", headers={"Authorization": "Bearer " + legacy_token})
+        machine = client.get("/api/managed/memories", headers={"Authorization": "Bearer " + api_key})
+
+    assert legacy.status_code == 401
+    assert machine.status_code == 200, machine.text

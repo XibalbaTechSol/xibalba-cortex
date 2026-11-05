@@ -161,10 +161,14 @@ site_url = "https://cortex-managed-pilot.onrender.com"
 # A list of *exact* URLs that auth providers are permitted to redirect to post authentication.
 additional_redirect_urls = [
   "https://cortex-managed-pilot.onrender.com/**",
+  "https://xibalba-shield.onrender.com/**",
+  "https://integrity-console-test.onrender.com/**",
   "http://localhost:8430/**",
   "http://127.0.0.1:8430/**",
   "http://localhost:5173/**",
   "http://127.0.0.1:5173/**",
+  "http://localhost:5190/**",
+  "http://127.0.0.1:5190/**",
 ]
 # How long tokens are valid for, in seconds. Defaults to 3600 (1 hour), maximum 604,800 (1 week).
 jwt_expiry = 3600
@@ -348,6 +352,11 @@ client_id = "env(SUPABASE_AUTH_EXTERNAL_GOOGLE_CLIENT_ID)"
 secret = "env(SUPABASE_AUTH_EXTERNAL_GOOGLE_CLIENT_SECRET)"
 skip_nonce_check = false
 email_optional = false
+
+[auth.external.github]
+enabled = true
+client_id = "env(SUPABASE_AUTH_EXTERNAL_GITHUB_CLIENT_ID)"
+secret = "env(SUPABASE_AUTH_EXTERNAL_GITHUB_CLIENT_SECRET)"
 
 # Allow Solana wallet holders to sign in to your project via the Sign in with Solana (SIWS) standard.
 # You can configure "web3" rate limit in the [auth.rate_limit] section and set up [auth.captcha] if self-hosting.

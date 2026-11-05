@@ -126,6 +126,8 @@ def create_app(config: ManagedConfig, *, control: ManagedControl | None = None, 
             principal = verify_token_record(service.identity_home, token) if token else None
         if principal is None:
             raise ApiError(401, "Sign in to your managed workspace")
+        if auth_verifier is not None and not cookie_auth and str(principal["label"]).startswith("account:"):
+            raise ApiError(401, "Use Supabase Auth to sign in to your managed workspace")
         if auth_verifier is None or not cookie_auth:
             account = accounts.account_for_token(service.identity_home, token)
         if account is None:
@@ -222,7 +224,18 @@ def create_app(config: ManagedConfig, *, control: ManagedControl | None = None, 
             "hosted_inference_enabled": False})
 
     async def ready(request):
-        result = service.config.pilot_readiness()
+        database_ready = None
+        if service.config.storage_backend == "supabase":
+            def probe_managed_database():
+                with service.db() as db:
+                    db.execute("SELECT 1").fetchone()
+            try:
+                await run_in_threadpool(probe_managed_database)
+                database_ready = True
+            except Exception:
+                database_ready = False
+                log.warning("Managed readiness database probe failed")
+        result = service.config.pilot_readiness(managed_database_ready=database_ready)
         return JSONResponse(result, status_code=200 if result["ready"] else 503)
 
     async def signup(request):
@@ -276,6 +289,13 @@ def create_app(config: ManagedConfig, *, control: ManagedControl | None = None, 
         except Exception:
             raise ApiError(401, "Supabase access token is invalid") from None
         account = service.account_for_auth_subject(claims["sub"])
+        if account is None and config.allow_signup:
+            try:
+                account = await run_in_threadpool(service.provision_auth_subject, claims["sub"])
+            except LimitExceeded as exc:
+                raise ApiError(429, str(exc)) from None
+            except PermissionError as exc:
+                raise ApiError(403, str(exc)) from None
         if account is None:
             raise ApiError(403, "Supabase identity is not linked to a managed workspace")
         response = JSONResponse({"account": account, "csrf_token": csrf(token)})
