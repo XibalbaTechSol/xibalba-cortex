@@ -11,6 +11,7 @@ from ..config import Agent0Config
 @dataclass(frozen=True)
 class ManagedConfig:
     home: Path
+    storage_backend: str = "sqlite"
     public_url: str = "http://localhost:8430"
     stripe_secret_key: str = field(default="", repr=False)
     stripe_webhook_secret: str = field(default="", repr=False)
@@ -32,6 +33,8 @@ class ManagedConfig:
 
     def __post_init__(self):
         object.__setattr__(self, "home", Path(self.home).expanduser().resolve())
+        if self.storage_backend not in {"sqlite", "supabase"}:
+            raise ValueError("storage_backend must be sqlite or supabase")
         parts = urlsplit(self.public_url)
         if parts.scheme not in {"http", "https"} or not parts.hostname or parts.username or parts.password or parts.query or parts.fragment or parts.path not in {"", "/"}:
             raise ValueError("public_url must be an origin without credentials, path, query or fragment")
@@ -72,6 +75,7 @@ class ManagedConfig:
     def from_env(cls) -> ManagedConfig:
         return cls(
             home=Path(os.environ.get("CORTEX_MANAGED_HOME", "/data/cortex-managed")),
+            storage_backend=os.environ.get("CORTEX_MANAGED_STORAGE_BACKEND", "sqlite").strip().lower(),
             public_url=os.environ.get("CORTEX_MANAGED_PUBLIC_URL", "http://localhost:8430").rstrip("/"),
             stripe_secret_key=os.environ.get("STRIPE_SECRET_KEY", ""),
             stripe_webhook_secret=os.environ.get("STRIPE_WEBHOOK_SECRET", ""),

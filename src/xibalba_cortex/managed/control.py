@@ -30,6 +30,8 @@ class ManagedControl:
     def __init__(self, config: ManagedConfig, *, stripe=None, email_sender=None,
                  db_factory: ManagedDbFactoryLike | None = None):
         self.config = config
+        if config.storage_backend == "supabase" and db_factory is None:
+            raise RuntimeError("Supabase managed storage is not enabled until the Postgres adapter is configured")
         self.identity_home = config.home / "identity"
         self.tenant_root = config.home / "tenants"
         config.home.mkdir(parents=True, mode=0o700, exist_ok=True)
