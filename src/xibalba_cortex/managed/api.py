@@ -278,6 +278,13 @@ def create_app(config: ManagedConfig, *, control: ManagedControl | None = None, 
         except Exception:
             raise ApiError(401, "Supabase access token is invalid") from None
         account = service.account_for_auth_subject(claims["sub"])
+        if account is None and config.allow_signup:
+            try:
+                account = await run_in_threadpool(service.provision_auth_subject, claims["sub"])
+            except LimitExceeded as exc:
+                raise ApiError(429, str(exc)) from None
+            except PermissionError as exc:
+                raise ApiError(403, str(exc)) from None
         if account is None:
             raise ApiError(403, "Supabase identity is not linked to a managed workspace")
         response = JSONResponse({"account": account, "csrf_token": csrf(token)})
