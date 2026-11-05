@@ -136,6 +136,21 @@ export function setApiBaseUrl(value: string): void {
 }
 
 export async function accountAuth(path: "signup" | "login", input: Record<string, string>): Promise<{account?: Record<string, unknown>}> {
+  if (hostedActive() && import.meta.env.VITE_SUPABASE_URL && import.meta.env.VITE_SUPABASE_ANON_KEY) {
+    const base = String(import.meta.env.VITE_SUPABASE_URL).replace(/\/+$/, '')
+    const response = await fetch(`${base}/auth/v1/${path === 'signup' ? 'signup' : 'token?grant_type=password'}`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json', apikey: import.meta.env.VITE_SUPABASE_ANON_KEY },
+      body: JSON.stringify(path === 'signup' ? { email: input.email, password: input.password, data: { display_name: input.display_name } } : { email: input.email, password: input.password }),
+    })
+    const auth = await response.json().catch(() => ({}))
+    if (!response.ok) throw new Error(auth.msg || auth.message || auth.error_description || auth.error || response.statusText)
+    if (path === 'signup' && !auth.access_token) return { account: undefined }
+    const exchange = await hostedSend('/api/managed/auth/session', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ access_token: auth.access_token }) })
+    const session = await exchange.json().catch(() => ({}))
+    if (!exchange.ok) throw new Error(session.error || exchange.statusText)
+    markSignedIn(true)
+    return session
+  }
   const response = await send("/api/auth/" + path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(input) })
   const payload = await response.json().catch(() => ({}))
   if (!response.ok) throw new Error(payload.error || response.status + " " + response.statusText)
