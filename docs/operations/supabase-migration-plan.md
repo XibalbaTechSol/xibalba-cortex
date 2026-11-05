@@ -39,6 +39,18 @@ cutover from moving Cortex's canonical memory store.
 - `/readyz` returned 503 because Stripe sandbox credentials/prices are not
   configured. SMTP and signup reported ready. This pilot readiness endpoint
   does not prove durable storage or the selected database backend.
+- PR #106 adds non-secret backend selection to `/readyz` and a live
+  `SELECT 1` probe for Supabase managed storage. It merged at `5a8fb70` after
+  both required CI jobs passed on `b7bf4c2`; Render deploy
+  `dep-dbm8bt2vcj2c7388djfg` is live on `5a8fb70`.
+- The post-deploy `/readyz` response reports
+  `managed_control=sqlite`, `authentication=sqlite_compat`, and
+  `canonical_memory_store=tenant_local_sqlite`. Health is 200, while readiness
+  remains 503 for Stripe. This proves that the live Render service did not
+  adopt the Supabase backend settings in `render.yaml`; the code deployment
+  alone did not perform the environment cutover. Do not treat production Auth
+  or managed storage as migrated until Render reports `supabase` and
+  `supabase_auth` and the managed database probe succeeds.
 - `GraphStore` still creates a per-tenant local SQLite store under
   `CORTEX_MANAGED_HOME/tenants/`. PR #104 moves managed control-plane state and
   identity mapping to Supabase; it does **not** yet move canonical memories,
@@ -49,18 +61,23 @@ cutover from moving Cortex's canonical memory store.
 
 ### A. Cortex Auth and managed control-plane cutover
 
-1. **DONE — merge and deploy the Auth/control-plane cutover.** PR #104 merged
-   with CI green at `0cc72d9`; Render deploy `dep-dbm7i7p7lnhs738pjae0` is live
-   on `3db967c`.
-2. **Verify Render deployment inputs without printing secrets.** Confirm
+1. **DONE — merge and deploy the Auth/control-plane code.** PR #104 merged
+   with CI green at `0cc72d9`; its code is included in the current live Render
+   deployment. This does not mean the service selected Supabase.
+2. **OPEN — apply and verify Render backend settings without printing secrets.**
+   The live `/readyz` response currently proves that the service is using
+   SQLite and compatibility auth. Apply the desired settings in the Render
+   service configuration, supplying the Supabase database connection value
+   through Render's protected environment editor. Then verify
    `CORTEX_MANAGED_DATABASE_URL` exists, points to the `integrity-userapi`
    Postgres connection, and is reachable from Render. Confirm the deployed
    service has `CORTEX_MANAGED_STORAGE_BACKEND=supabase`,
    `CORTEX_MANAGED_IDENTITY_BACKEND=supabase_auth`, the expected project URL,
    and the public publishable key. Treat `render.yaml` as desired configuration
    until the live runtime proves it took effect. Render Free rejected creation
-   of a one-off probe job, so the startup preflight and first authenticated
-   database-backed request are the available runtime checks on this plan.
+   of a one-off probe job, so the startup preflight and readiness endpoint are
+   available runtime checks on this plan. The installed Render CLI can inspect
+   service/deploy state but does not expose environment-variable editing.
 3. **Verify live Supabase storage.** Check health and logs, then confirm server
    writes land in `cortex` tables and RLS remains enabled with no client write
    policies. A green `/healthz` alone is not sufficient.
