@@ -9,7 +9,7 @@ Production Supabase schema is applied through
 found one confirmed Auth user and zero Cortex tenants, memberships, or identity
 mappings.
 PR #104's Auth/control-plane code and PR #106's backend reporting both merged
-with green CI. Render deployment `dep-dbm8bt2vcj2c7388djfg` is live at `5a8fb70`
+with green CI. Render deployment `dep-dbmelbpdj70s73bvc470` is live at `f8be15b`
 and `/healthz` returns healthy. The new `/readyz` response revealed the live
 service still selects `sqlite` and `sqlite_compat`; deployment code did not
 apply the Supabase settings in `render.yaml`. The service therefore has not
@@ -38,7 +38,7 @@ material; its gate IDs map to this state.
 
 **Last verified:** 2026-11-05
 **Repository:** `/home/xibalba/Projects/xibalba-cortex`
-**Source baseline:** `main` at `3bea069` (includes Cortex PRs #104, #106, and #107)
+**Source baseline:** `main` at `f8be15b` (includes Cortex PRs #104, #106, #107, #108, #109, #103, and #101)
 **Local-only residue:** pre-existing untracked `LICENSE` (preserve; do not stage)
 
 ## Documentation sync — 2026-11-03
