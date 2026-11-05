@@ -44,7 +44,7 @@ beforeEach(() => {
   vi.stubGlobal('sessionStorage', { getItem: (k: string) => store.get(k) ?? null, setItem: (k: string, v: string) => void store.set(k, v), removeItem: (k: string) => void store.delete(k) })
   vi.resetModules()
 })
-afterEach(() => vi.unstubAllGlobals())
+afterEach(() => { vi.unstubAllGlobals(); vi.unstubAllEnvs() })
 
 /** api.ts plus the hosted mapping installed, which is what ConsoleApp does on a hosted boot. */
 async function hostedModules() {
@@ -327,6 +327,62 @@ describe('the shared hosted transport', () => {
     expect(list.tokens).toHaveLength(1)
     // managed mints one kind of key, so the console must not offer a role picker it cannot honour
     expect(list.grantable_roles).toEqual([])
+  })
+})
+
+describe('hosted Supabase OAuth', () => {
+  it('shows only the providers enabled in the shared Supabase Auth project', async () => {
+    vi.stubEnv('VITE_SUPABASE_URL', 'https://project.supabase.co')
+    vi.stubEnv('VITE_SUPABASE_PUBLISHABLE_KEY', 'sb_publishable_test-key')
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ external: { google: true, github: true, facebook: false } }), { status: 200 })))
+    const { rest } = await hostedModules()
+    expect(await rest.accountOAuthProviders()).toEqual([
+      { id: 'google', name: 'Google' },
+      { id: 'github', name: 'GitHub' },
+    ])
+  })
+
+  it.each(['google', 'github'])('starts %s authorization with a PKCE challenge and keeps the verifier in session storage', async (provider) => {
+    vi.stubEnv('VITE_SUPABASE_URL', 'https://project.supabase.co')
+    vi.stubEnv('VITE_SUPABASE_PUBLISHABLE_KEY', 'sb_publishable_test-key')
+    const store = new Map<string, string>()
+    vi.stubGlobal('sessionStorage', { getItem: (k: string) => store.get(k) ?? null, setItem: (k: string, v: string) => void store.set(k, v), removeItem: (k: string) => void store.delete(k) })
+    let redirected = ''
+    vi.stubGlobal('window', { location: { origin: 'https://console.example', pathname: '/signin', assign: (url: string) => { redirected = url } } })
+    const { rest } = await hostedModules()
+    await rest.accountOAuthAuthorize(provider)
+    const url = new URL(redirected)
+    expect(url.origin + url.pathname).toBe('https://project.supabase.co/auth/v1/authorize')
+    expect(url.searchParams.get('provider')).toBe(provider)
+    expect(url.searchParams.get('redirect_to')).toBe('https://console.example/signin')
+    expect(url.searchParams.get('apikey')).toBe('sb_publishable_test-key')
+    expect(url.searchParams.get('code_challenge_method')).toBe('s256')
+    expect(url.searchParams.get('code_challenge')).toMatch(/^[A-Za-z0-9_-]{43}$/)
+    expect(store.get('xibalba-cortex.supabase-oauth-verifier')).toMatch(/^[A-Za-z0-9_-]{43}$/)
+    expect(redirected).not.toContain(store.get('xibalba-cortex.supabase-oauth-verifier'))
+  })
+
+  it('exchanges the PKCE code and creates the HttpOnly managed session', async () => {
+    vi.stubEnv('VITE_SUPABASE_URL', 'https://project.supabase.co')
+    vi.stubEnv('VITE_SUPABASE_ANON_KEY', 'public-anon-key')
+    const store = new Map<string, string>([['xibalba-cortex.supabase-oauth-verifier', 'test-verifier']])
+    vi.stubGlobal('sessionStorage', { getItem: (k: string) => store.get(k) ?? null, setItem: (k: string, v: string) => void store.set(k, v), removeItem: (k: string) => void store.delete(k) })
+    let cleanedUrl = ''
+    vi.stubGlobal('window', { location: { origin: 'https://console.example', pathname: '/signin', search: '?code=one-time-code' }, history: { replaceState: (_state: unknown, _title: string, url: string) => { cleanedUrl = url } } })
+    const calls: Array<{ url: string; body?: string }> = []
+    vi.stubGlobal('fetch', vi.fn(async (url: string, init: RequestInit = {}) => {
+      calls.push({ url, body: typeof init.body === 'string' ? init.body : undefined })
+      if (url.includes('/auth/v1/token?grant_type=pkce')) return new Response(JSON.stringify({ access_token: 'verified-access-token' }), { status: 200 })
+      return new Response(JSON.stringify({ account: { email: 'operator@example.com' }, csrf_token: 'csrf' }), { status: 200 })
+    }))
+    const { rest } = await hostedModules()
+    expect(await rest.completeSupabaseOAuth()).toBe(true)
+    expect(JSON.parse(calls[0].body!)).toEqual({ auth_code: 'one-time-code', code_verifier: 'test-verifier' })
+    expect(calls[1].url).toBe('/api/managed/auth/session')
+    expect(JSON.parse(calls[1].body!)).toEqual({ access_token: 'verified-access-token' })
+    expect(cleanedUrl).toBe('/signin')
+    expect(store.has('xibalba-cortex.supabase-oauth-verifier')).toBe(false)
+    expect(rest.isSignedIn()).toBe(true)
   })
 })
 

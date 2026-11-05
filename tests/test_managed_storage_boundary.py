@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import sqlite3
+import sys
 from contextlib import contextmanager
 
 import pytest
@@ -40,13 +41,47 @@ def test_managed_control_uses_injected_transaction_factory(tmp_path):
     assert calls[-1] is False  # explicit read transaction above
 
 
-def test_supabase_backend_fails_closed_without_a_factory(tmp_path):
+def test_supabase_backend_fails_closed_without_a_database_url(tmp_path):
     config = ManagedConfig(home=tmp_path, storage_backend="supabase")
-    with pytest.raises(RuntimeError, match="Postgres adapter"):
+    with pytest.raises(RuntimeError, match="CORTEX_MANAGED_DATABASE_URL"):
         ManagedControl(config, email_sender=lambda *args: None)
 
 
-def test_postgres_factory_requires_optional_driver():
+def test_supabase_backend_builds_factory_from_server_database_url(tmp_path, monkeypatch):
+    config = ManagedConfig(home=tmp_path, storage_backend="supabase",
+                           supabase_database_url="postgresql://example.invalid/cortex")
+    monkeypatch.setattr(ManagedControl, "_validate_supabase_schema", lambda self: None)
+    service = ManagedControl(config, bootstrap_schema=False, email_sender=lambda *args: None)
+    assert isinstance(service._db_factory, SupabaseManagedDbFactory)
+
+
+def test_supabase_backend_skips_sqlite_bootstrap_by_default(tmp_path, monkeypatch):
+    config = ManagedConfig(home=tmp_path, storage_backend="supabase",
+                           supabase_url="https://example.supabase.co",
+                           supabase_database_url="postgresql://example.invalid/cortex")
+    validations = []
+    monkeypatch.setattr(ManagedControl, "_validate_supabase_schema", lambda self: validations.append(True))
+
+    @contextmanager
+    def db_factory(*, write=False):
+        pytest.fail("Supabase schema must be provided by applied migrations")
+
+    service = ManagedControl(config, db_factory=db_factory, email_sender=lambda *args: None)
+    assert service._db_factory is db_factory
+    assert validations == [True]
+
+
+def test_supabase_backend_rejects_explicit_sqlite_bootstrap(tmp_path, monkeypatch):
+    config = ManagedConfig(home=tmp_path, storage_backend="supabase",
+                           supabase_url="https://example.supabase.co",
+                           supabase_database_url="postgresql://example.invalid/cortex")
+    monkeypatch.setattr(ManagedControl, "_validate_supabase_schema", lambda self: None)
+    with pytest.raises(ValueError, match="schema must be managed by migrations"):
+        ManagedControl(config, bootstrap_schema=True, email_sender=lambda *args: None)
+
+
+def test_postgres_factory_requires_optional_driver(monkeypatch):
+    monkeypatch.setitem(sys.modules, "psycopg", None)
     factory = SupabaseManagedDbFactory("postgresql://example.invalid/cortex")
     with pytest.raises(SupabaseStorageUnavailable, match="managed-supabase extra"):
         with factory():

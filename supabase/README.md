@@ -27,7 +27,61 @@ supabase db reset
 supabase db lint
 ```
 
-The migration currently establishes tenant membership, plan/entitlement
-metadata, usage reservation state, idempotency records, billing event
-deduplication, checkout state, and email-verification state. It does not yet
-change the Python managed service or migrate existing tenant data.
+The migrations establish managed tenant, entitlement, usage, billing, and
+email-verification state. Migration `20261105102100_auth_subject_mapping.sql`
+adds the reversible identity bridge used by the Python managed service; existing
+account links still require an explicit manifest and apply operation. The
+timestamped `20261105064544` and `20261105064615` migrations establish the
+existing Integrity User API baseline already present in the linked Supabase
+project, so local and hosted migration histories stay ordered and consistent.
+
+## Supabase Auth identity bridge
+
+The managed API can use `CORTEX_MANAGED_IDENTITY_BACKEND=supabase_auth` with
+`CORTEX_MANAGED_STORAGE_BACKEND=supabase` and `SUPABASE_URL`. It verifies access
+tokens against the project's JWKS, resolves the verified `sub` through
+`cortex.tenants.owner_user_id`, and issues the existing HttpOnly Cortex session
+cookie. API keys continue to use their existing machine-identity path. Legacy
+password login is disabled in this mode.
+
+Existing operators must be linked explicitly; the adapter never matches a
+Supabase identity to a legacy account by email. Preview a JSON manifest with
+`xibalba-cortex-managed-identity-migrate preview --batch <id> --manifest
+<manifest.json>`, apply it with `apply`, and reverse only that batch with
+`rollback`. The legacy SQLite account, password record, tenant ID, and graph
+volume remain intact during rollback. Apply migration
+`20261105102100_auth_subject_mapping.sql` before running the CLI.
+
+Before switching a hosted instance from SQLite to Supabase, quiesce writes and
+copy its control-plane rows from the persistent `managed.sqlite3` file. Keep the
+legacy file and tenant GraphStore directories on the Render disk. Run the
+storage migration command on the instance that can read that disk:
+
+```sh
+xibalba-cortex-managed-storage-migrate preview --batch cortex-control-2026-11
+xibalba-cortex-managed-storage-migrate apply --batch cortex-control-2026-11
+```
+
+The command imports tenants, usage, idempotency records, Stripe event IDs,
+pending checkouts, and email verification tokens. It is idempotent and refuses
+conflicting rows. Its rollback removes only rows inserted by that batch and
+only while those rows remain unchanged. Verify imported counts before applying
+the explicit Auth subject mapping, then switch the service to
+`CORTEX_MANAGED_STORAGE_BACKEND=supabase` and
+`CORTEX_MANAGED_IDENTITY_BACKEND=supabase_auth`. Roll back Auth links first if
+needed; roll back imported control state only before Supabase becomes writable.
+
+For local Google or GitHub sign-in, set the provider's client ID and secret in
+the root `.env`; never commit that file. Local Supabase development needs OAuth
+apps whose callback URL is `http://127.0.0.1:54321/auth/v1/callback`. Hosted
+products can share the production Supabase project's provider credentials and
+callback (`https://ftspunijfgcbkuybobhf.supabase.co/auth/v1/callback`); add each
+product's return URL to that project's Auth redirect allow-list. The viewer
+uses PKCE, then exchanges the verified access token for the managed Cortex
+cookie. Do not enable hosted sign-in until existing operators have been
+migrated and the project URL, publishable/anon key, redirect allow-list, and
+provider callback are configured for that environment.
+
+The Vite viewer reads `VITE_SUPABASE_URL` and
+`VITE_SUPABASE_PUBLISHABLE_KEY`; use `viewer/.env.example` as the local template.
+The redirect allow-list includes the viewer's local development port, 5190.

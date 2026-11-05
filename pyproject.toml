@@ -23,6 +23,7 @@ dependencies = [
 
 [project.optional-dependencies]
 managed = ["starlette>=0.47,<2", "uvicorn>=0.30"]
+managed-supabase = ["psycopg[binary]>=3.2,<4"]
 
 otel = [
   "opentelemetry-api>=1.35.0",
@@ -68,6 +69,8 @@ xibalba-cortex-tenant-inference-validate = "xibalba_cortex.tenant_inference_vali
 xibalba-cortex-hermes-watermark-status = "xibalba_cortex.hermes_watermark:main"
 xibalba-cortex-integrity-outbox-consumer = "xibalba_cortex.integrity_sdk_outbox_consumer:main"
 xibalba-cortex-sync-core-registrations = "xibalba_cortex.core_registration_sync:main"
+xibalba-cortex-managed-identity-migrate = "xibalba_cortex.managed_identity_migrate:main"
+xibalba-cortex-managed-storage-migrate = "xibalba_cortex.managed_storage_migrate:main"
 
 [dependency-groups]
 dev = [

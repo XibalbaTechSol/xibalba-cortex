@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import hashlib
 import hmac
+import json
 import secrets
 import sqlite3
 import time
@@ -18,7 +19,16 @@ from ..store import GraphStore
 from .config import ManagedConfig
 from .plans import PLANS, WRITE_STATUSES
 from .stripe_gateway import BillingUnavailable, StripeGateway
-from .storage import ManagedDbFactoryLike
+from .storage import ManagedDbFactoryLike, SupabaseManagedDbFactory
+
+_AUTH_USER_SNAPSHOT_SQL = """
+    SELECT email, raw_user_meta_data,
+           CASE WHEN jsonb_exists(to_jsonb(auth_user), 'email_confirmed_at')
+                THEN to_jsonb(auth_user)->>'email_confirmed_at'
+                ELSE to_jsonb(auth_user)->>'confirmed_at'
+           END AS email_confirmed_at
+    FROM auth.users AS auth_user WHERE id=?
+"""
 
 
 class LimitExceeded(RuntimeError):
@@ -29,10 +39,16 @@ class LimitExceeded(RuntimeError):
 class ManagedControl:
     def __init__(self, config: ManagedConfig, *, stripe=None, email_sender=None,
                  db_factory: ManagedDbFactoryLike | None = None,
-                 bootstrap_schema: bool = True):
+                 bootstrap_schema: bool | None = None):
         self.config = config
+        if bootstrap_schema is None:
+            bootstrap_schema = config.storage_backend != "supabase"
+        elif bootstrap_schema and config.storage_backend == "supabase":
+            raise ValueError("Supabase schema must be managed by migrations, not SQLite bootstrap")
         if config.storage_backend == "supabase" and db_factory is None:
-            raise RuntimeError("Supabase managed storage is not enabled until the Postgres adapter is configured")
+            if not config.supabase_database_url:
+                raise RuntimeError("CORTEX_MANAGED_DATABASE_URL is required for Supabase managed storage")
+            db_factory = SupabaseManagedDbFactory(config.supabase_database_url)
         self.identity_home = config.home / "identity"
         self.tenant_root = config.home / "tenants"
         config.home.mkdir(parents=True, mode=0o700, exist_ok=True)
@@ -40,9 +56,11 @@ class ManagedControl:
         self.path = config.home / "managed.sqlite3"
         self.stripe = stripe or StripeGateway(config)
         # SQLite remains the default for local mode. A Postgres/Supabase factory
-        # can be injected later without changing API, billing, or authorization
-        # call sites; the factory must preserve the transaction context contract.
+        # can be injected by tests and migration tools or built from the server
+        # DSN configured for the managed service.
         self._db_factory = db_factory or self._sqlite_db
+        if config.storage_backend == "supabase":
+            self._validate_supabase_schema()
         self._write_locks: dict[str, threading.RLock] = {}
         self._write_locks_guard = threading.Lock()
         if email_sender is None:
@@ -76,7 +94,40 @@ class ManagedControl:
                     token_hash TEXT PRIMARY KEY, account_id TEXT NOT NULL, expires_at INTEGER NOT NULL
                 );
                 """)
-        self.path.chmod(0o600)
+        if bootstrap_schema:
+            self.path.chmod(0o600)
+
+    def _validate_supabase_schema(self) -> None:
+        """Fail startup unless the configured Supabase database is reachable and migrated."""
+        required_tables = {
+            "tenants", "tenant_memberships", "usage", "operations", "stripe_events",
+            "checkout_requests", "email_verifications", "auth_identity_migrations",
+        }
+        required_mapping_columns = {
+            "auth_user_id", "legacy_account_id", "tenant_id", "migration_batch",
+            "owner_link_created", "membership_role_before", "account_email",
+            "account_display_name", "account_role", "account_status",
+            "account_email_verified", "account_approval_status",
+        }
+        try:
+            with self.db() as db:
+                tables = {
+                    row["tablename"] for row in db.execute(
+                        "SELECT tablename FROM pg_tables WHERE schemaname=current_schema()"
+                    ).fetchall()
+                }
+                columns = {
+                    row["column_name"] for row in db.execute(
+                        "SELECT column_name FROM information_schema.columns "
+                        "WHERE table_schema=current_schema() AND table_name='auth_identity_migrations'"
+                    ).fetchall()
+                }
+        except Exception:
+            raise RuntimeError("Supabase managed database connection or schema check failed") from None
+        missing_tables = required_tables - tables
+        missing_columns = required_mapping_columns - columns
+        if missing_tables or missing_columns:
+            raise RuntimeError("Supabase managed database is missing required Cortex migrations")
 
     @contextmanager
     def _sqlite_db(self, *, write=False):
@@ -98,6 +149,218 @@ class ManagedControl:
     def db(self, *, write=False):
         """Open the configured managed control-plane transaction."""
         return self._db_factory(write=write)
+
+    def account_for_auth_subject(self, subject: str) -> dict | None:
+        """Resolve a verified subject from the durable Supabase identity mapping."""
+        with self.db() as db:
+            row = db.execute(
+                "SELECT m.legacy_account_id AS id,m.account_email AS email,"
+                "m.account_display_name AS display_name,m.account_role AS role,"
+                "m.account_status AS status,m.account_email_verified AS email_verified,"
+                "m.account_approval_status AS approval_status,t.id AS profile_id "
+                "FROM auth_identity_migrations m "
+                "JOIN tenants t ON t.id=m.tenant_id AND t.owner_user_id=m.auth_user_id "
+                "WHERE m.auth_user_id=?", (subject,)
+            ).fetchone()
+        return dict(row) if row else None
+
+    def legacy_account_exists(self, email: str) -> bool:
+        """Detect an unmigrated legacy account; never use email to link identities."""
+        with closing(identity_connection(self.identity_home)) as identities:
+            return accounts._account(self.identity_home, email) is not None
+
+    def provision_auth_subject(self, subject: str, *, batch_id: str | None = None) -> dict:
+        """Create a new Supabase-backed Cortex account after verified Auth signup.
+
+        Existing legacy accounts are deliberately excluded; they must use the
+        explicit account-ID migration path instead of email-based linking.
+        """
+        if not self.config.allow_signup:
+            raise PermissionError("Supabase-backed Cortex signup is disabled")
+        batch_id = batch_id or "supabase-provision:" + subject
+        now = int(time.time())
+        with self.db(write=True) as db:
+            db.execute("SELECT pg_advisory_xact_lock(hashtext(?))", (subject,))
+            existing = db.execute(
+                "SELECT auth_user_id FROM auth_identity_migrations WHERE auth_user_id=?", (subject,)
+            ).fetchone()
+            if existing:
+                pass
+            else:
+                auth_user = db.execute(
+                    _AUTH_USER_SNAPSHOT_SQL, (subject,)
+                ).fetchone()
+                if not auth_user or not auth_user["email"] or auth_user["email_confirmed_at"] is None:
+                    raise PermissionError("A confirmed Supabase Auth user is required")
+                email = str(auth_user["email"])
+                if self.legacy_account_exists(email):
+                    raise PermissionError("An existing Cortex account must be explicitly migrated by account ID")
+                if db.execute("SELECT COUNT(*) FROM tenants WHERE created_at>=?", (now // 86400 * 86400,)).fetchone()[0] >= self.config.signup_daily_limit:
+                    raise LimitExceeded("Daily registration capacity reached; try again tomorrow")
+                account_id = "supabase:" + subject
+                tenant = db.execute(
+                    "SELECT id,owner_user_id FROM tenants WHERE owner_account_id=?", (account_id,)
+                ).fetchone()
+                if tenant is None:
+                    tenant_id = "t-" + uuid.uuid4().hex
+                    db.execute(
+                        "INSERT INTO tenants(id,owner_account_id,owner_user_id,created_at,updated_at) "
+                        "VALUES(?,?,?,?,?)", (tenant_id, account_id, None, now, now)
+                    )
+                else:
+                    tenant_id = str(tenant["id"])
+                    if tenant["owner_user_id"] is not None and str(tenant["owner_user_id"]) != subject:
+                        raise PermissionError("Supabase account workspace is already linked to another subject")
+                metadata = auth_user["raw_user_meta_data"] or {}
+                if isinstance(metadata, str):
+                    metadata = json.loads(metadata)
+                display_name = str(metadata.get("display_name") or metadata.get("full_name") or email.split("@", 1)[0])[:120]
+                self._link_auth_subject_in_db(
+                    db, subject, account_id, batch_id,
+                    account={"email": email, "display_name": display_name, "role": "operator",
+                             "status": "active", "email_verified": True, "approval_status": "approved"},
+                )
+        account = self.account_for_auth_subject(subject)
+        if account is None:
+            raise RuntimeError("Supabase account provisioning did not create a readable mapping")
+        return account
+
+    def link_auth_subject(self, subject: str, account_id: str, *, batch_id: str = "interactive") -> None:
+        """Attach a Supabase subject only to its existing stable Cortex tenant."""
+        with self.db(write=True) as db:
+            self._link_auth_subject_in_db(db, subject, account_id, batch_id)
+
+    @staticmethod
+    def _link_auth_subject_in_db(db, subject: str, account_id: str, batch_id: str,
+                                 account: dict | None = None) -> None:
+        tenant = db.execute("SELECT id,owner_user_id FROM tenants WHERE owner_account_id=?", (account_id,)).fetchone()
+        if tenant is None:
+            raise LookupError("legacy Cortex account has no managed tenant")
+        if tenant["owner_user_id"] is not None and str(tenant["owner_user_id"]) != subject:
+            raise ValueError("managed tenant is already linked to another Supabase subject")
+        existing = db.execute(
+            "SELECT auth_user_id,legacy_account_id,tenant_id,migration_batch "
+            "FROM auth_identity_migrations WHERE auth_user_id=? OR legacy_account_id=? OR tenant_id=?",
+            (subject, account_id, tenant["id"]),
+        ).fetchone()
+        if existing:
+            if (str(existing["auth_user_id"]) == subject and existing["legacy_account_id"] == account_id
+                    and existing["tenant_id"] == tenant["id"] and existing["migration_batch"] == batch_id):
+                return
+            raise ValueError("identity is already linked by another migration batch")
+        membership = db.execute(
+            "SELECT role FROM tenant_memberships WHERE tenant_id=? AND user_id=?",
+            (tenant["id"], subject),
+        ).fetchone()
+        owner_link_created = tenant["owner_user_id"] is None
+        if account is None:
+            auth_user = db.execute(
+                _AUTH_USER_SNAPSHOT_SQL, (subject,)
+            ).fetchone()
+            if auth_user is None:
+                raise LookupError("Supabase Auth user does not exist")
+            metadata = auth_user["raw_user_meta_data"] or {}
+            if isinstance(metadata, str):
+                metadata = json.loads(metadata)
+            email = str(auth_user["email"] or "")
+            account = {
+                "email": email,
+                "display_name": str(metadata.get("display_name") or metadata.get("full_name") or email.split("@", 1)[0]),
+                "role": "operator", "status": "active",
+                "email_verified": auth_user["email_confirmed_at"] is not None,
+                "approval_status": "approved",
+            }
+        db.execute(
+            "INSERT INTO auth_identity_migrations(auth_user_id,legacy_account_id,tenant_id,migration_batch,"
+            "owner_link_created,membership_role_before,account_email,account_display_name,account_role,"
+            "account_status,account_email_verified,account_approval_status) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)",
+            (subject, account_id, tenant["id"], batch_id, owner_link_created,
+             membership["role"] if membership else None, account["email"], account["display_name"],
+             account["role"], account["status"], bool(account["email_verified"]), account["approval_status"]),
+        )
+        if owner_link_created:
+            db.execute("UPDATE tenants SET owner_user_id=? WHERE id=?", (subject, tenant["id"]))
+        if membership is None:
+            db.execute(
+                "INSERT INTO tenant_memberships(tenant_id,user_id,role) VALUES(?,?,'owner')",
+                (tenant["id"], subject),
+            )
+        elif membership["role"] != "owner":
+            db.execute(
+                "UPDATE tenant_memberships SET role='owner' WHERE tenant_id=? AND user_id=?",
+                (tenant["id"], subject),
+            )
+
+    def unlink_auth_subject(self, subject: str, *, batch_id: str | None = None) -> None:
+        """Rollback subject links while leaving all legacy account and tenant data intact."""
+        with self.db(write=True) as db:
+            self._unlink_auth_subject_in_db(db, subject, batch_id)
+
+    @staticmethod
+    def _unlink_auth_subject_in_db(db, subject: str, batch_id: str | None = None) -> None:
+        predicate = "auth_user_id=?" if batch_id is None else "auth_user_id=? AND migration_batch=?"
+        params = (subject,) if batch_id is None else (subject, batch_id)
+        mapped = db.execute(
+            "SELECT tenant_id,owner_link_created,membership_role_before "
+            "FROM auth_identity_migrations WHERE " + predicate, params
+        ).fetchone()
+        if mapped:
+            if mapped["membership_role_before"] is None:
+                db.execute("DELETE FROM tenant_memberships WHERE tenant_id=? AND user_id=?", (mapped["tenant_id"], subject))
+            else:
+                db.execute(
+                    "UPDATE tenant_memberships SET role=? WHERE tenant_id=? AND user_id=?",
+                    (mapped["membership_role_before"], mapped["tenant_id"], subject),
+                )
+            if mapped["owner_link_created"]:
+                db.execute("UPDATE tenants SET owner_user_id=NULL WHERE id=? AND owner_user_id=?",
+                            (mapped["tenant_id"], subject))
+            db.execute("DELETE FROM auth_identity_migrations WHERE " + predicate, params)
+
+    def rollback_auth_subject_batch(self, batch_id: str) -> int:
+        """Rollback every subject in a batch atomically, restoring captured prior state."""
+        if not batch_id.strip():
+            raise ValueError("batch_id is required")
+        with self.db(write=True) as db:
+            rows = db.execute(
+                "SELECT auth_user_id FROM auth_identity_migrations WHERE migration_batch=?",
+                (batch_id,),
+            ).fetchall()
+            for row in rows:
+                self._unlink_auth_subject_in_db(db, str(row["auth_user_id"]), batch_id)
+        return len(rows)
+
+    def migrate_auth_subjects(self, links: list[dict[str, str]], *, batch_id: str, apply: bool = False) -> dict:
+        """Validate or apply explicit Auth-subject to existing-account links."""
+        if not batch_id.strip() or not links:
+            raise ValueError("batch_id and at least one identity link are required")
+        seen_subjects, seen_accounts = set(), set()
+        normalized = []
+        for item in links:
+            subject, account_id = item.get("auth_user_id", "").strip(), item.get("legacy_account_id", "").strip()
+            if not subject or not account_id or subject in seen_subjects or account_id in seen_accounts:
+                raise ValueError("identity links must contain unique non-empty subjects and account IDs")
+            seen_subjects.add(subject); seen_accounts.add(account_id)
+            with closing(identity_connection(self.identity_home)) as identities:
+                account = identities.execute("SELECT id,email,display_name,role,status,email_verified,approval_status FROM accounts WHERE id=? AND status='active'", (account_id,)).fetchone()
+            with self.db() as db:
+                tenant = db.execute("SELECT id,owner_user_id FROM tenants WHERE owner_account_id=?", (account_id,)).fetchone()
+                prior = db.execute("SELECT legacy_account_id FROM auth_identity_migrations WHERE auth_user_id=?", (subject,)).fetchone()
+            if account is None or tenant is None or not account["email_verified"] or account["approval_status"] != "approved":
+                raise ValueError("each mapping must target an active, verified account with a managed tenant")
+            if (tenant["owner_user_id"] is not None and str(tenant["owner_user_id"]) != subject) or (
+                prior and prior["legacy_account_id"] != account_id
+            ):
+                raise ValueError("identity mapping conflicts with an existing subject link")
+            normalized.append({"auth_user_id": subject, "legacy_account_id": account_id, "account": dict(account)})
+        if apply:
+            with self.db(write=True) as db:
+                for item in normalized:
+                    self._link_auth_subject_in_db(db, item["auth_user_id"], item["legacy_account_id"], batch_id,
+                                                  account=item["account"])
+        return {"batch_id": batch_id, "count": len(normalized), "applied": apply,
+                "links": [{"auth_user_id": item["auth_user_id"], "legacy_account_id": item["legacy_account_id"]}
+                          for item in normalized]}
 
     def register(self, *, email: str, password: str, display_name: str) -> None:
         if not self.config.allow_signup:
@@ -309,8 +572,9 @@ class ManagedControl:
             raise BillingUnavailable('Stripe billing is not configured')
         self.validate_price(self.stripe.request('GET', '/prices/' + price_id), plan_id)
         tenant = self.tenant(account)
+        row_lock = " FOR UPDATE" if self.config.storage_backend == "supabase" else ""
         with self.db(write=True) as db:
-            row = dict(db.execute("SELECT * FROM tenants WHERE id=?", (tenant["id"],)).fetchone())
+            row = dict(db.execute("SELECT * FROM tenants WHERE id=?" + row_lock, (tenant["id"],)).fetchone())
             if row["subscription_id"] and row["status"] not in {"canceled", "incomplete_expired"}:
                 raise ValueError("Manage the existing subscription through the billing portal")
             if not row["customer_id"]:
@@ -320,6 +584,7 @@ class ManagedControl:
         # Persist the attempt before talking to Stripe. A crash after Stripe creates a session
         # reuses the same key on retry instead of creating a second billable subscription.
         with self.db(write=True) as db:
+            db.execute("SELECT id FROM tenants WHERE id=?" + row_lock, (tenant["id"],)).fetchone()
             pending = db.execute("SELECT * FROM checkout_requests WHERE tenant_id=?", (tenant["id"],)).fetchone()
             if pending and pending["checkout_id"]:
                 session = self.stripe.request("GET", "/checkout/sessions/" + pending["checkout_id"])

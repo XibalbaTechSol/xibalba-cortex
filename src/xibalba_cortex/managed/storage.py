@@ -1,9 +1,4 @@
-"""Storage seams for the managed control plane.
-
-The first implementation remains SQLite. The callable contract is deliberately
-small so a Postgres/Supabase implementation can be introduced without changing
-the managed API, billing rules, or tenant authorization code.
-"""
+"""SQLite and Supabase/Postgres transaction factories for managed control state."""
 from __future__ import annotations
 
 from contextlib import AbstractContextManager
@@ -38,6 +33,8 @@ class _CompatRow(dict):
 
 
 def _row_factory(cursor):
+    if cursor.description is None:
+        return lambda values: values
     columns = tuple(column.name for column in cursor.description)
 
     def make_row(values):
@@ -47,11 +44,22 @@ def _row_factory(cursor):
 
 
 _INSERT_OR_IGNORE = re.compile(r"^\s*INSERT\s+OR\s+IGNORE\s+INTO\s+", re.IGNORECASE)
+_INSERT_OR_REPLACE_USAGE = re.compile(
+    r"^\s*INSERT\s+OR\s+REPLACE\s+INTO\s+usage\s+VALUES\s*\(([^)]*)\)\s*$",
+    re.IGNORECASE,
+)
 
 
 def _postgres_sql(sql: str) -> str:
     """Translate only the SQLite syntax still used by managed control code."""
     translated = sql.replace("?", "%s")
+    replace_usage = _INSERT_OR_REPLACE_USAGE.match(translated)
+    if replace_usage:
+        translated = (
+            "INSERT INTO usage VALUES ("
+            + replace_usage.group(1)
+            + ") ON CONFLICT (tenant_id, month, meter) DO UPDATE SET amount=EXCLUDED.amount"
+        )
     if _INSERT_OR_IGNORE.match(translated):
         translated = _INSERT_OR_IGNORE.sub("INSERT INTO ", translated, count=1)
         translated += " ON CONFLICT DO NOTHING"
@@ -79,11 +87,11 @@ class _CompatConnection:
 
 
 class SupabaseManagedDbFactory:
-    """Opt-in Postgres transaction factory for the managed control plane.
+    """Postgres transaction factory; legacy account records remain in local SQLite.
 
-    The migration must be applied before this factory is enabled. Identity
-    remains a separate compatibility concern until the account migration lands;
-    the current control contract therefore keeps ``owner_account_id`` as text.
+    Apply the Cortex schema and import existing control-plane rows before
+    selecting this factory in a managed deployment. Auth subjects are then
+    linked explicitly while ``owner_account_id`` remains stable.
     """
 
     def __init__(self, dsn: str):
@@ -103,9 +111,9 @@ class SupabaseManagedDbFactory:
         raw_connection = psycopg.connect(self.dsn, row_factory=_row_factory)
         connection = _CompatConnection(raw_connection)
         try:
-            with connection.cursor() as cursor:
-                cursor.execute("SET search_path TO cortex, public")
             with connection.transaction():
+                with connection.cursor() as cursor:
+                    cursor.execute("SET LOCAL search_path TO cortex, public")
                 yield connection
         finally:
             connection.close()

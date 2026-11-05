@@ -11,6 +11,7 @@ from xibalba_cortex.accounts import approve_account, create_account
 from xibalba_cortex.managed.api import create_app
 from xibalba_cortex.managed.config import ManagedConfig
 from xibalba_cortex.managed.control import ManagedControl
+from managed_test_support import managed_control_options
 
 _PASSWORD = "correct-test-password"
 MANAGED_PASSWORD = _PASSWORD  # the password ManagedApp.register signs its accounts up with
@@ -68,7 +69,8 @@ class ManagedApp:
 def managed_app(tmp_path):
     config = ManagedConfig(home=tmp_path, public_url="http://localhost:8430", allow_signup=True)
     mail = []
-    service = ManagedControl(config, email_sender=lambda *args: mail.append(args))
+    config, storage_options = managed_control_options(config)
+    service = ManagedControl(config, email_sender=lambda *args: mail.append(args), **storage_options)
     app = create_app(config, control=service)
     with ExitStack() as stack:
         owner = stack.enter_context(TestClient(app, base_url=config.public_url))
