@@ -43,6 +43,7 @@ def _agent_id(principal: dict, requested: str | None) -> str | None:
 
 
 def ingest_turn(service: ManagedControl, token: str, payload: dict, *, request_key: str) -> dict:
+    service.sync_identity_from_supabase()
     principal = verify_token_record(service.identity_home, token) if token else None
     if principal is None:
         raise PermissionError("Sign in to your managed workspace")

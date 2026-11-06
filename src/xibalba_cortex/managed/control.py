@@ -4,13 +4,18 @@ from __future__ import annotations
 import hashlib
 import hmac
 import json
+import logging
 import secrets
 import sqlite3
+import tempfile
 import time
 import threading
 import uuid
 from contextlib import closing, contextmanager
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
+
+log = logging.getLogger(__name__)
 
 from .. import accounts
 from ..ingest_tokens import _connect as identity_connection
@@ -59,8 +64,12 @@ class ManagedControl:
         # can be injected by tests and migration tools or built from the server
         # DSN configured for the managed service.
         self._db_factory = db_factory or self._sqlite_db
+        self._snapshot_versions: dict[str, str] = {}
+        self._snapshot_checked_at: dict[str, float] = {}
+        self._snapshot_guard = threading.Lock()
         if config.storage_backend == "supabase":
             self._validate_supabase_schema()
+            self._restore_supabase_snapshots()
         self._write_locks: dict[str, threading.RLock] = {}
         self._write_locks_guard = threading.Lock()
         if email_sender is None:
@@ -129,6 +138,171 @@ class ManagedControl:
         if missing_tables or missing_columns:
             raise RuntimeError("Supabase managed database is missing required Cortex migrations")
 
+    def _supabase_snapshots_enabled(self) -> bool:
+        return self.config.storage_backend == "supabase" and isinstance(
+            self._db_factory, SupabaseManagedDbFactory
+        )
+
+    @staticmethod
+    def _ensure_snapshot_table(db) -> None:
+        db.execute(
+            "CREATE TABLE IF NOT EXISTS system_state ("
+            "key TEXT PRIMARY KEY, "
+            "data BYTEA NOT NULL, "
+            "meta JSONB NOT NULL DEFAULT '{}'::jsonb, "
+            "updated_at TIMESTAMPTZ NOT NULL DEFAULT now()"
+            ")"
+        )
+
+    @staticmethod
+    def _write_snapshot_file(target_path: Path, payload: bytes) -> None:
+        target_path.parent.mkdir(parents=True, mode=0o700, exist_ok=True)
+        for suffix in ("-wal", "-shm"):
+            sidecar = target_path.with_name(target_path.name + suffix)
+            if sidecar.exists():
+                sidecar.unlink()
+        tmp_path = target_path.with_suffix(".sqlite3.tmp_restore")
+        tmp_path.write_bytes(payload)
+        tmp_path.chmod(0o600)
+        tmp_path.replace(target_path)
+
+    @staticmethod
+    def _backup_sqlite_bytes(source_path: Path) -> bytes:
+        with tempfile.NamedTemporaryFile(suffix=".sqlite3", delete=False) as tmp:
+            tmp_path = Path(tmp.name)
+        try:
+            src = sqlite3.connect(str(source_path), timeout=30.0)
+            dst = sqlite3.connect(str(tmp_path), timeout=30.0)
+            try:
+                with dst:
+                    src.backup(dst)
+            finally:
+                dst.close()
+                src.close()
+            return tmp_path.read_bytes()
+        finally:
+            if tmp_path.exists():
+                tmp_path.unlink()
+
+    def _restore_supabase_snapshots(self) -> None:
+        if not self._supabase_snapshots_enabled():
+            return
+        try:
+            with self.db(write=True) as db:
+                self._ensure_snapshot_table(db)
+                rows = db.execute(
+                    "SELECT key, data, updated_at::text AS updated_at FROM system_state"
+                ).fetchall()
+            now = time.monotonic()
+            for row in rows:
+                key = str(row["key"])
+                payload = bytes(row["data"]) if row["data"] is not None else b""
+                if not payload:
+                    continue
+                if key in ("identity/ingest_tokens.sqlite3", "identity/accounts.sqlite3"):
+                    target = self.identity_home / "ingest_tokens.sqlite3"
+                elif key.startswith("tenants/") and key.endswith("/graph-memory.sqlite3"):
+                    parts = key.split("/")
+                    if len(parts) != 3:
+                        continue
+                    tenant_id = parts[1]
+                    if (
+                        not tenant_id.startswith("t-")
+                        or len(tenant_id) != 34
+                        or any(c not in "0123456789abcdef" for c in tenant_id[2:])
+                    ):
+                        continue
+                    target = self.tenant_root / tenant_id / "graph-memory.sqlite3"
+                else:
+                    continue
+                self._write_snapshot_file(target, payload)
+                with self._snapshot_guard:
+                    self._snapshot_versions[key] = str(row["updated_at"])
+                    self._snapshot_checked_at[key] = now
+        except Exception as exc:
+            log.warning("Failed to restore Supabase SQLite snapshots: %s", exc)
+
+    def _restore_supabase_snapshot_if_newer(
+        self, key: str, target_path: Path, *, force: bool = False
+    ) -> bool:
+        if not self._supabase_snapshots_enabled():
+            return False
+        now = time.monotonic()
+        with self._snapshot_guard:
+            last_checked = self._snapshot_checked_at.get(key, 0.0)
+            known_version = self._snapshot_versions.get(key)
+        if not force and target_path.is_file() and (now - last_checked) < 5.0:
+            return False
+        try:
+            with self.db() as db:
+                row = db.execute(
+                    "SELECT updated_at::text AS updated_at FROM system_state WHERE key=?",
+                    (key,),
+                ).fetchone()
+            with self._snapshot_guard:
+                self._snapshot_checked_at[key] = now
+            if row is None:
+                return False
+            remote_version = str(row["updated_at"])
+            if not force and target_path.is_file() and known_version == remote_version:
+                return False
+            with self.db() as db:
+                full_row = db.execute(
+                    "SELECT data, updated_at::text AS updated_at FROM system_state WHERE key=?",
+                    (key,),
+                ).fetchone()
+            if full_row is None or not full_row["data"]:
+                return False
+            self._write_snapshot_file(target_path, bytes(full_row["data"]))
+            with self._snapshot_guard:
+                self._snapshot_versions[key] = str(full_row["updated_at"])
+                self._snapshot_checked_at[key] = time.monotonic()
+            return True
+        except Exception as exc:
+            log.warning("Failed to check/restore Supabase snapshot %s: %s", key, exc)
+            return False
+
+    def _checkpoint_supabase_snapshot(
+        self, key: str, source_path: Path, *, trigger: str = "write"
+    ) -> bool:
+        if not self._supabase_snapshots_enabled() or not source_path.is_file():
+            return False
+        try:
+            payload = self._backup_sqlite_bytes(source_path)
+            if not payload:
+                return False
+            meta = json.dumps({"trigger": trigger, "size_bytes": len(payload)})
+            with self.db(write=True) as db:
+                self._ensure_snapshot_table(db)
+                row = db.execute(
+                    "INSERT INTO system_state (key, data, meta, updated_at) "
+                    "VALUES (?, ?, ?::jsonb, now()) "
+                    "ON CONFLICT (key) DO UPDATE SET "
+                    "data=EXCLUDED.data, meta=EXCLUDED.meta, updated_at=now() "
+                    "RETURNING updated_at::text AS updated_at",
+                    (key, payload, meta),
+                ).fetchone()
+            if row is not None:
+                with self._snapshot_guard:
+                    self._snapshot_versions[key] = str(row["updated_at"])
+                    self._snapshot_checked_at[key] = time.monotonic()
+            return True
+        except Exception as exc:
+            log.warning("Failed to checkpoint Supabase snapshot %s: %s", key, exc)
+            return False
+
+    def sync_identity_from_supabase(self) -> bool:
+        return self._restore_supabase_snapshot_if_newer(
+            "identity/ingest_tokens.sqlite3", self.identity_home / "ingest_tokens.sqlite3"
+        )
+
+    def checkpoint_identity_to_supabase(self, *, trigger: str = "identity") -> bool:
+        return self._checkpoint_supabase_snapshot(
+            "identity/ingest_tokens.sqlite3",
+            self.identity_home / "ingest_tokens.sqlite3",
+            trigger=trigger,
+        )
+
     @contextmanager
     def _sqlite_db(self, *, write=False):
         conn = sqlite3.connect(self.path, timeout=15)
@@ -163,6 +337,30 @@ class ManagedControl:
                 "WHERE m.auth_user_id=?", (subject,)
             ).fetchone()
         return dict(row) if row else None
+
+    def account_for_owner_id(self, owner_account_id: str) -> dict | None:
+        """Resolve a workspace owner from either SQLite accounts or Supabase identity mappings."""
+        with closing(identity_connection(self.identity_home)) as db:
+            record = db.execute(
+                "SELECT id,profile_id,status,email_verified,approval_status FROM accounts WHERE id=?",
+                (owner_account_id,),
+            ).fetchone()
+        if record is not None:
+            return dict(record)
+        if self.config.storage_backend == "supabase":
+            with self.db() as db:
+                row = db.execute(
+                    "SELECT m.legacy_account_id AS id,t.id AS profile_id,"
+                    "m.account_status AS status,m.account_email_verified AS email_verified,"
+                    "m.account_approval_status AS approval_status "
+                    "FROM auth_identity_migrations m "
+                    "JOIN tenants t ON t.id=m.tenant_id "
+                    "WHERE m.legacy_account_id=?",
+                    (owner_account_id,),
+                ).fetchone()
+            if row is not None:
+                return dict(row)
+        return None
 
     def legacy_account_exists(self, email: str) -> bool:
         """Detect an unmigrated legacy account; never use email to link identities."""
@@ -538,6 +736,11 @@ class ManagedControl:
             lock = self._write_locks.setdefault(tenant['id'], threading.RLock())
         with lock:
             yield
+            self._checkpoint_supabase_snapshot(
+                f"tenants/{tenant['id']}/graph-memory.sqlite3",
+                self.tenant_root / tenant["id"] / "graph-memory.sqlite3",
+                trigger="write_guard",
+            )
 
     @contextmanager
     def store(self, tenant: dict):
@@ -549,6 +752,10 @@ class ManagedControl:
         home.mkdir(mode=0o700, exist_ok=True)
         if home.is_symlink() or home.resolve().parent != self.tenant_root.resolve():
             raise PermissionError("Managed workspace path escaped its storage root")
+        self._restore_supabase_snapshot_if_newer(
+            f"tenants/{tenant_id}/graph-memory.sqlite3",
+            home / "graph-memory.sqlite3",
+        )
         # Hosted inference is disabled until a separately metered provider is configured. No
         # shared developer Hermes profile is inherited by managed customer workloads.
         store = GraphStore(home, profile_id=tenant_id,
