@@ -123,6 +123,7 @@ def create_app(config: ManagedConfig, *, control: ManagedControl | None = None, 
             principal = {"label": "account:" + account["id"], "profile_id": account["profile_id"],
                          "scopes": ["memory:read", "memory:write"], "auth_subject": claims["sub"]}
         else:
+            service.sync_identity_from_supabase()
             principal = verify_token_record(service.identity_home, token) if token else None
         if principal is None:
             raise ApiError(401, "Sign in to your managed workspace")
@@ -137,11 +138,9 @@ def create_app(config: ManagedConfig, *, control: ManagedControl | None = None, 
                 tenant = db.execute("SELECT owner_account_id FROM tenants WHERE id=?", (principal["profile_id"],)).fetchone()
             if tenant is None:
                 raise ApiError(403, "Unknown managed workspace")
-            with closing(identity_connection(service.identity_home)) as db:
-                record = db.execute("SELECT id,profile_id,status,email_verified,approval_status FROM accounts WHERE id=?", (tenant['owner_account_id'],)).fetchone()
-            if record is None:
+            account = service.account_for_owner_id(tenant["owner_account_id"])
+            if account is None:
                 raise ApiError(403, 'Workspace owner is unavailable')
-            account = dict(record)
         if account.get('status') != 'active' or not account.get('email_verified') or account.get('approval_status') != 'approved':
             raise ApiError(403, 'Account verification is required')
         if mutate and cookie_auth:
@@ -313,6 +312,7 @@ def create_app(config: ManagedConfig, *, control: ManagedControl | None = None, 
                 w["writable"] = True
                 w["memories_counted"] = True
 
+            service.sync_identity_from_supabase()
             with closing(identity_connection(service.identity_home)) as db:
                 token_rows = db.execute(
                     "SELECT label, agent_id, agent_ids_json FROM ingest_tokens WHERE profile_id=? AND label LIKE 'managed-api:%' AND revoked_at IS NULL",
@@ -548,6 +548,7 @@ def create_app(config: ManagedConfig, *, control: ManagedControl | None = None, 
                 tenant_id=account["profile_id"],
                 service_control=service,
             )
+            await run_in_threadpool(service.checkpoint_identity_to_supabase, trigger="device_pair_approve")
         except ValueError as exc:
             raise ApiError(400, str(exc)) from exc
 
@@ -616,14 +617,18 @@ def create_app(config: ManagedConfig, *, control: ManagedControl | None = None, 
     async def revoke_key(request):
         account, _, _ = await run_in_threadpool(owner, request, mutate=True)
         data = await payload(request)
+        service.sync_identity_from_supabase()
         with closing(identity_connection(service.identity_home)) as db:
             changed = db.execute("UPDATE ingest_tokens SET revoked_at=CURRENT_TIMESTAMP WHERE id=? AND profile_id=? AND label LIKE 'managed-api:%' AND revoked_at IS NULL", (str(data.get('id', '')), account['profile_id'])).rowcount
             db.commit()
+        if changed:
+            await run_in_threadpool(service.checkpoint_identity_to_supabase, trigger="revoke_key")
         return JSONResponse({'revoked': bool(changed)})
 
     async def keys(request):
         rate_limit(request)
         account, _, _ = await run_in_threadpool(owner, request, mutate=request.method == 'POST')
+        service.sync_identity_from_supabase()
         with closing(identity_connection(service.identity_home)) as db:
             existing = db.execute("SELECT id,label,created_at,expires_at,revoked_at,agent_id,agent_ids_json FROM ingest_tokens WHERE profile_id=? AND label LIKE 'managed-api:%' AND revoked_at IS NULL ORDER BY created_at DESC LIMIT 100", (account['profile_id'],)).fetchall()
         if request.method == 'GET':
@@ -659,6 +664,7 @@ def create_app(config: ManagedConfig, *, control: ManagedControl | None = None, 
         token = await run_in_threadpool(issue_token, service.identity_home, "managed-api:" + label,
             profile_id=account["profile_id"], roles=("writer",), scopes=("memory:read", "memory:write"),
             ttl_hours=720, agent_ids=tuple(agent_ids))
+        await run_in_threadpool(service.checkpoint_identity_to_supabase, trigger="issue_key")
         return JSONResponse({"token": token, "expires_in_days": 30}, status_code=201)
 
     def memory_operation(request, data):

@@ -21,7 +21,15 @@ def managed_control_options(config: ManagedConfig) -> tuple[ManagedConfig, dict[
     with psycopg.connect(dsn) as connection:
         with connection.transaction():
             connection.execute(
-                "TRUNCATE cortex.email_verifications, cortex.checkout_requests, "
+                "CREATE TABLE IF NOT EXISTS cortex.system_state ("
+                "key TEXT PRIMARY KEY, "
+                "data BYTEA NOT NULL, "
+                "meta JSONB NOT NULL DEFAULT '{}'::jsonb, "
+                "updated_at TIMESTAMPTZ NOT NULL DEFAULT now()"
+                ")"
+            )
+            connection.execute(
+                "TRUNCATE cortex.system_state, cortex.email_verifications, cortex.checkout_requests, "
                 "cortex.stripe_events, cortex.operations, cortex.usage, "
                 "cortex.tenant_memberships, cortex.tenants CASCADE"
             )

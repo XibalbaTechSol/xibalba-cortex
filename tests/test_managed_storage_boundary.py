@@ -86,3 +86,74 @@ def test_postgres_factory_requires_optional_driver(monkeypatch):
     with pytest.raises(SupabaseStorageUnavailable, match="managed-supabase extra"):
         with factory():
             pass
+
+
+def test_supabase_sqlite_snapshot_round_trip_survives_ephemeral_restart(tmp_path, monkeypatch):
+    snapshots: dict[str, dict[str, object]] = {}
+
+    class FakeCursor:
+        def __init__(self, rows):
+            self._rows = rows
+
+        def fetchone(self):
+            return self._rows[0] if self._rows else None
+
+        def fetchall(self):
+            return list(self._rows)
+
+    class FakeDb:
+        def execute(self, sql: str, params=()):
+            normalized = " ".join(sql.split())
+            if normalized.startswith("CREATE TABLE IF NOT EXISTS system_state"):
+                return FakeCursor([])
+            if normalized.startswith("INSERT INTO system_state"):
+                key, data, meta = params
+                version = f"v-{len(snapshots) + 1}-{len(bytes(data))}"
+                snapshots[str(key)] = {"key": str(key), "data": bytes(data), "meta": meta, "updated_at": version}
+                return FakeCursor([{"updated_at": version}])
+            if "SELECT key, data, updated_at::text AS updated_at FROM system_state" in normalized:
+                return FakeCursor(list(snapshots.values()))
+            if "SELECT updated_at::text AS updated_at FROM system_state WHERE key=?" in normalized:
+                row = snapshots.get(str(params[0]))
+                return FakeCursor([{"updated_at": row["updated_at"]}] if row else [])
+            if "SELECT data, updated_at::text AS updated_at FROM system_state WHERE key=?" in normalized:
+                row = snapshots.get(str(params[0]))
+                return FakeCursor([row] if row else [])
+            return FakeCursor([])
+
+    @contextmanager
+    def fake_db_factory(*, write=False):
+        yield FakeDb()
+
+    monkeypatch.setattr(ManagedControl, "_validate_supabase_schema", lambda self: None)
+    monkeypatch.setattr(ManagedControl, "_supabase_snapshots_enabled", lambda self: True)
+
+    home1 = tmp_path / "container-1"
+    cfg1 = ManagedConfig(
+        home=home1,
+        storage_backend="supabase",
+        supabase_url="https://example.supabase.co",
+        supabase_database_url="postgresql://example.invalid/cortex",
+    )
+    svc1 = ManagedControl(cfg1, db_factory=fake_db_factory, email_sender=lambda *args: None)
+    tenant = {"id": "t-" + "a" * 32, "plan": "free"}
+    with svc1.write_guard(tenant):
+        with svc1.store(tenant) as store:
+            store.store_memory(
+                "Persisted across Render container replacement",
+                source={"kind": "agent_mcp", "agent_id": "did:integrity:test"},
+            )
+    assert f"tenants/{tenant['id']}/graph-memory.sqlite3" in snapshots
+
+    # Simulate a brand-new container with an empty filesystem restoring from Supabase.
+    home2 = tmp_path / "container-2"
+    cfg2 = ManagedConfig(
+        home=home2,
+        storage_backend="supabase",
+        supabase_url="https://example.supabase.co",
+        supabase_database_url="postgresql://example.invalid/cortex",
+    )
+    svc2 = ManagedControl(cfg2, db_factory=fake_db_factory, email_sender=lambda *args: None)
+    with svc2.store(tenant) as restored_store:
+        assert restored_store.counts()["memories"] == 1
+
