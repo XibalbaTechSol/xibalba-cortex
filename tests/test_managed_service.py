@@ -506,3 +506,33 @@ def test_me_declares_the_destinations_this_edition_serves(setup):
     assert response.json()["destinations"] == [
         "graph", "timeline", "memories", "recall", "settings", "agents", "billing",
     ]
+
+
+def test_graph_and_timeline_filter_by_selected_agent_scope(setup):
+    _, service, _, _, client = setup
+    account, headers = register(setup)
+    agent_a = "did:integrity:" + "a" * 64
+    agent_b = "did:integrity:" + "b" * 64
+
+    client.post(
+        "/api/managed/memories",
+        json={"content": "Alpha agent memory", "source": {"kind": "agent_mcp", "agent_id": agent_a}},
+        headers={**headers, "Idempotency-Key": "graph-scope-alpha-1"},
+    )
+    client.post(
+        "/api/managed/memories",
+        json={"content": "Beta agent memory", "source": {"kind": "agent_mcp", "agent_id": agent_b}},
+        headers={**headers, "Idempotency-Key": "graph-scope-beta-1"},
+    )
+
+    all_graph = client.get("/api/managed/graph").json()
+    assert len([n for n in all_graph["nodes"] if n["type"] == "memory"]) == 2
+
+    alpha_graph = client.get(f"/api/managed/graph?agent_id={agent_a}").json()
+    alpha_labels = [n["label"] for n in alpha_graph["nodes"] if n["type"] == "memory"]
+    assert alpha_labels == ["Alpha agent memory"]
+
+    beta_graph = client.get(f"/api/managed/graph?agent_id={agent_b}").json()
+    beta_labels = [n["label"] for n in beta_graph["nodes"] if n["type"] == "memory"]
+    assert beta_labels == ["Beta agent memory"]
+

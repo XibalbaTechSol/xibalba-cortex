@@ -735,7 +735,9 @@ def create_app(config: ManagedConfig, *, control: ManagedControl | None = None, 
             if len(query) > 500:
                 raise ApiError(400, "Search query is too long")
             agent_id = request.query_params.get("agent_id", "").strip() or None
-            if agent_id:
+            if agent_id in (tenant["id"], account.get("profile_id")):
+                agent_id = None
+            elif agent_id:
                 if not store.has_agent_partition(agent_id):
                     resolved = store.storage_agent_id(agent_id)
                     if resolved:
@@ -811,10 +813,17 @@ def create_app(config: ManagedConfig, *, control: ManagedControl | None = None, 
             limit = max(1, min(int(request.query_params.get("limit", "500")), 1000))
         except ValueError:
             raise ApiError(400, "limit must be an integer") from None
+        agent_id = request.query_params.get("agent_id", "").strip() or None
+        if agent_id in (tenant["id"], account.get("profile_id")):
+            agent_id = None
         with service.store(tenant) as store:
-            graph = store.graph_payload(limit=limit, similarity_threshold=0.75)
+            if agent_id and not store.has_agent_partition(agent_id):
+                resolved = store.storage_agent_id(agent_id)
+                if resolved:
+                    agent_id = resolved
+            graph = store.graph_payload(limit=limit, similarity_threshold=0.75, agent_id=agent_id)
             if timeline:
-                return {"sessions": store.list_sessions(limit=limit), "nodes": graph["nodes"]}
+                return {"sessions": store.list_sessions(limit=limit, agent_id=agent_id), "nodes": graph["nodes"]}
             return graph
 
     async def graph(request):

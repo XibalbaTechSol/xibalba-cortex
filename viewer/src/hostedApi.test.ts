@@ -58,9 +58,9 @@ describe('hostedTarget', () => {
   it('rewrites the calls the managed backend serves, and narrows the query to what each route reads', async () => {
     const { hostedTarget } = await import('./hostedApi')
     const at = (method: string, path: string) => hostedTarget(method, path)?.path
-    // the managed graph route reads `limit` and fixes the threshold at 0.75; scope is not a concept there
-    expect(at('GET', '/api/graph?limit=500&similarity_threshold=0.75&agent_id=a1&store_id=s1')).toBe('graph?limit=500')
-    expect(at('GET', '/api/sessions?limit=200&agent_id=a1')).toBe('timeline?limit=200')
+    // the managed graph and timeline routes read `limit` and `agent_id`
+    expect(at('GET', '/api/graph?limit=500&similarity_threshold=0.75&agent_id=a1&store_id=s1')).toBe('graph?limit=500&agent_id=a1')
+    expect(at('GET', '/api/sessions?limit=200&agent_id=a1')).toBe('timeline?limit=200&agent_id=a1')
     expect(at('GET', '/api/memories?limit=40&offset=40&status=active&q=hello')).toBe('memories?q=hello')
     expect(at('GET', '/api/search?q=hello&limit=20')).toBe('memories?q=hello')
     expect(at('GET', '/api/memory/m1?')).toBe('memories/m1')
@@ -134,11 +134,11 @@ describe('hostedTarget', () => {
 })
 
 describe('the hosted mapping, through api.ts', () => {
-  it('sends the graph to the one route that serves it, with the session cookie', async () => {
+  it('sends the graph to the one route that serves it, with the session cookie and agent scope', async () => {
     const calls = installFetch(() => ({ nodes: [{ id: 'n1' }], edges: [] }))
     const { api } = await hostedModules()
     const graph = await api.graph(500, 0.75, { agentId: 'a1', storeId: 's1' })
-    expect(calls.map((c) => `${c.method} ${c.url}`)).toEqual(['GET /api/managed/graph?limit=500'])
+    expect(calls.map((c) => `${c.method} ${c.url}`)).toEqual(['GET /api/managed/graph?limit=500&agent_id=a1'])
     expect(graph.nodes).toHaveLength(1)
   })
 

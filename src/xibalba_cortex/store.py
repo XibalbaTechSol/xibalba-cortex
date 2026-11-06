@@ -6732,8 +6732,12 @@ class GraphStore:
         hundreds/low-thousands of memories, not designed to scale past that yet.
         """
         # Callers provide the raw principal identity; source rows may persist a pseudonym.
-        scoped_agent_id = self.storage_agent_id(agent_id)
-        memories = self.list_memories(limit=limit)
+        raw_agent_id = str(agent_id).strip() if agent_id and str(agent_id).strip() else None
+        if raw_agent_id and self.has_agent_partition(raw_agent_id):
+            scoped_agent_id: str | None = raw_agent_id
+        else:
+            scoped_agent_id = self.storage_agent_id(raw_agent_id)
+        memories = self.list_memories(limit=limit, agent_id=scoped_agent_id)
         if scoped_agent_id:
             memories = [m for m in memories if m.get("source", {}).get("agent_id") == scoped_agent_id]
         memory_ids = {str(m["id"]) for m in memories}
@@ -6778,7 +6782,15 @@ class GraphStore:
 
         sessions = self.list_sessions(limit=limit)
         if scoped_agent_id:
-            sessions = [s for s in sessions if s.get("agent_id") == scoped_agent_id]
+            by_source = {
+                s["external_session_id"]
+                for s in self.list_sessions(limit=limit, agent_id=scoped_agent_id)
+            }
+            sessions = [
+                s for s in sessions
+                if s.get("agent_id") in (scoped_agent_id, raw_agent_id)
+                or s["external_session_id"] in by_source
+            ]
         session_ids = {s["external_session_id"] for s in sessions}
         nodes.extend(
             {
