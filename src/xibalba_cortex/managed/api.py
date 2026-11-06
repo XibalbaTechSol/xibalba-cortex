@@ -385,6 +385,10 @@ def create_app(config: ManagedConfig, *, control: ManagedControl | None = None, 
 
     def configured_oauth_providers() -> list[dict[str, str]]:
         providers = []
+        if config.identity_backend == "supabase_auth" and config.supabase_url:
+            providers.append({"id": "google", "name": "Google"})
+            providers.append({"id": "github", "name": "GitHub"})
+            return providers
         if config.google_client_id and config.google_client_secret:
             providers.append({"id": "google", "name": "Google"})
         if config.github_client_id and config.github_client_secret:
@@ -397,14 +401,20 @@ def create_app(config: ManagedConfig, *, control: ManagedControl | None = None, 
     async def oauth_authorize(request: Request):
         rate_limit(request, auth=True)
         provider_name = str(request.path_params.get("provider", "")).lower()
+        if provider_name not in {"google", "github"}:
+            raise ApiError(404, f"Unsupported OAuth provider: {provider_name}")
+
+        if config.identity_backend == "supabase_auth" and config.supabase_url:
+            redirect_to = str(request.query_params.get("redirect_to") or f"{config.public_url.rstrip('/')}/managed")
+            auth_url = f"{config.supabase_url.rstrip('/')}/auth/v1/authorize?provider={provider_name}&redirect_to={redirect_to}"
+            return RedirectResponse(auth_url, status_code=303)
+
         client_id = ""
         client_secret = ""
         if provider_name == "google":
             client_id, client_secret = config.google_client_id, config.google_client_secret
         elif provider_name == "github":
             client_id, client_secret = config.github_client_id, config.github_client_secret
-        else:
-            raise ApiError(404, f"Unsupported OAuth provider: {provider_name}")
 
         if not client_id or not client_secret:
             raise ApiError(400, f"OAuth provider {provider_name} is not configured")
@@ -873,6 +883,7 @@ def create_app(config: ManagedConfig, *, control: ManagedControl | None = None, 
         Route("/api/managed/verify", verify),
         Route("/api/managed/login", login, methods=["POST"]),
         Route("/api/managed/auth/session", supabase_session, methods=["POST"]),
+        Route("/api/auth/supabase/session", supabase_session, methods=["POST"]),
         Route("/api/managed/oauth/providers", oauth_providers, methods=["GET"]),
         Route("/api/managed/oauth/{provider}/authorize", oauth_authorize, methods=["GET"]),
         Route("/api/managed/oauth/{provider}/callback", oauth_callback, methods=["GET"]),

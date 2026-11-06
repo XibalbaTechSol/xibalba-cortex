@@ -251,3 +251,64 @@ def test_device_pairing_api_endpoints(managed_setup):
     assert poll_approved.status_code == 200
     assert poll_approved.json()["status"] == "approved"
     assert poll_approved.json()["token"] == approve_data["token"]
+
+
+def test_oauth_providers_and_authorize_with_supabase_auth(tmp_path, monkeypatch):
+    from unittest.mock import MagicMock
+    from xibalba_cortex.managed import api as managed_api
+
+    config = ManagedConfig(
+        home=tmp_path,
+        public_url="http://localhost:8430",
+        storage_backend="supabase",
+        identity_backend="supabase_auth",
+        supabase_url="https://testproject.supabase.co",
+    )
+    monkeypatch.setattr(managed_api, "SupabaseAuthVerifier", lambda *args, **kwargs: object())
+    monkeypatch.setattr(ManagedControl, "_validate_supabase_schema", lambda self: None)
+    service = ManagedControl(config, db_factory=MagicMock())
+    app = create_app(config, control=service)
+
+    with TestClient(app, base_url=config.public_url) as client:
+        # 1. Providers endpoint lists Google and GitHub when brokered by Supabase
+        res = client.get("/api/managed/oauth/providers")
+        assert res.status_code == 200
+        providers = res.json()["providers"]
+        assert {"id": "google", "name": "Google"} in providers
+        assert {"id": "github", "name": "GitHub"} in providers
+
+        # Also via alias
+        res_alias = client.get("/api/auth/oauth/providers")
+        assert res_alias.status_code == 200
+        assert res_alias.json() == res.json()
+
+        # 2. Authorize redirects to Supabase Auth endpoint
+        res_auth = client.get("/api/managed/oauth/google/authorize", follow_redirects=False)
+        assert res_auth.status_code == 303
+        location = res_auth.headers["location"]
+        parsed = urlsplit(location)
+        assert parsed.netloc == "testproject.supabase.co"
+        assert parsed.path == "/auth/v1/authorize"
+        params = parse_qs(parsed.query)
+        assert params["provider"] == ["google"]
+        assert params["redirect_to"] == ["http://localhost:8430/managed"]
+
+        # Alias /api/auth/oauth/google/authorize also redirects to Supabase
+        res_alias_auth = client.get("/api/auth/oauth/google/authorize", follow_redirects=False)
+        assert res_alias_auth.status_code == 303
+        assert res_alias_auth.headers["location"] == location
+
+        # Custom redirect_to query parameter is honored
+        res_custom = client.get(
+            "/api/managed/oauth/github/authorize?redirect_to=http://localhost:8430/custom-callback",
+            follow_redirects=False,
+        )
+        assert res_custom.status_code == 303
+        custom_params = parse_qs(urlsplit(res_custom.headers["location"]).query)
+        assert custom_params["provider"] == ["github"]
+        assert custom_params["redirect_to"] == ["http://localhost:8430/custom-callback"]
+
+        # 3. Session endpoint mounted at /api/auth/supabase/session
+        res_session = client.post("/api/auth/supabase/session", json={"access_token": "invalid"})
+        assert res_session.status_code == 401
+
