@@ -224,11 +224,33 @@ export async function accountOAuthAuthorize(provider: string): Promise<void> {
   window.location.assign(authorize.toString())
 }
 
-/** Complete Supabase's PKCE callback and exchange its verified access token for the managed cookie. */
+/** Complete Supabase OAuth callback (PKCE code or direct hash token) and exchange its verified access token for the managed cookie. */
 export async function completeSupabaseOAuth(): Promise<boolean> {
+  if (!hostedActive()) return false
+
+  // 1. Direct access_token in URL hash (implicit grant or direct provider redirect)
+  if (typeof window !== 'undefined' && window.location.hash) {
+    const rawHash = window.location.hash.startsWith('#') ? window.location.hash.slice(1) : window.location.hash
+    const hashParams = new URLSearchParams(rawHash)
+    const directToken = hashParams.get('access_token')
+    if (directToken) {
+      window.history.replaceState(null, '', `${window.location.pathname}${window.location.search || ''}`)
+      const exchange = await hostedSend('/api/auth/supabase/session', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ access_token: directToken }),
+      })
+      const session = await exchange.json().catch(() => ({}))
+      if (!exchange.ok) throw new Error(session.error || exchange.statusText)
+      markSignedIn(true)
+      return true
+    }
+  }
+
+  // 2. PKCE code exchange from URL query
   const supabaseUrl = supabaseProjectUrl()
   const publishableKey = supabasePublishableKey()
-  if (!hostedActive() || !supabaseUrl || !publishableKey) return false
+  if (!supabaseUrl || !publishableKey) return false
   const params = new URLSearchParams(window.location.search)
   const code = params.get('code')
   if (!code) return false

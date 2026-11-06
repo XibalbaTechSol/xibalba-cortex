@@ -384,6 +384,26 @@ describe('hosted Supabase OAuth', () => {
     expect(store.has('xibalba-cortex.supabase-oauth-verifier')).toBe(false)
     expect(rest.isSignedIn()).toBe(true)
   })
+
+  it('exchanges a direct hash access_token and creates the HttpOnly managed session', async () => {
+    let cleanedUrl = ''
+    vi.stubGlobal('window', {
+      location: { origin: 'https://console.example', pathname: '/managed', search: '', hash: '#access_token=hash-access-token&token_type=bearer' },
+      history: { replaceState: (_state: unknown, _title: string, url: string) => { cleanedUrl = url } },
+    })
+    const calls: Array<{ url: string; body?: string }> = []
+    vi.stubGlobal('fetch', vi.fn(async (url: string, init: RequestInit = {}) => {
+      calls.push({ url, body: typeof init.body === 'string' ? init.body : undefined })
+      return new Response(JSON.stringify({ account: { email: 'operator@example.com' }, csrf_token: 'csrf' }), { status: 200 })
+    }))
+    const { rest } = await hostedModules()
+    expect(await rest.completeSupabaseOAuth()).toBe(true)
+    expect(calls).toHaveLength(1)
+    expect(calls[0].url).toBe('/api/managed/auth/session')
+    expect(JSON.parse(calls[0].body!)).toEqual({ access_token: 'hash-access-token' })
+    expect(cleanedUrl).toBe('/managed')
+    expect(rest.isSignedIn()).toBe(true)
+  })
 })
 
 /* Task 5 Step 6: the 401 reset, preserved through the consolidation.

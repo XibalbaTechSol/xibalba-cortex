@@ -5,7 +5,7 @@
 // they survive it.
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { accountLogout, isSignedIn, markSignedOut } from '../api'
+import { accountLogout, completeSupabaseOAuth, isSignedIn, markSignedOut } from '../api'
 import { ApiError } from '../apiError'
 import { ConsoleProvider, useConsole } from './state'
 import { SignIn } from './SignIn'
@@ -129,11 +129,22 @@ function pairCodeFromUrl(hash: string, search: string): string | null {
   return null
 }
 
+function hasOAuthCallback(): boolean {
+  if (typeof window === 'undefined') return false
+  const search = new URLSearchParams(window.location.search)
+  if (search.has('code') || search.has('error')) return true
+  const rawHash = window.location.hash.startsWith('#') ? window.location.hash.slice(1) : window.location.hash
+  const hashParams = new URLSearchParams(rawHash)
+  if (hashParams.has('access_token') || hashParams.has('code') || hashParams.has('error')) return true
+  return false
+}
+
 function wantsSignIn(hash: string): boolean {
   if (hash === SIGN_IN_HASH || hash === SIGN_UP_HASH) return true
   if (hash.startsWith('#pair') || hash.startsWith('#device')) return true
   if (resetTokenFromSearch(window.location.search) || verifiedFromSearch(window.location.search)) return true
   if (pairCodeFromUrl(hash, typeof window !== 'undefined' ? window.location.search : '')) return true
+  if (hasOAuthCallback()) return true
   try { return Boolean(sessionStorage.getItem('xibalba-cortex.auth-notice')) } catch { return false }
 }
 
@@ -181,7 +192,22 @@ export function ConsoleApp() {
   if (hostedEdition) installHostedTransport()
 
   useEffect(() => {
-    if (hostedEdition) askHosted()
+    if (hostedEdition) {
+      if (hasOAuthCallback()) {
+        completeSupabaseOAuth()
+          .then((completed) => {
+            if (completed) {
+              setSignedIn(true)
+            }
+          })
+          .catch(() => {})
+          .finally(() => {
+            askHosted()
+          })
+      } else {
+        askHosted()
+      }
+    }
     return () => { if (hostedEdition) clearHostedTransport() }
   }, [hostedEdition, askHosted])
 
