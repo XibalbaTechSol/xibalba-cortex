@@ -6,8 +6,14 @@ validation.
 """
 from __future__ import annotations
 
+import json
+import os
 import subprocess
-from dataclasses import dataclass
+import threading
+import time
+import urllib.error
+import urllib.request
+from dataclasses import dataclass, field
 from typing import Any, Callable, Protocol
 
 
@@ -270,6 +276,104 @@ class NativeHarnessInferenceProvider:
         if result.returncode:
             raise RuntimeError(f"{self.harness} inference failed with exit code {result.returncode}")
         return result.stdout
+
+
+class _Throttle:
+    """Spaces calls so a free-tier requests-per-minute quota is never exceeded by this process."""
+
+    def __init__(self, requests_per_minute: float, *, clock: Callable[[], float] = time.monotonic,
+                 sleep: Callable[[float], None] = time.sleep) -> None:
+        self._interval = 60.0 / requests_per_minute
+        self._clock, self._sleep = clock, sleep
+        self._lock = threading.Lock()
+        self._next_at = 0.0
+
+    def wait(self) -> None:
+        with self._lock:
+            now = self._clock()
+            delay = max(0.0, self._next_at - now)
+            self._next_at = max(now, self._next_at) + self._interval
+        if delay:
+            self._sleep(delay)
+
+
+@dataclass(frozen=True)
+class GeminiInferenceProvider:
+    """Gemini API (free tier) as a bounded inference runner for PARA, metadata and extraction.
+
+    Same ``infer(prompt, timeout=)`` contract as :class:`NativeHarnessInferenceProvider`, so every
+    existing worker keeps its own claim, schema validation, source-hash check and review-gated
+    proposal path -- this class only turns a prompt into model text.
+
+    * The key is read from an environment variable at call time and is sent in the
+      ``x-goog-api-key`` header, never in the URL, a log line or an exception message.
+    * ``requests_per_minute`` spaces calls so the free-tier quota is not burned; a 429/500/503 is
+      retried a bounded number of times, honouring ``Retry-After``.
+    * Cortex content leaves the machine on every call. Free-tier inputs may be used by the
+      provider to improve its products, so callers must have set the explicit opt-in in config.
+    """
+
+    model: str = "gemini-flash-latest"
+    api_key_env: str = "GEMINI_API_KEY"
+    requests_per_minute: float = 10.0
+    max_retries: int = 3
+    endpoint: str = "https://generativelanguage.googleapis.com/v1beta"
+    transport: Callable[..., tuple[int, dict[str, str], bytes]] | None = None
+    throttle: _Throttle | None = field(default=None, compare=False)
+
+    def __post_init__(self) -> None:
+        if not 0 < self.requests_per_minute <= 600:
+            raise ValueError("requests_per_minute must be in (0, 600]")
+        if self.throttle is None:
+            object.__setattr__(self, "throttle", _Throttle(self.requests_per_minute))
+
+    def capabilities(self) -> dict[str, Any]:
+        return {"queue": True, "direct_model": True, "harness": None, "provider": "gemini",
+                "model": self.model, "external": True, "requests_per_minute": self.requests_per_minute}
+
+    def _post(self, url: str, key: str, body: bytes, timeout: int) -> tuple[int, dict[str, str], bytes]:
+        if self.transport is not None:
+            return self.transport(url, key=key, body=body, timeout=timeout)
+        request = urllib.request.Request(url, data=body, method="POST", headers={
+            "content-type": "application/json", "x-goog-api-key": key})
+        try:
+            with urllib.request.urlopen(request, timeout=timeout) as response:  # noqa: S310 -- fixed https endpoint
+                return response.status, dict(response.headers), response.read()
+        except urllib.error.HTTPError as exc:
+            return exc.code, dict(exc.headers or {}), exc.read()
+
+    def infer(self, prompt: str, *, timeout: int = 120) -> str:
+        key = os.environ.get(self.api_key_env, "").strip()
+        if not key:
+            raise RuntimeError(f"gemini inference unavailable: environment variable {self.api_key_env} is not set")
+        assert self.throttle is not None
+        url = f"{self.endpoint.rstrip('/')}/models/{self.model}:generateContent"
+        body = json.dumps({
+            "contents": [{"role": "user", "parts": [{"text": prompt}]}],
+            "generationConfig": {"temperature": 0, "responseMimeType": "application/json"},
+        }).encode("utf-8")
+        for attempt in range(self.max_retries + 1):
+            self.throttle.wait()
+            status, headers, raw = self._post(url, key, body, timeout)
+            if status == 200:
+                break
+            if status in (429, 500, 503) and attempt < self.max_retries:
+                retry_after = {k.lower(): v for k, v in headers.items()}.get("retry-after", "")
+                try:
+                    delay = min(float(retry_after), 60.0)
+                except ValueError:
+                    delay = min(2.0 ** (attempt + 1), 30.0)
+                self.throttle._sleep(delay)
+                continue
+            raise RuntimeError(f"gemini inference failed with HTTP {status}")
+        try:
+            payload = json.loads(raw)
+            text = "".join(part.get("text", "") for part in payload["candidates"][0]["content"]["parts"])
+        except (ValueError, KeyError, IndexError, TypeError, AttributeError) as exc:
+            raise RuntimeError("gemini returned no usable text (empty, blocked or malformed response)") from exc
+        if not text.strip():
+            raise RuntimeError("gemini returned empty text")
+        return text
 
 
 @dataclass(frozen=True)

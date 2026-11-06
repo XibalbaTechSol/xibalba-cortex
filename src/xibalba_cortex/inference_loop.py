@@ -23,9 +23,22 @@ from .metadata_worker import process_metadata_tasks
 from .summary_worker import process_session_summary_tasks
 from .para_worker import process_para_tasks
 from .store import GraphStore
-from .providers import NativeHarnessInferenceProvider
+from .providers import GeminiInferenceProvider, NativeHarnessInferenceProvider
 from .decision_trace_worker import process_decision_trace_advisories
 from .jev_gateway import HttpJevProvider, JevGateway, local_jev_gateway
+
+
+_GEMINI_PROVIDERS: dict[tuple[str, str, float], GeminiInferenceProvider] = {}
+
+
+def _gemini_provider(policy: InferenceConfig) -> GeminiInferenceProvider:
+    """One provider per (model, key-env, rate), so its throttle persists across daemon cycles."""
+    cache_key = (policy.model, policy.api_key_env, policy.requests_per_minute)
+    if cache_key not in _GEMINI_PROVIDERS:
+        _GEMINI_PROVIDERS[cache_key] = GeminiInferenceProvider(
+            model=policy.model, api_key_env=policy.api_key_env, requests_per_minute=policy.requests_per_minute,
+        )
+    return _GEMINI_PROVIDERS[cache_key]
 
 
 def has_inference_cycle_error(value: object) -> bool:
@@ -79,7 +92,10 @@ def process_inference_cycle(
             advisory_result = {"error": f"{type(exc).__name__}: {exc}"}
         return {"enabled": False, "recovery": {}, "extraction": {"disabled": True}, "para": {"disabled": True}, "contradiction": {"disabled": True}, "decision_trace_advisories": advisory_result}
 
-    provider = NativeHarnessInferenceProvider(harness=policy.harness, profile_name=policy.profile_name)
+    if policy.provider == "gemini":
+        provider = _gemini_provider(policy)
+    else:
+        provider = NativeHarnessInferenceProvider(harness=policy.harness, profile_name=policy.profile_name)
     runner = lambda prompt: provider.infer(prompt, timeout=policy.timeout_seconds)
     enabled = set(policy.task_types)
 

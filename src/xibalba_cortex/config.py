@@ -49,6 +49,14 @@ class InferenceConfig:
     contradictions_require_review: bool = True
     decision_trace_jev_endpoint: str | None = None
     decision_trace_jev_timeout_seconds: float = 1.0
+    # provider == "gemini" only. The API key is never stored here: `api_key_env` names the
+    # environment variable that holds it.
+    model: str = "gemini-flash-latest"
+    api_key_env: str = "GEMINI_API_KEY"
+    requests_per_minute: float = 10.0
+    # Gemini receives memory content, and free-tier inputs may be used to improve Google's
+    # products. Refuse to start the provider until the operator has acknowledged that.
+    external_content_ack: bool = False
 
 @dataclass(frozen=True)
 class AuthConfig:
@@ -220,11 +228,20 @@ def load_config(*, home: Path | str | None = None, environ: dict[str, str] | Non
         contradictions_require_review=bool(inference_raw.get("contradictions_require_review", True)),
         decision_trace_jev_endpoint=env.get("XIBALBA_CORTEX_JEV_ENDPOINT", inference_raw.get("decision_trace_jev_endpoint")),
         decision_trace_jev_timeout_seconds=float(inference_raw.get("decision_trace_jev_timeout_seconds", 1.0)),
+        model=str(inference_raw.get("model", "gemini-flash-latest")),
+        api_key_env=str(inference_raw.get("api_key_env", "GEMINI_API_KEY")),
+        requests_per_minute=float(inference_raw.get("requests_per_minute", 10.0)),
+        external_content_ack=bool(inference_raw.get("external_content_ack", False)),
     )
     supported_inference_tasks = {"extract_memory_metadata", "extract_entities", "extract_relations", "classify_para", "detect_contradictions", "summarize_session"}
     unknown_tasks = set(inference.task_types) - supported_inference_tasks
-    if inference.provider != "native_harness":
-        raise ValueError("inference.provider must currently be native_harness")
+    if inference.provider not in {"native_harness", "gemini"}:
+        raise ValueError("inference.provider must be native_harness or gemini")
+    if inference.provider == "gemini":
+        if not inference.external_content_ack:
+            raise ValueError("inference.provider gemini sends memory content to Google; set inference.external_content_ack: true to accept that")
+        if not inference.model.strip() or not inference.api_key_env.strip() or not 0 < inference.requests_per_minute <= 600:
+            raise ValueError("inference.model, api_key_env and requests_per_minute (0-600] are required for gemini")
     if not 0.1 <= inference.decision_trace_jev_timeout_seconds <= 10:
         raise ValueError("inference.decision_trace_jev_timeout_seconds must be between 0.1 and 10")
     if inference.decision_trace_jev_endpoint:
