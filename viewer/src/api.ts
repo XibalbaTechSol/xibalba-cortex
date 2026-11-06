@@ -32,8 +32,26 @@ const SUPABASE_OAUTH_VERIFIER_KEY = 'xibalba-cortex.supabase-oauth-verifier'
 // Non-secret UI hint only: the real credential is the HttpOnly cookie, which this code cannot
 // read. This just lets the app render the authenticated shell without a round-trip first; any
 // stale value is corrected by the next 401.
-let signedIn = sessionStorage.getItem(SIGNED_IN_KEY) === '1'
-const storedApiBaseUrl = sessionStorage.getItem(URL_STORAGE_KEY) ?? DEFAULT_BASE_URL
+function getStorage(kind: 'local' | 'session'): Storage | null {
+  try {
+    if (kind === 'session' && typeof sessionStorage !== 'undefined') return sessionStorage
+    if (kind === 'local' && typeof localStorage !== 'undefined') return localStorage
+  } catch {}
+  return null
+}
+
+function readStorage(key: string): string | null {
+  try {
+    const session = getStorage('session')?.getItem(key)
+    if (session !== null && session !== undefined) return session
+    return getStorage('local')?.getItem(key) ?? null
+  } catch {
+    return null
+  }
+}
+
+let signedIn = readStorage(SIGNED_IN_KEY) === '1'
+const storedApiBaseUrl = readStorage(URL_STORAGE_KEY) ?? DEFAULT_BASE_URL
 // Never persist a cross-origin loopback API URL in the browser viewer. It bypasses
 // the Vite proxy and makes the HttpOnly cookie host/samesite boundary inconsistent.
 let apiBaseUrl = import.meta.env.DEV && /https?:\/\/(127\.0\.0\.1|localhost):8420/.test(storedApiBaseUrl)
@@ -62,13 +80,16 @@ function markSignedIn(value: boolean): void {
   signedIn = value
   // the CSRF token is derived from the session cookie, so a new session means a new token
   csrfToken = undefined
-  if (value) sessionStorage.setItem(SIGNED_IN_KEY, '1')
-  else {
-    sessionStorage.removeItem(SIGNED_IN_KEY)
-    // The account summary belongs to the session that ended. Left behind, it is the other half of
-    // a stale "you are signed in" state: the hint decides whether a workspace renders before any
-    // request, and this is what that workspace shows for the person in it.
-    sessionStorage.removeItem(ACCOUNT_KEY)
+  const session = getStorage('session')
+  const local = getStorage('local')
+  if (value) {
+    try { session?.setItem(SIGNED_IN_KEY, '1') } catch {}
+    try { local?.setItem(SIGNED_IN_KEY, '1') } catch {}
+  } else {
+    try { session?.removeItem(SIGNED_IN_KEY) } catch {}
+    try { local?.removeItem(SIGNED_IN_KEY) } catch {}
+    try { session?.removeItem(ACCOUNT_KEY) } catch {}
+    try { local?.removeItem(ACCOUNT_KEY) } catch {}
   }
 }
 
@@ -141,7 +162,8 @@ export function setApiBaseUrl(value: string): void {
     ? '/cortex-api'
     : candidate
   apiBaseUrl = normalized
-  sessionStorage.setItem(URL_STORAGE_KEY, normalized)
+  try { window.localStorage?.setItem(URL_STORAGE_KEY, normalized) } catch {}
+  try { window.sessionStorage?.setItem(URL_STORAGE_KEY, normalized) } catch {}
 }
 
 export async function accountAuth(path: "signup" | "login", input: Record<string, string>): Promise<{account?: Record<string, unknown>}> {

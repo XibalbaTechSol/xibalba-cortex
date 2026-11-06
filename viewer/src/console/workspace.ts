@@ -58,6 +58,16 @@ export function defaultOption(options: AgentOption[]): AgentOption | undefined {
   return options.find((o) => !o.knownEmpty) ?? options[0]
 }
 
+function readStorage(key: string): string | null {
+  try {
+    const local = window.localStorage?.getItem(key)
+    if (local !== null && local !== undefined) return local
+    return window.sessionStorage?.getItem(key) ?? null
+  } catch {
+    return null
+  }
+}
+
 function readInitial(): { agentId: string; storeId: string } {
   try {
     const params = new URLSearchParams(window.location.search)
@@ -66,7 +76,7 @@ function readInitial(): { agentId: string; storeId: string } {
     if (agentId && storeId) return { agentId, storeId }
   } catch { /* fall through to storage */ }
   try {
-    return { agentId: sessionStorage.getItem(AGENT_KEY) ?? '', storeId: sessionStorage.getItem(STORE_KEY) ?? '' }
+    return { agentId: readStorage(AGENT_KEY) ?? '', storeId: readStorage(STORE_KEY) ?? '' }
   } catch {
     return { agentId: '', storeId: '' }
   }
@@ -74,7 +84,7 @@ function readInitial(): { agentId: string; storeId: string } {
 
 function readPrimary(): boolean {
   try {
-    return sessionStorage.getItem(PRIMARY_KEY) === '1'
+    return readStorage(PRIMARY_KEY) === '1'
   } catch {
     return false
   }
@@ -82,8 +92,13 @@ function readPrimary(): boolean {
 
 function persistPrimary(value: boolean): void {
   try {
-    if (value) sessionStorage.setItem(PRIMARY_KEY, '1')
-    else sessionStorage.removeItem(PRIMARY_KEY)
+    if (value) {
+      window.localStorage?.setItem(PRIMARY_KEY, '1')
+      window.sessionStorage?.setItem(PRIMARY_KEY, '1')
+    } else {
+      window.localStorage?.removeItem(PRIMARY_KEY)
+      window.sessionStorage?.removeItem(PRIMARY_KEY)
+    }
   } catch { /* storage may be blocked */ }
 }
 
@@ -94,8 +109,14 @@ function persist(agentId: string, storeId: string): void {
     if (storeId) url.searchParams.set('store_id', storeId); else url.searchParams.delete('store_id')
     window.history.replaceState({}, '', `${url.pathname}${url.search}${url.hash}`)
   } catch { /* history is a convenience */ }
-  try { sessionStorage.setItem(AGENT_KEY, agentId) } catch { /* storage may be blocked */ }
-  try { sessionStorage.setItem(STORE_KEY, storeId) } catch { /* storage may be blocked */ }
+  try {
+    window.localStorage?.setItem(AGENT_KEY, agentId)
+    window.sessionStorage?.setItem(AGENT_KEY, agentId)
+  } catch { /* storage may be blocked */ }
+  try {
+    window.localStorage?.setItem(STORE_KEY, storeId)
+    window.sessionStorage?.setItem(STORE_KEY, storeId)
+  } catch { /* storage may be blocked */ }
 }
 
 export interface Workspace {
