@@ -3,7 +3,11 @@ WORKDIR /build
 COPY viewer/package.json viewer/package-lock.json ./
 RUN npm ci
 COPY viewer/ ./
+ARG VITE_SUPABASE_URL=https://ftspunijfgcbkuybobhf.supabase.co
+ARG VITE_SUPABASE_PUBLISHABLE_KEY=sb_publishable_ZZIA53qqwfRW-dMcH7Yrjg_0dInAgiq
 ENV VITE_CORTEX_EDITION=managed
+ENV VITE_SUPABASE_URL=$VITE_SUPABASE_URL
+ENV VITE_SUPABASE_PUBLISHABLE_KEY=$VITE_SUPABASE_PUBLISHABLE_KEY
 RUN npm run build
 
 FROM ghcr.io/astral-sh/uv:0.11 AS uv
