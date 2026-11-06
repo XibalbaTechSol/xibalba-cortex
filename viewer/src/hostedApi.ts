@@ -144,9 +144,9 @@ const ROUTES: ReadonlyArray<readonly [string, HostedRoute]> = [
     adapt: (d) => ({ ok: Boolean(d.revoked) }),
   }],
 
-  ['GET /api/graph', { to: 'graph', keep: ['limit'] }],
+  ['GET /api/graph', { to: 'graph', keep: ['limit', 'agent_id'] }],
 
-  ['GET /api/sessions', { to: 'timeline', keep: ['limit'], adapt: (d) => d.sessions ?? [] }],
+  ['GET /api/sessions', { to: 'timeline', keep: ['limit', 'agent_id'], adapt: (d) => d.sessions ?? [] }],
   ['GET /api/memories', {
     to: 'memories',
     keep: ['q', 'agent_id'],
