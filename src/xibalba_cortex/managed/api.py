@@ -305,12 +305,36 @@ def create_app(config: ManagedConfig, *, control: ManagedControl | None = None, 
     def get_tenant_workspaces(tenant, account, limit=100):
         with service.store(tenant) as store:
             workspaces = store.agent_workspaces(limit=limit)
+            conn = store._read_connection()
+            agent_stats = {
+                str(r["agent_id"]): {
+                    "memories": int(r["memories"] or 0),
+                    "sessions": int(r["sessions"] or 0),
+                    "last_seen_at": r["last_seen_at"],
+                }
+                for r in conn.execute(
+                    """SELECT sources.agent_id AS agent_id,
+                              COUNT(DISTINCT memories.id) AS memories,
+                              COUNT(DISTINCT sources.session_id) AS sessions,
+                              MAX(memories.created_at) AS last_seen_at
+                       FROM memories JOIN sources ON sources.id = memories.source_id
+                       WHERE sources.agent_id IS NOT NULL
+                       GROUP BY sources.agent_id"""
+                ).fetchall()
+            }
             for w in workspaces:
                 w["store_id"] = tenant["id"]
                 w["profile_id"] = tenant["id"]
                 w["store_access"] = "writable"
                 w["writable"] = True
                 w["memories_counted"] = True
+                stats = agent_stats.get(str(w.get("agent_id") or ""))
+                if stats is not None:
+                    w["memories"] = max(int(w.get("memories") or 0), stats["memories"])
+                    w["sessions"] = max(int(w.get("sessions") or 0), stats["sessions"])
+                    w["sessions_counted"] = True
+                    if not w.get("last_seen_at"):
+                        w["last_seen_at"] = stats["last_seen_at"]
 
             service.sync_identity_from_supabase()
             with closing(identity_connection(service.identity_home)) as db:
@@ -347,6 +371,7 @@ def create_app(config: ManagedConfig, *, control: ManagedControl | None = None, 
                             break
                     if not found and did_str not in matched_dids:
                         matched_dids.add(did_str)
+                        stats = agent_stats.get(did_str) or agent_stats.get(persisted) or {}
                         workspaces.append({
                             "agent_id": did_str,
                             "store_id": tenant["id"],
@@ -354,11 +379,11 @@ def create_app(config: ManagedConfig, *, control: ManagedControl | None = None, 
                             "agent_name": agent_name,
                             "store_access": "writable",
                             "writable": True,
-                            "memories": 0,
+                            "memories": int(stats.get("memories") or 0),
                             "memories_counted": True,
-                            "sessions": 0,
+                            "sessions": int(stats.get("sessions") or 0),
                             "sessions_counted": True,
-                            "last_seen_at": None,
+                            "last_seen_at": stats.get("last_seen_at"),
                         })
             return workspaces
 
