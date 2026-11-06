@@ -144,6 +144,17 @@ def test_supabase_sqlite_snapshot_round_trip_survives_ephemeral_restart(tmp_path
                 source={"kind": "agent_mcp", "agent_id": "did:integrity:test"},
             )
     assert f"tenants/{tenant['id']}/graph-memory.sqlite3" in snapshots
+    from xibalba_cortex.ingest_tokens import issue_token, verify_token_record
+    raw_token = issue_token(
+        svc1.identity_home,
+        "managed-api:hermes@workstation",
+        profile_id=tenant["id"],
+        roles=("writer",),
+        scopes=("memory:read", "memory:write"),
+        agent_id="did:integrity:test",
+    )
+    assert svc1.checkpoint_identity_to_supabase(trigger="test_key_issue") is True
+    assert "identity/ingest_tokens.sqlite3" in snapshots
 
     # Simulate a brand-new container with an empty filesystem restoring from Supabase.
     home2 = tmp_path / "container-2"
@@ -156,4 +167,6 @@ def test_supabase_sqlite_snapshot_round_trip_survives_ephemeral_restart(tmp_path
     svc2 = ManagedControl(cfg2, db_factory=fake_db_factory, email_sender=lambda *args: None)
     with svc2.store(tenant) as restored_store:
         assert restored_store.counts()["memories"] == 1
+    assert verify_token_record(svc2.identity_home, raw_token) is not None
+
 

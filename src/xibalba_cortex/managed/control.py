@@ -199,8 +199,8 @@ class ManagedControl:
                 payload = bytes(row["data"]) if row["data"] is not None else b""
                 if not payload:
                     continue
-                if key == "identity/accounts.sqlite3":
-                    target = self.identity_home / "accounts.sqlite3"
+                if key in ("identity/ingest_tokens.sqlite3", "identity/accounts.sqlite3"):
+                    target = self.identity_home / "ingest_tokens.sqlite3"
                 elif key.startswith("tenants/") and key.endswith("/graph-memory.sqlite3"):
                     parts = key.split("/")
                     if len(parts) != 3:
@@ -293,13 +293,13 @@ class ManagedControl:
 
     def sync_identity_from_supabase(self) -> bool:
         return self._restore_supabase_snapshot_if_newer(
-            "identity/accounts.sqlite3", self.identity_home / "accounts.sqlite3"
+            "identity/ingest_tokens.sqlite3", self.identity_home / "ingest_tokens.sqlite3"
         )
 
     def checkpoint_identity_to_supabase(self, *, trigger: str = "identity") -> bool:
         return self._checkpoint_supabase_snapshot(
-            "identity/accounts.sqlite3",
-            self.identity_home / "accounts.sqlite3",
+            "identity/ingest_tokens.sqlite3",
+            self.identity_home / "ingest_tokens.sqlite3",
             trigger=trigger,
         )
 
