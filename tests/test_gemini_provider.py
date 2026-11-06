@@ -39,7 +39,7 @@ def test_infer_returns_text_and_keeps_key_out_of_the_url(monkeypatch):
     assert p.infer("hello", timeout=7) == '{"ok": true}'
     call = t.calls[0]
     assert call["key"] == SECRET and SECRET not in call["url"]
-    assert call["url"].endswith("/models/gemini-flash-latest:generateContent")
+    assert call["url"].endswith("/models/gemini-3.5-flash:generateContent")
     assert call["body"]["generationConfig"]["responseMimeType"] == "application/json"
     assert call["timeout"] == 7
 
@@ -115,3 +115,13 @@ def test_config_accepts_gemini_with_ack_and_keeps_native_default(tmp_path: Path)
     with pytest.raises(ValueError, match="native_harness or gemini"):
         load_config(home=bad)
 
+
+
+def test_daily_quota_exhaustion_fails_fast_without_retrying(monkeypatch):
+    body = json.dumps({"error": {"status": "RESOURCE_EXHAUSTED", "details": [{"violations": [
+        {"quotaId": "GenerateRequestsPerDayPerProjectPerModel-FreeTier"}]}]}}).encode()
+    t = Transport((429, {}, body))
+    p, slept = _provider(t, monkeypatch)
+    with pytest.raises(RuntimeError, match="daily quota exhausted"):
+        p.infer("x")
+    assert len(t.calls) == 1 and slept == []

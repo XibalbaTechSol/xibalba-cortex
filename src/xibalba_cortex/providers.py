@@ -313,7 +313,7 @@ class GeminiInferenceProvider:
       provider to improve its products, so callers must have set the explicit opt-in in config.
     """
 
-    model: str = "gemini-flash-latest"
+    model: str = "gemini-3.5-flash"
     api_key_env: str = "GEMINI_API_KEY"
     requests_per_minute: float = 10.0
     max_retries: int = 3
@@ -357,6 +357,10 @@ class GeminiInferenceProvider:
             status, headers, raw = self._post(url, key, body, timeout)
             if status == 200:
                 break
+            if status == 429 and b"PerDay" in raw:
+                # Daily free-tier quota is gone for this model; retrying inside the window only
+                # burns time. Fail fast so the task is retried by the queue after the reset.
+                raise RuntimeError(f"gemini free-tier daily quota exhausted for {self.model} (resets daily; HTTP 429)")
             if status in (429, 500, 503) and attempt < self.max_retries:
                 retry_after = {k.lower(): v for k, v in headers.items()}.get("retry-after", "")
                 try:

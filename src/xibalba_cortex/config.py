@@ -51,7 +51,7 @@ class InferenceConfig:
     decision_trace_jev_timeout_seconds: float = 1.0
     # provider == "gemini" only. The API key is never stored here: `api_key_env` names the
     # environment variable that holds it.
-    model: str = "gemini-flash-latest"
+    model: str = "gemini-3.5-flash"
     api_key_env: str = "GEMINI_API_KEY"
     requests_per_minute: float = 10.0
     # Gemini receives memory content, and free-tier inputs may be used to improve Google's
@@ -228,7 +228,7 @@ def load_config(*, home: Path | str | None = None, environ: dict[str, str] | Non
         contradictions_require_review=bool(inference_raw.get("contradictions_require_review", True)),
         decision_trace_jev_endpoint=env.get("XIBALBA_CORTEX_JEV_ENDPOINT", inference_raw.get("decision_trace_jev_endpoint")),
         decision_trace_jev_timeout_seconds=float(inference_raw.get("decision_trace_jev_timeout_seconds", 1.0)),
-        model=str(inference_raw.get("model", "gemini-flash-latest")),
+        model=str(inference_raw.get("model", "gemini-3.5-flash")),
         api_key_env=str(inference_raw.get("api_key_env", "GEMINI_API_KEY")),
         requests_per_minute=float(inference_raw.get("requests_per_minute", 10.0)),
         external_content_ack=bool(inference_raw.get("external_content_ack", False)),
