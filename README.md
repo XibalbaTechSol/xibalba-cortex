@@ -73,6 +73,37 @@ $$E(h, r, t, \tau) = \|h + r + \tau - t\|_p$$
 - **Biomolecular Grounding:** Direct mapping from ChEMBL and PubChem for molecular properties and target binding affinities.
 - **Exposome:** Environmental vectors (EPA air quality) bridging patient geography to clinical disease phenotypes.
 
+### 5. Biomedical Discovery & Active Inference Pipeline
+
+```
+[ Biomedical PDFs / PubMed / EHRs ]
+               │
+               ▼
+   [ LLM / NLP Triple Extraction ]  ──(Subject, Predicate, Object)
+               │
+               ▼
+    [ Vectorized Knowledge Graph ]  ──(TransE / KGE Continuous Space)
+               │
+               ▼
+[ Multi-Hop Traversal & Hypothesis Scoring ]
+```
+
+#### A. Ingestion & Automated Triple Extraction
+Unstructured text from PubMed Central articles, clinical trial registries, and multi-omics databases is parsed into strict semantic triples `(head entity, relation, tail entity)`:
+- **Entity Taxonomy:** Genes, proteins, metabolites, small molecule drugs, phenotypes, adverse events, and disease classifications.
+- **Ontology Normalization:** Normalizing entities against standardized biomedical taxonomies (UMLS, MeSH, Gene Ontology, RxNorm, LOINC) prevents semantic fragmentation (e.g., ensuring *"non-small cell lung carcinoma"* and *"NSCLC"* resolve to the identical node).
+
+#### B. Geometric Link Prediction for Drug Repurposing
+Standard relational queries fail when researchers ask open-ended exploratory questions like: *"What unstudied kinase inhibitors might affect neuroinflammation pathways?"*
+- **Scoring Hidden Edges:** Cortex evaluates missing or unmapped edges. If drug $A$ inhibits target protein $B$, and protein $B$ is structurally implicated in pathway $C$ (associated with disease $D$), the vector translation distance $f_r(h, t) = \|h + r - t\|$ surfaces a mathematically ranked therapeutic hypothesis for experimental validation.
+- **Traceable Mechanistic Paths:** Because hypotheses are derived from explicit graph walks, predictions are fully interpretable:
+  $$\text{Drug } A \xrightarrow{\text{inhibits}} \text{Target } B \xrightarrow{\text{regulates}} \text{Pathway } C \xrightarrow{\text{mitigates}} \text{Disease } D$$
+
+#### C. Isolated PHI Gating & Compliance Enclaves
+When integrating scientific literature hypotheses with real-world patient records, privacy is cryptographically enforced:
+- **Tenant Subgraph Isolation:** Every institutional research cohort or health system operates within an isolated containerized subgraph instance.
+- **Cryptographic Constraints:** Patient identifiers and electronic health data are decoupled from public literature graphs, utilizing zero-knowledge or policy-enforced attribute-based access control (ABAC) so that cross-domain queries only execute against cryptographically verified, anonymized nodes.
+
 ---
 
 ## Three Ways In

@@ -18,12 +18,23 @@ harness — local or cloud-hosted — can use it, not just the three officially-
 
 ```mermaid
 flowchart LR
-    Agent["Agent (any MCP-speaking harness)"] <-->|"MCP tools (40+ operations)"| Brain["Xibalba Cortex (this repo)"]
-    Brain -->|"Session Merkle roots (XIBALBA_ANCHOR_URL)"| Backbone["integrity-core (BCC to StateAnchor)"]
-    Brain -.->|"Local API"| Eyes["integrity-core/integrity-dashboard (Memory page)"]
-    Immune["xibalba-shield"] -->|"Signed telemetry"| Backbone
-    Backbone -->|"AIS, identity, evidence"| Eyes
-    Eyes -->|"Operator interventions"| Agent
+    subgraph Agents["Autonomous AI Agents & Runtimes"]
+        A["Agent / Researcher / LLM"] -->|"1. Geometric Graph Traversal<br/>(R-GCN + dynamic logit masking)"| C["🧠 xibalba-cortex<br/>(The Navigational Terrain)"]
+        A -->|"2. Response Intent<br/>(hash-bound authorization)"| S["🛡️ xibalba-shield<br/>(Boundary Gating)"]
+    end
+    subgraph Data["Knowledge Ingestion & Live Connectors"]
+        D1["Biomedical / Clinical<br/>MIMIC-IV · FHIR live-feeds"] --> C
+        D2["Chemistry & Genetics<br/>ChEMBL · PubChem · ClinVar"] --> C
+        D3["Health Economics<br/>CMS pricing friction"] --> C
+    end
+    subgraph Core["Integrity Protocol"]
+        C -->|"Session Merkle roots &<br/>state verification"| P["🦴 integrity-core<br/>(AIS Reward Engine & Physics)"]
+        S -->|"Signed action receipts &<br/>audit ledgers"| P
+        P -.->|"AIS feedback loop<br/>R = R_task + λ·AIS"| A
+    end
+    subgraph Console["Auditor & Operator Surface"]
+        P -->|"Verified AIS & chain state"| O["👁️ integrity-console<br/>(Graph trajectories & ledger)"]
+    end
 ```
 
 ## Table of contents
@@ -50,7 +61,7 @@ flowchart LR
 - [Ingest Tokens](entities/ingest-tokens.md) — per-harness bearer-token credential store
 
 ### Architecture
-- [Ecosystem Role](architecture/ecosystem-role.md) — Cortex as 🧠 The Brain, and as a standalone product first
+- [Ecosystem Role](architecture/ecosystem-role.md) — Cortex as 🧠 The Navigational Engine, and as a standalone product first
 - [Store Schema Overview](architecture/store-schema-overview.md) — a schema-level tour of every table
 - [Inference Queue and Recovery](architecture/inference-queue.md) — claim ownership, leases, retries, and stale-task recovery
 - [Viewer and Local API](architecture/viewer-and-local-api.md) — operator surfaces and local API boundaries
