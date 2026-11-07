@@ -790,7 +790,18 @@ def create_app(config: ManagedConfig, *, control: ManagedControl | None = None, 
             service.consume(tenant, "writes", request_key=request_key, fingerprint=fingerprint)
             with service.store(tenant) as store:
                 try:
-                    inserted = store.import_structured_bundle(data)
+                    if isinstance(data, dict) and (data.get("bundle_schema") == "xibalba.structured_memory_bundle.v1" or data.get("schema_version") == "xibalba.structured_memory_bundle.v1"):
+                        inserted = store.import_structured_bundle(data)
+                        return {"schema_version": "xibalba.managed_import.v1", "inserted": inserted}
+                    elif isinstance(data, dict) and ("content" in data or "document" in data or data.get("format") == "markdown"):
+                        from ..console_actions import import_document
+                        text = str(data.get("content") or data.get("document") or "")
+                        title = str(data.get("title") or "imported_document.md")
+                        res = import_document(store, filename=title, data=text.encode("utf-8"))
+                        return {"schema_version": "xibalba.managed_import.v1", "inserted": res}
+                    else:
+                        inserted = store.import_structured_bundle(data)
+                        return {"schema_version": "xibalba.managed_import.v1", "inserted": inserted}
                 except ValueError as exc:
                     raise ApiError(400, str(exc)) from exc
                 except RuntimeError as exc:

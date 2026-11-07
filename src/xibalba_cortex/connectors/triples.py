@@ -194,6 +194,7 @@ class TriplesConnector:
         *,
         source_name: str | None = None,
         delimiter: str = ",",
+        has_header: bool = True,
         agent_id: str | None = None,
         shared: bool = True,
     ) -> ConnectorResult:
