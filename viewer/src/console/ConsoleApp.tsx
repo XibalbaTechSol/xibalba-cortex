@@ -112,7 +112,7 @@ function Workspace() {
           </div>
         </div>
       ) : (
-        <div className="xc-shell" data-immersion={immersion}>
+        <div className="xc-shell xc-shell--top" data-immersion={immersion}>
           <TopBar />
           {content}
         </div>

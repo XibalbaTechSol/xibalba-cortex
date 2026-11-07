@@ -1117,13 +1117,6 @@ def _make_handler(store: GraphStore, *, allowed_origins: frozenset[str],
                     # same contract Shield and the dashboard use for the same three questions
                     # ("what do I call this agent", "is it real", "is it on-chain").
                     #
-                    # `import os` here (module already imported at file scope) works around
-                    # this same do_GET method's own local `import os` further down (elif
-                    # branch handling a different route) -- that local import makes `os` a
-                    # function-local name for this entire method under Python's scoping
-                    # rules, which would otherwise make this earlier reference raise
-                    # UnboundLocalError.
-                    import os
                     oracle_url = os.environ.get("XIBALBA_ORACLE_URL", "http://localhost:8080")
                     identities = resolve_agent_identities(
                         [str(item["agent_id"]) for item in workspaces if item.get("agent_id")],
@@ -1409,7 +1402,6 @@ def _make_handler(store: GraphStore, *, allowed_origins: frozenset[str],
                         _assert_memory_scope(attachment_store.get_memory(str(attachment["memory_id"])), principal, attachment_store)
                         locator = attachment["storage_locator"]
                         file_path = locator[7:] if locator.startswith("file://") else locator
-                        import os
                         if not os.path.exists(file_path):
                             self._send_json(404, {"error": f"file not found at {file_path}"})
                         else:

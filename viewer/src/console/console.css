@@ -3942,3 +3942,11 @@ body,
   background: var(--surface);
 }
 
+.xc-shell.xc-shell--top,
+.xc-shell:has(> .xc-top) {
+  display: flex !important;
+  flex-direction: column !important;
+  grid-template-columns: none !important;
+}
+
+

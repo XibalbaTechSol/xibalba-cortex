@@ -525,6 +525,15 @@ export function GraphLens() {
           >
             📐 Math
           </button>
+          <button
+            type="button"
+            className="xc-zoom-text"
+            title="Toggle Zen Immersion Mode (Z): Maximize 3D canvas"
+            onClick={() => window.dispatchEvent(new CustomEvent('xc-toggle-immersion'))}
+            style={{ fontWeight: 600, color: '#a855f7' }}
+          >
+            🌌 Zen
+          </button>
           {selectedId && mode3d && (
             <button
               type="button"
