@@ -189,25 +189,23 @@ export function LensSwitch() {
     <div className="xc-ranges xc-lens-icons" role="group" aria-label="Lens">
       <button
         type="button"
-        className="xc-btn xc-btn--square xc-lens-btn"
+        className="xc-btn xc-lens-btn"
         aria-pressed={lens === 'graph'}
         title="Graph view"
         aria-label="Graph"
         onClick={() => setLens('graph')}
       >
-        <IconGraph />
-        <span className="xc-lens-text">Graph</span>
+        <IconGraph /> Graph
       </button>
       <button
         type="button"
-        className="xc-btn xc-btn--square xc-lens-btn"
+        className="xc-btn xc-lens-btn"
         aria-pressed={lens === 'timeline'}
         title="Timeline view"
         aria-label="Timeline"
         onClick={() => setLens('timeline')}
       >
-        <IconTimeline />
-        <span className="xc-lens-text">Timeline</span>
+        <IconTimeline /> Timeline
       </button>
     </div>
   )
@@ -318,21 +316,22 @@ export function Rail() {
 
       <nav className="xc-rail-nav" aria-label="Lenses and workflows">
         {primaryDestinations(destinations).map((d) => <NavButton key={d.id} dest={d} />)}
-
-        <div className="xc-rail-projection-toggle" style={{ borderTop: '1px solid var(--hairline-faint, rgba(255,255,255,0.06))', paddingTop: 6, marginTop: 4 }}>
-          <button
-            type="button"
-            className={`xc-nav-btn ${!settings.facetsCollapsed ? 'xc-nav-btn--active' : ''}`}
-            aria-label={settings.facetsCollapsed ? 'Expand Projection Filters' : 'Collapse Projection Filters'}
-            aria-pressed={!settings.facetsCollapsed}
-            title={settings.facetsCollapsed ? 'Projection Filters' : 'Collapse Projection'}
-            onClick={() => update({ facetsCollapsed: !settings.facetsCollapsed })}
-          >
-            <IconPanelLeft />
-            <span className="xc-nav-label">Projection</span>
-          </button>
-        </div>
       </nav>
+
+      <div className="xc-rail-projection-bar" style={{ padding: '4px 8px', borderTop: '1px solid var(--hairline-faint, rgba(255,255,255,0.06))' }}>
+        <button
+          type="button"
+          className={`xc-btn xc-rail-projection-btn ${!settings.facetsCollapsed ? 'xc-btn--active' : ''}`}
+          aria-label={settings.facetsCollapsed ? 'Expand projection filters' : 'Collapse projection filters'}
+          aria-pressed={!settings.facetsCollapsed}
+          title={settings.facetsCollapsed ? 'Expand projection filters' : 'Collapse projection filters'}
+          onClick={() => update({ facetsCollapsed: !settings.facetsCollapsed })}
+          style={{ width: '100%', justifyContent: collapsed ? 'center' : 'flex-start', gap: 8, padding: '4px 8px' }}
+        >
+          <IconPanelLeft />
+          {!collapsed && <span className="xc-nav-label">Projection</span>}
+        </button>
+      </div>
 
       <div className="xc-rail-foot">
         {collapsed ? (

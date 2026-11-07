@@ -608,10 +608,10 @@ export function GraphLens() {
               aria-label="Select Demo Knowledge Graph"
               title="Switch Knowledge Graph demo dataset"
             >
-              <option value="healthcare_researcher">🩺 Healthcare Researcher (Latent Medical Space & SOP/PARA)</option>
-              <option value="action_space">🧭 Agent Action Space (Navigational MDP)</option>
-              <option value="biomedical">🧬 Biomedical Pathways & Kinases</option>
-              <option value="all">🌐 Unified Manifold (All Triples)</option>
+              <option value="healthcare_researcher">🩺 Healthcare Researcher</option>
+              <option value="action_space">🧭 Agent Action Space</option>
+              <option value="biomedical">🧬 Biomedical Pathways</option>
+              <option value="all">🌐 Unified Manifold</option>
             </select>
             <button
               type="button"

@@ -1,5 +1,26 @@
+import fs from 'node:fs'
 import { test, expect, type Page } from '@playwright/test'
 import { stubConsoleApi } from './consoleFixture'
+
+const artifactDir = '/home/xibalba/.gemini/antigravity-cli/brain/915d42e0-a7ed-43f0-a667-f2078843f480'
+const picturesDir = '/home/xibalba/Pictures'
+
+async function saveScreenshot(page: Page, filename: string) {
+  if (fs.existsSync(artifactDir)) {
+    try {
+      await page.screenshot({ path: `${artifactDir}/${filename}` })
+    } catch {
+      // ignore in environments without write access to artifact directory
+    }
+  }
+  if (fs.existsSync(picturesDir)) {
+    try {
+      await page.screenshot({ path: `${picturesDir}/${filename}` })
+    } catch {
+      // ignore
+    }
+  }
+}
 
 async function openGraph3D(page: Page) {
   await page.addInitScript(() => {
@@ -37,8 +58,7 @@ test.describe('Zen Mode Controls & Inner Sanctum Room E2E', () => {
     await expect(cockpit).toBeVisible()
     await expect(cockpit).toContainText('FLIGHT D-PAD')
 
-    const artifactDir = '/home/xibalba/.gemini/antigravity-cli/brain/915d42e0-a7ed-43f0-a667-f2078843f480'
-    await page.screenshot({ path: `${artifactDir}/zen_flight_cockpit.png` })
+    await saveScreenshot(page, 'zen_flight_cockpit.png')
 
     // 3. Test D-Pad direction buttons
     const upBtn = cockpit.locator('.xc-zen-dpad-up')
@@ -78,7 +98,7 @@ test.describe('Zen Mode Controls & Inner Sanctum Room E2E', () => {
     const shortcutsModal = page.locator('.xc-zen-shortcuts-modal')
     await expect(shortcutsModal).toBeVisible()
     await expect(shortcutsModal).toContainText('ZEN KEYBOARD NAVIGATION CHEATSHEET')
-    await page.screenshot({ path: `${artifactDir}/zen_shortcuts_cheatsheet.png` })
+    await saveScreenshot(page, 'zen_shortcuts_cheatsheet.png')
     await keysToggle.click()
     await expect(shortcutsModal).not.toBeVisible()
 
@@ -103,7 +123,7 @@ test.describe('Zen Mode Controls & Inner Sanctum Room E2E', () => {
     await expect(roomCockpit).toBeVisible({ timeout: 10000 })
     await expect(roomCockpit).toContainText('INNER WORLD SANCTUM')
     await page.waitForTimeout(1000)
-    await page.screenshot({ path: `${artifactDir}/inner_sanctum_chamber.png` })
+    await saveScreenshot(page, 'inner_sanctum_chamber.png')
 
     // Verify Camera Directives
     const aimEastBtn = roomCockpit.locator('.xc-room-aim-btn', { hasText: 'Aim East' })
@@ -115,7 +135,7 @@ test.describe('Zen Mode Controls & Inner Sanctum Room E2E', () => {
     await expect(roomCockpit).toContainText('NOVEL VECTOR REPRESENTATION')
     const quiverCards = roomCockpit.locator('.xc-room-quiver-card')
     await expect(quiverCards.first()).toBeVisible()
-    await page.screenshot({ path: `${artifactDir}/inner_sanctum_vectors.png` })
+    await saveScreenshot(page, 'inner_sanctum_vectors.png')
 
     // 11. Test Tab 3: Novel Scalar Monoliths
     const scalarTab = roomCockpit.locator('.xc-room-tab', { hasText: 'Scalar Monoliths' })
@@ -123,12 +143,12 @@ test.describe('Zen Mode Controls & Inner Sanctum Room E2E', () => {
     await expect(roomCockpit).toContainText('Degree Centrality Obelisk')
     await expect(roomCockpit).toContainText('AIS Grounding Gyroscope')
     await expect(roomCockpit).toContainText('Dirichlet Topological Energy Pool')
-    await page.screenshot({ path: `${artifactDir}/inner_sanctum_scalars.png` })
+    await saveScreenshot(page, 'inner_sanctum_scalars.png')
 
     // 12. Test Tab 4: Spatial Portals & Teleportation
     const portalsTab = roomCockpit.locator('.xc-room-tab', { hasText: 'Spatial Portals' })
     await portalsTab.click()
-    await page.screenshot({ path: `${artifactDir}/inner_sanctum_portals.png` })
+    await saveScreenshot(page, 'inner_sanctum_portals.png')
 
     const warpBtn = roomCockpit.locator('.xc-room-warp-btn').first()
     if (await warpBtn.isVisible()) {
@@ -171,8 +191,7 @@ test.describe('Zen Mode Controls & Inner Sanctum Room E2E', () => {
     const datasetSelect = page.locator('.xc-dataset-select')
     await expect(datasetSelect).toBeVisible()
 
-    const artifactDir = '/home/xibalba/.gemini/antigravity-cli/brain/915d42e0-a7ed-43f0-a667-f2078843f480'
-    await page.screenshot({ path: `${artifactDir}/maximized_knowledge_graph_canvas.png` })
+    await saveScreenshot(page, 'maximized_knowledge_graph_canvas.png')
   })
 
   test('healthcare researcher demo agent dropdown with custom DID and clinical latent space', async ({ page }) => {
@@ -196,8 +215,7 @@ test.describe('Zen Mode Controls & Inner Sanctum Room E2E', () => {
     const datasetSelect = page.locator('.xc-dataset-select')
     await expect(datasetSelect).toHaveValue('healthcare_researcher')
 
-    const artifactDir = '/home/xibalba/.gemini/antigravity-cli/brain/915d42e0-a7ed-43f0-a667-f2078843f480'
-    await page.screenshot({ path: `${artifactDir}/healthcare_researcher_demo_agent.png` })
+    await saveScreenshot(page, 'healthcare_researcher_demo_agent.png')
   })
 
   test('similar memories in inspector renders properly without hosted unsupported error', async ({ page }) => {
@@ -226,7 +244,6 @@ test.describe('Zen Mode Controls & Inner Sanctum Room E2E', () => {
     // Verify "The hosted edition does not offer this yet" is NEVER displayed
     await expect(inspector).not.toContainText('The hosted edition does not offer this yet')
 
-    const artifactDir = '/home/xibalba/.gemini/antigravity-cli/brain/915d42e0-a7ed-43f0-a667-f2078843f480'
-    await page.screenshot({ path: `${artifactDir}/similar_memories_inspector.png` })
+    await saveScreenshot(page, 'similar_memories_inspector.png')
   })
 })
