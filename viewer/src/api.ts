@@ -1395,6 +1395,24 @@ export interface TrajectoryRewardResult {
   steps: StepRewardResult[]
 }
 
+export interface InferenceSessionSummaryResult {
+  session_id: string
+  agent_id?: string
+  summary: string
+  actions_extracted: string[]
+  outcomes: string[]
+  triples_extracted: number
+  triples_ingested: number
+  inference_task_id?: string
+  ais_metrics: {
+    grounding: number
+    compliance: number
+    sacrifice: number
+    entropy: number
+    ais_score: number
+  }
+}
+
 export interface ReconciliationSummary {
   equal: boolean
   domains: Record<string, { equal: boolean; live_leaf_count: number | null; destination_leaf_count: number | null }>
@@ -1634,8 +1652,10 @@ export const api = {
     postJson<StepRewardResult>('/api/discovery/reward/step', payload as Record<string, unknown>),
   evaluateTrajectoryReward: (payload: { steps: Array<Record<string, unknown>>; discount_factor?: number; initial_stake?: number; policy_rules?: Record<string, unknown>; agent_id?: string }) =>
     postJson<TrajectoryRewardResult>('/api/discovery/reward/trajectory', payload as Record<string, unknown>),
-  seedSampleGraph: (force = false, agentId?: string) =>
-    postJson<{ seeded: boolean; reason?: string; entities?: number }>('/api/graph/seed-sample', { force, agent_id: agentId }),
+  seedSampleGraph: (force = false, agentId?: string, dataset: 'biomedical' | 'action_space' | 'all' = 'biomedical') =>
+    postJson<{ seeded: boolean; dataset?: string; reason?: string; entities?: number }>('/api/graph/seed-sample', { force, agent_id: agentId, dataset }),
+  summarizeSessionWithSubagent: (payload?: { session_id?: string; auto_ingest_triples?: boolean; agent_id?: string }) =>
+    postJson<InferenceSessionSummaryResult>('/api/session/summarize-with-subagent', (payload || {}) as Record<string, unknown>),
   getGraphMath: (limit = 150, threshold = 0.75, agentId?: string) =>
     getJson<GraphMathResult>(`/api/graph/math?limit=${limit}&similarity_threshold=${threshold}${agentId ? `&agent_id=${encodeURIComponent(agentId)}` : ''}`),
   computeGraphMath: (payload: { limit?: number; similarity_threshold?: number; nodes?: unknown[]; edges?: unknown[]; agent_id?: string }) =>

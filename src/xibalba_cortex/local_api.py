@@ -134,6 +134,7 @@ Routes:
   GET /api/graph/math?limit=&similarity_threshold= -> GraphStore.compute_graph_mathematics()
   POST /api/graph/math                         -> GraphStore.compute_graph_mathematics()
   POST /api/graph/seed-sample                  -> GraphStore.seed_sample_knowledge_graph()
+  POST /api/session/summarize-with-subagent    -> GraphStore.summarize_session_with_inference_subagent()
 """
 from __future__ import annotations
 
@@ -2006,7 +2007,13 @@ def _make_handler(store: GraphStore, *, allowed_origins: frozenset[str],
                         self._send_json(200, agent_store.compute_graph_mathematics(limit=limit, similarity_threshold=threshold, agent_id=agent_filter))
                 elif parts == ["api", "graph", "seed-sample"]:
                     agent_target = _write_agent(store, principal, str(payload["agent_id"])) if payload.get("agent_id") else _write_agent(store, principal)
-                    self._send_json(200, store.seed_sample_knowledge_graph(force=bool(payload.get("force", False))))
+                    dataset_choice = str(payload.get("dataset", "biomedical"))
+                    self._send_json(200, store.seed_sample_knowledge_graph(force=bool(payload.get("force", False)), dataset=dataset_choice))
+                elif parts == ["api", "session", "summarize-with-subagent"]:
+                    agent_target = _write_agent(store, principal, str(payload["agent_id"])) if payload.get("agent_id") else _write_agent(store, principal)
+                    sess_id = str(payload["session_id"]) if payload.get("session_id") else None
+                    auto_ingest = bool(payload.get("auto_ingest_triples", True))
+                    self._send_json(200, store.summarize_session_with_inference_subagent(external_session_id=sess_id, auto_ingest_triples=auto_ingest, agent_id=agent_target))
                 elif parts == ["api", "memory", "contradictions"]:
                     _assert_memory_scope(store.get_memory(str(payload.get("memory_id_a") or "")), principal, store)
                     _assert_memory_scope(store.get_memory(str(payload.get("memory_id_b") or "")), principal, store)

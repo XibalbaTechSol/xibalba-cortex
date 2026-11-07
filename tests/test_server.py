@@ -138,6 +138,7 @@ async def test_all_tools_are_advertised(store):
         "graph_evaluate_trajectory_reward",
         "graph_compute_math",
         "graph_seed_sample",
+        "graph_summarize_session_with_inference_subagent",
     }
 
 
@@ -821,9 +822,20 @@ async def test_graph_tools_round_trip_through_mcp(store):
     # Canonical sample knowledge graph seeding tool test
     seed_res = await server.server.call_tool(
         "graph_seed_sample",
-        {"force": True},
+        {"force": True, "dataset": "action_space"},
     )
     seed_data = _dict_result(seed_res)
     assert seed_data["seeded"] is True
     assert seed_data["relations_created"] >= 20
+    assert seed_data["dataset"] == "action_space"
+
+    # Session summary inference subagent test
+    subagent_res = await server.server.call_tool(
+        "graph_summarize_session_with_inference_subagent",
+        {"auto_ingest_triples": True},
+    )
+    subagent_data = _dict_result(subagent_res)
+    assert "summary" in subagent_data
+    assert "ais_metrics" in subagent_data
+    assert subagent_data["triples_extracted"] >= 5
 

@@ -8,6 +8,7 @@ import { useState, type FormEvent } from 'react'
 import {
   api,
   type ConnectorResult,
+  type InferenceSessionSummaryResult,
   type LinkPrediction,
   type MechanicPath,
   type RepurposingCandidate,
@@ -16,7 +17,7 @@ import {
 import { useConsole } from './state'
 import { IconCheck, IconWarn } from './icons'
 
-type StudioTab = 'connectors' | 'inference' | 'reward'
+type StudioTab = 'connectors' | 'inference' | 'reward' | 'subagent'
 type ConnectorKind = 'csv' | 'biomedical' | 'fhir'
 type InferenceKind = 'mechanisms' | 'predict' | 'repurposing'
 
@@ -54,11 +55,21 @@ export function DiscoveryStudio() {
         >
           AIS Graph Reward Engine
         </button>
+        <button
+          type="button"
+          role="tab"
+          className="xc-tab"
+          aria-selected={tab === 'subagent'}
+          onClick={() => setTab('subagent')}
+        >
+          Inference Subagent
+        </button>
       </div>
 
       {tab === 'connectors' && <ConnectorsSection agentId={workspace.scope.agentId} />}
       {tab === 'inference' && <InferenceSection agentId={workspace.scope.agentId} />}
       {tab === 'reward' && <RewardSection agentId={workspace.scope.agentId} />}
+      {tab === 'subagent' && <SubagentSummarySection agentId={workspace.scope.agentId} />}
     </div>
   )
 }
@@ -951,6 +962,164 @@ function RewardSection({ agentId }: { agentId?: string }) {
           )}
         </section>
       </div>
+    </div>
+  )
+}
+
+// -------------------------------------------------------------------------------------------------
+// 4. Inference Subagent Session Summarizer
+// -------------------------------------------------------------------------------------------------
+
+function SubagentSummarySection({ agentId }: { agentId?: string }) {
+  const { reload } = useConsole()
+  const [sessionId, setSessionId] = useState('')
+  const [autoIngest, setAutoIngest] = useState(true)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [result, setResult] = useState<InferenceSessionSummaryResult | null>(null)
+
+  const handleSummarize = async (e: FormEvent) => {
+    e.preventDefault()
+    setBusy(true)
+    setError(null)
+    try {
+      const res = await api.summarizeSessionWithSubagent({
+        session_id: sessionId.trim() || undefined,
+        auto_ingest_triples: autoIngest,
+        agent_id: agentId,
+      })
+      setResult(res)
+      if (autoIngest) {
+        await reload()
+      }
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : String(err))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div style={{ display: 'grid', gridTemplateColumns: 'minmax(320px, 1fr) minmax(340px, 1fr)', gap: '1.25rem' }}>
+      <section className="xc-win xc-pane" style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+        <div>
+          <p className="xc-eyebrow">Autonomous Agent Session Inference</p>
+          <h3 className="xc-title">Inference Subagent Synthesis</h3>
+          <p className="xc-note">
+            The MCP server invokes a dedicated background inference subagent to distill raw agent trajectory
+            memories into structured Subject-Predicate-Object triples and verify closed-loop AIS invariants.
+          </p>
+        </div>
+
+        <form onSubmit={handleSummarize} style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+          <div>
+            <label className="xc-meta" style={{ display: 'block', marginBottom: '0.25rem' }}>
+              Target Session ID (Leave blank to synthesize current/latest active session)
+            </label>
+            <input
+              className="xc-input"
+              value={sessionId}
+              onChange={(e) => setSessionId(e.target.value)}
+              placeholder="e.g. sess_hermes_agent_01 or empty for auto-detect"
+            />
+          </div>
+
+          <label className="xc-inline" style={{ fontSize: '0.8125rem' }}>
+            <input type="checkbox" checked={autoIngest} onChange={(e) => setAutoIngest(e.target.checked)} />
+            <span>Automatically ingest extracted action space triples into Cortex Knowledge Graph</span>
+          </label>
+
+          <button type="submit" className="xc-btn xc-btn--primary" disabled={busy}>
+            {busy ? 'Running Inference Subagent…' : 'Synthesize Session & Extract Action Space'}
+          </button>
+        </form>
+      </section>
+
+      <section className="xc-win xc-pane" style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+        <div>
+          <p className="xc-eyebrow">Distillation Output & Invariants</p>
+          <h3 className="xc-title">Inference Task Summary</h3>
+        </div>
+
+        {error && (
+          <div className="xc-callout xc-callout--conflict">
+            <IconWarn />
+            <span>Synthesis error: {error}</span>
+          </div>
+        )}
+
+        {result && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+            <div
+              className="xc-callout xc-callout--anchored"
+              style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <IconCheck />
+                <b>Session Distillation Complete</b>
+              </div>
+              <span className="xc-badge" style={{ fontFamily: 'monospace', fontSize: '0.75rem' }}>
+                {result.session_id}
+              </span>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.5rem' }}>
+              <div className="xc-win" style={{ padding: '0.65rem', textAlign: 'center' }}>
+                <div style={{ fontSize: '1.2rem', fontWeight: 700, color: '#34d399' }}>
+                  {result.ais_metrics.ais_score.toFixed(1)}
+                </div>
+                <div className="xc-meta" style={{ fontSize: '0.7rem' }}>AIS Reward / 1000</div>
+              </div>
+              <div className="xc-win" style={{ padding: '0.65rem', textAlign: 'center' }}>
+                <div style={{ fontSize: '1.2rem', fontWeight: 700, color: '#818cf8' }}>
+                  {result.triples_extracted}
+                </div>
+                <div className="xc-meta" style={{ fontSize: '0.7rem' }}>Triples Extracted</div>
+              </div>
+              <div className="xc-win" style={{ padding: '0.65rem', textAlign: 'center' }}>
+                <div style={{ fontSize: '1.2rem', fontWeight: 700, color: '#38bdf8' }}>
+                  {result.triples_ingested}
+                </div>
+                <div className="xc-meta" style={{ fontSize: '0.7rem' }}>Triples Ingested</div>
+              </div>
+            </div>
+
+            <div className="xc-win" style={{ padding: '0.75rem' }}>
+              <div className="xc-meta" style={{ marginBottom: '0.4rem' }}>Trajectory Summary</div>
+              <pre
+                style={{
+                  margin: 0,
+                  fontSize: '0.75rem',
+                  lineHeight: '1.4',
+                  whiteSpace: 'pre-wrap',
+                  maxHeight: '180px',
+                  overflowY: 'auto',
+                }}
+              >
+                {result.summary}
+              </pre>
+            </div>
+
+            <div className="xc-win" style={{ padding: '0.75rem' }}>
+              <div className="xc-meta" style={{ marginBottom: '0.4rem' }}>Extracted Action Space Trajectory</div>
+              <ul style={{ margin: 0, paddingLeft: '1.2rem', fontSize: '0.8rem' }}>
+                {result.actions_extracted.map((act, i) => (
+                  <li key={i} style={{ marginBottom: '0.2rem' }}>{act}</li>
+                ))}
+              </ul>
+            </div>
+          </div>
+        )}
+
+        {!result && !error && (
+          <div className="xc-empty">
+            <h4 className="xc-title">Ready for Subagent Synthesis</h4>
+            <p className="xc-note">
+              Click synthesize to extract action trajectory triples, record inference tasks, and project onto the graph.
+            </p>
+          </div>
+        )}
+      </section>
     </div>
   )
 }

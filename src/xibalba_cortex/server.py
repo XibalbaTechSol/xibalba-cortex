@@ -2026,9 +2026,32 @@ def graph_compute_math(
 @server.tool()
 def graph_seed_sample(
     force: bool = False,
+    dataset: str = "biomedical",
 ) -> dict[str, Any]:
-    """Seed the canonical sample knowledge graph (precision oncology and PARA architecture) into the store."""
-    return get_store().seed_sample_knowledge_graph(force=force)
+    """Seed sample knowledge graphs into the store.
+    
+    Datasets:
+    - 'biomedical': Oncology pathways, kinase targets, and clinical trial cohorts.
+    - 'action_space': Agent Action Space (Navigational MDP, BCC gating, tool choices, and slashing).
+    - 'all': Unified manifold combining both domains.
+    """
+    return get_store().seed_sample_knowledge_graph(force=force, dataset=dataset)
+
+
+@server.tool()
+@_requires_scope("memory:read")
+def graph_summarize_session_with_inference_subagent(
+    session_id: str | None = None,
+    auto_ingest_triples: bool = True,
+) -> dict[str, Any]:
+    """Use Cortex's session inference subagent pipeline to summarize a session's memories
+    and extract its action space and knowledge triples into the graph."""
+    bound = _bound_agent_id(require=current_principal() is not None)
+    return get_store().summarize_session_with_inference_subagent(
+        external_session_id=session_id,
+        auto_ingest_triples=auto_ingest_triples,
+        agent_id=_storage_agent_id(bound),
+    )
 
 
 def _install_stdio_principal() -> None:

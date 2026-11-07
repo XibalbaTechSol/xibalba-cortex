@@ -18,6 +18,7 @@ import { defaultFacets, filterModel, selectionHidden, type CNode, type EdgeGroup
 import { palette, withAlpha } from './palette'
 import { IconFit, IconGrid, IconTarget, IconUnpin, IconWarn } from './icons'
 import { GraphMathStudio } from './GraphMathStudio'
+import { api } from '../api'
 
 interface FGNode {
   id: string
@@ -71,7 +72,22 @@ export function GraphLens() {
   const [summaryOpen, setSummaryOpen] = useState(false)
   const [insideCityNode, setInsideCityNode] = useState<CNode | null>(null)
   const [mathStudioOpen, setMathStudioOpen] = useState(false)
+  const [selectedDataset, setSelectedDataset] = useState<'action_space' | 'biomedical' | 'all'>('action_space')
+  const [seeding, setSeeding] = useState(false)
   const hidden = selectionHidden(model, visible, selectedId)
+
+  const handleDatasetChange = async (dataset: 'action_space' | 'biomedical' | 'all') => {
+    setSelectedDataset(dataset)
+    setSeeding(true)
+    try {
+      await api.seedSampleGraph(true, workspace.scope.agentId, dataset)
+      await reload()
+    } catch (e) {
+      console.error('Failed to seed graph dataset', e)
+    } finally {
+      setSeeding(false)
+    }
+  }
 
   // --- stable node objects -------------------------------------------------------------------------
   const objects = useRef(new Map<string, FGNode>())
@@ -443,9 +459,34 @@ export function GraphLens() {
         )}
         {overlay && <div style={{ position: 'absolute', inset: 0, display: 'grid', placeItems: 'center' }}>{overlay}</div>}
 
-        <p className="xc-graph-count" aria-live="polite">
-          {visible ? `${visible.nodes.length === total ? total : `${visible.nodes.length} of ${total}`} nodes · ${visible.edges.length} edges` : loading ? 'Loading…' : '—'}
-        </p>
+        <div className="xc-graph-controls-left">
+          <div className="xc-graph-dataset-bar">
+            <select
+              className="xc-dataset-select"
+              value={selectedDataset}
+              onChange={(e) => handleDatasetChange(e.target.value as 'action_space' | 'biomedical' | 'all')}
+              disabled={seeding}
+              aria-label="Select Demo Knowledge Graph"
+              title="Switch Knowledge Graph demo dataset"
+            >
+              <option value="action_space">🧭 Agent Action Space (Navigational MDP)</option>
+              <option value="biomedical">🧬 Biomedical Pathways & Kinases</option>
+              <option value="all">🌐 Unified Manifold (All Triples)</option>
+            </select>
+            <button
+              type="button"
+              className="xc-dataset-btn"
+              onClick={() => handleDatasetChange(selectedDataset)}
+              disabled={seeding}
+              title="Re-seed demo dataset to reset canvas"
+            >
+              {seeding ? 'Seeding…' : 'Re-seed'}
+            </button>
+          </div>
+          <p className="xc-graph-count" style={{ position: 'static' }} aria-live="polite">
+            {visible ? `${visible.nodes.length === total ? total : `${visible.nodes.length} of ${total}`} nodes · ${visible.edges.length} edges` : loading ? 'Loading…' : '—'}
+          </p>
+        </div>
 
         {/* One stack, top right, in two groups: what moves the camera, then -- below the framing
             buttons, separated by a rule -- what the view itself is. Both act on the canvas, so

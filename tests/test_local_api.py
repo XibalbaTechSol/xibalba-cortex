@@ -1622,8 +1622,16 @@ def test_connectors_and_discovery_reward_api(running_store):
     assert math_post["edge_count"] == 1
 
     # 8. Canonical Sample Knowledge Graph Seeding via POST /api/graph/seed-sample
-    code, seed_post = _post(port, "/api/graph/seed-sample", {"force": True})
+    code, seed_post = _post(port, "/api/graph/seed-sample", {"force": True, "dataset": "action_space"})
     assert code == 200, f"Error: {code}, payload: {seed_post}"
     assert seed_post["seeded"] is True
     assert seed_post["relations_created"] >= 20
+    assert seed_post["dataset"] == "action_space"
+
+    # 9. Session Summarization via Inference Subagent
+    code, subagent_res = _post(port, "/api/session/summarize-with-subagent", {"auto_ingest_triples": True})
+    assert code == 200, f"Error: {code}, payload: {subagent_res}"
+    assert "summary" in subagent_res
+    assert "ais_metrics" in subagent_res
+    assert subagent_res["triples_extracted"] >= 5
 

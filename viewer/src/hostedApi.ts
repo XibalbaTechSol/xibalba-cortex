@@ -145,6 +145,20 @@ const ROUTES: ReadonlyArray<readonly [string, HostedRoute]> = [
   }],
 
   ['GET /api/graph', { to: 'graph', keep: ['limit', 'agent_id'] }],
+  ['GET /api/graph/math', { to: 'graph/math', keep: ['limit', 'similarity_threshold', 'agent_id'] }],
+  ['POST /api/graph/math', { to: 'graph/math', keep: ['limit'] }],
+  ['POST /api/graph/seed-sample', { to: 'graph/seed-sample', write: true }],
+  ['POST /api/connectors/triples', { to: 'connectors/triples', write: true }],
+  ['POST /api/connectors/biomedical', { to: 'connectors/biomedical', write: true }],
+  ['POST /api/connectors/fhir', { to: 'connectors/fhir', write: true }],
+  ['POST /api/connectors/csv', { to: 'connectors/csv', write: true }],
+  ['GET /api/discovery/mechanisms', { to: 'discovery/mechanisms', keep: ['source', 'target', 'max_depth'] }],
+  ['GET /api/discovery/predict-links', { to: 'discovery/predict-links', keep: ['source', 'target', 'relation'] }],
+  ['GET /api/discovery/repurposing', { to: 'discovery/repurposing', keep: ['disease', 'top_k'] }],
+  ['GET /api/discovery/ego-subgraph', { to: 'discovery/ego-subgraph', keep: ['entity', 'radius'] }],
+  ['POST /api/discovery/reward/step', { to: 'discovery/reward/step' }],
+  ['POST /api/discovery/reward/trajectory', { to: 'discovery/reward/trajectory' }],
+  ['POST /api/session/summarize-with-subagent', { to: 'session/summarize-with-subagent', write: true }],
 
   ['GET /api/sessions', { to: 'timeline', keep: ['limit', 'agent_id'], adapt: (d) => d.sessions ?? [] }],
   ['GET /api/memories', {

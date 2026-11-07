@@ -122,6 +122,7 @@ ROUTES: dict[str, str] = {
     "GET /api/graph/math": "Graph → Math Studio (Adjacency, Cosine Similarity, Spectral, Centrality)",
     "POST /api/graph/math": "Graph → Math Studio (Custom Subgraph Adjacency & Centrality)",
     "POST /api/graph/seed-sample": "Settings / Graph → Seed Canonical Sample Knowledge Graph",
+    "POST /api/session/summarize-with-subagent": "Entities → Discovery Studio (Inference Subagent Session Summarizer)",
 }
 
 # Served by local_api.py but missing from its module docstring (the docstring is not the source of truth).
@@ -231,6 +232,7 @@ TOOLS: dict[str, tuple[str, str]] = {
     "graph_evaluate_trajectory_reward": ("console", "Entities → Discovery Studio (AIS Trajectory Return Simulator)"),
     "graph_compute_math": ("console", "Graph → Math Studio (Formal Adjacency, Cosine Similarity, Spectral, Centrality)"),
     "graph_seed_sample": ("console", "Settings / Graph → Seed Canonical Sample Knowledge Graph"),
+    "graph_summarize_session_with_inference_subagent": ("console", "Entities → Discovery Studio (Inference Subagent Session Summarizer)"),
 }
 RUNTIME_REASON = (
     "machine",

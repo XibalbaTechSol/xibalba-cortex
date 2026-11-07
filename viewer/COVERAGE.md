@@ -5,8 +5,8 @@ or documented route is not classified, so nothing becomes hidden by omission.
 
 ## Summary
 
-- **93 documented HTTP routes** and 23 more the handler serves but its docstring omits.
-- **102 MCP tools**: 56 have a console surface, 46 are machine protocols (27 of them `runtime_*` harness hooks), 0 are deliberately withheld from a browser.
+- **94 documented HTTP routes** and 23 more the handler serves but its docstring omits.
+- **103 MCP tools**: 57 have a console surface, 46 are machine protocols (27 of them `runtime_*` harness hooks), 0 are deliberately withheld from a browser.
 
 Statuses: **console** = a surface covers it. **machine** = a protocol for workers or agent harnesses; a person should not be
 able to drive it from a button. **withheld** = would hand a browser a server filesystem path, or is outward-facing, or needs a
@@ -109,6 +109,7 @@ route that does not exist yet.
 | `GET /api/graph/math` | Graph → Math Studio (Adjacency, Cosine Similarity, Spectral, Centrality) |
 | `POST /api/graph/math` | Graph → Math Studio (Custom Subgraph Adjacency & Centrality) |
 | `POST /api/graph/seed-sample` | Settings / Graph → Seed Canonical Sample Knowledge Graph |
+| `POST /api/session/summarize-with-subagent` | Entities → Discovery Studio (Inference Subagent Session Summarizer) |
 
 ### Served but not in the docstring
 
@@ -217,6 +218,7 @@ route that does not exist yet.
 | `graph_evaluate_trajectory_reward` | console | Entities → Discovery Studio (AIS Trajectory Return Simulator) |
 | `graph_compute_math` | console | Graph → Math Studio (Formal Adjacency, Cosine Similarity, Spectral, Centrality) |
 | `graph_seed_sample` | console | Settings / Graph → Seed Canonical Sample Knowledge Graph |
+| `graph_summarize_session_with_inference_subagent` | console | Entities → Discovery Studio (Inference Subagent Session Summarizer) |
 
 ### `runtime_*` (27 tools)
 

@@ -834,6 +834,232 @@ def create_app(config: ManagedConfig, *, control: ManagedControl | None = None, 
         rate_limit(request)
         return JSONResponse(await run_in_threadpool(graph_operation, request, timeline=True))
 
+    def graph_math_operation(request, custom_body=None):
+        account, principal, _ = authenticate(request)
+        require_scope(principal, "memory:read")
+        tenant = service.tenant(account)
+        service.consume(tenant, "retrievals")
+        try:
+            limit = max(1, min(int(request.query_params.get("limit", "100")), 500))
+            threshold = float(request.query_params.get("similarity_threshold", "0.6"))
+        except ValueError:
+            raise ApiError(400, "limit and similarity_threshold must be numbers") from None
+        agent_id = request.query_params.get("agent_id", "").strip() or None
+        if custom_body and isinstance(custom_body, dict):
+            nodes = custom_body.get("nodes")
+            edges = custom_body.get("edges")
+            if nodes is not None and edges is not None:
+                from ..graph_math import compute_formal_graph_math
+                return compute_formal_graph_math(nodes, edges, max_nodes=limit)
+        with service.store(tenant) as store:
+            return store.compute_graph_mathematics(limit=limit, similarity_threshold=threshold, agent_id=agent_id)
+
+    async def graph_math_get(request):
+        rate_limit(request)
+        return JSONResponse(await run_in_threadpool(graph_math_operation, request))
+
+    async def graph_math_post(request):
+        rate_limit(request)
+        try:
+            payload = await request.json()
+        except Exception:
+            payload = None
+        return JSONResponse(await run_in_threadpool(graph_math_operation, request, payload))
+
+    def seed_sample_operation(request, payload):
+        account, principal, _ = owner(request, mutate=True)
+        tenant = service.tenant(account)
+        force = bool(payload.get("force", False))
+        dataset = str(payload.get("dataset", "biomedical"))
+        with service.store(tenant) as store:
+            return store.seed_sample_knowledge_graph(force=force, dataset=dataset)
+
+    async def seed_sample(request):
+        rate_limit(request)
+        try:
+            payload = await request.json()
+        except Exception:
+            payload = {}
+        return JSONResponse(await run_in_threadpool(seed_sample_operation, request, payload))
+
+    def connectors_triples_operation(request, payload):
+        account, principal, _ = authenticate(request, mutate=True)
+        require_scope(principal, "memory:write")
+        tenant = service.tenant(account)
+        triples = payload.get("triples")
+        if not isinstance(triples, list):
+            raise ApiError(400, "triples must be a list")
+        source_name = str(payload.get("source_name", "managed_triples_ingest"))
+        with service.store(tenant) as store:
+            return store.ingest_triples(triples, source_name=source_name)
+
+    async def connectors_triples(request):
+        rate_limit(request)
+        payload = await request.json()
+        return JSONResponse(await run_in_threadpool(connectors_triples_operation, request, payload))
+
+    def connectors_biomedical_operation(request, payload):
+        account, principal, _ = authenticate(request, mutate=True)
+        require_scope(principal, "memory:write")
+        tenant = service.tenant(account)
+        title = str(payload.get("title", ""))
+        abstract = str(payload.get("abstract", ""))
+        pmid = str(payload.get("pmid", ""))
+        with service.store(tenant) as store:
+            return store.ingest_biomedical_article(title=title, abstract=abstract, pmid=pmid)
+
+    async def connectors_biomedical(request):
+        rate_limit(request)
+        payload = await request.json()
+        return JSONResponse(await run_in_threadpool(connectors_biomedical_operation, request, payload))
+
+    def connectors_fhir_operation(request, payload):
+        account, principal, _ = authenticate(request, mutate=True)
+        require_scope(principal, "memory:write")
+        tenant = service.tenant(account)
+        bundle = payload.get("bundle") or payload
+        if not isinstance(bundle, dict):
+            raise ApiError(400, "FHIR bundle must be an object")
+        with service.store(tenant) as store:
+            return store.ingest_fhir_bundle(bundle)
+
+    async def connectors_fhir(request):
+        rate_limit(request)
+        payload = await request.json()
+        return JSONResponse(await run_in_threadpool(connectors_fhir_operation, request, payload))
+
+    def connectors_csv_operation(request, payload):
+        account, principal, _ = authenticate(request, mutate=True)
+        require_scope(principal, "memory:write")
+        tenant = service.tenant(account)
+        csv_text = str(payload.get("csv_text", ""))
+        delimiter = str(payload.get("delimiter", ","))
+        has_header = bool(payload.get("has_header", True))
+        source_name = str(payload.get("source_name", "managed_csv_ingest"))
+        from ..connectors.triples import TriplesConnector
+        with service.store(tenant) as store:
+            conn = TriplesConnector(store)
+            res = conn.ingest_csv(csv_text, delimiter=delimiter, has_header=has_header, source_name=source_name)
+            return {"success": True, "entities_created": res.entities_created, "relations_created": res.relations_created}
+
+    async def connectors_csv(request):
+        rate_limit(request)
+        payload = await request.json()
+        return JSONResponse(await run_in_threadpool(connectors_csv_operation, request, payload))
+
+    def discovery_mechanisms_operation(request):
+        account, principal, _ = authenticate(request)
+        require_scope(principal, "memory:read")
+        tenant = service.tenant(account)
+        src = str(request.query_params.get("source", "")).strip()
+        tgt = str(request.query_params.get("target", "")).strip()
+        try:
+            depth = max(1, min(int(request.query_params.get("max_depth", "4")), 6))
+        except ValueError:
+            depth = 4
+        with service.store(tenant) as store:
+            return store.trace_mechanisms(src, tgt, max_depth=depth)
+
+    async def discovery_mechanisms(request):
+        rate_limit(request)
+        return JSONResponse(await run_in_threadpool(discovery_mechanisms_operation, request))
+
+    def discovery_predict_links_operation(request):
+        account, principal, _ = authenticate(request)
+        require_scope(principal, "memory:read")
+        tenant = service.tenant(account)
+        src = str(request.query_params.get("source", "")).strip()
+        tgt = str(request.query_params.get("target", "")).strip()
+        rel = str(request.query_params.get("relation", "relates_to")).strip()
+        with service.store(tenant) as store:
+            return store.predict_links(src, tgt, relation=rel)
+
+    async def discovery_predict_links(request):
+        rate_limit(request)
+        return JSONResponse(await run_in_threadpool(discovery_predict_links_operation, request))
+
+    def discovery_repurposing_operation(request):
+        account, principal, _ = authenticate(request)
+        require_scope(principal, "memory:read")
+        tenant = service.tenant(account)
+        disease = str(request.query_params.get("disease", "")).strip()
+        try:
+            top_k = max(1, min(int(request.query_params.get("top_k", "5")), 20))
+        except ValueError:
+            top_k = 5
+        with service.store(tenant) as store:
+            return store.suggest_drug_repurposing(disease, top_k=top_k)
+
+    async def discovery_repurposing(request):
+        rate_limit(request)
+        return JSONResponse(await run_in_threadpool(discovery_repurposing_operation, request))
+
+    def discovery_ego_subgraph_operation(request):
+        account, principal, _ = authenticate(request)
+        require_scope(principal, "memory:read")
+        tenant = service.tenant(account)
+        entity = str(request.query_params.get("entity", "")).strip()
+        try:
+            radius = max(1, min(int(request.query_params.get("radius", "2")), 4))
+        except ValueError:
+            radius = 2
+        with service.store(tenant) as store:
+            return store.ego_subgraph(entity, radius=radius)
+
+    async def discovery_ego_subgraph(request):
+        rate_limit(request)
+        return JSONResponse(await run_in_threadpool(discovery_ego_subgraph_operation, request))
+
+    def discovery_reward_step_operation(request, payload):
+        account, principal, _ = authenticate(request)
+        require_scope(principal, "memory:read")
+        tenant = service.tenant(account)
+        with service.store(tenant) as store:
+            return store.evaluate_step_reward(
+                source=str(payload.get("source", "")),
+                relation=str(payload.get("relation", "")),
+                target=str(payload.get("target", "")),
+                task_reward=float(payload.get("task_reward", 1.0)),
+                cost=float(payload.get("cost", 0.0)),
+                bonded_stake=float(payload.get("bonded_stake", 100.0)),
+            )
+
+    async def discovery_reward_step(request):
+        rate_limit(request)
+        payload = await request.json()
+        return JSONResponse(await run_in_threadpool(discovery_reward_step_operation, request, payload))
+
+    def discovery_reward_trajectory_operation(request, payload):
+        account, principal, _ = authenticate(request)
+        require_scope(principal, "memory:read")
+        tenant = service.tenant(account)
+        steps = payload.get("steps")
+        if not isinstance(steps, list):
+            raise ApiError(400, "steps must be a list")
+        discount = float(payload.get("discount_factor", 0.99))
+        stake = float(payload.get("initial_stake", 100.0))
+        with service.store(tenant) as store:
+            return store.evaluate_trajectory_reward(steps, discount_factor=discount, initial_stake=stake)
+
+    async def discovery_reward_trajectory(request):
+        rate_limit(request)
+        payload = await request.json()
+        return JSONResponse(await run_in_threadpool(discovery_reward_trajectory_operation, request, payload))
+
+    def session_summarize_subagent_operation(request, payload):
+        account, principal, _ = authenticate(request, mutate=True)
+        require_scope(principal, "memory:write")
+        tenant = service.tenant(account)
+        sess_id = str(payload.get("session_id")) if payload.get("session_id") else None
+        auto_ingest = bool(payload.get("auto_ingest_triples", True))
+        with service.store(tenant) as store:
+            return store.summarize_session_with_inference_subagent(external_session_id=sess_id, auto_ingest_triples=auto_ingest)
+
+    async def session_summarize_subagent(request):
+        rate_limit(request)
+        payload = await request.json()
+        return JSONResponse(await run_in_threadpool(session_summarize_subagent_operation, request, payload))
+
     def export_operation(request):
         account, principal, _ = authenticate(request)
         require_scope(principal, "memory:read")
@@ -950,6 +1176,20 @@ def create_app(config: ManagedConfig, *, control: ManagedControl | None = None, 
         Route("/api/managed/import", structured_import, methods=["POST"]),
         Route("/api/managed/ingest", ingest, methods=["POST"]),
         Route("/api/managed/graph", graph, methods=["GET"]),
+        Route("/api/managed/graph/math", graph_math_get, methods=["GET"]),
+        Route("/api/managed/graph/math", graph_math_post, methods=["POST"]),
+        Route("/api/managed/graph/seed-sample", seed_sample, methods=["POST"]),
+        Route("/api/managed/connectors/triples", connectors_triples, methods=["POST"]),
+        Route("/api/managed/connectors/biomedical", connectors_biomedical, methods=["POST"]),
+        Route("/api/managed/connectors/fhir", connectors_fhir, methods=["POST"]),
+        Route("/api/managed/connectors/csv", connectors_csv, methods=["POST"]),
+        Route("/api/managed/discovery/mechanisms", discovery_mechanisms, methods=["GET"]),
+        Route("/api/managed/discovery/predict-links", discovery_predict_links, methods=["GET"]),
+        Route("/api/managed/discovery/repurposing", discovery_repurposing, methods=["GET"]),
+        Route("/api/managed/discovery/ego-subgraph", discovery_ego_subgraph, methods=["GET"]),
+        Route("/api/managed/discovery/reward/step", discovery_reward_step, methods=["POST"]),
+        Route("/api/managed/discovery/reward/trajectory", discovery_reward_trajectory, methods=["POST"]),
+        Route("/api/managed/session/summarize-with-subagent", session_summarize_subagent, methods=["POST"]),
         Route("/api/managed/timeline", timeline, methods=["GET"]),
         Route("/api/managed/agent0/search", agent0_search, methods=["GET"]),
         Route("/api/managed/agent0/agent/{agent_id}", agent0_agent, methods=["GET"]),

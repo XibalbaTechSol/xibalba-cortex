@@ -3888,3 +3888,57 @@ body,
   from { opacity: 0; transform: translate(-50%, -24px); }
   to { opacity: 1; transform: translate(-50%, 0); }
 }
+
+/* ---------- Graph Dataset Selector & Floating Controls ----------------- */
+.xc-graph-controls-left {
+  position: absolute;
+  left: 14px;
+  top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  z-index: 10;
+}
+.xc-graph-dataset-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.xc-dataset-select {
+  height: 28px;
+  padding: 0 10px;
+  background: var(--ground);
+  border: 1px solid var(--hairline);
+  color: var(--ink);
+  font: 500 11px var(--font-mono);
+  border-radius: 4px;
+  outline: none;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+.xc-dataset-select:hover,
+.xc-dataset-select:focus {
+  border-color: var(--hairline-strong);
+  background: var(--surface);
+}
+.xc-dataset-btn {
+  height: 28px;
+  padding: 0 10px;
+  background: var(--ground);
+  border: 1px solid var(--hairline);
+  color: var(--ink-muted);
+  font: 500 11px var(--font-mono);
+  border-radius: 4px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+}
+.xc-dataset-btn:hover {
+  color: var(--ink);
+  border-color: var(--hairline-strong);
+  background: var(--surface);
+}
+

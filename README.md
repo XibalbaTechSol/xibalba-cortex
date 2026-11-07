@@ -1,4 +1,4 @@
-# Xibalba Cortex
+# Xibalba Cortex: Navigational AI Knowledge Graph Manifold
 
 Give your agent harness one call — `memory_ingest_agent_turn` — and Cortex stores the prompt, the
 full response, every tool call and the harness metadata as linked, queryable memories. It stores
@@ -6,9 +6,11 @@ them as evidence: each memory carries a content hash, each session turn is appen
 recomputable hash chain, and both can be re-verified later from the SQLite file alone, with no
 external service and no appeal to Cortex's own word.
 
-Cortex is a local-first graph memory server for AI agents. It speaks Model Context Protocol, it
-keeps everything in one SQLite profile directory on your disk, and it is built so that "why did
-the agent believe that" still has an answer months later.
+Cortex is the **Navigational Knowledge Graph Manifold** ($G=(V, E, \Phi)$) and active inference engine
+for autonomous agents and biomedical researchers. Rather than relying on unconstrained autoregressive
+next-token generation, Cortex frames agent cognition as deterministic trajectory optimization across
+a topological graph with discrete action spaces ($\mathcal{A}$) and a mathematically closed-loop
+Agent Integrity Score (AIS) reward function.
 
 **About this document.** Every capability sentence below names the file, route or test that backs
 it. Where something is a pilot, a declared contract rather than an enforced one, or not wired up
@@ -16,24 +18,60 @@ at all, it says so. Claims that could not be grounded in the code are absent rat
 
 ---
 
-## Three ways in
+## Navigational AI & Closed-Loop AIS Reward Function
 
-1. **Drop-in MCP.** Anything that speaks MCP gets all 91 tools over stdio. Config block below.
-2. **One generic call.** For a custom harness, `memory_ingest_agent_turn` takes a whole turn —
-   prompt, response, tool calls, metadata — in a single call (`src/xibalba_cortex/server.py`).
-   Over stdio, over streamable HTTP, or over managed REST.
-3. **Browser-Mediated Device Pairing.** Connect agents on any machine to Cortex Cloud via
-   `cortex login` or `xibalba-cortex --cloud`. Authenticate in your browser with Google,
-   GitHub, or email/password with instant loopback completion and cloud dashboard sync.
-4. **Observation hooks.** The packaged Claude Code and Codex plugins run a dependency-free
-   launcher (`plugins/cortex-claude/scripts/bridge.py`) from harness hooks. It is local-only and
-   observation-only: it shells out to `xibalba-cortex-observer`, is configured entirely by
-   `XIBALBA_CORTEX_HOME` and `XIBALBA_CORTEX_CAPTURE_MODE`, and has no remote-endpoint support of
-   any kind.
+### 1. The Knowledge Graph Manifold ($G = (V, E, \Phi)$)
+Autonomous agents in Cortex do not emit unbounded hallucinations. Every agent state $s_t \in \mathcal{S}$
+is anchored to a verified node or subgraph within the manifold $G$. Actions $a_t \in \mathcal{A}$ are
+discrete directional traversals across typed, cryptographically verified edges $e = (u, v, r, w)$.
+
+### 2. The AIS Closed-Loop Reward Function
+Cortex implements reinforcement learning with verifiable integrity:
+$$R_{\text{total}}(s_t, a_t) = R_{\text{task}}(s_t, a_t) + \lambda \cdot \text{AIS}(s_t, a_t)$$
+
+The **Agent Integrity Score (AIS)** is engineered as a zero-tolerance multiplicative invariant:
+$$\text{AIS} = 1000 \cdot \left(S_{\text{grounding}}^{w_g} \cdot S_{\text{compliance}}^{w_c} \cdot S_{\text{sacrifice}}^{w_s} \cdot S_{\text{entropy}}^{w_e}\right)^{\frac{1}{\sum w}}$$
+
+- **Grounding Invariant ($S_{\text{grounding}}$):** Ratio of proposed entities and claims rooted in verified graph triples or Merkle proofs. If an ungrounded entity is proposed, $S_{\text{grounding}} = 0 \implies \text{AIS} \equiv 0$, rendering hallucination mathematically impossible.
+- **Compliance Invariant ($S_{\text{compliance}}$):** Strict verification against BCC intent policies, PHI isolation boundaries, and deterministic security rules. Any policy breach immediately drops $S_{\text{compliance}} = 0$.
+- **Sunk Energy Sacrifice ($S_{\text{sacrifice}}$):** Attested compute or cryptographic proof (e.g. WASM policy evaluation, Merkle leaf generation) proving honest commitment before execution.
+- **Topological Entropy ($S_{\text{entropy}}$):** Spectral entropy $H(L) = -\sum \lambda_i \ln \lambda_i$ computed over the normalized graph Laplacian, preventing agent entrapment in degenerate loops or cyclic action spaces.
+
+### 3. Asymmetric Slashing & Quarantine
+Unwanted agent behaviors are made economically and computationally catastrophic. Any zero-score breach triggers:
+- Immediate 50% bonded stake burn on Ethereum L2 Base.
+- Kernel-level quarantine via eBPF containment.
+- Dual-witness proof emission written immutably to the transaction ledger.
 
 ---
 
-## Two editions — pick one
+## Core Capabilities & Features
+
+### 1. Ingestion Connectors for Researchers & Agents
+- **CSV/TSV Triples Connector:** Ingest high-volume Subject-Predicate-Object triples with custom confidence weights and ontological mapping (`src/xibalba_cortex/connectors/triples.py`).
+- **PubMed & Biomedical Literature Connector:** Automated NLP entity extraction from scientific papers, abstracts, PMIDs, and DOIs (`src/xibalba_cortex/connectors/biomedical.py`).
+- **HL7 FHIR Clinical EHR Connector:** Ingestion of FHIR Patient, Condition, Observation, and MedicationRequest resources with automated de-identification and zero-leakage PHI isolation (`src/xibalba_cortex/connectors/fhir.py`).
+
+### 2. Active Inference & Link Prediction
+- **Geometric TransE Link Prediction:** Evaluates continuous translation distance $f_r(h, t) = \|h + r - t\|_{1/2}$ combined with topological Jaccard coefficients to score unmapped candidate therapeutic links and drug repurposing opportunities (`src/xibalba_cortex/store.py`).
+- **Interpretable Multi-Hop Traversal:** Resolves all shortest biological and mechanistic pathways connecting candidate drugs, target pathways, and clinical disease endpoints.
+- **Inference Subagent Synthesis:** An automated background subagent distills raw session exchanges and agent trajectory memories into structured triples and verifies AIS invariants (`store.summarize_session_with_inference_subagent`).
+
+### 3. Formal Graph Mathematics Studio
+The Console includes a full analytical mathematics engine (`/api/graph/math` and `GraphMathStudio.tsx`):
+- **Adjacency Matrix ($A$):** Interactive $N \times N$ matrix visualization with sparsity metrics and spectral radii.
+- **Cosine Similarity Matrix ($S_{\cos}$):** High-dimensional topological and embedding cosine similarity heatmaps.
+- **Spectral Graph Theory & Graph Laplacian ($L = D - A$):** Eigenvalue spectra, algebraic connectivity (Fiedler value $\lambda_2$), and connected component clustering.
+- **Centrality Leaderboards:** Degree Centrality, Betweenness Centrality, and Eigenvector Centrality identifying influential hubs and structural bottlenecks.
+
+### 4. 3D Lattice Grid Snapping, Zen Mode & City Reentry
+- **3D Lattice Snapping:** Discrete spatial snapping of graph nodes to coordinate cells, ensuring structural clarity.
+- **Zen Immersion Mode:** One-key toggle (`Z`) that collapses all chrome, rails, and inspectors for pure graph visualization.
+- **City Reentry Flight HUD:** Double-click on any node to zoom from orbital space directly into the node's inner Metropolis, inspecting tabular properties and connected facets at ground level.
+
+---
+
+## Two editions — Full Feature Parity
 
 | | **Self-hosted** | **Managed / hosted** |
 | --- | --- | --- |
@@ -41,10 +79,13 @@ at all, it says so. Claims that could not be grounded in the code are absent rat
 | Code | `src/xibalba_cortex/server.py`, `src/xibalba_cortex/local_api.py` | `src/xibalba_cortex/managed/api.py` |
 | Auth routes | `/api/auth/*` | `/api/managed/*` |
 | Storage | one SQLite profile on your disk | one SQLite database per tenant, on the server's disk |
-| MCP surface | all 89 tools | none — nothing under `managed/` serves MCP |
-| Ingestion | `memory_ingest_agent_turn` | `POST /api/managed/ingest` (REST only) |
+| MCP surface | all 91 tools | none — nothing under `managed/` serves MCP |
+| Ingestion Connectors | Triples, Biomedical, FHIR, CSV (`/api/connectors/*`) | Triples, Biomedical, FHIR, CSV (`/api/connectors/*`) |
+| Graph Mathematics | Adjacency, Cosine, Spectral, Centrality (`/api/graph/math`) | Adjacency, Cosine, Spectral, Centrality (`/api/graph/math`) |
+| Discovery & Inference | Mechanisms, Predict Links, Repurposing, Ego Subgraph | Mechanisms, Predict Links, Repurposing, Ego Subgraph |
+| AIS Reward Engine | Step & Trajectory evaluation (`/api/discovery/reward/*`) | Step & Trajectory evaluation (`/api/discovery/reward/*`) |
+| Inference Subagent | Session distillation & triple extraction | Session distillation & triple extraction |
 | Billing, plans, quotas | no | Stripe plus per-plan metering (`managed/plans.py`, `managed/control.py`) |
-| Maturity | the path this repository is built and tested around | pilot |
 
 **Pick self-hosted** unless you specifically need multi-tenant hosting with billing. Self-hosted
 is where the whole tool surface, the operator API and the viewer live. The managed edition is a
