@@ -34,7 +34,7 @@
 - [Ingest Tokens](entities/ingest-tokens.md) — `ingest_tokens.py`: per-harness bearer tokens in a separate SQLite file, hash-only storage
 
 ## Architecture
-- [Ecosystem Role](architecture/ecosystem-role.md) — Cortex as 🧠 The Brain in the three-repository ecosystem, and as a standalone MCP memory server first
+- [Ecosystem Role](architecture/ecosystem-role.md) — Cortex as 🧠 The Navigational Engine in the four-repository ecosystem, and as a standalone neuro-symbolic knowledge graph first
 - [Store Schema Overview](architecture/store-schema-overview.md) — a schema-level tour of every table in `graph-memory.sqlite3`
 - [Inference Queue and Recovery](architecture/inference-queue.md) — claim ownership, leases, bounded retries, and legacy queue reconciliation
 - [Viewer and Local API](architecture/viewer-and-local-api.md) — graph, recall, inference, PARA, integrity, and headless validation

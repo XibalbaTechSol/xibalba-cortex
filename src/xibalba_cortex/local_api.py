@@ -1548,7 +1548,7 @@ def _make_handler(store: GraphStore, *, allowed_origins: frozenset[str],
             if parts == ["api", "settings", "inference"]:
                 try:
                     body = self._read_json_body()
-                    allowed = {"enabled", "provider", "harness", "profile_name", "allow_fallback", "task_types", "batch_size", "interval_seconds", "max_attempts", "timeout_seconds", "max_parallel_families", "combined_batching", "max_evidence_chars_per_memory", "max_items_per_type", "human_review_confidence_threshold", "task_confidence_thresholds", "promotion_policy", "contradictions_require_review", "decision_trace_jev_endpoint", "decision_trace_jev_timeout_seconds"}
+                    allowed = {"enabled", "provider", "harness", "profile_name", "allow_fallback", "task_types", "batch_size", "interval_seconds", "max_attempts", "timeout_seconds", "max_parallel_families", "combined_batching", "max_evidence_chars_per_memory", "max_items_per_type", "human_review_confidence_threshold", "task_confidence_thresholds", "promotion_policy", "contradictions_require_review", "decision_trace_jev_endpoint", "decision_trace_jev_timeout_seconds", "model", "requests_per_minute", "api_key_env", "external_content_ack"}
                     unknown = set(body) - allowed
                     if unknown:
                         raise ValueError(f"unsupported inference settings: {sorted(unknown)}")
@@ -1558,7 +1558,14 @@ def _make_handler(store: GraphStore, *, allowed_origins: frozenset[str],
                         raw = {}
                     if not isinstance(raw, dict):
                         raise ValueError("config.yaml must contain a mapping")
-                    raw["inference"] = {**(raw.get("inference") or {}), **body}
+                    # File-only settings: they gate where memory content is sent and which secret is
+                    # read, so an HTTP caller may echo the current value back but never change it.
+                    current_inference = raw.get("inference") or {}
+                    for file_only, default in (("api_key_env", "GEMINI_API_KEY"), ("external_content_ack", False)):
+                        if file_only in body:
+                            if body.pop(file_only) != current_inference.get(file_only, default):
+                                raise ValueError(f"inference.{file_only} can only be changed in config.yaml")
+                    raw["inference"] = {**current_inference, **body}
                     config_path.parent.mkdir(parents=True, exist_ok=True)
                     temporary = config_path.with_suffix(".yaml.tmp")
                     temporary.write_text(yaml.safe_dump(raw, sort_keys=False))

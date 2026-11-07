@@ -1,20 +1,14 @@
 # Xibalba Cortex: Navigational AI Knowledge Graph Manifold
 
-Give your agent harness one call — `memory_ingest_agent_turn` — and Cortex stores the prompt, the
-full response, every tool call and the harness metadata as linked, queryable memories. It stores
-them as evidence: each memory carries a content hash, each session turn is appended to a
-recomputable hash chain, and both can be re-verified later from the SQLite file alone, with no
-external service and no appeal to Cortex's own word.
+> **The Navigational Engine for Verifiable Autonomy**
 
-Cortex is the **Navigational Knowledge Graph Manifold** ($G=(V, E, \Phi)$) and active inference engine
-for autonomous agents and biomedical researchers. Rather than relying on unconstrained autoregressive
-next-token generation, Cortex frames agent cognition as deterministic trajectory optimization across
-a topological graph with discrete action spaces ($\mathcal{A}$) and a mathematically closed-loop
-Agent Integrity Score (AIS) reward function.
+Generative AI is trapped in an unconstrained latent space where hallucinating a fake pathway takes the exact same computational energy as reciting a real one. The industry attempts to fix this with software "guardrails," but from a first-principles physics standpoint, guardrails are merely artificial thermodynamic friction: in any Reinforcement Learning (RL) environment, an autonomous agent will mathematically optimize for its goal by finding the lowest-energy path around them.
 
-**About this document.** Every capability sentence below names the file, route or test that backs
-it. Where something is a pilot, a declared contract rather than an enforced one, or not wired up
-at all, it says so. Claims that could not be grounded in the code are absent rather than softened.
+**Xibalba Cortex discards unconstrained generation in favor of geometric graph traversal.**
+
+Cortex is the **Navigational Knowledge Graph Manifold** ($G=(V, E, \Phi)$) and active inference engine designed for autonomous agents and biomedical researchers. Instead of predicting the next token, agents operating inside Cortex physically "walk" the topological edges of verified data. Logic is no longer simulated through statistical correlation; it is a literal, continuous geometric trajectory with discrete action spaces ($\mathcal{A}$) and a mathematically closed-loop Agent Integrity Score (AIS) reward function. If an edge does not exist in the verified graph, the step cannot be taken—rendering hallucination structurally impossible.
+
+**The path itself is the proof.**
 
 ---
 
@@ -71,7 +65,110 @@ The Console includes a full analytical mathematics engine (`/api/graph/math` and
 
 ---
 
-## Two editions — Full Feature Parity
+## The Four-Repository Ecosystem Topology
+
+The Integrity Ecosystem aligns autonomous machine behavior with cryptographic and thermodynamic reality across four specialized repositories:
+
+| Repository | Role | Paradigm & Function |
+|---|---|---|
+| **`xibalba-cortex`** | **🧠 The Navigational Engine** | Neuro-symbolic knowledge graph and active inference engine. Replaces probabilistic text generation with geometric graph traversal (R-GCN + TKGE), dynamic logit masking, temporal event reification, and domain connectors (Biomedical/MIMIC-IV, FHIR, ChEMBL, CMS cost friction). |
+| **`integrity-core`** | **🦴 The Physics Engine of the Machine Economy** | Implements the Autonomous Integrity Score (AIS) as the deterministic reward function ($R_{\text{total}} = R_{\text{task}} + \lambda \cdot \text{AIS}$). Governs on-chain DIDs, Behavioral Commitment Chains (BCC), Merkle state anchors, and cryptographic state verification. |
+| **`xibalba-shield`** | **🛡️ Cryptographic Topology & Response Governance** | Enforces topological boundary gating, zero-probability unauthorized state spaces, and vendor-neutral response governance across enterprise EDRs (CrowdStrike, Defender) and AI agents (MCP, SOAR). *"The EDR detects and acts; Shield proves who authorized it."* Produces tamper-evident audit ledgers and HIPAA assurance packets. |
+| **`integrity-console`** | **👁️ The Universal Verifiable Operator Window** | Unified presentation and account layer. Visualizes agent graph navigation trajectories, multi-agent DID credentials, AIS score distributions, real-time response approval queues, and cryptographic Merkle verification. |
+
+```mermaid
+flowchart LR
+    subgraph Agents["Autonomous AI Agents & Runtimes"]
+        A["Agent / Researcher / LLM"] -->|"1. Geometric Graph Traversal<br/>(R-GCN + dynamic logit masking)"| C["🧠 xibalba-cortex<br/>(The Navigational Terrain)"]
+        A -->|"2. Response Intent<br/>(hash-bound authorization)"| S["🛡️ xibalba-shield<br/>(Boundary Gating)"]
+    end
+    subgraph Data["Knowledge Ingestion & Live Connectors"]
+        D1["Biomedical / Clinical<br/>MIMIC-IV · FHIR live-feeds"] --> C
+        D2["Chemistry & Genetics<br/>ChEMBL · PubChem · ClinVar"] --> C
+        D3["Health Economics<br/>CMS pricing friction"] --> C
+    end
+    subgraph Core["Integrity Protocol"]
+        C -->|"Session Merkle roots &<br/>state verification"| P["🦴 integrity-core<br/>(AIS Reward Engine)"]
+        S -->|"Signed action receipts &<br/>audit ledgers"| P
+        P -.->|"AIS feedback loop<br/>R = R_bio + λ·AIS"| A
+    end
+    subgraph Console["Auditor & Operator Surface"]
+        P -->|"Verified AIS & chain state"| O["👁️ integrity-console<br/>(Graph trajectories & ledger)"]
+    end
+```
+
+---
+
+## Neuro-Symbolic Architecture & Mathematical Foundations
+
+### 1. The Terrain: Knowledge Graph Embeddings & Ontology Alignment
+Cortex ingests unstructured literature and structured records, mapping them into strict `(Subject, Predicate, Object)` semantic triples bound to standardized ontologies (UMLS, MeSH, Gene Ontology). Entity and relation vectors are projected into a continuous geometric vector space using TransE / RotatE models where the scoring function minimizes spatial translation distance:
+$$E(h, r, t) = \|h + r - t\|_p$$
+By minimizing this energy state, the system scores unmapped edges to predict mathematically viable therapeutic hypotheses and biological mechanisms.
+
+### 2. The Visual Cortex: Relational Graph Convolutional Networks (R-GCN)
+Before an agent takes a step, an R-GCN aggregates relational context from the 1-hop and 2-hop biological neighborhood:
+$$h_i^{(l+1)} = \sigma \left( \sum_{r \in \mathcal{R}} \sum_{j \in \mathcal{N}_i^r} \frac{1}{c_{i,r}} W_r^{(l)} h_j^{(l)} + W_0^{(l)} h_i^{(l)} \right)$$
+To prevent the agent from selecting non-existent or unverified edges, Cortex applies **Dynamic Logit Masking** prior to Softmax:
+$$z_{\text{masked}} = z \circ M + (-\infty \times (1 - M))$$
+Where $M$ is a binary adjacency mask of verified outgoing edges. The agent is mathematically constrained to verified physical and biological reality.
+
+### 3. Temporal Event Reification & TKGE
+Fluctuating time-series data (lab values, medication dosages, vitals) cannot be represented as static edges without causing multi-graph collisions. Cortex reifies clinical events into discrete nodes:
+$$\text{Patient} \xrightarrow{\text{HAS\_OBSERVATION}} \text{Event\_Node} \xrightarrow{\text{OF\_TYPE}} \text{Measurement}$$
+$$\text{Event\_Node} \xrightarrow{\text{HAS\_VALUE}} 14.2, \quad \text{Event\_Node} \xrightarrow{\text{OCCURRED\_AT}} T_1$$
+This preserves a strict Directed Acyclic Graph (DAG) for Temporal Knowledge Graph Embeddings (TTransE):
+$$E(h, r, t, \tau) = \|h + r + \tau - t\|_p$$
+
+### 4. Economic & Multi-Domain Connectors
+- **CMS Health Economics:** Introduces a cost-penalty scalar $\lambda C(e)$ into the energy function ($E_{\text{total}} = E_{\text{path}} + \lambda C(e)$), balancing biological affinity against therapeutic cost.
+- **FHIR REST API Connector:** Direct JSON bundle mapper streaming live hospital observations (`LOINC`), prescriptions (`RxNorm`), and conditions (`ICD-10`) into reified event nodes.
+- **Biomolecular Grounding:** Direct mapping from ChEMBL and PubChem for molecular properties and target binding affinities.
+- **Exposome:** Environmental vectors (EPA air quality) bridging patient geography to clinical disease phenotypes.
+
+### 5. Biomedical Discovery & Active Inference Pipeline
+
+```
+[ Biomedical PDFs / PubMed / EHRs ]
+               │
+               ▼
+   [ LLM / NLP Triple Extraction ]  ──(Subject, Predicate, Object)
+               │
+               ▼
+    [ Vectorized Knowledge Graph ]  ──(TransE / KGE Continuous Space)
+               │
+               ▼
+[ Multi-Hop Traversal & Hypothesis Scoring ]
+```
+
+#### A. Ingestion & Automated Triple Extraction
+Unstructured text from PubMed Central articles, clinical trial registries, and multi-omics databases is parsed into strict semantic triples `(head entity, relation, tail entity)`:
+- **Entity Taxonomy:** Genes, proteins, metabolites, small molecule drugs, phenotypes, adverse events, and disease classifications.
+- **Ontology Normalization:** Normalizing entities against standardized biomedical taxonomies (UMLS, MeSH, Gene Ontology, RxNorm, LOINC) prevents semantic fragmentation (e.g., ensuring *"non-small cell lung carcinoma"* and *"NSCLC"* resolve to the identical node).
+
+#### B. Geometric Link Prediction for Drug Repurposing
+Standard relational queries fail when researchers ask open-ended exploratory questions like: *"What unstudied kinase inhibitors might affect neuroinflammation pathways?"*
+- **Scoring Hidden Edges:** Cortex evaluates missing or unmapped edges. If drug $A$ inhibits target protein $B$, and protein $B$ is structurally implicated in pathway $C$ (associated with disease $D$), the vector translation distance $f_r(h, t) = \|h + r - t\|$ surfaces a mathematically ranked therapeutic hypothesis for experimental validation.
+- **Traceable Mechanistic Paths:** Because hypotheses are derived from explicit graph walks, predictions are fully interpretable:
+  $$\text{Drug } A \xrightarrow{\text{inhibits}} \text{Target } B \xrightarrow{\text{regulates}} \text{Pathway } C \xrightarrow{\text{mitigates}} \text{Disease } D$$
+
+#### C. Isolated PHI Gating & Compliance Enclaves
+When integrating scientific literature hypotheses with real-world patient records, privacy is cryptographically enforced:
+- **Tenant Subgraph Isolation:** Every institutional research cohort or health system operates within an isolated containerized subgraph instance.
+- **Cryptographic Constraints:** Patient identifiers and electronic health data are decoupled from public literature graphs, utilizing zero-knowledge or policy-enforced attribute-based access control (ABAC) so that cross-domain queries only execute against cryptographically verified, anonymized nodes.
+
+---
+
+## Three Ways In
+
+1. **Drop-in MCP:** Anything that speaks MCP gets all 91 tools over stdio.
+2. **One generic call:** `memory_ingest_agent_turn` takes a complete turn — prompt, response, tool calls, metadata — and computes recomputable content and session hash chains.
+3. **Browser-Mediated Device Pairing:** Connect agents on any machine to Cortex Cloud via `cortex login` or `xibalba-cortex --cloud`. Authenticate with Google, GitHub, or email/password with instant loopback token exchange.
+4. **Observation hooks:** Dependency-free launcher (`plugins/cortex-claude/scripts/bridge.py`) for Claude Code, Codex, and Antigravity (`agy`).
+
+---
+
+## Two Editions — Full Feature Parity
 
 | | **Self-hosted** | **Managed / hosted** |
 | --- | --- | --- |

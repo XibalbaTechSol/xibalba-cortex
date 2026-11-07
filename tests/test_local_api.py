@@ -288,6 +288,21 @@ def test_stats_reports_real_counts(running_store):
     assert body["memories"] == 1
 
 
+def test_inference_settings_api_cannot_change_gemini_file_only_gates(running_store):
+    store, port = running_store
+    _, initial = _get(port, "/api/settings/inference")
+    # Echoing the current values back (what the settings form does) still saves.
+    status, _ = _post(port, "/api/settings/inference", initial)
+    assert status == 200
+    # But memory-write scope must not be able to consent to sending content to Google,
+    # or aim the key lookup at another secret.
+    for field, value in (("external_content_ack", True), ("api_key_env", "AWS_SECRET_ACCESS_KEY")):
+        status, body = _post(port, "/api/settings/inference", {**initial, field: value})
+        assert status == 400 and "config.yaml" in str(body), (field, status, body)
+    status, body = _post(port, "/api/settings/inference", {**initial, "provider": "gemini"})
+    assert status == 400 and "external_content_ack" in str(body)  # cannot switch providers without the file-side consent
+
+
 def test_inference_settings_round_trip_through_profile_config(running_store):
     store, port = running_store
     status, initial = _get(port, "/api/settings/inference")
