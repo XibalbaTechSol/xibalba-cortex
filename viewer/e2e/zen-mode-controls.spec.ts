@@ -76,25 +76,34 @@ test.describe('Zen Mode Controls & Inner Sanctum Room E2E', () => {
 
     // 4. Test Mode Toggle between Orbit and Pan
     const modeToggle = cockpit.locator('.xc-zen-toggle-pill')
-    await expect(modeToggle).toContainText('Mode: Orbit')
+    await expect(modeToggle).toHaveAttribute('data-mode', 'orbit')
     await modeToggle.click()
-    await expect(modeToggle).toContainText('Mode: Pan')
+    await expect(modeToggle).toHaveAttribute('data-mode', 'pan')
     await modeToggle.click()
-    await expect(modeToggle).toContainText('Mode: Orbit')
+    await expect(modeToggle).toHaveAttribute('data-mode', 'orbit')
 
     // 5. Test Camera Presets
-    const isoPreset = cockpit.locator('.xc-zen-preset-btn', { hasText: '1 · ISO' })
-    const topPreset = cockpit.locator('.xc-zen-preset-btn', { hasText: '2 · TOP' })
-    const frontPreset = cockpit.locator('.xc-zen-preset-btn', { hasText: '3 · FRONT' })
-    const sidePreset = cockpit.locator('.xc-zen-preset-btn', { hasText: '4 · SIDE' })
+    const isoPreset = cockpit.locator('.xc-zen-preset-btn[data-preset="iso"]')
+    const topPreset = cockpit.locator('.xc-zen-preset-btn[data-preset="top"]')
+    const frontPreset = cockpit.locator('.xc-zen-preset-btn[data-preset="front"]')
+    const sidePreset = cockpit.locator('.xc-zen-preset-btn[data-preset="side"]')
 
     await isoPreset.click()
     await topPreset.click()
     await frontPreset.click()
     await sidePreset.click()
 
+    // 5b. Test Card Collapse and Expand
+    const collapseBtn = cockpit.locator('.xc-zen-mini-btn')
+    await collapseBtn.click()
+    const expandBtn = page.locator('.xc-zen-expand-btn')
+    await expect(expandBtn).toBeVisible()
+    await saveScreenshot(page, 'zen_card_collapsed.png')
+    await expandBtn.click()
+    await expect(cockpit.locator('.xc-zen-cockpit-title')).toBeVisible()
+
     // 6. Test Keyboard Shortcuts Cheatsheet Drawer
-    const keysToggle = zenTopbar.locator('button', { hasText: '⌨️ Keys' })
+    const keysToggle = zenTopbar.locator('button[aria-label="Toggle keyboard shortcuts"]')
     await keysToggle.click()
     const shortcutsModal = page.locator('.xc-zen-shortcuts-modal')
     await expect(shortcutsModal).toBeVisible()
