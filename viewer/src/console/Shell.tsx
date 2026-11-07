@@ -8,7 +8,7 @@ import { useSettings } from './settingsContext'
 import { primaryDestinations, type Destination, type DestinationId } from './nav'
 import {
   IconAgents, IconChevronLeft, IconChevronRight, IconEntities, IconGraph, IconIntegrity, IconMemories, IconOperations,
-  IconRefresh, IconReview, IconSearch, IconSessions, IconSettings, IconSignOut, IconTimeline,
+  IconPanelLeft, IconRefresh, IconReview, IconSearch, IconSessions, IconSettings, IconSignOut, IconTimeline,
 } from './icons'
 
 export const DESTINATION_ICON: Record<DestinationId, ReactNode> = {
@@ -186,9 +186,27 @@ export function WorkspaceHeader() {
 export function LensSwitch() {
   const { lens, setLens } = useConsole()
   return (
-    <div className="xc-ranges" role="group" aria-label="Lens">
-      <button type="button" className="xc-btn" aria-pressed={lens === 'graph'} onClick={() => setLens('graph')}>Graph</button>
-      <button type="button" className="xc-btn" aria-pressed={lens === 'timeline'} onClick={() => setLens('timeline')}>Timeline</button>
+    <div className="xc-ranges xc-lens-icons" role="group" aria-label="Lens">
+      <button
+        type="button"
+        className="xc-btn xc-lens-btn"
+        aria-pressed={lens === 'graph'}
+        title="Graph view"
+        aria-label="Graph"
+        onClick={() => setLens('graph')}
+      >
+        <IconGraph /> Graph
+      </button>
+      <button
+        type="button"
+        className="xc-btn xc-lens-btn"
+        aria-pressed={lens === 'timeline'}
+        title="Timeline view"
+        aria-label="Timeline"
+        onClick={() => setLens('timeline')}
+      >
+        <IconTimeline /> Timeline
+      </button>
     </div>
   )
 }
@@ -277,7 +295,7 @@ export function TopBar() {
  *  connection and reload live in WorkspaceHeader, over the content, so collapsing hides none of
  *  them. What stays here is navigation and the account. */
 export function Rail() {
-  const { destinations } = useConsole()
+  const { destinations, signOut, go } = useConsole()
   const { settings, update } = useSettings()
   const collapsed = settings.railCollapsed
   return (
@@ -300,8 +318,46 @@ export function Rail() {
         {primaryDestinations(destinations).map((d) => <NavButton key={d.id} dest={d} />)}
       </nav>
 
+      <div className="xc-rail-projection-bar" style={{ padding: '4px 8px', borderTop: '1px solid var(--hairline-faint, rgba(255,255,255,0.06))' }}>
+        <button
+          type="button"
+          className={`xc-btn xc-rail-projection-btn ${!settings.facetsCollapsed ? 'xc-btn--active' : ''}`}
+          aria-label={settings.facetsCollapsed ? 'Expand projection filters' : 'Collapse projection filters'}
+          aria-pressed={!settings.facetsCollapsed}
+          title={settings.facetsCollapsed ? 'Expand projection filters' : 'Collapse projection filters'}
+          onClick={() => update({ facetsCollapsed: !settings.facetsCollapsed })}
+          style={{ width: '100%', justifyContent: collapsed ? 'center' : 'flex-start', gap: 8, padding: '4px 8px' }}
+        >
+          <IconPanelLeft />
+          {!collapsed && <span className="xc-nav-label">Projection</span>}
+        </button>
+      </div>
+
       <div className="xc-rail-foot">
-        <ProfileButton />
+        {collapsed ? (
+          <div className="xc-rail-collapsed-actions" style={{ display: 'flex', flexDirection: 'column', gap: 6, alignItems: 'center' }}>
+            <button
+              type="button"
+              className="xc-btn xc-btn--square"
+              aria-label="Settings"
+              title="Settings"
+              onClick={() => go('settings')}
+            >
+              <IconSettings />
+            </button>
+            <button
+              type="button"
+              className="xc-btn xc-btn--square"
+              aria-label="Log out"
+              title="Log out"
+              onClick={signOut}
+            >
+              <IconSignOut />
+            </button>
+          </div>
+        ) : (
+          <ProfileButton />
+        )}
       </div>
     </aside>
   )

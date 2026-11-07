@@ -1652,7 +1652,7 @@ export const api = {
     postJson<StepRewardResult>('/api/discovery/reward/step', payload as Record<string, unknown>),
   evaluateTrajectoryReward: (payload: { steps: Array<Record<string, unknown>>; discount_factor?: number; initial_stake?: number; policy_rules?: Record<string, unknown>; agent_id?: string }) =>
     postJson<TrajectoryRewardResult>('/api/discovery/reward/trajectory', payload as Record<string, unknown>),
-  seedSampleGraph: (force = false, agentId?: string, dataset: 'biomedical' | 'action_space' | 'all' = 'biomedical') =>
+  seedSampleGraph: (force = false, agentId?: string, dataset: 'healthcare_researcher' | 'biomedical' | 'action_space' | 'all' = 'healthcare_researcher') =>
     postJson<{ seeded: boolean; dataset?: string; reason?: string; entities?: number }>('/api/graph/seed-sample', { force, agent_id: agentId, dataset }),
   summarizeSessionWithSubagent: (payload?: { session_id?: string; auto_ingest_triples?: boolean; agent_id?: string }) =>
     postJson<InferenceSessionSummaryResult>('/api/session/summarize-with-subagent', (payload || {}) as Record<string, unknown>),

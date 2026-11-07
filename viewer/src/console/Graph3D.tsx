@@ -28,6 +28,7 @@ import { FADE, GRID_INK, LINK_ALPHA, blendOver, faceColours } from './graphStyle
 import { palette } from './palette'
 import { frameCamera, type Vec3 } from './framing'
 import { GRID_CELL_SIZE, cellBounds, cellCentre, latticeFrame, latticeLines, latticeStride, snapToGrid, type Cell } from './gridSnap'
+import { computePresetDirection, computeQuantileTier, cycleNodeIndex, generateLatentQuivers, type CameraPreset } from './zenControls'
 
 export interface Graph3DHandle {
   fit: () => void
@@ -37,6 +38,13 @@ export interface Graph3DHandle {
   unpinAll: () => void
   enterCity: (id: string) => void
   exitCity: () => void
+  orbit: (dTheta: number, dPhi: number) => void
+  pan: (dx: number, dy: number) => void
+  elevate: (dy: number) => void
+  dolly: (dz: number) => void
+  setPresetAngle: (preset: CameraPreset) => void
+  cycleNode: (direction: 1 | -1) => string | null
+  aimRoomTarget: (target: 'center' | 'obelisk' | 'gyro' | 'portal') => void
 }
 
 interface Props {
@@ -126,6 +134,13 @@ interface Engine {
   unpinAll: () => void
   enterCity: (id: string) => void
   exitCity: () => void
+  orbit: (dTheta: number, dPhi: number) => void
+  pan: (dx: number, dy: number) => void
+  elevate: (dy: number) => void
+  dolly: (dz: number) => void
+  setPresetAngle: (preset: CameraPreset) => void
+  cycleNode: (direction: 1 | -1) => string | null
+  aimRoomTarget: (target: 'center' | 'obelisk' | 'gyro' | 'portal') => void
   dispose: () => void
 }
 
@@ -205,6 +220,10 @@ function createEngine(
   cityGroup.visible = false
   scene.add(linkGroup, nodeGroup, cityGroup)
   let insideNodeId: string | null = null
+  let tensorGroup: THREE.Group | null = null
+  let gyroOuter: THREE.Mesh | null = null
+  let gyroInner: THREE.Mesh | null = null
+  let rippleDisc: THREE.Mesh | null = null
   let currentNodes: CNode[] = []
   let currentEdges: CEdge[] = []
   const orbitPosition = new THREE.Vector3()
@@ -652,34 +671,171 @@ function createEngine(
       canvas.style.cursor = id ? 'grab' : edge ? 'pointer' : 'grab'
     })
   }
-  // keyboard: orbit, pan, zoom, frame, clear -- the canvas takes focus with Tab
+  const orbit = (dTheta: number, dPhi: number) => {
+    const off = camera.position.clone().sub(controls.target)
+    const sph = new THREE.Spherical().setFromVector3(off)
+    sph.theta += dTheta
+    sph.phi = Math.min(Math.PI - 0.05, Math.max(0.05, sph.phi + dPhi))
+    camera.position.copy(controls.target).add(off.setFromSpherical(sph))
+    camera.lookAt(controls.target)
+    controls.update()
+    userMoved = true
+    dirty = true
+    cameraMoved = true
+  }
+
+  const pan = (dx: number, dy: number) => {
+    const step = camera.position.distanceTo(controls.target) * 0.08
+    const right = new THREE.Vector3().setFromMatrixColumn(camera.matrix, 0)
+    const upv = new THREE.Vector3().setFromMatrixColumn(camera.matrix, 1)
+    const d = right.multiplyScalar(dx * step).add(upv.multiplyScalar(dy * step))
+    camera.position.add(d)
+    controls.target.add(d)
+    controls.update()
+    userMoved = true
+    dirty = true
+    cameraMoved = true
+  }
+
+  const elevate = (dy: number) => {
+    const step = Math.max(2, camera.position.distanceTo(controls.target) * 0.06)
+    camera.position.y += dy * step
+    controls.target.y += dy * step
+    controls.update()
+    userMoved = true
+    dirty = true
+    cameraMoved = true
+  }
+
+  const dolly = (dz: number) => {
+    api.zoomBy(dz > 0 ? 1.25 : 1 / 1.25)
+  }
+
+  const setPresetAngle = (preset: CameraPreset) => {
+    const pDir = computePresetDirection(preset)
+    const dist = camera.position.distanceTo(controls.target)
+    const tgt = controls.target.clone()
+    const dir = new THREE.Vector3(pDir.x, pDir.y, pDir.z).normalize()
+    flyTo(tgt.clone().add(dir.multiplyScalar(dist)), tgt)
+    userMoved = true
+    dirty = true
+  }
+
+  const cycleNode = (direction: 1 | -1): string | null => {
+    if (visibleIds.length === 0) return null
+    const currIdx = selectedId ? visibleIds.indexOf(selectedId) : -1
+    const nextIdx = cycleNodeIndex(currIdx, visibleIds.length, direction)
+    const nextId = visibleIds[nextIdx]
+    cb.onSelect(nextId)
+    api.focusOn(nextId)
+    return nextId
+  }
+
+  const aimRoomTarget = (target: 'center' | 'obelisk' | 'gyro' | 'portal') => {
+    if (!insideNodeId) return
+    const n = simNodes.get(insideNodeId)
+    if (!n) return
+    const P = { x: n.x, y: n.y, z: n.z }
+
+    let lookAtTarget = new THREE.Vector3(P.x, P.y + 7.5, P.z)
+    let camPos = new THREE.Vector3(P.x, P.y + 11, P.z + 24)
+
+    if (target === 'obelisk') {
+      lookAtTarget = new THREE.Vector3(P.x + 16, P.y + 8, P.z + 10)
+      camPos = new THREE.Vector3(P.x + 8, P.y + 10, P.z + 20)
+    } else if (target === 'gyro') {
+      lookAtTarget = new THREE.Vector3(P.x - 16, P.y + 6, P.z + 10)
+      camPos = new THREE.Vector3(P.x - 8, P.y + 8, P.z + 20)
+    } else if (target === 'portal') {
+      lookAtTarget = new THREE.Vector3(P.x, P.y + 6, P.z - 28)
+      camPos = new THREE.Vector3(P.x, P.y + 7, P.z - 10)
+    }
+
+    flyTo(camPos, lookAtTarget)
+    userMoved = true
+    dirty = true
+  }
+
+  // keyboard: arrows, wasd, q/e elevate, +/-, tab cycle, 1-4 presets, enter dive, esc exit
   const onKey = (e: KeyboardEvent) => {
-    const orbit = (dTheta: number, dPhi: number) => {
-      const off = camera.position.clone().sub(controls.target)
-      const sph = new THREE.Spherical().setFromVector3(off)
-      sph.theta += dTheta
-      sph.phi = Math.min(Math.PI - 0.05, Math.max(0.05, sph.phi + dPhi))
-      camera.position.copy(controls.target).add(off.setFromSpherical(sph))
-      camera.lookAt(controls.target)
-      controls.update(); userMoved = true; dirty = true; cameraMoved = true
-    }
-    const pan = (dx: number, dy: number) => {
-      const step = camera.position.distanceTo(controls.target) * 0.08
-      const right = new THREE.Vector3().setFromMatrixColumn(camera.matrix, 0)
-      const upv = new THREE.Vector3().setFromMatrixColumn(camera.matrix, 1)
-      const d = right.multiplyScalar(dx * step).add(upv.multiplyScalar(dy * step))
-      camera.position.add(d); controls.target.add(d)
-      controls.update(); userMoved = true; dirty = true; cameraMoved = true
-    }
     const step = 0.12
     switch (e.key) {
-      case 'ArrowLeft': e.shiftKey ? pan(-1, 0) : orbit(-step, 0); break
-      case 'ArrowRight': e.shiftKey ? pan(1, 0) : orbit(step, 0); break
-      case 'ArrowUp': e.shiftKey ? pan(0, 1) : orbit(0, -step); break
-      case 'ArrowDown': e.shiftKey ? pan(0, -1) : orbit(0, step); break
-      case '+': case '=': userMoved = true; api.zoomBy(1.25); break
-      case '-': case '_': userMoved = true; api.zoomBy(1 / 1.25); break
-      case 'f': case 'F': case '0': userMoved = false; fit(); break
+      case 'ArrowLeft':
+        if (e.shiftKey) pan(-1, 0); else orbit(-step, 0)
+        break
+      case 'ArrowRight':
+        if (e.shiftKey) pan(1, 0); else orbit(step, 0)
+        break
+      case 'ArrowUp':
+        if (e.shiftKey) pan(0, 1); else orbit(0, -step)
+        break
+      case 'ArrowDown':
+        if (e.shiftKey) pan(0, -1); else orbit(0, step)
+        break
+      case 'w':
+      case 'W':
+        if (e.shiftKey) pan(0, 1); else dolly(1)
+        break
+      case 's':
+      case 'S':
+        if (e.shiftKey) pan(0, -1); else dolly(-1)
+        break
+      case 'a':
+      case 'A':
+        if (e.shiftKey) pan(-1, 0); else orbit(-step, 0)
+        break
+      case 'd':
+      case 'D':
+        if (e.shiftKey) pan(1, 0); else orbit(step, 0)
+        break
+      case 'q':
+      case 'Q':
+        elevate(1)
+        break
+      case 'e':
+      case 'E':
+        elevate(-1)
+        break
+      case 'Tab':
+        e.preventDefault()
+        cycleNode(e.shiftKey ? -1 : 1)
+        break
+      case '1':
+        setPresetAngle('iso')
+        break
+      case '2':
+        setPresetAngle('top')
+        break
+      case '3':
+        setPresetAngle('front')
+        break
+      case '4':
+        setPresetAngle('side')
+        break
+      case '+':
+      case '=':
+      case ']':
+        userMoved = true
+        api.zoomBy(1.25)
+        break
+      case '-':
+      case '_':
+      case '[':
+        userMoved = true
+        api.zoomBy(1 / 1.25)
+        break
+      case ' ':
+      case 'f':
+      case 'F':
+      case '0':
+        userMoved = false
+        fit()
+        break
+      case 'Enter':
+        if (selectedId && !insideNodeId) {
+          enterCity(selectedId)
+        }
+        break
       case 'Escape':
         if (insideNodeId) {
           exitCity()
@@ -687,7 +843,8 @@ function createEngine(
           cb.onSelect(null)
         }
         break
-      default: return
+      default:
+        return
     }
     e.preventDefault()
   }
@@ -727,7 +884,7 @@ function createEngine(
     }
   }
 
-  // --- camera & city reentry -----------------------------------------------------------------------------------
+  // --- inner sanctum room & node reentry -----------------------------------------------------------------------------------
   function buildCity(nodeId: string) {
     while (cityGroup.children.length > 0) {
       const child = cityGroup.children[0]
@@ -738,67 +895,253 @@ function createEngine(
         else (child as any).material.dispose()
       }
     }
+    tensorGroup = null
+    gyroOuter = null
+    gyroInner = null
+    rippleDisc = null
 
     const n = simNodes.get(nodeId)
     if (!n) return
     const P = { x: n.x, y: n.y, z: n.z }
 
-    // 1. Polar cyber ground grid
-    const polarGrid = new THREE.PolarGridHelper(45, 8, 5, 32, 0x6366f1, 0x1e293b)
-    polarGrid.position.set(P.x, P.y - 0.2, P.z)
+    // 1. Sanctum Floor Platform: Octagonal dark obsidian platform with glowing boundaries
+    const floorGeom = new THREE.CylinderGeometry(36, 38, 1.2, 8)
+    const floorMat = new THREE.MeshStandardMaterial({
+      color: 0x070b14,
+      roughness: 0.25,
+      metalness: 0.85,
+    })
+    const floorMesh = new THREE.Mesh(floorGeom, floorMat)
+    floorMesh.position.set(P.x, P.y - 0.6, P.z)
+    cityGroup.add(floorMesh)
+
+    // Outer luminous boundary ring
+    const outerRingGeom = new THREE.RingGeometry(35.5, 36.2, 32)
+    const ringMat = new THREE.MeshBasicMaterial({ color: 0x6366f1, side: THREE.DoubleSide, transparent: true, opacity: 0.7 })
+    const outerRing = new THREE.Mesh(outerRingGeom, ringMat)
+    outerRing.rotation.x = Math.PI / 2
+    outerRing.position.set(P.x, P.y + 0.02, P.z)
+    cityGroup.add(outerRing)
+
+    // Inner quantum boundary ring
+    const innerRingGeom = new THREE.RingGeometry(18, 18.5, 32)
+    const innerRingMat = new THREE.MeshBasicMaterial({ color: 0x06b6d4, side: THREE.DoubleSide, transparent: true, opacity: 0.5 })
+    const innerRing = new THREE.Mesh(innerRingGeom, innerRingMat)
+    innerRing.rotation.x = Math.PI / 2
+    innerRing.position.set(P.x, P.y + 0.02, P.z)
+    cityGroup.add(innerRing)
+
+    // Floor polar radial grid spokes
+    const polarGrid = new THREE.PolarGridHelper(36, 8, 4, 32, 0x6366f1, 0x1e293b)
+    polarGrid.position.set(P.x, P.y + 0.03, P.z)
     cityGroup.add(polarGrid)
 
-    // 2. Central Monumental Core
-    const coreGeom = new THREE.CylinderGeometry(4.5, 5.5, 2.8, 8)
-    const coreMat = new THREE.MeshBasicMaterial({ color: 0x4f46e5, transparent: true, opacity: 0.9 })
-    const coreMesh = new THREE.Mesh(coreGeom, coreMat)
-    coreMesh.position.set(P.x, P.y + 1.4, P.z)
-    const coreEdges = new THREE.LineSegments(new THREE.EdgesGeometry(coreGeom), new THREE.LineBasicMaterial({ color: 0xa5b4fc }))
-    coreMesh.add(coreEdges)
-    cityGroup.add(coreMesh)
+    // 2. Eight Perimeter Hexagonal Pillars with crystalline beacon caps & holographic panels
+    const pillarGeom = new THREE.CylinderGeometry(0.8, 1.2, 28, 6)
+    const pillarMat = new THREE.MeshStandardMaterial({ color: 0x0f172a, roughness: 0.3, metalness: 0.7 })
+    const capGeom = new THREE.OctahedronGeometry(1.4)
+    const capMat = new THREE.MeshBasicMaterial({ color: 0x38bdf8, wireframe: false, transparent: true, opacity: 0.85 })
+    const pillarEdges = new THREE.EdgesGeometry(pillarGeom)
+    const edgeMat = new THREE.LineBasicMaterial({ color: 0xa5b4fc, transparent: true, opacity: 0.6 })
 
-    // 3. Central Ascending Energy Column
-    const beamGeom = new THREE.CylinderGeometry(0.3, 0.3, 90, 8)
-    const beamMat = new THREE.MeshBasicMaterial({ color: 0x38bdf8, transparent: true, opacity: 0.65 })
+    for (let i = 0; i < 8; i++) {
+      const angle = (i / 8) * 2 * Math.PI
+      const px = P.x + 35 * Math.cos(angle)
+      const pz = P.z + 35 * Math.sin(angle)
+
+      const pillar = new THREE.Mesh(pillarGeom, pillarMat)
+      pillar.position.set(px, P.y + 14, pz)
+      const wire = new THREE.LineSegments(pillarEdges, edgeMat)
+      pillar.add(wire)
+
+      const beacon = new THREE.Mesh(capGeom, capMat)
+      beacon.position.set(0, 15, 0)
+      pillar.add(beacon)
+      cityGroup.add(pillar)
+
+      // Holographic wall panel spanning between adjacent pillars
+      const nextAngle = ((i + 1) / 8) * 2 * Math.PI
+      const npx = P.x + 35 * Math.cos(nextAngle)
+      const npz = P.z + 35 * Math.sin(nextAngle)
+      const midX = (px + npx) / 2
+      const midZ = (pz + npz) / 2
+      const wallLen = Math.hypot(npx - px, npz - pz)
+      const wallGeom = new THREE.PlaneGeometry(wallLen, 24)
+      const wallMat = new THREE.MeshBasicMaterial({
+        color: 0x1e293b,
+        transparent: true,
+        opacity: 0.14,
+        side: THREE.DoubleSide,
+      })
+      const wall = new THREE.Mesh(wallGeom, wallMat)
+      wall.position.set(midX, P.y + 12, midZ)
+      wall.lookAt(P.x, P.y + 12, P.z)
+      cityGroup.add(wall)
+    }
+
+    // 3. Novel Representation of Vectors: Central High-D Embedding Tensor Starburst
+    tensorGroup = new THREE.Group()
+    tensorGroup.position.set(P.x, P.y + 7.5, P.z)
+
+    const coreGeom = new THREE.IcosahedronGeometry(2.2, 1)
+    const coreMat = new THREE.MeshStandardMaterial({
+      color: 0x4f46e5,
+      roughness: 0.3,
+      metalness: 0.7,
+      transparent: true,
+      opacity: 0.88,
+    })
+    const coreMesh = new THREE.Mesh(coreGeom, coreMat)
+    const coreEdges = new THREE.LineSegments(new THREE.EdgesGeometry(coreGeom), new THREE.LineBasicMaterial({ color: 0xc7d2fe }))
+    coreMesh.add(coreEdges)
+    tensorGroup.add(coreMesh)
+
+    // 12 Radiating Vector Quivers in 3D
+    const quivers = generateLatentQuivers(nodeId, 12)
+    quivers.forEach((q) => {
+      const qGroup = new THREE.Group()
+      const arrowLen = 3.5 + q.magnitude * 5.0
+      const shaftLen = arrowLen - 1.0
+
+      // Stem cylinder
+      const shaftGeom = new THREE.CylinderGeometry(0.12, 0.12, shaftLen, 8)
+      shaftGeom.translate(0, shaftLen / 2, 0)
+      const shaftMat = new THREE.MeshBasicMaterial({ color: q.colorHex, transparent: true, opacity: 0.9 })
+      const shaft = new THREE.Mesh(shaftGeom, shaftMat)
+      qGroup.add(shaft)
+
+      // Arrowhead cone
+      const headGeom = new THREE.ConeGeometry(0.42, 1.0, 8)
+      headGeom.translate(0, shaftLen + 0.5, 0)
+      const headMat = new THREE.MeshBasicMaterial({ color: q.colorHex })
+      const head = new THREE.Mesh(headGeom, headMat)
+      qGroup.add(head)
+
+      // Align qGroup to vector direction q.dir
+      const targetDir = new THREE.Vector3(q.dir.x, q.dir.y, q.dir.z).normalize()
+      qGroup.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), targetDir)
+      tensorGroup!.add(qGroup)
+    })
+    cityGroup.add(tensorGroup)
+
+    // 4. Ascending Cosmic Laser Shaft
+    const beamGeom = new THREE.CylinderGeometry(0.35, 0.35, 120, 8)
+    const beamMat = new THREE.MeshBasicMaterial({ color: 0x38bdf8, transparent: true, opacity: 0.55 })
     const beamMesh = new THREE.Mesh(beamGeom, beamMat)
-    beamMesh.position.set(P.x, P.y + 45, P.z)
+    beamMesh.position.set(P.x, P.y + 60, P.z)
     cityGroup.add(beamMesh)
 
-    // 4. Skyscrapers representing SPO relations
+    // 5. Novel Representation of Scalars: Dirichlet Topological Energy Pool
+    const rippleGeom = new THREE.RingGeometry(0.5, 6.5, 32)
+    const rippleMat = new THREE.MeshBasicMaterial({ color: 0x06b6d4, side: THREE.DoubleSide, transparent: true, opacity: 0.4 })
+    rippleDisc = new THREE.Mesh(rippleGeom, rippleMat)
+    rippleDisc.rotation.x = Math.PI / 2
+    rippleDisc.position.set(P.x, P.y + 0.05, P.z)
+    cityGroup.add(rippleDisc)
+
+    // 6. Novel Representation of Scalars: Degree Centrality Obelisk (East quadrant)
+    const tierInfo = computeQuantileTier(n.degree, currentNodes.length)
+    const obeliskX = P.x + 16
+    const obeliskZ = P.z + 10
+    const obeliskGroup = new THREE.Group()
+    obeliskGroup.position.set(obeliskX, P.y, obeliskZ)
+
+    const tierCount = 4
+    const tierHeight = tierInfo.height / tierCount
+    for (let t = 0; t < tierCount; t++) {
+      const bottomW = 3.6 - t * 0.6
+      const topW = bottomW - 0.5
+      const tGeom = new THREE.BoxGeometry(topW, tierHeight, topW)
+      const tColor = t < tierInfo.tier ? 0x818cf8 : 0x334155
+      const tMat = new THREE.MeshStandardMaterial({ color: tColor, roughness: 0.3, metalness: 0.6 })
+      const tMesh = new THREE.Mesh(tGeom, tMat)
+      tMesh.position.set(0, t * tierHeight + tierHeight / 2, 0)
+      const tWire = new THREE.LineSegments(new THREE.EdgesGeometry(tGeom), new THREE.LineBasicMaterial({ color: 0xc7d2fe }))
+      tMesh.add(tWire)
+      obeliskGroup.add(tMesh)
+    }
+
+    const crownGeom = new THREE.OctahedronGeometry(1.2)
+    const crownMat = new THREE.MeshBasicMaterial({ color: 0xa855f7 })
+    const crownMesh = new THREE.Mesh(crownGeom, crownMat)
+    crownMesh.position.set(0, tierInfo.height + 1.8, 0)
+    obeliskGroup.add(crownMesh)
+    cityGroup.add(obeliskGroup)
+
+    // 7. Novel Representation of Scalars: AIS Grounding Gyroscope (West quadrant)
+    const gyroGroup = new THREE.Group()
+    gyroGroup.position.set(P.x - 16, P.y + 6.0, P.z + 10)
+
+    const gyroColor = n.valid === false ? 0xef4444 : n.status === 'candidate' ? 0x6366f1 : 0x10b981
+    const gyroMat = new THREE.MeshBasicMaterial({ color: gyroColor, wireframe: true })
+
+    const ringOutGeom = new THREE.TorusGeometry(3.2, 0.15, 8, 32)
+    gyroOuter = new THREE.Mesh(ringOutGeom, gyroMat)
+    gyroGroup.add(gyroOuter)
+
+    const ringInGeom = new THREE.TorusGeometry(2.2, 0.15, 8, 32)
+    gyroInner = new THREE.Mesh(ringInGeom, new THREE.MeshBasicMaterial({ color: 0x38bdf8, wireframe: true }))
+    gyroGroup.add(gyroInner)
+
+    const seedGeom = new THREE.SphereGeometry(0.8, 16, 16)
+    const seedMesh = new THREE.Mesh(seedGeom, new THREE.MeshStandardMaterial({ color: gyroColor, roughness: 0.2, metalness: 0.8 }))
+    gyroGroup.add(seedMesh)
+    cityGroup.add(gyroGroup)
+
+    // 8. Novel Representation of Vectors: Directional Spatial Portals (SPO Gateways)
     const incident = currentEdges.filter((e) => e.source === nodeId || e.target === nodeId)
     const count = Math.max(1, incident.length)
 
     incident.forEach((edge, idx) => {
       const angle = (idx / count) * 2 * Math.PI
-      const ringRadius = 14 + (idx % 2) * 8
-      const h = 8 + (edge.similarity ? edge.similarity * 18 : (idx * 3) % 15 + 6)
-      const bx = P.x + ringRadius * Math.cos(angle)
-      const bz = P.z + ringRadius * Math.sin(angle)
-      const by = P.y + h / 2
+      const portalDist = 31
+      const bx = P.x + portalDist * Math.cos(angle)
+      const bz = P.z + portalDist * Math.sin(angle)
+      const portalGroup = new THREE.Group()
+      portalGroup.position.set(bx, P.y, bz)
+      portalGroup.lookAt(P.x, P.y, P.z)
 
-      let color = 0x6366f1
+      let portalColor = 0x6366f1
       const pred = (edge.predicate || edge.type || '').toLowerCase()
-      if (pred.includes('target') || pred.includes('activat') || pred.includes('induce')) color = 0x10b981
-      else if (pred.includes('inhibit') || pred.includes('block') || pred.includes('downreg')) color = 0xf59e0b
-      else if (pred.includes('assoc') || pred.includes('disease') || pred.includes('biomarker')) color = 0xa855f7
-      else if (pred.includes('ground') || pred.includes('area') || pred.includes('project')) color = 0x38bdf8
+      if (pred.includes('target') || pred.includes('activat') || pred.includes('induce') || pred.includes('cause')) portalColor = 0x10b981
+      else if (pred.includes('inhibit') || pred.includes('block') || pred.includes('dispute') || pred.includes('contradict')) portalColor = 0xf59e0b
+      else if (pred.includes('assoc') || pred.includes('disease') || pred.includes('similar') || pred.includes('correlat')) portalColor = 0xa855f7
+      else if (pred.includes('ground') || pred.includes('part') || pred.includes('session') || pred.includes('merkle')) portalColor = 0x06b6d4
 
-      const bGeom = new THREE.BoxGeometry(2.6, h, 2.6)
-      const bMat = new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.8 })
-      const bMesh = new THREE.Mesh(bGeom, bMat)
-      bMesh.position.set(bx, by, bz)
+      const archGeom = new THREE.TorusGeometry(3.2, 0.3, 8, 24, Math.PI)
+      const archMat = new THREE.MeshStandardMaterial({ color: portalColor, roughness: 0.3, metalness: 0.7 })
+      const archMesh = new THREE.Mesh(archGeom, archMat)
+      archMesh.position.set(0, 3.2, 0)
+      portalGroup.add(archMesh)
 
-      const wireframe = new THREE.LineSegments(new THREE.EdgesGeometry(bGeom), new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.7 }))
-      bMesh.add(wireframe)
-      cityGroup.add(bMesh)
+      const postGeom = new THREE.CylinderGeometry(0.3, 0.3, 3.2, 8)
+      const postMat = new THREE.MeshStandardMaterial({ color: portalColor, roughness: 0.3, metalness: 0.7 })
+      const leftPost = new THREE.Mesh(postGeom, postMat)
+      leftPost.position.set(-3.2, 1.6, 0)
+      portalGroup.add(leftPost)
+      const rightPost = new THREE.Mesh(postGeom, postMat)
+      rightPost.position.set(3.2, 1.6, 0)
+      portalGroup.add(rightPost)
 
-      // Ground luminous avenue to skyscraper
-      const aveGeom = new THREE.BufferGeometry().setFromPoints([
-        new THREE.Vector3(P.x, P.y, P.z),
-        new THREE.Vector3(bx, P.y, bz),
+      const horizonGeom = new THREE.CircleGeometry(2.9, 24)
+      const horizonMat = new THREE.MeshBasicMaterial({ color: portalColor, transparent: true, opacity: 0.35, side: THREE.DoubleSide })
+      const horizon = new THREE.Mesh(horizonGeom, horizonMat)
+      horizon.position.set(0, 2.9, 0)
+      portalGroup.add(horizon)
+
+      const predBeaconGeom = new THREE.OctahedronGeometry(0.7)
+      const predBeacon = new THREE.Mesh(predBeaconGeom, new THREE.MeshBasicMaterial({ color: 0xffffff }))
+      predBeacon.position.set(0, 7.2, 0)
+      portalGroup.add(predBeacon)
+
+      cityGroup.add(portalGroup)
+
+      const conduitGeom = new THREE.BufferGeometry().setFromPoints([
+        new THREE.Vector3(P.x, P.y + 0.04, P.z),
+        new THREE.Vector3(bx, P.y + 0.04, bz),
       ])
-      const aveLine = new THREE.Line(aveGeom, new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.5 }))
-      cityGroup.add(aveLine)
+      const conduitLine = new THREE.Line(conduitGeom, new THREE.LineBasicMaterial({ color: portalColor, transparent: true, opacity: 0.65 }))
+      cityGroup.add(conduitLine)
     })
   }
 
@@ -812,17 +1155,17 @@ function createEngine(
     cityGroup.visible = true
 
     const targetPos = new THREE.Vector3(n.x, n.y, n.z)
-    const destCamPos = targetPos.clone().add(new THREE.Vector3(0, 14, 28))
+    const destCamPos = targetPos.clone().add(new THREE.Vector3(0, 11, 24))
 
     diveTween = {
       fromPos: camera.position.clone(),
       toPos: destCamPos,
       fromTarget: controls.target.clone(),
-      toTarget: targetPos.clone().add(new THREE.Vector3(0, 3, 0)),
+      toTarget: targetPos.clone().add(new THREE.Vector3(0, 6, 0)),
       fromFov: camera.fov,
       toFov: 58,
       start: performance.now(),
-      ms: 1300,
+      ms: 1200,
       isExit: false,
     }
     userMoved = true
@@ -962,6 +1305,25 @@ function createEngine(
       if (k >= 1) tween = null
       dirty = true
     }
+    if (insideNodeId && cityGroup.visible) {
+      if (tensorGroup) {
+        tensorGroup.rotation.y += 0.007
+        tensorGroup.rotation.x += 0.003
+      }
+      if (gyroOuter) {
+        gyroOuter.rotation.x += 0.012
+        gyroOuter.rotation.y += 0.005
+      }
+      if (gyroInner) {
+        gyroInner.rotation.z += 0.016
+        gyroInner.rotation.x += 0.006
+      }
+      if (rippleDisc) {
+        const s = 1 + 0.12 * Math.sin(now * 0.003)
+        rippleDisc.scale.set(s, s, 1)
+      }
+      dirty = true
+    }
     if (dirty) {
       dirty = false
       if (cameraMoved) { cameraMoved = false; applyScreenFloor(); updateLinkPositions() }
@@ -1090,6 +1452,13 @@ function createEngine(
     },
     enterCity(id) { enterCity(id) },
     exitCity() { exitCity() },
+    orbit(dTheta, dPhi) { orbit(dTheta, dPhi) },
+    pan(dx, dy) { pan(dx, dy) },
+    elevate(dy) { elevate(dy) },
+    dolly(dz) { dolly(dz) },
+    setPresetAngle(preset) { setPresetAngle(preset) },
+    cycleNode(direction) { return cycleNode(direction) },
+    aimRoomTarget(target) { aimRoomTarget(target) },
     dispose() {
       cancelAnimationFrame(raf)
       ro.disconnect()
@@ -1172,6 +1541,13 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D({ nodes
       unpinAll: () => engineRef.current?.unpinAll(),
       enterCity: (id) => engineRef.current?.enterCity(id),
       exitCity: () => engineRef.current?.exitCity(),
+      orbit: (dTheta, dPhi) => engineRef.current?.orbit(dTheta, dPhi),
+      pan: (dx, dy) => engineRef.current?.pan(dx, dy),
+      elevate: (dy) => engineRef.current?.elevate(dy),
+      dolly: (dz) => engineRef.current?.dolly(dz),
+      setPresetAngle: (preset) => engineRef.current?.setPresetAngle(preset),
+      cycleNode: (dir) => engineRef.current?.cycleNode(dir) ?? null,
+      aimRoomTarget: (target) => engineRef.current?.aimRoomTarget(target),
     }),
     [],
   )

@@ -58,10 +58,42 @@ The Console includes a full analytical mathematics engine (`/api/graph/math` and
 - **Spectral Graph Theory & Graph Laplacian ($L = D - A$):** Eigenvalue spectra, algebraic connectivity (Fiedler value $\lambda_2$), and connected component clustering.
 - **Centrality Leaderboards:** Degree Centrality, Betweenness Centrality, and Eigenvector Centrality identifying influential hubs and structural bottlenecks.
 
-### 4. 3D Lattice Grid Snapping, Zen Mode & City Reentry
-- **3D Lattice Snapping:** Discrete spatial snapping of graph nodes to coordinate cells, ensuring structural clarity.
-- **Zen Immersion Mode:** One-key toggle (`Z`) that collapses all chrome, rails, and inspectors for pure graph visualization.
-- **City Reentry Flight HUD:** Double-click on any node to zoom from orbital space directly into the node's inner Metropolis, inspecting tabular properties and connected facets at ground level.
+### 4. 3D Lattice Grid Snapping, Zen Flight Mode & Camera Presets
+- **3D Lattice Snapping:** Discrete spatial snapping of graph nodes to coordinate cells, ensuring structural clarity and consistent topology.
+- **Zen Flight Mode:** One-key toggle (`Z`) that collapses all chrome, rails, and inspectors for pure graph immersion with 3D flight controls:
+  - **Full Flight Controls:** `W` / `S` for Pitch, `A` / `D` for Yaw, `Q` / `E` for Roll, and `Space` / `Shift` for vertical elevation thrust.
+  - **D-Pad HUD & Velocity Control:** On-screen touch/mouse flight HUD with real-time yaw/pitch/roll dials, step-dampened motion, and keyboard shortcuts cheatsheet (`?`).
+  - **Orthographic & Isometric Presets:** Instant camera reorientation via keyboard hotkeys:
+    - `1` / **ISO:** Isometric angled perspective
+    - `2` / **TOP:** Planar overhead bird's-eye projection
+    - `3` / **FRONT:** Coronal front elevation view
+    - `4` / **SIDE:** Sagittal lateral profile view
+
+### 5. Inner Sanctum Node Room: Novel Spatial & Mathematical Forms
+Double-clicking or focusing any node transitions from orbital graph space into an octagonal spatial chamber—representing node properties and mathematical primitives in novel spatial forms:
+- **Starburst Quiver Vector Field:** High-dimensional node vectors and embeddings are rendered as a 3D spherical quiver of radiating coordinate arrows. Hovering over individual arrows isolates coordinate values, magnitude, and vector divergence.
+- **Degree Centrality Obelisk:** A 4-tier monolithic pillar visualizing connectivity, in/out degrees, and network centrality with glowing tier rings and gradient status.
+- **AIS Gyroscope:** A dual-gimbal floating gyroscope visualizing the four Agent Integrity Score (AIS) invariants—Grounding, Compliance, Sunk Sacrifice, and Topological Entropy—with dynamic angular precession reflecting composite score integrity.
+- **Dirichlet Energy Ripple Pool:** A concentric wave pool on the chamber floor measuring graph smoothness and topological harmonic frequency.
+- **Subject-Predicate-Object Portals & ⚡ Warp Traversal:** Hexagonal holographic gateways representing typed outbound and inbound relations (`INHIBITS`, `REGULATES`, `HAS_OBSERVATION`, `TREATS`). Clicking **⚡ Warp** instantly warps the camera through the portal directly into the target entity's Inner Sanctum chamber.
+
+### 6. Healthcare Researcher Latent Space Agent Demo
+Available out-of-the-box to all users across self-hosted and managed editions via the Console workspace selector:
+- **Canonical DID:** `did:integrity:healthcare-researcher-latent-space-01`
+- **138 Verified Clinical Triples:** Real-world Precision Oncology dataset modeling:
+  - Molecular targets & mutations (`EGFR`, `EGFR T790M`, `EGFR Exon 19 Deletion`, `KRAS G12C`)
+  - Targeted therapeutics & resistances (`Osimertinib`, `Gefitinib`, `Sotorasib`)
+  - Diagnostic modalities (`Next-Generation Sequencing`, `ctDNA Liquid Biopsy`)
+  - Adverse toxicities & management (`Grade 3 Interstitial Lung Disease`, `High-Dose Corticosteroids`)
+  - PARA Architecture: Projects (`NSCLC Resistance Mapping`), Areas (`Thoracic Oncology Research`), Resources (`NCCN Guidelines v4.2024`), Archives (`FLAURA Clinical Trial Data`)
+  - Standard Operating Procedures (SOPs): `SOP-ONC-042: Precision Oncology Molecular Tumor Board Review`
+  - Agent MDP Latent States: Discrete Markov Decision Process state spaces and valid action transitions across clinical diagnostic horizons.
+
+### 7. Maximized Knowledge Graph Canvas & Dark Glass Micro-Icons
+The console UI is engineered for maximum screen real estate and zero visual interference:
+- **Slim 34px Header:** Compact titlebar and controls maximizes vertical WebGL viewport area.
+- **Collapsible Margin Rails:** The right ChainRail collapses flush into a sleek margin handle, while Projection controls nest compactly within the left navigation rail.
+- **Dark Glass Micro-Icons:** High-contrast micro-icon buttons (`rgba(11, 15, 25, 0.75)` with `backdrop-filter: blur(12px)`) eliminate canvas washout and protect the visibility of 3D node geometry.
 
 ---
 
@@ -182,12 +214,15 @@ When integrating scientific literature hypotheses with real-world patient record
 | Discovery & Inference | Mechanisms, Predict Links, Repurposing, Ego Subgraph | Mechanisms, Predict Links, Repurposing, Ego Subgraph |
 | AIS Reward Engine | Step & Trajectory evaluation (`/api/discovery/reward/*`) | Step & Trajectory evaluation (`/api/discovery/reward/*`) |
 | Inference Subagent | Session distillation & triple extraction | Session distillation & triple extraction |
+| Memory Subresources | Similar memories, neighbors, events, OTel, Merkle roots (`/api/memory/*`) | Complete subresource parity (`/api/managed/memories/*`) |
+| Clinical Latent Space Demo | Pre-loaded 138 triples (`did:integrity:healthcare-researcher-latent-space-01`) | Pre-loaded 138 triples (`did:integrity:healthcare-researcher-latent-space-01`) |
+| 3D Canvas & Zen Flight | Full 3D WebGL, Zen flight controls, and Inner Sanctum node rooms | Full 3D WebGL, Zen flight controls, and Inner Sanctum node rooms |
 | Billing, plans, quotas | no | Stripe plus per-plan metering (`managed/plans.py`, `managed/control.py`) |
 
 **Pick self-hosted** unless you specifically need multi-tenant hosting with billing. Self-hosted
-is where the whole tool surface, the operator API and the viewer live. The managed edition is a
-narrower product — accounts, API keys, plans, a REST ingest endpoint, graph and timeline reads,
-and export. It is not a hosted copy of the self-hosted feature set.
+is where the local stdio/HTTP MCP surface, operator API, and direct filesystem storage live.
+The managed edition provides multi-tenant hosting with account management, API keys, plans, REST ingestion,
+and complete graph/timeline/subresource parity for browser inspection.
 
 ---
 

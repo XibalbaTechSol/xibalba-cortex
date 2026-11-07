@@ -26,6 +26,12 @@ const PRIMITIVES = [
     body: 'Entity and relationship extraction produces proposals that need an explicit decision before they reach the graph. Accepted proposals pass through the review lifecycle before entering the store.',
     tool: 'memory_claim_inference_task',
   },
+  {
+    icon: <IconGraph />,
+    title: '3D Graph Manifold & Zen Flight',
+    body: 'Navigate knowledge graphs with WASD flight mechanics and camera presets, explore Inner Sanctum node chambers with starburst vector quivers and degree obelisks, and inspect the clinical oncology latent space demo.',
+    tool: 'Zen Flight · Inner Sanctum · Latent Space',
+  },
 ] as const
 
 /** How it runs, stated plainly enough that a reader can check it against the repo. */
@@ -38,8 +44,9 @@ const FACTS = [
 export function Landing({ onSignIn, children, hosted = false }: { onSignIn: () => void; children?: ReactNode; hosted?: boolean }) {
   const primitives = hosted ? [
     PRIMITIVES[0],
-    { icon: <IconSearch />, title: 'Search what your agents recorded', body: 'Find matching memories through bounded lexical search. Each request stays within the authenticated workspace and its monthly allowance.', tool: 'GET /api/managed/memories' },
+    { icon: <IconSearch />, title: 'Search what your agents recorded', body: 'Find matching memories through bounded lexical and similarity search. Each request stays within the authenticated workspace and its monthly allowance.', tool: 'GET /api/managed/memories' },
     { icon: <IconLock />, title: 'An isolated workspace', body: 'Each customer has a separate memory store. Workspace-scoped API keys connect agents without granting access to billing or other customers’ memories.', tool: 'Workspace-scoped access' },
+    PRIMITIVES[3],
   ] : PRIMITIVES
   const facts = hosted ? [
     ['Storage', 'A separate persistent memory store for each workspace.'],

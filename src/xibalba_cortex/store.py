@@ -7102,21 +7102,189 @@ class GraphStore:
         )
         return result.to_dict()
 
-    def seed_sample_knowledge_graph(self, force: bool = False, dataset: str = "biomedical") -> dict[str, object]:
+    def seed_sample_knowledge_graph(
+        self, force: bool = False, dataset: str = "healthcare_researcher", agent_id: str | None = None
+    ) -> dict[str, object]:
         """Seed a rich, interconnected sample knowledge graph for research and navigation.
         
         Supported datasets:
+        - 'healthcare_researcher': Huge clinical latent space navigation graph (Precision Oncology, Kinases, SOPs, PARA, CTCAE, and MDP transitions).
         - 'biomedical': Oncology, kinase inhibition pathways, and clinical trial entities.
         - 'action_space': Agent Action Space (Navigational MDP, BCC gating, tool choices, and slashing).
-        - 'all': Both biomedical pathways and agent action space unified into one manifold.
+        - 'all': All domains unified into one manifold.
         """
+        effective_agent_id = agent_id or ("demo-healthcare-researcher" if dataset == "healthcare_researcher" else None)
         with self._lock:
             if not force:
-                count = self._connection.execute("SELECT COUNT(*) FROM entities").fetchone()[0]
+                if effective_agent_id:
+                    count = self._connection.execute(
+                        "SELECT COUNT(*) FROM sources WHERE agent_id = ?", (effective_agent_id,)
+                    ).fetchone()[0]
+                else:
+                    count = self._connection.execute("SELECT COUNT(*) FROM entities").fetchone()[0]
                 if count > 0:
-                    return {"seeded": False, "reason": "Store already contains entities", "entities": count, "dataset": dataset}
+                    return {"seeded": False, "reason": "Store already contains entities for this scope", "entities": count, "dataset": dataset}
 
         from .connectors.triples import TriplesConnector
+
+        healthcare_researcher_triples = [
+            # 1. Precision Oncology: Kinase Inhibitors, Resistance Mechanisms, and Indications
+            ("Osimertinib", "inhibits", "EGFR L858R", 0.99),
+            ("Osimertinib", "inhibits", "EGFR T790M", 0.98),
+            ("EGFR T790M", "confers_resistance_to", "Erlotinib", 0.97),
+            ("EGFR T790M", "confers_resistance_to", "Gefitinib", 0.96),
+            ("EGFR C797S", "confers_resistance_to", "Osimertinib", 0.98),
+            ("Amivantamab + Lazertinib", "overcomes", "EGFR C797S", 0.94),
+            ("EGFR L858R", "oncogenic_driver_in", "Stage IV Non-Small Cell Lung Cancer", 0.99),
+            ("Osimertinib", "first_line_therapy_for", "Stage IV Non-Small Cell Lung Cancer", 0.99),
+            ("Sotorasib", "covalently_inhibits", "KRAS G12C (GDP-bound)", 0.98),
+            ("Adagrasib", "covalently_inhibits", "KRAS G12C (GDP-bound)", 0.97),
+            ("KRAS G12C (GDP-bound)", "oncogenic_driver_in", "Stage IV Non-Small Cell Lung Cancer", 0.98),
+            ("KRAS G12C (GDP-bound)", "oncogenic_driver_in", "Metastatic Colorectal Cancer", 0.95),
+            ("KRAS G12D", "targeted_by", "MRTX1133 (Investigational Inhibitor)", 0.91),
+            ("KRAS G12D", "associated_with", "Pancreatic Ductal Adenocarcinoma", 0.97),
+            ("Dabrafenib", "selectively_inhibits", "BRAF V600E", 0.99),
+            ("Trametinib", "allosterically_inhibits", "MEK1/2 Kinase", 0.98),
+            ("Dabrafenib + Trametinib Combination", "induces_synthetic_lethality_in", "BRAF V600E Cutaneous Melanoma", 0.99),
+            ("Dabrafenib + Trametinib Combination", "indicated_for", "BRAF-Mutant Anaplastic Thyroid Cancer", 0.96),
+            ("Larotrectinib", "pan_inhibits", "NTRK1/2/3 Fusion Kinases", 0.99),
+            ("Entrectinib", "pan_inhibits", "NTRK1/2/3 Fusion Kinases", 0.98),
+            ("NTRK1/2/3 Fusion Kinases", "oncogenic_driver_in", "Secretory Breast Carcinoma", 0.96),
+            ("NTRK1/2/3 Fusion Kinases", "oncogenic_driver_in", "Infantile Fibrosarcoma", 0.97),
+            ("Larotrectinib", "approved_for", "Tissue-Agnostic Solid Tumors (NTRK+)", 0.99),
+            ("Capmatinib", "selectively_inhibits", "MET Exon 14 Skipping Mutation", 0.98),
+            ("Tepotinib", "selectively_inhibits", "MET Exon 14 Skipping Mutation", 0.97),
+            ("MET Exon 14 Skipping Mutation", "associated_with", "Pleomorphic Non-Small Cell Lung Cancer", 0.96),
+            ("Selpercatinib", "selectively_inhibits", "RET M918T / RET Fusions", 0.98),
+            ("Pralsetinib", "selectively_inhibits", "RET M918T / RET Fusions", 0.97),
+            ("RET M918T / RET Fusions", "associated_with", "Medullary Thyroid Carcinoma", 0.98),
+            ("RET M918T / RET Fusions", "associated_with", "Stage IV Non-Small Cell Lung Cancer", 0.94),
+            ("Palbociclib", "selectively_inhibits", "CDK4/6 Cyclin-Dependent Kinases", 0.98),
+            ("Ribociclib", "selectively_inhibits", "CDK4/6 Cyclin-Dependent Kinases", 0.98),
+            ("CDK4/6 Cyclin-Dependent Kinases", "phosphorylate", "Retinoblastoma Protein (Rb)", 0.97),
+            ("Palbociclib", "indicated_for", "HR-Positive / HER2-Negative Metastatic Breast Cancer", 0.99),
+
+            # 2. Antibody-Drug Conjugates (ADCs) & Immuno-Oncology
+            ("Trastuzumab Deruxtecan (T-DXd)", "delivers_topoisomerase_I_inhibitor_to", "HER2/neu Overexpressing Cells", 0.99),
+            ("HER2/neu Overexpressing Cells", "associated_with", "HER2-Positive Breast Cancer", 0.99),
+            ("HER2/neu Overexpressing Cells", "associated_with", "HER2-Low Metastatic Breast Cancer", 0.95),
+            ("Trastuzumab Deruxtecan (T-DXd)", "indicated_for", "HER2-Low Metastatic Breast Cancer", 0.98),
+            ("Trastuzumab Deruxtecan (T-DXd)", "indicated_for", "HER2-Mutant NSCLC", 0.94),
+            ("Sacituzumab Govitecan", "delivers_sn38_payload_to", "Trop-2 (TROP2/TACSTD2)", 0.98),
+            ("Trop-2 (TROP2/TACSTD2)", "overexpressed_in", "Triple-Negative Breast Cancer (TNBC)", 0.97),
+            ("Trop-2 (TROP2/TACSTD2)", "overexpressed_in", "Metastatic Urothelial Carcinoma", 0.95),
+            ("Sacituzumab Govitecan", "indicated_for", "Triple-Negative Breast Cancer (TNBC)", 0.98),
+            ("Olaparib", "traps", "PARP1/2 Enzymes", 0.98),
+            ("PARP1/2 Enzymes", "repair", "Single-Strand DNA Breaks", 0.96),
+            ("BRCA1/2 Inactivating Mutations", "impair", "Homologous Recombination Repair", 0.99),
+            ("Homologous Recombination Repair", "prevents", "Homologous Recombination Deficiency (HRD)", 0.98),
+            ("Olaparib", "induces_synthetic_lethality_in", "HRD-Positive Advanced Ovarian Serous Carcinoma", 0.99),
+            ("Olaparib", "indicated_for", "BRCA-Mutated Metastatic Castration-Resistant Prostate Cancer", 0.97),
+            ("Pembrolizumab", "binds_and_blocks", "PD-1 Receptor (PDCD1)", 0.99),
+            ("Nivolumab", "binds_and_blocks", "PD-1 Receptor (PDCD1)", 0.99),
+            ("Ipilimumab", "binds_and_blocks", "CTLA-4 Receptor (CD152)", 0.98),
+            ("PD-1 Receptor (PDCD1)", "downregulates", "CD8+ Cytotoxic T-Lymphocyte Activation", 0.97),
+            ("CD8+ Cytotoxic T-Lymphocyte Activation", "induces", "Tumor Cell Apoptosis", 0.98),
+            ("Pembrolizumab", "correlated_with", "PD-L1 Tumor Proportion Score (TPS >= 50%)", 0.95),
+            ("Pembrolizumab", "indicated_for", "MSI-H / dMMR Refractory Solid Tumors", 0.99),
+            ("Pembrolizumab", "indicated_for", "TMB-High (>=10 mut/Mb) Solid Tumors", 0.97),
+            ("Nivolumab + Ipilimumab Combination", "indicated_for", "Advanced Clear Cell Renal Cell Carcinoma", 0.98),
+            ("Nivolumab + Ipilimumab Combination", "indicated_for", "Unresectable Malignant Pleural Mesothelioma", 0.95),
+
+            # 3. Clinical Diagnostics, Biomarkers & Pharmacogenomics
+            ("Liquid Biopsy ctDNA NGS Panel", "detects", "EGFR C797S", 0.98),
+            ("Liquid Biopsy ctDNA NGS Panel", "detects", "KRAS G12C (GDP-bound)", 0.97),
+            ("FoundationOne CDx Comprehensive Panel", "quantifies", "Tumor Mutational Burden (TMB)", 0.99),
+            ("FoundationOne CDx Comprehensive Panel", "detects", "Microsatellite Instability (MSI)", 0.99),
+            ("PD-L1 22C3 IHC Diagnostic Assay", "measures", "PD-L1 Tumor Proportion Score (TPS >= 50%)", 0.98),
+            ("DPYD *2A / *13 Variant Testing", "predicts_severe_toxicity_from", "5-Fluorouracil (5-FU) & Capecitabine", 0.99),
+            ("TPMT & NUDT15 Genotyping", "prevents_fatal_myelosuppression_from", "6-Mercaptopurine (6-MP)", 0.98),
+
+            # 4. Adverse Drug Events, Toxicities & Pharmacovigilance
+            ("Osimertinib", "risk_of", "Drug-Induced Interstitial Lung Disease (ILD)", 0.93),
+            ("Osimertinib", "risk_of", "QTc Interval Prolongation", 0.91),
+            ("Trastuzumab Deruxtecan (T-DXd)", "risk_of", "Drug-Induced Interstitial Lung Disease (ILD)", 0.95),
+            ("Trametinib", "risk_of", "Left Ventricular Ejection Fraction (LVEF) Decline", 0.92),
+            ("Palbociclib", "risk_of", "Grade 3/4 Febrile Neutropenia", 0.94),
+            ("Sacituzumab Govitecan", "risk_of", "Grade 3/4 Febrile Neutropenia", 0.93),
+            ("Immune Checkpoint Blockade", "risk_of", "irAE Autoimmune Hypophysitis", 0.91),
+            ("Immune Checkpoint Blockade", "risk_of", "irAE Severe Enterocolitis", 0.94),
+            ("Sotorasib", "risk_of", "Hepatotoxicity (ALT/AST Elevation)", 0.90),
+
+            # 5. Standard Operating Procedures (SOP Hierarchy)
+            ("SOP: AMP/ASCO/CAP Somatic Variant Clinical Tiering", "classifies", "Tier I: Strong Clinical Significance (FDA/Guidelines)", 1.0),
+            ("SOP: AMP/ASCO/CAP Somatic Variant Clinical Tiering", "classifies", "Tier II: Potential Clinical Significance (Investigational)", 1.0),
+            ("SOP: AMP/ASCO/CAP Somatic Variant Clinical Tiering", "classifies", "Tier III: Uncertain Clinical Significance (VUS)", 1.0),
+            ("SOP: AMP/ASCO/CAP Somatic Variant Clinical Tiering", "classifies", "Tier IV: Benign or Likely Benign Variants", 1.0),
+            ("Tier I: Strong Clinical Significance (FDA/Guidelines)", "includes", "EGFR L858R", 0.99),
+            ("Tier I: Strong Clinical Significance (FDA/Guidelines)", "includes", "BRAF V600E", 0.99),
+            ("Tier I: Strong Clinical Significance (FDA/Guidelines)", "includes", "KRAS G12C (GDP-bound)", 0.98),
+            ("Tier II: Potential Clinical Significance (Investigational)", "includes", "KRAS G12D", 0.92),
+            ("SOP: CTCAE v5.0 Immune Adverse Event Escalation Protocol", "governs", "Grade 1: Mild / Asymptomatic (Observation)", 1.0),
+            ("SOP: CTCAE v5.0 Immune Adverse Event Escalation Protocol", "governs", "Grade 2: Moderate (Withhold Drug & 1mg/kg Prednisone)", 1.0),
+            ("SOP: CTCAE v5.0 Immune Adverse Event Escalation Protocol", "governs", "Grade 3/4: Severe (Permanently Discontinue & High-Dose Methylprednisolone)", 1.0),
+            ("Grade 3/4: Severe (Permanently Discontinue & High-Dose Methylprednisolone)", "triggered_by", "Drug-Induced Interstitial Lung Disease (ILD)", 0.99),
+            ("Grade 3/4: Severe (Permanently Discontinue & High-Dose Methylprednisolone)", "triggered_by", "irAE Severe Enterocolitis", 0.97),
+            ("SOP: HIPAA Safe Harbor PHI De-Identification & 18-Identifier Masking", "mandates", "Deterministic Salted HMAC MRN Tokenization", 1.0),
+            ("SOP: HIPAA Safe Harbor PHI De-Identification & 18-Identifier Masking", "mandates", "Zero-Knowledge FHIR Clinical Bundle Encryption", 1.0),
+            ("SOP: Molecular Tumor Board Consensus & Actionability Ranking", "mandates", "OncoKB Level 1 Therapeutic Recommendation Protocol", 1.0),
+            ("SOP: Molecular Tumor Board Consensus & Actionability Ranking", "requires", "Dual-Oncologist Independent Sign-off Attestation", 1.0),
+            ("SOP: Phase I/II Precision Basket Trial Eligibility Screening", "evaluates", "Genomic Locus & Variant Inclusion Matching Criteria", 1.0),
+            ("SOP: Phase I/II Precision Basket Trial Eligibility Screening", "requires", "ECOG Performance Status <= 1 & Organ Reserve Verification", 1.0),
+            ("SOP: Dual-Witness Merkle Anchoring of Diagnostic Records", "commits", "SHA-256 State Root Commitment to L2 Ledger", 1.0),
+            ("SOP: Dual-Witness Merkle Anchoring of Diagnostic Records", "requires", "Ed25519 Cryptographic Witness Attestation Signature", 1.0),
+
+            # 6. Complete PARA Knowledge Architecture
+            ("Project: Pan-Cancer Kinome Manifold Discovery", "belongs_to_para_area", "Area: Precision Oncology & Genomic Medicine", 1.0),
+            ("Project: Liquid Biopsy ctDNA Early Resistance Tracking", "belongs_to_para_area", "Area: Precision Oncology & Genomic Medicine", 1.0),
+            ("Project: Cryptographic FHIR R4 Diagnostic Bundle Exchange", "belongs_to_para_area", "Area: PHI Enclave Cryptographic Shielding", 1.0),
+            ("Project: Pharmacovigilance Real-Time Sentinel Engine", "belongs_to_para_area", "Area: Pharmacovigilance & Drug Safety Monitoring", 1.0),
+            ("Project: Molecular Tumor Board Decision Support Assistant", "belongs_to_para_area", "Area: Clinical Trial Basket Matching Governance", 1.0),
+            ("Area: Precision Oncology & Genomic Medicine", "grounds_knowledge_in", "Resource: Memorial Sloan Kettering OncoKB Knowledgebase", 1.0),
+            ("Area: Precision Oncology & Genomic Medicine", "grounds_knowledge_in", "Resource: NCI Genomic Data Commons (GDC)", 1.0),
+            ("Area: Precision Oncology & Genomic Medicine", "grounds_knowledge_in", "Resource: NCBI ClinVar & dbSNP Variant Catalog", 1.0),
+            ("Area: PHI Enclave Cryptographic Shielding", "grounds_knowledge_in", "Resource: HL7 FHIR R4 Genomics Reporting IG", 1.0),
+            ("Area: Pharmacovigilance & Drug Safety Monitoring", "grounds_knowledge_in", "Resource: MedDRA Pharmacovigilance Dictionary", 1.0),
+            ("Area: Clinical Trial Basket Matching Governance", "grounds_knowledge_in", "Resource: MeSH Controlled Clinical Ontology", 1.0),
+            ("Area: Pharmacovigilance & Drug Safety Monitoring", "cross_references", "Archive: FDA Black Box Warning Precedents & Removals", 1.0),
+            ("Area: Precision Oncology & Genomic Medicine", "cross_references", "Archive: Historical Phase III Chemotherapy Protocols", 1.0),
+            ("Area: Pharmacovigilance & Drug Safety Monitoring", "cross_references", "Archive: 2024 Retrospective Immunotherapy Toxicity Registry", 1.0),
+
+            # 7. Agent Navigational Latent Space (Cognitive MDP & Manifold Transitions)
+            ("Agent: Healthcare Oncological Latent Navigator", "navigates", "Project: Pan-Cancer Kinome Manifold Discovery", 1.0),
+            ("Agent: Healthcare Oncological Latent Navigator", "governed_by", "Policy: Bounded Context Containment (HIPAA BAA Shield)", 1.0),
+            ("Agent: Healthcare Oncological Latent Navigator", "complies_with", "Policy: ASCO Ethical Guardrails on AI Prescribing", 1.0),
+            ("State: Ingesting_Patient_Genomic_Profile", "transitions_to", "State: Projecting_Into_Kinase_Latent_Space", 0.99),
+            ("State: Projecting_Into_Kinase_Latent_Space", "transitions_to", "State: Manifold_Geodesic_Clustering", 0.98),
+            ("State: Manifold_Geodesic_Clustering", "transitions_to", "State: SOP_Variant_Tiering_Evaluation", 0.98),
+            ("State: SOP_Variant_Tiering_Evaluation", "transitions_to", "State: Cross_Referencing_Clinical_Trials", 0.97),
+            ("State: Cross_Referencing_Clinical_Trials", "transitions_to", "State: CTCAE_Toxicity_Safety_Gating", 0.99),
+            ("State: CTCAE_Toxicity_Safety_Gating", "transitions_to", "State: Synthesizing_Treatment_Hypothesis", 0.98),
+            ("State: Synthesizing_Treatment_Hypothesis", "transitions_to", "State: Dual_Witness_Merkle_Verification", 0.99),
+            ("State: Dual_Witness_Merkle_Verification", "transitions_to", "State: Emitting_Actionable_Tumor_Board_Brief", 0.98),
+            ("State: Emitting_Actionable_Tumor_Board_Brief", "transitions_to", "State: Terminal_Clinical_Recommendation", 1.0),
+            ("State: Ingesting_Patient_Genomic_Profile", "executes", "Action: query_tumor_ctdna_variants", 0.99),
+            ("State: Projecting_Into_Kinase_Latent_Space", "executes", "Action: compute_manifold_geodesic_distance", 0.97),
+            ("State: Manifold_Geodesic_Clustering", "executes", "Action: screen_oncogenic_driver_mutations", 0.98),
+            ("State: SOP_Variant_Tiering_Evaluation", "executes", "Action: execute_amp_asco_cap_tiering", 1.0),
+            ("State: Cross_Referencing_Clinical_Trials", "executes", "Action: query_nci_match_clinical_trials", 0.96),
+            ("State: CTCAE_Toxicity_Safety_Gating", "executes", "Action: evaluate_ctcae_pharmacovigilance", 0.99),
+            ("State: Dual_Witness_Merkle_Verification", "executes", "Action: submit_dual_witness_merkle_attestation", 1.0),
+            ("Action: execute_amp_asco_cap_tiering", "earns_reward", "Reward: Clinical_Actionability_Score (+0.95)", 0.99),
+            ("Action: screen_oncogenic_driver_mutations", "earns_reward", "Reward: Synthetic_Lethality_Synergy_Bonus (+0.92)", 0.96),
+            ("Action: evaluate_ctcae_pharmacovigilance", "earns_reward", "Reward: Patient_Specific_Toxicity_Mitigation (+0.96)", 0.98),
+            ("Action: compute_manifold_geodesic_distance", "earns_reward", "Reward: Latent_Manifold_Information_Gain (+0.89)", 0.94),
+            ("Action: submit_dual_witness_merkle_attestation", "earns_reward", "Reward: Dual_Witness_Grounding_Bonus (+0.99)", 1.0),
+            ("Reward: Clinical_Actionability_Score (+0.95)", "compounds_into", "Reward: Total_Healthcare_MDP_Reward", 1.0),
+            ("Reward: Synthetic_Lethality_Synergy_Bonus (+0.92)", "compounds_into", "Reward: Total_Healthcare_MDP_Reward", 1.0),
+            ("Reward: Patient_Specific_Toxicity_Mitigation (+0.96)", "compounds_into", "Reward: Total_Healthcare_MDP_Reward", 1.0),
+            ("Reward: Latent_Manifold_Information_Gain (+0.89)", "compounds_into", "Reward: Total_Healthcare_MDP_Reward", 1.0),
+            ("Reward: Dual_Witness_Grounding_Bonus (+0.99)", "compounds_into", "Reward: Total_Healthcare_MDP_Reward", 1.0),
+            ("State: CTCAE_Toxicity_Safety_Gating", "penalizes_on_breach", "Penalty: Off_Target_Cardiotoxicity_Penalty (-0.85)", 0.95),
+            ("Policy: Bounded Context Containment (HIPAA BAA Shield)", "enforces_slashing", "Penalty: HIPAA_Deidentification_Breach_Slashing (-1.00)", 1.0),
+            ("Penalty: Off_Target_Cardiotoxicity_Penalty (-0.85)", "reduces", "Reward: Total_Healthcare_MDP_Reward", 1.0),
+            ("Penalty: HIPAA_Deidentification_Breach_Slashing (-1.00)", "collapses", "Reward: Total_Healthcare_MDP_Reward", 1.0),
+        ]
 
         biomedical_triples = [
             # Oncology Pathways & Precision Therapeutics
@@ -7182,48 +7350,200 @@ class GraphStore:
 
         if dataset == "action_space":
             triples = action_space_triples
-        elif dataset == "all":
-            triples = biomedical_triples + action_space_triples
-        else:
+        elif dataset == "biomedical":
             triples = biomedical_triples
+        elif dataset == "all":
+            triples = healthcare_researcher_triples + action_space_triples
+        else:
+            triples = healthcare_researcher_triples
+
+        # Auto-pair agent device for demo healthcare researcher agent
+        try:
+            self.pair_agent_device(
+                "demo-healthcare-researcher",
+                "device-healthcare-researcher-demo",
+                display_name="🩺 Healthcare Researcher (Latent Medical Space Demo)",
+            )
+        except Exception:
+            pass
 
         connector = TriplesConnector(self)
         result = connector.ingest_triples(
             triples,
             source_name=f"cortex_sample_graph_{dataset}",
+            agent_id=effective_agent_id,
             shared=True,
         )
 
         entity_type_map = {
+            # Drugs & Therapeutics
             "Imatinib": "drug",
             "Pembrolizumab": "drug",
+            "Nivolumab": "drug",
+            "Ipilimumab": "drug",
+            "Nivolumab + Ipilimumab Combination": "drug",
             "Trastuzumab": "drug",
+            "Trastuzumab Deruxtecan (T-DXd)": "drug",
+            "Sacituzumab Govitecan": "drug",
             "Osimertinib": "drug",
+            "Erlotinib": "drug",
+            "Gefitinib": "drug",
+            "Amivantamab + Lazertinib": "drug",
+            "Sotorasib": "drug",
+            "Adagrasib": "drug",
+            "MRTX1133 (Investigational Inhibitor)": "drug",
+            "Dabrafenib": "drug",
+            "Trametinib": "drug",
+            "Dabrafenib + Trametinib Combination": "drug",
+            "Larotrectinib": "drug",
+            "Entrectinib": "drug",
+            "Capmatinib": "drug",
+            "Tepotinib": "drug",
+            "Selpercatinib": "drug",
+            "Pralsetinib": "drug",
+            "Palbociclib": "drug",
+            "Ribociclib": "drug",
+            "Olaparib": "drug",
+            "5-Fluorouracil (5-FU) & Capecitabine": "drug",
+            "6-Mercaptopurine (6-MP)": "drug",
+
+            # Target Proteins & Mutations
             "BCR-ABL1": "target_protein",
             "c-KIT": "target_protein",
             "PDGFR-alpha": "target_protein",
             "PD-1": "target_protein",
+            "PD-1 Receptor (PDCD1)": "target_protein",
+            "CTLA-4 Receptor (CD152)": "target_protein",
             "HER2/neu": "target_protein",
+            "HER2/neu Overexpressing Cells": "target_protein",
+            "Trop-2 (TROP2/TACSTD2)": "target_protein",
             "EGFR T790M": "target_protein",
+            "EGFR L858R": "target_protein",
+            "EGFR C797S": "target_protein",
+            "KRAS G12C (GDP-bound)": "target_protein",
+            "KRAS G12D": "target_protein",
+            "BRAF V600E": "target_protein",
+            "MEK1/2 Kinase": "target_protein",
+            "NTRK1/2/3 Fusion Kinases": "target_protein",
+            "MET Exon 14 Skipping Mutation": "target_protein",
+            "RET M918T / RET Fusions": "target_protein",
+            "CDK4/6 Cyclin-Dependent Kinases": "target_protein",
+            "Retinoblastoma Protein (Rb)": "target_protein",
+            "PARP1/2 Enzymes": "target_protein",
+            "Single-Strand DNA Breaks": "mutation",
+            "BRCA1/2 Inactivating Mutations": "mutation",
+            "Homologous Recombination Repair": "pathway",
+            "Homologous Recombination Deficiency (HRD)": "biomarker",
             "T-Cell Activation": "pathway",
+            "CD8+ Cytotoxic T-Lymphocyte Activation": "pathway",
             "Tumor Cell Apoptosis": "pathway",
+            "Immune Checkpoint Blockade": "pathway",
+
+            # Diagnostics & Biomarkers
             "PD-L1 Expression": "biomarker",
+            "PD-L1 Tumor Proportion Score (TPS >= 50%)": "biomarker",
+            "Liquid Biopsy ctDNA NGS Panel": "diagnostic_assay",
+            "FoundationOne CDx Comprehensive Panel": "diagnostic_assay",
+            "PD-L1 22C3 IHC Diagnostic Assay": "diagnostic_assay",
+            "DPYD *2A / *13 Variant Testing": "diagnostic_assay",
+            "TPMT & NUDT15 Genotyping": "diagnostic_assay",
+            "Tumor Mutational Burden (TMB)": "biomarker",
+            "Microsatellite Instability (MSI)": "biomarker",
+
+            # Diseases & Indications
             "Chronic Myeloid Leukemia": "disease",
             "Gastrointestinal Stromal Tumor": "disease",
             "Hypereosinophilic Syndrome": "disease",
             "Non-Small Cell Lung Cancer": "disease",
+            "Stage IV Non-Small Cell Lung Cancer": "disease",
             "HER2-Positive Breast Cancer": "disease",
+            "HER2-Low Metastatic Breast Cancer": "disease",
+            "HER2-Mutant NSCLC": "disease",
+            "Triple-Negative Breast Cancer (TNBC)": "disease",
+            "Metastatic Colorectal Cancer": "disease",
+            "Pancreatic Ductal Adenocarcinoma": "disease",
+            "BRAF V600E Cutaneous Melanoma": "disease",
+            "BRAF-Mutant Anaplastic Thyroid Cancer": "disease",
+            "Secretory Breast Carcinoma": "disease",
+            "Infantile Fibrosarcoma": "disease",
+            "Tissue-Agnostic Solid Tumors (NTRK+)": "disease",
+            "Pleomorphic Non-Small Cell Lung Cancer": "disease",
+            "Medullary Thyroid Carcinoma": "disease",
+            "HR-Positive / HER2-Negative Metastatic Breast Cancer": "disease",
+            "Metastatic Urothelial Carcinoma": "disease",
+            "HRD-Positive Advanced Ovarian Serous Carcinoma": "disease",
+            "BRCA-Mutated Metastatic Castration-Resistant Prostate Cancer": "disease",
+            "MSI-H / dMMR Refractory Solid Tumors": "disease",
+            "TMB-High (>=10 mut/Mb) Solid Tumors": "disease",
+            "Advanced Clear Cell Renal Cell Carcinoma": "disease",
+            "Unresectable Malignant Pleural Mesothelioma": "disease",
+
+            # Toxicities & Adverse Drug Events
+            "Drug-Induced Interstitial Lung Disease (ILD)": "adverse_event",
+            "QTc Interval Prolongation": "adverse_event",
+            "Left Ventricular Ejection Fraction (LVEF) Decline": "adverse_event",
+            "Grade 3/4 Febrile Neutropenia": "adverse_event",
+            "irAE Autoimmune Hypophysitis": "adverse_event",
+            "irAE Severe Enterocolitis": "adverse_event",
+            "Hepatotoxicity (ALT/AST Elevation)": "adverse_event",
+
+            # SOP Protocol Hierarchy
+            "SOP: AMP/ASCO/CAP Somatic Variant Clinical Tiering": "sop_protocol",
+            "Tier I: Strong Clinical Significance (FDA/Guidelines)": "sop_tier",
+            "Tier II: Potential Clinical Significance (Investigational)": "sop_tier",
+            "Tier III: Uncertain Clinical Significance (VUS)": "sop_tier",
+            "Tier IV: Benign or Likely Benign Variants": "sop_tier",
+            "SOP: CTCAE v5.0 Immune Adverse Event Escalation Protocol": "sop_protocol",
+            "Grade 1: Mild / Asymptomatic (Observation)": "sop_grade",
+            "Grade 2: Moderate (Withhold Drug & 1mg/kg Prednisone)": "sop_grade",
+            "Grade 3/4: Severe (Permanently Discontinue & High-Dose Methylprednisolone)": "sop_grade",
+            "SOP: HIPAA Safe Harbor PHI De-Identification & 18-Identifier Masking": "sop_protocol",
+            "Deterministic Salted HMAC MRN Tokenization": "sop_procedure",
+            "Zero-Knowledge FHIR Clinical Bundle Encryption": "sop_procedure",
+            "SOP: Molecular Tumor Board Consensus & Actionability Ranking": "sop_protocol",
+            "OncoKB Level 1 Therapeutic Recommendation Protocol": "sop_procedure",
+            "Dual-Oncologist Independent Sign-off Attestation": "sop_procedure",
+            "SOP: Phase I/II Precision Basket Trial Eligibility Screening": "sop_protocol",
+            "Genomic Locus & Variant Inclusion Matching Criteria": "sop_procedure",
+            "ECOG Performance Status <= 1 & Organ Reserve Verification": "sop_procedure",
+            "SOP: Dual-Witness Merkle Anchoring of Diagnostic Records": "sop_protocol",
+            "SHA-256 State Root Commitment to L2 Ledger": "sop_procedure",
+            "Ed25519 Cryptographic Witness Attestation Signature": "sop_procedure",
+
+            # PARA Architecture
             "Project: Clinical Oncology Graph Engine": "para_project",
             "Project: HIPAA Enclave Pilot": "para_project",
+            "Project: Pan-Cancer Kinome Manifold Discovery": "para_project",
+            "Project: Liquid Biopsy ctDNA Early Resistance Tracking": "para_project",
+            "Project: Cryptographic FHIR R4 Diagnostic Bundle Exchange": "para_project",
+            "Project: Pharmacovigilance Real-Time Sentinel Engine": "para_project",
+            "Project: Molecular Tumor Board Decision Support Assistant": "para_project",
             "Area: PHI Cryptographic Shielding": "para_area",
             "Area: Real-Time Intent Containment": "para_area",
+            "Area: Precision Oncology & Genomic Medicine": "para_area",
+            "Area: PHI Enclave Cryptographic Shielding": "para_area",
+            "Area: Pharmacovigilance & Drug Safety Monitoring": "para_area",
+            "Area: Clinical Trial Basket Matching Governance": "para_area",
             "Resource: UMLS & MeSH Biomedical Ontologies": "para_resource",
             "Resource: HL7 FHIR R4 Clinical Bundles": "para_resource",
+            "Resource: Memorial Sloan Kettering OncoKB Knowledgebase": "para_resource",
+            "Resource: NCI Genomic Data Commons (GDC)": "para_resource",
+            "Resource: NCBI ClinVar & dbSNP Variant Catalog": "para_resource",
+            "Resource: HL7 FHIR R4 Genomics Reporting IG": "para_resource",
+            "Resource: MedDRA Pharmacovigilance Dictionary": "para_resource",
+            "Resource: MeSH Controlled Clinical Ontology": "para_resource",
             "Archive: 2025 Pilot Phase Trials": "para_archive",
             "Archive: Pre-BCC Safety Benchmarks": "para_archive",
+            "Archive: FDA Black Box Warning Precedents & Removals": "para_archive",
+            "Archive: Historical Phase III Chemotherapy Protocols": "para_archive",
+            "Archive: 2024 Retrospective Immunotherapy Toxicity Registry": "para_archive",
+
+            # Agent, Policies & MDP Action Space
             "Agent: Xibalba Navigational Reasoner": "agent_actor",
+            "Agent: Healthcare Oncological Latent Navigator": "agent_actor",
             "Policy: Bounded Context Containment": "security_policy",
-            # Action space entity types
+            "Policy: Bounded Context Containment (HIPAA BAA Shield)": "security_policy",
+            "Policy: ASCO Ethical Guardrails on AI Prescribing": "security_policy",
             "State: Agent_Idle": "agent_state",
             "State: Observing_Environment": "agent_state",
             "State: Context_Assembled": "agent_state",
@@ -7235,6 +7555,16 @@ class GraphStore:
             "State: Policy_Breach_Quarantine": "agent_state",
             "State: Programmatic_Slashing": "agent_state",
             "State: Goal_Satisfied_Terminal": "agent_state",
+            "State: Ingesting_Patient_Genomic_Profile": "agent_state",
+            "State: Projecting_Into_Kinase_Latent_Space": "agent_state",
+            "State: Manifold_Geodesic_Clustering": "agent_state",
+            "State: SOP_Variant_Tiering_Evaluation": "agent_state",
+            "State: Cross_Referencing_Clinical_Trials": "agent_state",
+            "State: CTCAE_Toxicity_Safety_Gating": "agent_state",
+            "State: Synthesizing_Treatment_Hypothesis": "agent_state",
+            "State: Dual_Witness_Merkle_Verification": "agent_state",
+            "State: Emitting_Actionable_Tumor_Board_Brief": "agent_state",
+            "State: Terminal_Clinical_Recommendation": "agent_state",
             "Action: memory_search": "agent_action",
             "Action: kge_link_prediction": "agent_action",
             "Action: fhir_clinical_query": "agent_action",
@@ -7242,11 +7572,26 @@ class GraphStore:
             "Action: l2_merkle_commit": "agent_action",
             "Action: unauthorized_phi_leak": "agent_action",
             "Action: ebpf_kernel_contain": "agent_action",
+            "Action: query_tumor_ctdna_variants": "agent_action",
+            "Action: compute_manifold_geodesic_distance": "agent_action",
+            "Action: screen_oncogenic_driver_mutations": "agent_action",
+            "Action: execute_amp_asco_cap_tiering": "agent_action",
+            "Action: query_nci_match_clinical_trials": "agent_action",
+            "Action: evaluate_ctcae_pharmacovigilance": "agent_action",
+            "Action: submit_dual_witness_merkle_attestation": "agent_action",
             "Reward: AIS_Grounding_Bonus": "reward_metric",
             "Reward: AIS_Entropy_Bonus": "reward_metric",
             "Reward: AIS_Energy_Sacrifice": "reward_metric",
             "Penalty: 50%_Bond_Slashing": "slashing_penalty",
             "Reward: Total_MDP_Reward": "reward_metric",
+            "Reward: Clinical_Actionability_Score (+0.95)": "reward_metric",
+            "Reward: Synthetic_Lethality_Synergy_Bonus (+0.92)": "reward_metric",
+            "Reward: Patient_Specific_Toxicity_Mitigation (+0.96)": "reward_metric",
+            "Reward: Latent_Manifold_Information_Gain (+0.89)": "reward_metric",
+            "Reward: Dual_Witness_Grounding_Bonus (+0.99)": "reward_metric",
+            "Penalty: Off_Target_Cardiotoxicity_Penalty (-0.85)": "slashing_penalty",
+            "Penalty: HIPAA_Deidentification_Breach_Slashing (-1.00)": "slashing_penalty",
+            "Reward: Total_Healthcare_MDP_Reward": "reward_metric",
         }
 
         with self._lock:

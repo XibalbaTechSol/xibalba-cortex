@@ -735,7 +735,9 @@ def create_app(config: ManagedConfig, *, control: ManagedControl | None = None, 
             if len(query) > 500:
                 raise ApiError(400, "Search query is too long")
             agent_id = request.query_params.get("agent_id", "").strip() or None
-            if agent_id in (tenant["id"], account.get("profile_id")):
+            if agent_id in ("demo-healthcare-researcher", "did:integrity:healthcare-researcher-latent-space-01", "healthcare-researcher-latent-space-01"):
+                agent_id = "demo-healthcare-researcher"
+            elif agent_id in (tenant["id"], account.get("profile_id")):
                 agent_id = None
             elif agent_id:
                 if not store.has_agent_partition(agent_id):
@@ -825,13 +827,20 @@ def create_app(config: ManagedConfig, *, control: ManagedControl | None = None, 
         except ValueError:
             raise ApiError(400, "limit must be an integer") from None
         agent_id = request.query_params.get("agent_id", "").strip() or None
-        if agent_id in (tenant["id"], account.get("profile_id")):
+        if agent_id in ("demo-healthcare-researcher", "did:integrity:healthcare-researcher-latent-space-01", "healthcare-researcher-latent-space-01"):
+            agent_id = "demo-healthcare-researcher"
+        elif agent_id in (tenant["id"], account.get("profile_id")):
             agent_id = None
         with service.store(tenant) as store:
             if agent_id and not store.has_agent_partition(agent_id):
                 resolved = store.storage_agent_id(agent_id)
                 if resolved:
                     agent_id = resolved
+            if agent_id == "demo-healthcare-researcher" and not store.has_agent_partition(agent_id):
+                try:
+                    store.seed_sample_knowledge_graph(force=True, dataset="healthcare_researcher", agent_id="demo-healthcare-researcher")
+                except Exception:
+                    pass
             graph = store.graph_payload(limit=limit, similarity_threshold=0.75, agent_id=agent_id)
             if timeline:
                 return {"sessions": store.list_sessions(limit=limit, agent_id=agent_id), "nodes": graph["nodes"]}
@@ -856,6 +865,8 @@ def create_app(config: ManagedConfig, *, control: ManagedControl | None = None, 
         except ValueError:
             raise ApiError(400, "limit and similarity_threshold must be numbers") from None
         agent_id = request.query_params.get("agent_id", "").strip() or None
+        if agent_id in ("demo-healthcare-researcher", "did:integrity:healthcare-researcher-latent-space-01", "healthcare-researcher-latent-space-01"):
+            agent_id = "demo-healthcare-researcher"
         if custom_body and isinstance(custom_body, dict):
             nodes = custom_body.get("nodes")
             edges = custom_body.get("edges")
@@ -881,9 +892,10 @@ def create_app(config: ManagedConfig, *, control: ManagedControl | None = None, 
         account, principal, _ = owner(request, mutate=True)
         tenant = service.tenant(account)
         force = bool(payload.get("force", False))
-        dataset = str(payload.get("dataset", "biomedical"))
+        dataset = str(payload.get("dataset", "healthcare_researcher"))
+        agent_id = payload.get("agent_id")
         with service.store(tenant) as store:
-            return store.seed_sample_knowledge_graph(force=force, dataset=dataset)
+            return store.seed_sample_knowledge_graph(force=force, dataset=dataset, agent_id=agent_id)
 
     async def seed_sample(request):
         rate_limit(request)
@@ -1114,6 +1126,252 @@ def create_app(config: ManagedConfig, *, control: ManagedControl | None = None, 
                 yield b']}'
         return StreamingResponse(stream(), media_type='application/json', headers={'Content-Disposition': 'attachment; filename="cortex-memories.json"'})
 
+    def memory_similar_operation(request):
+        account, principal, _ = authenticate(request)
+        require_scope(principal, "memory:read")
+        tenant = service.tenant(account)
+        memory_id = request.path_params["memory_id"]
+        try:
+            limit = max(1, min(int(request.query_params.get("limit", "10")), 100))
+        except ValueError:
+            limit = 10
+        with service.store(tenant) as store:
+            store.get_memory(memory_id)
+            try:
+                return store.similar_memories(memory_id, limit=limit)
+            except Exception:
+                return []
+
+    async def memory_similar(request):
+        rate_limit(request)
+        return JSONResponse(await run_in_threadpool(memory_similar_operation, request))
+
+    def memory_neighbors_operation(request):
+        account, principal, _ = authenticate(request)
+        require_scope(principal, "memory:read")
+        tenant = service.tenant(account)
+        memory_id = request.path_params["memory_id"]
+        with service.store(tenant) as store:
+            store.get_memory(memory_id)
+            return store.memory_entity_relations(memory_id)
+
+    async def memory_neighbors(request):
+        rate_limit(request)
+        return JSONResponse(await run_in_threadpool(memory_neighbors_operation, request))
+
+    def memory_events_operation(request):
+        account, principal, _ = authenticate(request)
+        require_scope(principal, "memory:read")
+        tenant = service.tenant(account)
+        memory_id = request.path_params["memory_id"]
+        with service.store(tenant) as store:
+            store.get_memory(memory_id)
+            return store.memory_events(memory_id)
+
+    async def memory_events(request):
+        rate_limit(request)
+        return JSONResponse(await run_in_threadpool(memory_events_operation, request))
+
+    def memory_otel_operation(request):
+        account, principal, _ = authenticate(request)
+        require_scope(principal, "memory:read")
+        tenant = service.tenant(account)
+        memory_id = request.path_params["memory_id"]
+        with service.store(tenant) as store:
+            store.get_memory(memory_id)
+            return store.memory_otel_events(memory_id)
+
+    async def memory_otel(request):
+        rate_limit(request)
+        return JSONResponse(await run_in_threadpool(memory_otel_operation, request))
+
+    def memory_attachments_operation(request):
+        account, principal, _ = authenticate(request)
+        require_scope(principal, "memory:read")
+        tenant = service.tenant(account)
+        memory_id = request.path_params["memory_id"]
+        with service.store(tenant) as store:
+            store.get_memory(memory_id)
+            return [{k: v for k, v in item.items() if k != "storage_locator"} for item in store.list_attachments(memory_id)]
+
+    async def memory_attachments(request):
+        rate_limit(request)
+        return JSONResponse(await run_in_threadpool(memory_attachments_operation, request))
+
+    def attachment_file_operation(request):
+        from starlette.responses import FileResponse
+        import os
+        account, principal, _ = authenticate(request)
+        require_scope(principal, "memory:read")
+        tenant = service.tenant(account)
+        attachment_id = request.path_params["attachment_id"]
+        with service.store(tenant) as store:
+            attachment = store.get_attachment(attachment_id)
+            if not attachment:
+                raise ApiError(404, "Attachment not found")
+            locator = attachment.get("storage_locator", "")
+            file_path = locator[7:] if locator.startswith("file://") else locator
+            if not os.path.exists(file_path):
+                raise ApiError(404, "Attachment file not found on disk")
+            return FileResponse(file_path, media_type=attachment.get("media_type") or "application/octet-stream")
+
+    async def attachment_file(request):
+        rate_limit(request)
+        return await run_in_threadpool(attachment_file_operation, request)
+
+    def memory_contradictions_operation(request):
+        account, principal, _ = authenticate(request)
+        require_scope(principal, "memory:read")
+        tenant = service.tenant(account)
+        memory_id = request.path_params["memory_id"]
+        with service.store(tenant) as store:
+            store.get_memory(memory_id)
+            return store.contradictions(memory_id)
+
+    async def memory_contradictions(request):
+        rate_limit(request)
+        return JSONResponse(await run_in_threadpool(memory_contradictions_operation, request))
+
+    def entity_neighbors_operation(request):
+        from urllib.parse import unquote
+        account, principal, _ = authenticate(request)
+        require_scope(principal, "memory:read")
+        tenant = service.tenant(account)
+        name = unquote(request.path_params["name"])
+        try:
+            max_depth = max(1, min(int(request.query_params.get("max_depth", "1")), 5))
+        except ValueError:
+            max_depth = 1
+        agent_id = request.query_params.get("agent_id")
+        if agent_id in ("demo-healthcare-researcher", "did:integrity:healthcare-researcher-latent-space-01", "healthcare-researcher-latent-space-01"):
+            agent_id = "demo-healthcare-researcher"
+        with service.store(tenant) as store:
+            return store.neighbors(name, max_depth=max_depth, agent_id=agent_id)
+
+    async def entity_neighbors(request):
+        rate_limit(request)
+        return JSONResponse(await run_in_threadpool(entity_neighbors_operation, request))
+
+    def entity_path_operation(request):
+        account, principal, _ = authenticate(request)
+        require_scope(principal, "memory:read")
+        tenant = service.tenant(account)
+        from_name = request.query_params.get("from", "")
+        to_name = request.query_params.get("to", "")
+        try:
+            max_depth = max(1, min(int(request.query_params.get("max_depth", "4")), 10))
+        except ValueError:
+            max_depth = 4
+        agent_id = request.query_params.get("agent_id")
+        if agent_id in ("demo-healthcare-researcher", "did:integrity:healthcare-researcher-latent-space-01", "healthcare-researcher-latent-space-01"):
+            agent_id = "demo-healthcare-researcher"
+        with service.store(tenant) as store:
+            return store.find_path(from_name, to_name, max_depth=max_depth, agent_id=agent_id)
+
+    async def entity_path(request):
+        rate_limit(request)
+        return JSONResponse(await run_in_threadpool(entity_path_operation, request))
+
+    def session_merkle_root_operation(request):
+        account, principal, _ = authenticate(request)
+        require_scope(principal, "memory:read")
+        tenant = service.tenant(account)
+        session_id = request.path_params["session_id"]
+        with service.store(tenant) as store:
+            return store.session_merkle_root(session_id)
+
+    async def session_merkle_root_route(request):
+        rate_limit(request)
+        return JSONResponse(await run_in_threadpool(session_merkle_root_operation, request))
+
+    def session_replay_operation(request):
+        account, principal, _ = authenticate(request)
+        require_scope(principal, "memory:read")
+        tenant = service.tenant(account)
+        session_id = request.path_params["session_id"]
+        with service.store(tenant) as store:
+            return store.session_replay(session_id)
+
+    async def session_replay(request):
+        rate_limit(request)
+        return JSONResponse(await run_in_threadpool(session_replay_operation, request))
+
+    def session_otel_operation(request):
+        account, principal, _ = authenticate(request)
+        require_scope(principal, "memory:read")
+        tenant = service.tenant(account)
+        session_id = request.path_params["session_id"]
+        with service.store(tenant) as store:
+            return store.session_otel_events(session_id)
+
+    async def session_otel(request):
+        rate_limit(request)
+        return JSONResponse(await run_in_threadpool(session_otel_operation, request))
+
+    def session_memories_operation(request):
+        account, principal, _ = authenticate(request)
+        require_scope(principal, "memory:read")
+        tenant = service.tenant(account)
+        session_id = request.path_params["session_id"]
+        with service.store(tenant) as store:
+            return store.session_memories(session_id)
+
+    async def session_memories(request):
+        rate_limit(request)
+        return JSONResponse(await run_in_threadpool(session_memories_operation, request))
+
+    def store_status_operation(request):
+        account, principal, _ = authenticate(request)
+        require_scope(principal, "memory:read")
+        tenant = service.tenant(account)
+        with service.store(tenant) as store:
+            return store.status(fast=True)
+
+    async def store_status(request):
+        rate_limit(request)
+        return JSONResponse(await run_in_threadpool(store_status_operation, request))
+
+    def store_stats_operation(request):
+        account, principal, _ = authenticate(request)
+        require_scope(principal, "memory:read")
+        tenant = service.tenant(account)
+        with service.store(tenant) as store:
+            return store.counts()
+
+    async def store_stats(request):
+        rate_limit(request)
+        return JSONResponse(await run_in_threadpool(store_stats_operation, request))
+
+    def integrity_links_operation(request):
+        account, principal, _ = authenticate(request)
+        require_scope(principal, "memory:read")
+        tenant = service.tenant(account)
+        try:
+            limit = max(1, min(int(request.query_params.get("limit", "50")), 500))
+        except ValueError:
+            limit = 50
+        with service.store(tenant) as store:
+            return store.integrity_links_status(limit=limit)
+
+    async def integrity_links_route(request):
+        rate_limit(request)
+        return JSONResponse(await run_in_threadpool(integrity_links_operation, request))
+
+    def agent_devices_operation(request):
+        account, principal, _ = authenticate(request)
+        require_scope(principal, "memory:read")
+        tenant = service.tenant(account)
+        try:
+            limit = max(1, min(int(request.query_params.get("limit", "500")), 1000))
+        except ValueError:
+            limit = 500
+        with service.store(tenant) as store:
+            return {"pairs": store.list_agent_devices(limit=limit)}
+
+    async def agent_devices_route(request):
+        rate_limit(request)
+        return JSONResponse(await run_in_threadpool(agent_devices_operation, request))
+
     def agents_operation(request):
         account, principal, _ = authenticate(request)
         require_scope(principal, "memory:read")
@@ -1205,6 +1463,23 @@ def create_app(config: ManagedConfig, *, control: ManagedControl | None = None, 
         Route("/api/managed/agent0/search", agent0_search, methods=["GET"]),
         Route("/api/managed/agent0/agent/{agent_id}", agent0_agent, methods=["GET"]),
         Route("/api/managed/agent0/reputation/{agent_id}", agent0_reputation, methods=["GET"]),
+        Route("/api/managed/memories/{memory_id}/similar", memory_similar, methods=["GET"]),
+        Route("/api/managed/memories/{memory_id}/neighbors", memory_neighbors, methods=["GET"]),
+        Route("/api/managed/memories/{memory_id}/events", memory_events, methods=["GET"]),
+        Route("/api/managed/memories/{memory_id}/otel", memory_otel, methods=["GET"]),
+        Route("/api/managed/memories/{memory_id}/attachments", memory_attachments, methods=["GET"]),
+        Route("/api/managed/attachment/{attachment_id}/file", attachment_file, methods=["GET"]),
+        Route("/api/managed/memories/{memory_id}/contradictions", memory_contradictions, methods=["GET"]),
+        Route("/api/managed/entity/path", entity_path, methods=["GET"]),
+        Route("/api/managed/entity/{name}/neighbors", entity_neighbors, methods=["GET"]),
+        Route("/api/managed/session/{session_id}/merkle-root", session_merkle_root_route, methods=["GET"]),
+        Route("/api/managed/session/{session_id}/replay", session_replay, methods=["GET"]),
+        Route("/api/managed/session/{session_id}/otel", session_otel, methods=["GET"]),
+        Route("/api/managed/session/{session_id}/memories", session_memories, methods=["GET"]),
+        Route("/api/managed/status", store_status, methods=["GET"]),
+        Route("/api/managed/stats", store_stats, methods=["GET"]),
+        Route("/api/managed/integrity-links", integrity_links_route, methods=["GET"]),
+        Route("/api/managed/agent-devices", agent_devices_route, methods=["GET"]),
         Route("/api/managed/memories/{memory_id}", memories),
         Route("/api/managed/memories/{memory_id}/verify", memories),
         Route("/api/managed/export", export),

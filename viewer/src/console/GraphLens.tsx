@@ -16,8 +16,11 @@ import { FADE, GRID_INK, LINK_ALPHA, linkWidth, nodeHalf, traceNode } from './gr
 import { GRID_CELL_SIZE, cellCentre, snapToGrid, type Cell } from './gridSnap'
 import { defaultFacets, filterModel, selectionHidden, type CNode, type EdgeGroup, type Facets, type NodeClass } from './model'
 import { palette, withAlpha } from './palette'
-import { IconFit, IconGrid, IconTarget, IconUnpin, IconWarn } from './icons'
+import { IconBox, IconExpand, IconFit, IconGrid, IconOperations, IconRefresh, IconTarget, IconUnpin, IconWarn } from './icons'
 import { GraphMathStudio } from './GraphMathStudio'
+import { ZenHud } from './ZenHud'
+import { InnerRoomCockpit } from './InnerRoomCockpit'
+import { HEALTHCARE_RESEARCHER_DID } from './workspace'
 import { api } from '../api'
 
 interface FGNode {
@@ -72,11 +75,147 @@ export function GraphLens() {
   const [summaryOpen, setSummaryOpen] = useState(false)
   const [insideCityNode, setInsideCityNode] = useState<CNode | null>(null)
   const [mathStudioOpen, setMathStudioOpen] = useState(false)
-  const [selectedDataset, setSelectedDataset] = useState<'action_space' | 'biomedical' | 'all'>('action_space')
+  const [selectedDataset, setSelectedDataset] = useState<'healthcare_researcher' | 'action_space' | 'biomedical' | 'all'>('healthcare_researcher')
   const [seeding, setSeeding] = useState(false)
   const hidden = selectionHidden(model, visible, selectedId)
 
-  const handleDatasetChange = async (dataset: 'action_space' | 'biomedical' | 'all') => {
+  // Auto-align dataset when demo healthcare researcher agent is selected
+  useEffect(() => {
+    if (workspace.scope.agentId === HEALTHCARE_RESEARCHER_DID || workspace.scope.agentId === 'demo-healthcare-researcher') {
+      setSelectedDataset('healthcare_researcher')
+      if (!loading && visible && visible.nodes.length === 0 && !seeding) {
+        void handleDatasetChange('healthcare_researcher')
+      }
+    }
+  }, [workspace.scope.agentId, loading, visible?.nodes?.length])
+
+  // Track Zen Immersion mode
+  const [immersion, setImmersion] = useState(false)
+  useEffect(() => {
+    const onToggle = () => setImmersion((v) => !v)
+    window.addEventListener('xc-toggle-immersion', onToggle)
+    const shell = document.querySelector('.xc-shell')
+    if (shell) {
+      setImmersion(shell.getAttribute('data-immersion') === 'true')
+      const observer = new MutationObserver(() => {
+        setImmersion(shell.getAttribute('data-immersion') === 'true')
+      })
+      observer.observe(shell, { attributes: true, attributeFilter: ['data-immersion'] })
+      return () => {
+        window.removeEventListener('xc-toggle-immersion', onToggle)
+        observer.disconnect()
+      }
+    }
+    return () => window.removeEventListener('xc-toggle-immersion', onToggle)
+  }, [])
+
+  // Window-level keyboard controls during Zen Immersion
+  useEffect(() => {
+    if (!immersion || !mode3d) return
+    const onZenKey = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null
+      const isInput = target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT' || target.isContentEditable)
+      if (isInput) return
+
+      const g3 = g3Ref.current
+      if (!g3) return
+
+      const step = 0.12
+      switch (e.key) {
+        case 'ArrowLeft':
+          if (e.shiftKey) g3.pan(-1, 0); else g3.orbit(-step, 0)
+          break
+        case 'ArrowRight':
+          if (e.shiftKey) g3.pan(1, 0); else g3.orbit(step, 0)
+          break
+        case 'ArrowUp':
+          if (e.shiftKey) g3.pan(0, 1); else g3.orbit(0, -step)
+          break
+        case 'ArrowDown':
+          if (e.shiftKey) g3.pan(0, -1); else g3.orbit(0, step)
+          break
+        case 'w':
+        case 'W':
+          if (e.shiftKey) g3.pan(0, 1); else g3.dolly(1)
+          break
+        case 's':
+        case 'S':
+          if (e.shiftKey) g3.pan(0, -1); else g3.dolly(-1)
+          break
+        case 'a':
+        case 'A':
+          if (e.shiftKey) g3.pan(-1, 0); else g3.orbit(-step, 0)
+          break
+        case 'd':
+        case 'D':
+          if (e.shiftKey) g3.pan(1, 0); else g3.orbit(step, 0)
+          break
+        case 'q':
+        case 'Q':
+          g3.elevate(1)
+          break
+        case 'e':
+        case 'E':
+          g3.elevate(-1)
+          break
+        case 'Tab':
+          e.preventDefault()
+          {
+            const nextId = g3.cycleNode(e.shiftKey ? -1 : 1)
+            if (nextId) select(nextId)
+          }
+          break
+        case '1':
+          g3.setPresetAngle('iso')
+          break
+        case '2':
+          g3.setPresetAngle('top')
+          break
+        case '3':
+          g3.setPresetAngle('front')
+          break
+        case '4':
+          g3.setPresetAngle('side')
+          break
+        case '+':
+        case '=':
+        case ']':
+          g3.zoomBy(1.25)
+          break
+        case '-':
+        case '_':
+        case '[':
+          g3.zoomBy(1 / 1.25)
+          break
+        case ' ':
+        case 'f':
+        case 'F':
+        case '0':
+          g3.fit()
+          break
+        case 'Enter':
+          if (selectedId && !insideCityNode) {
+            g3.enterCity(selectedId)
+          }
+          break
+        case 'Escape':
+          if (insideCityNode) {
+            g3.exitCity()
+          } else {
+            select(null)
+          }
+          break
+        default:
+          return
+      }
+      e.preventDefault()
+    }
+
+    window.addEventListener('keydown', onZenKey)
+    return () => window.removeEventListener('keydown', onZenKey)
+  }, [immersion, mode3d, selectedId, insideCityNode, select])
+
+  const handleDatasetChange = async (dataset: 'healthcare_researcher' | 'action_space' | 'biomedical' | 'all') => {
     setSelectedDataset(dataset)
     setSeeding(true)
     try {
@@ -464,23 +603,25 @@ export function GraphLens() {
             <select
               className="xc-dataset-select"
               value={selectedDataset}
-              onChange={(e) => handleDatasetChange(e.target.value as 'action_space' | 'biomedical' | 'all')}
+              onChange={(e) => handleDatasetChange(e.target.value as 'healthcare_researcher' | 'action_space' | 'biomedical' | 'all')}
               disabled={seeding}
               aria-label="Select Demo Knowledge Graph"
               title="Switch Knowledge Graph demo dataset"
             >
-              <option value="action_space">🧭 Agent Action Space (Navigational MDP)</option>
-              <option value="biomedical">🧬 Biomedical Pathways & Kinases</option>
-              <option value="all">🌐 Unified Manifold (All Triples)</option>
+              <option value="healthcare_researcher">🩺 Healthcare Researcher</option>
+              <option value="action_space">🧭 Agent Action Space</option>
+              <option value="biomedical">🧬 Biomedical Pathways</option>
+              <option value="all">🌐 Unified Manifold</option>
             </select>
             <button
               type="button"
               className="xc-dataset-btn"
               onClick={() => handleDatasetChange(selectedDataset)}
               disabled={seeding}
+              aria-label="Re-seed demo dataset"
               title="Re-seed demo dataset to reset canvas"
             >
-              {seeding ? 'Seeding…' : 'Re-seed'}
+              {seeding ? '…' : <IconRefresh style={{ width: 13, height: 13 }} />}
             </button>
           </div>
           <p className="xc-graph-count" style={{ position: 'static' }} aria-live="polite">
@@ -495,10 +636,10 @@ export function GraphLens() {
           <button type="button" aria-label="Zoom in" onClick={() => zoomBy(1.4)}>+</button>
           <button type="button" aria-label="Zoom out" onClick={() => zoomBy(1 / 1.4)}>−</button>
           <button type="button" aria-label="Fit all" title="Frame every node" onClick={fit} disabled={!visible || visible.nodes.length === 0}>
-            <IconFit style={{ width: 15, height: 15 }} />
+            <IconFit style={{ width: 14, height: 14 }} />
           </button>
           <button type="button" aria-label="Fit selection" title="Frame the selected item and what it touches" onClick={fitSelection} disabled={!selectedId || !visible || visible.nodes.length === 0 || hidden}>
-            <IconTarget style={{ width: 15, height: 15 }} />
+            <IconTarget style={{ width: 14, height: 14 }} />
           </button>
 
           <span className="xc-zoom-rule" aria-hidden="true" />
@@ -506,11 +647,11 @@ export function GraphLens() {
           <button type="button" className="xc-zoom-text" aria-label="2D view" aria-pressed={!mode3d} title="Flat force layout" onClick={() => update({ graphMode: '2d' })}>2D</button>
           <button type="button" className="xc-zoom-text" aria-label="3D view" aria-pressed={mode3d} title="Orbit, pan and zoom. Needs WebGL." onClick={() => { setNo3d(false); update({ graphMode: '3d' }) }}>3D</button>
           <button type="button" aria-label="Snap to grid" aria-pressed={snap} title="Each node takes its own cell of the grid. Off, nodes stay where the layout puts them." onClick={() => update({ graphSnap: !snap })}>
-            <IconGrid style={{ width: 15, height: 15 }} />
+            <IconGrid style={{ width: 14, height: 14 }} />
           </button>
           {mode3d && pinned > 0 && (
             <button type="button" aria-label={`Unpin all ${pinned} pinned nodes`} title="Double-click a cube to unpin just that one" onClick={() => g3Ref.current?.unpinAll()}>
-              <IconUnpin style={{ width: 15, height: 15 }} />
+              <IconUnpin style={{ width: 14, height: 14 }} />
             </button>
           )}
 
@@ -518,62 +659,66 @@ export function GraphLens() {
 
           <button
             type="button"
-            className="xc-zoom-text"
             title="Formal Mathematics of Graphs (Adjacency Matrix, Cosine Similarity, Spectral, Centrality)"
             aria-label="Formal Graph Mathematics"
             onClick={() => setMathStudioOpen(true)}
           >
-            fx
+            <IconOperations style={{ width: 14, height: 14 }} />
           </button>
           <button
             type="button"
-            className="xc-zoom-text"
             title="Toggle Zen Immersion Mode (Z): Maximize 3D canvas"
             aria-label="Toggle Zen Immersion Mode"
             onClick={() => window.dispatchEvent(new CustomEvent('xc-toggle-immersion'))}
           >
-            Z
+            <IconExpand style={{ width: 13, height: 13 }} />
           </button>
           {selectedId && mode3d && (
             <button
               type="button"
-              className="xc-zoom-text"
-              title="Zoom inside node face (Dive into city from space)"
+              title="Zoom inside node face (Enter Inner Sanctum room)"
               aria-label="Zoom inside node face"
               onClick={() => g3Ref.current?.enterCity(selectedId)}
             >
-              3D+
+              <IconBox style={{ width: 14, height: 14 }} />
             </button>
           )}
         </div>
 
+        {immersion && mode3d && (
+          <ZenHud
+            selectedNode={selectedId && visible ? visible.nodes.find((n) => n.id === selectedId) || null : null}
+            totalNodes={visible ? visible.nodes.length : 0}
+            isInsideRoom={!!insideCityNode}
+            onOrbit={(dTheta, dPhi) => g3Ref.current?.orbit(dTheta, dPhi)}
+            onPan={(dx, dy) => g3Ref.current?.pan(dx, dy)}
+            onElevate={(dy) => g3Ref.current?.elevate(dy)}
+            onZoom={(k) => g3Ref.current?.zoomBy(k)}
+            onPreset={(preset) => g3Ref.current?.setPresetAngle(preset)}
+            onCycleNode={(dir) => {
+              const nextId = g3Ref.current?.cycleNode(dir)
+              if (nextId) select(nextId)
+            }}
+            onFit={() => g3Ref.current?.fit()}
+            onEnterRoom={() => {
+              if (selectedId) g3Ref.current?.enterCity(selectedId)
+            }}
+            onExitRoom={() => g3Ref.current?.exitCity()}
+            onExitZen={() => window.dispatchEvent(new CustomEvent('xc-toggle-immersion'))}
+          />
+        )}
+
         {insideCityNode && (
-          <div className="xc-city-hud" role="region" aria-label="Inside Node Metropolis">
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <span style={{ fontSize: 22 }}>🏙️</span>
-              <div>
-                <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.08em', color: 'var(--accent)', textTransform: 'uppercase' }}>
-                  Inside Node Metropolis
-                </div>
-                <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--ink)' }}>
-                  {insideCityNode.label}
-                </div>
-              </div>
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <span style={{ fontSize: 11, color: 'var(--ink-muted)', padding: '3px 8px', background: 'rgba(255, 255, 255, 0.06)' }}>
-                Altitude: Ground Level
-              </span>
-              <button
-                type="button"
-                className="xc-btn xc-btn--primary"
-                onClick={() => g3Ref.current?.exitCity()}
-                style={{ fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12 }}
-              >
-                <span>🚀 Ascend to Orbit (ESC)</span>
-              </button>
-            </div>
-          </div>
+          <InnerRoomCockpit
+            node={insideCityNode}
+            model={model}
+            onAscend={() => g3Ref.current?.exitCity()}
+            onAimTarget={(target) => g3Ref.current?.aimRoomTarget(target)}
+            onWarpToNode={(targetNodeId) => {
+              select(targetNodeId)
+              g3Ref.current?.enterCity(targetNodeId)
+            }}
+          />
         )}
 
         {mathStudioOpen && (

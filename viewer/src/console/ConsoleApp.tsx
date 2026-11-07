@@ -117,7 +117,7 @@ function Workspace() {
           {content}
         </div>
       )}
-      {immersion && (
+      {immersion && lens !== 'graph' && (
         <div
           className="xc-immersion-hud"
           style={{
