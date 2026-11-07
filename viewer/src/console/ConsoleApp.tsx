@@ -59,6 +59,28 @@ function Workspace() {
 
   const phone = useMediaQuery('(max-width: 760px)')
   const { settings } = useSettings()
+  const [immersion, setImmersion] = useState(false)
+
+  useEffect(() => {
+    const handleToggle = () => setImmersion((v) => !v)
+    window.addEventListener('xc-toggle-immersion', handleToggle)
+    const onKey = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null
+      const isInput = target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)
+      if (isInput) return
+      if (e.key === 'z' || e.key === 'Z') {
+        e.preventDefault()
+        setImmersion((v) => !v)
+      } else if (e.key === 'Escape' && immersion) {
+        setImmersion(false)
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => {
+      window.removeEventListener('xc-toggle-immersion', handleToggle)
+      window.removeEventListener('keydown', onKey)
+    }
+  }, [immersion])
 
   // what sits to the right of (or below) the navigation: a full page, or the three-column workspace
   const content = (
@@ -82,7 +104,7 @@ function Workspace() {
       {phone ? (
         <PhoneWorkspace />
       ) : settings.shell === 'rail' ? (
-        <div className="xc-shell" data-collapsed={settings.railCollapsed}>
+        <div className="xc-shell" data-collapsed={settings.railCollapsed} data-immersion={immersion}>
           <Rail />
           <div className="xc-main">
             <WorkspaceHeader />
@@ -90,10 +112,47 @@ function Workspace() {
           </div>
         </div>
       ) : (
-        <>
+        <div className="xc-shell" data-immersion={immersion}>
           <TopBar />
           {content}
-        </>
+        </div>
+      )}
+      {immersion && (
+        <div
+          className="xc-immersion-hud"
+          style={{
+            position: 'fixed',
+            top: 14,
+            left: '50%',
+            transform: 'translateX(-50%)',
+            zIndex: 1200,
+            background: 'rgba(11, 15, 25, 0.88)',
+            backdropFilter: 'blur(16px)',
+            border: '1px solid rgba(99, 102, 241, 0.4)',
+            boxShadow: '0 8px 32px rgba(0, 0, 0, 0.7), 0 0 24px rgba(99, 102, 241, 0.2)',
+            borderRadius: 9999,
+            padding: '6px 20px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 16,
+            fontSize: 12,
+            color: '#f3f4f6',
+          }}
+        >
+          <span style={{ fontWeight: 700, letterSpacing: '0.04em', color: '#818cf8', display: 'flex', alignItems: 'center', gap: 6 }}>
+            <span>🌌</span> ZEN IMMERSION (100% CANVAS)
+          </span>
+          <span style={{ width: 1, height: 16, background: 'rgba(255, 255, 255, 0.15)' }} />
+          <span style={{ color: 'var(--ink-muted, #9ca3af)' }}>Press <strong>Z</strong> or <strong>ESC</strong> to exit</span>
+          <button
+            type="button"
+            className="xc-btn"
+            style={{ fontSize: 11, padding: '2px 10px', height: 26 }}
+            onClick={() => setImmersion(false)}
+          >
+            Exit Zen
+          </button>
+        </div>
       )}
       {page && <PageDrawer page={page}><PageHost page={page} /></PageDrawer>}
       {overlay === 'recall' && <Recall />}

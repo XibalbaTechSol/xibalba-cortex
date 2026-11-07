@@ -17,6 +17,7 @@ import { GRID_CELL_SIZE, cellCentre, snapToGrid, type Cell } from './gridSnap'
 import { defaultFacets, filterModel, selectionHidden, type CNode, type EdgeGroup, type Facets, type NodeClass } from './model'
 import { palette, withAlpha } from './palette'
 import { IconFit, IconGrid, IconTarget, IconUnpin, IconWarn } from './icons'
+import { GraphMathStudio } from './GraphMathStudio'
 
 interface FGNode {
   id: string
@@ -51,7 +52,7 @@ const GRID = GRID_CELL_SIZE
 const endId = (end: string | FGNode): string => (typeof end === 'string' ? end : end.id)
 
 export function GraphLens() {
-  const { model, facets, setFacets, window: timeWindow, selectedId, select, focus, loading, error, reload } = useConsole()
+  const { model, facets, setFacets, window: timeWindow, selectedId, select, focus, loading, error, reload, workspace } = useConsole()
 
   const visible = useMemo(() => (model && facets ? filterModel(model, facets, timeWindow) : null), [model, facets, timeWindow])
 
@@ -68,6 +69,8 @@ export function GraphLens() {
   // the legend sits over the canvas, so it starts closed and opens on request
   const [legendOpen, setLegendOpen] = useState(false)
   const [summaryOpen, setSummaryOpen] = useState(false)
+  const [insideCityNode, setInsideCityNode] = useState<CNode | null>(null)
+  const [mathStudioOpen, setMathStudioOpen] = useState(false)
   const hidden = selectionHidden(model, visible, selectedId)
 
   // --- stable node objects -------------------------------------------------------------------------
@@ -386,7 +389,20 @@ export function GraphLens() {
 
       <div className="xc-host" ref={hostRef} onWheelCapture={() => { userMoved2d.current = true }} onPointerMoveCapture={(e) => { if (e.buttons) userMoved2d.current = true }} style={{ cursor: hoverId ? 'pointer' : 'default' }}>
         {mode3d && visible && visible.nodes.length > 0 && (
-          <Graph3D ref={g3Ref} nodes={visible.nodes} edges={visible.edges} selectedId={selectedId} focus={focus} snap={snap} shape={shape} canvas={canvas} onSelect={select} onPinnedChange={setPinned} onUnsupported={() => setNo3d(true)} />
+          <Graph3D
+            ref={g3Ref}
+            nodes={visible.nodes}
+            edges={visible.edges}
+            selectedId={selectedId}
+            focus={focus}
+            snap={snap}
+            shape={shape}
+            canvas={canvas}
+            onSelect={select}
+            onPinnedChange={setPinned}
+            onCityModeChange={(_id, n) => setInsideCityNode(n)}
+            onUnsupported={() => setNo3d(true)}
+          />
         )}
         {!mode3d && size.width > 0 && visible && visible.nodes.length > 0 && (
           <ForceGraph2D<FGNode, FGLink>
@@ -456,7 +472,67 @@ export function GraphLens() {
               <IconUnpin style={{ width: 15, height: 15 }} />
             </button>
           )}
+
+          <span className="xc-zoom-rule" aria-hidden="true" />
+
+          <button
+            type="button"
+            className="xc-zoom-text"
+            title="Formal Mathematics of Graphs (Adjacency Matrix, Cosine Similarity, Spectral, Centrality)"
+            onClick={() => setMathStudioOpen(true)}
+            style={{ fontWeight: 600, color: '#818cf8' }}
+          >
+            📐 Math
+          </button>
+          {selectedId && mode3d && (
+            <button
+              type="button"
+              className="xc-zoom-text"
+              title="Zoom inside node face (Dive into city from space)"
+              onClick={() => g3Ref.current?.enterCity(selectedId)}
+              style={{ fontWeight: 600, color: '#38bdf8' }}
+            >
+              🏙️ City
+            </button>
+          )}
         </div>
+
+        {insideCityNode && (
+          <div className="xc-city-hud" role="region" aria-label="Inside Node Metropolis">
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <span style={{ fontSize: 22 }}>🏙️</span>
+              <div>
+                <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.08em', color: '#818cf8', textTransform: 'uppercase' }}>
+                  Inside Node Metropolis
+                </div>
+                <div style={{ fontSize: 15, fontWeight: 700, color: '#fff' }}>
+                  {insideCityNode.label}
+                </div>
+              </div>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <span style={{ fontSize: 11, color: 'var(--ink-muted, #9ca3af)', padding: '3px 8px', background: 'rgba(255, 255, 255, 0.06)', borderRadius: 4 }}>
+                Altitude: Ground Level
+              </span>
+              <button
+                type="button"
+                className="xc-btn xc-btn--primary"
+                onClick={() => g3Ref.current?.exitCity()}
+                style={{ fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12 }}
+              >
+                <span>🚀 Ascend to Orbit (ESC)</span>
+              </button>
+            </div>
+          </div>
+        )}
+
+        {mathStudioOpen && (
+          <GraphMathStudio
+            onClose={() => setMathStudioOpen(false)}
+            onSelectNode={(id) => select(id)}
+            agentId={workspace?.scope?.agentId}
+          />
+        )}
 
         <button type="button" className="xc-summary-toggle xc-btn" aria-label="Workspace summary" onClick={() => { select(null); setSummaryOpen((v) => !v) }}>Summary</button>
         {summaryOpen && !selectedId && <Inspector summary onClose={() => setSummaryOpen(false)} />}

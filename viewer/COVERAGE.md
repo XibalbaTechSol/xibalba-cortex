@@ -5,8 +5,8 @@ or documented route is not classified, so nothing becomes hidden by omission.
 
 ## Summary
 
-- **80 documented HTTP routes** and 23 more the handler serves but its docstring omits.
-- **91 MCP tools**: 45 have a console surface, 46 are machine protocols (27 of them `runtime_*` harness hooks), 0 are deliberately withheld from a browser.
+- **93 documented HTTP routes** and 23 more the handler serves but its docstring omits.
+- **102 MCP tools**: 56 have a console surface, 46 are machine protocols (27 of them `runtime_*` harness hooks), 0 are deliberately withheld from a browser.
 
 Statuses: **console** = a surface covers it. **machine** = a protocol for workers or agent harnesses; a person should not be
 able to drive it from a button. **withheld** = would hand a browser a server filesystem path, or is outward-facing, or needs a
@@ -96,6 +96,19 @@ route that does not exist yet.
 | `POST /api/memory/{id}/verify-link` | Integrity → Links → Verify this link |
 | `POST /api/session/{id}/anchor` | Integrity → Sessions → Anchor this root (confirmed; outward) |
 | `GET /api/vault/leaf` | Settings → Developer → Trust vault lookup (the vault is server configuration) |
+| `GET /api/discovery/mechanisms` | Entities → Discovery Studio (Trace Biological Mechanisms) |
+| `GET /api/discovery/predict-links` | Entities → Discovery Studio (Topological Link Prediction) |
+| `GET /api/discovery/repurposing` | Entities → Discovery Studio (Drug Repurposing Hypotheses) |
+| `GET /api/discovery/ego-subgraph` | Entities → Discovery Studio (Radial Subgraph) |
+| `POST /api/connectors/triples` | Entities → Discovery Studio (Ingest Triples) |
+| `POST /api/connectors/biomedical` | Entities → Discovery Studio (Ingest Biomedical Literature) |
+| `POST /api/connectors/fhir` | Entities → Discovery Studio (Ingest FHIR Clinical Bundle) |
+| `POST /api/connectors/csv` | Entities → Discovery Studio (Ingest CSV/TSV Triples) |
+| `POST /api/discovery/reward/step` | Entities → Discovery Studio (AIS Closed-Loop Reward Simulator) |
+| `POST /api/discovery/reward/trajectory` | Entities → Discovery Studio (AIS Trajectory Return Simulator) |
+| `GET /api/graph/math` | Graph → Math Studio (Adjacency, Cosine Similarity, Spectral, Centrality) |
+| `POST /api/graph/math` | Graph → Math Studio (Custom Subgraph Adjacency & Centrality) |
+| `POST /api/graph/seed-sample` | Settings / Graph → Seed Canonical Sample Knowledge Graph |
 
 ### Served but not in the docstring
 
@@ -193,6 +206,17 @@ route that does not exist yet.
 | `agent0_give_feedback` | machine | Outward on-chain feedback write; operator MCP action, no browser surface yet |
 | `cortex_cloud_status` | machine | Cortex Cloud connection and pairing status for agent harness onboarding |
 | `cortex_cloud_pair` | machine | Initiate browser-mediated Cortex Cloud pairing for agent harness onboarding |
+| `graph_ingest_triples` | console | Entities → Discovery Studio (Ingest Triples) |
+| `graph_ingest_biomedical` | console | Entities → Discovery Studio (Ingest Biomedical Literature) |
+| `graph_ingest_fhir` | console | Entities → Discovery Studio (Ingest FHIR Clinical Bundle) |
+| `graph_trace_mechanisms` | console | Entities → Discovery Studio (Trace Biological Mechanisms) |
+| `graph_predict_links` | console | Entities → Discovery Studio (Topological Link Prediction) |
+| `graph_suggest_drug_repurposing` | console | Entities → Discovery Studio (Drug Repurposing Hypotheses) |
+| `graph_ego_subgraph` | console | Entities → Discovery Studio (Radial Subgraph) |
+| `graph_evaluate_step_reward` | console | Entities → Discovery Studio (AIS Closed-Loop Reward Simulator) |
+| `graph_evaluate_trajectory_reward` | console | Entities → Discovery Studio (AIS Trajectory Return Simulator) |
+| `graph_compute_math` | console | Graph → Math Studio (Formal Adjacency, Cosine Similarity, Spectral, Centrality) |
+| `graph_seed_sample` | console | Settings / Graph → Seed Canonical Sample Knowledge Graph |
 
 ### `runtime_*` (27 tools)
 

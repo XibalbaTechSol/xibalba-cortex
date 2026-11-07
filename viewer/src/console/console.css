@@ -3844,3 +3844,47 @@ body,
   .xc-trace-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .xc-trace-probability { grid-template-columns: 100px minmax(40px, 1fr) 38px; }
 }
+
+/* ---------- Zen Immersion Mode (100% Canvas Allocation) ---------------- */
+.xc-shell[data-immersion='true'] .xc-rail {
+  transform: translateX(-105%);
+  transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.xc-shell[data-immersion='true'] .xc-workspace-header,
+.xc-shell[data-immersion='true'] .xc-status {
+  display: none !important;
+}
+.xc-shell[data-immersion='true'] .xc-workspace > .xc-rail,
+.xc-shell[data-immersion='true'] .xc-workspace > .xc-chain,
+.xc-shell[data-immersion='true'] .xc-workspace > .xc-inspector {
+  opacity: 0;
+  pointer-events: none;
+  transform: scale(0.96);
+  transition: opacity 0.25s ease, transform 0.25s ease;
+}
+.xc-shell[data-immersion='true'] .xc-workspace > .xc-canvas-win {
+  inset: 0 !important;
+}
+
+/* ---------- City Reentry & Flight HUD ---------------------------------- */
+.xc-city-hud {
+  position: absolute;
+  top: 18px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 100;
+  background: rgba(11, 15, 25, 0.88);
+  backdrop-filter: blur(14px);
+  border: 1px solid rgba(99, 102, 241, 0.4);
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.7), 0 0 28px rgba(99, 102, 241, 0.25);
+  border-radius: 9999px;
+  padding: 8px 22px;
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  animation: xcCitySlideDown 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+@keyframes xcCitySlideDown {
+  from { opacity: 0; transform: translate(-50%, -24px); }
+  to { opacity: 1; transform: translate(-50%, 0); }
+}

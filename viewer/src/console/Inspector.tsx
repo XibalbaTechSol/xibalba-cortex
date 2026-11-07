@@ -19,6 +19,7 @@ import { MemoryActions } from './MemoryActions'
 import { MemoryChainCheck, ProvenanceExport } from './VerifyPanel'
 import { attachmentFilename, saveBlob } from './download'
 import { useInDrawer } from './PageDrawer'
+import { NodeDeepDive } from './NodeDeepDive'
 
 type MemoryTab = 'chain' | 'content' | 'inference' | 'provenance' | 'neighbors' | 'contradictions' | 'telemetry' | 'files'
 const MEMORY_TABS: Array<[MemoryTab, string]> = [
@@ -160,6 +161,7 @@ function InferenceTab({ memory }: { memory: Memory }) {
 export function Inspector({ summary = false, onClose }: { summary?: boolean; onClose?: () => void } = {}) {
   const { selectedId, model, notice, setNotice, select } = useConsole()
   const { settings, update } = useSettings()
+  const [deepDiveOpen, setDeepDiveOpen] = useState(false)
   const collapsed = settings.detailCollapsed
   const node = selectedId ? model?.byId.get(selectedId) : undefined
   // an edge is selectable too; its ids start with the edge type, never with a node-class prefix
@@ -180,9 +182,9 @@ export function Inspector({ summary = false, onClose }: { summary?: boolean; onC
   } else if (edge) {
     body = <EdgeInspector key={selectedId} edge={edge} />
   } else if (selectedId.startsWith('memory:')) {
-    body = <MemoryInspector key={selectedId} memoryId={selectedId.slice('memory:'.length)} node={node} />
+    body = <MemoryInspector key={selectedId} memoryId={selectedId.slice('memory:'.length)} node={node} onOpenDeepDive={() => setDeepDiveOpen(true)} />
   } else if (node?.cls === 'entity') {
-    body = <EntityInspector key={selectedId} node={node} />
+    body = <EntityInspector key={selectedId} node={node} onOpenDeepDive={() => setDeepDiveOpen(true)} />
   } else if (node?.cls === 'session') {
     body = <SessionInspector key={selectedId} node={node} />
   } else if (node?.cls === 'exchange') {
@@ -207,6 +209,18 @@ export function Inspector({ summary = false, onClose }: { summary?: boolean; onC
           in the head when collapsed -- it is the one child the collapsed strip keeps. */}
       <div className="xc-dock-head">
         <span className="xc-dock-title">{summary ? 'Workspace' : 'Selected'}</span>
+        {node && (
+          <button
+            type="button"
+            className="xc-btn xc-btn--square"
+            style={{ color: 'var(--cortex-accent, #6366f1)', fontSize: 13 }}
+            aria-label="Zoom inside node (Deep Dive)"
+            title="🔬 Zoom inside node: SPO matrix, properties, ego-neighborhood, action space"
+            onClick={() => setDeepDiveOpen(true)}
+          >
+            🔍
+          </button>
+        )}
         <button
           type="button"
           className="xc-btn xc-btn--square"
@@ -235,13 +249,24 @@ export function Inspector({ summary = false, onClose }: { summary?: boolean; onC
         </div>
       )}
       {body}
+      {deepDiveOpen && node && (
+        <NodeDeepDive
+          node={node}
+          model={model}
+          onClose={() => setDeepDiveOpen(false)}
+          onSelectNode={(id) => {
+            select(id)
+            setDeepDiveOpen(false)
+          }}
+        />
+      )}
     </aside>
   )
 }
 
 // --- memory ----------------------------------------------------------------------------------------
 
-function MemoryInspector({ memoryId, node }: { memoryId: string; node: CNode | undefined }) {
+function MemoryInspector({ memoryId, node, onOpenDeepDive }: { memoryId: string; node: CNode | undefined; onOpenDeepDive?: () => void }) {
   const { workspace, select, revision } = useConsole()
   const scope = workspace.scope
   // `revision` bumps after a write, so the memory and every tab under it are fetched fresh
@@ -259,10 +284,20 @@ function MemoryInspector({ memoryId, node }: { memoryId: string; node: CNode | u
           {m ? <> · <span title={m.content_hash}>{elideHash(m.content_hash)}</span></> : null}
         </p>
         {m && (
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center' }}>
             <Tag tone={statusTone(m.status)}>{m.status}</Tag>
             <Tag>{m.evidence_class.replace(/_/g, ' ')}</Tag>
             <Tag>{m.source.kind.replace(/_/g, ' ')}</Tag>
+            {node && onOpenDeepDive && (
+              <button
+                type="button"
+                className="xc-btn"
+                onClick={onOpenDeepDive}
+                style={{ fontSize: 11, padding: '2px 8px', height: 22, display: 'inline-flex', alignItems: 'center', gap: 4 }}
+              >
+                <span>🔬 Deep Dive</span>
+              </button>
+            )}
           </div>
         )}
         {memory.error && <div className="xc-callout xc-callout--conflict" role="alert"><IconWarn />{memory.error}</div>}
@@ -723,7 +758,7 @@ function edgesOf(edges: CEdge[], id: string): CEdge[] {
   return edges.filter((e) => e.source === id || e.target === id)
 }
 
-function EntityInspector({ node }: { node: CNode }) {
+function EntityInspector({ node, onOpenDeepDive }: { node: CNode; onOpenDeepDive?: () => void }) {
   const { model, select, reveal, openPage } = useConsole()
   const relations = model ? edgesOf(model.edges, node.id).filter((e) => e.type === 'relation') : []
   return (
@@ -734,6 +769,21 @@ function EntityInspector({ node }: { node: CNode }) {
         <p className="xc-meta" style={{ wordBreak: 'break-all' }}>{node.id}</p>
       </div>
       <div className="xc-scroll"><div className="xc-inspector-body">
+        <div className="xc-actions-row" style={{ justifyContent: 'flex-start', flexWrap: 'wrap', gap: 8, marginBottom: 14 }}>
+          {onOpenDeepDive && (
+            <button
+              type="button"
+              className="xc-btn xc-btn--primary"
+              onClick={onOpenDeepDive}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontWeight: 600 }}
+            >
+              <span>🔬 Zoom Inside Node</span>
+            </button>
+          )}
+          <button type="button" className="xc-btn" aria-haspopup="dialog" onClick={() => openPage('entities', node.label)}>
+            Neighbours and paths
+          </button>
+        </div>
         <section>
           <p className="xc-eyebrow xc-eyebrow--dim xc-section-title">Relations</p>
           {relations.length === 0 ? <p className="xc-note">No relations in this sample.</p> : (

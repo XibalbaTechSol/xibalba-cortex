@@ -6926,6 +6926,276 @@ class GraphStore:
 
         return {"nodes": nodes, "edges": edges}
 
+    def compute_graph_mathematics(
+        self,
+        *,
+        limit: int = 150,
+        similarity_threshold: float = 0.75,
+        agent_id: str | None = None,
+        include_embeddings: bool = False,
+    ) -> dict[str, object]:
+        """Compute formal mathematics of the graph: Adjacency Matrix, Cosine Similarity,
+        Combinatorial & Normalized Laplacian, Spectral Decomposition, PageRank, and Centrality."""
+        from .graph_math import compute_formal_graph_math
+
+        payload = self.graph_payload(limit=limit, similarity_threshold=similarity_threshold, agent_id=agent_id)
+        raw_nodes = payload.get("nodes", [])
+        raw_edges = payload.get("edges", [])
+
+        return compute_formal_graph_math(raw_nodes, raw_edges, embeddings=None, max_nodes=limit)
+
+
+    # -------------------------------------------------------------------------
+    # Knowledge Graph Connectors & Active Inference
+    # -------------------------------------------------------------------------
+
+    def ingest_triples(
+        self,
+        triples: list[dict[str, object] | tuple[str, str, str]],
+        *,
+        source_name: str = "dataset_ingest",
+        agent_id: str | None = None,
+        shared: bool = True,
+    ) -> dict[str, object]:
+        from .connectors.triples import TriplesConnector
+        connector = TriplesConnector(self)
+        result = connector.ingest_triples(triples, source_name=source_name, agent_id=agent_id, shared=shared)
+        return result.to_dict()
+
+    def ingest_biomedical_article(
+        self,
+        *,
+        title: str,
+        abstract: str,
+        pmid: str | None = None,
+        doi: str | None = None,
+        journal: str | None = None,
+        year: int | None = None,
+        agent_id: str | None = None,
+        shared: bool = True,
+    ) -> dict[str, object]:
+        from .connectors.biomedical import BiomedicalConnector
+        connector = BiomedicalConnector(self)
+        result = connector.ingest_article(
+            title=title,
+            abstract=abstract,
+            pmid=pmid,
+            doi=doi,
+            journal=journal,
+            year=year,
+            agent_id=agent_id,
+            shared=shared,
+        )
+        return result.to_dict()
+
+    def ingest_fhir_bundle(
+        self,
+        bundle: dict[str, object] | str,
+        *,
+        source_name: str = "fhir_bundle",
+        deidentify: bool = True,
+        agent_id: str | None = None,
+        shared: bool = True,
+    ) -> dict[str, object]:
+        from .connectors.fhir import FHIRConnector
+        connector = FHIRConnector(self)
+        result = connector.ingest_bundle(
+            bundle,
+            source_name=source_name,
+            deidentify=deidentify,
+            agent_id=agent_id,
+            shared=shared,
+        )
+        return result.to_dict()
+
+    def trace_mechanisms(
+        self,
+        source_entity: str,
+        target_entity: str,
+        *,
+        max_depth: int = 4,
+        agent_id: str | None = None,
+    ) -> list[dict[str, object]]:
+        from .connectors.inference import ActiveInferenceEngine
+        engine = ActiveInferenceEngine(self)
+        return engine.trace_mechanisms(source_entity, target_entity, max_depth=max_depth, agent_id=agent_id)
+
+    def predict_links(
+        self,
+        source_entity: str,
+        target_entity: str,
+        *,
+        relation: str = "associated_with",
+        agent_id: str | None = None,
+    ) -> dict[str, object]:
+        from .connectors.inference import ActiveInferenceEngine
+        engine = ActiveInferenceEngine(self)
+        return engine.predict_links(source_entity, target_entity, relation=relation, agent_id=agent_id)
+
+    def suggest_drug_repurposing(
+        self,
+        disease_entity: str,
+        *,
+        top_k: int = 5,
+        agent_id: str | None = None,
+    ) -> list[dict[str, object]]:
+        from .connectors.inference import ActiveInferenceEngine
+        engine = ActiveInferenceEngine(self)
+        return engine.suggest_drug_repurposing(disease_entity, top_k=top_k, agent_id=agent_id)
+
+    def ego_subgraph(
+        self,
+        center_entity: str,
+        *,
+        radius: int = 2,
+        agent_id: str | None = None,
+    ) -> dict[str, object]:
+        from .connectors.inference import ActiveInferenceEngine
+        engine = ActiveInferenceEngine(self)
+        return engine.get_ego_subgraph(center_entity, radius=radius, agent_id=agent_id)
+
+    def evaluate_step_reward(
+        self,
+        source: str,
+        relation: str,
+        target: str,
+        *,
+        task_reward: float = 0.0,
+        cost: float = 0.01,
+        bonded_stake: float = 100.0,
+        history_path: list[str] | None = None,
+        policy_rules: dict[str, object] | None = None,
+        agent_id: str | None = None,
+    ) -> dict[str, object]:
+        from .connectors.reward import AISGraphRewardEngine
+        engine = AISGraphRewardEngine(self)
+        result = engine.evaluate_step(
+            source=source,
+            relation=relation,
+            target=target,
+            task_reward=task_reward,
+            cost=cost,
+            bonded_stake=bonded_stake,
+            history_path=history_path,
+            policy_rules=policy_rules,
+            agent_id=agent_id,
+        )
+        return result.to_dict()
+
+    def evaluate_trajectory_reward(
+        self,
+        steps: list[dict[str, object]],
+        *,
+        discount_factor: float = 0.95,
+        initial_stake: float = 100.0,
+        policy_rules: dict[str, object] | None = None,
+        agent_id: str | None = None,
+    ) -> dict[str, object]:
+        from .connectors.reward import AISGraphRewardEngine
+        engine = AISGraphRewardEngine(self)
+        result = engine.evaluate_trajectory(
+            steps=steps,
+            discount_factor=discount_factor,
+            initial_stake=initial_stake,
+            policy_rules=policy_rules,
+            agent_id=agent_id,
+        )
+        return result.to_dict()
+
+    def seed_sample_knowledge_graph(self, force: bool = False) -> dict[str, object]:
+        """Seed a rich, interconnected sample knowledge graph for research and navigation."""
+        with self._lock:
+            if not force:
+                count = self._connection.execute("SELECT COUNT(*) FROM entities").fetchone()[0]
+                if count > 0:
+                    return {"seeded": False, "reason": "Store already contains entities", "entities": count}
+
+        from .connectors.triples import TriplesConnector
+
+        triples = [
+            # Oncology Pathways & Precision Therapeutics
+            ("Imatinib", "inhibits", "BCR-ABL1", 0.99),
+            ("BCR-ABL1", "associated_with", "Chronic Myeloid Leukemia", 0.98),
+            ("Imatinib", "inhibits", "c-KIT", 0.96),
+            ("c-KIT", "associated_with", "Gastrointestinal Stromal Tumor", 0.95),
+            ("Imatinib", "inhibits", "PDGFR-alpha", 0.92),
+            ("PDGFR-alpha", "associated_with", "Hypereosinophilic Syndrome", 0.89),
+            ("Pembrolizumab", "targets", "PD-1", 0.99),
+            ("PD-1", "downregulates", "T-Cell Activation", 0.96),
+            ("T-Cell Activation", "induces", "Tumor Cell Apoptosis", 0.97),
+            ("Pembrolizumab", "correlated_with", "PD-L1 Expression", 0.93),
+            ("PD-L1 Expression", "biomarker_for", "Non-Small Cell Lung Cancer", 0.95),
+            ("Trastuzumab", "inhibits", "HER2/neu", 0.98),
+            ("HER2/neu", "associated_with", "HER2-Positive Breast Cancer", 0.97),
+            ("Osimertinib", "inhibits", "EGFR T790M", 0.96),
+            ("EGFR T790M", "associated_with", "Non-Small Cell Lung Cancer", 0.94),
+            # PARA Knowledge Architecture & Agent Action Space
+            ("Project: Clinical Oncology Graph Engine", "targets", "Non-Small Cell Lung Cancer", 1.0),
+            ("Project: Clinical Oncology Graph Engine", "belongs_to_para_area", "Area: PHI Cryptographic Shielding", 1.0),
+            ("Project: HIPAA Enclave Pilot", "belongs_to_para_area", "Area: PHI Cryptographic Shielding", 1.0),
+            ("Area: PHI Cryptographic Shielding", "grounds", "Resource: HL7 FHIR R4 Clinical Bundles", 1.0),
+            ("Area: Real-Time Intent Containment", "enforces", "Policy: Bounded Context Containment", 1.0),
+            ("Area: Real-Time Intent Containment", "references", "Archive: Pre-BCC Safety Benchmarks", 1.0),
+            ("Resource: UMLS & MeSH Biomedical Ontologies", "grounds", "BCR-ABL1", 0.99),
+            ("Resource: HL7 FHIR R4 Clinical Bundles", "grounds", "Gastrointestinal Stromal Tumor", 0.95),
+            ("Archive: 2025 Pilot Phase Trials", "evidences", "Imatinib", 0.96),
+            ("Agent: Xibalba Navigational Reasoner", "navigates", "Project: Clinical Oncology Graph Engine", 1.0),
+            ("Agent: Xibalba Navigational Reasoner", "governed_by", "Policy: Bounded Context Containment", 1.0),
+        ]
+
+        connector = TriplesConnector(self)
+        result = connector.ingest_triples(
+            triples,
+            source_name="cortex_canonical_sample_graph",
+            shared=True,
+        )
+
+        entity_type_map = {
+            "Imatinib": "drug",
+            "Pembrolizumab": "drug",
+            "Trastuzumab": "drug",
+            "Osimertinib": "drug",
+            "BCR-ABL1": "target_protein",
+            "c-KIT": "target_protein",
+            "PDGFR-alpha": "target_protein",
+            "PD-1": "target_protein",
+            "HER2/neu": "target_protein",
+            "EGFR T790M": "target_protein",
+            "T-Cell Activation": "pathway",
+            "Tumor Cell Apoptosis": "pathway",
+            "PD-L1 Expression": "biomarker",
+            "Chronic Myeloid Leukemia": "disease",
+            "Gastrointestinal Stromal Tumor": "disease",
+            "Hypereosinophilic Syndrome": "disease",
+            "Non-Small Cell Lung Cancer": "disease",
+            "HER2-Positive Breast Cancer": "disease",
+            "Project: Clinical Oncology Graph Engine": "para_project",
+            "Project: HIPAA Enclave Pilot": "para_project",
+            "Area: PHI Cryptographic Shielding": "para_area",
+            "Area: Real-Time Intent Containment": "para_area",
+            "Resource: UMLS & MeSH Biomedical Ontologies": "para_resource",
+            "Resource: HL7 FHIR R4 Clinical Bundles": "para_resource",
+            "Archive: 2025 Pilot Phase Trials": "para_archive",
+            "Archive: Pre-BCC Safety Benchmarks": "para_archive",
+            "Agent: Xibalba Navigational Reasoner": "agent_actor",
+            "Policy: Bounded Context Containment": "security_policy",
+        }
+
+        with self._lock:
+            for name, etype in entity_type_map.items():
+                norm = self._normalize_name(name)
+                self._connection.execute(
+                    "UPDATE OR IGNORE entities SET entity_type = ? WHERE normalized_name = ?",
+                    (etype, norm),
+                )
+
+        return {
+            "seeded": True,
+            "entities_created": result.entities_created,
+            "relations_created": result.relations_created,
+            "memories_created": result.memories_created,
+        }
+
     def close(self) -> None:
         with self._lock:
             self._connection.close()

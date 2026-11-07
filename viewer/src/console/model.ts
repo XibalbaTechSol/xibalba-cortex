@@ -55,6 +55,9 @@ export interface CNode {
   status?: string
   evidenceClass?: string
   sourceKind?: string
+  entityType?: string
+  paraClassification?: 'project' | 'area' | 'resource' | 'archive' | string
+  properties?: Record<string, any>
   /** Epoch ms, or null when the API gave no usable timestamp. */
   time: number | null
   timeSource: TimeSource | null
@@ -128,6 +131,14 @@ export function buildModel(payload: GraphPayload, memoryInfo: ReadonlyMap<string
       status: raw.status,
       evidenceClass: raw.evidence_class,
       sourceKind: raw.source_kind,
+      entityType: raw.entity_type,
+      paraClassification: raw.para_category || (
+        raw.label.startsWith('Project:') ? 'project' :
+        raw.label.startsWith('Area:') ? 'area' :
+        raw.label.startsWith('Resource:') ? 'resource' :
+        raw.label.startsWith('Archive:') ? 'archive' : undefined
+      ),
+      properties: raw.properties,
       time: null,
       timeSource: null,
       degree: 0,

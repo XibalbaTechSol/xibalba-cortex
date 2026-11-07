@@ -1496,3 +1496,134 @@ def test_an_agent_the_store_has_never_seen_is_still_not_found(running_store):
     store_id = directory["agents"][0]["store_id"]
     for path, (code, _) in _scoped_reads(port, f"agent_id=never-seen&store_id={store_id}").items():
         assert code == 404, path
+
+
+def test_connectors_and_discovery_reward_api(running_store):
+    store, port = running_store
+
+    # 1. Ingest triples via POST /api/connectors/triples
+    code, res = _post(
+        port,
+        "/api/connectors/triples",
+        {
+            "triples": [
+                ["Imatinib", "inhibits", "BCR-ABL1", 0.99],
+                ["BCR-ABL1", "associated_with", "Chronic Myeloid Leukemia", 0.95],
+                ["Imatinib", "inhibits", "c-KIT", 0.95],
+                ["c-KIT", "associated_with", "Gastrointestinal Stromal Tumor", 0.92],
+            ],
+            "source_name": "api_test_triples",
+        },
+    )
+    assert code == 200
+    assert res["success"] is True
+
+    # 2. Query mechanisms via GET /api/discovery/mechanisms
+    code, mechanisms = _get(port, "/api/discovery/mechanisms?source=Imatinib&target=Chronic+Myeloid+Leukemia")
+    assert code == 200
+    assert len(mechanisms) == 1
+    assert mechanisms[0]["path_nodes"] == ["Imatinib", "BCR-ABL1", "Chronic Myeloid Leukemia"]
+
+    # 3. Query link predictions via GET /api/discovery/predict-links
+    code, pred = _get(port, "/api/discovery/predict-links?source=Imatinib&target=Gastrointestinal+Stromal+Tumor")
+    assert code == 200
+    assert pred["probability"] > 0.5
+
+    # 4. Ingest biomedical text via POST /api/connectors/biomedical
+    code, bio_res = _post(
+        port,
+        "/api/connectors/biomedical",
+        {
+            "title": "Pembrolizumab mechanisms",
+            "abstract": "Pembrolizumab targets PD-1, promoting T-Cell Activation in Non-Small Cell Lung Cancer.",
+            "pmid": "99999",
+        },
+    )
+    assert code == 200
+    assert bio_res["success"] is True
+
+    # 5. Evaluate Step Reward via POST /api/discovery/reward/step
+    # Verified edge
+    code, step_reward = _post(
+        port,
+        "/api/discovery/reward/step",
+        {
+            "source": "Imatinib",
+            "relation": "inhibits",
+            "target": "BCR-ABL1",
+            "task_reward": 1.0,
+            "cost": 0.01,
+            "bonded_stake": 100.0,
+        },
+    )
+    assert code == 200
+    assert step_reward["is_hallucination"] is False
+    assert step_reward["grounding"] == 0.99
+    assert step_reward["ais"] > 0.8
+    assert step_reward["total_reward"] > 0.0
+
+    # Hallucinated edge: grounding collapsed to 0, reward collapsed, slashed
+    code, hall_reward = _post(
+        port,
+        "/api/discovery/reward/step",
+        {
+            "source": "Imatinib",
+            "relation": "cures",
+            "target": "RandomFakeTargetABC",
+            "task_reward": 10.0,
+            "bonded_stake": 100.0,
+        },
+    )
+    assert code == 200
+    assert hall_reward["is_hallucination"] is True
+    assert hall_reward["grounding"] == 0.0
+    assert hall_reward["ais"] == 0.0
+    assert hall_reward["total_reward"] < 0.0
+    assert hall_reward["slashing_penalty"] == 10.0
+
+    # 6. Evaluate Trajectory Reward via POST /api/discovery/reward/trajectory
+    code, traj_reward = _post(
+        port,
+        "/api/discovery/reward/trajectory",
+        {
+            "steps": [
+                {"source": "Imatinib", "relation": "inhibits", "target": "BCR-ABL1", "task_reward": 1.0},
+                {"source": "BCR-ABL1", "relation": "associated_with", "target": "Chronic Myeloid Leukemia", "task_reward": 2.0},
+            ],
+            "discount_factor": 0.95,
+            "initial_stake": 100.0,
+        },
+    )
+    assert code == 200
+    assert traj_reward["trajectory_length"] == 2
+    assert traj_reward["has_hallucination"] is False
+    assert traj_reward["cumulative_reward"] > 0.0
+
+    # 7. Formal Graph Mathematics via GET and POST /api/graph/math
+    code, math_get = _get(port, "/api/graph/math?limit=50")
+    assert code == 200
+    assert "adjacency_matrix" in math_get
+    assert "laplacian_matrix" in math_get
+    assert "cosine_similarity_matrix" in math_get
+    assert "spectral" in math_get
+    assert "centrality" in math_get
+
+    code, math_post = _post(
+        port,
+        "/api/graph/math",
+        {
+            "nodes": [{"id": "A", "label": "Alpha"}, {"id": "B", "label": "Beta"}],
+            "edges": [{"source": "A", "target": "B", "weight": 1.0}],
+            "limit": 10,
+        },
+    )
+    assert code == 200
+    assert math_post["node_count"] == 2
+    assert math_post["edge_count"] == 1
+
+    # 8. Canonical Sample Knowledge Graph Seeding via POST /api/graph/seed-sample
+    code, seed_post = _post(port, "/api/graph/seed-sample", {"force": True})
+    assert code == 200, f"Error: {code}, payload: {seed_post}"
+    assert seed_post["seeded"] is True
+    assert seed_post["relations_created"] >= 20
+
