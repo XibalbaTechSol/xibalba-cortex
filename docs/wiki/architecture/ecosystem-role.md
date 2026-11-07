@@ -16,9 +16,10 @@ source_files:
 - [Cortex is a standalone product first](#cortex-is-a-standalone-product-first)
 - [Role: 🧠 The Navigational Engine](#role-the-navigational-engine)
 - [The Four-Repository Ecosystem Topology](#the-four-repository-ecosystem-topology)
-- [Inbound: Geometric Traversal & Multi-Harness Ingestion](#inbound-geometric-traversal--multi-harness-ingestion)
+- [Inbound: Geometric Traversal & Multi-Harness Ingestion](#inbound-geometric-traversal-multi-harness-ingestion)
 - [Outbound: Session Merkle Anchoring (integrity-core)](#outbound-session-merkle-anchoring-integrity-core)
 - [Outbound: Operator Visualization (integrity-console)](#outbound-operator-visualization-integrity-console)
+- [Cloud Deployments (Render & Supabase)](#cloud-deployments-render-supabase)
 - [Related pages in sibling repos](#related-pages-in-sibling-repos)
 
 ## Cortex is a standalone product first
@@ -75,8 +76,16 @@ Session Merkle roots (see [Hash Chain and Merkle Roots](../concepts/hash-chain-a
 
 The local operator API (:8420) and Vite viewer (:5190) stream navigation graphs, entity subgraphs, and provenance traces to `integrity-console`, allowing operators to inspect agent trajectories and verification states in real time.
 
+## Cloud Deployments (Render & Supabase)
+
+All four ecosystem components have verified production deployments:
+- **Xibalba Cortex (Managed Pilot):** [`https://cortex-managed-pilot.onrender.com`](https://cortex-managed-pilot.onrender.com)
+- **Xibalba Shield (Cloud Console):** [`https://xibalba-shield.onrender.com`](https://xibalba-shield.onrender.com)
+- **Integrity Oracle:** [`https://integrity-oracle.onrender.com`](https://integrity-oracle.onrender.com)
+- **Integrity Console:** [`https://integrity-console-test.onrender.com`](https://integrity-console-test.onrender.com)
+
 ## Related pages in sibling repos
 
-- `xibalba-shield` wiki — [Ecosystem Role](https://github.com/XibalbaTechSol/xibalba-shield/wiki/ecosystem-role)
+- `xibalba-shield` wiki — [Ecosystem Role](https://xibalba-shield.onrender.com)
 - `integrity-core` canonical authority map: [`integrity-core/docs/ecosystem/ECOSYSTEM.md`](https://github.com/XibalbaTechSol/integrity-core/blob/main/docs/ecosystem/ECOSYSTEM.md)
-- `integrity-console` — [Universal Verifiable Operator Window](https://github.com/XibalbaTechSol/integrity-console)
+- `integrity-console` — [Universal Verifiable Operator Window](https://integrity-console-test.onrender.com)

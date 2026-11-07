@@ -14,6 +14,8 @@ canonical SQLite store), then [Hash Chain and Merkle Roots](concepts/hash-chain-
 actually talks to the store), then [Generic Ingestion](concepts/generic-ingestion.md) (how any
 harness — local or cloud-hosted — can use it, not just the three officially-adapted runtimes).
 
+Hosted in production on Render at [`https://cortex-managed-pilot.onrender.com`](https://cortex-managed-pilot.onrender.com).
+
 ## System at a glance
 
 ```mermaid
