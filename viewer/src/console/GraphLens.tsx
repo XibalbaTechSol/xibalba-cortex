@@ -520,29 +520,29 @@ export function GraphLens() {
             type="button"
             className="xc-zoom-text"
             title="Formal Mathematics of Graphs (Adjacency Matrix, Cosine Similarity, Spectral, Centrality)"
+            aria-label="Formal Graph Mathematics"
             onClick={() => setMathStudioOpen(true)}
-            style={{ fontWeight: 600, color: '#818cf8' }}
           >
-            📐 Math
+            fx
           </button>
           <button
             type="button"
             className="xc-zoom-text"
             title="Toggle Zen Immersion Mode (Z): Maximize 3D canvas"
+            aria-label="Toggle Zen Immersion Mode"
             onClick={() => window.dispatchEvent(new CustomEvent('xc-toggle-immersion'))}
-            style={{ fontWeight: 600, color: '#a855f7' }}
           >
-            🌌 Zen
+            Z
           </button>
           {selectedId && mode3d && (
             <button
               type="button"
               className="xc-zoom-text"
               title="Zoom inside node face (Dive into city from space)"
+              aria-label="Zoom inside node face"
               onClick={() => g3Ref.current?.enterCity(selectedId)}
-              style={{ fontWeight: 600, color: '#38bdf8' }}
             >
-              🏙️ City
+              3D+
             </button>
           )}
         </div>
@@ -552,16 +552,16 @@ export function GraphLens() {
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
               <span style={{ fontSize: 22 }}>🏙️</span>
               <div>
-                <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.08em', color: '#818cf8', textTransform: 'uppercase' }}>
+                <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.08em', color: 'var(--accent)', textTransform: 'uppercase' }}>
                   Inside Node Metropolis
                 </div>
-                <div style={{ fontSize: 15, fontWeight: 700, color: '#fff' }}>
+                <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--ink)' }}>
                   {insideCityNode.label}
                 </div>
               </div>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <span style={{ fontSize: 11, color: 'var(--ink-muted, #9ca3af)', padding: '3px 8px', background: 'rgba(255, 255, 255, 0.06)', borderRadius: 4 }}>
+              <span style={{ fontSize: 11, color: 'var(--ink-muted)', padding: '3px 8px', background: 'rgba(255, 255, 255, 0.06)' }}>
                 Altitude: Ground Level
               </span>
               <button

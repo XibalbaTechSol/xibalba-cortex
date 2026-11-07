@@ -3907,29 +3907,33 @@ body,
 .xc-dataset-select {
   height: 28px;
   padding: 0 10px;
-  background: var(--ground);
+  background: transparent;
   border: 1px solid var(--hairline);
   color: var(--ink);
   font: 500 11px var(--font-mono);
-  border-radius: 4px;
+  border-radius: 0;
   outline: none;
   cursor: pointer;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
-  transition: border-color 0.15s ease, background 0.15s ease;
+  box-shadow: none;
+  transition: border-color 0.15s ease;
 }
 .xc-dataset-select:hover,
 .xc-dataset-select:focus {
   border-color: var(--hairline-strong);
-  background: var(--surface);
+  background: transparent;
+}
+.xc-dataset-select option {
+  background: var(--ground);
+  color: var(--ink);
 }
 .xc-dataset-btn {
   height: 28px;
   padding: 0 10px;
-  background: var(--ground);
+  background: transparent;
   border: 1px solid var(--hairline);
   color: var(--ink-muted);
   font: 500 11px var(--font-mono);
-  border-radius: 4px;
+  border-radius: 0;
   cursor: pointer;
   display: inline-flex;
   align-items: center;
@@ -3939,7 +3943,7 @@ body,
 .xc-dataset-btn:hover {
   color: var(--ink);
   border-color: var(--hairline-strong);
-  background: var(--surface);
+  background: transparent;
 }
 
 .xc-shell.xc-shell--top,
@@ -3948,5 +3952,3 @@ body,
   flex-direction: column !important;
   grid-template-columns: none !important;
 }
-
-
