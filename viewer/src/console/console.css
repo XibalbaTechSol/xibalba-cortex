@@ -3153,15 +3153,14 @@ select.xc-input {
    lens toolbar's inset and the chain rail's left edge follow from `--dock-left` with no rule
    of their own, so nothing here has to know the dock can collapse. */
 .xc-workspace:has(> .xc-rail[data-collapsed='true']) {
-  --dock-left: 0px;
+  --dock-left: 36px;
 }
 .xc-workspace > .xc-rail[data-collapsed='true'] {
-  width: 0px;
-  max-width: 0px;
+  width: 36px;
+  min-width: 36px;
+  max-width: 36px;
   overflow: hidden;
-  border-right: none;
-  pointer-events: none;
-  opacity: 0;
+  border-right: 1px solid var(--hairline-faint);
 }
 .xc-dock-head {
   display: flex;
@@ -3178,13 +3177,19 @@ select.xc-input {
   color: var(--ink-dim);
   white-space: nowrap;
 }
-/* Collapsed: folds into left navigation bar under links, freeing full workspace width */
+/* Collapsed, the dock keeps a 36px strip: the label turned on its side and the control that brings it back */
 .xc-rail[data-collapsed='true'] > .xc-scroll { display: none; }
 .xc-rail[data-collapsed='true'] .xc-dock-head {
-  display: none;
+  flex-direction: column;
+  justify-content: flex-start;
+  gap: 12px;
+  height: 100%;
+  padding: 8px 4px;
+  border-bottom: 0;
 }
 .xc-rail[data-collapsed='true'] .xc-dock-title {
-  display: none;
+  writing-mode: vertical-rl;
+  letter-spacing: .2em;
 }
 
 /* The head holds a title and now two buttons, so the title takes the slack and the pair sits
