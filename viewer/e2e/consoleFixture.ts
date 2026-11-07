@@ -160,7 +160,13 @@ export async function stubConsoleApi(page: Page) {
        the catch-all answered with EMPTY_COLLECTIONS, so the Inspector got a truthy memory whose
        `content` was undefined and the console unmounted the moment a memory was selected. */
     if (path.includes('/api/memory/')) {
-      const id = decodeURIComponent(path.split('/api/memory/')[1] ?? '')
+      const rest = decodeURIComponent(path.split('/api/memory/')[1] ?? '')
+      if (rest.includes('/similar')) return json(MEMORIES.slice(0, 3))
+      if (rest.includes('/neighbors')) return json([])
+      if (rest.includes('/events')) return json([{ id: 1, event_type: 'create', detail: {}, node_id: 'n1', parent_event_id: null, created_at: iso(0) }])
+      if (rest.includes('/attachments')) return json([])
+      if (rest.includes('/contradictions')) return json([])
+      const id = rest.split('/')[0]
       const found = MEMORIES.find((m) => m.id === id)
       if (found) return json(found)
       return route.fulfill({ status: 404, contentType: 'application/json', body: JSON.stringify({ detail: 'not found' }) })

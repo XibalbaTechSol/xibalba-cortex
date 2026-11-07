@@ -41,20 +41,48 @@ export interface AgentOption {
   knownEmpty: boolean
 }
 
+export const HEALTHCARE_RESEARCHER_DID = 'did:integrity:healthcare-researcher-latent-space-01'
+
+export const HEALTHCARE_RESEARCHER_DEMO_OPTION: AgentOption = {
+  agentId: HEALTHCARE_RESEARCHER_DID,
+  storeId: 'store-healthcare-researcher',
+  profileId: 'demo-healthcare',
+  label: '🩺 Healthcare Researcher (Latent Medical Space Demo)',
+  writable: false,
+  knownEmpty: false,
+}
+
 export function toOptions(workspaces: AgentWorkspace[]): AgentOption[] {
-  return canonicalWorkspaces(workspaces).map((w) => ({
-    agentId: w.agent_id,
-    storeId: w.store_id!,
-    profileId: w.profile_id!,
-    label: w.agent_name || w.agent_id,
-    writable: w.writable === true,
-    knownEmpty: w.memories_counted === true && w.memories === 0,
-  }))
+  const options = canonicalWorkspaces(workspaces).map((w) => {
+    const isDemo = w.agent_id === HEALTHCARE_RESEARCHER_DID || w.agent_id === 'demo-healthcare-researcher'
+    return {
+      agentId: isDemo ? HEALTHCARE_RESEARCHER_DID : w.agent_id,
+      storeId: w.store_id!,
+      profileId: w.profile_id!,
+      label: isDemo ? '🩺 Healthcare Researcher (Latent Medical Space Demo)' : (w.agent_name || w.agent_id),
+      writable: isDemo ? false : w.writable === true,
+      knownEmpty: isDemo ? false : (w.memories_counted === true && w.memories === 0),
+    }
+  })
+  if (!options.some((o) => o.agentId === HEALTHCARE_RESEARCHER_DID || o.agentId === 'demo-healthcare-researcher')) {
+    const defaultStoreId = options[0]?.storeId || HEALTHCARE_RESEARCHER_DEMO_OPTION.storeId
+    const defaultProfileId = options[0]?.profileId || HEALTHCARE_RESEARCHER_DEMO_OPTION.profileId
+    options.push({
+      ...HEALTHCARE_RESEARCHER_DEMO_OPTION,
+      storeId: defaultStoreId,
+      profileId: defaultProfileId,
+    })
+  }
+  return options
 }
 
 /** The workspace to open when nothing is chosen yet: the first that may hold memories, so the
  * console does not land on an empty namespace when a populated one exists. */
 export function defaultOption(options: AgentOption[]): AgentOption | undefined {
+  const userOptions = options.filter((o) => o.agentId !== HEALTHCARE_RESEARCHER_DID && o.agentId !== 'demo-healthcare-researcher')
+  if (userOptions.length > 0) {
+    return userOptions.find((o) => !o.knownEmpty) ?? userOptions[0]
+  }
   return options.find((o) => !o.knownEmpty) ?? options[0]
 }
 

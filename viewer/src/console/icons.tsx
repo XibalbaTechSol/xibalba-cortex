@@ -53,6 +53,17 @@ export const IconRefresh = (p: IconProps) => (
     <path d="M20 11a8 8 0 1 0-2.3 5.7M20 5v6h-6" />
   </svg>
 )
+export const IconExpand = (p: IconProps) => (
+  <svg {...base} {...p}>
+    <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7" />
+  </svg>
+)
+export const IconBox = (p: IconProps) => (
+  <svg {...base} {...p}>
+    <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
+    <path d="M3.27 6.96 12 12.01l8.73-5.05M12 22.08V12" />
+  </svg>
+)
 export const IconSignOut = (p: IconProps) => (
   <svg {...base} {...p}>
     <path d="M10 4H5v16h5M15 8l4 4-4 4M19 12H9" />

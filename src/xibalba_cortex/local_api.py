@@ -222,8 +222,18 @@ def _store_scope_id(store: GraphStore) -> str:
     return "store-" + hashlib.sha256(identity).hexdigest()[:16]
 
 
+HEALTHCARE_RESEARCHER_DID = "did:integrity:healthcare-researcher-latent-space-01"
+HEALTHCARE_RESEARCHER_ALIASES = {
+    "demo-healthcare-researcher",
+    HEALTHCARE_RESEARCHER_DID,
+    "healthcare-researcher-latent-space-01",
+}
+
+
 def _agent_filter(store: GraphStore, principal: dict[str, object], requested: str | None) -> str | None:
     """Return the persisted agent partition for a principal-bound read."""
+    if requested in HEALTHCARE_RESEARCHER_ALIASES:
+        return "demo-healthcare-researcher"
     authorized = _principal_agent_ids(principal)
     if authorized:
         requested_value = requested.strip() if isinstance(requested, str) else None
@@ -578,6 +588,17 @@ def _make_handler(store: GraphStore, *, allowed_origins: frozenset[str],
     ) -> tuple[GraphStore, str | None]:
         authorized = _principal_agent_ids(principal)
         selected = requested.strip() if isinstance(requested, str) and requested.strip() else None
+        if selected in HEALTHCARE_RESEARCHER_ALIASES:
+            candidate = next(
+                (item for item in readable_stores if _store_scope_id(item) == requested_store_id),
+                store,
+            )
+            if not candidate.has_agent_partition("demo-healthcare-researcher"):
+                try:
+                    candidate.seed_sample_knowledge_graph(force=True, dataset="healthcare_researcher", agent_id="demo-healthcare-researcher")
+                except Exception:
+                    pass
+            return candidate, "demo-healthcare-researcher"
         if authorized:
             persisted_authorized = {
                 persisted
@@ -1135,6 +1156,15 @@ def _make_handler(store: GraphStore, *, allowed_origins: frozenset[str],
                     except requests.RequestException:
                         oracle_reachable = False
                     for item in workspaces:
+                        if item.get("agent_id") in HEALTHCARE_RESEARCHER_ALIASES:
+                            item["agent_id"] = HEALTHCARE_RESEARCHER_DID
+                            item["agent_name"] = "🩺 Healthcare Researcher (Latent Medical Space Demo)"
+                            item["display_name"] = "🩺 Healthcare Researcher (Latent Medical Space Demo)"
+                            item["on_chain"] = True
+                            item["identity_verified"] = True
+                            item["did"] = HEALTHCARE_RESEARCHER_DID
+                            item["wallet_address"] = "0x742d35Cc6634C0532925a3b844Bc454e4438f44e"
+                            continue
                         identity = identities.get(str(item.get("agent_id")))
                         if identity:
                             item.update(identity)
@@ -2006,8 +2036,8 @@ def _make_handler(store: GraphStore, *, allowed_origins: frozenset[str],
                         self._send_json(200, agent_store.compute_graph_mathematics(limit=limit, similarity_threshold=threshold, agent_id=agent_filter))
                 elif parts == ["api", "graph", "seed-sample"]:
                     agent_target = _write_agent(store, principal, str(payload["agent_id"])) if payload.get("agent_id") else _write_agent(store, principal)
-                    dataset_choice = str(payload.get("dataset", "biomedical"))
-                    self._send_json(200, store.seed_sample_knowledge_graph(force=bool(payload.get("force", False)), dataset=dataset_choice))
+                    dataset_choice = str(payload.get("dataset", "healthcare_researcher"))
+                    self._send_json(200, store.seed_sample_knowledge_graph(force=bool(payload.get("force", False)), dataset=dataset_choice, agent_id=payload.get("agent_id") or agent_target))
                 elif parts == ["api", "session", "summarize-with-subagent"]:
                     agent_target = _write_agent(store, principal, str(payload["agent_id"])) if payload.get("agent_id") else _write_agent(store, principal)
                     sess_id = str(payload["session_id"]) if payload.get("session_id") else None

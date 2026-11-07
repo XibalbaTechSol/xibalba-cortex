@@ -12,7 +12,7 @@ import { useConsole } from './state'
 import { useSettings } from './settingsContext'
 import { resolveDrop } from './floating'
 import { histogram, shortStamp, type RangePreset } from './model'
-import { IconPause, IconPlay } from './icons'
+import { IconChevronRight, IconPause, IconPlay, IconTimeline } from './icons'
 import { api } from '../api'
 import { ConfirmPanel } from './ConfirmPanel'
 import { saveBlob } from './download'
@@ -170,10 +170,11 @@ export function ChainRail() {
         className="xc-chain-handle"
         onClick={() => update({ chainCollapsed: false })}
         aria-expanded={false}
-        title="Show the chain rail"
+        title="Show the chain rail (temporal history)"
       >
-        <span className="xc-eyebrow">Chain rail</span>
-        <span className="xc-note">
+        <IconTimeline style={{ width: 14, height: 14, flex: 'none', color: 'var(--accent)' }} />
+        <span className="xc-eyebrow" style={{ fontSize: 10, letterSpacing: '0.06em' }}>Chain</span>
+        <span className="xc-note" style={{ fontSize: 11 }}>
           {timeWindow ? `${shortStamp(timeWindow.from)} → ${shortStamp(timeWindow.to)}` : 'All time'} · {eventsInWindow.toLocaleString()}
         </span>
       </button>
@@ -235,9 +236,9 @@ export function ChainRail() {
           onClick={() => update({ chainCollapsed: true })}
           aria-expanded
           aria-label="Hide the chain rail"
-          title="Hide the chain rail"
+          title="Collapse chain rail into right margin"
         >
-          ▾
+          <IconChevronRight style={{ width: 12, height: 12 }} />
         </button>
       </div>
 

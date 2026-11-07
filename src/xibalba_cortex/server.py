@@ -2026,11 +2026,12 @@ def graph_compute_math(
 @server.tool()
 def graph_seed_sample(
     force: bool = False,
-    dataset: str = "biomedical",
+    dataset: str = "healthcare_researcher",
 ) -> dict[str, Any]:
     """Seed sample knowledge graphs into the store.
     
     Datasets:
+    - 'healthcare_researcher': Huge clinical latent space navigation graph (Precision Oncology, Kinases, SOPs, PARA, CTCAE, and MDP transitions).
     - 'biomedical': Oncology pathways, kinase targets, and clinical trial cohorts.
     - 'action_space': Agent Action Space (Navigational MDP, BCC gating, tool choices, and slashing).
     - 'all': Unified manifold combining both domains.

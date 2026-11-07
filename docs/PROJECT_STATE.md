@@ -1,5 +1,31 @@
 # Cortex project state
 
+## 3D Navigational Manifold, Zen Flight, Inner Sanctum & Subresource Parity — 2026-11-07
+
+The feature worktree `feat/zen-mode-controls` expands Cortex's 3D knowledge graph manifold,
+introducing full interactive flight mechanics, novel spatial property representations, clinical
+latent space exploration, maximized viewport geometry, and hosted subresource parity:
+1. **Zen Flight Mode & Camera Presets:** Integrated orbital/flight navigation (`W`/`S` pitch, `A`/`D` yaw,
+   `Q`/`E` roll, `Space`/`Shift` elevation) with on-screen D-Pad HUD, velocity dampening, cheatsheet modal (`?`),
+   and instant camera projection presets (`1` ISO, `2` TOP, `3` FRONT, `4` SIDE).
+2. **Inner Sanctum Spatial Chamber:** Double-clicking any node transitions the camera into an octagonal
+   spatial chamber. Visualizes properties and metrics in novel physical/geometric forms: Starburst Quiver vector
+   field for high-dimensional embeddings, 4-tier Degree Centrality Obelisk, dual-gimbal AIS Gyroscope, Dirichlet
+   energy ripple pool, and Subject-Predicate-Object portals with instant `⚡ Warp` jumping.
+3. **Healthcare Researcher Latent Space Demo:** Canonical DID `did:integrity:healthcare-researcher-latent-space-01`
+   pre-loaded with 138 real-world clinical triples covering Precision Oncology (EGFR T790M, Osimertinib, NSCLC,
+   ctDNA liquid biopsy, adverse ILD toxicity, high-dose corticosteroids), PARA architecture, clinical SOPs, and
+   Agent MDP latent state spaces. Available out-of-the-box to all users across self-hosted and managed editions.
+4. **Maximized Viewport & Dark Glass Micro-Icons:** Slimmed header to 34px, collapsed right ChainRail into a sleek
+   handle, integrated Projection controls into navigation rail, and styled micro-icons with dark translucent glass
+   (`rgba(11, 15, 25, 0.75)` with `backdrop-filter: blur(12px)`) eliminating canvas washout against 3D nodes.
+5. **Managed Subresource Parity:** Fully resolved all "The hosted edition does not offer this yet" errors by
+   implementing managed endpoints in `src/xibalba_cortex/managed/api.py` and `viewer/src/hostedApi.ts` for `similar`,
+   `neighbors`, `events`, `otel`, `attachments`, `contradictions`, `entity/path`, and session Merkle roots.
+6. **Verification & Testing:** 100% green test passes across Python pytest (`test_healthcare_researcher.py`,
+   `test_managed_subresources.py`, `test_local_api.py`, `test_demo_seed.py`, `test_managed_agents.py`), TypeScript
+   unit tests (40 test files, 423 tests), and Playwright E2E (`viewer/e2e/zen-mode-controls.spec.ts`).
+
 ## Supabase migration handoff — 2026-11-05 (runtime configuration gap found)
 
 The current Cortex Auth/control-plane cutover is tracked in

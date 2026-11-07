@@ -9,8 +9,8 @@ const plans = [
   { name: 'Team', price: 149, purpose: 'More capacity for demanding agent workloads.', memories: '250,000', writes: '50,000', reads: '250,000' },
 ]
 const comparisons = [
-  ['Primary focus', 'Source tracking, verifiable memory history, and an inspectable graph.', 'Managed memory that extracts facts, updates user profiles, and retrieves context.'],
-  ['Retrieval', 'Local edition: lexical + vector retrieval. Managed preview: lexical search.', 'Hybrid semantic search, graph traversal, filtering, and reranking.'],
+  ['Primary focus', 'Source tracking, verifiable memory history, 3D graph manifold, and an inspectable topological graph.', 'Managed memory that extracts facts, updates user profiles, and retrieves context.'],
+  ['Retrieval & Inspection', 'Lexical + vector retrieval, 3D graph manifold, similar memories, neighbor traversal, and provenance inspector.', 'Hybrid semantic search, graph traversal, filtering, and reranking.'],
   ['Deployment', 'Run the local server yourself. Separate managed workspaces are in preview.', 'Cloud service, local runtime, and dedicated deployment options.'],
   ['Memory history', 'Recompute event-chain hashes and inspect the evidence behind a memory. A valid chain does not prove a claim is true.', 'A memory lifecycle that updates, extends, and forgets facts while preserving history.'],
   ['Subscription model', 'Free / $29 Pro / $149 Team, with explicit storage and monthly request limits. Paid signup is not live yet.', 'Free and paid plans use included credits with usage-based billing. Check current pricing for limits and rates.'],

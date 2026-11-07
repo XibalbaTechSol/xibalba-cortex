@@ -8,7 +8,7 @@ import { useSettings } from './settingsContext'
 import { primaryDestinations, type Destination, type DestinationId } from './nav'
 import {
   IconAgents, IconChevronLeft, IconChevronRight, IconEntities, IconGraph, IconIntegrity, IconMemories, IconOperations,
-  IconRefresh, IconReview, IconSearch, IconSessions, IconSettings, IconSignOut, IconTimeline,
+  IconPanelLeft, IconRefresh, IconReview, IconSearch, IconSessions, IconSettings, IconSignOut, IconTimeline,
 } from './icons'
 
 export const DESTINATION_ICON: Record<DestinationId, ReactNode> = {
@@ -186,9 +186,29 @@ export function WorkspaceHeader() {
 export function LensSwitch() {
   const { lens, setLens } = useConsole()
   return (
-    <div className="xc-ranges" role="group" aria-label="Lens">
-      <button type="button" className="xc-btn" aria-pressed={lens === 'graph'} onClick={() => setLens('graph')}>Graph</button>
-      <button type="button" className="xc-btn" aria-pressed={lens === 'timeline'} onClick={() => setLens('timeline')}>Timeline</button>
+    <div className="xc-ranges xc-lens-icons" role="group" aria-label="Lens">
+      <button
+        type="button"
+        className="xc-btn xc-btn--square xc-lens-btn"
+        aria-pressed={lens === 'graph'}
+        title="Graph view"
+        aria-label="Graph"
+        onClick={() => setLens('graph')}
+      >
+        <IconGraph />
+        <span className="xc-lens-text">Graph</span>
+      </button>
+      <button
+        type="button"
+        className="xc-btn xc-btn--square xc-lens-btn"
+        aria-pressed={lens === 'timeline'}
+        title="Timeline view"
+        aria-label="Timeline"
+        onClick={() => setLens('timeline')}
+      >
+        <IconTimeline />
+        <span className="xc-lens-text">Timeline</span>
+      </button>
     </div>
   )
 }
@@ -277,7 +297,7 @@ export function TopBar() {
  *  connection and reload live in WorkspaceHeader, over the content, so collapsing hides none of
  *  them. What stays here is navigation and the account. */
 export function Rail() {
-  const { destinations } = useConsole()
+  const { destinations, signOut, go } = useConsole()
   const { settings, update } = useSettings()
   const collapsed = settings.railCollapsed
   return (
@@ -298,10 +318,47 @@ export function Rail() {
 
       <nav className="xc-rail-nav" aria-label="Lenses and workflows">
         {primaryDestinations(destinations).map((d) => <NavButton key={d.id} dest={d} />)}
+
+        <div className="xc-rail-projection-toggle" style={{ borderTop: '1px solid var(--hairline-faint, rgba(255,255,255,0.06))', paddingTop: 6, marginTop: 4 }}>
+          <button
+            type="button"
+            className={`xc-nav-btn ${!settings.facetsCollapsed ? 'xc-nav-btn--active' : ''}`}
+            aria-label={settings.facetsCollapsed ? 'Expand Projection Filters' : 'Collapse Projection Filters'}
+            aria-pressed={!settings.facetsCollapsed}
+            title={settings.facetsCollapsed ? 'Projection Filters' : 'Collapse Projection'}
+            onClick={() => update({ facetsCollapsed: !settings.facetsCollapsed })}
+          >
+            <IconPanelLeft />
+            <span className="xc-nav-label">Projection</span>
+          </button>
+        </div>
       </nav>
 
       <div className="xc-rail-foot">
-        <ProfileButton />
+        {collapsed ? (
+          <div className="xc-rail-collapsed-actions" style={{ display: 'flex', flexDirection: 'column', gap: 6, alignItems: 'center' }}>
+            <button
+              type="button"
+              className="xc-btn xc-btn--square"
+              aria-label="Settings"
+              title="Settings"
+              onClick={() => go('settings')}
+            >
+              <IconSettings />
+            </button>
+            <button
+              type="button"
+              className="xc-btn xc-btn--square"
+              aria-label="Log out"
+              title="Log out"
+              onClick={signOut}
+            >
+              <IconSignOut />
+            </button>
+          </div>
+        ) : (
+          <ProfileButton />
+        )}
       </div>
     </aside>
   )

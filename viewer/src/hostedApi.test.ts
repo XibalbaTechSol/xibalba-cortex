@@ -64,6 +64,11 @@ describe('hostedTarget', () => {
     expect(at('GET', '/api/memories?limit=40&offset=40&status=active&q=hello')).toBe('memories?q=hello')
     expect(at('GET', '/api/search?q=hello&limit=20')).toBe('memories?q=hello')
     expect(at('GET', '/api/memory/m1?')).toBe('memories/m1')
+    expect(at('GET', '/api/memory/m1/similar?limit=10')).toBe('memories/m1/similar?limit=10')
+    expect(at('GET', '/api/memory/m1/neighbors?')).toBe('memories/m1/neighbors')
+    expect(at('GET', '/api/memory/m1/events?')).toBe('memories/m1/events')
+    expect(at('GET', '/api/memory/m1/attachments?')).toBe('memories/m1/attachments')
+    expect(at('GET', '/api/entity/Alice/neighbors?max_depth=1')).toBe('entity/Alice/neighbors?max_depth=1')
     expect(at('GET', '/api/memory/m1/verify-chain?')).toBe('memories/m1/verify')
     expect(at('GET', '/api/agent0/search?q=x')).toBe('agent0/search?q=x')
     expect(at('GET', '/api/agent0/agent/did%3Aintegrity%3Az?full=true')).toBe('agent0/agent/did%3Aintegrity%3Az?full=true')
@@ -117,8 +122,7 @@ describe('hostedTarget', () => {
     const { hostedTarget } = await import('./hostedApi')
     // every one of these is a real console call; `managed/api.py` serves none of them
     for (const path of ['/api/stats', '/api/status', '/api/operations', '/api/invocations?limit=500',
-      '/api/sessions/page?limit=50&offset=0', '/api/entity/Alice/neighbors?max_depth=1',
-      '/api/memory/m1/events?', '/api/memory/m1/similar?limit=10', '/api/memory/m1/attachments?',
+      '/api/sessions/page?limit=50&offset=0',
       '/api/auth/csrf', '/api/profile/config', '/api/runtimes', '/api/workers',
       '/api/integrity-links?limit=50', '/api/extraction-proposals?status=proposed&limit=50',
       '/readyz', '/metrics']) {
