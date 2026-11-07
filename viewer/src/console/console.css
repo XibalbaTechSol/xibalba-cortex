@@ -743,6 +743,13 @@ select.xc-input {
   box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
   transition: all 0.15s ease;
 }
+.xc-legend-toggle--icon {
+  width: 26px;
+  min-height: 26px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+}
 .xc-legend-toggle:hover,
 .xc-legend-toggle[aria-expanded='true'] {
   color: #ffffff;
@@ -3772,7 +3779,15 @@ body,
   .xc-product-compare th:first-child { width: auto; border-bottom: 1px solid var(--hairline); }
   .xc-product-compare td::before { content: attr(data-label); display: block; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .08em; color: var(--accent); margin-bottom: 6px; }
 }
-.xc-summary-toggle { position: absolute; bottom: 14px; left: 104px; z-index: 3; }
+.xc-summary-toggle { position: absolute; bottom: 14px; left: 46px; z-index: 3; }
+.xc-summary-toggle.xc-btn--icon {
+  width: 26px;
+  height: 26px;
+  min-height: 26px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+}
 /* Direct timeline selection stays behind event buttons and never intercepts them. */
 .xc-tl-grid { touch-action: pan-y; }
 .xc-tl-ticks, .xc-lane-track { cursor: crosshair; }
@@ -4066,13 +4081,13 @@ body,
 
 .xc-zen-action-btn {
   height: 20px;
-  padding: 0 6px;
+  width: 22px;
+  padding: 0;
   border-radius: 0;
-  font: 600 9.5px var(--font-mono);
-  letter-spacing: 0.04em;
+  font-size: 11px;
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  justify-content: center;
   cursor: pointer;
   transition: all 0.15s ease;
 }
@@ -4118,9 +4133,36 @@ body,
   max-width: 136px;
 }
 
-.xc-zen-flight-cockpit--minimized {
-  max-width: 140px;
-  padding: 3px 6px;
+.xc-zen-flight-cockpit--collapsed {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+  width: auto;
+  max-width: none;
+}
+
+.xc-zen-expand-btn {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  background: rgba(11, 15, 25, 0.75);
+  backdrop-filter: blur(12px);
+  border: 1px solid var(--hairline-strong);
+  color: var(--ink);
+  font-size: 14px;
+  cursor: pointer;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+  transition: all 0.15s ease;
+}
+
+.xc-zen-expand-btn:hover {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  color: var(--accent);
+  transform: scale(1.05);
 }
 
 .xc-zen-cockpit-header {
@@ -4130,6 +4172,8 @@ body,
   padding-bottom: 3px;
   border-bottom: 1px solid var(--hairline);
   gap: 4px;
+  cursor: pointer;
+  user-select: none;
 }
 
 .xc-zen-cockpit-actions {
@@ -4147,15 +4191,18 @@ body,
 }
 
 .xc-zen-toggle-pill {
-  height: 16px;
-  padding: 0 4px;
+  width: 20px;
+  height: 18px;
+  padding: 0;
   background: transparent;
   border: 1px solid var(--hairline);
   color: var(--ink-muted);
-  font: 500 8.5px var(--font-mono);
+  font-size: 11px;
   border-radius: 0;
   cursor: pointer;
-  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .xc-zen-toggle-pill:hover {
@@ -4165,8 +4212,8 @@ body,
 }
 
 .xc-zen-mini-btn {
-  width: 16px;
-  height: 16px;
+  width: 20px;
+  height: 18px;
   padding: 0;
   background: transparent;
   border: 1px solid var(--hairline);
@@ -4251,18 +4298,13 @@ body,
   background: transparent;
   border: 1px solid var(--hairline);
   color: var(--ink-muted);
-  font: 600 9px var(--font-mono);
+  font: 600 11px var(--font-mono);
   border-radius: 0;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
   transition: all 0.12s ease;
-}
-
-.xc-zen-axis-btn--named {
-  width: 38px;
-  font-size: 8px;
 }
 
 .xc-zen-axis-btn:hover {
@@ -4285,7 +4327,7 @@ body,
   background: transparent;
   border: 1px solid var(--hairline);
   color: var(--ink-muted);
-  font: 600 8.5px var(--font-mono);
+  font: 600 11px var(--font-mono);
   border-radius: 0;
   cursor: pointer;
   display: flex;

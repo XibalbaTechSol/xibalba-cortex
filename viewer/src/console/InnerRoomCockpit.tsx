@@ -87,14 +87,15 @@ export function InnerRoomCockpit({
           </div>
         </div>
 
-        {/* Ascend / Exit Button */}
+        {/* Ascend / Exit Button - Icon Only */}
         <button
           type="button"
           className="xc-room-ascend-btn"
           onClick={onAscend}
+          aria-label="Ascend to global orbit (ESC)"
           title="Ascend through ceiling oculus back to global graph orbit (ESC)"
         >
-          🚀 Ascend to Global Orbit (ESC)
+          🚀
         </button>
       </div>
 
