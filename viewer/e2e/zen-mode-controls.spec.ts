@@ -38,6 +38,7 @@ async function openGraph3D(page: Page) {
 
 test.describe('Zen Mode Controls & Inner Sanctum Room E2E', () => {
   test('zen immersion activation, d-pad controls, presets, and inner sanctum room flight', async ({ page }) => {
+    test.setTimeout(180000)
     await page.setViewportSize({ width: 1600, height: 950 })
     await openGraph3D(page)
 

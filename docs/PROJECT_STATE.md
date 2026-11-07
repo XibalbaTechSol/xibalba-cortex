@@ -7,7 +7,9 @@ introducing full interactive flight mechanics, novel spatial property representa
 latent space exploration, maximized viewport geometry, and hosted subresource parity:
 1. **Zen Flight Mode & Camera Presets:** Integrated orbital/flight navigation (`W`/`S` pitch, `A`/`D` yaw,
    `Q`/`E` roll, `Space`/`Shift` elevation) with on-screen D-Pad HUD, velocity dampening, cheatsheet modal (`?`),
-   and instant camera projection presets (`1` ISO, `2` TOP, `3` FRONT, `4` SIDE).
+   instant camera projection presets (`1` ISO, `2` TOP, `3` FRONT, `4` SIDE), and an ultra-compact micro-card layout
+   (`136px x 104px` with single-click `−`/`▲` minimize toggle to `22px` height) positioned flush at `bottom: 8px; right: 8px;`
+   to guarantee zero occlusion of central graph clusters.
 2. **Inner Sanctum Spatial Chamber:** Double-clicking any node transitions the camera into an octagonal
    spatial chamber. Visualizes properties and metrics in novel physical/geometric forms: Starburst Quiver vector
    field for high-dimensional embeddings, 4-tier Degree Centrality Obelisk, dual-gimbal AIS Gyroscope, Dirichlet

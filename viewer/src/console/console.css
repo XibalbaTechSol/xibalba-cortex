@@ -3153,15 +3153,14 @@ select.xc-input {
    lens toolbar's inset and the chain rail's left edge follow from `--dock-left` with no rule
    of their own, so nothing here has to know the dock can collapse. */
 .xc-workspace:has(> .xc-rail[data-collapsed='true']) {
-  --dock-left: 0px;
+  --dock-left: 36px;
 }
 .xc-workspace > .xc-rail[data-collapsed='true'] {
-  width: 0px;
-  max-width: 0px;
+  width: 36px;
+  min-width: 36px;
+  max-width: 36px;
   overflow: hidden;
-  border-right: none;
-  pointer-events: none;
-  opacity: 0;
+  border-right: 1px solid var(--hairline-faint);
 }
 .xc-dock-head {
   display: flex;
@@ -3178,13 +3177,19 @@ select.xc-input {
   color: var(--ink-dim);
   white-space: nowrap;
 }
-/* Collapsed: folds into left navigation bar under links, freeing full workspace width */
+/* Collapsed, the dock keeps a 36px strip: the label turned on its side and the control that brings it back */
 .xc-rail[data-collapsed='true'] > .xc-scroll { display: none; }
 .xc-rail[data-collapsed='true'] .xc-dock-head {
-  display: none;
+  flex-direction: column;
+  justify-content: flex-start;
+  gap: 12px;
+  height: 100%;
+  padding: 8px 4px;
+  border-bottom: 0;
 }
 .xc-rail[data-collapsed='true'] .xc-dock-title {
-  display: none;
+  writing-mode: vertical-rl;
+  letter-spacing: .2em;
 }
 
 /* The head holds a title and now two buttons, so the title takes the slack and the pair sits
@@ -3928,21 +3933,21 @@ body,
 /* ---------- Zen Immersion Cockpit HUD (Full-screen navigation) ---------- */
 .xc-zen-topbar {
   position: absolute;
-  top: 14px;
+  top: 6px;
   left: 50%;
   transform: translateX(-50%);
   z-index: 1000;
-  background: rgba(11, 15, 25, 0.94);
-  backdrop-filter: blur(16px);
-  border: 1px solid var(--hairline-strong, #334155);
-  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.7);
+  background: rgba(11, 15, 25, 0.72);
+  backdrop-filter: blur(12px);
+  border: 1px solid var(--hairline);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
   border-radius: 0;
-  padding: 6px 14px;
+  padding: 3px 8px;
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: 8px;
   font-family: var(--font-mono, monospace);
-  font-size: 11px;
+  font-size: 10px;
   color: var(--ink);
   animation: xcCitySlideDown 0.3s cubic-bezier(0.16, 1, 0.3, 1);
   max-width: 96vw;
@@ -3952,44 +3957,45 @@ body,
 .xc-zen-brand {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   white-space: nowrap;
 }
 
 .xc-zen-icon {
-  font-size: 14px;
+  font-size: 12px;
 }
 
 .xc-zen-title {
   font-weight: 700;
   letter-spacing: 0.06em;
   color: var(--accent);
+  font-size: 10px;
 }
 
 .xc-zen-mode-badge {
-  font-size: 9px;
+  font-size: 8.5px;
   font-weight: 700;
-  letter-spacing: 0.08em;
-  padding: 2px 6px;
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid var(--hairline, #1e293b);
+  letter-spacing: 0.06em;
+  padding: 1px 4px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--hairline);
   color: var(--ink-muted);
 }
 
 .xc-zen-node-strip {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 4px;
   border-left: 1px solid var(--hairline);
   border-right: 1px solid var(--hairline);
-  padding: 0 10px;
+  padding: 0 6px;
 }
 
 .xc-zen-node-label {
   display: flex;
   align-items: center;
-  gap: 6px;
-  max-width: 320px;
+  gap: 4px;
+  max-width: 240px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -3998,7 +4004,7 @@ body,
 .xc-zen-cls-tag {
   color: var(--accent);
   font-weight: 600;
-  font-size: 10px;
+  font-size: 9px;
 }
 
 .xc-zen-name {
@@ -4011,27 +4017,28 @@ body,
 
 .xc-zen-deg {
   color: var(--ink-muted);
-  font-size: 10px;
+  font-size: 9px;
 }
 
 .xc-zen-placeholder {
   color: var(--ink-dim, #6b7280);
   font-style: italic;
+  font-size: 9px;
 }
 
 .xc-zen-actions {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 4px;
 }
 
 .xc-zen-btn {
-  height: 26px;
-  padding: 0 8px;
+  height: 20px;
+  padding: 0 6px;
   background: transparent;
   border: 1px solid var(--hairline);
   color: var(--ink-muted);
-  font: 500 11px var(--font-mono);
+  font: 500 9.5px var(--font-mono);
   border-radius: 0;
   cursor: pointer;
   display: inline-flex;
@@ -4041,14 +4048,14 @@ body,
 }
 
 .xc-zen-btn:hover {
+  background: var(--accent-soft);
   color: var(--ink);
-  border-color: var(--hairline-strong);
-  background: rgba(255, 255, 255, 0.04);
+  border-color: var(--accent);
 }
 
 .xc-zen-btn--exit {
-  color: var(--ink);
-  border-color: var(--hairline-strong);
+  border-color: rgba(239, 68, 68, 0.4);
+  color: #f87171;
 }
 
 .xc-zen-btn--exit:hover {
@@ -4058,21 +4065,22 @@ body,
 }
 
 .xc-zen-action-btn {
-  height: 26px;
-  padding: 0 10px;
-  font: 600 11px var(--font-mono);
+  height: 20px;
+  padding: 0 6px;
   border-radius: 0;
-  cursor: pointer;
+  font: 600 9.5px var(--font-mono);
+  letter-spacing: 0.04em;
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 4px;
+  cursor: pointer;
   transition: all 0.15s ease;
 }
 
 .xc-zen-action-btn--dive {
-  background: var(--accent);
+  background: var(--accent-soft);
   border: 1px solid var(--accent);
-  color: #ffffff;
+  color: var(--accent);
 }
 
 .xc-zen-action-btn--dive:hover {
@@ -4080,68 +4088,106 @@ body,
 }
 
 .xc-zen-action-btn--ascend {
-  background: #10b981;
-  border: 1px solid #10b981;
-  color: #ffffff;
+  background: var(--accent-soft);
+  border: 1px solid var(--accent);
+  color: var(--accent);
 }
 
 .xc-zen-action-btn--ascend:hover {
   filter: brightness(1.15);
 }
 
-/* Floating Cockpit (Bottom Right) */
+/* Floating Cockpit (Bottom Right - Ultra Compact Micro Card) */
 .xc-zen-flight-cockpit {
   position: absolute;
-  bottom: 20px;
-  right: 20px;
+  bottom: 8px;
+  right: 8px;
   z-index: 950;
-  background: rgba(11, 15, 25, 0.94);
-  backdrop-filter: blur(16px);
-  border: 1px solid var(--hairline-strong, #334155);
-  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.6);
+  background: rgba(11, 15, 25, 0.70);
+  backdrop-filter: blur(12px);
+  border: 1px solid var(--hairline);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
   border-radius: 0;
-  padding: 10px;
+  padding: 4px 6px;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 4px;
   font-family: var(--font-mono, monospace);
-  font-size: 11px;
+  font-size: 10px;
+  width: auto;
+  max-width: 136px;
+}
+
+.xc-zen-flight-cockpit--minimized {
+  max-width: 140px;
+  padding: 3px 6px;
 }
 
 .xc-zen-cockpit-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding-bottom: 6px;
+  padding-bottom: 3px;
   border-bottom: 1px solid var(--hairline);
+  gap: 4px;
+}
+
+.xc-zen-cockpit-actions {
+  display: flex;
+  align-items: center;
+  gap: 3px;
 }
 
 .xc-zen-cockpit-title {
   font-weight: 700;
   letter-spacing: 0.08em;
   color: var(--accent);
-  font-size: 10px;
+  font-size: 8.5px;
+  white-space: nowrap;
 }
 
 .xc-zen-toggle-pill {
-  height: 20px;
-  padding: 0 6px;
+  height: 16px;
+  padding: 0 4px;
   background: transparent;
   border: 1px solid var(--hairline);
   color: var(--ink-muted);
-  font: 500 10px var(--font-mono);
+  font: 500 8.5px var(--font-mono);
   border-radius: 0;
   cursor: pointer;
+  white-space: nowrap;
 }
 
 .xc-zen-toggle-pill:hover {
   color: var(--ink);
+  background: var(--accent-soft);
+  border-color: var(--accent);
+}
+
+.xc-zen-mini-btn {
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  background: transparent;
+  border: 1px solid var(--hairline);
+  color: var(--ink-muted);
+  font: 600 9px var(--font-mono);
+  border-radius: 0;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.xc-zen-mini-btn:hover {
+  color: var(--ink);
+  background: var(--accent-soft);
   border-color: var(--accent);
 }
 
 .xc-zen-cockpit-grid {
   display: flex;
-  gap: 10px;
+  gap: 6px;
   align-items: center;
 }
 
@@ -4150,37 +4196,38 @@ body,
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 2px;
+  gap: 1px;
 }
 
 .xc-zen-dpad-row {
   display: flex;
   align-items: center;
-  gap: 2px;
+  gap: 1px;
 }
 
 .xc-zen-dpad-btn {
-  width: 28px;
-  height: 28px;
-  background: rgba(255, 255, 255, 0.03);
+  width: 21px;
+  height: 21px;
+  background: transparent;
   border: 1px solid var(--hairline);
   color: var(--ink);
-  font-size: 10px;
+  font-size: 8px;
   border-radius: 0;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
   transition: all 0.12s ease;
+  padding: 0;
 }
 
 .xc-zen-dpad-btn:hover {
-  background: rgba(255, 255, 255, 0.08);
+  background: var(--accent-soft);
   border-color: var(--accent);
 }
 
 .xc-zen-dpad-center {
-  background: rgba(99, 102, 241, 0.1);
+  background: var(--accent-soft);
   border-color: var(--accent);
   color: var(--accent);
 }
@@ -4188,40 +4235,19 @@ body,
 .xc-zen-axis-controls {
   display: flex;
   flex-direction: column;
-  gap: 3px;
+  gap: 2px;
+}
+
+.xc-zen-axis-row {
+  display: flex;
+  align-items: center;
+  gap: 2px;
 }
 
 .xc-zen-axis-btn {
-  height: 20px;
-  padding: 0 8px;
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid var(--hairline);
-  color: var(--ink-muted);
-  font: 500 10px var(--font-mono);
-  border-radius: 0;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all 0.12s ease;
-}
-
-.xc-zen-axis-btn:hover {
-  color: var(--ink);
-  border-color: var(--hairline-strong);
-}
-
-.xc-zen-presets {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 4px;
-  padding-top: 6px;
-  border-top: 1px solid var(--hairline);
-}
-
-.xc-zen-preset-btn {
-  height: 22px;
-  padding: 0 4px;
+  height: 18px;
+  width: 18px;
+  padding: 0;
   background: transparent;
   border: 1px solid var(--hairline);
   color: var(--ink-muted);
@@ -4234,8 +4260,44 @@ body,
   transition: all 0.12s ease;
 }
 
+.xc-zen-axis-btn--named {
+  width: 38px;
+  font-size: 8px;
+}
+
+.xc-zen-axis-btn:hover {
+  color: var(--ink);
+  background: var(--accent-soft);
+  border-color: var(--accent);
+}
+
+.xc-zen-presets {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 2px;
+  padding-top: 3px;
+  border-top: 1px solid var(--hairline);
+}
+
+.xc-zen-preset-btn {
+  height: 18px;
+  padding: 0 2px;
+  background: transparent;
+  border: 1px solid var(--hairline);
+  color: var(--ink-muted);
+  font: 600 8.5px var(--font-mono);
+  border-radius: 0;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.12s ease;
+  white-space: nowrap;
+}
+
 .xc-zen-preset-btn:hover {
   color: var(--ink);
+  background: var(--accent-soft);
   border-color: var(--accent);
 }
 

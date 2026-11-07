@@ -40,6 +40,7 @@ export function ZenHud({
 }: ZenHudProps) {
   const [shortcutsOpen, setShortcutsOpen] = useState(false)
   const [panMode, setPanMode] = useState(false)
+  const [minimized, setMinimized] = useState(false)
 
   const step = 0.14
   const handleDirection = (dx: number, dy: number) => {
@@ -142,127 +143,150 @@ export function ZenHud({
       </div>
 
       {/* Bottom Right Floating Flight Cockpit (D-Pad & Presets) */}
-      <div className="xc-zen-flight-cockpit" role="region" aria-label="Camera Flight Controls">
+      <div
+        className={`xc-zen-flight-cockpit${minimized ? ' xc-zen-flight-cockpit--minimized' : ''}`}
+        role="region"
+        aria-label="Camera Flight Controls"
+      >
         <div className="xc-zen-cockpit-header">
           <span className="xc-zen-cockpit-title">FLIGHT D-PAD</span>
-          <button
-            type="button"
-            className="xc-zen-toggle-pill"
-            onClick={() => setPanMode((v) => !v)}
-            title="Switch D-Pad mode between Orbit and Pan"
-          >
-            Mode: {panMode ? 'Pan' : 'Orbit'}
-          </button>
-        </div>
-
-        <div className="xc-zen-cockpit-grid">
-          {/* Compass D-Pad */}
-          <div className="xc-zen-dpad" role="group" aria-label="Directional Navigation">
+          <div className="xc-zen-cockpit-actions">
             <button
               type="button"
-              className="xc-zen-dpad-btn xc-zen-dpad-up"
-              onClick={() => handleDirection(0, 1)}
-              title={panMode ? 'Pan Up' : 'Orbit Pitch Down (Up Arrow / W)'}
-              aria-label="Up"
+              className="xc-zen-toggle-pill"
+              onClick={() => setPanMode((v) => !v)}
+              title="Switch D-Pad mode between Orbit and Pan"
             >
-              ▲
+              Mode: {panMode ? 'Pan' : 'Orbit'}
             </button>
-            <div className="xc-zen-dpad-row">
-              <button
-                type="button"
-                className="xc-zen-dpad-btn xc-zen-dpad-left"
-                onClick={() => handleDirection(-1, 0)}
-                title={panMode ? 'Pan Left' : 'Orbit Yaw Left (Left Arrow / A)'}
-                aria-label="Left"
-              >
-                ◀
+            <button
+              type="button"
+              className="xc-zen-mini-btn"
+              onClick={() => setMinimized((v) => !v)}
+              title={minimized ? 'Expand flight controls card' : 'Minimize flight controls card'}
+              aria-label={minimized ? 'Expand flight controls' : 'Minimize flight controls'}
+            >
+              {minimized ? '▲' : '−'}
+            </button>
+          </div>
+        </div>
+
+        {!minimized && (
+          <>
+            <div className="xc-zen-cockpit-grid">
+              {/* Compass D-Pad */}
+              <div className="xc-zen-dpad" role="group" aria-label="Directional Navigation">
+                <button
+                  type="button"
+                  className="xc-zen-dpad-btn xc-zen-dpad-up"
+                  onClick={() => handleDirection(0, 1)}
+                  title={panMode ? 'Pan Up' : 'Orbit Pitch Down (Up Arrow / W)'}
+                  aria-label="Up"
+                >
+                  ▲
+                </button>
+                <div className="xc-zen-dpad-row">
+                  <button
+                    type="button"
+                    className="xc-zen-dpad-btn xc-zen-dpad-left"
+                    onClick={() => handleDirection(-1, 0)}
+                    title={panMode ? 'Pan Left' : 'Orbit Yaw Left (Left Arrow / A)'}
+                    aria-label="Left"
+                  >
+                    ◀
+                  </button>
+                  <button
+                    type="button"
+                    className="xc-zen-dpad-btn xc-zen-dpad-center"
+                    onClick={onFit}
+                    title="Frame entire graph (Space / F)"
+                    aria-label="Fit Graph"
+                  >
+                    <IconFit style={{ width: 11, height: 11 }} />
+                  </button>
+                  <button
+                    type="button"
+                    className="xc-zen-dpad-btn xc-zen-dpad-right"
+                    onClick={() => handleDirection(1, 0)}
+                    title={panMode ? 'Pan Right' : 'Orbit Yaw Right (Right Arrow / D)'}
+                    aria-label="Right"
+                  >
+                    ▶
+                  </button>
+                </div>
+                <button
+                  type="button"
+                  className="xc-zen-dpad-btn xc-zen-dpad-down"
+                  onClick={() => handleDirection(0, -1)}
+                  title={panMode ? 'Pan Down' : 'Orbit Pitch Up (Down Arrow / S)'}
+                  aria-label="Down"
+                >
+                  ▼
+                </button>
+              </div>
+
+              {/* Elevation & Zoom 2x2 Grid */}
+              <div className="xc-zen-axis-controls">
+                <div className="xc-zen-axis-row">
+                  <button
+                    type="button"
+                    className="xc-zen-axis-btn"
+                    onClick={() => onZoom(1.3)}
+                    title="Zoom in (+ or =)"
+                    aria-label="Zoom in"
+                  >
+                    +
+                  </button>
+                  <button
+                    type="button"
+                    className="xc-zen-axis-btn xc-zen-axis-btn--named"
+                    onClick={() => onElevate(1)}
+                    title="Elevate camera up (Q)"
+                    aria-label="Elevate up"
+                  >
+                    ▲ Elev
+                  </button>
+                </div>
+                <div className="xc-zen-axis-row">
+                  <button
+                    type="button"
+                    className="xc-zen-axis-btn"
+                    onClick={() => onZoom(1 / 1.3)}
+                    title="Zoom out (- or _)"
+                    aria-label="Zoom out"
+                  >
+                    −
+                  </button>
+                  <button
+                    type="button"
+                    className="xc-zen-axis-btn xc-zen-axis-btn--named"
+                    onClick={() => onElevate(-1)}
+                    title="Lower camera down (E)"
+                    aria-label="Lower down"
+                  >
+                    ▼ Lower
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Camera Angle Presets */}
+            <div className="xc-zen-presets" role="group" aria-label="Camera Presets">
+              <button type="button" className="xc-zen-preset-btn" onClick={() => onPreset('iso')} title="Isometric 3D view (Key 1)">
+                1 · ISO
               </button>
-              <button
-                type="button"
-                className="xc-zen-dpad-btn xc-zen-dpad-center"
-                onClick={onFit}
-                title="Frame entire graph (Space / F)"
-                aria-label="Fit Graph"
-              >
-                <IconFit style={{ width: 14, height: 14 }} />
+              <button type="button" className="xc-zen-preset-btn" onClick={() => onPreset('top')} title="Top-down plan view (Key 2)">
+                2 · TOP
               </button>
-              <button
-                type="button"
-                className="xc-zen-dpad-btn xc-zen-dpad-right"
-                onClick={() => handleDirection(1, 0)}
-                title={panMode ? 'Pan Right' : 'Orbit Yaw Right (Right Arrow / D)'}
-                aria-label="Right"
-              >
-                ▶
+              <button type="button" className="xc-zen-preset-btn" onClick={() => onPreset('front')} title="Front elevation view (Key 3)">
+                3 · FRONT
+              </button>
+              <button type="button" className="xc-zen-preset-btn" onClick={() => onPreset('side')} title="Side profile view (Key 4)">
+                4 · SIDE
               </button>
             </div>
-            <button
-              type="button"
-              className="xc-zen-dpad-btn xc-zen-dpad-down"
-              onClick={() => handleDirection(0, -1)}
-              title={panMode ? 'Pan Down' : 'Orbit Pitch Up (Down Arrow / S)'}
-              aria-label="Down"
-            >
-              ▼
-            </button>
-          </div>
-
-          {/* Elevation & Zoom Bar */}
-          <div className="xc-zen-axis-controls">
-            <button
-              type="button"
-              className="xc-zen-axis-btn"
-              onClick={() => onZoom(1.3)}
-              title="Zoom in (+ or =)"
-              aria-label="Zoom in"
-            >
-              +
-            </button>
-            <button
-              type="button"
-              className="xc-zen-axis-btn"
-              onClick={() => onZoom(1 / 1.3)}
-              title="Zoom out (- or _)"
-              aria-label="Zoom out"
-            >
-              −
-            </button>
-            <button
-              type="button"
-              className="xc-zen-axis-btn"
-              onClick={() => onElevate(1)}
-              title="Elevate camera up (Q)"
-              aria-label="Elevate up"
-            >
-              ▲ Elev
-            </button>
-            <button
-              type="button"
-              className="xc-zen-axis-btn"
-              onClick={() => onElevate(-1)}
-              title="Lower camera down (E)"
-              aria-label="Lower down"
-            >
-              ▼ Lower
-            </button>
-          </div>
-        </div>
-
-        {/* Camera Angle Presets */}
-        <div className="xc-zen-presets" role="group" aria-label="Camera Presets">
-          <button type="button" className="xc-zen-preset-btn" onClick={() => onPreset('iso')} title="Isometric 3D view (Key 1)">
-            1 · ISO
-          </button>
-          <button type="button" className="xc-zen-preset-btn" onClick={() => onPreset('top')} title="Top-down plan view (Key 2)">
-            2 · TOP
-          </button>
-          <button type="button" className="xc-zen-preset-btn" onClick={() => onPreset('front')} title="Front elevation view (Key 3)">
-            3 · FRONT
-          </button>
-          <button type="button" className="xc-zen-preset-btn" onClick={() => onPreset('side')} title="Side profile view (Key 4)">
-            4 · SIDE
-          </button>
-        </div>
+          </>
+        )}
       </div>
 
       {/* Floating Keyboard Shortcuts Cheatsheet Drawer */}
