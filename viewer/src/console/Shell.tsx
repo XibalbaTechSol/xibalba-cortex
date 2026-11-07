@@ -169,15 +169,6 @@ export function WorkspaceHeader() {
         <i aria-hidden="true" />
         <span>{text}</span>
       </div>
-      <button
-        type="button"
-        className="xc-btn"
-        style={{ fontSize: 12, padding: '4px 10px', display: 'inline-flex', alignItems: 'center', gap: 6 }}
-        title="Toggle Zen Immersion Mode (Z): Maximize 3D canvas"
-        onClick={() => window.dispatchEvent(new CustomEvent('xc-toggle-immersion'))}
-      >
-        <span>🌌</span> Zen
-      </button>
       <button type="button" className="xc-btn xc-btn--square" aria-label="Reload data" title="Reload data" onClick={reload}>
         <IconRefresh />
       </button>

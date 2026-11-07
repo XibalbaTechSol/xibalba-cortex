@@ -112,7 +112,7 @@ function Workspace() {
           </div>
         </div>
       ) : (
-        <div className="xc-shell" data-immersion={immersion}>
+        <div className="xc-shell xc-shell--top" data-immersion={immersion}>
           <TopBar />
           {content}
         </div>
@@ -130,16 +130,16 @@ function Workspace() {
             backdropFilter: 'blur(16px)',
             border: '1px solid rgba(99, 102, 241, 0.4)',
             boxShadow: '0 8px 32px rgba(0, 0, 0, 0.7), 0 0 24px rgba(99, 102, 241, 0.2)',
-            borderRadius: 9999,
+            borderRadius: 0,
             padding: '6px 20px',
             display: 'flex',
             alignItems: 'center',
             gap: 16,
             fontSize: 12,
-            color: '#f3f4f6',
+            color: 'var(--ink)',
           }}
         >
-          <span style={{ fontWeight: 700, letterSpacing: '0.04em', color: '#818cf8', display: 'flex', alignItems: 'center', gap: 6 }}>
+          <span style={{ fontWeight: 700, letterSpacing: '0.04em', color: 'var(--accent)', display: 'flex', alignItems: 'center', gap: 6 }}>
             <span>🌌</span> ZEN IMMERSION (100% CANVAS)
           </span>
           <span style={{ width: 1, height: 16, background: 'rgba(255, 255, 255, 0.15)' }} />
