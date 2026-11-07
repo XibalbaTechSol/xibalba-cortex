@@ -27,7 +27,7 @@ import type { GraphCanvas, NodeShape } from './settings'
 import { FADE, GRID_INK, LINK_ALPHA, blendOver, faceColours } from './graphStyle'
 import { palette } from './palette'
 import { frameCamera, type Vec3 } from './framing'
-import { GRID_CELL_SIZE, cellBounds, cellCentre, latticeFrame, gridLines, latticeStride, snapToGrid, type Cell } from './gridSnap'
+import { GRID_CELL_SIZE, cellBounds, cellCentre, latticeFrame, latticeLines, latticeStride, snapToGrid, type Cell } from './gridSnap'
 
 export interface Graph3DHandle {
   fit: () => void
@@ -35,6 +35,8 @@ export interface Graph3DHandle {
   fitSelection: () => void
   zoomBy: (k: number) => void
   unpinAll: () => void
+  enterCity: (id: string) => void
+  exitCity: () => void
 }
 
 interface Props {
@@ -52,6 +54,8 @@ interface Props {
   canvas: GraphCanvas
   /** how many cubes are pinned by dragging */
   onPinnedChange?: (count: number) => void
+  /** inside-node metropolis flight mode change */
+  onCityModeChange?: (insideNodeId: string | null, node: CNode | null) => void
   /** the browser cannot create a WebGL context */
   onUnsupported: () => void
 }
@@ -120,10 +124,22 @@ interface Engine {
   fitSelection: () => void
   zoomBy: (k: number) => void
   unpinAll: () => void
+  enterCity: (id: string) => void
+  exitCity: () => void
   dispose: () => void
 }
 
-function createEngine(host: HTMLElement, cb: { snap: boolean; shape: NodeShape; canvas: GraphCanvas; onSelect: (id: string | null) => void; onPinnedChange: (count: number) => void }): Engine {
+function createEngine(
+  host: HTMLElement,
+  cb: {
+    snap: boolean
+    shape: NodeShape
+    canvas: GraphCanvas
+    onSelect: (id: string | null) => void
+    onPinnedChange?: (count: number) => void
+    onCityModeChange?: (insideNodeId: string | null, node: CNode | null) => void
+  },
+): Engine {
   const pal = palette()
   const C = { ground: num(pal.ground), ink: num(pal.ink), muted: num(pal.inkMuted), dim: num(pal.inkDim), accent: num(pal.accent), anchored: num(pal.anchored), review: num(pal.review), conflict: num(pal.conflict) }
   const reduceMotion = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches
@@ -185,7 +201,25 @@ function createEngine(host: HTMLElement, cb: { snap: boolean; shape: NodeShape; 
   let shape: NodeShape = cb.shape
   const nodeGroup = new THREE.Group()
   const linkGroup = new THREE.Group()
-  scene.add(linkGroup, nodeGroup)
+  const cityGroup = new THREE.Group()
+  cityGroup.visible = false
+  scene.add(linkGroup, nodeGroup, cityGroup)
+  let insideNodeId: string | null = null
+  let currentNodes: CNode[] = []
+  let currentEdges: CEdge[] = []
+  const orbitPosition = new THREE.Vector3()
+  const orbitTarget = new THREE.Vector3()
+  let diveTween: {
+    fromPos: THREE.Vector3
+    toPos: THREE.Vector3
+    fromTarget: THREE.Vector3
+    toTarget: THREE.Vector3
+    fromFov: number
+    toFov: number
+    start: number
+    ms: number
+    isExit: boolean
+  } | null = null
   const ring = new THREE.LineSegments(boxEdges, new THREE.LineBasicMaterial({ color: C.ink }))
   ring.visible = false
   scene.add(ring)
@@ -207,9 +241,8 @@ function createEngine(host: HTMLElement, cb: { snap: boolean; shape: NodeShape; 
   let cells = new Map<string, Cell>()
   const targets = new Map<string, THREE.Vector3>()
   let animating = false
-  // Three outer grid planes communicate spacing without running lines through every node and
-  // relationship. The slightly brighter frame keeps depth readable; cubes still snap to 3D cells.
-  const gridObj = new THREE.LineSegments(new THREE.BufferGeometry(), new THREE.LineBasicMaterial({ color: blendOver(C.ink, C.ground, GRID_INK.lattice), depthWrite: false }))
+  // Faint volumetric 3D coordinate lattice communicates spatial snapping depth without drowning out glowing nodes.
+  const gridObj = new THREE.LineSegments(new THREE.BufferGeometry(), new THREE.LineBasicMaterial({ color: blendOver(C.ink, C.ground, 0.022), depthWrite: false }))
   gridObj.frustumCulled = false
   const frameObj = new THREE.LineSegments(new THREE.BufferGeometry(), new THREE.LineBasicMaterial({ color: blendOver(C.ink, C.ground, GRID_INK.frame), depthWrite: false }))
   frameObj.frustumCulled = false
@@ -244,7 +277,7 @@ function createEngine(host: HTMLElement, cb: { snap: boolean; shape: NodeShape; 
       const g = new THREE.BufferGeometry()
       const f = new THREE.BufferGeometry()
       if (b) {
-        g.setAttribute('position', new THREE.BufferAttribute(gridLines(b, GRID, 1), 3))
+        g.setAttribute('position', new THREE.BufferAttribute(latticeLines(b, GRID, 1, gridStride), 3))
         f.setAttribute('position', new THREE.BufferAttribute(latticeFrame(b, GRID, 1), 3))
       }
       gridObj.geometry = g
@@ -561,7 +594,7 @@ function createEngine(host: HTMLElement, cb: { snap: boolean; shape: NodeShape; 
       if (mark) { o.remove(mark); (mark.material as THREE.Material).dispose(); pinMarks.delete(id) }
     }
     canvas.dataset.pinned = String(pinned.size)
-    cb.onPinnedChange(pinned.size)
+    cb.onPinnedChange?.(pinned.size)
   }
   function reheat() { sim.alpha(Math.max(sim.alpha(), 0.3)); moving = true }
   const onDown = (e: PointerEvent) => {
@@ -586,7 +619,11 @@ function createEngine(host: HTMLElement, cb: { snap: boolean; shape: NodeShape; 
   }
   const onDouble = (e: MouseEvent) => {
     const id = pick(e.clientX, e.clientY)
-    if (id && pinned.has(id)) { setPinned(id, false); reheat() }
+    if (id) {
+      if (pinned.has(id)) { setPinned(id, false); reheat() }
+      cb.onSelect(id)
+      enterCity(id)
+    }
   }
   let hoverQueued = false
   const onMove = (e: PointerEvent) => {
@@ -643,7 +680,13 @@ function createEngine(host: HTMLElement, cb: { snap: boolean; shape: NodeShape; 
       case '+': case '=': userMoved = true; api.zoomBy(1.25); break
       case '-': case '_': userMoved = true; api.zoomBy(1 / 1.25); break
       case 'f': case 'F': case '0': userMoved = false; fit(); break
-      case 'Escape': cb.onSelect(null); break
+      case 'Escape':
+        if (insideNodeId) {
+          exitCity()
+        } else {
+          cb.onSelect(null)
+        }
+        break
       default: return
     }
     e.preventDefault()
@@ -680,11 +723,130 @@ function createEngine(host: HTMLElement, cb: { snap: boolean; shape: NodeShape; 
     if (stride !== gridStride) {
       gridStride = stride; gridKey = ''; retarget()
       // a coarser lattice has fewer lines, so each is a touch brighter and the grid still reads as a grid
-      ;(gridObj.material as THREE.LineBasicMaterial).color.setHex(blendOver(C.ink, C.ground, Math.min(0.07, 0.028 + 0.012 * Math.log2(stride))))
+      ;(gridObj.material as THREE.LineBasicMaterial).color.setHex(blendOver(C.ink, C.ground, Math.min(0.045, 0.018 + 0.008 * Math.log2(stride))))
     }
   }
 
-  // --- camera ---------------------------------------------------------------------------------------------------
+  // --- camera & city reentry -----------------------------------------------------------------------------------
+  function buildCity(nodeId: string) {
+    while (cityGroup.children.length > 0) {
+      const child = cityGroup.children[0]
+      cityGroup.remove(child)
+      if ((child as any).geometry) (child as any).geometry.dispose()
+      if ((child as any).material) {
+        if (Array.isArray((child as any).material)) (child as any).material.forEach((m: any) => m.dispose())
+        else (child as any).material.dispose()
+      }
+    }
+
+    const n = simNodes.get(nodeId)
+    if (!n) return
+    const P = { x: n.x, y: n.y, z: n.z }
+
+    // 1. Polar cyber ground grid
+    const polarGrid = new THREE.PolarGridHelper(45, 8, 5, 32, 0x6366f1, 0x1e293b)
+    polarGrid.position.set(P.x, P.y - 0.2, P.z)
+    cityGroup.add(polarGrid)
+
+    // 2. Central Monumental Core
+    const coreGeom = new THREE.CylinderGeometry(4.5, 5.5, 2.8, 8)
+    const coreMat = new THREE.MeshBasicMaterial({ color: 0x4f46e5, transparent: true, opacity: 0.9 })
+    const coreMesh = new THREE.Mesh(coreGeom, coreMat)
+    coreMesh.position.set(P.x, P.y + 1.4, P.z)
+    const coreEdges = new THREE.LineSegments(new THREE.EdgesGeometry(coreGeom), new THREE.LineBasicMaterial({ color: 0xa5b4fc }))
+    coreMesh.add(coreEdges)
+    cityGroup.add(coreMesh)
+
+    // 3. Central Ascending Energy Column
+    const beamGeom = new THREE.CylinderGeometry(0.3, 0.3, 90, 8)
+    const beamMat = new THREE.MeshBasicMaterial({ color: 0x38bdf8, transparent: true, opacity: 0.65 })
+    const beamMesh = new THREE.Mesh(beamGeom, beamMat)
+    beamMesh.position.set(P.x, P.y + 45, P.z)
+    cityGroup.add(beamMesh)
+
+    // 4. Skyscrapers representing SPO relations
+    const incident = currentEdges.filter((e) => e.source === nodeId || e.target === nodeId)
+    const count = Math.max(1, incident.length)
+
+    incident.forEach((edge, idx) => {
+      const angle = (idx / count) * 2 * Math.PI
+      const ringRadius = 14 + (idx % 2) * 8
+      const h = 8 + (edge.similarity ? edge.similarity * 18 : (idx * 3) % 15 + 6)
+      const bx = P.x + ringRadius * Math.cos(angle)
+      const bz = P.z + ringRadius * Math.sin(angle)
+      const by = P.y + h / 2
+
+      let color = 0x6366f1
+      const pred = (edge.predicate || edge.type || '').toLowerCase()
+      if (pred.includes('target') || pred.includes('activat') || pred.includes('induce')) color = 0x10b981
+      else if (pred.includes('inhibit') || pred.includes('block') || pred.includes('downreg')) color = 0xf59e0b
+      else if (pred.includes('assoc') || pred.includes('disease') || pred.includes('biomarker')) color = 0xa855f7
+      else if (pred.includes('ground') || pred.includes('area') || pred.includes('project')) color = 0x38bdf8
+
+      const bGeom = new THREE.BoxGeometry(2.6, h, 2.6)
+      const bMat = new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.8 })
+      const bMesh = new THREE.Mesh(bGeom, bMat)
+      bMesh.position.set(bx, by, bz)
+
+      const wireframe = new THREE.LineSegments(new THREE.EdgesGeometry(bGeom), new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.7 }))
+      bMesh.add(wireframe)
+      cityGroup.add(bMesh)
+
+      // Ground luminous avenue to skyscraper
+      const aveGeom = new THREE.BufferGeometry().setFromPoints([
+        new THREE.Vector3(P.x, P.y, P.z),
+        new THREE.Vector3(bx, P.y, bz),
+      ])
+      const aveLine = new THREE.Line(aveGeom, new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.5 }))
+      cityGroup.add(aveLine)
+    })
+  }
+
+  function enterCity(id: string) {
+    const n = simNodes.get(id)
+    if (!n) return
+    orbitPosition.copy(camera.position)
+    orbitTarget.copy(controls.target)
+    insideNodeId = id
+    buildCity(id)
+    cityGroup.visible = true
+
+    const targetPos = new THREE.Vector3(n.x, n.y, n.z)
+    const destCamPos = targetPos.clone().add(new THREE.Vector3(0, 14, 28))
+
+    diveTween = {
+      fromPos: camera.position.clone(),
+      toPos: destCamPos,
+      fromTarget: controls.target.clone(),
+      toTarget: targetPos.clone().add(new THREE.Vector3(0, 3, 0)),
+      fromFov: camera.fov,
+      toFov: 58,
+      start: performance.now(),
+      ms: 1300,
+      isExit: false,
+    }
+    userMoved = true
+    dirty = true
+    cb.onCityModeChange?.(id, currentNodes.find((cn) => cn.id === id) || null)
+  }
+
+  function exitCity() {
+    if (!insideNodeId) return
+    diveTween = {
+      fromPos: camera.position.clone(),
+      toPos: orbitPosition.clone(),
+      fromTarget: controls.target.clone(),
+      toTarget: orbitTarget.clone(),
+      fromFov: camera.fov,
+      toFov: FOV,
+      start: performance.now(),
+      ms: 1000,
+      isExit: true,
+    }
+    userMoved = true
+    dirty = true
+  }
+
   function flyTo(position: THREE.Vector3, target: THREE.Vector3) {
     if (reduceMotion) { camera.position.copy(position); controls.target.copy(target); controls.update(); dirty = true; return }
     tween = { from: camera.position.clone(), to: position, fromT: controls.target.clone(), toT: target, start: performance.now(), ms: 550 }
@@ -755,7 +917,43 @@ function createEngine(host: HTMLElement, cb: { snap: boolean; shape: NodeShape; 
       }
     }
     if (moving || animating) { syncObjects(); applyScreenFloor(); updateLinkPositions(); dirty = true }
-    if (tween) {
+    if (diveTween) {
+      const k = Math.min(1, (now - diveTween.start) / diveTween.ms)
+      const e = k < 0.5 ? 4 * k * k * k : 1 - Math.pow(-2 * k + 2, 3) / 2
+      camera.position.lerpVectors(diveTween.fromPos, diveTween.toPos, e)
+      controls.target.lerpVectors(diveTween.fromTarget, diveTween.toTarget, e)
+
+      // Hypersonic dynamic FOV warp during reentry
+      const warp = 22 * Math.sin(Math.PI * k)
+      camera.fov = diveTween.fromFov + (diveTween.toFov - diveTween.fromFov) * e + (diveTween.isExit ? -warp * 0.4 : warp)
+      camera.updateProjectionMatrix()
+      controls.update()
+
+      // Outer nodes fade
+      const outerAlpha = diveTween.isExit ? 0.08 + 0.92 * e : 1.0 - 0.92 * e
+      for (const [id, o] of objects) {
+        if (id === insideNodeId) continue
+        const mats = materialsOf(o)
+        for (const m of mats) m.opacity = opacityOf(simNodes.get(id)!) * outerAlpha
+      }
+
+      if (k >= 1) {
+        if (diveTween.isExit) {
+          cityGroup.visible = false
+          insideNodeId = null
+          cb.onCityModeChange?.(null, null)
+          for (const [id, o] of objects) {
+            const mats = materialsOf(o)
+            for (const m of mats) m.opacity = opacityOf(simNodes.get(id)!)
+          }
+        } else {
+          const n = currentNodes.find((cn) => cn.id === insideNodeId) || null
+          cb.onCityModeChange?.(insideNodeId, n)
+        }
+        diveTween = null
+      }
+      dirty = true
+    } else if (tween) {
       const k = Math.min(1, (now - tween.start) / tween.ms)
       const e = k < 0.5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2
       camera.position.lerpVectors(tween.from, tween.to, e)
@@ -789,6 +987,8 @@ function createEngine(host: HTMLElement, cb: { snap: boolean; shape: NodeShape; 
 
   const api: Engine = {
     setData(nodes, edges) {
+      currentNodes = nodes
+      currentEdges = edges
       const ids = new Set(nodes.map((n) => n.id))
       visibleIds = nodes.map((n) => n.id)
       for (const n of nodes) {
@@ -888,6 +1088,8 @@ function createEngine(host: HTMLElement, cb: { snap: boolean; shape: NodeShape; 
       const dist = Math.min(controls.maxDistance, Math.max(MIN_DISTANCE, offset.length() / k))
       flyTo(controls.target.clone().add(offset.setLength(dist)), controls.target.clone())
     },
+    enterCity(id) { enterCity(id) },
+    exitCity() { exitCity() },
     dispose() {
       cancelAnimationFrame(raf)
       ro.disconnect()
@@ -917,7 +1119,7 @@ function createEngine(host: HTMLElement, cb: { snap: boolean; shape: NodeShape; 
   return api
 }
 
-export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D({ nodes, edges, selectedId, focus, snap, shape, canvas, onSelect, onPinnedChange, onUnsupported }, ref) {
+export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D({ nodes, edges, selectedId, focus, snap, shape, canvas, onSelect, onPinnedChange, onCityModeChange, onUnsupported }, ref) {
   const hostRef = useRef<HTMLDivElement>(null)
   const engineRef = useRef<Engine | null>(null)
   const [failed, setFailed] = useState(false)
@@ -926,12 +1128,21 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D({ nodes
   selectRef.current = onSelect
   const pinRef = useRef(onPinnedChange)
   pinRef.current = onPinnedChange
+  const cityRef = useRef(onCityModeChange)
+  cityRef.current = onCityModeChange
 
   useEffect(() => {
     const host = hostRef.current
     if (!host) return
     try {
-      engineRef.current = createEngine(host, { snap, shape, canvas, onSelect: (id) => selectRef.current(id), onPinnedChange: (n) => pinRef.current?.(n) })
+      engineRef.current = createEngine(host, {
+        snap,
+        shape,
+        canvas,
+        onSelect: (id) => selectRef.current(id),
+        onPinnedChange: (n) => pinRef.current?.(n),
+        onCityModeChange: (id, n) => cityRef.current?.(id, n),
+      })
     } catch {
       setFailed(true)
       onUnsupported()
@@ -959,6 +1170,8 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D({ nodes
       fitSelection: () => engineRef.current?.fitSelection(),
       zoomBy: (k) => engineRef.current?.zoomBy(k),
       unpinAll: () => engineRef.current?.unpinAll(),
+      enterCity: (id) => engineRef.current?.enterCity(id),
+      exitCity: () => engineRef.current?.exitCity(),
     }),
     [],
   )

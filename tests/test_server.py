@@ -127,6 +127,18 @@ async def test_all_tools_are_advertised(store):
         "agent0_give_feedback",
         "cortex_cloud_status",
         "cortex_cloud_pair",
+        "graph_ingest_triples",
+        "graph_ingest_biomedical",
+        "graph_ingest_fhir",
+        "graph_trace_mechanisms",
+        "graph_predict_links",
+        "graph_suggest_drug_repurposing",
+        "graph_ego_subgraph",
+        "graph_evaluate_step_reward",
+        "graph_evaluate_trajectory_reward",
+        "graph_compute_math",
+        "graph_seed_sample",
+        "graph_summarize_session_with_inference_subagent",
     }
 
 
@@ -726,3 +738,104 @@ def test_authenticated_agent_principal_controls_memory_namespace(store):
         assert session["agent_id"] == store.storage_agent_id(agent_a)
     finally:
         _current_principal.reset(token)
+
+
+@pytest.mark.asyncio
+async def test_graph_tools_round_trip_through_mcp(store):
+    # Ingest triples through MCP
+    ingest_res = await server.server.call_tool(
+        "graph_ingest_triples",
+        {
+            "triples": [
+                ["Imatinib", "inhibits", "BCR-ABL1", 0.99],
+                ["BCR-ABL1", "associated_with", "Chronic Myeloid Leukemia", 0.95],
+                ["Imatinib", "inhibits", "c-KIT", 0.92],
+                ["c-KIT", "associated_with", "Gastrointestinal Stromal Tumor", 0.90],
+            ],
+            "source_name": "mcp_triples_test",
+        },
+    )
+    res_dict = _dict_result(ingest_res)
+    assert res_dict["success"] is True
+
+    # Trace mechanisms through MCP
+    mechanisms = await server.server.call_tool(
+        "graph_trace_mechanisms",
+        {
+            "source_entity": "Imatinib",
+            "target_entity": "Chronic Myeloid Leukemia",
+            "max_depth": 3,
+        },
+    )
+    mech_data = _list_result(mechanisms)
+    assert len(mech_data) >= 1
+    assert mech_data[0]["path_nodes"] == ["Imatinib", "BCR-ABL1", "Chronic Myeloid Leukemia"]
+
+    # Evaluate Step Reward through MCP
+    step_reward = await server.server.call_tool(
+        "graph_evaluate_step_reward",
+        {
+            "source": "Imatinib",
+            "relation": "inhibits",
+            "target": "BCR-ABL1",
+            "task_reward": 1.0,
+            "bonded_stake": 100.0,
+        },
+    )
+    step_data = _dict_result(step_reward)
+    assert step_data["is_hallucination"] is False
+    assert step_data["grounding"] == 0.99
+    assert step_data["ais"] > 0.8
+    assert step_data["total_reward"] > 0.0
+
+    # Hallucination test through MCP
+    hall_reward = await server.server.call_tool(
+        "graph_evaluate_step_reward",
+        {
+            "source": "Imatinib",
+            "relation": "targets",
+            "target": "FictitiousEntity999",
+            "task_reward": 5.0,
+            "bonded_stake": 100.0,
+        },
+    )
+    hall_data = _dict_result(hall_reward)
+    assert hall_data["is_hallucination"] is True
+    assert hall_data["grounding"] == 0.0
+    assert hall_data["ais"] == 0.0
+    assert hall_data["total_reward"] < 0.0
+    assert hall_data["slashing_penalty"] == 10.0
+
+    # Formal graph mathematics tool test
+    math_res = await server.server.call_tool(
+        "graph_compute_math",
+        {"limit": 50, "similarity_threshold": 0.75},
+    )
+    math_data = _dict_result(math_res)
+    assert "adjacency_matrix" in math_data
+    assert "laplacian_matrix" in math_data
+    assert "cosine_similarity_matrix" in math_data
+    assert "spectral" in math_data
+    assert "centrality" in math_data
+    assert "pagerank" in math_data["centrality"]
+
+    # Canonical sample knowledge graph seeding tool test
+    seed_res = await server.server.call_tool(
+        "graph_seed_sample",
+        {"force": True, "dataset": "action_space"},
+    )
+    seed_data = _dict_result(seed_res)
+    assert seed_data["seeded"] is True
+    assert seed_data["relations_created"] >= 20
+    assert seed_data["dataset"] == "action_space"
+
+    # Session summary inference subagent test
+    subagent_res = await server.server.call_tool(
+        "graph_summarize_session_with_inference_subagent",
+        {"auto_ingest_triples": True},
+    )
+    subagent_data = _dict_result(subagent_res)
+    assert "summary" in subagent_data
+    assert "ais_metrics" in subagent_data
+    assert subagent_data["triples_extracted"] >= 5
+

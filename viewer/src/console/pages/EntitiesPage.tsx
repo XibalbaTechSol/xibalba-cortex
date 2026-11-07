@@ -12,10 +12,12 @@ import { useAsync } from '../useAsync'
 import { canBuildTree, countNodes, describePath, edgesToTree, type TreeNode } from '../entities'
 import { IconWarn } from '../icons'
 import { Page } from './Page'
+import { DiscoveryStudio } from '../DiscoveryStudio'
 
 export function EntitiesPage() {
   const { model, workspace, pageArg } = useConsole()
   const scope = workspace.scope
+  const [viewMode, setViewMode] = useState<'explore' | 'studio'>('explore')
   const [filter, setFilter] = useState('')
   const [name, setName] = useState('')
   const [query, setQuery] = useState<{ name: string; depth: number } | null>(null)
@@ -49,73 +51,104 @@ export function EntitiesPage() {
   }
 
   return (
-    <Page eyebrow="Explore" title="Entities" note="Entities and the relations between them, each backed by the memory that evidences it. Lookups search the whole workspace, not just the graph sample.">
-      <div className="xc-entities">
-        <section className="xc-win xc-pane xc-entities-list" aria-label="Entities in the graph sample">
-          <div className="xc-memories-filters">
-            <input className="xc-input" value={filter} onChange={(e) => setFilter(e.target.value)} placeholder="Filter entities in the sample…" aria-label="Filter entities" />
-            <p className="xc-note">{entities.length} in the graph sample{entities.length === 500 ? ' (the sample limit)' : ''}</p>
-          </div>
-          <div className="xc-scroll">
-            <ul className="xc-rows" style={{ listStyle: 'none', margin: 0, padding: 0 }}>
-              {shown.map((n) => (
-                <li key={n.id}>
-                  <button type="button" className="xc-session-row" aria-pressed={query?.name === n.label} onClick={() => lookup(n.label)}>
-                    <b>{n.label}</b>
-                    <span className="xc-meta">{n.degree} connection{n.degree === 1 ? '' : 's'} in the sample</span>
-                  </button>
-                </li>
-              ))}
-            </ul>
-            {shown.length === 0 && <div className="xc-empty"><h3 className="xc-title">{entities.length === 0 ? 'No entities in the sample' : 'No match'}</h3><p>{entities.length === 0 ? 'Entities appear when a relation is linked from a memory, or a proposal is accepted in Review.' : 'Try a shorter filter, or look the name up directly.'}</p></div>}
-          </div>
-        </section>
-
-        <div className="xc-entities-main">
-          <section className="xc-win xc-newmemory" aria-label="Neighbours">
-            <p className="xc-eyebrow">What connects to…</p>
-            <form className="xc-memories-search" onSubmit={submitLookup}>
-              <input className="xc-input" value={name} onChange={(e) => setName(e.target.value)} placeholder="Entity name" aria-label="Entity name" />
-              <label className="xc-inline">Depth
-                <select className="xc-input" value={depth} onChange={(e) => setDepth(Number(e.target.value))}>{[1, 2, 3].map((d) => <option key={d} value={d}>{d}</option>)}</select>
-              </label>
-              <button type="submit" className="xc-btn xc-btn--primary" disabled={!name.trim()}>Look up</button>
-            </form>
-            <Result state={neighbours} idle={!query}>
-              {(r) => {
-                if (r.edges.length === 0) return <p className="xc-note">“{query?.name}” has no relations in this workspace, or does not exist here.</p>
-                if (!canBuildTree(r.edges)) {
-                  return <FlatEdges edges={r.edges} note="This backend does not say which entity each relation leaves, so deeper hops are shown as a flat list." />
-                }
-                const tree = edgesToTree(query!.name, r.edges)
-                return (
-                  <>
-                    {r.truncated && <div className="xc-callout xc-callout--review"><IconWarn /><span>The result was cut off at the server’s node or edge limit. Narrow the depth to see all of it.</span></div>}
-                    <p className="xc-note">{countNodes(tree)} entities within {query!.depth} hop{query!.depth === 1 ? '' : 's'}.</p>
-                    <Tree node={tree} onPick={lookup} />
-                  </>
-                )
-              }}
-            </Result>
-          </section>
-
-          <section className="xc-win xc-newmemory" aria-label="Path between entities">
-            <p className="xc-eyebrow">Path between two entities</p>
-            <form className="xc-memories-search" onSubmit={submitPath}>
-              <input className="xc-input" value={pathFrom} onChange={(e) => setPathFrom(e.target.value)} placeholder="From" aria-label="From entity" />
-              <input className="xc-input" value={pathTo} onChange={(e) => setPathTo(e.target.value)} placeholder="To" aria-label="To entity" />
-              <label className="xc-inline">Max hops
-                <select className="xc-input" value={pathDepth} onChange={(e) => setPathDepth(Number(e.target.value))}>{[1, 2, 3, 4, 5].map((d) => <option key={d} value={d}>{d}</option>)}</select>
-              </label>
-              <button type="submit" className="xc-btn xc-btn--primary" disabled={!pathFrom.trim() || !pathTo.trim()}>Find path</button>
-            </form>
-            <Result state={path} idle={!pathQuery}>
-              {(r) => r.edges.length === 0
-                ? <p className="xc-note">No path from “{pathQuery?.from}” to “{pathQuery?.to}” within {pathQuery?.depth} hop{pathQuery?.depth === 1 ? '' : 's'}. Either they are not connected, or one of them does not exist in this workspace.</p>
-                : <p className="xc-path">{describePath(pathQuery!.from, r.edges)}</p>}
-            </Result>
-          </section>
+    <Page
+      eyebrow="Research & Discovery"
+      title="Knowledge Graph & Discovery Studio"
+      note="Explore knowledge graph entities, ingest custom datasets (triples, biomedical literature, FHIR), trace multi-hop pathways, and simulate AIS closed-loop reinforcement learning rewards."
+    >
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', width: '100%' }}>
+        <div className="xc-tabs" role="tablist" aria-label="Entity Navigation Modes">
+          <button
+            type="button"
+            role="tab"
+            className="xc-tab"
+            aria-selected={viewMode === 'explore'}
+            onClick={() => setViewMode('explore')}
+          >
+            Explore Entities & Graph Paths
+          </button>
+          <button
+            type="button"
+            role="tab"
+            className="xc-tab"
+            aria-selected={viewMode === 'studio'}
+            onClick={() => setViewMode('studio')}
+          >
+            Discovery Studio (Connectors, Inference & AIS Reward)
+          </button>
         </div>
+
+        {viewMode === 'studio' ? (
+          <DiscoveryStudio />
+        ) : (
+          <div className="xc-entities">
+            <section className="xc-win xc-pane xc-entities-list" aria-label="Entities in the graph sample">
+              <div className="xc-memories-filters">
+                <input className="xc-input" value={filter} onChange={(e) => setFilter(e.target.value)} placeholder="Filter entities in the sample…" aria-label="Filter entities" />
+                <p className="xc-note">{entities.length} in the graph sample{entities.length === 500 ? ' (the sample limit)' : ''}</p>
+              </div>
+              <div className="xc-scroll">
+                <ul className="xc-rows" style={{ listStyle: 'none', margin: 0, padding: 0 }}>
+                  {shown.map((n) => (
+                    <li key={n.id}>
+                      <button type="button" className="xc-session-row" aria-pressed={query?.name === n.label} onClick={() => lookup(n.label)}>
+                        <b>{n.label}</b>
+                        <span className="xc-meta">{n.degree} connection{n.degree === 1 ? '' : 's'} in the sample</span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+                {shown.length === 0 && <div className="xc-empty"><h3 className="xc-title">{entities.length === 0 ? 'No entities in the sample' : 'No match'}</h3><p>{entities.length === 0 ? 'Entities appear when a relation is linked from a memory, or a proposal is accepted in Review.' : 'Try a shorter filter, or look the name up directly.'}</p></div>}
+              </div>
+            </section>
+
+            <div className="xc-entities-main">
+              <section className="xc-win xc-newmemory" aria-label="Neighbours">
+                <p className="xc-eyebrow">What connects to…</p>
+                <form className="xc-memories-search" onSubmit={submitLookup}>
+                  <input className="xc-input" value={name} onChange={(e) => setName(e.target.value)} placeholder="Entity name" aria-label="Entity name" />
+                  <label className="xc-inline">Depth
+                    <select className="xc-input" value={depth} onChange={(e) => setDepth(Number(e.target.value))}>{[1, 2, 3].map((d) => <option key={d} value={d}>{d}</option>)}</select>
+                  </label>
+                  <button type="submit" className="xc-btn xc-btn--primary" disabled={!name.trim()}>Look up</button>
+                </form>
+                <Result state={neighbours} idle={!query}>
+                  {(r) => {
+                    if (r.edges.length === 0) return <p className="xc-note">“{query?.name}” has no relations in this workspace, or does not exist here.</p>
+                    if (!canBuildTree(r.edges)) {
+                      return <FlatEdges edges={r.edges} note="This backend does not say which entity each relation leaves, so deeper hops are shown as a flat list." />
+                    }
+                    const tree = edgesToTree(query!.name, r.edges)
+                    return (
+                      <>
+                        {r.truncated && <div className="xc-callout xc-callout--review"><IconWarn /><span>The result was cut off at the server’s node or edge limit. Narrow the depth to see all of it.</span></div>}
+                        <p className="xc-note">{countNodes(tree)} entities within {query!.depth} hop{query!.depth === 1 ? '' : 's'}.</p>
+                        <Tree node={tree} onPick={lookup} />
+                      </>
+                    )
+                  }}
+                </Result>
+              </section>
+
+              <section className="xc-win xc-newmemory" aria-label="Path between entities">
+                <p className="xc-eyebrow">Path between two entities</p>
+                <form className="xc-memories-search" onSubmit={submitPath}>
+                  <input className="xc-input" value={pathFrom} onChange={(e) => setPathFrom(e.target.value)} placeholder="From" aria-label="From entity" />
+                  <input className="xc-input" value={pathTo} onChange={(e) => setPathTo(e.target.value)} placeholder="To" aria-label="To entity" />
+                  <label className="xc-inline">Max hops
+                    <select className="xc-input" value={pathDepth} onChange={(e) => setPathDepth(Number(e.target.value))}>{[1, 2, 3, 4, 5].map((d) => <option key={d} value={d}>{d}</option>)}</select>
+                  </label>
+                  <button type="submit" className="xc-btn xc-btn--primary" disabled={!pathFrom.trim() || !pathTo.trim()}>Find path</button>
+                </form>
+                <Result state={path} idle={!pathQuery}>
+                  {(r) => r.edges.length === 0
+                    ? <p className="xc-note">No path from “{pathQuery?.from}” to “{pathQuery?.to}” within {pathQuery?.depth} hop{pathQuery?.depth === 1 ? '' : 's'}. Either they are not connected, or one of them does not exist in this workspace.</p>
+                    : <p className="xc-path">{describePath(pathQuery!.from, r.edges)}</p>}
+                </Result>
+              </section>
+            </div>
+          </div>
+        )}
       </div>
     </Page>
   )

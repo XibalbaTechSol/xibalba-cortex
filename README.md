@@ -1,4 +1,4 @@
-# Xibalba Cortex
+# Xibalba Cortex: Navigational AI Knowledge Graph Manifold
 
 > **The Navigational Engine for Verifiable Autonomy**
 
@@ -6,9 +6,62 @@ Generative AI is trapped in an unconstrained latent space where hallucinating a 
 
 **Xibalba Cortex discards unconstrained generation in favor of geometric graph traversal.**
 
-Cortex is a neuro-symbolic knowledge graph and active inference engine designed for autonomous agents. Instead of predicting the next token, agents operating inside Cortex physically "walk" the topological edges of verified data. Logic is no longer simulated through statistical correlation; it is a literal, continuous geometric trajectory. If an edge does not exist in the verified graph, the step cannot be taken—rendering hallucination structurally impossible.
+Cortex is the **Navigational Knowledge Graph Manifold** ($G=(V, E, \Phi)$) and active inference engine designed for autonomous agents and biomedical researchers. Instead of predicting the next token, agents operating inside Cortex physically "walk" the topological edges of verified data. Logic is no longer simulated through statistical correlation; it is a literal, continuous geometric trajectory with discrete action spaces ($\mathcal{A}$) and a mathematically closed-loop Agent Integrity Score (AIS) reward function. If an edge does not exist in the verified graph, the step cannot be taken—rendering hallucination structurally impossible.
 
 **The path itself is the proof.**
+
+---
+
+## Navigational AI & Closed-Loop AIS Reward Function
+
+### 1. The Knowledge Graph Manifold ($G = (V, E, \Phi)$)
+Autonomous agents in Cortex do not emit unbounded hallucinations. Every agent state $s_t \in \mathcal{S}$
+is anchored to a verified node or subgraph within the manifold $G$. Actions $a_t \in \mathcal{A}$ are
+discrete directional traversals across typed, cryptographically verified edges $e = (u, v, r, w)$.
+
+### 2. The AIS Closed-Loop Reward Function
+Cortex implements reinforcement learning with verifiable integrity:
+$$R_{\text{total}}(s_t, a_t) = R_{\text{task}}(s_t, a_t) + \lambda \cdot \text{AIS}(s_t, a_t)$$
+
+The **Agent Integrity Score (AIS)** is engineered as a zero-tolerance multiplicative invariant:
+$$\text{AIS} = 1000 \cdot \left(S_{\text{grounding}}^{w_g} \cdot S_{\text{compliance}}^{w_c} \cdot S_{\text{sacrifice}}^{w_s} \cdot S_{\text{entropy}}^{w_e}\right)^{\frac{1}{\sum w}}$$
+
+- **Grounding Invariant ($S_{\text{grounding}}$):** Ratio of proposed entities and claims rooted in verified graph triples or Merkle proofs. If an ungrounded entity is proposed, $S_{\text{grounding}} = 0 \implies \text{AIS} \equiv 0$, rendering hallucination mathematically impossible.
+- **Compliance Invariant ($S_{\text{compliance}}$):** Strict verification against BCC intent policies, PHI isolation boundaries, and deterministic security rules. Any policy breach immediately drops $S_{\text{compliance}} = 0$.
+- **Sunk Energy Sacrifice ($S_{\text{sacrifice}}$):** Attested compute or cryptographic proof (e.g. WASM policy evaluation, Merkle leaf generation) proving honest commitment before execution.
+- **Topological Entropy ($S_{\text{entropy}}$):** Spectral entropy $H(L) = -\sum \lambda_i \ln \lambda_i$ computed over the normalized graph Laplacian, preventing agent entrapment in degenerate loops or cyclic action spaces.
+
+### 3. Asymmetric Slashing & Quarantine
+Unwanted agent behaviors are made economically and computationally catastrophic. Any zero-score breach triggers:
+- Immediate 50% bonded stake burn on Ethereum L2 Base.
+- Kernel-level quarantine via eBPF containment.
+- Dual-witness proof emission written immutably to the transaction ledger.
+
+---
+
+## Core Capabilities & Features
+
+### 1. Ingestion Connectors for Researchers & Agents
+- **CSV/TSV Triples Connector:** Ingest high-volume Subject-Predicate-Object triples with custom confidence weights and ontological mapping (`src/xibalba_cortex/connectors/triples.py`).
+- **PubMed & Biomedical Literature Connector:** Automated NLP entity extraction from scientific papers, abstracts, PMIDs, and DOIs (`src/xibalba_cortex/connectors/biomedical.py`).
+- **HL7 FHIR Clinical EHR Connector:** Ingestion of FHIR Patient, Condition, Observation, and MedicationRequest resources with automated de-identification and zero-leakage PHI isolation (`src/xibalba_cortex/connectors/fhir.py`).
+
+### 2. Active Inference & Link Prediction
+- **Geometric TransE Link Prediction:** Evaluates continuous translation distance $f_r(h, t) = \|h + r - t\|_{1/2}$ combined with topological Jaccard coefficients to score unmapped candidate therapeutic links and drug repurposing opportunities (`src/xibalba_cortex/store.py`).
+- **Interpretable Multi-Hop Traversal:** Resolves all shortest biological and mechanistic pathways connecting candidate drugs, target pathways, and clinical disease endpoints.
+- **Inference Subagent Synthesis:** An automated background subagent distills raw session exchanges and agent trajectory memories into structured triples and verifies AIS invariants (`store.summarize_session_with_inference_subagent`).
+
+### 3. Formal Graph Mathematics Studio
+The Console includes a full analytical mathematics engine (`/api/graph/math` and `GraphMathStudio.tsx`):
+- **Adjacency Matrix ($A$):** Interactive $N \times N$ matrix visualization with sparsity metrics and spectral radii.
+- **Cosine Similarity Matrix ($S_{\cos}$):** High-dimensional topological and embedding cosine similarity heatmaps.
+- **Spectral Graph Theory & Graph Laplacian ($L = D - A$):** Eigenvalue spectra, algebraic connectivity (Fiedler value $\lambda_2$), and connected component clustering.
+- **Centrality Leaderboards:** Degree Centrality, Betweenness Centrality, and Eigenvector Centrality identifying influential hubs and structural bottlenecks.
+
+### 4. 3D Lattice Grid Snapping, Zen Mode & City Reentry
+- **3D Lattice Snapping:** Discrete spatial snapping of graph nodes to coordinate cells, ensuring structural clarity.
+- **Zen Immersion Mode:** One-key toggle (`Z`) that collapses all chrome, rails, and inspectors for pure graph visualization.
+- **City Reentry Flight HUD:** Double-click on any node to zoom from orbital space directly into the node's inner Metropolis, inspecting tabular properties and connected facets at ground level.
 
 ---
 
@@ -115,7 +168,7 @@ When integrating scientific literature hypotheses with real-world patient record
 
 ---
 
-## Two Editions — Pick One
+## Two Editions — Full Feature Parity
 
 | | **Self-hosted** | **Managed / hosted** |
 | --- | --- | --- |
@@ -123,10 +176,13 @@ When integrating scientific literature hypotheses with real-world patient record
 | Code | `src/xibalba_cortex/server.py`, `src/xibalba_cortex/local_api.py` | `src/xibalba_cortex/managed/api.py` |
 | Auth routes | `/api/auth/*` | `/api/managed/*` |
 | Storage | one SQLite profile on your disk | one SQLite database per tenant, on the server's disk |
-| MCP surface | all 91 tools | REST only (`/api/managed/*`) |
-| Ingestion | `memory_ingest_agent_turn` | `POST /api/managed/ingest` |
+| MCP surface | all 91 tools | none — nothing under `managed/` serves MCP |
+| Ingestion Connectors | Triples, Biomedical, FHIR, CSV (`/api/connectors/*`) | Triples, Biomedical, FHIR, CSV (`/api/connectors/*`) |
+| Graph Mathematics | Adjacency, Cosine, Spectral, Centrality (`/api/graph/math`) | Adjacency, Cosine, Spectral, Centrality (`/api/graph/math`) |
+| Discovery & Inference | Mechanisms, Predict Links, Repurposing, Ego Subgraph | Mechanisms, Predict Links, Repurposing, Ego Subgraph |
+| AIS Reward Engine | Step & Trajectory evaluation (`/api/discovery/reward/*`) | Step & Trajectory evaluation (`/api/discovery/reward/*`) |
+| Inference Subagent | Session distillation & triple extraction | Session distillation & triple extraction |
 | Billing, plans, quotas | no | Stripe plus per-plan metering (`managed/plans.py`, `managed/control.py`) |
-| Maturity | Primary path | Pilot |
 
 **Pick self-hosted** unless you specifically need multi-tenant hosting with billing. Self-hosted
 is where the whole tool surface, the operator API and the viewer live. The managed edition is a

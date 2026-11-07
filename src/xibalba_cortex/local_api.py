@@ -121,6 +121,20 @@ Routes:
   POST /api/memory/{id}/verify-link        -> GraphStore.verify_integrity_link() against XIBALBA_DAG_HOME
   POST /api/session/{id}/anchor            -> GraphStore.anchor_session_root() to XIBALBA_ANCHOR_URL (outward; store operator)
   GET /api/vault/leaf?leaf_hash=           -> vault_inspect.inspect_leaf() against XIBALBA_VAULT_DIR (never a path from the browser)
+  GET /api/discovery/mechanisms?source=&target=&max_depth= -> GraphStore.trace_mechanisms()
+  GET /api/discovery/predict-links?source=&target=&relation= -> GraphStore.predict_links()
+  GET /api/discovery/repurposing?disease=&top_k= -> GraphStore.suggest_drug_repurposing()
+  GET /api/discovery/ego-subgraph?entity=&radius= -> GraphStore.ego_subgraph()
+  POST /api/connectors/triples                 -> GraphStore.ingest_triples()
+  POST /api/connectors/biomedical              -> GraphStore.ingest_biomedical_article()
+  POST /api/connectors/fhir                    -> GraphStore.ingest_fhir_bundle()
+  POST /api/connectors/csv                     -> TriplesConnector.ingest_csv()
+  POST /api/discovery/reward/step              -> GraphStore.evaluate_step_reward()
+  POST /api/discovery/reward/trajectory        -> GraphStore.evaluate_trajectory_reward()
+  GET /api/graph/math?limit=&similarity_threshold= -> GraphStore.compute_graph_mathematics()
+  POST /api/graph/math                         -> GraphStore.compute_graph_mathematics()
+  POST /api/graph/seed-sample                  -> GraphStore.seed_sample_knowledge_graph()
+  POST /api/session/summarize-with-subagent    -> GraphStore.summarize_session_with_inference_subagent()
 """
 from __future__ import annotations
 
@@ -1220,7 +1234,17 @@ def _make_handler(store: GraphStore, *, allowed_origins: frozenset[str],
                     threshold = float(params.get("similarity_threshold", 0.75))
                     requested_agent = params.get("agent_id")
                     agent_store, agent_filter = _read_store_for_agent(principal, requested_agent, params.get("store_id"))
-                    self._send_json(200, agent_store.graph_payload(limit=limit, similarity_threshold=threshold, agent_id=agent_filter))
+                    payload = agent_store.graph_payload(limit=limit, similarity_threshold=threshold, agent_id=agent_filter)
+                    if not payload.get("nodes") and not agent_store.readonly:
+                        agent_store.seed_sample_knowledge_graph(force=False)
+                        payload = agent_store.graph_payload(limit=limit, similarity_threshold=threshold, agent_id=agent_filter)
+                    self._send_json(200, payload)
+                elif parts == ["api", "graph", "math"]:
+                    limit = int(params.get("limit", 150))
+                    threshold = float(params.get("similarity_threshold", 0.75))
+                    requested_agent = params.get("agent_id")
+                    agent_store, agent_filter = _read_store_for_agent(principal, requested_agent, params.get("store_id"))
+                    self._send_json(200, agent_store.compute_graph_mathematics(limit=limit, similarity_threshold=threshold, agent_id=agent_filter))
                 elif len(parts) == 4 and parts[0] == "api" and parts[1] == "entity" and parts[3] == "neighbors":
                     max_depth = int(params.get("max_depth", 1))
                     entity_store, agent_filter = _read_store_for_agent(principal, params.get("agent_id"), params.get("store_id"))
@@ -1229,6 +1253,21 @@ def _make_handler(store: GraphStore, *, allowed_origins: frozenset[str],
                     max_depth = int(params.get("max_depth", 3))
                     entity_store, agent_filter = _read_store_for_agent(principal, params.get("agent_id"), params.get("store_id"))
                     self._send_json(200, entity_store.find_path(params.get("from", ""), params.get("to", ""), max_depth=max_depth, agent_id=agent_filter))
+                elif parts == ["api", "discovery", "mechanisms"]:
+                    max_depth = int(params.get("max_depth", 4))
+                    entity_store, agent_filter = _read_store_for_agent(principal, params.get("agent_id"), params.get("store_id"))
+                    self._send_json(200, entity_store.trace_mechanisms(params.get("source", ""), params.get("target", ""), max_depth=max_depth, agent_id=agent_filter))
+                elif parts == ["api", "discovery", "predict-links"]:
+                    entity_store, agent_filter = _read_store_for_agent(principal, params.get("agent_id"), params.get("store_id"))
+                    self._send_json(200, entity_store.predict_links(params.get("source", ""), params.get("target", ""), relation=params.get("relation", "associated_with"), agent_id=agent_filter))
+                elif parts == ["api", "discovery", "repurposing"]:
+                    top_k = int(params.get("top_k", 5))
+                    entity_store, agent_filter = _read_store_for_agent(principal, params.get("agent_id"), params.get("store_id"))
+                    self._send_json(200, entity_store.suggest_drug_repurposing(params.get("disease", ""), top_k=top_k, agent_id=agent_filter))
+                elif parts == ["api", "discovery", "ego-subgraph"]:
+                    radius = int(params.get("radius", 2))
+                    entity_store, agent_filter = _read_store_for_agent(principal, params.get("agent_id"), params.get("store_id"))
+                    self._send_json(200, entity_store.ego_subgraph(params.get("entity", ""), radius=radius, agent_id=agent_filter))
                 elif len(parts) == 4 and parts[0] == "api" and parts[1] == "session" and parts[3] == "exchanges":
                     session_store, _ = _read_store_for_agent(principal, params.get("agent_id"), params.get("store_id"))
                     _assert_session_access(session_store, principal, parts[2])
@@ -1862,6 +1901,126 @@ def _make_handler(store: GraphStore, *, allowed_origins: frozenset[str],
                             confidence=float(payload.get("confidence", 1.0)),
                         ),
                     )
+                elif parts == ["api", "connectors", "triples"]:
+                    raw_triples = payload.get("triples", [])
+                    source_name = str(payload.get("source_name") or "dataset_ingest")
+                    shared = bool(payload.get("shared", True))
+                    agent_target = _write_agent(store, principal, str(payload["agent_id"])) if payload.get("agent_id") else _write_agent(store, principal)
+                    self._send_json(
+                        200,
+                        store.ingest_triples(
+                            raw_triples,
+                            source_name=source_name,
+                            agent_id=agent_target,
+                            shared=shared,
+                        ),
+                    )
+                elif parts == ["api", "connectors", "biomedical"]:
+                    title = str(payload.get("title") or "")
+                    abstract = str(payload.get("abstract") or "")
+                    if not title or not abstract:
+                        raise ValueError("title and abstract are required")
+                    agent_target = _write_agent(store, principal, str(payload["agent_id"])) if payload.get("agent_id") else _write_agent(store, principal)
+                    self._send_json(
+                        200,
+                        store.ingest_biomedical_article(
+                            title=title,
+                            abstract=abstract,
+                            pmid=payload.get("pmid"),
+                            doi=payload.get("doi"),
+                            journal=payload.get("journal"),
+                            year=int(payload["year"]) if payload.get("year") else None,
+                            agent_id=agent_target,
+                            shared=bool(payload.get("shared", True)),
+                        ),
+                    )
+                elif parts == ["api", "connectors", "fhir"]:
+                    bundle_data = payload.get("bundle")
+                    if not bundle_data:
+                        raise ValueError("bundle is required")
+                    agent_target = _write_agent(store, principal, str(payload["agent_id"])) if payload.get("agent_id") else _write_agent(store, principal)
+                    self._send_json(
+                        200,
+                        store.ingest_fhir_bundle(
+                            bundle_data,
+                            source_name=str(payload.get("source_name") or "fhir_bundle"),
+                            deidentify=bool(payload.get("deidentify", True)),
+                            agent_id=agent_target,
+                            shared=bool(payload.get("shared", True)),
+                        ),
+                    )
+                elif parts == ["api", "connectors", "csv"]:
+                    csv_text = str(payload.get("csv_text") or "")
+                    if not csv_text:
+                        raise ValueError("csv_text is required")
+                    from .connectors.triples import TriplesConnector
+                    connector = TriplesConnector(store)
+                    agent_target = _write_agent(store, principal, str(payload["agent_id"])) if payload.get("agent_id") else _write_agent(store, principal)
+                    res = connector.ingest_csv(
+                        csv_text,
+                        source_name=str(payload.get("source_name") or "csv_import"),
+                        delimiter=str(payload.get("delimiter") or ","),
+                        agent_id=agent_target,
+                        shared=bool(payload.get("shared", True)),
+                    )
+                    self._send_json(200, res.to_dict())
+                elif parts == ["api", "discovery", "reward", "step"]:
+                    source = str(payload.get("source") or payload.get("from") or "")
+                    relation = str(payload.get("relation") or payload.get("predicate") or "")
+                    target = str(payload.get("target") or payload.get("to") or "")
+                    if not source or not relation or not target:
+                        raise ValueError("source, relation, and target are required")
+                    agent_target = _write_agent(store, principal, str(payload["agent_id"])) if payload.get("agent_id") else _write_agent(store, principal)
+                    self._send_json(
+                        200,
+                        store.evaluate_step_reward(
+                            source=source,
+                            relation=relation,
+                            target=target,
+                            task_reward=float(payload.get("task_reward", 0.0)),
+                            cost=float(payload.get("cost", 0.01)),
+                            bonded_stake=float(payload.get("bonded_stake", 100.0)),
+                            history_path=payload.get("history_path"),
+                            policy_rules=payload.get("policy_rules"),
+                            agent_id=agent_target,
+                        ),
+                    )
+                elif parts == ["api", "discovery", "reward", "trajectory"]:
+                    steps = payload.get("steps")
+                    if not isinstance(steps, list):
+                        raise ValueError("steps must be a list of step dicts")
+                    agent_target = _write_agent(store, principal, str(payload["agent_id"])) if payload.get("agent_id") else _write_agent(store, principal)
+                    self._send_json(
+                        200,
+                        store.evaluate_trajectory_reward(
+                            steps=steps,
+                            discount_factor=float(payload.get("discount_factor", 0.95)),
+                            initial_stake=float(payload.get("initial_stake", 100.0)),
+                            policy_rules=payload.get("policy_rules"),
+                            agent_id=agent_target,
+                        ),
+                    )
+                elif parts == ["api", "graph", "math"]:
+                    limit = int(payload.get("limit", 150))
+                    threshold = float(payload.get("similarity_threshold", 0.75))
+                    requested_agent = payload.get("agent_id")
+                    agent_store, agent_filter = _read_store_for_agent(principal, requested_agent, payload.get("store_id"))
+                    custom_nodes = payload.get("nodes")
+                    custom_edges = payload.get("edges")
+                    if custom_nodes is not None and custom_edges is not None:
+                        from .graph_math import compute_formal_graph_math
+                        self._send_json(200, compute_formal_graph_math(custom_nodes, custom_edges, max_nodes=limit))
+                    else:
+                        self._send_json(200, agent_store.compute_graph_mathematics(limit=limit, similarity_threshold=threshold, agent_id=agent_filter))
+                elif parts == ["api", "graph", "seed-sample"]:
+                    agent_target = _write_agent(store, principal, str(payload["agent_id"])) if payload.get("agent_id") else _write_agent(store, principal)
+                    dataset_choice = str(payload.get("dataset", "biomedical"))
+                    self._send_json(200, store.seed_sample_knowledge_graph(force=bool(payload.get("force", False)), dataset=dataset_choice))
+                elif parts == ["api", "session", "summarize-with-subagent"]:
+                    agent_target = _write_agent(store, principal, str(payload["agent_id"])) if payload.get("agent_id") else _write_agent(store, principal)
+                    sess_id = str(payload["session_id"]) if payload.get("session_id") else None
+                    auto_ingest = bool(payload.get("auto_ingest_triples", True))
+                    self._send_json(200, store.summarize_session_with_inference_subagent(external_session_id=sess_id, auto_ingest_triples=auto_ingest, agent_id=agent_target))
                 elif parts == ["api", "memory", "contradictions"]:
                     _assert_memory_scope(store.get_memory(str(payload.get("memory_id_a") or "")), principal, store)
                     _assert_memory_scope(store.get_memory(str(payload.get("memory_id_b") or "")), principal, store)

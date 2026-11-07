@@ -1843,6 +1843,217 @@ def cortex_cloud_pair(cloud_url: str | None = None) -> dict[str, object]:
     return trigger_cloud_pairing(cloud_url=cloud_url)
 
 
+@server.tool()
+@_requires_scope("memory:write")
+def graph_ingest_triples(
+    triples: list[list[Any] | dict[str, Any]],
+    source_name: str = "dataset_ingest",
+    shared: bool = True,
+) -> dict[str, Any]:
+    """Ingest a batch of structured knowledge graph triples (head, relation, tail, optional confidence)."""
+    bound = _bound_agent_id()
+    return get_store().ingest_triples(
+        triples,
+        source_name=source_name,
+        agent_id=bound,
+        shared=shared,
+    )
+
+
+@server.tool()
+@_requires_scope("memory:write")
+def graph_ingest_biomedical(
+    title: str,
+    abstract: str,
+    pmid: str | None = None,
+    doi: str | None = None,
+    journal: str | None = None,
+    year: int | None = None,
+    shared: bool = True,
+) -> dict[str, Any]:
+    """Ingest biomedical literature text (PubMed articles/abstracts), extracting normalized entities and relations."""
+    bound = _bound_agent_id()
+    return get_store().ingest_biomedical_article(
+        title=title,
+        abstract=abstract,
+        pmid=pmid,
+        doi=doi,
+        journal=journal,
+        year=year,
+        agent_id=bound,
+        shared=shared,
+    )
+
+
+@server.tool()
+@_requires_scope("memory:write")
+def graph_ingest_fhir(
+    bundle: dict[str, Any] | str,
+    source_name: str = "fhir_bundle",
+    deidentify: bool = True,
+    shared: bool = True,
+) -> dict[str, Any]:
+    """Ingest HL7 FHIR R4 clinical bundles with cryptographic PHI gating and temporal observation reification."""
+    bound = _bound_agent_id()
+    return get_store().ingest_fhir_bundle(
+        bundle,
+        source_name=source_name,
+        deidentify=deidentify,
+        agent_id=bound,
+        shared=shared,
+    )
+
+
+@server.tool()
+def graph_trace_mechanisms(
+    source_entity: str,
+    target_entity: str,
+    max_depth: int = 4,
+) -> list[dict[str, Any]]:
+    """Trace interpretable multi-hop mechanistic pathways between biomedical entities (e.g. Drug -> Target -> Disease)."""
+    bound = _bound_agent_id(require=current_principal() is not None)
+    return get_store().trace_mechanisms(
+        source_entity,
+        target_entity,
+        max_depth=max_depth,
+        agent_id=_storage_agent_id(bound),
+    )
+
+
+@server.tool()
+def graph_predict_links(
+    source_entity: str,
+    target_entity: str,
+    relation: str = "associated_with",
+) -> dict[str, Any]:
+    """Predict latent relationships between disconnected entities using topological and embedding link prediction."""
+    bound = _bound_agent_id(require=current_principal() is not None)
+    return get_store().predict_links(
+        source_entity,
+        target_entity,
+        relation=relation,
+        agent_id=_storage_agent_id(bound),
+    )
+
+
+@server.tool()
+def graph_suggest_drug_repurposing(
+    disease_entity: str,
+    top_k: int = 5,
+) -> list[dict[str, Any]]:
+    """Identify candidate therapeutic compounds for repurposing against a disease based on graph topology."""
+    bound = _bound_agent_id(require=current_principal() is not None)
+    return get_store().suggest_drug_repurposing(
+        disease_entity,
+        top_k=top_k,
+        agent_id=_storage_agent_id(bound),
+    )
+
+
+@server.tool()
+def graph_ego_subgraph(
+    center_entity: str,
+    radius: int = 2,
+) -> dict[str, Any]:
+    """Extract a radial sub-graph centered around a specific entity for focused exploration."""
+    bound = _bound_agent_id(require=current_principal() is not None)
+    return get_store().ego_subgraph(
+        center_entity,
+        radius=radius,
+        agent_id=_storage_agent_id(bound),
+    )
+
+
+@server.tool()
+def graph_evaluate_step_reward(
+    source: str,
+    relation: str,
+    target: str,
+    task_reward: float = 0.0,
+    cost: float = 0.01,
+    bonded_stake: float = 100.0,
+    history_path: list[str] | None = None,
+    policy_rules: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Evaluate closed-loop RL reward for graph traversal: R_total = R_task + lambda * AIS. Hallucination collapses AIS to 0."""
+    bound = _bound_agent_id(require=current_principal() is not None)
+    return get_store().evaluate_step_reward(
+        source=source,
+        relation=relation,
+        target=target,
+        task_reward=task_reward,
+        cost=cost,
+        bonded_stake=bonded_stake,
+        history_path=history_path,
+        policy_rules=policy_rules,
+        agent_id=_storage_agent_id(bound),
+    )
+
+
+@server.tool()
+def graph_evaluate_trajectory_reward(
+    steps: list[dict[str, Any]],
+    discount_factor: float = 0.95,
+    initial_stake: float = 100.0,
+    policy_rules: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Evaluate cumulative discounted reward along a multi-step agent trajectory through the knowledge graph."""
+    bound = _bound_agent_id(require=current_principal() is not None)
+    return get_store().evaluate_trajectory_reward(
+        steps=steps,
+        discount_factor=discount_factor,
+        initial_stake=initial_stake,
+        policy_rules=policy_rules,
+        agent_id=_storage_agent_id(bound),
+    )
+
+
+@server.tool()
+def graph_compute_math(
+    limit: int = 150,
+    similarity_threshold: float = 0.75,
+) -> dict[str, Any]:
+    """Compute formal mathematics of the graph: Adjacency Matrix (A), Laplacian (L & L_sym),
+    Cosine Similarity Matrix, Spectral Eigenvalues, PageRank, and Centrality rankings."""
+    bound = _bound_agent_id(require=current_principal() is not None)
+    return get_store().compute_graph_mathematics(
+        limit=limit,
+        similarity_threshold=similarity_threshold,
+        agent_id=_storage_agent_id(bound),
+    )
+
+
+@server.tool()
+def graph_seed_sample(
+    force: bool = False,
+    dataset: str = "biomedical",
+) -> dict[str, Any]:
+    """Seed sample knowledge graphs into the store.
+    
+    Datasets:
+    - 'biomedical': Oncology pathways, kinase targets, and clinical trial cohorts.
+    - 'action_space': Agent Action Space (Navigational MDP, BCC gating, tool choices, and slashing).
+    - 'all': Unified manifold combining both domains.
+    """
+    return get_store().seed_sample_knowledge_graph(force=force, dataset=dataset)
+
+
+@server.tool()
+@_requires_scope("memory:read")
+def graph_summarize_session_with_inference_subagent(
+    session_id: str | None = None,
+    auto_ingest_triples: bool = True,
+) -> dict[str, Any]:
+    """Use Cortex's session inference subagent pipeline to summarize a session's memories
+    and extract its action space and knowledge triples into the graph."""
+    bound = _bound_agent_id(require=current_principal() is not None)
+    return get_store().summarize_session_with_inference_subagent(
+        external_session_id=session_id,
+        auto_ingest_triples=auto_ingest_triples,
+        agent_id=_storage_agent_id(bound),
+    )
+
+
 def _install_stdio_principal() -> None:
     """Bind the stdio server to the agent identity it was launched with.
 

@@ -428,6 +428,8 @@ export interface GraphNode {
   evidence_class?: string
   source_kind?: string
   entity_type?: string
+  para_category?: 'project' | 'area' | 'resource' | 'archive' | string
+  properties?: Record<string, any>
   /** exchange nodes: ISO prompt time. */
   timestamp?: string | null
   /** session nodes: "YYYY-MM-DD HH:MM:SS" (UTC, no zone marker). */
@@ -1280,6 +1282,137 @@ export interface ImportResult {
   note: string
 }
 
+export interface GraphMathResult {
+  node_count: number
+  edge_count: number
+  density: number
+  clustering_coefficient: number
+  average_degree: number
+  diameter: number | null
+  average_shortest_path_length: number | null
+  node_labels: string[]
+  node_ids: string[]
+  adjacency_matrix: number[][]
+  degree_matrix: number[][]
+  laplacian_matrix: number[][]
+  normalized_laplacian_matrix: number[][]
+  cosine_similarity_matrix: number[][]
+  spectral: {
+    eigenvalues: number[]
+    algebraic_connectivity: number
+    fiedler_vector: number[]
+    spectral_gap: number
+  }
+  centrality: {
+    pagerank: Record<string, number>
+    degree: Record<string, number>
+    betweenness: Record<string, number>
+    closeness: Record<string, number>
+    eigenvector: Record<string, number>
+  }
+}
+
+export interface ConnectorResult {
+  success: boolean
+  source_name: string
+  entities_created: number
+  relations_created: number
+  memories_created: number
+  errors: string[]
+  metadata: Record<string, unknown>
+}
+
+export interface MechanicPath {
+  source: string
+  target: string
+  length: number
+  path_nodes: string[]
+  steps: Array<{
+    subject: string
+    predicate: string
+    object: string
+    confidence: number
+  }>
+}
+
+export interface LinkPrediction {
+  source: string
+  target: string
+  relation: string
+  probability: number
+  common_neighbors: string[]
+  metrics: {
+    jaccard: number
+    adamic_adar: number
+    resource_allocation: number
+  }
+}
+
+export interface RepurposingCandidate {
+  drug: string
+  disease: string
+  predicted_affinity: number
+  mechanisms_count: number
+  connecting_targets: string[]
+}
+
+export interface EgoSubgraph {
+  center: string
+  radius: number
+  nodes: Array<{ id: string; label: string; type?: string; canonical_name?: string }>
+  edges: Array<{ source: string; target: string; relation: string; confidence?: number }>
+}
+
+export interface StepRewardResult {
+  source: string
+  relation: string
+  target: string
+  ais: number
+  total_reward: number
+  task_reward: number
+  grounding: number
+  compliance: number
+  sacrifice: number
+  entropy: number
+  is_hallucination: boolean
+  is_policy_violation: boolean
+  slashing_penalty: number
+  remaining_bonded_stake: number
+  explanation: string
+  details: Record<string, unknown>
+}
+
+export interface TrajectoryRewardResult {
+  trajectory_length: number
+  cumulative_reward: number
+  mean_ais: number
+  discount_factor: number
+  has_hallucination: boolean
+  has_policy_violation: boolean
+  total_slashing_penalties: number
+  final_bonded_stake: number
+  summary: string
+  steps: StepRewardResult[]
+}
+
+export interface InferenceSessionSummaryResult {
+  session_id: string
+  agent_id?: string
+  summary: string
+  actions_extracted: string[]
+  outcomes: string[]
+  triples_extracted: number
+  triples_ingested: number
+  inference_task_id?: string
+  ais_metrics: {
+    grounding: number
+    compliance: number
+    sacrifice: number
+    entropy: number
+    ais_score: number
+  }
+}
+
 export interface ReconciliationSummary {
   equal: boolean
   domains: Record<string, { equal: boolean; live_leaf_count: number | null; destination_leaf_count: number | null }>
@@ -1499,4 +1632,32 @@ export const api = {
   kernelBridgeSelfTest: (sessionId?: string) => postJson<KernelBridgeSelfTest>('/api/kernel-bridge/self-test', sessionId ? { session_id: sessionId } : {}),
   inferenceSettings: () => getJson<InferenceSettings>('/api/settings/inference'),
   updateInferenceSettings: (settings: InferenceSettings) => postJson<{ok: boolean; inference: InferenceSettings; message: string}>('/api/settings/inference', settings as unknown as Record<string, unknown>),
+  ingestTriples: (payload: { triples: unknown[]; source_name?: string; agent_id?: string; shared?: boolean }) =>
+    postJson<ConnectorResult>('/api/connectors/triples', payload as Record<string, unknown>),
+  ingestBiomedical: (payload: { title: string; abstract: string; pmid?: string; doi?: string; journal?: string; year?: number; agent_id?: string; shared?: boolean }) =>
+    postJson<ConnectorResult>('/api/connectors/biomedical', payload as Record<string, unknown>),
+  ingestFHIR: (payload: { bundle: unknown; source_name?: string; deidentify?: boolean; agent_id?: string; shared?: boolean }) =>
+    postJson<ConnectorResult>('/api/connectors/fhir', payload as Record<string, unknown>),
+  ingestCSV: (payload: { csv_text: string; source_name?: string; delimiter?: string; agent_id?: string; shared?: boolean }) =>
+    postJson<ConnectorResult>('/api/connectors/csv', payload as Record<string, unknown>),
+  traceMechanisms: (source: string, target: string, maxDepth = 4, agentId?: string) =>
+    getJson<MechanicPath[]>(`/api/discovery/mechanisms?source=${encodeURIComponent(source)}&target=${encodeURIComponent(target)}&max_depth=${maxDepth}${agentId ? `&agent_id=${encodeURIComponent(agentId)}` : ''}`),
+  predictLinks: (source: string, target: string, relation = 'associated_with', agentId?: string) =>
+    getJson<LinkPrediction>(`/api/discovery/predict-links?source=${encodeURIComponent(source)}&target=${encodeURIComponent(target)}&relation=${encodeURIComponent(relation)}${agentId ? `&agent_id=${encodeURIComponent(agentId)}` : ''}`),
+  suggestRepurposing: (disease: string, topK = 5, agentId?: string) =>
+    getJson<RepurposingCandidate[]>(`/api/discovery/repurposing?disease=${encodeURIComponent(disease)}&top_k=${topK}${agentId ? `&agent_id=${encodeURIComponent(agentId)}` : ''}`),
+  egoSubgraph: (entity: string, radius = 2, agentId?: string) =>
+    getJson<EgoSubgraph>(`/api/discovery/ego-subgraph?entity=${encodeURIComponent(entity)}&radius=${radius}${agentId ? `&agent_id=${encodeURIComponent(agentId)}` : ''}`),
+  evaluateStepReward: (payload: { source: string; relation: string; target: string; task_reward?: number; cost?: number; bonded_stake?: number; history_path?: string[]; policy_rules?: Record<string, unknown>; agent_id?: string }) =>
+    postJson<StepRewardResult>('/api/discovery/reward/step', payload as Record<string, unknown>),
+  evaluateTrajectoryReward: (payload: { steps: Array<Record<string, unknown>>; discount_factor?: number; initial_stake?: number; policy_rules?: Record<string, unknown>; agent_id?: string }) =>
+    postJson<TrajectoryRewardResult>('/api/discovery/reward/trajectory', payload as Record<string, unknown>),
+  seedSampleGraph: (force = false, agentId?: string, dataset: 'biomedical' | 'action_space' | 'all' = 'biomedical') =>
+    postJson<{ seeded: boolean; dataset?: string; reason?: string; entities?: number }>('/api/graph/seed-sample', { force, agent_id: agentId, dataset }),
+  summarizeSessionWithSubagent: (payload?: { session_id?: string; auto_ingest_triples?: boolean; agent_id?: string }) =>
+    postJson<InferenceSessionSummaryResult>('/api/session/summarize-with-subagent', (payload || {}) as Record<string, unknown>),
+  getGraphMath: (limit = 150, threshold = 0.75, agentId?: string) =>
+    getJson<GraphMathResult>(`/api/graph/math?limit=${limit}&similarity_threshold=${threshold}${agentId ? `&agent_id=${encodeURIComponent(agentId)}` : ''}`),
+  computeGraphMath: (payload: { limit?: number; similarity_threshold?: number; nodes?: unknown[]; edges?: unknown[]; agent_id?: string }) =>
+    postJson<GraphMathResult>('/api/graph/math', payload as Record<string, unknown>),
 }
