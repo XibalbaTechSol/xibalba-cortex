@@ -35,6 +35,7 @@ The local API exposes read and operator-oriented surfaces over the canonical `Gr
 - [On-chain identity honesty](#on-chain-identity-honesty)
 - [Agent workspaces](#agent-workspaces)
 - [Profile-store routing](#profile-store-routing)
+- [Managed Edition & Multi-Agent Scope Switching](#managed-edition-multi-agent-scope-switching)
 - [PARA and inference integration](#para-and-inference-integration)
 - [Integrity presentation](#integrity-presentation)
 - [Headless verification](#headless-verification)
