@@ -16,7 +16,7 @@ import { FADE, GRID_INK, LINK_ALPHA, linkWidth, nodeHalf, traceNode } from './gr
 import { GRID_CELL_SIZE, cellCentre, snapToGrid, type Cell } from './gridSnap'
 import { defaultFacets, filterModel, selectionHidden, type CNode, type EdgeGroup, type Facets, type NodeClass } from './model'
 import { palette, withAlpha } from './palette'
-import { IconBox, IconExpand, IconFit, IconGrid, IconMemories, IconOperations, IconRefresh, IconTarget, IconUnpin, IconWarn } from './icons'
+import { IconBox, IconExpand, IconFit, IconGrid, IconOperations, IconRefresh, IconTarget, IconUnpin, IconWarn } from './icons'
 import { GraphMathStudio } from './GraphMathStudio'
 import { ZenHud } from './ZenHud'
 import { InnerRoomCockpit } from './InnerRoomCockpit'
@@ -729,12 +729,10 @@ export function GraphLens() {
           />
         )}
 
-        <button type="button" className="xc-summary-toggle xc-btn xc-btn--icon" aria-label="Workspace summary" title="Workspace summary" onClick={() => { select(null); setSummaryOpen((v) => !v) }}>
-          <IconMemories style={{ width: 14, height: 14 }} />
-        </button>
+        <button type="button" className="xc-summary-toggle xc-btn" aria-label="Workspace summary" onClick={() => { select(null); setSummaryOpen((v) => !v) }}>Summary</button>
         {summaryOpen && !selectedId && <Inspector summary onClose={() => setSummaryOpen(false)} />}
-        <button type="button" className="xc-legend-toggle xc-legend-toggle--icon" aria-label="Legend" title={legendOpen ? 'Hide legend' : 'Legend'} aria-expanded={legendOpen} onClick={() => setLegendOpen((v) => !v)}>
-          <IconGrid style={{ width: 13, height: 13 }} />
+        <button type="button" className="xc-legend-toggle" aria-expanded={legendOpen} onClick={() => setLegendOpen((v) => !v)}>
+          {legendOpen ? 'Hide legend' : 'Legend'}
         </button>
         {legendOpen && (
         <div className="xc-legend" aria-label="Legend (click a row to show or hide it)">
