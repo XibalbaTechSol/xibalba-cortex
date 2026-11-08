@@ -1069,6 +1069,64 @@ def create_app(config: ManagedConfig, *, control: ManagedControl | None = None, 
         payload = await request.json()
         return JSONResponse(await run_in_threadpool(discovery_reward_trajectory_operation, request, payload))
 
+    def ais_closed_loop_reward_evaluate_operation(request, payload):
+        account, principal, _ = authenticate(request)
+        require_scope(principal, "memory:read")
+        from ..ais_trajectory_reward import (
+            TrajectoryStepInput,
+            build_dpo_preference_pair,
+            compute_grpo_advantages,
+            evaluate_trajectory_rewards,
+        )
+
+        raw_steps = payload.get("steps")
+        if not isinstance(raw_steps, list) or not raw_steps:
+            raise ApiError(400, "steps must be a non-empty list")
+
+        def _parse_steps(step_list: list[dict]) -> list[TrajectoryStepInput]:
+            return [
+                TrajectoryStepInput(
+                    event_id=str(s.get("event_id", f"evt_{idx}")),
+                    receipt_hash=str(s.get("receipt_hash", "sha256:oracle_receipt")),
+                    r_task=float(s.get("r_task", 1.0)),
+                    ais_score_1000=float(s.get("ais_score_1000", 1000.0)),
+                    s_compliance=float(s.get("s_compliance", 1000.0)),
+                    policy_denied=bool(s.get("policy_denied", False)),
+                    cost_usd=float(s.get("cost_usd", 0.0)),
+                )
+                for idx, s in enumerate(step_list)
+            ]
+
+        primary = evaluate_trajectory_rewards(
+            session_id=str(payload.get("session_id", "session_primary")),
+            agent_did=str(payload.get("agent_did", principal.profile_id)),
+            steps=_parse_steps(raw_steps),
+            initial_ais_1000=float(payload.get("initial_ais_1000", 1000.0)),
+            lambda_ais=float(payload.get("lambda_ais", 0.50)),
+            gamma=float(payload.get("gamma", 0.99)),
+            shaping_weight=float(payload.get("shaping_weight", 0.25)),
+            lambda_cost=float(payload.get("lambda_cost", 0.10)),
+            deny_penalty=float(payload.get("deny_penalty", 1.0)),
+        )
+        result = {"trajectory": primary.to_dict()}
+
+        alt_steps = payload.get("comparison_steps")
+        if isinstance(alt_steps, list) and alt_steps:
+            secondary = evaluate_trajectory_rewards(
+                session_id=str(payload.get("comparison_session_id", "session_comparison")),
+                agent_did=str(payload.get("agent_did", principal.profile_id)),
+                steps=_parse_steps(alt_steps),
+                initial_ais_1000=float(payload.get("initial_ais_1000", 1000.0)),
+            )
+            result["grpo_advantages"] = compute_grpo_advantages([primary, secondary])
+            result["dpo_preference_pair"] = build_dpo_preference_pair(primary, secondary)
+        return result
+
+    async def ais_closed_loop_reward_evaluate(request):
+        rate_limit(request)
+        payload = await request.json()
+        return JSONResponse(await run_in_threadpool(ais_closed_loop_reward_evaluate_operation, request, payload))
+
     def session_summarize_subagent_operation(request, payload):
         account, principal, _ = authenticate(request, mutate=True)
         require_scope(principal, "memory:write")
@@ -1458,6 +1516,7 @@ def create_app(config: ManagedConfig, *, control: ManagedControl | None = None, 
         Route("/api/managed/discovery/ego-subgraph", discovery_ego_subgraph, methods=["GET"]),
         Route("/api/managed/discovery/reward/step", discovery_reward_step, methods=["POST"]),
         Route("/api/managed/discovery/reward/trajectory", discovery_reward_trajectory, methods=["POST"]),
+        Route("/api/managed/discovery/reward/ais-closed-loop", ais_closed_loop_reward_evaluate, methods=["POST"]),
         Route("/api/managed/session/summarize-with-subagent", session_summarize_subagent, methods=["POST"]),
         Route("/api/managed/timeline", timeline, methods=["GET"]),
         Route("/api/managed/agent0/search", agent0_search, methods=["GET"]),
