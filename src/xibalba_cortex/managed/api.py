@@ -1073,6 +1073,8 @@ def create_app(config: ManagedConfig, *, control: ManagedControl | None = None, 
         account, principal, _ = authenticate(request)
         require_scope(principal, "memory:read")
         from ..ais_trajectory_reward import (
+            DEFAULT_REWARD_PROFILE,
+            REWARD_PROFILES,
             TrajectoryStepInput,
             build_dpo_preference_pair,
             compute_grpo_advantages,
@@ -1082,6 +1084,10 @@ def create_app(config: ManagedConfig, *, control: ManagedControl | None = None, 
         raw_steps = payload.get("steps")
         if not isinstance(raw_steps, list) or not raw_steps:
             raise ApiError(400, "steps must be a non-empty list")
+        reward_profile = payload.get("reward_profile", DEFAULT_REWARD_PROFILE)
+        if not isinstance(reward_profile, str) or reward_profile not in REWARD_PROFILES:
+            raise ApiError(400, "reward_profile must be one of: " + ", ".join(REWARD_PROFILES))
+        agent_did = str(payload.get("agent_did") or principal["profile_id"])
 
         def _parse_steps(step_list: list[dict]) -> list[TrajectoryStepInput]:
             return [
@@ -1099,7 +1105,7 @@ def create_app(config: ManagedConfig, *, control: ManagedControl | None = None, 
 
         primary = evaluate_trajectory_rewards(
             session_id=str(payload.get("session_id", "session_primary")),
-            agent_did=str(payload.get("agent_did", principal.profile_id)),
+            agent_did=agent_did,
             steps=_parse_steps(raw_steps),
             initial_ais_1000=float(payload.get("initial_ais_1000", 1000.0)),
             lambda_ais=float(payload.get("lambda_ais", 0.50)),
@@ -1107,16 +1113,18 @@ def create_app(config: ManagedConfig, *, control: ManagedControl | None = None, 
             shaping_weight=float(payload.get("shaping_weight", 0.25)),
             lambda_cost=float(payload.get("lambda_cost", 0.10)),
             deny_penalty=float(payload.get("deny_penalty", 1.0)),
+            reward_profile=reward_profile,
         )
-        result = {"trajectory": primary.to_dict()}
+        result = {"reward_profile": reward_profile, "trajectory": primary.to_dict()}
 
         alt_steps = payload.get("comparison_steps")
         if isinstance(alt_steps, list) and alt_steps:
             secondary = evaluate_trajectory_rewards(
                 session_id=str(payload.get("comparison_session_id", "session_comparison")),
-                agent_did=str(payload.get("agent_did", principal.profile_id)),
+                agent_did=agent_did,
                 steps=_parse_steps(alt_steps),
                 initial_ais_1000=float(payload.get("initial_ais_1000", 1000.0)),
+                reward_profile=reward_profile,
             )
             result["grpo_advantages"] = compute_grpo_advantages([primary, secondary])
             result["dpo_preference_pair"] = build_dpo_preference_pair(primary, secondary)

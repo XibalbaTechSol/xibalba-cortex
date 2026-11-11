@@ -1,9 +1,15 @@
-"""Cortex Trajectory & Step-Level AIS Reward Evaluator (`xibalba.ais_reward.v1`).
+"""Cortex Trajectory & Step-Level AIS Reward Evaluator.
 
 Consumes Oracle-verified protocol receipts (`xibalba.protocol_receipt.v2`) and
 anchored session exchanges to compute:
-1. Step-level rewards:
-   `R_total(t) = r_task_eff(t) + lambda_ais * (AIS_t / 1000) + (gamma * Phi(AIS_t) - Phi(AIS_{t-1})) - lambda_cost * cost_usd - deny_penalty`
+1. Step-level rewards, under one of two named profiles:
+   - `ais-reward/v2-multiplicative-1` (canonical, default; schema `xibalba.ais_reward.v2`):
+     `R_total(t) = max(0, r_task(t) - lambda_cost * cost_usd) * clamp(AIS_t, 0, 1000) / 1000`,
+     and `0` when the step is gated or any input is not finite. The whole payoff is scaled
+     by integrity, so no task reward can outweigh an integrity gap.
+   - `ais-reward/v1-additive-1` (legacy; schema `xibalba.ais_reward.v1`, frozen so that
+     summaries already issued stay reproducible):
+     `R_total(t) = r_task_eff(t) + lambda_ais * (AIS_t / 1000) + (gamma * Phi(AIS_t) - Phi(AIS_{t-1})) - lambda_cost * cost_usd - deny_penalty`
 2. Group-Relative Policy Optimization (GRPO) standardized advantages across
    candidate rollouts: `A_i = (R_i - mean(R)) / (std(R) + eps)`
 3. Direct Preference Optimization (DPO) preference pairs `(chosen, rejected)`
@@ -24,7 +30,36 @@ from typing import Any
 
 from .canonical import CANONICAL_JSON_V2, canonical_json_v2
 
+# Legacy additive summaries. This body is frozen: changing it changes every issued hash.
 AIS_REWARD_SCHEMA_VERSION = "xibalba.ais_reward.v1"
+# Multiplicative summaries. The hashed body additionally carries `reward_profile`.
+AIS_REWARD_SCHEMA_VERSION_V2 = "xibalba.ais_reward.v2"
+
+REWARD_PROFILE_MULTIPLICATIVE = "ais-reward/v2-multiplicative-1"
+REWARD_PROFILE_ADDITIVE_LEGACY = "ais-reward/v1-additive-1"
+DEFAULT_REWARD_PROFILE = REWARD_PROFILE_MULTIPLICATIVE
+REWARD_PROFILES = (REWARD_PROFILE_MULTIPLICATIVE, REWARD_PROFILE_ADDITIVE_LEGACY)
+
+
+def multiplicative_reward(
+    r_task: float,
+    ais_score_1000: float,
+    *,
+    cost_penalty: float = 0.0,
+    gated: bool = False,
+) -> float:
+    """Canonical AIS reward: `max(0, r_task - cost_penalty) * clamp(ais, 0, 1000) / 1000`.
+
+    Returns `0.0` when the step is gated, when `ais <= 0`, or when any input is not finite.
+    Both factors are non-negative, so the result is never negative and never decreases as
+    AIS rises.
+    """
+    r_task, ais, cost = float(r_task), float(ais_score_1000), float(cost_penalty)
+    if gated or not (math.isfinite(r_task) and math.isfinite(ais) and math.isfinite(cost)):
+        return 0.0
+    if ais <= 0.0:
+        return 0.0
+    return max(0.0, r_task - cost) * min(ais, 1000.0) / 1000.0
 
 
 @dataclass(frozen=True)
@@ -83,21 +118,53 @@ class TrajectoryRewardSummary:
     final_ais_1000: float
     compliance_violation_count: int
     summary_hash: str
+    reward_profile: str = REWARD_PROFILE_ADDITIVE_LEGACY
 
     def to_dict(self) -> dict[str, Any]:
-        return {
-            "schema_version": AIS_REWARD_SCHEMA_VERSION,
-            "canonicalization": CANONICAL_JSON_V2,
-            "session_id": self.session_id,
-            "agent_did": self.agent_did,
-            "steps": [s.to_dict() for s in self.steps],
-            "cumulative_reward": round(self.cumulative_reward, 6),
-            "mean_ais_1000": round(self.mean_ais_1000, 6),
-            "min_ais_1000": round(self.min_ais_1000, 6),
-            "final_ais_1000": round(self.final_ais_1000, 6),
-            "compliance_violation_count": self.compliance_violation_count,
-            "summary_hash": self.summary_hash,
-        }
+        body = _summary_body(
+            reward_profile=self.reward_profile,
+            session_id=self.session_id,
+            agent_did=self.agent_did,
+            steps=self.steps,
+            cumulative=self.cumulative_reward,
+            mean_ais=self.mean_ais_1000,
+            min_ais=self.min_ais_1000,
+            final_ais=self.final_ais_1000,
+            violation_count=self.compliance_violation_count,
+        )
+        body["summary_hash"] = self.summary_hash
+        return body
+
+
+def _summary_body(
+    *,
+    reward_profile: str,
+    session_id: str,
+    agent_did: str,
+    steps: Sequence[TrajectoryStepReward],
+    cumulative: float,
+    mean_ais: float,
+    min_ais: float,
+    final_ais: float,
+    violation_count: int,
+) -> dict[str, Any]:
+    """The hashed summary body. The legacy branch must never gain or lose a field."""
+    legacy = reward_profile == REWARD_PROFILE_ADDITIVE_LEGACY
+    body: dict[str, Any] = {
+        "schema_version": AIS_REWARD_SCHEMA_VERSION if legacy else AIS_REWARD_SCHEMA_VERSION_V2,
+        "canonicalization": CANONICAL_JSON_V2,
+        "session_id": session_id,
+        "agent_did": agent_did,
+        "steps": [s.to_dict() for s in steps],
+        "cumulative_reward": round(cumulative, 6),
+        "mean_ais_1000": round(mean_ais, 6),
+        "min_ais_1000": round(min_ais, 6),
+        "final_ais_1000": round(final_ais, 6),
+        "compliance_violation_count": violation_count,
+    }
+    if not legacy:
+        body["reward_profile"] = reward_profile
+    return body
 
 
 def potential_phi(ais_score_1000: float) -> float:
@@ -119,10 +186,19 @@ def evaluate_trajectory_rewards(
     shaping_weight: float = 0.25,
     lambda_cost: float = 0.10,
     deny_penalty: float = 1.0,
+    reward_profile: str = DEFAULT_REWARD_PROFILE,
 ) -> TrajectoryRewardSummary:
-    """Compute step-by-step and cumulative trajectory reward from Oracle-backed steps."""
+    """Compute step-by-step and cumulative trajectory reward from Oracle-backed steps.
+
+    `reward_profile` selects the reward form. Under the default multiplicative profile only
+    `lambda_cost` applies; `initial_ais_1000`, `lambda_ais`, `gamma`, `shaping_weight` and
+    `deny_penalty` belong to the legacy additive profile and are ignored.
+    """
+    if reward_profile not in REWARD_PROFILES:
+        raise ValueError(f"unknown reward_profile {reward_profile!r}; expected one of {', '.join(REWARD_PROFILES)}")
     if not steps:
         raise ValueError("steps must be non-empty")
+    multiplicative = reward_profile == REWARD_PROFILE_MULTIPLICATIVE
 
     evaluated_steps: list[TrajectoryStepReward] = []
     prev_ais = min(max(initial_ais_1000, 0.0), 1000.0)
@@ -130,16 +206,27 @@ def evaluate_trajectory_rewards(
 
     for step in steps:
         ais_clamped = 0.0 if math.isnan(step.ais_score_1000) else min(max(step.ais_score_1000, 0.0), 1000.0)
+        if multiplicative and not math.isfinite(step.ais_score_1000):
+            # An infinite score is not a score: it gates the step instead of clamping to 1000.
+            ais_clamped = 0.0
         gated = bool(step.policy_denied or step.s_compliance <= 0.0 or ais_clamped <= 0.0)
         if gated:
             violation_count += 1
 
         r_task_eff = 0.0 if gated else float(step.r_task)
-        ais_term = lambda_ais * (ais_clamped / 1000.0)
-        shaping = shaping_weight * (gamma * potential_phi(ais_clamped) - potential_phi(prev_ais))
         cost_pen = lambda_cost * max(0.0, float(step.cost_usd))
-        viol_pen = deny_penalty if gated else 0.0
-        r_total = r_task_eff + ais_term + shaping - cost_pen - viol_pen
+        if multiplicative:
+            ais_term = shaping = viol_pen = 0.0
+            r_total = multiplicative_reward(step.r_task, ais_clamped, cost_penalty=cost_pen, gated=gated)
+            if not math.isfinite(r_task_eff):
+                r_task_eff = 0.0
+            if not math.isfinite(cost_pen):
+                cost_pen = 0.0
+        else:
+            ais_term = lambda_ais * (ais_clamped / 1000.0)
+            shaping = shaping_weight * (gamma * potential_phi(ais_clamped) - potential_phi(prev_ais))
+            viol_pen = deny_penalty if gated else 0.0
+            r_total = r_task_eff + ais_term + shaping - cost_pen - viol_pen
 
         evaluated_steps.append(
             TrajectoryStepReward(
@@ -162,18 +249,17 @@ def evaluate_trajectory_rewards(
     min_ais = min(s.ais_score_1000 for s in evaluated_steps)
     final_ais = evaluated_steps[-1].ais_score_1000
 
-    body = {
-        "schema_version": AIS_REWARD_SCHEMA_VERSION,
-        "canonicalization": CANONICAL_JSON_V2,
-        "session_id": session_id,
-        "agent_did": agent_did,
-        "steps": [s.to_dict() for s in evaluated_steps],
-        "cumulative_reward": round(cumulative, 6),
-        "mean_ais_1000": round(mean_ais, 6),
-        "min_ais_1000": round(min_ais, 6),
-        "final_ais_1000": round(final_ais, 6),
-        "compliance_violation_count": violation_count,
-    }
+    body = _summary_body(
+        reward_profile=reward_profile,
+        session_id=session_id,
+        agent_did=agent_did,
+        steps=evaluated_steps,
+        cumulative=cumulative,
+        mean_ais=mean_ais,
+        min_ais=min_ais,
+        final_ais=final_ais,
+        violation_count=violation_count,
+    )
     digest = "sha256:" + hashlib.sha256(canonical_json_v2(body).encode("utf-8")).hexdigest()
 
     return TrajectoryRewardSummary(
@@ -186,6 +272,7 @@ def evaluate_trajectory_rewards(
         final_ais_1000=final_ais,
         compliance_violation_count=violation_count,
         summary_hash=digest,
+        reward_profile=reward_profile,
     )
 
 
