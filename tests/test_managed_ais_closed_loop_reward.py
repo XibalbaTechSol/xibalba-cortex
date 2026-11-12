@@ -80,3 +80,23 @@ def test_unknown_profile_is_rejected(managed_app, api_key):
 def test_non_string_profile_is_rejected(managed_app, api_key):
     r = _post(managed_app, api_key, _payload(reward_profile=["ais-reward/v1-additive-1"]))
     assert r.status_code == 400, r.text
+
+
+def test_comparison_trajectory_is_scored_with_the_same_cost_weight(managed_app, api_key):
+    """Both rollouts of a preference pair must be scored by one reward, cost weight included."""
+    payload = {
+        "session_id": "traj_cheap",
+        "agent_did": "did:integrity:endpoint_agent",
+        "lambda_cost": 1.0,
+        "steps": [{"event_id": "evt_1", "receipt_hash": "sha256:r1", "r_task": 2.0, "ais_score_1000": 1000.0}],
+        "comparison_session_id": "traj_costly",
+        "comparison_steps": [
+            {"event_id": "evt_1", "receipt_hash": "sha256:r1", "r_task": 2.5, "ais_score_1000": 1000.0, "cost_usd": 1.0}
+        ],
+    }
+    r = _post(managed_app, api_key, payload)
+    assert r.status_code == 200, r.text
+    pair = r.json()["dpo_preference_pair"]
+    # 2.0 beats 2.5 - 1.0 * 1.0 = 1.5; scoring the comparison at the default 0.10 would give 2.4.
+    assert (pair["chosen_session_id"], pair["rejected_session_id"]) == ("traj_cheap", "traj_costly")
+    assert pair["rejected_reward"] == 1.5

@@ -1074,6 +1074,7 @@ def create_app(config: ManagedConfig, *, control: ManagedControl | None = None, 
         require_scope(principal, "memory:read")
         from ..ais_trajectory_reward import (
             DEFAULT_REWARD_PROFILE,
+            REWARD_PROFILE_ADDITIVE_LEGACY,
             REWARD_PROFILES,
             TrajectoryStepInput,
             build_dpo_preference_pair,
@@ -1119,12 +1120,20 @@ def create_app(config: ManagedConfig, *, control: ManagedControl | None = None, 
 
         alt_steps = payload.get("comparison_steps")
         if isinstance(alt_steps, list) and alt_steps:
+            # Under the multiplicative profile both rollouts are scored with the caller's cost
+            # weight. The legacy profile keeps scoring the comparison at the defaults, as it
+            # always has, so comparison summaries already issued under v1 stay reproducible.
+            comparison_weights = (
+                {} if reward_profile == REWARD_PROFILE_ADDITIVE_LEGACY
+                else {"lambda_cost": float(payload.get("lambda_cost", 0.10))}
+            )
             secondary = evaluate_trajectory_rewards(
                 session_id=str(payload.get("comparison_session_id", "session_comparison")),
                 agent_did=agent_did,
                 steps=_parse_steps(alt_steps),
                 initial_ais_1000=float(payload.get("initial_ais_1000", 1000.0)),
                 reward_profile=reward_profile,
+                **comparison_weights,
             )
             result["grpo_advantages"] = compute_grpo_advantages([primary, secondary])
             result["dpo_preference_pair"] = build_dpo_preference_pair(primary, secondary)
