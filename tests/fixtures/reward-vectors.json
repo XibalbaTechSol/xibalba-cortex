@@ -1,0 +1,149 @@
+{
+  "description": "Cross-language golden vectors for the AIS score and the AIS reward. Read by integrity-oracle/scoring-core (Rust), integrity-sdk (Python) and copied into xibalba-cortex. Expected values were computed independently of all three implementations; compare with absolute tolerance 1e-9.",
+  "ais_formula_version": "ais/v1-geometric-1",
+  "ais_weights": {
+    "entropy": 0.3,
+    "grounding": 0.3,
+    "sacrifice": 0.2,
+    "compliance": 0.2
+  },
+  "reward_profile": "ais-reward/v2-multiplicative-1",
+  "legacy_reward_profile": "ais-reward/v1-additive-1",
+  "reward_definition": "r_total = max(0, r_task - cost_penalty) * clamp(ais, 0, 1000) / 1000; 0 when the step is gated or ais is not finite",
+  "ais_vectors": [
+    {
+      "performance_variance": 0.3,
+      "grounding_ratio": 0.8,
+      "contribution": 50.0,
+      "penalty_ratio": 0.1,
+      "zk_coverage_ratio": 0.0,
+      "did_tier": 3,
+      "expected_ais": 785.666132826971
+    },
+    {
+      "performance_variance": 0.0,
+      "grounding_ratio": 1.0,
+      "contribution": 999.0,
+      "penalty_ratio": 0.0,
+      "zk_coverage_ratio": 1.0,
+      "did_tier": 3,
+      "expected_ais": 1000.0
+    },
+    {
+      "performance_variance": 0.3,
+      "grounding_ratio": 0.8,
+      "contribution": 50.0,
+      "penalty_ratio": 0.1,
+      "zk_coverage_ratio": 0.5,
+      "did_tier": 2,
+      "expected_ais": 844.5910927889937
+    },
+    {
+      "performance_variance": 0.1,
+      "grounding_ratio": 0.9,
+      "contribution": 200.0,
+      "penalty_ratio": 1.0,
+      "zk_coverage_ratio": 0.0,
+      "did_tier": 3,
+      "expected_ais": 0.0
+    },
+    {
+      "performance_variance": 0.5,
+      "grounding_ratio": 0.6,
+      "contribution": 10.0,
+      "penalty_ratio": 0.25,
+      "zk_coverage_ratio": 0.0,
+      "did_tier": 0,
+      "expected_ais": 300.0
+    }
+  ],
+  "reward_vectors": [
+    {
+      "name": "high integrity",
+      "r_task": 1.0,
+      "ais": 950.0,
+      "cost_penalty": 0.0,
+      "gated": false,
+      "expected_r_total": 0.95
+    },
+    {
+      "name": "large task reward, cratered integrity",
+      "r_task": 5.0,
+      "ais": 100.0,
+      "cost_penalty": 0.0,
+      "gated": false,
+      "expected_r_total": 0.5
+    },
+    {
+      "name": "modest task reward, high integrity",
+      "r_task": 1.0,
+      "ais": 900.0,
+      "cost_penalty": 0.0,
+      "gated": false,
+      "expected_r_total": 0.9
+    },
+    {
+      "name": "negative task reward clamps to zero",
+      "r_task": -2.0,
+      "ais": 900.0,
+      "cost_penalty": 0.0,
+      "gated": false,
+      "expected_r_total": 0.0
+    },
+    {
+      "name": "zero integrity zeroes any reward",
+      "r_task": 3.0,
+      "ais": 0.0,
+      "cost_penalty": 0.0,
+      "gated": false,
+      "expected_r_total": 0.0
+    },
+    {
+      "name": "cost reduces task value before scaling",
+      "r_task": 2.0,
+      "ais": 800.0,
+      "cost_penalty": 0.5,
+      "gated": false,
+      "expected_r_total": 1.2
+    },
+    {
+      "name": "cost above task value clamps to zero",
+      "r_task": 0.2,
+      "ais": 800.0,
+      "cost_penalty": 0.5,
+      "gated": false,
+      "expected_r_total": 0.0
+    },
+    {
+      "name": "gated step earns nothing",
+      "r_task": 5.0,
+      "ais": 950.0,
+      "gated": true,
+      "cost_penalty": 0.0,
+      "expected_r_total": 0.0
+    },
+    {
+      "name": "integrity above range clamps to 1000",
+      "r_task": 2.0,
+      "ais": 1500.0,
+      "cost_penalty": 0.0,
+      "gated": false,
+      "expected_r_total": 2.0
+    }
+  ],
+  "ordering_vector": {
+    "description": "The case the two profiles disagree on. Multiplicative must prefer B; the legacy additive form (prev_ais=1000, no denials) prefers A.",
+    "a": {
+      "r_task": 5.0,
+      "ais": 100.0,
+      "v2": 0.5,
+      "v1": 4.802474999999999
+    },
+    "b": {
+      "r_task": 1.0,
+      "ais": 900.0,
+      "v2": 0.9,
+      "v1": 1.400475
+    }
+  }
+}
