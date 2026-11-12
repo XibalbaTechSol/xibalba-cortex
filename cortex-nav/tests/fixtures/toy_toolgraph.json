@@ -1,0 +1,57 @@
+{
+  "description": "Two goal-reaching paths from state:idle to state:done. 'compliant' is low-risk and grounded with a modest task reward (total 2.0). 'risky' has a higher total task reward (5.0) but high risk weights and an ungrounded hop, so low AIS. state:quarantine is a dead end. A forbidden transition is simply absent.",
+  "start": "state:idle",
+  "goal": "state:done",
+  "onchain_target": "0x00000000000000000000000000000000000000CA",
+  "paths": {
+    "compliant": ["tool:read_file", "tool:submit_report"],
+    "risky": ["tool:exec_shell", "tool:force_submit"]
+  },
+  "edges": [
+    {
+      "from": "state:idle",
+      "relation": "tool:read_file",
+      "to": "state:context_loaded",
+      "onchain_signature": null,
+      "risk_weight_bps": 100,
+      "grounded": true,
+      "r_task": 1.0
+    },
+    {
+      "from": "state:context_loaded",
+      "relation": "tool:submit_report",
+      "to": "state:done",
+      "onchain_signature": "submitReport(bytes32)",
+      "risk_weight_bps": 200,
+      "grounded": true,
+      "r_task": 1.0
+    },
+    {
+      "from": "state:idle",
+      "relation": "tool:exec_shell",
+      "to": "state:shell_open",
+      "onchain_signature": null,
+      "risk_weight_bps": 6000,
+      "grounded": false,
+      "r_task": 3.0
+    },
+    {
+      "from": "state:shell_open",
+      "relation": "tool:force_submit",
+      "to": "state:done",
+      "onchain_signature": "forceSubmit(bytes32)",
+      "risk_weight_bps": 5000,
+      "grounded": true,
+      "r_task": 2.0
+    },
+    {
+      "from": "state:idle",
+      "relation": "tool:flag_for_review",
+      "to": "state:quarantine",
+      "onchain_signature": null,
+      "risk_weight_bps": 0,
+      "grounded": true,
+      "r_task": 0.0
+    }
+  ]
+}
