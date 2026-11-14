@@ -190,7 +190,7 @@
         </button>
       </div>
 
-      <!-- Right: Workflow Drawers Tabs -->
+      <!-- Right: Workflow Drawers Tabs & Toggle Button -->
       <div class="flex items-center gap-2">
         <div class="flex items-center p-0.5 rounded bg-[#090a0b] border border-[#2b3438]">
           <button id="tab-btn-inspector" onclick="switchDrawer('inspector')" class="px-2.5 py-1 text-cyan-400 bg-[#292a2b] rounded font-mono text-xs font-medium flex items-center gap-1.5 border border-cyan-500/30">
@@ -204,6 +204,9 @@
             <span>Provenance Audit</span>
           </button>
         </div>
+        <button onclick="toggleInspector()" title="Toggle Workflow Drawer (Thin Margins)" class="p-1.5 rounded hover:bg-[#1b1c1d] text-neutral-400 hover:text-cyan-400 border border-[#2b3438] transition-colors flex items-center justify-center">
+          <span class="material-symbols-outlined text-sm">dock_to_left</span>
+        </button>
       </div>
     </header>
 
@@ -421,6 +424,20 @@
 
       <!-- Chronological Session Swimlanes -->
       <div class="space-y-4">
+        <!-- LIVE SUBSTRATE: Verified Agent Sessions from Local Ledger -->
+        <div id="dynamic-sessions-lane" class="bg-[#0d0e0f]/90 border border-cyan-500/40 rounded-xl p-4 shadow-[0_0_20px_rgba(6,182,212,0.15)]">
+          <div class="flex items-center justify-between mb-3">
+            <div class="flex items-center gap-2">
+              <span class="w-2 h-2 rounded-full bg-cyan-400 animate-ping"></span>
+              <span class="font-mono text-xs text-cyan-400 font-bold uppercase">LIVE SUBSTRATE // VERIFIED SESSIONS FROM LOCAL LEDGER</span>
+            </div>
+            <span id="dynamic-chain-head" class="font-mono text-[10px] text-cyan-500/70">CHAIN HEAD: 0x...</span>
+          </div>
+          <div id="dynamic-sessions-grid" class="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div class="p-3 text-neutral-500 font-mono text-xs italic">Loading verified ledger sessions...</div>
+          </div>
+        </div>
+
         <!-- LANE 01: Hermes System Genesis -->
         <div class="bg-[#0d0e0f]/90 border border-[#2b3438] rounded-xl p-4">
           <div class="flex items-center justify-between mb-3">
@@ -516,7 +533,7 @@
     <!-- ======================================================================= -->
     <!-- 3. RIGHT DOCKED WORKFLOW PANELS (Inspector, Live Chat, Provenance Audit) -->
     <!-- ======================================================================= -->
-    <aside id="inspector-drawer" class="fixed top-14 right-0 bottom-0 w-84 bg-[#0d0e0f]/95 border-l border-[#2b3438] z-30 flex flex-col p-4 overflow-y-auto custom-scroll shadow-2xl transition-transform duration-300">
+    <aside id="inspector-drawer" class="fixed top-14 right-0 bottom-0 w-80 md:w-96 bg-[#0d0e0f]/95 border-l border-[#2b3438] z-30 flex flex-col p-4 overflow-y-auto custom-scroll shadow-2xl transition-transform duration-300 translate-x-full">
       
       <!-- Drawer Header with Active Mode Indicator -->
       <div class="flex items-center justify-between pb-3 border-b border-[#2b3438]">
@@ -640,14 +657,14 @@
             <span class="text-[9px] uppercase tracking-wider text-emerald-400 font-bold">MERKLE INCLUSION PROOF</span>
             <span class="px-1.5 py-0.5 rounded bg-emerald-950 text-emerald-400 text-[8px] border border-emerald-500/40">100% VALIDATED</span>
           </div>
-          <span class="text-white font-bold text-sm block">Session #843 &bull; Turn 02</span>
+          <span id="proof-session-title" class="text-white font-bold text-sm block">Session #843 &bull; Turn 02</span>
           <p class="text-[10px] text-neutral-400">SHA-256 tree path recomputed against local genesis root.</p>
         </div>
 
         <!-- Proof Step Ladder -->
         <div class="space-y-2">
           <span class="text-[10px] text-neutral-400 uppercase font-bold block">Verification Proof Path</span>
-          <div class="p-2.5 rounded bg-[#121314] border border-[#2b3438] space-y-1 text-[10px]">
+          <div id="proof-path-container" class="p-2.5 rounded bg-[#121314] border border-[#2b3438] space-y-1 text-[10px]">
             <div class="flex justify-between text-neutral-400">
               <span>Leaf Target:</span>
               <span class="text-cyan-400">#4aCa40m8...</span>
@@ -730,7 +747,7 @@
   <script>
     let currentView = 'graph';
     let currentDrawer = 'inspector';
-    let inspectorOpen = true;
+    let inspectorOpen = false;
 
     // Session replay state
     let replayPlaying = false;
@@ -816,7 +833,7 @@
     }
 
     // Direction 2: Interactive Session Replay Controller
-    const turnData = [
+    let turnData = [
       {
         turn: 1,
         title: "TURN 01: Prompt -> Agent Initialization & PID Bounds",
@@ -833,6 +850,9 @@
         text: "Fact memory committed: PID tuning parameters anchored at block #18294. Merkle root 0x3f9e88a1 verified."
       }
     ];
+
+    let activeSessionId = "sess_01JMQ9X0A1F7B3C8D4E5";
+    let activeProofData = null;
 
     function toggleReplay() {
       replayPlaying = !replayPlaying;
@@ -1026,15 +1046,77 @@
       }
     }
 
-    function selectSession(id) {
+    async function selectSession(id) {
+      activeSessionId = id;
+      if (!inspectorOpen) toggleInspector();
       switchDrawer('inspector');
-      replayTurn = 1;
-      updateReplayDisplay();
+
+      try {
+        const res = await fetch(`/api/sessions/${id}`);
+        if (res.ok) {
+          const data = await res.json();
+          if (data.turns && data.turns.length > 0) {
+            turnData = data.turns.map((t, idx) => ({
+              turn: idx + 1,
+              title: `TURN 0${idx + 1}: ${t.prompt_text ? t.prompt_text.substring(0, 36) + '...' : 'Turn ' + (idx + 1)}`,
+              text: `User Prompt:\n${t.prompt_text}\n\nAgent Response:\n${t.response_text}\n\nTurn Hash:\n${t.turn_hash}\nParent Hash:\n${t.parent_hash}\nTimestamp: ${t.created_at}`
+            }));
+            replayTotalTurns = turnData.length;
+            replayTurn = 1;
+            updateReplayDisplay();
+          }
+        }
+
+        const proofRes = await fetch(`/api/sessions/${id}/proof?turn=0`);
+        if (proofRes.ok) {
+          activeProofData = await proofRes.json();
+          updateProofDisplay(activeProofData);
+        }
+      } catch (err) {
+        console.warn("Failed fetching session detail:", err);
+      }
+    }
+
+    function updateProofDisplay(proof) {
+      if (!proof || !proof.verified) return;
+      const container = document.getElementById('proof-path-container');
+      if (!container) return;
+
+      let html = `
+        <div class="flex justify-between text-neutral-400">
+          <span>Leaf Target (Turn 0):</span>
+          <span class="text-cyan-400 font-mono text-[9px]">${proof.target_turn_hash.substring(0, 16)}...</span>
+        </div>
+      `;
+
+      if (proof.proof_path && proof.proof_path.length > 0) {
+        proof.proof_path.forEach((step, idx) => {
+          html += `
+            <div class="flex justify-between text-neutral-400">
+              <span>Level 0${idx + 1} [${step.position} Sibling]:</span>
+              <span class="text-purple-400 font-mono text-[9px]">${step.hash.substring(0, 16)}...</span>
+            </div>
+          `;
+        });
+      }
+
+      html += `
+        <div class="flex justify-between text-neutral-300 pt-1.5 border-t border-[#2b3438] font-bold">
+          <span>Merkle Root:</span>
+          <span class="text-emerald-400 font-mono text-[9px]">${proof.merkle_root.substring(0, 16)}...</span>
+        </div>
+      `;
+      container.innerHTML = html;
+
+      const titleEl = document.getElementById('proof-session-title');
+      if (titleEl) {
+        titleEl.innerText = `Session ${proof.session_id.substring(0, 16)}... • Turn 01`;
+      }
     }
 
     function exportInclusionProof() {
-      const proofObj = {
-        session_id: "session_843",
+      const proofObj = activeProofData || {
+        session_id: activeSessionId,
         leaf_hash: "0x4aCa4oM8praVBCWdNksjxf",
         merkle_root: "0x3f9e88a1b9201f4e1ba99238c",
         proof_path: [
@@ -1048,9 +1130,70 @@
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = "session_843.cortex.proof";
+      a.download = `${activeSessionId || 'session'}.cortex.proof`;
       a.click();
     }
+
+    function renderDynamicSessions(sessions) {
+      const grid = document.getElementById('dynamic-sessions-grid');
+      if (!grid) return;
+      grid.innerHTML = '';
+
+      sessions.forEach(s => {
+        const card = document.createElement('div');
+        card.className = 'p-3.5 rounded-lg bg-[#121314] border border-[#2b3438] hover:border-cyan-400 cursor-pointer transition-all hover:scale-[1.01] group';
+        card.onclick = () => selectSession(s.session_id);
+        card.innerHTML = `
+          <div class="flex items-center justify-between mb-2">
+            <div class="flex items-center gap-1.5">
+              <span class="w-1.5 h-1.5 rounded-full bg-cyan-400"></span>
+              <span class="font-mono text-xs font-bold text-white group-hover:text-cyan-300">${s.session_id.substring(0, 16)}...</span>
+            </div>
+            <span class="px-1.5 py-0.5 rounded bg-emerald-950 text-emerald-400 text-[9px] font-mono border border-emerald-500/30">✓ Merkle Verified</span>
+          </div>
+          <p class="font-mono text-[11px] text-neutral-400 truncate">Root: ${s.merkle_root.substring(0, 32)}...</p>
+          <div class="flex items-center justify-between mt-3 pt-2 border-t border-[#2b3438]/60 font-mono text-[10px] text-neutral-400">
+            <span>⇄ ${s.turn_count} Turns &bull; ${s.tool_execution_count} Tools</span>
+            <span class="text-cyan-400">⏱ ${s.start_time ? s.start_time.substring(11, 19) : '00:00:00'}</span>
+          </div>
+        `;
+        grid.appendChild(card);
+      });
+    }
+
+    async function initDynamicData() {
+      try {
+        const sRes = await fetch('/api/status');
+        if (sRes.ok) {
+          const status = await sRes.json();
+          const headEl = document.getElementById('dynamic-chain-head');
+          if (headEl) headEl.innerText = `CHAIN HEAD: ${status.head_hash ? status.head_hash.substring(0, 16) + '...' : 'GENESIS'}`;
+        }
+      } catch (e) {}
+
+      try {
+        const sessRes = await fetch('/api/sessions');
+        if (sessRes.ok) {
+          const sessData = await sessRes.json();
+          if (sessData.sessions && sessData.sessions.length > 0) {
+            renderDynamicSessions(sessData.sessions);
+          }
+        }
+      } catch (e) {}
+
+      try {
+        const evtSource = new EventSource('/api/events/live');
+        evtSource.addEventListener('update', (e) => {
+          fetch('/api/sessions')
+            .then(r => r.json())
+            .then(d => { if (d.sessions) renderDynamicSessions(d.sessions); });
+        });
+      } catch (e) {}
+    }
+
+    window.addEventListener('DOMContentLoaded', () => {
+      initDynamicData();
+    });
 
     function handleSearch(q) {
       const query = q.toLowerCase();

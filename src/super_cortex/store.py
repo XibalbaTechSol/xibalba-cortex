@@ -429,7 +429,7 @@ class ProvenanceStore:
 
         with self._get_conn() as conn:
             cursor = conn.execute(
-                "SELECT turn_hash FROM exchanges WHERE session_id = ? ORDER BY id DESC LIMIT 1",
+                "SELECT turn_hash FROM exchanges WHERE session_id = ? ORDER BY rowid DESC LIMIT 1",
                 (session_id,),
             )
             row = cursor.fetchone()
@@ -477,7 +477,7 @@ class ProvenanceStore:
         """Compute the domain-separated Merkle root for all exchanges in a session."""
         with self._get_conn() as conn:
             cursor = conn.execute(
-                "SELECT turn_hash FROM exchanges WHERE session_id = ? ORDER BY id ASC",
+                "SELECT turn_hash FROM exchanges WHERE session_id = ? ORDER BY rowid ASC",
                 (session_id,),
             )
             rows = cursor.fetchall()
@@ -492,7 +492,7 @@ class ProvenanceStore:
         """Generate a complete cryptographic inclusion proof for a specific exchange turn in a session."""
         with self._get_conn() as conn:
             cursor = conn.execute(
-                "SELECT turn_hash, exchange_id FROM exchanges WHERE session_id = ? ORDER BY id ASC",
+                "SELECT turn_hash, exchange_id FROM exchanges WHERE session_id = ? ORDER BY rowid ASC",
                 (session_id,),
             )
             rows = cursor.fetchall()
@@ -564,7 +564,7 @@ class ProvenanceStore:
                        tool_calls_json, context_hashes_json, turn_hash, parent_hash, created_at
                 FROM exchanges
                 WHERE session_id = ?
-                ORDER BY id ASC
+                ORDER BY rowid ASC
                 """,
                 (session_id,),
             )
