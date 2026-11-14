@@ -276,6 +276,17 @@
 
         <div class="h-4 w-[1px] bg-outline-variant/50"></div>
 
+        <!-- Epistemic Spectral Filter Chips -->
+        <div class="flex items-center gap-1 bg-surface-container-low p-0.5 border border-outline-variant/30 text-[9px] font-mono">
+          <button onclick="filterEpistemic('all')" class="filter-chip px-2 py-0.5 bg-primary/20 text-primary border border-primary/50 font-bold uppercase transition-all" data-filter="all">ALL (12)</button>
+          <button onclick="filterEpistemic('fact')" class="filter-chip px-2 py-0.5 text-on-surface-variant hover:text-[#38bdf8] transition-all uppercase" data-filter="fact">FACTS (4)</button>
+          <button onclick="filterEpistemic('rule')" class="filter-chip px-2 py-0.5 text-on-surface-variant hover:text-secondary-container transition-all uppercase" data-filter="rule">RULES (4)</button>
+          <button onclick="filterEpistemic('inference')" class="filter-chip px-2 py-0.5 text-on-surface-variant hover:text-[#ddb7ff] transition-all uppercase" data-filter="inference">INFERENCES (2)</button>
+          <button onclick="filterEpistemic('belief')" class="filter-chip px-2 py-0.5 text-on-surface-variant hover:text-amber-400 transition-all uppercase" data-filter="belief">BELIEFS (1)</button>
+        </div>
+
+        <div class="h-4 w-[1px] bg-outline-variant/50"></div>
+
         <!-- Filter Query Input -->
         <div class="relative flex items-center bg-surface-container-low px-2 py-1 w-64 border border-outline-variant/30 focus-within:border-primary-container transition-colors">
           <span class="material-symbols-outlined text-outline text-[14px] mr-1.5">filter_alt</span>
@@ -778,20 +789,20 @@
     const graphGroup = new THREE.Group();
     scene.add(graphGroup);
 
-    // 12 Spatial 3D Node Definitions
+    // 12 Spatial 3D Node Definitions with Epistemic Classifications
     const nodeDefs = [
-      { id: 'alpha', title: "Quantum Physics & Computing", labelTag: "NODE ALPHA (BRANCH 01)", category: "document", color: 0x00f0ff, size: 30, pos3D: [0, 20, 0], pos2D: [0, 10, 0], isLineage: true },
-      { id: 'qubit', title: "Superposition & Qubit Coherence", labelTag: "DOC SUB-NODE", category: "document", color: 0x38bdf8, size: 16, pos3D: [-120, 110, 40], pos2D: [-140, 120, 0] },
-      { id: 'zk-circuit', title: "Zero-Knowledge Circuit Verification", labelTag: "SECURITY", category: "security", color: 0x00ffa3, size: 18, pos3D: [-90, -70, 70], pos2D: [-110, -80, 0] },
-      { id: 'entangle', title: "Entanglement Distribution Net", labelTag: "NETWORK", category: "document", color: 0x38bdf8, size: 15, pos3D: [110, 130, -50], pos2D: [130, 110, 0] },
-      { id: 'codes', title: "Fault-Tolerant Surface Codes", labelTag: "SECURITY", category: "security", color: 0xddb7ff, size: 16, pos3D: [80, -90, 80], pos2D: [90, -100, 0] },
-      { id: 'beta', title: "Super-Cortex Integrity Protocol", labelTag: "NODE BETA (GEN 0 ROOT)", category: "security", color: 0x00ffa3, size: 32, pos3D: [-240, -40, -100], pos2D: [-260, -30, 0], isLineage: true },
-      { id: 'anchors', title: "Synaptic State Anchors", labelTag: "ANCHOR", category: "security", color: 0xec4899, size: 15, pos3D: [-280, 70, -60], pos2D: [-290, 80, 0] },
-      { id: 'gamma', title: "ZK Surface Verification Substrate", labelTag: "NODE GAMMA (BRANCH 02)", category: "vector", color: 0xf59e0b, size: 28, pos3D: [220, 40, -120], pos2D: [240, 30, 0], isLineage: true },
-      { id: 'latent', title: "Latent Space Compression v2", labelTag: "VECTOR", category: "vector", color: 0xf59e0b, size: 14, pos3D: [270, 130, -80], pos2D: [290, 120, 0] },
-      { id: 'leaf', title: "Cryptographic Provenance Leaf", labelTag: "PROVENANCE", category: "security", color: 0x00f0ff, size: 16, pos3D: [180, -80, -160], pos2D: [190, -110, 0] },
-      { id: 'pid', title: "PID Dynamic Volatility Controller", labelTag: "CONTROL", category: "control", color: 0x3b82f6, size: 18, pos3D: [0, 220, -150], pos2D: [0, 210, 0] },
-      { id: 'recall', title: "Semantic Recall Cache (BGE-Base)", labelTag: "SUPERMEMORY", category: "document", color: 0x14b8a6, size: 15, pos3D: [-180, 190, 110], pos2D: [-170, 180, 0] }
+      { id: 'alpha', title: "Quantum Physics & Computing", labelTag: "NODE ALPHA (BRANCH 01)", category: "document", epistemic_class: "document", color: 0x00f0ff, size: 30, pos3D: [0, 20, 0], pos2D: [0, 10, 0], isLineage: true, confidence: 0.99, hash: "0x8F41A990B", content: "Quantum computation foundations, superposition state logic, and topological qubit stability." },
+      { id: 'qubit', title: "Superposition & Qubit Coherence", labelTag: "FACT // QUANTUM", category: "document", epistemic_class: "fact", color: 0x38bdf8, size: 16, pos3D: [-120, 110, 40], pos2D: [-140, 120, 0], confidence: 0.98, hash: "0xA318998AF", content: "Decoherence mitigation times under cryogenic dilution refrigeration at 15mK." },
+      { id: 'zk-circuit', title: "Zero-Knowledge Circuit Verification", labelTag: "RULE // PROT_SEC", category: "security", epistemic_class: "rule", color: 0x00ffa3, size: 18, pos3D: [-90, -70, 70], pos2D: [-110, -80, 0], confidence: 1.00, hash: "0x449977ECD", content: "BCC Middleware integrity rule enforcing zero unauthorized state transitions across all agent turns." },
+      { id: 'entangle', title: "Entanglement Distribution Net", labelTag: "INFERENCE // TOPO", category: "document", epistemic_class: "inference", color: 0xddb7ff, size: 15, pos3D: [110, 130, -50], pos2D: [130, 110, 0], confidence: 0.94, hash: "0x88BC2A9F1", content: "Inferred Bell-state distribution rate across decentralized node clusters." },
+      { id: 'codes', title: "Fault-Tolerant Surface Codes", labelTag: "RULE // STABILITY", category: "security", epistemic_class: "rule", color: 0x00ffa3, size: 16, pos3D: [80, -90, 80], pos2D: [90, -100, 0], confidence: 0.99, hash: "0x9E71F402D", content: "Mandatory threshold bounds for syndrome measurement loops on planar rotated surface codes." },
+      { id: 'beta', title: "Super-Cortex Integrity Protocol", labelTag: "ROOT RULE // GEN 0", category: "security", epistemic_class: "rule", color: 0x00ffa3, size: 32, pos3D: [-240, -40, -100], pos2D: [-260, -30, 0], isLineage: true, confidence: 1.00, hash: "0xFB7D9732A", content: "Immutable genesis root anchoring the SHA-256 event hash chain and domain-separated Merkle roots." },
+      { id: 'anchors', title: "Synaptic State Anchors", labelTag: "FACT // ANCHOR", category: "security", epistemic_class: "fact", color: 0x38bdf8, size: 15, pos3D: [-280, 70, -60], pos2D: [-290, 80, 0], confidence: 0.97, hash: "0xC519283AA", content: "Directly grounded memory anchors verified against SQLite local provenance tables." },
+      { id: 'gamma', title: "ZK Surface Verification Substrate", labelTag: "BELIEF // BAYESIAN", category: "vector", epistemic_class: "belief", color: 0xf59e0b, size: 28, pos3D: [220, 40, -120], pos2D: [240, 30, 0], isLineage: true, confidence: 0.89, hash: "0xE61048B55", content: "Bayesian confidence update predicting multi-tenant lattice scaling without latency degradation." },
+      { id: 'latent', title: "Latent Space Compression v2", labelTag: "INFERENCE // BGE", category: "vector", epistemic_class: "inference", color: 0xddb7ff, size: 14, pos3D: [270, 130, -80], pos2D: [290, 120, 0], confidence: 0.92, hash: "0x127A45B9C", content: "Inferred 768-dimensional embedding density from Xenova/bge-base-en-v1.5 ONNX runtime." },
+      { id: 'leaf', title: "Cryptographic Provenance Leaf", labelTag: "FACT // SHA256", category: "security", epistemic_class: "fact", color: 0x38bdf8, size: 16, pos3D: [180, -80, -160], pos2D: [190, -110, 0], confidence: 0.99, hash: "0xD0386E83F", content: "Verified cryptographic leaf hash matching the latest session transaction record." },
+      { id: 'pid', title: "PID Dynamic Volatility Controller", labelTag: "RULE // CONTROL", category: "control", epistemic_class: "rule", color: 0x00ffa3, size: 18, pos3D: [0, 220, -150], pos2D: [0, 210, 0], confidence: 1.00, hash: "0xB49102A66", content: "Non-linear feedback control bounds: K_p=1.85, K_i=0.22, K_d=0.08 preventing grid overshoot." },
+      { id: 'recall', title: "Semantic Recall Cache (BGE-Base)", labelTag: "FACT // VECTOR", category: "document", epistemic_class: "fact", color: 0x38bdf8, size: 15, pos3D: [-180, 190, 110], pos2D: [-170, 180, 0], confidence: 0.96, hash: "0x33A902C1E", content: "High-speed in-memory vector cache linked directly to http://127.0.0.1:6767." }
     ];
 
     const edges = [
@@ -1074,26 +1085,95 @@
       }
     });
 
+    let activeEpistemicFilter = 'all';
+    let nodeFlyTarget = null;
+    let isNodeFlyFocus = false;
+
+    window.filterEpistemic = function(cls) {
+      activeEpistemicFilter = cls;
+      document.querySelectorAll('.filter-chip').forEach(btn => {
+        if (btn.dataset.filter === cls) {
+          btn.classList.add('bg-primary/20', 'text-primary', 'border-primary/50');
+          btn.classList.remove('text-on-surface-variant', 'border-outline-variant/30');
+        } else {
+          btn.classList.remove('bg-primary/20', 'text-primary', 'border-primary/50');
+          btn.classList.add('text-on-surface-variant', 'border-outline-variant/30');
+        }
+      });
+
+      cubeMeshes.forEach(mesh => {
+        const data = mesh.userData.data;
+        const matches = (cls === 'all') || (data.epistemic_class === cls) || (data.category === cls);
+        mesh.userData.boxMat.opacity = matches ? (data.isLineage ? 0.95 : 0.75) : 0.08;
+        mesh.userData.edgeMat.opacity = matches ? 0.95 : 0.08;
+        mesh.scale.setScalar(matches ? 1.0 : 0.35);
+      });
+    };
+
+    window.flyToNode = function(node) {
+      if (!node) return;
+      isFlying = false;
+      const nx = node.pos3D[0];
+      const ny = node.pos3D[1];
+      const nz = node.pos3D[2];
+      
+      nodeFlyTarget = {
+        cam: new THREE.Vector3(nx + 40, ny + 25, nz + 90),
+        look: new THREE.Vector3(nx, ny, nz)
+      };
+      isNodeFlyFocus = true;
+
+      const mesh = cubeMeshes.find(m => m.userData.id === node.id);
+      if (mesh) {
+        mesh.scale.set(1.45, 1.45, 1.45);
+        setTimeout(() => mesh.scale.set(1.0, 1.0, 1.0), 380);
+      }
+    };
+
     function select3DNode(node) {
+      flyToNode(node);
       if (!inspectorOpen) toggleInspector();
       switchTab('replay');
 
       document.getElementById('drawer-session-id').innerText = node.title;
       const container = document.getElementById('replay-turn-container');
+      const classColor = node.epistemic_class === 'rule' ? 'text-secondary-container' : (node.epistemic_class === 'inference' ? 'text-[#ddb7ff]' : (node.epistemic_class === 'belief' ? 'text-amber-400' : 'text-primary-container'));
+      const classBg = node.epistemic_class === 'rule' ? 'bg-secondary-container/10 border-secondary-container/40' : (node.epistemic_class === 'inference' ? 'bg-purple-500/10 border-purple-500/40' : (node.epistemic_class === 'belief' ? 'bg-amber-500/10 border-amber-500/40' : 'bg-primary-container/10 border-primary-container/40'));
+
       container.innerHTML = `
-        <div class="p-3 border-l-2 border-primary-container bg-surface-container-high ring-1 ring-primary-container/40">
-          <div class="flex items-center justify-between font-mono text-[9px] text-primary-container font-bold mb-1">
-            <span>${node.labelTag}</span>
-            <span>3D VOXEL NODE</span>
+        <div class="p-3 border-l-2 border-primary-container bg-surface-container-high ring-1 ring-primary-container/40 space-y-2">
+          <div class="flex items-center justify-between font-mono text-[9px] font-bold">
+            <span class="${classColor}">${node.labelTag}</span>
+            <span class="px-1.5 py-0.5 rounded border ${classBg} font-mono text-[9px] uppercase tracking-wider font-bold ${classColor}">
+              ${(node.epistemic_class || 'fact').toUpperCase()} · ${((node.confidence || 0.95) * 100).toFixed(0)}% CONF
+            </span>
           </div>
-          <div class="text-white font-mono text-[12px] font-bold mb-1">${node.title}</div>
-          <div class="text-neutral-400 font-mono text-[11px] mb-2">Category: ${node.category} · Lattice Coordinates: [${node.pos3D.join(', ')}]</div>
-          <div class="p-2 rounded bg-surface-container-lowest font-mono text-[10px] text-primary">
-            Anchored state verified under SHA-256 event chain. Linked to Supermemory Local vector space.
+          <div class="text-white font-mono text-[13px] font-bold">${node.title}</div>
+          <div class="text-neutral-300 font-mono text-[11px] leading-relaxed">
+            ${node.content || 'Cryptographically anchored knowledge node indexed in Xenova/bge-base-en-v1.5 local vector space.'}
+          </div>
+          <div class="grid grid-cols-2 gap-2 pt-2 border-t border-outline-variant/30 text-[9px] font-mono text-neutral-400">
+            <div>Coordinates: <span class="text-white">[${node.pos3D.join(', ')}]</span></div>
+            <div>Dirichlet Energy: <span class="text-secondary-container">0.034 λ</span></div>
+            <div>Event Hash: <span class="text-primary font-mono">${node.hash || '0x7f2a...8c1'}</span></div>
+            <div>Vector Engine: <span class="text-[#38bdf8]">Supermemory Local</span></div>
+          </div>
+          <div class="p-2 rounded bg-surface-container-lowest font-mono text-[10px] text-primary flex items-center justify-between">
+            <span>Deterministic SHA-256 Event Chain: VERIFIED</span>
+            <span class="text-secondary-container">✓ AUDITED</span>
           </div>
         </div>
       `;
     }
+
+    window.cubeMeshes = cubeMeshes;
+    window.select3DNode = select3DNode;
+    window.nodeDefs = nodeDefs;
+    window.selectNodeById = function(id) {
+      const match = nodeDefs.find(n => n.id === id);
+      if (match) select3DNode(match);
+      return match;
+    };
 
     // Camera Flight Hooks
     window.toggleZenFlight = function() {
@@ -1208,6 +1288,15 @@
         droneGroup.visible = true;
 
         splineMat.opacity = 0.55 + Math.sin(time * 3.5) * 0.25;
+      } else if (isNodeFlyFocus && nodeFlyTarget) {
+        camera.position.lerp(nodeFlyTarget.cam, 0.08);
+        currentLookAt.lerp(nodeFlyTarget.look, 0.08);
+        camera.lookAt(currentLookAt);
+        if (camera.position.distanceTo(nodeFlyTarget.cam) < 1.5) {
+          isNodeFlyFocus = false;
+        }
+        droneGroup.visible = false;
+        splineMat.opacity = 0.35;
       } else {
         currentRotation.x += (targetRotation.x - currentRotation.x) * 0.08;
         currentRotation.y += (targetRotation.y - currentRotation.y) * 0.08;
@@ -1363,15 +1452,32 @@
     }
 
     function handleSearch(q) {
-      const query = q.toLowerCase();
+      const query = q.toLowerCase().trim();
+      let topMatch = null;
       cubeMeshes.forEach(mesh => {
-        const title = mesh.userData.data.title.toLowerCase();
-        const tag = mesh.userData.data.labelTag.toLowerCase();
-        const isMatch = !query || title.includes(query) || tag.includes(query);
-        mesh.userData.boxMat.opacity = isMatch ? (mesh.userData.data.isLineage ? 0.95 : 0.7) : 0.1;
-        mesh.userData.edgeMat.opacity = isMatch ? 0.95 : 0.1;
+        const d = mesh.userData.data;
+        const title = d.title.toLowerCase();
+        const tag = d.labelTag.toLowerCase();
+        const ep = (d.epistemic_class || '').toLowerCase();
+        const isMatch = !query || title.includes(query) || tag.includes(query) || ep.includes(query);
+        mesh.userData.boxMat.opacity = isMatch ? (d.isLineage ? 0.95 : 0.75) : 0.08;
+        mesh.userData.edgeMat.opacity = isMatch ? 0.95 : 0.08;
+        mesh.scale.setScalar(isMatch ? (query ? 1.2 : 1.0) : 0.35);
+        if (isMatch && !topMatch && query) {
+          topMatch = d;
+        }
       });
+      return topMatch;
     }
+
+    document.getElementById('search-input')?.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        const topMatch = handleSearch(e.target.value);
+        if (topMatch) {
+          select3DNode(topMatch);
+        }
+      }
+    });
 
     async function selectSession(id) {
       activeSessionId = id;

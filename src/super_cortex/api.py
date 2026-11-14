@@ -80,11 +80,13 @@ def create_app(config: SuperCortexConfig | None = None) -> Starlette:
                 "label": row["text"][:50] + ("..." if len(row["text"]) > 50 else ""),
                 "type": "memory-latest",
                 "status": row["lifecycle_status"],
+                "epistemic_class": row["epistemic_class"],
                 "space": row["namespace"],
                 "version": "v1",
                 "relevanceScore": 95,
                 "date": row["created_at"][:10],
                 "hash": row["content_hash"][:16],
+                "full_hash": row["content_hash"],
                 "content": row["text"],
             })
             links.append({
