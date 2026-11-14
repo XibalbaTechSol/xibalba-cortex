@@ -21,6 +21,75 @@ export interface PlanRow {
 
 export const BILLING_UNAVAILABLE = 'Paid subscriptions are not available yet.'
 
+export interface StatusMeta {
+  label: string
+  tone: 'active' | 'review' | 'conflict' | 'muted'
+}
+
+export function statusMeta(status: string | undefined): StatusMeta {
+  switch (status) {
+    case 'active':
+      return { label: 'Active', tone: 'active' }
+    case 'free':
+      return { label: 'Free Tier', tone: 'muted' }
+    case 'trialing':
+      return { label: 'In Trial', tone: 'active' }
+    case 'past_due':
+      return { label: 'Past Due', tone: 'review' }
+    case 'canceled':
+      return { label: 'Canceled', tone: 'conflict' }
+    case 'unpaid':
+      return { label: 'Unpaid', tone: 'conflict' }
+    default:
+      return { label: status ? status.charAt(0).toUpperCase() + status.slice(1) : 'Unknown', tone: 'muted' }
+  }
+}
+
+/** Consumes the ?billing= query or hash parameter after Stripe redirect, cleaning the URL. */
+export function consumeBillingReturn(
+  href?: string,
+  replaceState?: (url: string) => void
+): 'success' | 'canceled' | null {
+  const currentHref = href ?? (typeof window !== 'undefined' ? window.location.href : null)
+  if (!currentHref) return null
+  try {
+    const url = new URL(currentHref)
+    let val = url.searchParams.get('billing')
+    if (val === 'success' || val === 'canceled') {
+      url.searchParams.delete('billing')
+      const target = url.pathname + (url.search ? url.search : '') + url.hash
+      if (replaceState) {
+        replaceState(target)
+      } else if (typeof window !== 'undefined') {
+        window.history.replaceState({}, '', target)
+      }
+      return val
+    }
+    const hashIdx = currentHref.indexOf('#')
+    if (hashIdx !== -1) {
+      const hashPart = currentHref.slice(hashIdx)
+      const qIdx = hashPart.indexOf('?')
+      if (qIdx !== -1) {
+        const hashParams = new URLSearchParams(hashPart.slice(qIdx + 1))
+        val = hashParams.get('billing')
+        if (val === 'success' || val === 'canceled') {
+          const cleanHash = hashPart.slice(0, qIdx)
+          const target = url.pathname + (url.search ? url.search : '') + cleanHash
+          if (replaceState) {
+            replaceState(target)
+          } else if (typeof window !== 'undefined') {
+            window.history.replaceState({}, '', target)
+          }
+          return val
+        }
+      }
+    }
+  } catch {
+    return null
+  }
+  return null
+}
+
 /** The existing wording for a workspace whose subscription no longer permits writes. It was
  *  inline in BillingPage's callout; the data layer refuses a forbidden hosted write with this same
  *  sentence so the control and the explanation say one thing rather than two. (`BILLING_UNAVAILABLE`
@@ -74,12 +143,68 @@ export function paymentDestination(url: string): string {
 
 export interface Usage { month: string; used: Record<string, number> }
 
-/** Used / allowed for the month, one row per limit the plan sets. */
-export function usageRows(plan: Plan, usage: Usage, memoryCount: number): Array<{ label: string; value: string }> {
+export interface UsageRow {
+  label: string
+  value: string
+  used: number
+  limit: number
+  percent: number
+  nearLimit: boolean
+  atLimit: boolean
+}
+
+/** Used / allowed for the month with percentages and threshold indicators. */
+export function usageRows(plan: Plan, usage: Usage, memoryCount: number): UsageRow[] {
   const n = (v: number) => v.toLocaleString('en-US')
-  return [
-    { label: 'Stored memories', value: `${n(memoryCount)} / ${n(plan.max_memories)}` },
-    { label: 'Write requests', value: `${n(usage.used.writes ?? 0)} / ${n(plan.writes_per_month)}` },
-    { label: 'Retrieval requests', value: `${n(usage.used.retrievals ?? 0)} / ${n(plan.retrievals_per_month)}` },
+  const metrics = [
+    { label: 'Stored memories', used: memoryCount, limit: plan.max_memories },
+    { label: 'Write requests', used: usage.used.writes ?? 0, limit: plan.writes_per_month },
+    { label: 'Retrieval requests', used: usage.used.retrievals ?? 0, limit: plan.retrievals_per_month },
   ]
+  return metrics.map(({ label, used, limit }) => {
+    const percent = limit > 0 ? Math.min(100, Math.round((used / limit) * 100)) : 0
+    return {
+      label,
+      value: `${n(used)} / ${n(limit)}`,
+      used,
+      limit,
+      percent,
+      nearLimit: percent >= 80 && percent < 100,
+      atLimit: percent >= 100,
+    }
+  })
+}
+
+/** Format a unix timestamp in seconds to a human-readable date, e.g. "Nov 14, 2026". */
+export function formatPeriodDate(timestampSeconds: number | null | undefined): string | null {
+  if (!timestampSeconds || typeof timestampSeconds !== 'number' || isNaN(timestampSeconds) || timestampSeconds <= 0) {
+    return null
+  }
+  const date = new Date(timestampSeconds * 1000)
+  return new Intl.DateTimeFormat('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    timeZone: 'UTC',
+  }).format(date)
+}
+
+/** Builds the descriptive status note for a subscription. */
+export function subscriptionStatusText(entitlement: {
+  plan: { id: string; name: string }
+  status: string
+  cancel_at_period_end?: boolean
+  period_end?: number | null
+}): string {
+  const parts = [`Plan: ${entitlement.plan.name}`, `status: ${entitlement.status}`]
+  const date = formatPeriodDate(entitlement.period_end)
+  if (entitlement.plan.id === 'free') {
+    return parts.join(' · ')
+  }
+  if (entitlement.cancel_at_period_end) {
+    parts.push(date ? `cancels at end of period on ${date}` : 'cancels at the end of the paid period')
+  } else if (date) {
+    parts.push(`renews on ${date}`)
+  }
+  return parts.join(' · ')
 }

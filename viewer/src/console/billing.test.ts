@@ -1,5 +1,15 @@
 import { describe, expect, it } from 'vitest'
-import { planRows, upgradeRefusal, paymentDestination, planAction, usageRows } from './billing'
+import {
+  consumeBillingReturn,
+  formatPeriodDate,
+  paymentDestination,
+  planAction,
+  planRows,
+  statusMeta,
+  subscriptionStatusText,
+  upgradeRefusal,
+  usageRows,
+} from './billing'
 
 const plans = [
   { id: 'free', name: 'Free', monthly_cents: 0, max_memories: 1000, writes_per_month: 250, retrievals_per_month: 1000 },
@@ -60,16 +70,113 @@ describe('paymentDestination', () => {
 describe('usageRows', () => {
   it('reads zero for every counter on a fresh month, where used has no keys', () => {
     expect(usageRows(plans[1], { month: '2026-10', used: {} }, 0)).toEqual([
-      { label: 'Stored memories', value: '0 / 25,000' },
-      { label: 'Write requests', value: '0 / 5,000' },
-      { label: 'Retrieval requests', value: '0 / 25,000' },
+      { label: 'Stored memories', value: '0 / 25,000', used: 0, limit: 25000, percent: 0, nearLimit: false, atLimit: false },
+      { label: 'Write requests', value: '0 / 5,000', used: 0, limit: 5000, percent: 0, nearLimit: false, atLimit: false },
+      { label: 'Retrieval requests', value: '0 / 25,000', used: 0, limit: 25000, percent: 0, nearLimit: false, atLimit: false },
     ])
   })
-  it('reads used over allowed, treating an absent counter as zero', () => {
+  it('reads used over allowed, calculating percentage and threshold limits', () => {
     expect(usageRows(plans[1], { month: '2026-10', used: { writes: 1200 } }, 3)).toEqual([
-      { label: 'Stored memories', value: '3 / 25,000' },
-      { label: 'Write requests', value: '1,200 / 5,000' },
-      { label: 'Retrieval requests', value: '0 / 25,000' },
+      { label: 'Stored memories', value: '3 / 25,000', used: 3, limit: 25000, percent: 0, nearLimit: false, atLimit: false },
+      { label: 'Write requests', value: '1,200 / 5,000', used: 1200, limit: 5000, percent: 24, nearLimit: false, atLimit: false },
+      { label: 'Retrieval requests', value: '0 / 25,000', used: 0, limit: 25000, percent: 0, nearLimit: false, atLimit: false },
     ])
+  })
+  it('flags nearLimit when usage is >= 80% and < 100%', () => {
+    const rows = usageRows(plans[1], { month: '2026-10', used: { writes: 4200 } }, 20000)
+    expect(rows[0].nearLimit).toBe(true)
+    expect(rows[0].atLimit).toBe(false)
+    expect(rows[0].percent).toBe(80)
+    expect(rows[1].nearLimit).toBe(true)
+    expect(rows[1].percent).toBe(84)
+  })
+  it('flags atLimit and caps percent at 100% when usage is >= 100%', () => {
+    const rows = usageRows(plans[1], { month: '2026-10', used: { writes: 6000 } }, 25000)
+    expect(rows[0].atLimit).toBe(true)
+    expect(rows[0].percent).toBe(100)
+    expect(rows[1].atLimit).toBe(true)
+    expect(rows[1].percent).toBe(100)
+  })
+})
+
+describe('formatPeriodDate', () => {
+  it('formats epoch seconds into UTC date strings', () => {
+    expect(formatPeriodDate(1797206400)).toBe('Dec 14, 2026')
+  })
+  it('returns null for null, undefined, 0, or invalid timestamps', () => {
+    expect(formatPeriodDate(null)).toBeNull()
+    expect(formatPeriodDate(undefined)).toBeNull()
+    expect(formatPeriodDate(0)).toBeNull()
+    expect(formatPeriodDate(-100)).toBeNull()
+    expect(formatPeriodDate(NaN)).toBeNull()
+  })
+})
+
+describe('subscriptionStatusText', () => {
+  it('formats free plan without renewal date', () => {
+    expect(subscriptionStatusText({ plan: { id: 'free', name: 'Free' }, status: 'free' })).toBe('Plan: Free · status: free')
+  })
+  it('formats active paid plan with renewal date', () => {
+    expect(subscriptionStatusText({
+      plan: { id: 'pro', name: 'Pro' },
+      status: 'active',
+      period_end: 1797206400,
+      cancel_at_period_end: false,
+    })).toBe('Plan: Pro · status: active · renews on Dec 14, 2026')
+  })
+  it('formats canceling paid plan with cancellation notice', () => {
+    expect(subscriptionStatusText({
+      plan: { id: 'pro', name: 'Pro' },
+      status: 'active',
+      period_end: 1797206400,
+      cancel_at_period_end: true,
+    })).toBe('Plan: Pro · status: active · cancels at end of period on Dec 14, 2026')
+  })
+  it('formats paid plan when period_end is not available', () => {
+    expect(subscriptionStatusText({
+      plan: { id: 'pro', name: 'Pro' },
+      status: 'active',
+      cancel_at_period_end: false,
+    })).toBe('Plan: Pro · status: active')
+  })
+})
+
+describe('statusMeta', () => {
+  it('maps plan statuses to human labels and design system tones', () => {
+    expect(statusMeta('active')).toEqual({ label: 'Active', tone: 'active' })
+    expect(statusMeta('free')).toEqual({ label: 'Free Tier', tone: 'muted' })
+    expect(statusMeta('trialing')).toEqual({ label: 'In Trial', tone: 'active' })
+    expect(statusMeta('past_due')).toEqual({ label: 'Past Due', tone: 'review' })
+    expect(statusMeta('canceled')).toEqual({ label: 'Canceled', tone: 'conflict' })
+    expect(statusMeta('unpaid')).toEqual({ label: 'Unpaid', tone: 'conflict' })
+    expect(statusMeta('custom_status')).toEqual({ label: 'Custom_status', tone: 'muted' })
+    expect(statusMeta(undefined)).toEqual({ label: 'Unknown', tone: 'muted' })
+  })
+})
+
+describe('consumeBillingReturn', () => {
+  it('extracts billing=success from URL and replaces window history', () => {
+    let replaced = ''
+    const val = consumeBillingReturn('http://localhost:5173/managed#billing?billing=success', (t) => {
+      replaced = t
+    })
+    expect(val).toBe('success')
+    expect(replaced).toBe('/managed#billing')
+  })
+  it('extracts billing=canceled from URL search params', () => {
+    let replaced = ''
+    const val = consumeBillingReturn('http://localhost:5173/managed?billing=canceled#billing', (t) => {
+      replaced = t
+    })
+    expect(val).toBe('canceled')
+    expect(replaced).toBe('/managed#billing')
+  })
+  it('returns null when no billing return param exists', () => {
+    let replaced = ''
+    const val = consumeBillingReturn('http://localhost:5173/managed#billing', (t) => {
+      replaced = t
+    })
+    expect(val).toBeNull()
+    expect(replaced).toBe('')
   })
 })
