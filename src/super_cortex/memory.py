@@ -368,3 +368,7 @@ class SuperCortex:
     def get_session_turns(self, session_id: str) -> list[dict[str, Any]]:
         """Retrieve full chronological turn trace for a session."""
         return self.store.get_session_turns(session_id)
+
+    def get_session_merkle_proof(self, session_id: str, turn_index: int = 0) -> dict[str, Any]:
+        """Generate a complete cryptographic inclusion proof for a session turn."""
+        return self.store.get_session_merkle_proof(session_id, turn_index)

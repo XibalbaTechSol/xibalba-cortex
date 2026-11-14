@@ -49,6 +49,47 @@ def compute_merkle_root(leaf_hashes: list[str]) -> str:
     return current_level[0]
 
 
+def compute_merkle_proof(leaf_hashes: list[str], target_index: int) -> list[dict[str, str]]:
+    """Compute audit proof path (siblings) for a specific leaf index."""
+    if not leaf_hashes or target_index < 0 or target_index >= len(leaf_hashes):
+        return []
+
+    proof = []
+    current_level = leaf_hashes[:]
+    idx = target_index
+
+    while len(current_level) > 1:
+        sibling_idx = idx + 1 if idx % 2 == 0 else idx - 1
+        if sibling_idx < len(current_level):
+            sibling_hash = current_level[sibling_idx]
+            position = "right" if idx % 2 == 0 else "left"
+            proof.append({"position": position, "hash": sibling_hash})
+        else:
+            proof.append({"position": "right", "hash": current_level[idx]})
+
+        next_level = []
+        for i in range(0, len(current_level), 2):
+            left = current_level[i]
+            right = current_level[i + 1] if i + 1 < len(current_level) else left
+            next_level.append(sha256_hex(left + right))
+
+        current_level = next_level
+        idx = idx // 2
+
+    return proof
+
+
+def verify_merkle_proof(leaf_hash: str, proof: list[dict[str, str]], expected_root: str) -> bool:
+    """Recompute root from leaf hash using audit proof path and check against expected root."""
+    curr = leaf_hash
+    for step in proof:
+        if step["position"] == "right":
+            curr = sha256_hex(curr + step["hash"])
+        else:
+            curr = sha256_hex(step["hash"] + curr)
+    return curr == expected_root
+
+
 class ProvenanceStore:
     """Cryptographic provenance ledger and entity graph backed by SQLite."""
 
@@ -446,6 +487,35 @@ class ProvenanceStore:
 
         leaf_hashes = [r["turn_hash"] for r in rows]
         return compute_merkle_root(leaf_hashes)
+
+    def get_session_merkle_proof(self, session_id: str, turn_index: int = 0) -> dict[str, Any]:
+        """Generate a complete cryptographic inclusion proof for a specific exchange turn in a session."""
+        with self._get_conn() as conn:
+            cursor = conn.execute(
+                "SELECT turn_hash, exchange_id FROM exchanges WHERE session_id = ? ORDER BY id ASC",
+                (session_id,),
+            )
+            rows = cursor.fetchall()
+
+        if not rows or turn_index >= len(rows):
+            return {"verified": False, "error": "Invalid turn index or empty session"}
+
+        leaf_hashes = [r["turn_hash"] for r in rows]
+        target_leaf = leaf_hashes[turn_index]
+        root = compute_merkle_root(leaf_hashes)
+        proof = compute_merkle_proof(leaf_hashes, turn_index)
+        valid = verify_merkle_proof(target_leaf, proof, root)
+
+        return {
+            "session_id": session_id,
+            "turn_index": turn_index,
+            "exchange_id": rows[turn_index]["exchange_id"],
+            "target_turn_hash": target_leaf,
+            "merkle_root": root,
+            "proof_depth": len(proof),
+            "proof_path": proof,
+            "verified": valid,
+        }
 
     def get_session_distribution(self) -> list[dict[str, Any]]:
         """Retrieve temporal distribution of all agent interaction sessions."""
