@@ -106,6 +106,27 @@ test('choosing a paid plan uses Checkout; an existing paid plan changes through 
   expect(calls.filter((call) => call.path === 'checkout')).toHaveLength(0)
 })
 
+test('billing page handles checkout return banners, cycle renewal, and resource gauges', async ({ page }) => {
+  await managedFixture(page, { signedIn: true, billing: true, plan: 'pro' })
+  // 1. Success banner from return param
+  await page.goto('/managed?billing=success#billing')
+  await expect(page.getByText('Checkout completed successfully.')).toBeVisible()
+  await expect(page.getByText('Subscription & Quotas')).toBeVisible()
+  await expect(page.getByText('CURRENT TIER')).toBeVisible()
+  await expect(page.getByText('BILLING CYCLE')).toBeVisible()
+  await expect(page.getByText('RESOURCE ALLOCATION & USAGE')).toBeVisible()
+  // Progressbars for the 3 limits: memories, writes, retrievals
+  const meters = page.getByRole('progressbar')
+  await expect(meters).toHaveCount(3)
+  // URL cleaned up without ?billing=success
+  expect(page.url()).not.toContain('billing=success')
+
+  // 2. Canceled banner from return param
+  await page.goto('/managed?billing=canceled#billing')
+  await expect(page.getByText('Checkout canceled.')).toBeVisible()
+  expect(page.url()).not.toContain('billing=canceled')
+})
+
 /* A read-only subscription keeps search and export and is refused writes. On the console the write
    control is not rendered rather than disabled (MemoriesPage.tsx), and the entitlement's own
    wording is on Billing (billing.ts READ_ONLY_WORKSPACE). */
