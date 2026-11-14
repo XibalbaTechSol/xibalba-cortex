@@ -1,5 +1,19 @@
 # Xibalba Cortex Wiki — Log
 
+## [2026-11-14] feat | Unified billing UI with cycle renewal, threshold gauges, and return banners
+
+- Refactored `viewer/src/console/pages/BillingPage.tsx` and `viewer/src/console/billing.ts` to share visual design grammar and billing structures with Xibalba Shield.
+- Added subscription cycle renewal dates formatted in UTC (`period_end`) and status badge tones (`active`, `review`, `conflict`, `muted`).
+- Added resource allocation gauges with dynamic threshold warnings: amber review callout at ≥80% quota and red conflict alert at ≥100% quota for memories, writes, retrievals, and agents.
+- Added return banner alerts for Stripe checkout (`?billing=success`, `?billing=canceled`) with automatic URL parameter stripping via `history.replaceState`.
+- Documented in `docs/wiki/architecture/viewer-and-local-api.md`. Verified via Vitest (20 tests passed) and headless Playwright E2E suite.
+
+## [2026-11-14] refactor | Switch StripeGateway to shared integrity_sdk.billing
+
+- Migrated Cortex's managed billing backend `src/xibalba_cortex/managed/stripe_gateway.py` to inherit from the shared `integrity_sdk.billing.StripeGateway`.
+- Standardized Stripe API version `2025-06-30.basil`, webhook event signing, and shared checkout/portal session lifecycle across Cortex and Shield.
+- Updated `integrity-core` path dependency and CI workflows to use canonical SDK billing primitives.
+
 ## [2026-11-04] update | OIDC social login, browser-mediated MCP device pairing & 91 tools
 
 - Reconciled MCP tool count from 89 to 91 in `concepts/mcp-tool-surface.md`, adding `cortex_cloud_status` and `cortex_cloud_pair`.

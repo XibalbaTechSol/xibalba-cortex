@@ -2,7 +2,7 @@
 title: Viewer and Local API
 acronyms: [MCP, FTS5, WAL]
 created: 2026-08-13
-updated: 2026-10-11
+updated: 2026-11-14
 type: architecture
 tags: [infrastructure, storage, provenance]
 confidence: high
@@ -17,6 +17,8 @@ source_files:
   - viewer/src/api.ts
   - viewer/src/console/ConsoleApp.tsx
   - viewer/src/console/nav.ts
+  - viewer/src/console/pages/BillingPage.tsx
+  - viewer/src/console/billing.ts
   - viewer/COVERAGE.md
   - viewer/playwright.config.ts
 ---
@@ -36,6 +38,7 @@ The local API exposes read and operator-oriented surfaces over the canonical `Gr
 - [Agent workspaces](#agent-workspaces)
 - [Profile-store routing](#profile-store-routing)
 - [Managed Edition & Multi-Agent Scope Switching](#managed-edition-multi-agent-scope-switching)
+- [Subscription & Quota Management (Unified Billing)](#subscription-quota-management-unified-billing)
 - [PARA and inference integration](#para-and-inference-integration)
 - [Integrity presentation](#integrity-presentation)
 - [Headless verification](#headless-verification)
@@ -143,6 +146,17 @@ In the managed (hosted) edition (`src/xibalba_cortex/managed/api.py`), agent wor
 - **Wire Contract Adaptation**: `viewer/src/hostedApi.ts` maps `GET /api/agents` to `me` and derives `agents` from `me.agents`. If present, each agent workspace is assigned `store_access` and `writable` from the account's plan entitlement, allowing the console's `useWorkspace` hook to populate the header Scope dropdown.
 - **Agent-Scoped Retrieval**: `GET /api/managed/memories` and `GET /api/managed/search` accept `agent_id`. If supplied, the managed API dynamically resolves DID identities to stored partition values via `store.storage_agent_id(agent_id)` and filters results strictly to that agent's namespace.
 - **Primary Workspace Scope**: When the primary workspace is chosen (no `agent_id`), the API returns all memories across the tenant, providing unified auditing across all connected agents.
+
+## Subscription & Quota Management (Unified Billing)
+
+The managed console exposes subscription lifecycle, cycle renewal, and resource allocation tracking (`viewer/src/console/pages/BillingPage.tsx` and `viewer/src/console/billing.ts`), sharing visual design grammar and Stripe credential foundations with Xibalba Shield:
+
+- **Lifecycle and Cycle Renewal**: The page surfaces the active plan tier, subscription status pill (`active`, `review`, `conflict`, `muted`), and cycle renewal date formatted in UTC (`period_end`) derived from `/api/managed/me`.
+- **Resource Allocation Meters**: Four resource usage progress bars (`role="progressbar"`) visualize stored memories, write requests, retrieval requests, and active agents against plan quotas, featuring adaptive threshold warning callouts:
+  - Usage at or above 80% triggers a review warning callout.
+  - Usage reaching 100% triggers a conflict capacity warning callout.
+- **Stripe Checkout & Portal Integration**: Integrates directly with Stripe Checkout for plan upgrades and the Stripe Customer Portal for active subscription management. URL query returns (`?billing=success`, `?billing=canceled`) render contextual dismissible feedback banners and cleanly strip query parameters via `window.history.replaceState`.
+- **Local / Unconfigured Mode**: When Stripe credentials or webhook secrets are absent (`billing_configured: false`), the console displays an informational banner explaining evaluation mode, keeps Free plan features active, and disables external payment triggers without blocking developer workflows.
 
 ## PARA and inference integration
 
