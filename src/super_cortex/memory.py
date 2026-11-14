@@ -360,3 +360,11 @@ class SuperCortex:
     def session_merkle_root(self, session_id: str) -> str:
         """Compute the Merkle root for a given session."""
         return self.store.session_merkle_root(session_id)
+
+    def get_session_distribution(self) -> list[dict[str, Any]]:
+        """Retrieve temporal distribution of all sessions."""
+        return self.store.get_session_distribution()
+
+    def get_session_turns(self, session_id: str) -> list[dict[str, Any]]:
+        """Retrieve full chronological turn trace for a session."""
+        return self.store.get_session_turns(session_id)

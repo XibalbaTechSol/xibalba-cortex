@@ -446,3 +446,70 @@ class ProvenanceStore:
 
         leaf_hashes = [r["turn_hash"] for r in rows]
         return compute_merkle_root(leaf_hashes)
+
+    def get_session_distribution(self) -> list[dict[str, Any]]:
+        """Retrieve temporal distribution of all agent interaction sessions."""
+        with self._get_conn() as conn:
+            cursor = conn.execute(
+                """
+                SELECT
+                    session_id,
+                    MIN(created_at) as start_time,
+                    MAX(created_at) as end_time,
+                    COUNT(*) as turn_count,
+                    GROUP_CONCAT(tool_calls_json) as all_tools
+                FROM exchanges
+                GROUP BY session_id
+                ORDER BY start_time DESC
+                """
+            )
+            rows = cursor.fetchall()
+
+        sessions = []
+        for r in rows:
+            sid = r["session_id"]
+            root = self.session_merkle_root(sid)
+            # Count total tool executions
+            tool_count = 0
+            if r["all_tools"]:
+                for chunk in r["all_tools"].split("],["):
+                    tool_count += chunk.count('"name"')
+
+            sessions.append({
+                "session_id": sid,
+                "start_time": r["start_time"],
+                "end_time": r["end_time"],
+                "turn_count": r["turn_count"],
+                "tool_execution_count": tool_count,
+                "merkle_root": root,
+            })
+        return sessions
+
+    def get_session_turns(self, session_id: str) -> list[dict[str, Any]]:
+        """Get chronological turns for a specific session."""
+        with self._get_conn() as conn:
+            cursor = conn.execute(
+                """
+                SELECT exchange_id, session_id, prompt_text, prompt_hash, response_text, response_hash,
+                       tool_calls_json, context_hashes_json, turn_hash, parent_hash, created_at
+                FROM exchanges
+                WHERE session_id = ?
+                ORDER BY id ASC
+                """,
+                (session_id,),
+            )
+            rows = cursor.fetchall()
+
+        return [
+            {
+                "exchange_id": r["exchange_id"],
+                "session_id": r["session_id"],
+                "prompt_text": r["prompt_text"],
+                "response_text": r["response_text"],
+                "tool_calls": json.loads(r["tool_calls_json"]),
+                "turn_hash": r["turn_hash"],
+                "parent_hash": r["parent_hash"],
+                "created_at": r["created_at"],
+            }
+            for r in rows
+        ]

@@ -130,6 +130,35 @@ def verify() -> None:
 
 
 @app.command()
+def sessions() -> None:
+    """View temporal distribution of all agent interaction sessions."""
+    cortex = SuperCortex()
+    session_list = cortex.get_session_distribution()
+
+    if not session_list:
+        console.print("[yellow]No agent sessions recorded in the provenance ledger yet.[/yellow]")
+        return
+
+    table = Table(title="Agent Session Temporal Distribution")
+    table.add_column("Session ID", style="cyan")
+    table.add_column("Turns", justify="right", style="bold")
+    table.add_column("Tools", justify="right", style="magenta")
+    table.add_column("Start Time", style="dim")
+    table.add_column("Merkle Root", style="green")
+
+    for s in session_list:
+        table.add_row(
+            str(s["session_id"]),
+            str(s["turn_count"]),
+            str(s["tool_execution_count"]),
+            str(s["start_time"])[:19],
+            f"{s['merkle_root'][:12]}...",
+        )
+
+    console.print(table)
+
+
+@app.command()
 def viewer(
     port: int = typer.Option(4174, "--port", "-p", help="Port to serve the viewer on"),
     host: str = typer.Option("127.0.0.1", "--host", help="Host interface"),

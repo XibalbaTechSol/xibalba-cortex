@@ -159,6 +159,27 @@ def create_server(config: SuperCortexConfig | None = None) -> MCPServer:
         return json.dumps({"session_id": session_id, "merkle_root": root}, indent=2)
 
     @server.tool()
+    def memory_session_distribution() -> str:
+        """Retrieve temporal distribution, turn counts, and Merkle roots across all agent sessions."""
+        sessions = cortex.get_session_distribution()
+        return json.dumps({"session_count": len(sessions), "sessions": sessions}, indent=2)
+
+    @server.tool()
+    def memory_session_inspect(session_id: str) -> str:
+        """Inspect all turns and cryptographic hashes for a specific agent session."""
+        turns = cortex.get_session_turns(session_id)
+        root = cortex.session_merkle_root(session_id)
+        return json.dumps(
+            {
+                "session_id": session_id,
+                "merkle_root": root,
+                "turn_count": len(turns),
+                "turns": turns,
+            },
+            indent=2,
+        )
+
+    @server.tool()
     async def supermemory_status() -> str:
         """Check Supermemory Local daemon status and active namespaces."""
         alive = await cortex.client.ping()

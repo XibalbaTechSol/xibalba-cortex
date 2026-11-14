@@ -113,6 +113,16 @@ def test_session_exchanges_and_merkle_root(temp_store: ProvenanceStore):
     assert len(root) == 64
     assert root != GENESIS_HASH
 
+    # Test distribution and turns
+    dist = temp_store.get_session_distribution()
+    assert len(dist) == 1
+    assert dist[0]["session_id"] == session_id
+    assert dist[0]["turn_count"] == 2
+
+    turns = temp_store.get_session_turns(session_id)
+    assert len(turns) == 2
+    assert turns[0]["prompt_text"] == "Hello"
+
 
 def test_compute_merkle_root_empty_and_odd():
     assert compute_merkle_root([]) == GENESIS_HASH
