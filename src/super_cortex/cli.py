@@ -129,6 +129,34 @@ def verify() -> None:
         console.print(f"[bold red]✗ Verification failed:[/bold red] {res.get('error')}")
 
 
+@app.command()
+def viewer(
+    port: int = typer.Option(4174, "--port", "-p", help="Port to serve the viewer on"),
+    host: str = typer.Option("127.0.0.1", "--host", help="Host interface"),
+) -> None:
+    """Launch the Super-Cortex interactive Graph & Timeline web interface."""
+    import http.server
+    import socketserver
+    from pathlib import Path
+    import subprocess
+
+    dist_dir = Path(__file__).resolve().parent.parent.parent / "viewer" / "dist"
+    if not dist_dir.exists() or not (dist_dir / "index.html").exists():
+        console.print("[yellow]Viewer dist not found. Building now with npm...[/yellow]")
+        subprocess.run(["npm", "run", "build"], cwd=dist_dir.parent, check=True)
+
+    class Handler(http.server.SimpleHTTPRequestHandler):
+        def __init__(self, *args, **kwargs):
+            super().__init__(*args, directory=str(dist_dir), **kwargs)
+
+    console.print(f"[bold green]Starting Super-Cortex Graph & Timeline Viewer at http://{host}:{port}[/bold green]")
+    with socketserver.TCPServer((host, port), Handler) as httpd:
+        try:
+            httpd.serve_forever()
+        except KeyboardInterrupt:
+            console.print("\n[yellow]Shutting down viewer server.[/yellow]")
+
+
 def main() -> None:
     app()
 

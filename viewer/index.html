@@ -1,0 +1,590 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Super-Cortex // Neural Memory Fabric</title>
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;500;600&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          "colors": {
+            "on-surface-variant": "#bcc9cd",
+            "on-tertiary-fixed-variant": "#6900b3",
+            "on-primary-fixed-variant": "#004e5c",
+            "primary-fixed": "#acedff",
+            "on-secondary-container": "#00311f",
+            "secondary-fixed": "#6ffbbe",
+            "surface-container-high": "#292a2b",
+            "surface-container-low": "#1b1c1d",
+            "tertiary-container": "#c78dff",
+            "outline-variant": "#3d494c",
+            "on-surface": "#e3e2e3",
+            "on-primary-fixed": "#001f26",
+            "on-secondary-fixed-variant": "#005236",
+            "on-background": "#e3e2e3",
+            "primary-container": "#06b6d4",
+            "surface-bright": "#39393a",
+            "on-error-container": "#ffdad6",
+            "on-secondary-fixed": "#002113",
+            "surface": "#121314",
+            "surface-variant": "#343536",
+            "surface-container-lowest": "#0d0e0f",
+            "error": "#ffb4ab",
+            "on-primary-container": "#00424f",
+            "on-error": "#690005",
+            "on-tertiary": "#490080",
+            "surface-container-highest": "#343536",
+            "secondary-container": "#00a572",
+            "outline": "#869397",
+            "background": "#121314",
+            "primary-fixed-dim": "#4cd7f6",
+            "secondary-fixed-dim": "#4edea3",
+            "on-tertiary-fixed": "#2c0051",
+            "on-secondary": "#003824",
+            "inverse-surface": "#e3e2e3",
+            "tertiary-fixed": "#f0dbff",
+            "secondary": "#4edea3",
+            "tertiary": "#ddb7ff",
+            "surface-container": "#1f2021",
+            "inverse-on-surface": "#303031",
+            "primary": "#4cd7f6",
+            "tertiary-fixed-dim": "#ddb7ff",
+            "inverse-primary": "#00687a",
+            "error-container": "#93000a",
+            "surface-dim": "#121314",
+            "on-tertiary-container": "#5a009b",
+            "on-primary": "#003640",
+            "surface-tint": "#4cd7f6"
+          },
+          "borderRadius": {
+            "DEFAULT": "0.125rem",
+            "lg": "0.25rem",
+            "xl": "0.5rem",
+            "full": "0.75rem"
+          },
+          "spacing": {
+            "gutter-desktop": "1.5rem",
+            "gutter": "1rem",
+            "margin": "1rem",
+            "space-xs": "0.25rem",
+            "space-lg": "1.25rem",
+            "margin-desktop": "2rem",
+            "space-xl": "2rem",
+            "space-md": "0.75rem",
+            "space-sm": "0.5rem"
+          },
+          "fontFamily": {
+            "body-lg": ["Inter"],
+            "display": ["Inter"],
+            "body-md": ["Inter"],
+            "headline-lg-mobile": ["Inter"],
+            "label-lg": ["JetBrains Mono"],
+            "headline-lg": ["Inter"],
+            "headline-md": ["Inter"],
+            "label-sm": ["JetBrains Mono"],
+            "headline-sm": ["Inter"],
+            "display-mobile": ["Inter"],
+            "body-sm": ["Inter"],
+            "label-md": ["JetBrains Mono"]
+          },
+          "fontSize": {
+            "body-lg": ["15px", { "lineHeight": "24px", "fontWeight": "400" }],
+            "display": ["40px", { "lineHeight": "48px", "letterSpacing": "-0.03em", "fontWeight": "600" }],
+            "body-md": ["13px", { "lineHeight": "20px", "fontWeight": "400" }],
+            "headline-lg-mobile": ["22px", { "lineHeight": "28px", "letterSpacing": "-0.01em", "fontWeight": "600" }],
+            "label-lg": ["13px", { "lineHeight": "18px", "letterSpacing": "0.02em", "fontWeight": "500" }],
+            "headline-lg": ["30px", { "lineHeight": "38px", "letterSpacing": "-0.02em", "fontWeight": "600" }],
+            "headline-md": ["20px", { "lineHeight": "28px", "letterSpacing": "-0.01em", "fontWeight": "500" }],
+            "label-sm": ["10px", { "lineHeight": "14px", "letterSpacing": "0.06em", "fontWeight": "400" }],
+            "headline-sm": ["16px", { "lineHeight": "24px", "fontWeight": "500" }],
+            "display-mobile": ["28px", { "lineHeight": "36px", "letterSpacing": "-0.02em", "fontWeight": "600" }],
+            "body-sm": ["12px", { "lineHeight": "18px", "fontWeight": "400" }],
+            "label-md": ["11px", { "lineHeight": "16px", "letterSpacing": "0.04em", "fontWeight": "500" }]
+          }
+        }
+      }
+    }
+  </script>
+<style>
+    .material-symbols-outlined {
+      font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+    }
+    .grid-dot-pattern {
+      background-size: 24px 24px;
+      background-image: radial-gradient(circle, rgba(76, 215, 246, 0.12) 1px, transparent 1px);
+    }
+    .synaptic-pulse {
+      stroke-dasharray: 6 6;
+      animation: dash 25s linear infinite;
+    }
+    @keyframes dash {
+      to {
+        stroke-dashoffset: -1000;
+      }
+    }
+    .violet-glow {
+      filter: drop-shadow(0 0 6px rgba(168, 85, 247, 0.6));
+    }
+    .cyan-glow {
+      filter: drop-shadow(0 0 4px rgba(6, 182, 212, 0.5));
+    }
+  </style>
+</head>
+<body class="bg-surface-container-lowest text-on-surface antialiased overflow-hidden select-none h-screen w-screen flex">
+<!-- SHARED COMPONENT: SideNavBar -->
+<aside class="fixed top-0 left-0 h-screen w-64 flex flex-col justify-between p-4 z-40 bg-surface-container-lowest border-r border-outline-variant">
+<div class="flex flex-col gap-6">
+<!-- Header Brand & Insignia -->
+<div class="flex items-center gap-3 px-2 py-1">
+<div class="w-8 h-8 rounded border border-primary flex items-center justify-center bg-surface-container-low shadow-[0_0_12px_rgba(6,182,212,0.3)]">
+<span class="material-symbols-outlined text-primary text-xl" style="font-variation-settings: 'FILL' 1;">hub</span>
+</div>
+<div class="flex flex-col">
+<div class="flex items-center gap-1">
+<span class="font-headline-sm text-headline-sm font-semibold tracking-tight text-on-surface">Super-Cortex</span>
+<span class="text-[9px] font-label-sm text-primary tracking-widest uppercase">™</span>
+</div>
+<span class="font-label-sm text-label-sm text-outline">v4.8.2 // Neural Fabric</span>
+</div>
+</div>
+<!-- Action Button CTA -->
+<button class="w-full h-9 bg-primary-container hover:bg-primary text-on-primary-container font-label-md text-label-md uppercase tracking-wider font-semibold rounded flex items-center justify-center gap-2 transition-all shadow-[0_0_14px_rgba(6,182,212,0.3)]">
+<span class="material-symbols-outlined text-sm">add</span>
+<span>New Memory Node</span>
+</button>
+<!-- Primary Navigation Clusters -->
+<nav class="flex flex-col gap-1">
+<!-- Dashboard -->
+<a class="flex items-center gap-3 px-3 py-2 text-on-surface-variant hover:text-on-surface hover:bg-surface-container rounded font-label-md text-label-md transition-colors" href="#">
+<span class="material-symbols-outlined text-lg">dashboard</span>
+<span>Dashboard</span>
+</a>
+<!-- Memory Timeline / Memory -->
+<a class="flex items-center gap-3 px-3 py-2 text-on-surface-variant hover:text-on-surface hover:bg-surface-container rounded font-label-md text-label-md transition-colors" href="#">
+<span class="material-symbols-outlined text-lg">psychology</span>
+<span>Memory</span>
+</a>
+<!-- Infinite Chat -->
+<a class="flex items-center gap-3 px-3 py-2 text-on-surface-variant hover:text-on-surface hover:bg-surface-container rounded font-label-md text-label-md transition-colors" href="#">
+<span class="material-symbols-outlined text-lg">chat</span>
+<span>Infinite Chat</span>
+</a>
+<!-- Neural Graph [ACTIVE MAPPING MATCH] -->
+<a class="flex items-center gap-3 px-3 py-2 text-primary bg-surface-container-high rounded border-l-2 border-primary font-label-md text-label-md shadow-[0_0_12px_rgba(6,182,212,0.15)]" href="#">
+<span class="material-symbols-outlined text-primary text-lg" style="font-variation-settings: 'FILL' 1;">hub</span>
+<span class="font-semibold text-primary">Neural Graph</span>
+<span class="ml-auto w-1.5 h-1.5 rounded-full bg-primary animate-pulse"></span>
+</a>
+<!-- Timeline Matrix / Timeline Lens -->
+<a class="flex items-center gap-3 px-3 py-2 text-on-surface-variant hover:text-on-surface hover:bg-surface-container rounded font-label-md text-label-md transition-colors" href="#">
+<span class="material-symbols-outlined text-lg">timeline</span>
+<span>Memory Timeline</span>
+</a>
+<!-- Spaces & Repos -->
+<a class="flex items-center gap-3 px-3 py-2 text-on-surface-variant hover:text-on-surface hover:bg-surface-container rounded font-label-md text-label-md transition-colors" href="#">
+<span class="material-symbols-outlined text-lg">folder_data</span>
+<span>Spaces &amp; Repos</span>
+</a>
+<!-- Vector Search -->
+<a class="flex items-center gap-3 px-3 py-2 text-on-surface-variant hover:text-on-surface hover:bg-surface-container rounded font-label-md text-label-md transition-colors" href="#">
+<span class="material-symbols-outlined text-lg">manage_search</span>
+<span>Vector Search</span>
+</a>
+<!-- API Keys / Model Settings -->
+<a class="flex items-center gap-3 px-3 py-2 text-on-surface-variant hover:text-on-surface hover:bg-surface-container rounded font-label-md text-label-md transition-colors" href="#">
+<span class="material-symbols-outlined text-lg">tune</span>
+<span>Model Settings</span>
+</a>
+</nav>
+</div>
+<!-- Bottom Docked Navigation -->
+<div class="flex flex-col gap-1 border-t border-outline-variant pt-3">
+<a class="flex items-center gap-3 px-3 py-2 text-on-surface-variant hover:text-on-surface hover:bg-surface-container rounded font-label-md text-label-md transition-colors" href="#">
+<span class="material-symbols-outlined text-lg">monitoring</span>
+<span>Diagnostics</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 text-on-surface-variant hover:text-on-surface hover:bg-surface-container rounded font-label-md text-label-md transition-colors" href="#">
+<span class="material-symbols-outlined text-lg">terminal</span>
+<span>Terminal</span>
+</a>
+<div class="flex items-center justify-between px-3 py-2 mt-1 rounded bg-surface-container-low border border-outline-variant/50">
+<div class="flex items-center gap-2">
+<div class="w-6 h-6 rounded-full bg-surface-variant border border-primary/40 flex items-center justify-center text-[10px] font-label-sm text-primary">OP</div>
+<span class="font-label-sm text-label-sm text-on-surface">cortex-sys</span>
+</div>
+<span class="material-symbols-outlined text-outline hover:text-on-surface text-base cursor-pointer">logout</span>
+</div>
+</div>
+</aside>
+<!-- MAIN CANVAS CONTAINER -->
+<main class="ml-64 flex-1 h-screen relative flex flex-col overflow-hidden bg-[#090a0b]">
+<!-- SHARED COMPONENT: TopNavBar / Floating Control Header -->
+<header class="fixed top-0 left-64 right-0 h-14 flex items-center justify-between px-6 z-30 bg-surface-container-low/80 backdrop-blur-md border-b border-outline-variant">
+<!-- Left: Space Selector Pill Card -->
+<div class="flex items-center gap-3">
+<div class="flex items-center gap-2.5 px-3 py-1.5 rounded-full bg-surface-container-lowest/90 border border-primary/30 shadow-[0_0_10px_rgba(6,182,212,0.15)] hover:border-primary transition-colors cursor-pointer">
+<span class="material-symbols-outlined text-primary text-sm" style="font-variation-settings: 'FILL' 1;">visibility</span>
+<div class="flex flex-col">
+<div class="flex items-center gap-1.5">
+<span class="font-label-md text-label-md text-on-surface font-semibold">All Spaces</span>
+<span class="material-symbols-outlined text-outline text-xs">expand_more</span>
+</div>
+</div>
+<span class="h-3 w-px bg-outline-variant mx-0.5"></span>
+<span class="font-label-sm text-label-sm text-primary font-medium tracking-tight">11 memories</span>
+</div>
+<!-- Quick Search Bar (CMD+K) -->
+<div class="relative flex items-center">
+<span class="material-symbols-outlined absolute left-2.5 text-outline text-base">search</span>
+<input class="w-64 h-8 bg-surface-container-lowest border border-outline-variant rounded pl-8 pr-12 text-on-surface font-label-md text-label-md placeholder:text-outline focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary focus:shadow-[0_0_12px_rgba(6,182,212,0.2)] transition-all" placeholder="Search memory graph (⌘K)..." type="text"/>
+<span class="absolute right-2 px-1.5 py-0.5 text-[9px] font-label-sm rounded bg-surface-container-high text-on-surface-variant border border-outline-variant/60">⌘K</span>
+</div>
+</div>
+<!-- Center: View Mode Switcher -->
+<div class="flex items-center p-0.5 rounded-full bg-surface-container-lowest border border-outline-variant">
+<button class="flex items-center gap-1.5 px-3 py-1 rounded-full bg-primary-container text-on-primary-container font-label-md text-label-md font-semibold shadow-[0_0_10px_rgba(6,182,212,0.4)]">
+<span class="material-symbols-outlined text-xs">hub</span>
+<span>Graph View</span>
+</button>
+<button class="flex items-center gap-1.5 px-3 py-1 rounded-full text-on-surface-variant hover:text-on-surface font-label-md text-label-md transition-colors">
+<span class="material-symbols-outlined text-xs">schedule</span>
+<span>Timeline View</span>
+</button>
+<button class="flex items-center gap-1.5 px-3 py-1 rounded-full text-on-surface-variant hover:text-on-surface font-label-md text-label-md transition-colors">
+<span class="material-symbols-outlined text-xs">scatter_plot</span>
+<span>Cluster Analysis</span>
+</button>
+</div>
+<!-- Right: Workflow Drawers & Icon Actions -->
+<div class="flex items-center gap-2">
+<div class="flex items-center p-0.5 rounded bg-surface-container-lowest border border-outline-variant">
+<button class="px-2.5 py-1 text-primary bg-surface-container-high rounded font-label-md text-label-md font-medium flex items-center gap-1.5 border border-primary/30">
+<span class="w-1.5 h-1.5 rounded-full bg-primary"></span>
+<span>Inspector</span>
+</button>
+<button class="px-2.5 py-1 text-on-surface-variant hover:text-on-surface font-label-md text-label-md transition-colors">
+<span>Live Chat</span>
+</button>
+<button class="px-2.5 py-1 text-on-surface-variant hover:text-on-surface font-label-md text-label-md transition-colors">
+<span>Provenance Audit</span>
+</button>
+</div>
+<div class="h-4 w-px bg-outline-variant mx-1"></div>
+<button class="w-8 h-8 rounded flex items-center justify-center text-on-surface-variant hover:text-primary hover:bg-surface-container transition-colors" title="Settings">
+<span class="material-symbols-outlined text-lg">tune</span>
+</button>
+<button class="w-8 h-8 rounded flex items-center justify-center text-on-surface-variant hover:text-primary hover:bg-surface-container transition-colors" title="Notifications">
+<span class="material-symbols-outlined text-lg">notifications</span>
+</button>
+<button class="w-8 h-8 rounded flex items-center justify-center text-on-surface-variant hover:text-primary hover:bg-surface-container transition-colors" title="Fullscreen">
+<span class="material-symbols-outlined text-lg">fullscreen</span>
+</button>
+</div>
+</header>
+<!-- INTERACTIVE GRAPH CANVAS VIEWPORT -->
+<div class="flex-1 w-full h-full relative grid-dot-pattern pt-14 flex items-center justify-center overflow-hidden">
+<!-- Ambient Technical Background Coordinate Grid Lines -->
+<div class="absolute inset-0 pointer-events-none opacity-20 flex justify-between px-16">
+<div class="w-px h-full bg-outline-variant/40"></div>
+<div class="w-px h-full bg-outline-variant/20"></div>
+<div class="w-px h-full bg-outline-variant/30"></div>
+<div class="w-px h-full bg-outline-variant/20"></div>
+<div class="w-px h-full bg-outline-variant/40"></div>
+</div>
+<div class="absolute inset-0 pointer-events-none opacity-20 flex flex-col justify-between py-16">
+<div class="h-px w-full bg-outline-variant/40"></div>
+<div class="h-px w-full bg-outline-variant/20"></div>
+<div class="h-px w-full bg-outline-variant/30"></div>
+<div class="h-px w-full bg-outline-variant/40"></div>
+</div>
+<!-- Telemetry Coordinate Markers -->
+<span class="absolute top-16 left-6 font-label-sm text-[9px] text-outline/60 tracking-widest">COORD: [48.2091 : -12.4402] // SYNAPSE_LATENCY: 1.2ms</span>
+<span class="absolute bottom-6 right-96 mr-6 font-label-sm text-[9px] text-outline/60 tracking-widest">SUBGRAPH_DENSITY: 0.941 // RUNTIME_CLOCK: 144Hz</span>
+<!-- SVG GRAPH EDGES LAYER -->
+<svg class="absolute inset-0 w-full h-full pointer-events-none z-10" xmlns="http://www.w3.org/2000/svg">
+<defs>
+<lineargradient id="cyanGradient" x1="0%" x2="100%" y1="0%" y2="100%">
+<stop offset="0%" stop-color="#4cd7f6" stop-opacity="0.8"></stop>
+<stop offset="100%" stop-color="#06b6d4" stop-opacity="0.2"></stop>
+</lineargradient>
+<lineargradient id="purpleGradient" x1="0%" x2="100%" y1="0%" y2="100%">
+<stop offset="0%" stop-color="#c78dff" stop-opacity="0.9"></stop>
+<stop offset="100%" stop-color="#a855f7" stop-opacity="0.4"></stop>
+</lineargradient>
+</defs>
+<!-- Solid Thin Silver/Cyan Lines (Hub 1 -> Satellites) -->
+<!-- Center Hub is roughly at (530, 360) -->
+<line stroke="#4cd7f6" stroke-opacity="0.4" stroke-width="1.2" x1="530" x2="310" y1="360" y2="210"></line>
+<line stroke="#4cd7f6" stroke-opacity="0.4" stroke-width="1.2" x1="530" x2="520" y1="360" y2="150"></line>
+<line class="cyan-glow" stroke="#4cd7f6" stroke-opacity="0.5" stroke-width="1.4" x1="530" x2="740" y1="360" y2="200"></line>
+<line stroke="#4cd7f6" stroke-opacity="0.4" stroke-width="1.2" x1="530" x2="760" y1="360" y2="440"></line>
+<line stroke="#4cd7f6" stroke-opacity="0.4" stroke-width="1.2" x1="530" x2="520" y1="360" y2="540"></line>
+<line stroke="#4cd7f6" stroke-opacity="0.4" stroke-width="1.2" x1="530" x2="310" y1="360" y2="460"></line>
+<!-- Hub 2 (Xibalba Integrity Protocol at 190, 520) Connections -->
+<line stroke="#4cd7f6" stroke-opacity="0.3" stroke-width="1.2" x1="190" x2="310" y1="520" y2="460"></line>
+<line stroke="#4edea3" stroke-opacity="0.4" stroke-width="1.2" x1="190" x2="110" y1="520" y2="380"></line>
+<line stroke="#4edea3" stroke-opacity="0.4" stroke-width="1.2" x1="190" x2="130" y1="520" y2="670"></line>
+<line stroke="#4edea3" stroke-opacity="0.4" stroke-width="1.2" x1="190" x2="290" y1="520" y2="660"></line>
+<!-- Faint Dashed Curved Lines (Semantic Cross-Cluster Similarity) -->
+<path d="M 310,210 Q 420,120 740,200" fill="none" stroke="#869397" stroke-dasharray="4 4" stroke-opacity="0.4" stroke-width="1"></path>
+<path d="M 190,520 Q 360,590 520,540" fill="none" stroke="#869397" stroke-dasharray="4 4" stroke-opacity="0.35" stroke-width="1"></path>
+<!-- Electric Purple Glowing Version Chain Evolution (Animated Synaptic Pulse) -->
+<path class="violet-glow synaptic-pulse" d="M 310,460 C 440,430 630,510 760,440" fill="none" stroke="#c78dff" stroke-width="2"></path>
+<path class="violet-glow" d="M 760,440 Q 820,330 740,200" fill="none" opacity="0.7" stroke="#c78dff" stroke-dasharray="3 3" stroke-width="1.5"></path>
+</svg>
+<!-- GRAPH INTERACTIVE CANVAS NODES LAYER -->
+<div class="relative w-full h-full z-20">
+<!-- PRIMARY CENTRAL DOCUMENT HUB: 'Quantum Physics & Computing Fundamentals' -->
+<div class="absolute left-[400px] top-[305px] w-64 p-3 rounded-lg bg-surface-container-low/95 border-2 border-primary shadow-[0_0_24px_rgba(6,182,212,0.3)] backdrop-blur-md cursor-pointer transition-all hover:scale-105 group">
+<div class="flex items-center justify-between border-b border-outline-variant/60 pb-1.5 mb-2">
+<div class="flex items-center gap-1.5">
+<span class="material-symbols-outlined text-primary text-base" style="font-variation-settings: 'FILL' 1;">description</span>
+<span class="font-label-sm text-[9px] uppercase tracking-wider text-primary font-semibold">Central Document Hub</span>
+</div>
+<span class="font-label-sm text-[9px] text-outline">LOC: 0x8F41</span>
+</div>
+<h3 class="font-headline-sm text-[13px] leading-tight font-semibold text-on-surface group-hover:text-primary transition-colors">Quantum Physics &amp; Computing Fundamentals</h3>
+<div class="mt-2.5 flex items-center justify-between">
+<span class="px-1.5 py-0.5 rounded bg-surface-container-high text-[9px] font-label-sm text-on-surface-variant border border-outline-variant">6 Linked Memories</span>
+<div class="flex items-center gap-1">
+<span class="w-1.5 h-1.5 rounded-full bg-secondary animate-ping"></span>
+<span class="font-label-sm text-[9px] text-secondary">ACTIVE ROOT</span>
+</div>
+</div>
+</div>
+<!-- SECONDARY DOCUMENT CLUSTER: 'Xibalba Integrity Protocol' -->
+<div class="absolute left-[70px] top-[475px] w-60 p-3 rounded-lg bg-surface-container-low/90 border border-secondary/60 shadow-[0_0_18px_rgba(78,222,163,0.2)] backdrop-blur-md cursor-pointer hover:border-secondary transition-all group">
+<div class="flex items-center justify-between border-b border-outline-variant/60 pb-1.5 mb-2">
+<div class="flex items-center gap-1.5">
+<span class="material-symbols-outlined text-secondary text-base" style="font-variation-settings: 'FILL' 1;">dataset</span>
+<span class="font-label-sm text-[9px] uppercase tracking-wider text-secondary font-semibold">Cluster Space</span>
+</div>
+<span class="font-label-sm text-[9px] text-outline">LOC: 0x2A09</span>
+</div>
+<h3 class="font-headline-sm text-[13px] leading-tight font-semibold text-on-surface group-hover:text-secondary transition-colors">Xibalba Integrity Protocol</h3>
+<div class="mt-2 flex items-center justify-between">
+<span class="px-1.5 py-0.5 rounded bg-surface-container-high text-[9px] font-label-sm text-on-surface-variant border border-outline-variant">4 Satellites</span>
+<span class="font-label-sm text-[9px] text-outline">v2.1 SECURE</span>
+</div>
+</div>
+<!-- SATELLITE MEMORY NODE 1: 'Superposition & Qubit Coherence' -->
+<div class="absolute left-[200px] top-[180px] p-2.5 rounded bg-surface-container/90 border border-outline-variant/80 hover:border-primary backdrop-blur-md cursor-pointer transition-all hover:scale-105 shadow-lg group">
+<div class="flex items-center gap-2">
+<div class="w-2.5 h-2.5 rotate-45 border border-primary bg-primary/20 flex items-center justify-center"></div>
+<span class="font-label-md text-[11px] text-on-surface font-medium group-hover:text-primary transition-colors">Superposition &amp; Qubit Coherence</span>
+<span class="w-1.5 h-1.5 rounded-full bg-primary shadow-[0_0_6px_#06b6d4]"></span>
+</div>
+</div>
+<!-- SATELLITE MEMORY NODE 2: 'Entanglement Distribution Limits' -->
+<div class="absolute left-[410px] top-[120px] p-2.5 rounded bg-surface-container/90 border border-outline-variant/80 hover:border-primary backdrop-blur-md cursor-pointer transition-all hover:scale-105 shadow-lg group">
+<div class="flex items-center gap-2">
+<div class="w-2.5 h-2.5 rotate-45 border border-primary bg-primary/20"></div>
+<span class="font-label-md text-[11px] text-on-surface font-medium group-hover:text-primary transition-colors">Entanglement Distribution Limits</span>
+<span class="w-1.5 h-1.5 rounded-full bg-primary shadow-[0_0_6px_#06b6d4]"></span>
+</div>
+</div>
+<!-- SATELLITE MEMORY NODE 3 (ACTIVE/SELECTED IN INSPECTOR): 'Shor's Algorithm Runtime Proof' -->
+<div class="absolute left-[640px] top-[170px] p-3 rounded-lg bg-surface-container-high border-2 border-primary shadow-[0_0_20px_rgba(6,182,212,0.4)] backdrop-blur-md cursor-pointer transition-all scale-105 ring-2 ring-primary/20">
+<div class="flex items-center gap-2.5">
+<div class="w-3 h-3 rotate-45 border border-primary bg-primary flex items-center justify-center shadow-[0_0_8px_#06b6d4]"></div>
+<div>
+<div class="flex items-center gap-2">
+<span class="font-label-md text-[12px] text-primary font-semibold">Shor's Algorithm Runtime Proof</span>
+<span class="w-2 h-2 rounded-full bg-primary animate-ping"></span>
+</div>
+<span class="font-label-sm text-[9px] text-on-surface-variant">ACTIVE SELECTION // 100% RELEVANCE</span>
+</div>
+</div>
+</div>
+<!-- SATELLITE MEMORY NODE 4: 'Cryogenic Control Matrix v2' -->
+<div class="absolute left-[660px] top-[410px] p-2.5 rounded bg-surface-container/90 border border-outline-variant/80 hover:border-primary backdrop-blur-md cursor-pointer transition-all hover:scale-105 shadow-lg group">
+<div class="flex items-center gap-2">
+<div class="w-2.5 h-2.5 rotate-45 border border-tertiary bg-tertiary/20"></div>
+<span class="font-label-md text-[11px] text-on-surface font-medium group-hover:text-tertiary transition-colors">Cryogenic Control Matrix v2</span>
+<span class="w-1.5 h-1.5 rounded-full bg-tertiary shadow-[0_0_6px_#a855f7]"></span>
+</div>
+</div>
+<!-- SATELLITE MEMORY NODE 5: 'Fault-Tolerant Surface Codes' -->
+<div class="absolute left-[410px] top-[515px] p-2.5 rounded bg-surface-container/90 border border-outline-variant/80 hover:border-primary backdrop-blur-md cursor-pointer transition-all hover:scale-105 shadow-lg group">
+<div class="flex items-center gap-2">
+<div class="w-2.5 h-2.5 rotate-45 border border-primary bg-primary/20"></div>
+<span class="font-label-md text-[11px] text-on-surface font-medium group-hover:text-primary transition-colors">Fault-Tolerant Surface Codes</span>
+<span class="w-1.5 h-1.5 rounded-full bg-primary shadow-[0_0_6px_#06b6d4]"></span>
+</div>
+</div>
+<!-- SATELLITE MEMORY NODE 6: 'Zero-Knowledge Circuit Verification' -->
+<div class="absolute left-[200px] top-[430px] p-2.5 rounded bg-surface-container/90 border border-outline-variant/80 hover:border-secondary backdrop-blur-md cursor-pointer transition-all hover:scale-105 shadow-lg group">
+<div class="flex items-center gap-2">
+<div class="w-2.5 h-2.5 rotate-45 border border-secondary bg-secondary/20"></div>
+<span class="font-label-md text-[11px] text-on-surface font-medium group-hover:text-secondary transition-colors">Zero-Knowledge Circuit Verification</span>
+<span class="w-1.5 h-1.5 rounded-full bg-secondary shadow-[0_0_6px_#10b981]"></span>
+</div>
+</div>
+</div>
+<!-- BOTTOM-LEFT FLOATING CANVAS HUD CONTROLS -->
+<div class="absolute bottom-6 left-6 z-30 flex items-center gap-2 bg-surface-container-low/90 backdrop-blur-md border border-outline-variant rounded-full px-3 py-1.5 shadow-2xl">
+<button class="flex items-center gap-1 text-on-surface-variant hover:text-primary font-label-md text-label-md px-2 py-0.5 rounded hover:bg-surface-container transition-colors">
+<span>Fit</span>
+<span class="text-[9px] text-outline font-label-sm">[z]</span>
+</button>
+<span class="h-3 w-px bg-outline-variant"></span>
+<button class="flex items-center gap-1 text-on-surface-variant hover:text-primary font-label-md text-label-md px-2 py-0.5 rounded hover:bg-surface-container transition-colors">
+<span>Center</span>
+<span class="text-[9px] text-outline font-label-sm">[c]</span>
+</button>
+<span class="h-3 w-px bg-outline-variant"></span>
+<div class="flex items-center gap-1 px-1">
+<button class="w-5 h-5 flex items-center justify-center rounded text-outline hover:text-on-surface hover:bg-surface-container font-label-sm">-</button>
+<span class="font-label-sm text-[11px] text-on-surface px-1">100%</span>
+<button class="w-5 h-5 flex items-center justify-center rounded text-outline hover:text-on-surface hover:bg-surface-container font-label-sm">+</button>
+</div>
+<span class="h-3 w-px bg-outline-variant"></span>
+<button class="flex items-center gap-1 text-primary hover:text-primary font-label-md text-label-md px-2 py-0.5 rounded hover:bg-surface-container transition-colors">
+<span class="text-xs">&gt;</span>
+<span>Legend</span>
+</button>
+</div>
+</div>
+<!-- RIGHT-SIDE GLASSMORPHIC INSPECTOR DRAWER -->
+<aside class="absolute top-16 right-6 bottom-6 w-96 rounded-2xl bg-[#0e1013]/90 backdrop-blur-xl border border-white/10 shadow-[0_0_30px_rgba(0,0,0,0.8)] z-30 flex flex-col justify-between p-5 overflow-y-auto">
+<!-- Drawer Top Container -->
+<div class="flex flex-col gap-4">
+<!-- Drawer Header -->
+<div class="flex items-center justify-between border-b border-outline-variant pb-3">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-primary text-xl" style="font-variation-settings: 'FILL' 1;">psychology</span>
+<h2 class="font-headline-sm text-headline-sm font-semibold text-on-surface">Memory</h2>
+<span class="px-1.5 py-0.5 rounded bg-primary/10 border border-primary/30 text-primary font-label-sm text-[9px] font-semibold tracking-wider">ACTIVE NODE</span>
+</div>
+<button class="w-6 h-6 rounded flex items-center justify-center text-outline hover:text-on-surface hover:bg-surface-container transition-colors">
+<span class="material-symbols-outlined text-base">close</span>
+</button>
+</div>
+<!-- Selected Memory Content Card -->
+<div class="rounded-lg bg-surface-container-lowest/80 border border-outline-variant p-3.5 flex flex-col gap-2.5 shadow-inner">
+<div class="flex items-center justify-between">
+<span class="font-label-sm text-[9px] uppercase tracking-wider text-outline">Synthesized Excerpt</span>
+<span class="material-symbols-outlined text-outline text-xs cursor-pointer hover:text-primary">open_in_new</span>
+</div>
+<p class="font-body-md text-body-md text-on-surface leading-relaxed">
+            "Quantum computing is a paradigm shift in computational power, leveraging quantum mechanical phenomena like superposition and entanglement to solve problems intractable for classical computers."
+          </p>
+</div>
+<!-- Node Metadata Fields -->
+<div class="flex flex-col gap-2.5">
+<!-- Space Identifier -->
+<div class="flex items-center justify-between p-2 rounded bg-surface-container-low border border-outline-variant/60">
+<span class="font-label-sm text-label-sm text-outline">SPACE</span>
+<div class="flex items-center gap-1.5">
+<span class="font-label-md text-label-md text-on-surface font-mono">9c7w2SXLvSuk3hDh7b7dr4</span>
+<span class="material-symbols-outlined text-outline hover:text-primary text-sm cursor-pointer" title="Copy Space ID">content_copy</span>
+</div>
+</div>
+<!-- Version & Badges Grid -->
+<div class="grid grid-cols-2 gap-2">
+<div class="p-2 rounded bg-surface-container-low border border-outline-variant/60 flex flex-col gap-0.5">
+<span class="font-label-sm text-label-sm text-outline">VERSION</span>
+<span class="font-label-md text-label-md text-primary font-semibold">v1 // LATEST</span>
+</div>
+<div class="p-2 rounded bg-surface-container-low border border-outline-variant/60 flex flex-col gap-0.5">
+<span class="font-label-sm text-label-sm text-outline">TIMESTAMP</span>
+<span class="font-label-md text-label-md text-on-surface">📅 24/08/2025</span>
+</div>
+</div>
+<!-- Hash Hash Identifier Badge -->
+<div class="flex items-center justify-between p-2 rounded bg-surface-container-low border border-outline-variant/60">
+<span class="font-label-sm text-label-sm text-outline">NODE HASH</span>
+<span class="font-label-sm text-label-sm text-outline-variant text-on-surface font-mono"># 4aCa4oM8praVBCWdNksjxf</span>
+</div>
+<!-- Relevance Score with Emerald Progress Bar -->
+<div class="p-2.5 rounded bg-surface-container-low border border-outline-variant/60 flex flex-col gap-1.5">
+<div class="flex items-center justify-between">
+<span class="font-label-sm text-label-sm text-outline">RELEVANCE SCORE</span>
+<span class="font-label-md text-label-md text-secondary font-semibold">100% MATCH</span>
+</div>
+<div class="w-full h-1.5 rounded-full bg-surface-container-highest overflow-hidden">
+<div class="h-full bg-secondary rounded-full shadow-[0_0_8px_#10b981]" style="width: 100%;"></div>
+</div>
+</div>
+</div>
+</div>
+<!-- Drawer Bottom: Detailed Legend Section -->
+<div class="border-t border-outline-variant pt-3.5 mt-4 flex flex-col gap-3">
+<span class="font-label-sm text-[10px] uppercase tracking-widest text-outline font-semibold">Topology Legend &amp; Indices</span>
+<!-- Legend Categorical Matrix -->
+<div class="grid grid-cols-2 gap-x-2 gap-y-2 text-[11px] font-label-sm">
+<!-- Nodes -->
+<div class="flex flex-col gap-1.5">
+<span class="text-outline text-[9px] uppercase tracking-wider">Nodes</span>
+<div class="flex items-center gap-1.5">
+<div class="w-2.5 h-2.5 rounded-sm border border-outline"></div>
+<span class="text-on-surface-variant">Document</span>
+</div>
+<div class="flex items-center gap-1.5">
+<div class="w-2 h-2 rotate-45 bg-primary shadow-[0_0_4px_#06b6d4]"></div>
+<span class="text-on-surface-variant">Memory latest</span>
+</div>
+<div class="flex items-center gap-1.5">
+<div class="w-2 h-2 rotate-45 border border-outline-variant"></div>
+<span class="text-on-surface-variant">Memory older</span>
+</div>
+</div>
+<!-- Status -->
+<div class="flex flex-col gap-1.5">
+<span class="text-outline text-[9px] uppercase tracking-wider">Status</span>
+<div class="flex items-center gap-1.5">
+<span class="text-error text-xs font-bold leading-none">✕</span>
+<span class="text-on-surface-variant">Forgotten</span>
+</div>
+<div class="flex items-center gap-1.5">
+<div class="w-1.5 h-1.5 rounded-full bg-amber-400 shadow-[0_0_4px_#f59e0b]"></div>
+<span class="text-on-surface-variant">Expiring soon</span>
+</div>
+<div class="flex items-center gap-1.5">
+<div class="w-1.5 h-1.5 rounded-full bg-primary shadow-[0_0_4px_#06b6d4]"></div>
+<span class="text-on-surface-variant">New memory</span>
+</div>
+</div>
+</div>
+<!-- Connections & Similarity Strip -->
+<div class="flex flex-col gap-2 pt-2 border-t border-outline-variant/40 text-[10px] font-label-sm">
+<div class="flex items-center justify-between">
+<span class="text-outline">CONNECTIONS:</span>
+<div class="flex items-center gap-2">
+<span class="flex items-center gap-1 text-on-surface-variant"><span class="w-3 h-0.5 bg-primary"></span> Doc→Mem</span>
+<span class="flex items-center gap-1 text-on-surface-variant"><span class="w-3 h-0.5 border-t border-dashed border-outline"></span> Similar</span>
+<span class="flex items-center gap-1 text-tertiary"><span class="w-3 h-0.5 bg-tertiary shadow-[0_0_4px_#a855f7]"></span> Version</span>
+</div>
+</div>
+<!-- Similarity Gradient Bar -->
+<div class="flex flex-col gap-1">
+<div class="flex items-center justify-between text-[9px] text-outline">
+<span>Weak cosine distance</span>
+<span>Strong resonance</span>
+</div>
+<div class="w-full h-1 rounded bg-gradient-to-r from-outline-variant via-primary/50 to-primary"></div>
+</div>
+</div>
+</div>
+</aside>
+</main>
+<script>
+    // Micro-interactions for interactive graph HUD and node selection
+    document.addEventListener('DOMContentLoaded', () => {
+      const nodes = document.querySelectorAll('.grid-dot-pattern .cursor-pointer');
+      nodes.forEach(node => {
+        node.addEventListener('mouseenter', () => {
+          node.style.transition = 'transform 0.15s ease-out';
+        });
+      });
+    });
+  </script>
+</body></html>

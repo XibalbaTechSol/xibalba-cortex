@@ -12,3 +12,5 @@ htmlcov/
 *.db-journal
 .env
 .super-cortex/
+viewer/node_modules/
+viewer/dist/
