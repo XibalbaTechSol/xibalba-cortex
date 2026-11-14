@@ -43,6 +43,17 @@ class FakeStripe:
         # the parameter makes that window unreachable through the fixture.
         return StripeGateway(self.config).verify_event(body, signature, now=now)
 
+    def send_meter_event(self, event_name, customer_id, value, identifier, timestamp=None):
+        data = {
+            "event_name": event_name,
+            "payload[stripe_customer_id]": customer_id,
+            "payload[value]": str(value),
+            "identifier": identifier,
+        }
+        if timestamp is not None:
+            data["timestamp"] = str(int(timestamp))
+        return self.request("POST", "/billing/meter_events", data=data, idempotency_key=identifier)
+
     def request(self, method, path, *, data=None, idempotency_key=None):
         self.calls.append((method, path, data, idempotency_key))
         if idempotency_key in self.idempotent:
