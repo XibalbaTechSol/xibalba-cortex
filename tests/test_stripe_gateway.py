@@ -64,7 +64,7 @@ def _call_contract(func):
     return [(p.name, p.kind, p.default) for p in inspect.signature(func).parameters.values()]
 
 
-@pytest.mark.parametrize("method", ["request", "verify_event"])
+@pytest.mark.parametrize("method", ["request", "verify_event", "send_meter_event"])
 def test_the_fake_gateway_keeps_the_real_call_contract(method):
     """Same method names is not enough: a double whose PARAMETERS have drifted passes tests
     that the real gateway would reject at the call site -- or, as happened here, makes a real
