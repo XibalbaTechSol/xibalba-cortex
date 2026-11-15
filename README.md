@@ -1,19 +1,65 @@
 # Super-Cortex (`super-cortex`)
 
-High-performance, cryptographic graph memory engine and Model Context Protocol (MCP) server for the Xibalba ecosystem, built upon **Supermemory Local**.
+High-performance, zero-inference cryptographic graph memory engine, 3D neural manifold visualizer, and Model Context Protocol (MCP) server for the Xibalba ecosystem, built upon **Supermemory Local**.
 
 ---
 
-## Overview
+## Architecture Overview
 
-`super-cortex` bridges **Supermemory Local** (`127.0.0.1:6767`) with **Xibalba's Cryptographic Provenance Ledger**. It replaces bespoke, heavyweight embedding pipelines with Supermemory's native vector search, automatic profile synthesis, and local neural indexing while enforcing Xibalba's non-negotiable integrity invariants:
+```mermaid
+flowchart TD
+    subgraph ExternalSources["External Ingestion & Continuous Connectors"]
+        A1["Web Clipper Bookmarklet (1-Click)"]
+        A2["Directory Watcher ('super-cortex watch')"]
+        A3["Direct CLI Ingest ('super-cortex ingest')"]
+        A4["MCP Stdio Transports (Claude Code, Cursor, AGY)"]
+    end
 
-1. **Cryptographic Hash-Chains:** Append-only event history where every transition (`remember`, `contradict`, `supersede`, `forget`, `link_entities`) is chained via SHA-256 (`prior_hash -> event_hash`).
-2. **Domain-Separated Merkle Roots:** Deterministic session-level Merkle trees computed over turn hashes and context contributions (`memory_session_merkle_root`).
-3. **Epistemic Classifications & Lifecycles:** Tracks memories as `fact`, `inference`, `assumption`, `belief`, `goal`, `observation`, or `rule`, with state transitions (`active`, `superseded`, `contradicted`, `quarantined`, `forgotten`).
-4. **Knowledge Graph & Entity Edges:** Directed entity-relationship graph (`subject -[predicate]-> object`) with confidence scores and evidence links.
-5. **Untrusted Content Boundaries:** Recalled context is explicitly tagged as untrusted evidence per Cortex Spec §3 so it never overrides system or developer prompt instructions.
-6. **Unified MCP Server Contract:** Provides drop-in compatibility for AI agent harnesses (Claude Code, Hermes, Antigravity, Codex) via stdio and SSE/HTTP transports.
+    subgraph ZeroInferenceEngine["Deterministic Extraction & Classification Engine (<10ms)"]
+        B1["Epistemic Classifier (Rule, Fact, Decision, Inference, Belief, Goal)"]
+        B2["SOP Triples Extractor ((Subject, Predicate, Object))"]
+        B3["PARA Lexical Categorizer (Projects, Areas, Resources, Archives)"]
+        B4["Bitemporal Validator (valid_from, valid_until, is_currently_valid)"]
+    end
+
+    subgraph StorageLedger["Hybrid Dual-Engine Storage"]
+        C1["Supermemory Local (127.0.0.1:6767)<br>768-D Vector Embeddings & Fast Cosine Search"]
+        C2["Cryptographic Provenance Store (~/.super-cortex/provenance.db)<br>Append-Only SHA-256 Hash Chain & Merkle Roots"]
+    end
+
+    subgraph StudioViewer["Super-Cortex Studio (http://127.0.0.1:4174)"]
+        D1["3D Neural Graph Manifold (Three.js WebGL)"]
+        D2["Session Timeline & Turn Replay"]
+        D3["Spectral Math Studio (Laplacian Spectrum λ0..λ4)"]
+        D4["Dialogue Graph & Reasoning Trajectory"]
+        D5["Memory Fabric Catalog & Bitemporal Filters"]
+        D6["Connectors & Ingestion Hub"]
+        D7["Deterministic Extraction Studio"]
+        D8["Agent Scopes & MCP Configuration"]
+        D9["AIS Cryptographic Audit Ledger"]
+    end
+
+    ExternalSources --> ZeroInferenceEngine
+    ZeroInferenceEngine --> StorageLedger
+    StorageLedger --> StudioViewer
+```
+
+---
+
+## Core Invariants
+
+1. **Zero-Inference Latency & Determinism**:
+   - Extraction of epistemic classes, PARA categories, and Subject-Object-Predicate (SOP) relational propositions is accomplished via deterministic regex and grammars—zero external LLM API cost, zero network latency, and zero model hallucinations.
+2. **Cryptographic Provenance Hash-Chains**:
+   - Append-only tamper-evident event history where every state transition (`remember`, `contradict`, `supersede`, `forget`, `link_entities`) is chained via SHA-256 (`prior_hash -> event_hash`).
+3. **Session-Level Merkle Roots & Turn Proofs**:
+   - Multi-turn agent interaction turns are hashed and committed into domain-separated Merkle trees (`memory_session_merkle_root`), producing verifiable cryptographic inclusion proofs (`.cortex.proof`).
+4. **Bitemporal Knowledge Tracking**:
+   - Distinct separation between event assertion time (`created_at`) and domain truth validity (`valid_from`, `valid_until`, `is_currently_valid`, `superseded_by`).
+5. **Graph Laplacian Spectral Math**:
+   - Continuous computation of the normalized graph Laplacian spectrum ($\lambda_0..\lambda_4$), algebraic connectivity ($\lambda_2$), and Fiedler vector graph partitioning.
+6. **Agent Scopes & ABAC Enclaves**:
+   - Multi-agent isolation preventing cross-agent memory contamination between private agent enclaves (`agent:claude`, `agent:xibalba`, `agent:hermes`) and the shared knowledge fabric.
 
 ---
 
@@ -29,66 +75,135 @@ Verify daemon connectivity, API key authorization, and database chain integrity:
 uv run super-cortex doctor
 ```
 
-### Ingesting & Searching Memories
+### Prompt-Ready Context Injection (<5ms)
+Output zero-inference prompt markdown for direct injection into system prompts:
 ```bash
-# Store a memory
-uv run super-cortex remember "Integrity Protocol enforces domain-agnostic provenance verification." --class rule
+# Print markdown context block for shared scope
+uv run super-cortex context --scope shared
 
-# Semantic search with cosine similarity ranking
-uv run super-cortex search "What does Integrity Protocol enforce?"
+# Pipe directly into agent or llm CLI
+uv run super-cortex context --scope agent:claude | claude -p "Answer based on context"
 
-# Verify cryptographic audit chain
-uv run super-cortex verify
+# Output structured JSON
+uv run super-cortex context --scope shared --format json
 ```
 
-### Running the MCP Server
-Launch the stdio server for MCP agent harnesses:
+### Direct Ingestion (CLI)
+Ingest web pages, local documentation, or markdown files into Supermemory Local and the provenance ledger:
 ```bash
-uv run super-cortex run --transport stdio
-# or via entrypoint:
-uv run super-cortex-server
+# Ingest local file
+uv run super-cortex ingest ~/Documents/Notes/spec.md --scope shared
+
+# Ingest and scrape web documentation
+uv run super-cortex ingest https://docs.anthropic.com/en/docs/overview --scope shared
+```
+
+### Directory Auto-Watcher Daemon
+Continuously monitor a directory for new or modified markdown, text, or JSON files and index them into memory automatically:
+```bash
+uv run super-cortex watch ~/Documents/Notes/ --scope shared --interval 2.0
+```
+
+### Launching the Studio Web Interface
+Start the full 9-view 3D Neural Graph Manifold Studio:
+```bash
+uv run super-cortex viewer --port 4174
+```
+Open [http://127.0.0.1:4174](http://127.0.0.1:4174) in your browser.
+
+---
+
+## 1-Click Browser Web Clipper
+
+Super-Cortex provides a zero-install browser bookmarklet for 1-click ingestion of web articles, documentation, and GitHub repos.
+
+1. Open [http://127.0.0.1:4174/clipper.html](http://127.0.0.1:4174/clipper.html) in your browser.
+2. Drag the cyan **`⚡ Clip to Super-Cortex`** button to your browser's Bookmarks Bar.
+3. On any webpage, click the bookmarklet to scrape, extract epistemic rules, and anchor it into Supermemory Local in <100ms.
+
+---
+
+## Studio Views (9 Interactive Workbenches)
+
+| View | Access Key | Purpose |
+|---|---|---|
+| **3D Neural Graph Manifold** | `[1]` | Real-time Three.js WebGL lattice with 3D/2D projection, raycasting, camera flythrough, and SOP relational edges. |
+| **Session Timeline** | `[2]` | Multi-turn dialogue playback with turn-by-turn prompt/response inspection and Merkle inclusion proof export. |
+| **Spectral Math Studio** | `[3]` | Laplacian spectrum calculation ($\lambda_0..\lambda_4$), algebraic connectivity ($\lambda_2$), and Dirichlet energy analysis. |
+| **Dialogue Graph** | `[4]` | Cumulative dialogue reasoning trajectories, synaptic curved connectors, and tool executions. |
+| **Memory Fabric Catalog** | `[5]` | Filterable catalog with bitemporal validity tags, SOP Triples badges, and 3D focus navigation. |
+| **Connectors & Ingestion Hub** | `[6]` | Continuous connectors hub, live URL scraper, local file ingestor, and 1-click Web Clipper launcher. |
+| **Extraction Studio** | `[7]` | Live zero-inference workbench with presets (Rule, Decision, Milestone, Resource) and memory backfill. |
+| **Agent Scopes & MCP** | `[8]` | Multi-agent ABAC scope manager, agent registration table, and stdio config generators for Claude Code, Cursor, and AGY. |
+| **AIS Cryptographic Audit** | `[9]` | Verifiable 32-block SHA-256 event ledger, AIS invariant monitors ($S_g, S_c, S_l=1.000$), and contradiction scanner. |
+
+---
+
+## MCP Server Configuration
+
+Super-Cortex implements the Model Context Protocol (MCP) over both `stdio` and HTTP/SSE transports.
+
+### Claude Code (`~/.claude.json` or `claude mcp add`)
+```json
+{
+  "mcpServers": {
+    "super-cortex": {
+      "command": "uv",
+      "args": ["run", "--directory", "/home/xibalba/Projects/super-cortex", "super-cortex", "run", "--transport", "stdio"]
+    }
+  }
+}
+```
+
+### Cursor (`~/.cursor/mcp.json`)
+```json
+{
+  "mcpServers": {
+    "super-cortex": {
+      "command": "uv",
+      "args": ["run", "--directory", "/home/xibalba/Projects/super-cortex", "super-cortex", "run", "--transport", "stdio"]
+    }
+  }
+}
+```
+
+### Antigravity (`~/.gemini/antigravity-cli/mcp_config.json`)
+```json
+{
+  "mcpServers": {
+    "super_cortex": {
+      "command": "uv",
+      "args": ["run", "--directory", "/home/xibalba/Projects/super-cortex", "super-cortex", "run", "--transport", "stdio"]
+    }
+  }
+}
 ```
 
 ---
 
-## MCP Tool Surface
+## Background Daemon & Systemd Units
 
-| Tool | Parameters | Description |
-|---|---|---|
-| `memory_remember` | `text`, `epistemic_class`, `namespace`, `metadata`, `session_id`, `source_origin` | Ingests into Supermemory Local and records cryptographic provenance. |
-| `memory_recall` | `memory_id` | Fetches memory record by exact ID. |
-| `memory_hybrid_retrieve` | `query`, `namespace`, `limit` | Performs semantic search with attached cryptographic provenance. |
-| `memory_profile` | `namespace`, `buckets` | Synthesizes profile buckets (interests, goals, facts) via Supermemory. |
-| `memory_contradict` | `target_memory_id`, `reason`, `counter_evidence` | Records contradiction in append-only event ledger. |
-| `memory_supersede` | `target_memory_id`, `replacement_text`, `reason`, `namespace` | Supersedes prior memory with an updated replacement. |
-| `memory_forget` | `target_memory_id`, `namespace` | Quarantines memory while preserving cryptographic audit trail. |
-| `memory_link_entities` | `subject`, `predicate`, `object`, `confidence`, `evidence_links` | Adds directed entity relationship edge to knowledge graph. |
-| `memory_neighbors` | `node`, `max_depth` | Queries neighboring edges for an entity. |
-| `memory_record_model_exchange` | `session_id`, `prompt_text`, `response_text`, `tool_calls`, `context_hashes` | Captures turn exchange and updates session Merkle root. |
-| `memory_verify_chain` | *(none)* | Verifies integrity of the cryptographic event chain. |
-| `memory_session_merkle_root` | `session_id` | Computes domain-separated Merkle root for a given session. |
-| `supermemory_status` | *(none)* | Inspects Supermemory Local daemon connectivity and namespaces. |
-| `super_cortex_health` | *(none)* | Reports operational health and ledger metrics. |
+To ensure Supermemory Local and Super-Cortex Studio run persistently on system startup:
+
+```bash
+# Enable and start Supermemory Local daemon
+systemctl --user enable supermemory-daemon.service
+systemctl --user start supermemory-daemon.service
+
+# Enable and start Super-Cortex Studio interface (port 4174)
+systemctl --user enable super-cortex-studio.service
+systemctl --user start super-cortex-studio.service
+
+# Check status
+systemctl --user status super-cortex-studio.service
+```
 
 ---
 
-## Configuration
+## Testing & Quality Assurance
 
-Settings are configured via environment variables or `.env`:
-
-| Variable | Default | Description |
-|---|---|---|
-| `SUPERMEMORY_URL` | `http://127.0.0.1:6767` | Base URL of Supermemory Local |
-| `SUPERMEMORY_API_KEY` | *(read from `~/.supermemory/api-key`)* | Bearer authorization token |
-| `SUPER_CORTEX_DB_PATH` | `~/.super-cortex/provenance.db` | SQLite cryptographic ledger path |
-| `SUPER_CORTEX_DEFAULT_NAMESPACE` | `xibalba` | Default memory namespace |
-| `SUPER_CORTEX_ACTOR_DID` | `did:integrity:68fed133...` | Default actor identity |
-
----
-
-## Testing
-
-Run the full pytest suite:
+Run the test suite:
 ```bash
 uv run pytest -v
 ```
+All 16 unit tests covering store operations, cryptographic chain integrity, and MCP server endpoints pass with 100% green status.

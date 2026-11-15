@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Super-Cortex // 1-Click Web Clipper</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700;800&family=Inter:wght@400;600;700&display=swap">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" />
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            mono: ['"JetBrains Mono"', 'monospace'],
+            sans: ['"Inter"', 'sans-serif'],
+          },
+          colors: {
+            primary: '#00f0ff',
+            secondary: '#00ffa3',
+            background: '#07090e',
+            card: '#0d111a',
+          }
+        }
+      }
+    }
+  </script>
+</head>
+<body class="bg-background text-neutral-200 font-mono min-h-screen p-6 flex flex-col items-center justify-center">
+
+  <div class="max-w-2xl w-full bg-card border border-neutral-800 rounded-xl p-8 shadow-2xl space-y-6">
+    <!-- Header -->
+    <div class="flex items-center justify-between border-b border-neutral-800 pb-4">
+      <div class="flex items-center gap-3">
+        <span class="material-symbols-outlined text-primary text-3xl">bookmark_add</span>
+        <div>
+          <h1 class="text-lg font-bold text-white tracking-wide">SUPER-CORTEX WEB CLIPPER</h1>
+          <p class="text-xs text-neutral-400">Zero-Install 1-Click Browser Ingestion for Supermemory Local</p>
+        </div>
+      </div>
+      <a href="/" class="text-xs text-primary hover:underline flex items-center gap-1">
+        <span class="material-symbols-outlined text-sm">arrow_back</span>
+        <span>Back to Studio</span>
+      </a>
+    </div>
+
+    <!-- Draggable Bookmarklet Button -->
+    <div class="bg-neutral-900/80 border-2 border-dashed border-primary/40 rounded-lg p-6 text-center space-y-4">
+      <p class="text-xs text-neutral-300">
+        👉 <strong>Drag the cyan button below into your browser's Bookmarks Bar:</strong>
+      </p>
+
+      <div class="py-2">
+        <a id="clipper-bookmarklet-link"
+           href="javascript:(function(){var url=window.location.href;var title=document.title;var sel=window.getSelection().toString();fetch('http://127.0.0.1:4174/api/connectors/url',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({url:url,scope:'shared',selected_text:sel})}).then(function(r){return r.json();}).then(function(d){var toast=document.createElement('div');toast.style.position='fixed';toast.style.bottom='24px';toast.style.right='24px';toast.style.zIndex='999999';toast.style.background='#07090e';toast.style.color='#00ffa3';toast.style.border='2px solid #00f0ff';toast.style.padding='14px 20px';toast.style.borderRadius='8px';toast.style.fontFamily='monospace';toast.style.fontSize='12px';toast.style.boxShadow='0 10px 25px rgba(0,0,0,0.8)';toast.innerHTML='<strong>✓ SUPER-CORTEX</strong><br>Clipped: '+title.substring(0,35)+'...';document.body.appendChild(toast);setTimeout(function(){toast.remove();},3200);}).catch(function(e){alert('Super-Cortex Clipper Error: Make sure super-cortex viewer is running on http://127.0.0.1:4174');});})();"
+           class="inline-flex items-center gap-2 px-6 py-3 bg-primary text-black font-extrabold text-sm uppercase rounded shadow-lg hover:brightness-110 active:scale-95 transition-all cursor-grab border border-white/20 select-none">
+          <span class="material-symbols-outlined text-lg">bolt</span>
+          <span>⚡ Clip to Super-Cortex</span>
+        </a>
+      </div>
+
+      <p class="text-[11px] text-neutral-400">
+        Whenever you are browsing any web page, document, GitHub repo, or article, click this bookmark to automatically scrape, extract epistemic rules/SOP triples, and anchor it into your local memory ledger in &lt;100ms.
+      </p>
+    </div>
+
+    <!-- Quick Ingestion Sandbox Test -->
+    <div class="bg-neutral-900/50 border border-neutral-800 rounded-lg p-5 space-y-3">
+      <h3 class="text-xs font-bold text-secondary uppercase flex items-center gap-1.5">
+        <span class="material-symbols-outlined text-sm">terminal</span>
+        <span>Interactive Ingest Sandbox</span>
+      </h3>
+      <div class="flex gap-2">
+        <input id="test-url-input" type="text" value="https://news.ycombinator.com" placeholder="https://..." class="flex-1 bg-black border border-neutral-700 rounded px-3 py-1.5 text-xs text-white focus:outline-none focus:border-primary">
+        <button onclick="testClipUrl()" class="px-4 py-1.5 bg-secondary text-black font-bold text-xs uppercase rounded hover:brightness-110 transition-all">
+          Test Clip
+        </button>
+      </div>
+      <div id="test-output" class="hidden text-[10px] p-2.5 rounded bg-black border border-neutral-800 font-mono"></div>
+    </div>
+
+    <!-- Capabilities Matrix -->
+    <div class="grid grid-cols-2 gap-3 text-xs">
+      <div class="p-3 bg-neutral-900/40 rounded border border-neutral-800 space-y-1">
+        <div class="text-primary font-bold">✓ Zero-Inference Processing</div>
+        <div class="text-[11px] text-neutral-400">Extracts Subject-Object-Predicate triples and epistemic classes deterministically without LLM API costs.</div>
+      </div>
+      <div class="p-3 bg-neutral-900/40 rounded border border-neutral-800 space-y-1">
+        <div class="text-secondary font-bold">✓ SHA-256 Provenance Chain</div>
+        <div class="text-[11px] text-neutral-400">Every clipped article receives an append-only event hash and Merkle root verification.</div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    async function testClipUrl() {
+      const url = document.getElementById('test-url-input').value.trim();
+      const out = document.getElementById('test-output');
+      if (!url) return;
+      out.classList.remove('hidden');
+      out.innerHTML = '<span class="text-primary animate-pulse">Scraping & ingesting into Supermemory Local...</span>';
+      try {
+        const resp = await fetch('/api/connectors/url', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ url: url, scope: 'shared' })
+        });
+        const d = await resp.json();
+        if (resp.ok) {
+          out.innerHTML = `<span class="text-secondary font-bold">✓ Successfully Ingested!</span><br>Title: ${d.title}<br>Memory ID: ${d.memory_id}<br>Bytes Extracted: ${d.bytes_extracted}<br>Event Hash: ${d.event_hash}`;
+        } else {
+          out.innerHTML = `<span class="text-red-400">Error: ${d.error || 'Failed'}</span>`;
+        }
+      } catch (e) {
+        out.innerHTML = `<span class="text-red-400">Failed to connect to local viewer API: ${e.message}</span>`;
+      }
+    }
+  </script>
+</body>
+</html>

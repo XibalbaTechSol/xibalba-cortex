@@ -180,6 +180,172 @@ def viewer(
     uvicorn.run(app_instance, host=host, port=port, log_level="warning")
 
 
+@app.command()
+def context(
+    scope: str = typer.Option("shared", "--scope", "-s", help="Scope enclave (e.g. shared, agent:xibalba, all)"),
+    format: str = typer.Option("markdown", "--format", "-f", help="Output format: markdown or json"),
+) -> None:
+    """Generate and print zero-inference prompt-ready context markdown for LLM injection."""
+    cortex = SuperCortex()
+    memories = cortex.store.list_memories(scope=scope if scope != "all" else None, limit=100)
+    
+    valid_mems = [m for m in memories if m.get("valid_time", {}).get("is_currently_valid", True)]
+    rules = [m for m in valid_mems if m.get("epistemic_class") == "rule"]
+    facts = [m for m in valid_mems if m.get("epistemic_class") == "fact"]
+    decisions = [m for m in valid_mems if m.get("epistemic_class") == "decision"]
+    
+    all_triples = []
+    for m in valid_mems:
+        triples = m.get("triples") or []
+        for t in triples:
+            all_triples.append(t)
+    
+    if format == "json":
+        import json
+        payload = {
+            "scope": scope,
+            "rules": [r.get("text", r.get("content", "")) for r in rules],
+            "facts": [f.get("text", f.get("content", "")) for f in facts],
+            "decisions": [d.get("text", d.get("content", "")) for d in decisions],
+            "triples": all_triples,
+            "total_memories": len(valid_mems)
+        }
+        console.print(json.dumps(payload, indent=2))
+        return
+
+    lines = [
+        f"<!-- SUPER-CORTEX DETERMINISTIC CONTEXT INJECTION (Zero-Inference) -->",
+        f"<SUPER_CORTEX_MEMORY_FABRIC scope='{scope.upper()}'>",
+        f"## Active Scope Enclave: {scope.upper()}",
+        "",
+        "### Epistemic Rules & Invariants:"
+    ]
+    if rules:
+        for r in rules:
+            lines.append(f"- {r.get('text', r.get('content', ''))}")
+    else:
+        lines.append("- (No active rules defined in this scope)")
+    
+    if decisions:
+        lines.append("")
+        lines.append("### Architectural Decisions:")
+        for d in decisions:
+            lines.append(f"- {d.get('text', d.get('content', ''))}")
+            
+    if all_triples:
+        lines.append("")
+        lines.append("### Relational Knowledge Triples (SOP):")
+        for t in all_triples[:25]:
+            lines.append(f"- [{t.get('subject')}] ──({t.get('predicate')})──▶ [{t.get('object')}]")
+
+    lines.append("")
+    lines.append("</SUPER_CORTEX_MEMORY_FABRIC>")
+    print("\n".join(lines))
+
+
+@app.command()
+def ingest(
+    target: str = typer.Argument(..., help="File path or URL to ingest"),
+    scope: str = typer.Option("shared", "--scope", "-s", help="Target scope enclave"),
+) -> None:
+    """Ingest a web URL or local file directly into memory and provenance ledger."""
+    cortex = SuperCortex()
+    
+    if target.startswith("http://") or target.startswith("https://"):
+        import httpx
+        import re
+        console.print(f"[cyan]Scraping and ingesting URL:[/cyan] {target}")
+        try:
+            with httpx.Client(timeout=15.0, follow_redirects=True) as client:
+                resp = client.get(target)
+                html = resp.text
+            
+            title_m = re.search(r'<title>(.*?)</title>', html, re.I | re.S)
+            title = title_m.group(1).strip() if title_m else target
+            clean_text = re.sub(r'<script.*?</script>', '', html, flags=re.I | re.S)
+            clean_text = re.sub(r'<style.*?</style>', '', clean_text, flags=re.I | re.S)
+            clean_text = re.sub(r'<.*?>', ' ', clean_text)
+            clean_text = ' '.join(clean_text.split())[:3000]
+            
+            text_to_save = f"Web URL [{title}]: {clean_text}"
+            res = asyncio.run(cortex.remember(
+                text=text_to_save,
+                epistemic_class="fact",
+                namespace=scope,
+                metadata={"url": target, "source_origin": "cli_url_ingest"}
+            ))
+            console.print(f"[bold green]✓ Ingested URL successfully![/bold green] Memory ID: {res.get('memory_id')}")
+        except Exception as e:
+            console.print(f"[bold red]✗ URL ingestion failed:[/bold red] {e}")
+    else:
+        from pathlib import Path
+        p = Path(target).resolve()
+        if not p.exists():
+            console.print(f"[bold red]File not found:[/bold red] {p}")
+            return
+        
+        console.print(f"[cyan]Ingesting local document:[/cyan] {p.name}")
+        content = p.read_text(encoding="utf-8", errors="ignore")[:4000]
+        text_to_save = f"Document [{p.name}]: {content}"
+        res = asyncio.run(cortex.remember(
+            text=text_to_save,
+            epistemic_class="fact",
+            namespace=scope,
+            metadata={"filename": p.name, "source_origin": "cli_file_ingest"}
+        ))
+        console.print(f"[bold green]✓ Ingested file successfully![/bold green] Memory ID: {res.get('memory_id')}")
+
+
+@app.command()
+def watch(
+    directory: str = typer.Argument(..., help="Directory path to monitor"),
+    scope: str = typer.Option("shared", "--scope", "-s", help="Target scope enclave"),
+    interval: float = typer.Option(2.0, "--interval", "-i", help="Polling interval in seconds"),
+) -> None:
+    """Continuously watch a directory and auto-ingest new or modified text/markdown files."""
+    from pathlib import Path
+    import time
+    
+    dir_path = Path(directory).resolve()
+    if not dir_path.exists() or not dir_path.is_dir():
+        console.print(f"[bold red]Directory not found:[/bold red] {dir_path}")
+        return
+        
+    cortex = SuperCortex()
+    console.print(f"[bold green]Watching directory:[/bold green] {dir_path} (scope: {scope})")
+    console.print("[dim]Press Ctrl+C to stop watcher...[/dim]")
+    
+    seen_files: dict[str, float] = {}
+    for p in dir_path.rglob("*"):
+        if p.is_file() and p.suffix.lower() in [".md", ".txt", ".json", ".yaml", ".yml"]:
+            seen_files[str(p)] = p.stat().st_mtime
+
+    try:
+        while True:
+            time.sleep(interval)
+            for p in dir_path.rglob("*"):
+                if not p.is_file() or p.suffix.lower() not in [".md", ".txt", ".json", ".yaml", ".yml"]:
+                    continue
+                spath = str(p)
+                mtime = p.stat().st_mtime
+                if spath not in seen_files or mtime > seen_files[spath]:
+                    seen_files[spath] = mtime
+                    console.print(f"[cyan]Detected change:[/cyan] {p.name}")
+                    try:
+                        content = p.read_text(encoding="utf-8", errors="ignore")[:3500]
+                        res = asyncio.run(cortex.remember(
+                            text=f"Auto-Watched Document [{p.name}]: {content}",
+                            epistemic_class="fact",
+                            namespace=scope,
+                            metadata={"filename": p.name, "source_origin": "directory_watcher"}
+                        ))
+                        console.print(f"  [green]✓ Ingested:[/green] {p.name} (id: {res.get('memory_id')})")
+                    except Exception as err:
+                        console.print(f"  [red]✗ Ingestion error:[/red] {err}")
+    except KeyboardInterrupt:
+        console.print("[yellow]Watcher stopped.[/yellow]")
+
+
 def main() -> None:
     app()
 
