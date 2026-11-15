@@ -123,11 +123,23 @@
     <nav class="flex items-center bg-surface-container-low p-0.5 border border-outline-variant/40 shrink-0">
       <button id="nav-btn-graph" onclick="switchView('graph')" class="px-2.5 py-0.5 transition-colors uppercase bg-primary-container text-on-primary-container font-bold text-[11px] flex items-center gap-1">
         <span class="material-symbols-outlined text-[13px]">hub</span>
-        <span>3D Graph Manifold</span>
+        <span>3D Manifold</span>
       </button>
       <button id="nav-btn-timeline" onclick="switchView('timeline')" class="px-2.5 py-0.5 text-on-surface-variant hover:text-on-surface transition-colors text-[11px] uppercase flex items-center gap-1">
         <span class="material-symbols-outlined text-[13px]">timeline</span>
-        <span>Temporal Timeline</span>
+        <span>Timeline</span>
+      </button>
+      <button id="nav-btn-spectral" onclick="switchView('spectral')" class="px-2.5 py-0.5 text-on-surface-variant hover:text-on-surface transition-colors text-[11px] uppercase flex items-center gap-1">
+        <span class="material-symbols-outlined text-[13px]">scatter_plot</span>
+        <span>Spectral Math</span>
+      </button>
+      <button id="nav-btn-dialogue" onclick="switchView('dialogue')" class="px-2.5 py-0.5 text-on-surface-variant hover:text-on-surface transition-colors text-[11px] uppercase flex items-center gap-1">
+        <span class="material-symbols-outlined text-[13px]">forum</span>
+        <span>Dialogue Graph</span>
+      </button>
+      <button id="nav-btn-spaces" onclick="switchView('spaces')" class="px-2.5 py-0.5 text-on-surface-variant hover:text-on-surface transition-colors text-[11px] uppercase flex items-center gap-1">
+        <span class="material-symbols-outlined text-[13px]">folder_data</span>
+        <span>Spaces & Repos</span>
       </button>
     </nav>
 
@@ -174,12 +186,22 @@
       <button onclick="openNewMemoryModal()" class="w-8 h-8 flex items-center justify-center text-primary-container hover:bg-surface-container-high transition-colors" title="Commit New Memory Node [C]">
         <span class="material-symbols-outlined text-[18px]">add_circle</span>
       </button>
-      <button onclick="switchView('graph')" class="w-8 h-8 flex items-center justify-center text-primary-container bg-surface-container-high transition-colors" title="3D Graph Manifold [1]">
+      <button id="rail-btn-graph" onclick="switchView('graph')" class="w-8 h-8 flex items-center justify-center text-primary-container bg-surface-container-high transition-colors" title="3D Graph Manifold [1]">
         <span class="material-symbols-outlined text-[18px]">view_in_ar</span>
       </button>
-      <button onclick="switchView('timeline')" class="w-8 h-8 flex items-center justify-center text-on-surface-variant hover:text-primary-container hover:bg-surface-container-high transition-colors" title="Temporal Session Timeline [2]">
+      <button id="rail-btn-timeline" onclick="switchView('timeline')" class="w-8 h-8 flex items-center justify-center text-on-surface-variant hover:text-primary-container hover:bg-surface-container-high transition-colors" title="Temporal Session Timeline [2]">
         <span class="material-symbols-outlined text-[18px]">timeline</span>
       </button>
+      <button id="rail-btn-spectral" onclick="switchView('spectral')" class="w-8 h-8 flex items-center justify-center text-on-surface-variant hover:text-primary-container hover:bg-surface-container-high transition-colors" title="Spectral Math Studio & Cluster Analysis [3]">
+        <span class="material-symbols-outlined text-[18px]">scatter_plot</span>
+      </button>
+      <button id="rail-btn-dialogue" onclick="switchView('dialogue')" class="w-8 h-8 flex items-center justify-center text-on-surface-variant hover:text-primary-container hover:bg-surface-container-high transition-colors" title="Cumulative Dialogue Knowledge Graph [4]">
+        <span class="material-symbols-outlined text-[18px]">forum</span>
+      </button>
+      <button id="rail-btn-spaces" onclick="switchView('spaces')" class="w-8 h-8 flex items-center justify-center text-on-surface-variant hover:text-primary-container hover:bg-surface-container-high transition-colors" title="Spaces & Repositories [5]">
+        <span class="material-symbols-outlined text-[18px]">folder_data</span>
+      </button>
+      <div class="w-5 h-[1px] bg-outline-variant/30 my-0.5"></div>
       <button onclick="toggleZenFlight()" class="w-8 h-8 flex items-center justify-center text-on-surface-variant hover:text-secondary-container hover:bg-surface-container-high transition-colors" title="Fly-Through Lineage Path [Z]">
         <span class="material-symbols-outlined text-[18px]">flight_takeoff</span>
       </button>
@@ -202,7 +224,7 @@
         <span class="material-symbols-outlined text-[18px]">terminal</span>
       </button>
     </div>
-  </aside>
+</aside>
 
   <!-- ========================================================================= -->
   <!-- 3. SLIM MARGIN ON RIGHT (w-12 / 48px Thin Icon Rail)                      -->
@@ -371,6 +393,72 @@
             <span class="text-primary-container font-bold">NOW (LIVE STREAM)</span>
           </div>
         </div>
+      <!-- SYNAPTIC LOAD SPECTRUM FREQUENCY HISTOGRAM (Audio-Analyzer Style) -->
+      <section class="px-4 py-2.5 bg-surface-container-lowest/80 border-b border-outline-variant/30 flex flex-col gap-1.5 shrink-0">
+        <div class="flex items-center justify-between text-[10px] font-mono">
+          <div class="flex items-center gap-3">
+            <span class="text-primary-container font-semibold flex items-center gap-1">
+              <span class="material-symbols-outlined text-[13px]">equalizer</span>
+              <span>SYNAPTIC LOAD SPECTRUM</span>
+            </span>
+            <div class="flex items-center gap-3 text-[9px] text-outline">
+              <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-sm bg-primary-container"></span> Hermes Genesis</span>
+              <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-sm bg-[#ddb7ff]"></span> Claude Code</span>
+              <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-sm bg-secondary-container"></span> Antigravity</span>
+            </div>
+          </div>
+          <div class="flex items-center gap-3 text-[9px] text-outline">
+            <span class="text-secondary-container font-bold flex items-center gap-1">
+              <span class="w-1.5 h-1.5 rounded-full bg-secondary-container animate-pulse"></span>
+              PEAK DENSITY: 38 TURNS/HR
+            </span>
+            <span>|</span>
+            <span>BURST DETECTED (08:00 - 09:30 UTC)</span>
+          </div>
+        </div>
+
+        <!-- Frequency Histogram Canvas / Visualizer -->
+        <div class="relative w-full h-16 bg-[#080b10] border border-outline-variant/30 px-2 py-1 flex items-end justify-between gap-1 overflow-hidden">
+          <!-- Subtle Grid Guidelines -->
+          <div class="absolute inset-0 flex flex-col justify-between pointer-events-none p-1 opacity-10">
+            <div class="w-full border-b border-dashed border-outline"></div>
+            <div class="w-full border-b border-dashed border-outline"></div>
+          </div>
+          <!-- Scrubber Window Highlight -->
+          <div class="absolute top-0 bottom-0 left-[26%] right-[34%] bg-primary-container/10 border-x border-primary-container pointer-events-none z-10 flex justify-between">
+            <div class="w-1 bg-primary-container h-full"></div>
+            <div class="w-1 bg-primary-container h-full"></div>
+          </div>
+          <!-- Audio Analyzer Bars -->
+          <div class="flex flex-col gap-0.5 w-full h-[35%] justify-end"><div class="w-full h-1/2 bg-primary-container/60"></div><div class="w-full h-1/2 bg-secondary-container/70"></div></div>
+          <div class="flex flex-col gap-0.5 w-full h-[50%] justify-end"><div class="w-full h-2/3 bg-[#ddb7ff]/70"></div><div class="w-full h-1/3 bg-primary-container/70"></div></div>
+          <div class="flex flex-col gap-0.5 w-full h-[25%] justify-end"><div class="w-full h-full bg-secondary-container/50"></div></div>
+          <div class="flex flex-col gap-0.5 w-full h-[40%] justify-end"><div class="w-full h-1/2 bg-primary-container/60"></div><div class="w-full h-1/2 bg-[#ddb7ff]/60"></div></div>
+          <div class="flex flex-col gap-0.5 w-full h-[65%] justify-end"><div class="w-full h-1/3 bg-secondary-container/80"></div><div class="w-full h-2/3 bg-primary-container/80"></div></div>
+          <div class="flex flex-col gap-0.5 w-full h-[45%] justify-end"><div class="w-full h-full bg-[#ddb7ff]/60"></div></div>
+          <div class="flex flex-col gap-0.5 w-full h-[85%] justify-end"><div class="w-full h-1/4 bg-[#ddb7ff]"></div><div class="w-full h-1/2 bg-primary-container"></div><div class="w-full h-1/4 bg-secondary-container"></div></div>
+          <div class="flex flex-col gap-0.5 w-full h-[95%] justify-end"><div class="w-full h-2/5 bg-primary-container shadow-[0_0_8px_#00f0ff]"></div><div class="w-full h-2/5 bg-[#ddb7ff]"></div><div class="w-full h-1/5 bg-secondary-container"></div></div>
+          <div class="flex flex-col gap-0.5 w-full h-[78%] justify-end"><div class="w-full h-1/3 bg-secondary-container"></div><div class="w-full h-2/3 bg-primary-container"></div></div>
+          <div class="flex flex-col gap-0.5 w-full h-[90%] justify-end"><div class="w-full h-1/2 bg-[#ddb7ff]"></div><div class="w-full h-1/2 bg-primary-container"></div></div>
+          <div class="flex flex-col gap-0.5 w-full h-[82%] justify-end"><div class="w-full h-1/4 bg-secondary-container"></div><div class="w-full h-3/4 bg-primary-container"></div></div>
+          <div class="flex flex-col gap-0.5 w-full h-[60%] justify-end"><div class="w-full h-full bg-secondary-container/80"></div></div>
+          <div class="flex flex-col gap-0.5 w-full h-[40%] justify-end"><div class="w-full h-1/2 bg-[#ddb7ff]/50"></div><div class="w-full h-1/2 bg-primary-container/60"></div></div>
+          <div class="flex flex-col gap-0.5 w-full h-[30%] justify-end"><div class="w-full h-full bg-primary-container/40"></div></div>
+          <div class="flex flex-col gap-0.5 w-full h-[55%] justify-end"><div class="w-full h-2/3 bg-secondary-container/60"></div><div class="w-full h-1/3 bg-[#ddb7ff]/50"></div></div>
+          <div class="flex flex-col gap-0.5 w-full h-[20%] justify-end"><div class="w-full h-full bg-primary-container/40"></div></div>
+          <div class="flex flex-col gap-0.5 w-full h-[35%] justify-end"><div class="w-full h-1/2 bg-[#ddb7ff]/50"></div><div class="w-full h-1/2 bg-secondary-container/40"></div></div>
+        </div>
+        <div class="flex justify-between text-[8px] font-mono text-outline px-1">
+          <span>00:00:00Z</span>
+          <span>04:00:00Z</span>
+          <span class="text-secondary-container font-semibold">08:00:00Z (BURST)</span>
+          <span>12:00:00Z</span>
+          <span>16:00:00Z</span>
+          <span>20:00:00Z</span>
+          <span>24:00:00Z</span>
+        </div>
+      </section>
+
 
         <div class="relative w-full h-5 bg-surface-container-low border border-outline-variant/30 flex items-center">
           <div class="absolute inset-0 flex justify-between px-2 pointer-events-none opacity-20">
@@ -468,6 +556,520 @@
             <path d="M 0,65 Q 120,40 250,50 T 500,30 T 750,20 T 1000,15 L 1000,100 L 0,100 Z" fill="url(#ais-gradient)"/>
             <path d="M 0,65 Q 120,40 250,50 T 500,30 T 750,20 T 1000,15" fill="none" stroke="#00ffa3" stroke-width="2"/>
           </svg>
+        </div>
+      </div>
+    </div>
+
+  
+    <!-- ======================================================================= -->
+    <!-- VIEW MODE C: SPECTRAL MATH STUDIO & CLUSTER ANALYSIS                   -->
+    <!-- ======================================================================= -->
+    <div id="view-spectral" class="hidden w-full h-full flex flex-col overflow-y-auto overflow-x-hidden bg-[#090c12]">
+      <!-- SUB-HEADER TELEMETRY & MATH METRICS BAR -->
+      <section class="px-4 py-2 bg-surface-container-lowest/90 border-b border-outline-variant/30 flex flex-wrap items-center justify-between text-[10px] font-mono shrink-0 gap-2">
+        <div class="flex items-center gap-3">
+          <span class="text-primary-container font-bold flex items-center gap-1">
+            <span class="material-symbols-outlined text-[13px]">scatter_plot</span>
+            <span>SPECTRAL GRAPH MATHEMATICS & MODULARITY STUDIO</span>
+          </span>
+          <span class="text-outline">|</span>
+          <span class="text-outline">FIEDLER λ₂: <strong class="text-secondary-container font-bold">0.4914</strong></span>
+          <span class="text-outline">|</span>
+          <span class="text-outline">DIRICHLET H(L): <strong class="text-primary-container font-bold">0.034</strong></span>
+          <span class="text-outline">|</span>
+          <span class="text-outline">MODULARITY Q: <strong class="text-[#ddb7ff] font-bold">0.742</strong></span>
+          <span class="text-outline">|</span>
+          <span class="text-outline">SPARSITY: <strong class="text-on-surface font-semibold">97.4%</strong></span>
+        </div>
+
+        <!-- Epistemic Class Filter Pills -->
+        <div class="flex items-center gap-1 bg-surface-container-low p-0.5 border border-outline-variant/30 text-[9px] uppercase font-bold">
+          <button onclick="filterSpectralClasses('all')" class="px-2 py-0.5 bg-primary-container text-on-primary-container rounded-sm">ALL (12)</button>
+          <button onclick="filterSpectralClasses('fact')" class="px-2 py-0.5 text-on-surface-variant hover:text-primary-container">FACT // ANCHORS (4)</button>
+          <button onclick="filterSpectralClasses('inference')" class="px-2 py-0.5 text-on-surface-variant hover:text-[#ddb7ff]">INFERENCE (3)</button>
+          <button onclick="filterSpectralClasses('belief')" class="px-2 py-0.5 text-on-surface-variant hover:text-[#f59e0b]">BELIEF (2)</button>
+          <button onclick="filterSpectralClasses('rule')" class="px-2 py-0.5 text-on-surface-variant hover:text-secondary-container">RULE // PID (3)</button>
+        </div>
+      </section>
+
+      <!-- MAIN SPECTRAL STUDIO WORKSPACE (Isometric Graph + Mathematical Inspector) -->
+      <div class="flex-1 flex flex-col xl:flex-row overflow-hidden relative">
+        <!-- Isometric 3D Pipeline Canvas -->
+        <div class="flex-1 relative overflow-auto p-6 min-h-[520px] bg-[#080b11] border-r border-outline-variant/20 grid-matrix">
+          <!-- Background Coordinate Rays and Deep Space Perspective Lines -->
+          <svg class="absolute inset-0 w-full h-full pointer-events-none z-0">
+            <!-- Isometric Perspective Lines -->
+            <line x1="50" y1="480" x2="1100" y2="120" stroke="#00f0ff" stroke-opacity="0.08" stroke-width="1"/>
+            <line x1="50" y1="580" x2="1100" y2="220" stroke="#00f0ff" stroke-opacity="0.08" stroke-width="1"/>
+            <line x1="200" y1="620" x2="900" y2="60" stroke="#00ffa3" stroke-opacity="0.06" stroke-width="1"/>
+            <!-- Synaptic Pipeline Connectors -->
+            <path d="M 170 320 L 320 220 L 520 180 L 720 120 L 920 180" fill="none" stroke="#00f0ff" stroke-width="1.5" stroke-dasharray="4 3" class="opacity-70"/>
+            <path d="M 320 220 L 480 320 L 680 370 L 880 330" fill="none" stroke="#a855f7" stroke-width="1.5" stroke-dasharray="4 3" class="opacity-70"/>
+            <path d="M 520 180 L 680 370" fill="none" stroke="#00ffa3" stroke-width="1.5" stroke-dasharray="4 3" class="opacity-70"/>
+          </svg>
+
+          <!-- ISOMETRIC 3D CUBES NETWORK -->
+          <div class="relative w-[1150px] h-[580px] z-10">
+
+            <!-- CUBE 1: Amber Isometric Cube (Session #412 Genesis) -->
+            <div onclick="selectSpectralNode('sess-412', 'Session #412 Genesis', 'Primary observed event initializing clinical research trajectory.')" class="spectral-node absolute top-[280px] left-[100px] cursor-pointer group hover:scale-105 transition-transform" data-class="fact">
+              <svg class="drop-shadow-[0_0_16px_rgba(245,158,11,0.6)]" height="56" viewbox="0 0 56 56" width="56">
+                <polygon fill="#fed7aa" opacity="0.95" points="28,4 50,15 28,26 6,15" stroke="#ffffff" stroke-width="1"></polygon>
+                <polygon fill="#f59e0b" opacity="0.95" points="6,15 28,26 28,48 6,37" stroke="#f59e0b" stroke-width="1"></polygon>
+                <polygon fill="#b45309" opacity="0.95" points="28,26 50,15 50,37 28,48" stroke="#f59e0b" stroke-width="1"></polygon>
+              </svg>
+              <div class="mt-1 bg-surface-container-lowest/90 px-2 py-1 border-l-2 border-[#f59e0b] shadow-md border border-outline-variant/30 text-[9px] font-mono">
+                <div class="text-[#f59e0b] font-bold">SESSION #412 GENESIS</div>
+                <div class="text-on-surface">Kinase Target Search</div>
+                <div class="text-outline">AIS: 992/1000</div>
+              </div>
+            </div>
+
+            <!-- CUBE 2: Violet Hypothesis Cube (Latent Invariant) -->
+            <div onclick="selectSpectralNode('hypo-01', 'Quantum Hypothesis Cube', 'Dirichlet energy optimization predicting kinase inhibition over bypass axis.')" class="spectral-node absolute top-[180px] left-[270px] cursor-pointer group hover:scale-105 transition-transform" data-class="inference">
+              <svg class="drop-shadow-[0_0_16px_rgba(168,85,247,0.6)]" height="52" viewbox="0 0 52 52" width="52">
+                <polygon fill="#e9d5ff" opacity="0.95" points="26,4 46,14 26,24 6,14" stroke="#ffffff" stroke-width="1"></polygon>
+                <polygon fill="#c084fc" opacity="0.95" points="6,14 26,24 26,46 6,36" stroke="#c084fc" stroke-width="1"></polygon>
+                <polygon fill="#7e22ce" opacity="0.95" points="26,24 46,14 46,36 26,46" stroke="#c084fc" stroke-width="1"></polygon>
+              </svg>
+              <div class="mt-1 bg-surface-container-lowest/90 px-2 py-1 border-l-2 border-[#ddb7ff] shadow-md border border-outline-variant/30 text-[9px] font-mono">
+                <div class="text-[#ddb7ff] font-bold">HYPOTHESIS NODE</div>
+                <div class="text-on-surface">EGFR T790M Resistance</div>
+                <div class="text-outline">Score: 0.892</div>
+              </div>
+            </div>
+
+            <!-- CUBE 3: Cyan Tool Cube (PubMed Query) -->
+            <div onclick="selectSpectralNode('tool-pubmed', 'PubMed Connector Execution', '14 Subject-Predicate-Object triplets resolved from biomedical ontology.')" class="spectral-node absolute top-[140px] left-[470px] cursor-pointer group hover:scale-105 transition-transform" data-class="fact">
+              <svg class="drop-shadow-[0_0_14px_rgba(0,240,255,0.6)]" height="50" viewbox="0 0 50 50" width="50">
+                <polygon fill="#a5f3fc" opacity="0.95" points="25,4 45,14 25,24 5,14" stroke="#ffffff" stroke-width="1"></polygon>
+                <polygon fill="#00f0ff" opacity="0.95" points="5,14 25,24 25,44 5,34" stroke="#00f0ff" stroke-width="1"></polygon>
+                <polygon fill="#008b99" opacity="0.95" points="25,24 45,14 45,34 25,44" stroke="#00f0ff" stroke-width="1"></polygon>
+              </svg>
+              <div class="mt-1 bg-surface-container-lowest/90 px-2 py-1 border-l-2 border-primary-container shadow-md border border-outline-variant/30 text-[9px] font-mono">
+                <div class="text-primary-container font-bold">MCP:PUBMED_QUERY</div>
+                <div class="text-primary">PMID: 38291048</div>
+                <div class="text-secondary-container">Status: 200 OK (0.24s)</div>
+              </div>
+            </div>
+
+            <!-- CUBE 4: Emerald Mutation Entity (EGFR T790M) -->
+            <div onclick="selectSpectralNode('entity-t790m', 'EGFR T790M Mutation Triple', 'UMLS: C1424911 normalized mutation triple anchored in Supermemory.')" class="spectral-node absolute top-[80px] left-[670px] cursor-pointer group hover:scale-105 transition-transform" data-class="fact">
+              <svg class="drop-shadow-[0_0_16px_rgba(0,255,163,0.6)]" height="52" viewbox="0 0 52 52" width="52">
+                <polygon fill="#a7f3d0" opacity="0.95" points="26,4 46,14 26,24 6,14" stroke="#f5fff5" stroke-width="1"></polygon>
+                <polygon fill="#00ffa3" opacity="0.95" points="6,14 26,24 26,46 6,36" stroke="#00ffa3" stroke-width="1"></polygon>
+                <polygon fill="#00a86b" opacity="0.95" points="26,24 46,14 46,36 26,46" stroke="#00ffa3" stroke-width="1"></polygon>
+              </svg>
+              <div class="mt-1 bg-surface-container-lowest/90 px-2 py-1 border-l-2 border-secondary-container shadow-md border border-outline-variant/30 text-[9px] font-mono">
+                <div class="text-secondary-container font-bold">MUTATION TRIPLE</div>
+                <div class="text-secondary font-bold">EGFR T790M</div>
+                <div class="text-outline">UMLS: C1424911</div>
+              </div>
+            </div>
+
+            <!-- CUBE 5: Emerald Drug Target (Osimertinib) -->
+            <div onclick="selectSpectralNode('drug-osimertinib', 'Drug: Osimertinib', 'ChEMBL: CHEMBL3353410 validated bioaffinity target.')" class="spectral-node absolute top-[140px] left-[870px] cursor-pointer group hover:scale-105 transition-transform" data-class="fact">
+              <svg class="drop-shadow-[0_0_18px_rgba(0,255,163,0.7)]" height="60" viewbox="0 0 60 60" width="60">
+                <polygon fill="#bbf7d0" opacity="0.95" points="30,5 53,16 30,28 7,16" stroke="#ffffff" stroke-width="1"></polygon>
+                <polygon fill="#00ffa3" opacity="0.95" points="7,16 30,28 30,52 7,40" stroke="#52ffac" stroke-width="1"></polygon>
+                <polygon fill="#007146" opacity="0.95" points="30,28 53,16 53,40 30,52" stroke="#52ffac" stroke-width="1"></polygon>
+              </svg>
+              <div class="mt-1 bg-surface-container-lowest/90 px-2.5 py-1 border-l-2 border-secondary-container shadow-lg border border-outline-variant/30 text-[9px] font-mono">
+                <div class="text-secondary-container font-bold">VERIFIED_DRUG</div>
+                <div class="text-secondary font-bold">Osimertinib</div>
+                <div class="text-outline">ChEMBL: CHEMBL3353410</div>
+              </div>
+            </div>
+
+            <!-- CUBE 6: Cyan Tool Cube (FHIR Lookup) -->
+            <div onclick="selectSpectralNode('tool-fhir', 'TOOL: FHIR_LOOKUP', 'Patient/09428-ONC verified zero-leakage ABAC authorization pass.')" class="spectral-node absolute top-[280px] left-[430px] cursor-pointer group hover:scale-105 transition-transform" data-class="rule">
+              <svg class="drop-shadow-[0_0_12px_rgba(0,240,255,0.5)]" height="48" viewbox="0 0 48 48" width="48">
+                <polygon fill="#a5f3fc" opacity="0.95" points="24,4 42,13 24,22 6,13" stroke="#ffffff" stroke-width="1"></polygon>
+                <polygon fill="#00dbe9" opacity="0.95" points="6,13 24,22 24,42 6,33" stroke="#00f0ff" stroke-width="1"></polygon>
+                <polygon fill="#006970" opacity="0.95" points="24,22 42,13 42,33 24,42" stroke="#00f0ff" stroke-width="1"></polygon>
+              </svg>
+              <div class="mt-1 bg-surface-container-lowest/90 px-2 py-1 border-l-2 border-primary-container shadow-md border border-outline-variant/30 text-[9px] font-mono">
+                <div class="text-primary-container font-bold">TOOL:FHIR_LOOKUP</div>
+                <div class="text-on-surface">Patient/09428-ONC</div>
+                <div class="text-secondary-container">ABAC Zero-Leakage</div>
+              </div>
+            </div>
+
+            <!-- CUBE 7: Emerald Grounded Condition (NSCLC Stage IV) -->
+            <div onclick="selectSpectralNode('entity-nsclc', 'Condition: NSCLC Stage IV', 'ICD-10: C34.90 grounded oncology condition.')" class="spectral-node absolute top-[330px] left-[630px] cursor-pointer group hover:scale-105 transition-transform" data-class="fact">
+              <svg class="drop-shadow-[0_0_12px_rgba(0,255,163,0.5)]" height="48" viewbox="0 0 48 48" width="48">
+                <polygon fill="#a7f3d0" opacity="0.95" points="24,4 42,13 24,22 6,13" stroke="#ffffff" stroke-width="1"></polygon>
+                <polygon fill="#00ffa3" opacity="0.95" points="6,13 24,22 24,42 6,33" stroke="#00ffa3" stroke-width="1"></polygon>
+                <polygon fill="#005231" opacity="0.95" points="24,22 42,13 42,33 24,42" stroke="#00ffa3" stroke-width="1"></polygon>
+              </svg>
+              <div class="mt-1 bg-surface-container-lowest/90 px-2 py-1 border-l-2 border-secondary-container shadow-md border border-outline-variant/30 text-[9px] font-mono">
+                <div class="text-secondary-container font-bold">CONDITION</div>
+                <div class="text-secondary font-bold">NSCLC Stage IV</div>
+                <div class="text-outline">ICD-10: C34.90</div>
+              </div>
+            </div>
+
+            <!-- CUBE 8: Violet AIS Invariant Evaluator Cube -->
+            <div onclick="selectSpectralNode('ais-pass', 'AIS Invariant Evaluator', '420 Joules zero-hallucination WASM proof committed to ledger.')" class="spectral-node absolute top-[290px] left-[830px] cursor-pointer group hover:scale-105 transition-transform" data-class="rule">
+              <svg class="drop-shadow-[0_0_12px_rgba(221,183,255,0.5)]" height="48" viewbox="0 0 48 48" width="48">
+                <polygon fill="#e9d5ff" opacity="0.95" points="24,4 42,13 24,22 6,13" stroke="#ffffff" stroke-width="1"></polygon>
+                <polygon fill="#c084fc" opacity="0.95" points="6,13 24,22 24,42 6,33" stroke="#ddb7ff" stroke-width="1"></polygon>
+                <polygon fill="#6900b3" opacity="0.95" points="24,22 42,13 42,33 24,42" stroke="#ddb7ff" stroke-width="1"></polygon>
+              </svg>
+              <div class="mt-1 bg-surface-container-lowest/90 px-2 py-1 border-l-2 border-[#ddb7ff] shadow-md border border-outline-variant/30 text-[9px] font-mono">
+                <div class="text-[#ddb7ff] font-bold">AIS_INVARIANT</div>
+                <div class="text-primary font-bold">420 J WASM Proof</div>
+                <div class="text-secondary-container">Zero Hallucination</div>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- Right Side: Spectral Mathematics & Matrix Decomposition Dashboard -->
+        <div class="w-full xl:w-96 p-4 bg-surface-container-lowest border-l border-outline-variant/30 flex flex-col gap-4 font-mono text-xs overflow-y-auto">
+          <!-- Card: Normalized Laplacian Spectrum -->
+          <div class="bg-surface-container-low p-3 border border-outline-variant/30">
+            <div class="flex items-center justify-between pb-1.5 border-b border-outline-variant/20 mb-2">
+              <span class="text-[10px] text-primary-container font-bold uppercase">LAPLACIAN SPECTRUM (L = D - A)</span>
+              <span class="text-[9px] text-secondary-container">SYMMETRIC POSITIVE SEMI-DEFINITE</span>
+            </div>
+            <table class="w-full text-[10px]">
+              <thead class="text-outline text-left">
+                <tr><th>EIGENVALUE</th><th>MAGNITUDE</th><th>INTERPRETATION</th></tr>
+              </thead>
+              <tbody class="divide-y divide-outline-variant/20 text-on-surface">
+                <tr><td class="text-outline">λ₀</td><td class="text-secondary-container font-bold">0.0000</td><td>Trivial harmonic component</td></tr>
+                <tr><td class="text-outline">λ₁</td><td class="text-primary-container font-bold">0.1824</td><td>Diffusion fundamental mode</td></tr>
+                <tr><td class="text-outline">λ₂ (Fiedler)</td><td class="text-secondary-container font-bold">0.4914</td><td>Algebraic connectivity</td></tr>
+                <tr><td class="text-outline">λ₃</td><td class="text-[#ddb7ff] font-bold">0.8241</td><td>Bipartite clustering threshold</td></tr>
+                <tr><td class="text-outline">λ₄</td><td class="text-on-surface font-semibold">1.2045</td><td>High-frequency localized mode</td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <!-- Card: Dirichlet Energy Concentration -->
+          <div class="bg-surface-container-low p-3 border border-outline-variant/30">
+            <div class="flex items-center justify-between pb-1.5 border-b border-outline-variant/20 mb-2">
+              <span class="text-[10px] text-primary-container font-bold uppercase">DIRICHLET ENERGY H(L)</span>
+              <span class="text-[9px] text-primary font-bold">0.034 bits</span>
+            </div>
+            <div class="space-y-1.5 text-[10px]">
+              <div>
+                <div class="flex justify-between text-outline text-[9px]"><span>FACT NODES (S_g = 1.0)</span><span class="text-primary-container">0.012</span></div>
+                <div class="w-full bg-surface-container-highest h-1.5 mt-0.5"><div class="bg-primary-container h-1.5" style="width: 35%;"></div></div>
+              </div>
+              <div>
+                <div class="flex justify-between text-outline text-[9px]"><span>INFERENCES (BGE EMBEDDINGS)</span><span class="text-[#ddb7ff]">0.016</span></div>
+                <div class="w-full bg-surface-container-highest h-1.5 mt-0.5"><div class="bg-[#ddb7ff] h-1.5" style="width: 48%;"></div></div>
+              </div>
+              <div>
+                <div class="flex justify-between text-outline text-[9px]"><span>CONTROL RULES (PID INVARIANTS)</span><span class="text-secondary-container">0.006</span></div>
+                <div class="w-full bg-surface-container-highest h-1.5 mt-0.5"><div class="bg-secondary-container h-1.5" style="width: 17%;"></div></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Card: Modularity & Graph Bisection -->
+          <div class="bg-surface-container-low p-3 border border-outline-variant/30 space-y-2">
+            <div class="text-[10px] text-primary-container font-bold uppercase">GRAPH SPECTRAL PARTITIONING</div>
+            <p class="text-[10px] text-on-surface-variant font-sans">
+              Sign of the Fiedler eigenvector <code class="text-secondary-container">v₂ &gt; 0</code> cleanly bisects the clinical ontology cluster from the execution and control layers with zero cut edges violating ABAC policy.
+            </p>
+            <div class="p-2 bg-surface-container-lowest border border-secondary-container/30 text-[9px] text-secondary-container">
+              ✓ Modularity Score Q = 0.742 confirms strong community structure without cognitive drift.
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ======================================================================= -->
+    <!-- VIEW MODE D: CUMULATIVE DIALOGUE KNOWLEDGE GRAPH                        -->
+    <!-- ======================================================================= -->
+    <div id="view-dialogue" class="hidden w-full h-full flex flex-col overflow-y-auto overflow-x-hidden bg-[#090a0f]">
+      <!-- SUB-HEADER HUD STRIP -->
+      <section class="px-4 py-2 bg-surface-container-lowest/90 border-b border-outline-variant/30 flex flex-wrap items-center justify-between text-[10px] font-mono shrink-0 gap-2">
+        <div class="flex items-center gap-3">
+          <span class="text-primary-container font-bold flex items-center gap-1">
+            <span class="material-symbols-outlined text-[13px]">forum</span>
+            <span>CUMULATIVE DIALOGUE TRAJECTORY & REASONING REFLECTION</span>
+          </span>
+          <span class="text-outline">|</span>
+          <span class="text-secondary-container font-semibold">8 TURNS REIFIED</span>
+          <span class="text-outline">|</span>
+          <span class="text-primary-container font-semibold">4 TOOLS EXECUTED</span>
+          <span class="text-outline">|</span>
+          <span class="text-outline">TOPOLOGY: <strong class="text-secondary-container">100% COHERENT</strong></span>
+        </div>
+
+        <div class="flex items-center gap-1 bg-surface-container-low p-0.5 border border-outline-variant/30 text-[9px] uppercase font-bold">
+          <button class="px-2 py-0.5 bg-primary-container text-on-primary-container rounded-sm">ALL STEPS</button>
+          <button class="px-2 py-0.5 text-on-surface-variant hover:text-on-surface">REASONING REFLECTIONS</button>
+          <button class="px-2 py-0.5 text-on-surface-variant hover:text-on-surface">TOOL EXECUTIONS</button>
+          <button class="px-2 py-0.5 text-on-surface-variant hover:text-on-surface">ARTIFACTS</button>
+        </div>
+      </section>
+
+      <!-- MAIN DIALOGUE GRAPH CANVAS -->
+      <div class="flex-1 relative overflow-auto p-6 min-h-[560px] bg-[#07090e] grid-matrix">
+        <!-- Curved Synaptic Connectors -->
+        <svg class="absolute inset-0 w-full h-full pointer-events-none z-0">
+          <path d="M 120 180 C 180 180, 200 280, 270 280" fill="none" stroke="#00f0ff" stroke-dasharray="6 4" stroke-width="2" class="opacity-70"/>
+          <path d="M 330 280 C 390 280, 420 180, 480 180" fill="none" stroke="#a855f7" stroke-width="2" stroke-dasharray="6 4" class="opacity-70"/>
+          <path d="M 540 180 C 600 180, 620 280, 690 280" fill="none" stroke="#00ffa3" stroke-width="2" stroke-dasharray="6 4" class="opacity-70"/>
+          <path d="M 750 280 C 810 280, 840 180, 900 180" fill="none" stroke="#f59e0b" stroke-width="2" stroke-dasharray="6 4" class="opacity-70"/>
+          <path d="M 960 180 C 1020 180, 1050 280, 1110 280" fill="none" stroke="#00ffa3" stroke-width="2" stroke-dasharray="6 4" class="opacity-70"/>
+        </svg>
+
+        <div class="relative w-[1200px] h-[520px] z-10">
+
+          <!-- Turn 0: User Prompt (Amber/Gold Cube) -->
+          <div onclick="selectDialogueNode('turn-0', 'Turn 0: User Prompt', 'User requests clinical kinase evaluation for EGFR T790M resistance.')" class="absolute top-[130px] left-[60px] group cursor-pointer z-10 hover:scale-105 transition-transform">
+            <div class="w-24 h-24">
+              <svg class="w-full h-full drop-shadow-md" viewbox="0 0 100 100">
+                <polygon class="fill-[#fed7aa] opacity-90 group-hover:opacity-100" points="50,15 85,35 50,55 15,35"></polygon>
+                <polygon class="fill-[#f59e0b] opacity-80" points="15,35 50,55 50,95 15,75"></polygon>
+                <polygon class="fill-[#b45309] opacity-95" points="50,55 85,35 85,75 50,95"></polygon>
+                <text fill="#000" font-family="JetBrains Mono" font-size="7" font-weight="bold" text-anchor="middle" x="50" y="40">T:01</text>
+              </svg>
+            </div>
+            <div class="w-56 p-2 bg-surface-container-high/90 backdrop-blur-md shadow-md -mt-2 border border-outline-variant/30">
+              <div class="flex items-center justify-between font-mono text-[9px] text-[#f59e0b]"><span>TURN 01: PROMPT</span><span>USER</span></div>
+              <div class="text-[11px] text-on-surface line-clamp-2 mt-0.5">"Evaluate unstudied kinase inhibitors against T790M mutation..."</div>
+            </div>
+          </div>
+
+          <!-- Turn 1: PubMed Tool Execution (Cyan Cube) -->
+          <div onclick="selectDialogueNode('tool-1', 'Tool: MCP PubMed Query', 'Fetched kinase bioaffinity articles matching T790M from PubMed API.')" class="absolute top-[230px] left-[230px] group cursor-pointer z-10 hover:scale-105 transition-transform">
+            <div class="w-24 h-24">
+              <svg class="w-full h-full drop-shadow-md" viewbox="0 0 100 100">
+                <polygon class="fill-primary-container opacity-90 group-hover:opacity-100" points="50,15 85,35 50,55 15,35"></polygon>
+                <polygon class="fill-[#00a8b5] opacity-80" points="15,35 50,55 50,95 15,75"></polygon>
+                <polygon class="fill-[#006e77] opacity-95" points="50,55 85,35 85,75 50,95"></polygon>
+                <text fill="#000" font-family="JetBrains Mono" font-size="7" font-weight="bold" text-anchor="middle" x="50" y="40">TOOL</text>
+              </svg>
+            </div>
+            <div class="w-56 p-2 bg-surface-container-high/90 backdrop-blur-md shadow-md -mt-2 border border-outline-variant/30">
+              <div class="flex items-center justify-between font-mono text-[9px] text-primary-container"><span>MCP:PUBMED</span><span>EXIT: 0</span></div>
+              <div class="text-[11px] text-on-surface line-clamp-2 mt-0.5">PMID: 38291048 · 14 triplets extracted and normalized</div>
+            </div>
+          </div>
+
+          <!-- Turn 2: Reasoning Reflection (Violet Cube) -->
+          <div onclick="selectDialogueNode('reason-1', 'Reasoning: Latent Synthesis', 'TransE link prediction over bypass axis IGF1R / PI3K-Akt.')" class="absolute top-[130px] left-[440px] group cursor-pointer z-10 hover:scale-105 transition-transform">
+            <div class="w-24 h-24">
+              <svg class="w-full h-full drop-shadow-md" viewbox="0 0 100 100">
+                <polygon class="fill-[#e9d5ff] opacity-90 group-hover:opacity-100" points="50,15 85,35 50,55 15,35"></polygon>
+                <polygon class="fill-[#c084fc] opacity-80" points="15,35 50,55 50,95 15,75"></polygon>
+                <polygon class="fill-[#7e22ce] opacity-95" points="50,55 85,35 85,75 50,95"></polygon>
+                <text fill="#fff" font-family="JetBrains Mono" font-size="7" font-weight="bold" text-anchor="middle" x="50" y="40">THINK</text>
+              </svg>
+            </div>
+            <div class="w-56 p-2 bg-surface-container-high/90 backdrop-blur-md shadow-md -mt-2 border border-outline-variant/30">
+              <div class="flex items-center justify-between font-mono text-[9px] text-[#ddb7ff]"><span>REASONING</span><span>ENTROPY: 0.941</span></div>
+              <div class="text-[11px] text-on-surface line-clamp-2 mt-0.5">TransE Candidate Triplet: (Osimertinib)-[:SYNERGIZES_WITH]->(Metformin)</div>
+            </div>
+          </div>
+
+          <!-- Turn 3: Artifact Generation (Emerald Cube) -->
+          <div onclick="selectDialogueNode('artifact-1', 'Artifact: Screen Reification', 'Reified WebGL canvas, isometric cube shaders, and telemetry HUD.')" class="absolute top-[230px] left-[650px] group cursor-pointer z-10 hover:scale-105 transition-transform">
+            <div class="w-24 h-24">
+              <svg class="w-full h-full drop-shadow-md" viewbox="0 0 100 100">
+                <polygon class="fill-secondary-container opacity-90 group-hover:opacity-100" points="50,15 85,35 50,55 15,35"></polygon>
+                <polygon class="fill-[#00c978] opacity-80" points="15,35 50,55 50,95 15,75"></polygon>
+                <polygon class="fill-[#008f53] opacity-95" points="50,55 85,35 85,75 50,95"></polygon>
+                <text fill="#002111" font-family="JetBrains Mono" font-size="7" font-weight="bold" text-anchor="middle" x="50" y="40">ARTIFACT</text>
+              </svg>
+            </div>
+            <div class="w-56 p-2 bg-surface-container-high/90 backdrop-blur-md shadow-md -mt-2 border border-outline-variant/30">
+              <div class="flex items-center justify-between font-mono text-[9px] text-secondary-container"><span>ARTIFACT</span><span>COMMITTED</span></div>
+              <div class="text-[11px] text-on-surface line-clamp-2 mt-0.5">Reified 3D Graph Studio with clean HUD header & slim margin rails</div>
+            </div>
+          </div>
+
+          <!-- Turn 4 (ACTIVE CUBE): Dialogue Meta-Reflection (Glowing Pulsing Gold Cube) -->
+          <div onclick="selectDialogueNode('active-reflection', 'Turn 04: Dialogue Meta-Reflection', 'Active turn reflecting cumulative context across dialogue and graph.')" class="absolute top-[130px] left-[860px] group cursor-pointer z-20 hover:scale-110 transition-transform">
+            <div class="absolute -inset-4 bg-primary-container/20 rounded-full animate-ping pointer-events-none"></div>
+            <div class="relative w-28 h-28">
+              <svg class="w-full h-full drop-shadow-xl filter drop-shadow-[0_0_12px_rgba(255,200,55,0.7)]" viewbox="0 0 100 100">
+                <polygon class="fill-[#ffe066]" points="50,15 85,35 50,55 15,35"></polygon>
+                <polygon class="fill-[#f59e0b]" points="15,35 50,55 50,95 15,75"></polygon>
+                <polygon class="fill-[#b45309]" points="50,55 85,35 85,75 50,95"></polygon>
+                <line stroke="#ffffff" stroke-width="1.5" x1="50" x2="50" y1="35" y2="75"></line>
+                <text fill="#000" font-family="JetBrains Mono" font-size="7" font-weight="bold" text-anchor="middle" x="50" y="40">ACTIVE</text>
+              </svg>
+            </div>
+            <div class="w-64 p-2.5 bg-surface-container-highest/95 backdrop-blur-xl shadow-xl -mt-3 border-l-2 border-primary-container">
+              <div class="flex items-center justify-between font-mono text-[9px] text-secondary-container">
+                <span class="flex items-center gap-1"><span class="w-1.5 h-1.5 rounded-full bg-secondary-container animate-pulse"></span>ACTIVE AUDIT TARGET</span>
+                <span class="text-primary-container">SELECTED</span>
+              </div>
+              <div class="text-[12px] font-bold text-primary mt-1">Cumulative Context Reflection</div>
+              <div class="text-[10px] text-on-surface mt-0.5">"All mock screens wired into unified clean header & slim margins framework."</div>
+              <div class="mt-1 pt-1 border-t border-outline-variant/30 flex justify-between font-mono text-[8px] text-outline">
+                <span>Φ-MERKLE: 0x9b41...7a04</span>
+                <span class="text-secondary-container">VERIFIED</span>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+
+    <!-- ======================================================================= -->
+    <!-- VIEW MODE E: SPACES & REPOSITORIES (Multi-Tenant & Storage Explorer)    -->
+    <!-- ======================================================================= -->
+    <div id="view-spaces" class="hidden w-full h-full flex flex-col overflow-y-auto overflow-x-hidden bg-[#090b10] p-6 space-y-6">
+      <!-- HEADER METRICS STRIP -->
+      <div class="flex flex-wrap items-center justify-between pb-3 border-b border-outline-variant/30 gap-4 font-mono text-xs">
+        <div>
+          <div class="flex items-center gap-2">
+            <span class="material-symbols-outlined text-primary-container text-lg">folder_data</span>
+            <span class="font-bold text-primary uppercase text-sm">SPACES & COGNITIVE REPOSITORIES</span>
+          </div>
+          <p class="text-outline text-[11px] font-sans mt-0.5">Multi-tenant memory enclaves, vector index health, and SQLite provenance ledger status.</p>
+        </div>
+
+        <div class="flex items-center gap-4 text-[10px]">
+          <div class="bg-surface-container-low px-3 py-1.5 border border-outline-variant/30">
+            <span class="text-outline">ACTIVE SPACES:</span> <strong class="text-primary-container">4</strong>
+          </div>
+          <div class="bg-surface-container-low px-3 py-1.5 border border-outline-variant/30">
+            <span class="text-outline">VECTOR DIM:</span> <strong class="text-secondary-container">768-D BGE</strong>
+          </div>
+          <div class="bg-surface-container-low px-3 py-1.5 border border-outline-variant/30">
+            <span class="text-outline">STORAGE ENGINE:</span> <strong class="text-on-surface">SQLITE + SUPERMEMORY</strong>
+          </div>
+        </div>
+      </div>
+
+      <!-- MULTI-TENANT SPACES GRID -->
+      <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+        <!-- Space 1: xibalba-core -->
+        <div class="bg-surface-container-lowest border-2 border-primary-container/60 p-4 shadow-lg space-y-3 font-mono">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-2">
+              <div class="w-2.5 h-2.5 bg-primary-container"></div>
+              <span class="font-bold text-primary text-sm">xibalba-core</span>
+            </div>
+            <span class="text-[9px] text-secondary-container px-1.5 py-0.5 bg-secondary-container/10 font-bold border border-secondary-container/30 uppercase">DEFAULT</span>
+          </div>
+          <p class="text-[11px] text-on-surface-variant font-sans">Master cognitive memory namespace for Xibalba executive orchestrator and enterprise ops.</p>
+          <div class="grid grid-cols-2 gap-2 text-[10px] bg-surface-container-low p-2 border border-outline-variant/30">
+            <div><span class="text-outline text-[8px] uppercase">MEMORIES</span><div class="text-primary-container font-bold text-xs mt-0.5">12 Nodes</div></div>
+            <div><span class="text-outline text-[8px] uppercase">GROUNDING</span><div class="text-secondary-container font-bold text-xs mt-0.5">100% Verified</div></div>
+            <div><span class="text-outline text-[8px] uppercase">RELATIONS</span><div class="text-on-surface font-bold text-xs mt-0.5">14 Edges</div></div>
+            <div><span class="text-outline text-[8px] uppercase">MERKLE HEAD</span><div class="text-[#ddb7ff] font-bold text-xs mt-0.5">0x7f2a...8c1</div></div>
+          </div>
+          <button onclick="switchView('graph')" class="w-full py-1.5 bg-surface-container-high hover:bg-primary-container hover:text-on-primary-container transition-colors text-[10px] font-bold uppercase flex items-center justify-center gap-1">
+            <span class="material-symbols-outlined text-xs">view_in_ar</span>
+            <span>Explore 3D Manifold</span>
+          </button>
+        </div>
+
+        <!-- Space 2: integrity-ledger -->
+        <div class="bg-surface-container-lowest border border-outline-variant/30 p-4 shadow-sm space-y-3 font-mono">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-2">
+              <div class="w-2.5 h-2.5 bg-secondary-container"></div>
+              <span class="font-bold text-on-surface text-sm">integrity-ledger</span>
+            </div>
+            <span class="text-[9px] text-secondary-container px-1.5 py-0.5 bg-secondary-container/10 font-bold border border-secondary-container/30 uppercase">SYNCED</span>
+          </div>
+          <p class="text-[11px] text-on-surface-variant font-sans">Cryptographic consensus state, smart BAA registry, and immutable agent DID attestations.</p>
+          <div class="grid grid-cols-2 gap-2 text-[10px] bg-surface-container-low p-2 border border-outline-variant/30">
+            <div><span class="text-outline text-[8px] uppercase">EVENTS</span><div class="text-secondary-container font-bold text-xs mt-0.5">48 Hashes</div></div>
+            <div><span class="text-outline text-[8px] uppercase">CHAIN STATE</span><div class="text-secondary-container font-bold text-xs mt-0.5">Valid</div></div>
+            <div><span class="text-outline text-[8px] uppercase">ACTOR DID</span><div class="text-primary truncate text-[9px] mt-0.5">did:integrity...</div></div>
+            <div><span class="text-outline text-[8px] uppercase">HEAD HASH</span><div class="text-outline font-bold text-xs mt-0.5">0xfb7d...d33</div></div>
+          </div>
+          <button onclick="switchView('timeline')" class="w-full py-1.5 bg-surface-container-high hover:bg-primary-container hover:text-on-primary-container transition-colors text-[10px] font-bold uppercase flex items-center justify-center gap-1">
+            <span class="material-symbols-outlined text-xs">timeline</span>
+            <span>View Timeline</span>
+          </button>
+        </div>
+
+        <!-- Space 3: xibalba-quant -->
+        <div class="bg-surface-container-lowest border border-outline-variant/30 p-4 shadow-sm space-y-3 font-mono">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-2">
+              <div class="w-2.5 h-2.5 bg-[#00ffa3]"></div>
+              <span class="font-bold text-on-surface text-sm">xibalba-quant</span>
+            </div>
+            <span class="text-[9px] text-[#00ffa3] px-1.5 py-0.5 bg-[#00ffa3]/10 font-bold border border-[#00ffa3]/30 uppercase">LIVE DAEMON</span>
+          </div>
+          <p class="text-[11px] text-on-surface-variant font-sans">Autonomous dynamic PID grid tuning, volatility surface tensors, and drawdown guardrails.</p>
+          <div class="grid grid-cols-2 gap-2 text-[10px] bg-surface-container-low p-2 border border-outline-variant/30">
+            <div><span class="text-outline text-[8px] uppercase">CONTROLLER</span><div class="text-[#00ffa3] font-bold text-xs mt-0.5">PID Grid</div></div>
+            <div><span class="text-outline text-[8px] uppercase">FEEDBACK</span><div class="text-secondary-container font-bold text-xs mt-0.5">Kp 1.85 / Kd 0.08</div></div>
+            <div><span class="text-outline text-[8px] uppercase">DRAWDOWNS</span><div class="text-secondary-container font-bold text-xs mt-0.5">&lt; 1.2% Safe</div></div>
+            <div><span class="text-outline text-[8px] uppercase">EXECS</span><div class="text-on-surface font-bold text-xs mt-0.5">34 Orders</div></div>
+          </div>
+          <button onclick="switchView('spectral')" class="w-full py-1.5 bg-surface-container-high hover:bg-primary-container hover:text-on-primary-container transition-colors text-[10px] font-bold uppercase flex items-center justify-center gap-1">
+            <span class="material-symbols-outlined text-xs">scatter_plot</span>
+            <span>Spectral Math</span>
+          </button>
+        </div>
+
+        <!-- Space 4: medicaid-ltc -->
+        <div class="bg-surface-container-lowest border border-outline-variant/30 p-4 shadow-sm space-y-3 font-mono">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-2">
+              <div class="w-2.5 h-2.5 bg-[#ddb7ff]"></div>
+              <span class="font-bold text-on-surface text-sm">medicaid-ltc</span>
+            </div>
+            <span class="text-[9px] text-[#ddb7ff] px-1.5 py-0.5 bg-[#ddb7ff]/10 font-bold border border-[#ddb7ff]/30 uppercase">ABAC GATED</span>
+          </div>
+          <p class="text-[11px] text-on-surface-variant font-sans">Personal care agency operating system, patient care plans, EVV tracking, and HIPAA gates.</p>
+          <div class="grid grid-cols-2 gap-2 text-[10px] bg-surface-container-low p-2 border border-outline-variant/30">
+            <div><span class="text-outline text-[8px] uppercase">RECORDS</span><div class="text-[#ddb7ff] font-bold text-xs mt-0.5">19 Anchors</div></div>
+            <div><span class="text-outline text-[8px] uppercase">PRIVACY</span><div class="text-secondary-container font-bold text-xs mt-0.5">Zero-Leakage</div></div>
+            <div><span class="text-outline text-[8px] uppercase">COMPLIANCE</span><div class="text-secondary-container font-bold text-xs mt-0.5">Smart BAA</div></div>
+            <div><span class="text-outline text-[8px] uppercase">ENCLAVE</span><div class="text-on-surface font-bold text-xs mt-0.5">eBPF Verified</div></div>
+          </div>
+          <button onclick="switchView('dialogue')" class="w-full py-1.5 bg-surface-container-high hover:bg-primary-container hover:text-on-primary-container transition-colors text-[10px] font-bold uppercase flex items-center justify-center gap-1">
+            <span class="material-symbols-outlined text-xs">forum</span>
+            <span>Dialogue Stream</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- INTERACTIVE SEMANTIC VECTOR WORKBENCH -->
+      <div class="bg-surface-container-lowest border border-outline-variant/30 p-5 shadow-sm space-y-4 font-mono">
+        <div class="flex items-center justify-between pb-2 border-b border-outline-variant/20">
+          <div class="flex items-center gap-2">
+            <span class="material-symbols-outlined text-primary-container text-base">manage_search</span>
+            <span class="font-bold text-primary uppercase text-xs">LIVE SEMANTIC HYBRID SEARCH WORKBENCH</span>
+          </div>
+          <span class="text-[10px] text-outline">ENDPOINT: /api/chat & /api/graph</span>
+        </div>
+
+        <div class="flex gap-2">
+          <div class="relative flex-1">
+            <span class="material-symbols-outlined absolute left-3 top-2 text-outline text-base">search</span>
+            <input id="spaces-search-input" class="w-full bg-surface-container-low border border-outline-variant/40 rounded-sm pl-9 pr-4 py-1.5 text-xs text-white placeholder:text-outline focus:outline-none focus:border-primary-container font-mono" placeholder="Test semantic query across all spaces (e.g. 'PID controller', 'EGFR mutation', 'Merkle proof')..." type="text" value="PID controller volatility"/>
+          </div>
+          <button onclick="runSpacesQuery()" class="px-4 py-1.5 bg-primary-container text-on-primary-container font-bold text-xs uppercase rounded-sm hover:bg-secondary-container transition-colors flex items-center gap-1">
+            <span class="material-symbols-outlined text-sm">send</span>
+            <span>Query</span>
+          </button>
+        </div>
+
+        <!-- Query Results Container -->
+        <div id="spaces-results-container" class="space-y-2 text-xs">
+          <div class="p-3 bg-surface-container-low border-l-2 border-primary-container flex items-start justify-between">
+            <div>
+              <div class="flex items-center gap-2 mb-1">
+                <span class="text-primary font-bold">PID Dynamic Volatility Controller</span>
+                <span class="text-[9px] text-secondary-container px-1 bg-secondary-container/10 border border-secondary-container/20">SCORE: 0.984</span>
+                <span class="text-[9px] text-[#00ffa3]">SPACE: xibalba-quant</span>
+              </div>
+              <p class="text-[11px] text-on-surface-variant font-sans">Non-linear feedback control bounds: K_p=1.85, K_i=0.22, K_d=0.08 preventing grid overshoot.</p>
+            </div>
+            <span class="text-outline font-mono text-[9px]">0xB49102A66</span>
+          </div>
         </div>
       </div>
     </div>
@@ -1374,22 +1976,156 @@
     // -------------------------------------------------------------------------
     function switchView(view) {
       currentView = view;
-      const vGraph = document.getElementById('view-graph');
-      const vTimeline = document.getElementById('view-timeline');
-      const btnG = document.getElementById('nav-btn-graph');
-      const btnT = document.getElementById('nav-btn-timeline');
+      const views = {
+        graph: document.getElementById('view-graph'),
+        timeline: document.getElementById('view-timeline'),
+        spectral: document.getElementById('view-spectral'),
+        dialogue: document.getElementById('view-dialogue'),
+        spaces: document.getElementById('view-spaces')
+      };
+
+      const navBtns = {
+        graph: document.getElementById('nav-btn-graph'),
+        timeline: document.getElementById('nav-btn-timeline'),
+        spectral: document.getElementById('nav-btn-spectral'),
+        dialogue: document.getElementById('nav-btn-dialogue'),
+        spaces: document.getElementById('nav-btn-spaces')
+      };
+
+      const railBtns = {
+        graph: document.getElementById('rail-btn-graph'),
+        timeline: document.getElementById('rail-btn-timeline'),
+        spectral: document.getElementById('rail-btn-spectral'),
+        dialogue: document.getElementById('rail-btn-dialogue'),
+        spaces: document.getElementById('rail-btn-spaces')
+      };
+
+      Object.keys(views).forEach(v => {
+        if (!views[v]) return;
+        if (v === view) {
+          views[v].classList.remove('hidden');
+          if (navBtns[v]) {
+            navBtns[v].className = "px-2.5 py-0.5 transition-colors uppercase bg-primary-container text-on-primary-container font-bold text-[11px] flex items-center gap-1";
+          }
+          if (railBtns[v]) {
+            railBtns[v].className = "w-8 h-8 flex items-center justify-center text-primary-container bg-surface-container-high transition-colors";
+          }
+        } else {
+          views[v].classList.add('hidden');
+          if (navBtns[v]) {
+            navBtns[v].className = "px-2.5 py-0.5 text-on-surface-variant hover:text-on-surface transition-colors text-[11px] uppercase flex items-center gap-1";
+          }
+          if (railBtns[v]) {
+            railBtns[v].className = "w-8 h-8 flex items-center justify-center text-on-surface-variant hover:text-primary-container hover:bg-surface-container-high transition-colors";
+          }
+        }
+      });
 
       if (view === 'graph') {
-        vGraph.classList.remove('hidden');
-        vTimeline.classList.add('hidden');
-        btnG.className = "px-2.5 py-0.5 transition-colors uppercase bg-primary-container text-on-primary-container font-bold text-[11px] flex items-center gap-1";
-        btnT.className = "px-2.5 py-0.5 text-on-surface-variant hover:text-on-surface transition-colors text-[11px] uppercase flex items-center gap-1";
         setTimeout(onResize, 50);
-      } else {
-        vGraph.classList.add('hidden');
-        vTimeline.classList.remove('hidden');
-        btnT.className = "px-2.5 py-0.5 transition-colors uppercase bg-primary-container text-on-primary-container font-bold text-[11px] flex items-center gap-1";
-        btnG.className = "px-2.5 py-0.5 text-on-surface-variant hover:text-on-surface transition-colors text-[11px] uppercase flex items-center gap-1";
+      }
+    }
+
+    function selectDialogueNode(id, title, desc) {
+      if (!inspectorOpen) toggleInspector();
+      switchTab('replay');
+      document.getElementById('drawer-session-id').innerText = title;
+      const container = document.getElementById('replay-turn-container');
+      if (container) {
+        container.innerHTML = `
+          <div class="bg-surface-container-low p-2.5 border-l-2 border-primary-container font-mono text-xs">
+            <div class="flex items-center justify-between text-[10px] text-primary-container font-bold mb-1">
+              <span>DIALOGUE NODE: ${id.toUpperCase()}</span>
+              <span class="text-secondary-container">100% GROUNDED</span>
+            </div>
+            <p class="text-on-surface font-sans text-xs">${desc}</p>
+            <div class="mt-2 pt-2 border-t border-outline-variant/30 flex justify-between text-[9px] text-outline font-mono">
+              <span>HASH: 0x${Math.random().toString(16).substring(2, 10).toUpperCase()}</span>
+              <span class="text-primary">AIS: 994/1000</span>
+            </div>
+          </div>
+        `;
+      }
+    }
+
+    function selectSpectralNode(id, title, desc) {
+      if (!inspectorOpen) toggleInspector();
+      switchTab('replay');
+      document.getElementById('drawer-session-id').innerText = title;
+      const container = document.getElementById('replay-turn-container');
+      if (container) {
+        container.innerHTML = `
+          <div class="bg-surface-container-low p-2.5 border-l-2 border-secondary-container font-mono text-xs">
+            <div class="flex items-center justify-between text-[10px] text-secondary-container font-bold mb-1">
+              <span>SPECTRAL CUBE: ${id.toUpperCase()}</span>
+              <span class="text-primary-container">λ2 FIEDLER COHERENT</span>
+            </div>
+            <p class="text-on-surface font-sans text-xs">${desc}</p>
+            <div class="mt-2 pt-2 border-t border-outline-variant/30 flex justify-between text-[9px] text-outline font-mono">
+              <span>FIEDLER COMPONENT: +0.4914</span>
+              <span class="text-secondary-container">PASSED</span>
+            </div>
+          </div>
+        `;
+      }
+    }
+
+    function filterSpectralClasses(cls) {
+      const nodes = document.querySelectorAll('.spectral-node');
+      nodes.forEach(node => {
+        if (cls === 'all' || node.getAttribute('data-class') === cls) {
+          node.style.opacity = '1';
+          node.style.pointerEvents = 'auto';
+        } else {
+          node.style.opacity = '0.15';
+          node.style.pointerEvents = 'none';
+        }
+      });
+    }
+
+    async function runSpacesQuery() {
+      const input = document.getElementById('spaces-search-input');
+      const query = input ? input.value.trim() : '';
+      if (!query) return;
+
+      const container = document.getElementById('spaces-results-container');
+      if (container) {
+        container.innerHTML = '<div class="p-3 text-neutral-400 font-mono text-xs italic">Executing hybrid vector search against Supermemory local store...</div>';
+      }
+
+      try {
+        const res = await fetch('/api/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ message: query })
+        });
+        if (res.ok) {
+          const data = await res.json();
+          const results = data.retrieval || [];
+          if (container) {
+            if (results.length > 0) {
+              container.innerHTML = results.map(r => `
+                <div class="p-3 bg-surface-container-low border-l-2 border-secondary-container flex items-start justify-between">
+                  <div>
+                    <div class="flex items-center gap-2 mb-1">
+                      <span class="text-secondary-container font-bold">${r.provenance?.epistemic_class?.toUpperCase() || 'FACT'}</span>
+                      <span class="text-[9px] text-primary-container px-1 bg-primary-container/10 border border-primary-container/20">SIMILARITY: ${(r.similarity || 0.95).toFixed(3)}</span>
+                      <span class="text-[9px] text-outline">ID: ${r.id || 'mem_01'}</span>
+                    </div>
+                    <p class="text-[11px] text-on-surface-variant font-sans">${r.content || ''}</p>
+                  </div>
+                  <span class="text-outline font-mono text-[9px]">GROUNDED</span>
+                </div>
+              `).join('');
+            } else {
+              container.innerHTML = `<div class="p-3 bg-surface-container-low border-l-2 border-primary-container"><p class="text-on-surface text-xs">${data.reply}</p></div>`;
+            }
+          }
+        }
+      } catch (err) {
+        if (container) {
+          container.innerHTML = '<div class="p-3 text-red-400 font-mono text-xs">Error querying vector endpoint.</div>';
+        }
       }
     }
 
@@ -1749,6 +2485,9 @@
       }
       if (e.key === '1') switchView('graph');
       if (e.key === '2') switchView('timeline');
+      if (e.key === '3') switchView('spectral');
+      if (e.key === '4') switchView('dialogue');
+      if (e.key === '5') switchView('spaces');
       if (e.key.toLowerCase() === 'z') toggleZenFlight();
       if (e.key.toLowerCase() === 'c') openNewMemoryModal();
     });
