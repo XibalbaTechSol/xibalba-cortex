@@ -31,15 +31,18 @@ jobs:
         with:
           path: xibalba-cortex
           persist-credentials: false
+      - name: Read the integrity-core pin (deploy/integrity-core.ref)
+        # Single source of truth for the SDK commit, shared with deploy/render and deploy/railway
+        # Dockerfiles so a deploy runs exactly the SDK CI tested. Bump it deliberately, in the SAME
+        # PR as any code that imports a newly added SDK symbol -- never in a follow-up.
+        id: core
+        working-directory: xibalba-cortex
+        run: echo "ref=$(tr -d '[:space:]' < deploy/integrity-core.ref)" >> "$GITHUB_OUTPUT"
       - name: Checkout integrity-core (sibling repo, integrity-sdk path dependency)
         uses: actions/checkout@v4
         with:
           repository: XibalbaTechSol/integrity-core
-          # integrity-core main after #212 merged (2026-11-13). Bumped for integrity-core#212, which adds
-          # integrity_sdk.billing (shared Stripe gateway, meter events, billing classes).
-          # Earlier: #162 (2026-10-06), which added integrity_sdk.hook_runner. Bump this ref deliberately,
-          # in the SAME PR as any code that imports a newly added SDK symbol -- never in a follow-up.
-          ref: bb8cc5a1e576007f7161dbbb594297dc9e6b9d43
+          ref: ${{ steps.core.outputs.ref }}
           path: integrity-core
           persist-credentials: false
       - uses: astral-sh/setup-uv@v3
@@ -68,11 +71,18 @@ jobs:
         with:
           path: xibalba-cortex
           persist-credentials: false
+      - name: Read the integrity-core pin (deploy/integrity-core.ref)
+        # Single source of truth for the SDK commit, shared with deploy/render and deploy/railway
+        # Dockerfiles so a deploy runs exactly the SDK CI tested. Bump it deliberately, in the SAME
+        # PR as any code that imports a newly added SDK symbol -- never in a follow-up.
+        id: core
+        working-directory: xibalba-cortex
+        run: echo "ref=$(tr -d '[:space:]' < deploy/integrity-core.ref)" >> "$GITHUB_OUTPUT"
       - name: Checkout integrity-core (sibling repo, integrity-sdk path dependency of the root package)
         uses: actions/checkout@v4
         with:
           repository: XibalbaTechSol/integrity-core
-          ref: bb8cc5a1e576007f7161dbbb594297dc9e6b9d43
+          ref: ${{ steps.core.outputs.ref }}
           path: integrity-core
           persist-credentials: false
       - uses: astral-sh/setup-uv@v3
@@ -94,11 +104,18 @@ jobs:
         with:
           path: xibalba-cortex
           persist-credentials: false
+      - name: Read the integrity-core pin (deploy/integrity-core.ref)
+        # Single source of truth for the SDK commit, shared with deploy/render and deploy/railway
+        # Dockerfiles so a deploy runs exactly the SDK CI tested. Bump it deliberately, in the SAME
+        # PR as any code that imports a newly added SDK symbol -- never in a follow-up.
+        id: core
+        working-directory: xibalba-cortex
+        run: echo "ref=$(tr -d '[:space:]' < deploy/integrity-core.ref)" >> "$GITHUB_OUTPUT"
       - name: Checkout integrity-core (sibling repo, integrity-sdk path dependency)
         uses: actions/checkout@v4
         with:
           repository: XibalbaTechSol/integrity-core
-          ref: bb8cc5a1e576007f7161dbbb594297dc9e6b9d43
+          ref: ${{ steps.core.outputs.ref }}
           path: integrity-core
           persist-credentials: false
       - uses: astral-sh/setup-uv@v3
