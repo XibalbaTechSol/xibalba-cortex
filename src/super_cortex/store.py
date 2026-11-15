@@ -237,9 +237,9 @@ class ProvenanceStore:
                 )
             conn.commit()
 
-    def append_event(self, actor: str, transition: str, payload: dict[str, Any]) -> EventRecord:
+    def append_event(self, actor: str, transition: str, payload: dict[str, Any], timestamp: str | None = None) -> EventRecord:
         """Append an event to the append-only cryptographic hash chain."""
-        timestamp = utc_now_iso()
+        timestamp = timestamp or utc_now_iso()
         event_id = f"evt_{uuid.uuid4().hex}"
         payload_str = canonical_json(payload)
 
@@ -479,12 +479,13 @@ class ProvenanceStore:
         response_text: str,
         tool_calls: list[dict[str, Any]] | None = None,
         context_hashes: list[str] | None = None,
+        created_at: str | None = None,
     ) -> ExchangeRecord:
         """Capture a model exchange turn with cryptographic hash link."""
         tool_calls = tool_calls or []
         context_hashes = context_hashes or []
         exchange_id = f"exch_{uuid.uuid4().hex[:16]}"
-        now = utc_now_iso()
+        now = created_at or utc_now_iso()
 
         prompt_hash = sha256_hex(prompt_text)
         response_hash = sha256_hex(response_text)
@@ -609,8 +610,17 @@ class ProvenanceStore:
                 for chunk in r["all_tools"].split("],["):
                     tool_count += chunk.count('"name"')
 
+            # Extract agent harness from session_id prefix if present
+            agent_id = "unknown"
+            parts = sid.split("_")
+            if len(parts) >= 2 and parts[0] == "sess":
+                candidate = parts[1].lower()
+                if candidate in ("hermes", "agy", "claude", "cortex", "cursor", "shield", "deepseek", "chrome", "quant", "xibalba"):
+                    agent_id = candidate
+
             sessions.append({
                 "session_id": sid,
+                "agent_id": agent_id,
                 "start_time": r["start_time"],
                 "end_time": r["end_time"],
                 "turn_count": r["turn_count"],

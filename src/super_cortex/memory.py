@@ -446,6 +446,7 @@ class SuperCortex:
         tool_calls: list[dict[str, Any]] | None = None,
         context_hashes: list[str] | None = None,
         actor: str | None = None,
+        created_at: str | None = None,
     ) -> dict[str, Any]:
         """Record an interaction turn and compute local Merkle root."""
         act = actor or self.config.actor_did
@@ -455,6 +456,7 @@ class SuperCortex:
             response_text=response_text,
             tool_calls=tool_calls,
             context_hashes=context_hashes,
+            created_at=created_at,
         )
 
         merkle_root = self.store.session_merkle_root(session_id)
@@ -468,6 +470,7 @@ class SuperCortex:
                 "turn_hash": exchange.turn_hash,
                 "session_merkle_root": merkle_root,
             },
+            timestamp=created_at,
         )
 
         return {

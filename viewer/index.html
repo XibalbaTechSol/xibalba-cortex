@@ -5779,7 +5779,8 @@
           sessions.forEach(s => {
             const opt = document.createElement('option');
             opt.value = s.session_id;
-            opt.textContent = `${s.session_id} (${s.turn_count} turns · ${s.tool_execution_count} tools)`;
+            const agentTag = (s.agent_id && s.agent_id !== 'unknown') ? `[${s.agent_id.toUpperCase()}] ` : '';
+            opt.textContent = `${agentTag}${s.session_id} (${s.turn_count} turns · ${s.tool_execution_count} tools)`;
             selectEl.appendChild(opt);
           });
           if (sessions.length > 0) {
@@ -6258,6 +6259,15 @@
       const filteredSessions = sessions.filter(s => {
         if (timelineFilterType === 'anchored' && !s.merkle_root) return false;
         if (timelineFilterType === 'tools' && !(s.tool_execution_count > 0)) return false;
+
+        if (activeAgentScopeFilter && activeAgentScopeFilter !== 'all') {
+          const target = activeAgentScopeFilter.replace(/^agent:/, '').toLowerCase();
+          const sessAgent = (s.agent_id || '').toLowerCase();
+          const sessId = (s.session_id || '').toLowerCase();
+          if (sessAgent !== target && !sessId.includes(target)) {
+            return false;
+          }
+        }
         return true;
       });
 
@@ -6276,7 +6286,19 @@
         const spanWidth = Math.max(1, rightPct - leftPct);
 
         const durationMin = Math.max(1, Math.round((end - start) / 60_000));
+        const durationStr = durationMin >= 60 ? `${Math.floor(durationMin / 60)}h ${durationMin % 60}m` : `${durationMin}m`;
         const shortId = lane.session_id.replace(/^sess_/, '');
+
+        // Determine Agent Harness Tag & Styling
+        const agentId = (lane.agent_id && lane.agent_id !== 'unknown') ? lane.agent_id : (lane.session_id.split('_')[1] || 'agent');
+        let badgeColor = 'text-outline bg-surface-container-high border border-outline-variant/30';
+        if (agentId === 'hermes' || agentId === 'quant') badgeColor = 'text-secondary-container bg-secondary-container/15 border border-secondary-container/30';
+        else if (agentId === 'agy') badgeColor = 'text-primary-container bg-primary-container/15 border border-primary-container/30';
+        else if (agentId === 'claude') badgeColor = 'text-[#ddb7ff] bg-purple-500/15 border border-purple-500/30';
+        else if (agentId === 'cortex') badgeColor = 'text-emerald-400 bg-emerald-500/15 border border-emerald-500/30';
+        else if (agentId === 'cursor') badgeColor = 'text-[#38bdf8] bg-sky-500/15 border border-sky-500/30';
+        else if (agentId === 'shield') badgeColor = 'text-rose-400 bg-rose-500/15 border border-rose-500/30';
+        else if (agentId === 'deepseek') badgeColor = 'text-amber-300 bg-amber-500/15 border border-amber-500/30';
 
         // 1. Lane Label (Left Column)
         const labelBtn = document.createElement('button');
@@ -6285,10 +6307,13 @@
         labelBtn.onclick = () => selectSession(lane.session_id);
         labelBtn.innerHTML = `
           <div class="flex items-center justify-between gap-1">
-            <b title="${escapeHtml(lane.session_id)}">${escapeHtml(shortId)}</b>
-            <span class="text-[8px] text-secondary-container bg-secondary-container/10 px-1 rounded font-bold">${isOpen ? 'OPEN' : 'ROOTED'}</span>
+            <div class="flex items-center gap-1.5 truncate">
+              <span class="text-[8px] font-bold px-1 rounded uppercase tracking-wider ${badgeColor}">${escapeHtml(agentId)}</span>
+              <b class="truncate" title="${escapeHtml(lane.session_id)}">${escapeHtml(shortId)}</b>
+            </div>
+            <span class="text-[8px] text-secondary-container bg-secondary-container/10 px-1 rounded font-bold shrink-0">${isOpen ? 'OPEN' : 'ROOTED'}</span>
           </div>
-          <span class="text-[9px] text-outline truncate">${lane.turn_count || turns.length} exchanges · ${lane.tool_execution_count || 0} tools · ${durationMin}m</span>
+          <span class="text-[9px] text-outline truncate">${lane.turn_count || turns.length} exchanges · ${lane.tool_execution_count || 0} tools · ${durationStr}</span>
         `;
         lanesContainer.appendChild(labelBtn);
 
