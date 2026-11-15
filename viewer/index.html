@@ -224,7 +224,7 @@
       box-shadow: 0 0 6px #f43f5e;
     }
 
-    /* Dialogue Isometric 3D Cube Nodes */
+    /* Dialogue Isometric 3D Cube Nodes & Command Cards */
     .dialogue-cube-node {
       position: absolute;
       width: 64px;
@@ -236,12 +236,12 @@
       border-radius: 10px;
       cursor: pointer;
       user-select: none;
-      transition: transform 0.22s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.22s ease, opacity 0.2s ease;
+      transition: transform 0.22s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.22s ease, opacity 0.2s ease, border-color 0.2s ease;
       box-shadow: 0 10px 24px rgba(0,0,0,0.8), inset 0 1px 0 rgba(255,255,255,0.22);
       z-index: 10;
     }
     .dialogue-cube-node:hover {
-      transform: scale(1.22) translateY(-4px) !important;
+      transform: scale(1.15) translateY(-3px) !important;
       z-index: 40 !important;
       box-shadow: 0 16px 36px rgba(0,0,0,0.95), 0 0 24px currentColor !important;
     }
@@ -255,6 +255,33 @@
       border: 1.5px solid #00f0ff;
       color: #00f0ff;
     }
+    .dialogue-cube-node.node-command-card {
+      width: 168px !important;
+      height: 64px !important;
+      padding: 0 !important;
+      background: linear-gradient(135deg, #071526 0%, #030b14 100%);
+      border: 1.5px solid #00f0ff;
+      color: #00f0ff;
+      border-radius: 8px;
+    }
+    .dialogue-cube-node.node-file-card {
+      width: 168px !important;
+      height: 64px !important;
+      padding: 0 !important;
+      background: linear-gradient(135deg, #241403 0%, #0c0801 100%);
+      border: 1.5px solid #f59e0b;
+      color: #f59e0b;
+      border-radius: 8px;
+    }
+    .dialogue-cube-node.node-mcp-card {
+      width: 168px !important;
+      height: 64px !important;
+      padding: 0 !important;
+      background: linear-gradient(135deg, #1b0730 0%, #0b0214 100%);
+      border: 1.5px solid #c084fc;
+      color: #c084fc;
+      border-radius: 8px;
+    }
     .dialogue-cube-node.node-response {
       background: linear-gradient(135deg, #3b0764 0%, #170228 100%);
       border: 1.5px solid #c084fc;
@@ -265,6 +292,25 @@
       border: 1.5px solid #00ffa3;
       color: #00ffa3;
       border-radius: 8px;
+    }
+    .turn-enclave {
+      position: absolute;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      background: rgba(8, 13, 23, 0.75);
+      backdrop-filter: blur(12px);
+      border-radius: 16px;
+      padding: 12px 14px;
+      box-shadow: 0 16px 40px rgba(0, 0, 0, 0.65), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+      transition: border-color 0.25s ease, box-shadow 0.25s ease;
+      z-index: 2;
+    }
+    .turn-enclave:hover {
+      border-color: rgba(0, 240, 255, 0.4);
+      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.8), 0 0 30px rgba(0, 240, 255, 0.08);
+    }
+    .turn-enclave.active-turn {
+      border-color: #00f0ff !important;
+      box-shadow: 0 0 35px rgba(0, 240, 255, 0.25) !important;
     }
     .dialogue-cube-node.active-replaying {
       animation: cubePulse 1.1s infinite alternate;
@@ -1128,7 +1174,17 @@
               <span class="material-symbols-outlined text-xs text-secondary-container">center_focus_strong</span>
               <span>RESET VIEW</span>
             </button>
+            <button onclick="toggleSpectralDrawer()" id="btn-spectral-drawer-hud-toggle" class="px-2.5 py-1 bg-surface-container-lowest/90 backdrop-blur border border-outline-variant/40 hover:border-primary-container text-on-surface text-[10px] font-bold rounded flex items-center gap-1 shadow-lg transition-colors" title="Toggle right spectral metrics drawer ([ or ])">
+              <span class="material-symbols-outlined text-xs text-primary-container">side_navigation</span>
+              <span id="spectral-drawer-hud-label">METRICS: OPEN</span>
+            </button>
           </div>
+
+          <!-- Collapsed Right Margin Expand Tab -->
+          <button id="btn-expand-spectral-drawer" onclick="toggleSpectralDrawer()" class="hidden absolute top-1/2 right-0 -translate-y-1/2 z-30 bg-[#0c121d]/95 hover:bg-surface-container-high backdrop-blur border-y border-l border-primary-container/60 hover:border-primary-container px-2 py-3.5 text-primary-container rounded-l-md font-mono text-[10px] font-bold flex flex-col items-center gap-2 shadow-2xl cursor-pointer transition-all group" title="Expand Spectral Metrics Drawer ([ or ])">
+            <span class="material-symbols-outlined text-sm group-hover:-translate-x-0.5 transition-transform">chevron_left</span>
+            <span style="writing-mode: vertical-rl; transform: rotate(180deg);" class="uppercase tracking-widest text-[9px] text-outline group-hover:text-primary-container">SPECTRAL METRICS</span>
+          </button>
 
           <!-- Bottom Status & Hover Tooltip HUD -->
           <div class="absolute bottom-3 left-3 right-3 z-20 pointer-events-none flex items-end justify-between font-mono text-[10px]">
@@ -1142,42 +1198,56 @@
         </div>
 
         <!-- Right Side: Spectral Mathematics & Matrix Decomposition Dashboard -->
-        <div class="w-full xl:w-96 p-4 bg-surface-container-lowest border-l border-outline-variant/30 flex flex-col gap-4 font-mono text-xs overflow-y-auto">
-          <!-- Card: Normalized Laplacian Spectrum -->
-          <div class="bg-surface-container-low p-3 border border-outline-variant/30">
-            <div class="flex items-center justify-between pb-1.5 border-b border-outline-variant/20 mb-2">
-              <span class="text-[10px] text-primary-container font-bold uppercase">LAPLACIAN SPECTRUM (L = D - A)</span>
-              <span class="text-[9px] text-secondary-container">SYMMETRIC POSITIVE SEMI-DEFINITE</span>
+        <div id="spectral-math-drawer" class="w-full xl:w-96 p-4 bg-surface-container-lowest border-l border-outline-variant/30 flex flex-col gap-4 font-mono text-xs overflow-y-auto transition-all duration-300 ease-in-out shrink-0 relative">
+          <!-- Drawer Header with Title & Collapse Button -->
+          <div class="flex items-center justify-between pb-2 border-b border-outline-variant/30">
+            <div class="flex items-center gap-1.5 font-bold text-primary-container text-xs">
+              <span class="material-symbols-outlined text-sm">tune</span>
+              <span>SPECTRAL METRICS</span>
             </div>
-            <table class="w-full text-[10px]">
-              <thead class="text-outline text-left">
-                <tr><th>MODE</th><th>MAGNITUDE</th><th>INTERPRETATION</th></tr>
-              </thead>
-              <tbody id="spectral-eigenvalues-body" class="divide-y divide-outline-variant/20 text-on-surface">
-                <!-- Dynamically populated from /api/spectral -->
-              </tbody>
-            </table>
+            <button id="btn-collapse-spectral-drawer" onclick="toggleSpectralDrawer()" class="px-2 py-0.5 bg-surface-container hover:bg-surface-container-high border border-outline-variant/30 hover:border-primary-container/60 rounded text-[10px] text-on-surface-variant hover:text-on-surface flex items-center gap-1 transition-colors cursor-pointer" title="Collapse to right margin ([ or ])">
+              <span class="material-symbols-outlined text-xs">chevron_right</span>
+              <span>COLLAPSE</span>
+            </button>
           </div>
 
-          <!-- Card: Dirichlet Energy Concentration -->
-          <div class="bg-surface-container-low p-3 border border-outline-variant/30">
-            <div class="flex items-center justify-between pb-1.5 border-b border-outline-variant/20 mb-2">
-              <span class="text-[10px] text-primary-container font-bold uppercase">DIRICHLET ENERGY H(L)</span>
-              <span id="spectral-dirichlet-card-val" class="text-[9px] text-primary font-bold">0.036 bits</span>
+          <div id="spectral-drawer-inner" class="flex flex-col gap-4 w-full">
+            <!-- Card: Normalized Laplacian Spectrum -->
+            <div class="bg-surface-container-low p-3 border border-outline-variant/30">
+              <div class="flex items-center justify-between pb-1.5 border-b border-outline-variant/20 mb-2">
+                <span class="text-[10px] text-primary-container font-bold uppercase">LAPLACIAN SPECTRUM (L = D - A)</span>
+                <span class="text-[9px] text-secondary-container">SYMMETRIC POSITIVE SEMI-DEFINITE</span>
+              </div>
+              <table class="w-full text-[10px]">
+                <thead class="text-outline text-left">
+                  <tr><th>MODE</th><th>MAGNITUDE</th><th>INTERPRETATION</th></tr>
+                </thead>
+                <tbody id="spectral-eigenvalues-body" class="divide-y divide-outline-variant/20 text-on-surface">
+                  <!-- Dynamically populated from /api/spectral -->
+                </tbody>
+              </table>
             </div>
-            <div id="spectral-energy-bars" class="space-y-1.5 text-[10px]">
-              <!-- Dynamically populated from real nodes distribution -->
-            </div>
-          </div>
 
-          <!-- Card: Modularity & Graph Bisection -->
-          <div class="bg-surface-container-low p-3 border border-outline-variant/30 space-y-2">
-            <div class="text-[10px] text-primary-container font-bold uppercase">GRAPH SPECTRAL PARTITIONING</div>
-            <p id="spectral-partitioning-desc" class="text-[10px] text-on-surface-variant font-sans">
-              Sign of the Fiedler eigenvector <code class="text-secondary-container">v₂ &gt; 0</code> cleanly bisects the active agent memory enclaves with zero cut edges violating ABAC boundary integrity.
-            </p>
-            <div id="spectral-modularity-box" class="p-2 bg-surface-container-lowest border border-secondary-container/30 text-[9px] text-secondary-container">
-              ✓ Modularity Score Q = 0.742 confirms strong community structure without cognitive drift across scopes.
+            <!-- Card: Dirichlet Energy Concentration -->
+            <div class="bg-surface-container-low p-3 border border-outline-variant/30">
+              <div class="flex items-center justify-between pb-1.5 border-b border-outline-variant/20 mb-2">
+                <span class="text-[10px] text-primary-container font-bold uppercase">DIRICHLET ENERGY H(L)</span>
+                <span id="spectral-dirichlet-card-val" class="text-[9px] text-primary font-bold">0.036 bits</span>
+              </div>
+              <div id="spectral-energy-bars" class="space-y-1.5 text-[10px]">
+                <!-- Dynamically populated from real nodes distribution -->
+              </div>
+            </div>
+
+            <!-- Card: Modularity & Graph Bisection -->
+            <div class="bg-surface-container-low p-3 border border-outline-variant/30 space-y-2">
+              <div class="text-[10px] text-primary-container font-bold uppercase">GRAPH SPECTRAL PARTITIONING</div>
+              <p id="spectral-partitioning-desc" class="text-[10px] text-on-surface-variant font-sans">
+                Sign of the Fiedler eigenvector <code class="text-secondary-container">v₂ &gt; 0</code> cleanly bisects the active agent memory enclaves with zero cut edges violating ABAC boundary integrity.
+              </p>
+              <div id="spectral-modularity-box" class="p-2 bg-surface-container-lowest border border-secondary-container/30 text-[9px] text-secondary-container">
+                ✓ Modularity Score Q = 0.742 confirms strong community structure without cognitive drift across scopes.
+              </div>
             </div>
           </div>
         </div>
@@ -1295,6 +1365,22 @@
                   <stop offset="0%" stop-color="#00ffa3" stop-opacity="0.4"/>
                   <stop offset="100%" stop-color="#f59e0b" stop-opacity="0.7"/>
                 </linearGradient>
+                <!-- SVG Directional Arrowhead Markers -->
+                <marker id="arrow-prompt" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
+                  <path d="M 0 0 L 6 3 L 0 6 Z" fill="#f59e0b" />
+                </marker>
+                <marker id="arrow-tool" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
+                  <path d="M 0 0 L 6 3 L 0 6 Z" fill="#00f0ff" />
+                </marker>
+                <marker id="arrow-response" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
+                  <path d="M 0 0 L 6 3 L 0 6 Z" fill="#c084fc" />
+                </marker>
+                <marker id="arrow-anchor" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
+                  <path d="M 0 0 L 6 3 L 0 6 Z" fill="#00ffa3" />
+                </marker>
+                <marker id="arrow-transit" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto">
+                  <path d="M 0 0 L 7 3.5 L 0 7 Z" fill="#00f0ff" />
+                </marker>
                 <filter id="glowFilter" x="-20%" y="-20%" width="140%" height="140%">
                   <feGaussianBlur stdDeviation="3" result="blur" />
                   <feComposite in="SourceGraphic" in2="blur" operator="over" />
@@ -2323,7 +2409,68 @@
 
       <!-- Modal Body (Scrollable) -->
       <div class="flex-1 overflow-y-auto space-y-4 pr-1 text-xs">
-        <!-- Section: Prompt -->
+        <!-- SPECIAL CARD 1: Terminal Command Execution -->
+        <div id="modal-section-command" class="space-y-2 hidden">
+          <div class="flex items-center justify-between text-[10px] text-primary-container font-bold">
+            <span class="flex items-center gap-1.5">
+              <span class="material-symbols-outlined text-sm text-[#00ffa3]">terminal</span>
+              <span>BASH / RUNTIME COMMAND EXECUTION</span>
+            </span>
+            <button onclick="copyModalField('modal-command-raw')" class="px-2 py-0.5 rounded bg-surface-container-high hover:bg-surface-container-highest text-[9px] text-primary-container font-mono transition-colors">COPY COMMAND</button>
+          </div>
+
+          <!-- Dark Terminal CRT Screen Box -->
+          <div class="rounded-lg border border-[#00f0ff]/40 bg-[#040812] p-3.5 text-[#00f0ff] font-mono text-xs shadow-inner space-y-2.5">
+            <div class="flex items-center justify-between text-[10px] text-outline border-b border-[#00f0ff]/20 pb-1.5">
+              <span class="flex items-center gap-1.5">
+                <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                <span class="text-white font-bold">HOST EXECUTION DAEMON</span>
+              </span>
+              <span class="text-emerald-400 font-bold bg-emerald-950/60 px-1.5 py-0.5 rounded border border-emerald-500/30">STATUS: EXIT 0 (SUCCESS)</span>
+            </div>
+            <div class="flex items-start gap-2 pt-1 font-mono text-sm leading-relaxed">
+              <span class="text-emerald-400 font-bold select-none">$</span>
+              <span id="modal-command-raw" class="text-cyan-100 font-bold break-all select-all"></span>
+            </div>
+            <div id="modal-command-summary-box" class="pt-2 text-[10px] text-neutral-300 border-t border-[#00f0ff]/10 flex items-center justify-between">
+              <div>
+                <span class="text-outline uppercase">PURPOSE:</span>
+                <span id="modal-command-summary" class="text-white font-medium ml-1"></span>
+              </div>
+              <span id="modal-command-toolname" class="text-[9px] text-outline font-mono">run_command</span>
+            </div>
+          </div>
+
+          <!-- Command Arguments & Parameters -->
+          <div class="space-y-1">
+            <span class="text-[10px] text-outline font-bold">INVOCATION PARAMETERS:</span>
+            <pre id="modal-command-args" class="p-2.5 rounded bg-surface-container-lowest border border-outline-variant/30 text-neutral-300 font-mono text-[10px] overflow-x-auto max-h-36"></pre>
+          </div>
+        </div>
+
+        <!-- SPECIAL CARD 2: File Operation (Read / Edit / Write) -->
+        <div id="modal-section-file" class="space-y-2 hidden">
+          <div class="flex items-center justify-between text-[10px] text-amber-400 font-bold">
+            <span class="flex items-center gap-1.5">
+              <span class="material-symbols-outlined text-sm">description</span>
+              <span id="modal-file-op-title">WORKSPACE FILE OPERATION</span>
+            </span>
+            <button onclick="copyModalField('modal-file-path')" class="px-2 py-0.5 rounded bg-surface-container-high hover:bg-surface-container-highest text-[9px] text-amber-400 font-mono transition-colors">COPY PATH</button>
+          </div>
+
+          <div class="p-3 rounded-lg bg-surface-container-lowest border border-amber-500/30 space-y-2">
+            <div class="flex items-center justify-between text-[11px] font-mono">
+              <span class="text-outline">PATH:</span>
+              <span id="modal-file-path" class="text-amber-200 font-bold truncate max-w-lg select-all"></span>
+            </div>
+            <div id="modal-file-diff-box" class="space-y-1 pt-1 border-t border-outline-variant/20">
+              <span class="text-[9px] text-outline block">TARGET / REPLACEMENT PAYLOAD:</span>
+              <pre id="modal-file-payload" class="p-2 bg-black/50 rounded border border-outline-variant/20 font-mono text-[10px] text-neutral-200 max-h-44 overflow-y-auto whitespace-pre-wrap"></pre>
+            </div>
+          </div>
+        </div>
+
+        <!-- SPECIAL CARD 3: Prompt Instruction -->
         <div id="modal-section-prompt" class="space-y-1.5">
           <div class="flex items-center justify-between text-[10px] text-[#f59e0b] font-bold">
             <span class="flex items-center gap-1"><span class="material-symbols-outlined text-xs">person</span>PROMPT INSTRUCTION</span>
@@ -2332,7 +2479,7 @@
           <div id="modal-prompt-content" class="p-3 rounded-lg bg-surface-container-lowest border border-outline-variant/30 text-white font-sans text-xs whitespace-pre-wrap leading-relaxed max-h-48 overflow-y-auto"></div>
         </div>
 
-        <!-- Section: Tool Execution -->
+        <!-- SPECIAL CARD 4: Tool Execution (Generic) -->
         <div id="modal-section-tools" class="space-y-1.5 hidden">
           <div class="flex items-center justify-between text-[10px] text-primary-container font-bold">
             <span class="flex items-center gap-1"><span class="material-symbols-outlined text-xs">build</span>TOOL INVOCATION &amp; ARGS</span>
@@ -2341,7 +2488,7 @@
           <pre id="modal-tools-content" class="p-3 rounded-lg bg-surface-container-lowest border border-outline-variant/30 text-primary-container font-mono text-[11px] overflow-x-auto max-h-48 leading-relaxed"></pre>
         </div>
 
-        <!-- Section: Model Response & Synthesis -->
+        <!-- SPECIAL CARD 5: Model Response & Synthesis -->
         <div id="modal-section-response" class="space-y-1.5">
           <div class="flex items-center justify-between text-[10px] text-[#c084fc] font-bold">
             <span class="flex items-center gap-1"><span class="material-symbols-outlined text-xs">psychology</span>AGENT REASONING &amp; SYNTHESIS</span>
@@ -4674,8 +4821,12 @@
         if (sessRes.ok) {
           const d = await sessRes.json();
           if (d.sessions && d.sessions.length > 0) {
+            cachedDialogueSessions = d.sessions;
             document.getElementById('header-sess-count').innerText = d.sessions.length;
             renderDynamicSessions(d.sessions);
+            if (typeof updateDialogueScopeFilter === 'function') {
+              updateDialogueScopeFilter(activeAgentScopeFilter || 'all');
+            }
           }
         }
       } catch (e) {}
@@ -5582,6 +5733,55 @@
     window.onSpectralResize = spectralResize;
     window.addEventListener('resize', spectralResize);
 
+    let spectralDrawerCollapsed = false;
+    function toggleSpectralDrawer() {
+      spectralDrawerCollapsed = !spectralDrawerCollapsed;
+      const drawer = document.getElementById('spectral-math-drawer');
+      const expandTab = document.getElementById('btn-expand-spectral-drawer');
+      const hudLabel = document.getElementById('spectral-drawer-hud-label');
+
+      if (drawer) {
+        if (spectralDrawerCollapsed) {
+          drawer.style.setProperty('width', '0px', 'important');
+          drawer.style.setProperty('min-width', '0px', 'important');
+          drawer.style.setProperty('max-width', '0px', 'important');
+          drawer.style.setProperty('padding', '0px', 'important');
+          drawer.style.setProperty('border', 'none', 'important');
+          drawer.style.setProperty('margin', '0px', 'important');
+          drawer.style.setProperty('opacity', '0', 'important');
+          drawer.style.setProperty('pointer-events', 'none', 'important');
+          drawer.style.setProperty('overflow', 'hidden', 'important');
+        } else {
+          drawer.style.removeProperty('width');
+          drawer.style.removeProperty('min-width');
+          drawer.style.removeProperty('max-width');
+          drawer.style.removeProperty('padding');
+          drawer.style.removeProperty('border');
+          drawer.style.removeProperty('margin');
+          drawer.style.removeProperty('opacity');
+          drawer.style.removeProperty('pointer-events');
+          drawer.style.removeProperty('overflow');
+        }
+      }
+
+      if (expandTab) {
+        expandTab.classList.toggle('hidden', !spectralDrawerCollapsed);
+      }
+
+      if (hudLabel) {
+        hudLabel.textContent = spectralDrawerCollapsed ? 'METRICS: CLOSED' : 'METRICS: OPEN';
+      }
+
+      // Smoothly sync WebGL viewport dimensions during transition
+      let count = 0;
+      const timer = setInterval(() => {
+        spectralResize();
+        count++;
+        if (count >= 11) clearInterval(timer);
+      }, 30);
+    }
+    window.toggleSpectralDrawer = toggleSpectralDrawer;
+
     window.loadSpectralData = async function() {
       try {
         const [specResp, graphResp] = await Promise.all([
@@ -6100,36 +6300,72 @@
         const turns = sessionDetail.turns || [];
         let totalTools = 0;
         let prevAnchorPos = null;
-        dialogFlatSteps = [];
+        dialogueFlatSteps = [];
 
-        // Expand canvas dimensions to hold all turns comfortably
-        const canvasWidth = Math.max(3800, (turns.length + 2) * 440);
-        if (transformLayer) {
-          transformLayer.style.width = `${canvasWidth}px`;
-        }
+        let currentX = 50;
+        const maxRows = 3;
 
         turns.forEach((turn, turnIdx) => {
           const toolCalls = turn.tool_calls || [];
           totalTools += toolCalls.length;
 
-          // Coordinates
-          let turnBaseX = 60 + turnIdx * 430;
-          let turnBaseY = 320;
-
-          if (dialogueLayout === 'stacked') {
-            turnBaseX = 60 + (turnIdx % 3) * 440;
-            turnBaseY = 120 + Math.floor(turnIdx / 3) * 290;
+          // 1. Calculate Enclave geometry
+          const numCols = toolCalls.length > 0 ? Math.ceil(toolCalls.length / maxRows) : 0;
+          const colWidth = 190; // width 168 + gap 22
+          
+          let turnWidth = 420;
+          if (numCols > 0) {
+            turnWidth = 120 + (numCols * colWidth) + 220;
           }
+          const turnHeight = Math.max(340, Math.min(toolCalls.length || 1, maxRows) * 82 + 90);
+          
+          const turnStartX = currentX;
+          const turnStartY = dialogueLayout === 'stacked' ? (120 + (turnIdx % 2) * (turnHeight + 40)) : 150;
+          const centerY = turnStartY + turnHeight / 2 + 10;
 
-          // -------------------------------------------------------------
-          // STEP 1: Prompt Cube Node
-          // -------------------------------------------------------------
+          // Render Turn Enclave Container Backdrop
+          const enclaveEl = document.createElement('div');
+          enclaveEl.className = 'turn-enclave group/enclave';
+          enclaveEl.id = `turn-enclave-${turnIdx}`;
+          enclaveEl.style.left = `${turnStartX}px`;
+          enclaveEl.style.top = `${turnStartY}px`;
+          enclaveEl.style.width = `${turnWidth}px`;
+          enclaveEl.style.height = `${turnHeight}px`;
+
+          const turnTimeStr = turn.created_at ? new Date(turn.created_at).toLocaleTimeString() : `TURN ${turnIdx + 1}`;
+          enclaveEl.innerHTML = `
+            <div class="flex items-center justify-between border-b border-outline-variant/20 pb-2 mb-2 font-mono text-[10px]">
+              <div class="flex items-center gap-2">
+                <span class="w-2 h-2 rounded-full bg-primary-container animate-pulse"></span>
+                <span class="font-bold text-primary-container">TURN ${turnIdx + 1}</span>
+                <span class="text-outline text-[9px]">· ${escapeHtml(turnTimeStr)}</span>
+              </div>
+              <div class="flex items-center gap-2 text-[9px]">
+                <span class="px-1.5 py-0.2 rounded bg-surface-container text-secondary-container font-semibold border border-secondary-container/20">
+                  ${toolCalls.length} ACTIONS
+                </span>
+                <span class="text-outline">ROOT:</span>
+                <span class="text-emerald-400 font-mono">0x${(turn.turn_hash || '').substring(0, 6)}</span>
+              </div>
+            </div>
+            <div class="flex items-center justify-between text-[8px] font-mono text-outline/50 px-1 select-none pointer-events-none">
+              <span>INTENT</span>
+              ${toolCalls.length > 0 ? `<span>COMMAND TRAJECTORY (${toolCalls.length} STEPS)</span>` : ''}
+              <span>SYNTHESIS</span>
+              <span>STATE ANCHOR</span>
+            </div>
+          `;
+          nodesLayer.appendChild(enclaveEl);
+
+          // 2. Prompt Cube Node
+          const promptX = turnStartX + 25;
+          const promptY = centerY - 32;
           const promptNodeId = `node-prompt-${turnIdx}`;
           const promptEl = document.createElement('div');
           promptEl.id = promptNodeId;
           promptEl.className = 'dialogue-cube-node node-prompt group';
-          promptEl.style.left = `${turnBaseX}px`;
-          promptEl.style.top = `${turnBaseY}px`;
+          promptEl.style.left = `${promptX}px`;
+          promptEl.style.top = `${promptY}px`;
           promptEl.title = `Turn ${turnIdx + 1} Prompt: ${(turn.prompt_text || '').substring(0, 80)}...`;
           promptEl.onclick = () => openDialogueNodeModal({
             type: 'prompt',
@@ -6149,69 +6385,185 @@
             type: 'prompt',
             turnIdx,
             nodeId: promptNodeId,
-            x: turnBaseX + 32,
-            y: turnBaseY + 32,
+            x: promptX + 32,
+            y: promptY + 32,
             summary: `Turn ${turnIdx + 1}: Prompt instruction received`
           });
 
-          // -------------------------------------------------------------
-          // STEP 2: Tool Branch Cube Nodes
-          // -------------------------------------------------------------
-          const toolNodePositions = [];
+          // 3. Tool / Command Cards
+          const toolsBaseX = turnStartX + 120;
+          const toolPositionsByCol = {};
+          
           if (toolCalls.length > 0) {
             toolCalls.forEach((tc, tcIdx) => {
+              const col = Math.floor(tcIdx / maxRows);
+              const row = tcIdx % maxRows;
+              const rowsInCol = Math.min(maxRows, toolCalls.length - col * maxRows);
+              
+              const toolX = toolsBaseX + col * colWidth;
+              const toolY = centerY - (rowsInCol * 78) / 2 + row * 78;
+
+              if (!toolPositionsByCol[col]) toolPositionsByCol[col] = [];
+              toolPositionsByCol[col].push({ x: toolX, y: toolY, tcIdx });
+
               const toolNodeId = `node-tool-${turnIdx}-${tcIdx}`;
-              const toolX = turnBaseX + 115;
-              const offsetY = ((tcIdx - (toolCalls.length - 1) / 2) * 76);
-              const toolY = turnBaseY + offsetY;
-              toolNodePositions.push({ x: toolX + 32, y: toolY + 32 });
+              const tName = (tc.name || tc.tool_name || 'tool').toLowerCase();
+              const tArgs = tc.args || tc.arguments || {};
+
+              const isCmd = tName.includes('command') || tName.includes('bash') || tName.includes('exec') || tName.includes('sh');
+              const isFile = tName.includes('file') || tName.includes('read') || tName.includes('write') || tName.includes('edit');
 
               const toolEl = document.createElement('div');
               toolEl.id = toolNodeId;
-              toolEl.className = 'dialogue-cube-node node-tool group';
               toolEl.style.left = `${toolX}px`;
               toolEl.style.top = `${toolY}px`;
-              toolEl.title = `Tool [${tc.name || 'exec'}]: ${JSON.stringify(tc.arguments || {})}`;
-              toolEl.onclick = () => openDialogueNodeModal({
-                type: 'tool',
-                toolIdx: tcIdx,
-                tool: tc,
-                turnIdx,
-                turn,
-                sessionDetail,
-              });
 
-              const shortToolName = (tc.name || 'tool').replace(/^(memory_|super_)/, '');
-              toolEl.innerHTML = `
-                <span class="material-symbols-outlined text-lg">build</span>
-                <span class="text-[8px] font-bold mt-0.5 truncate max-w-[56px] text-center">${escapeHtml(shortToolName)}</span>
-                <span class="text-[7px] text-primary-container font-mono">EXIT 0</span>
-              `;
+              if (isCmd) {
+                // Command Card showing ACTUAL shell command
+                toolEl.className = 'dialogue-cube-node node-command-card group';
+                let cmd = tArgs.CommandLine || tArgs.command || tArgs.cmd || tArgs.script || '';
+                if (typeof cmd === 'string') cmd = cmd.replace(/^["']|["']$/g, '').trim();
+                const summary = (tArgs.toolSummary || tArgs.summary || cmd || 'run_command').replace(/^["']|["']$/g, '');
+                const displayCmd = cmd || summary || tName;
+
+                toolEl.title = `CLI Command [${summary}]: ${displayCmd}`;
+                toolEl.onclick = () => openDialogueNodeModal({
+                  type: 'command',
+                  command: displayCmd,
+                  toolSummary: summary,
+                  tool: tc,
+                  toolIdx: tcIdx,
+                  turnIdx,
+                  turn,
+                  sessionDetail,
+                });
+
+                toolEl.innerHTML = `
+                  <div class="w-full h-full p-2 flex flex-col justify-between overflow-hidden bg-gradient-to-br from-[#061524] to-[#020b14] border border-[#00f0ff]/60 rounded-lg shadow-lg group-hover:border-[#00f0ff] transition-all text-left">
+                    <div class="flex items-center justify-between gap-1 text-[8px] font-mono">
+                      <span class="flex items-center gap-1 text-primary-container font-bold truncate max-w-[110px]">
+                        <span class="text-[9px] text-[#00ffa3] font-mono font-bold">$</span>
+                        <span class="truncate">${escapeHtml(summary)}</span>
+                      </span>
+                      <span class="text-[7px] text-[#00ffa3] bg-[#00ffa3]/15 px-1 rounded font-bold shrink-0">EXIT 0</span>
+                    </div>
+                    <div class="text-[9px] font-mono text-cyan-200 truncate font-semibold px-0.5 select-none" title="${escapeHtml(displayCmd)}">
+                      $ ${escapeHtml(displayCmd)}
+                    </div>
+                    <div class="flex items-center justify-between text-[7px] text-outline font-mono">
+                      <span>#${tcIdx + 1} CLI</span>
+                      <span class="text-primary-container text-[7px] group-hover:underline">INSPECT ↗</span>
+                    </div>
+                  </div>
+                `;
+              } else if (isFile) {
+                // Workspace File Card
+                toolEl.className = 'dialogue-cube-node node-file-card group';
+                let filePath = tArgs.Path || tArgs.path || tArgs.file_path || tArgs.filePath || '';
+                if (typeof filePath === 'string') filePath = filePath.replace(/^["']|["']$/g, '').trim();
+                const fileName = filePath ? filePath.split('/').pop() : tName;
+
+                toolEl.title = `File Op [${tName}]: ${filePath}`;
+                toolEl.onclick = () => openDialogueNodeModal({
+                  type: 'file',
+                  filePath,
+                  toolName: tName,
+                  tool: tc,
+                  toolIdx: tcIdx,
+                  turnIdx,
+                  turn,
+                  sessionDetail,
+                });
+
+                toolEl.innerHTML = `
+                  <div class="w-full h-full p-2 flex flex-col justify-between overflow-hidden bg-gradient-to-br from-[#241403] to-[#0c0801] border border-[#f59e0b]/60 rounded-lg shadow-lg group-hover:border-[#f59e0b] transition-all text-left">
+                    <div class="flex items-center justify-between gap-1 text-[8px] font-mono">
+                      <span class="flex items-center gap-1 text-amber-400 font-bold truncate max-w-[110px]">
+                        <span class="material-symbols-outlined text-[10px]">description</span>
+                        <span class="truncate uppercase">${escapeHtml(tName.replace(/(_file|file_)/, ''))}</span>
+                      </span>
+                      <span class="text-[7px] text-amber-300 bg-amber-400/15 px-1 rounded font-bold shrink-0">OK</span>
+                    </div>
+                    <div class="text-[9px] font-mono text-amber-200 truncate font-semibold px-0.5 select-none" title="${escapeHtml(filePath)}">
+                      ${escapeHtml(fileName || 'file')}
+                    </div>
+                    <div class="flex items-center justify-between text-[7px] text-outline font-mono">
+                      <span>#${tcIdx + 1} FILE</span>
+                      <span class="text-amber-400 text-[7px] group-hover:underline">INSPECT ↗</span>
+                    </div>
+                  </div>
+                `;
+              } else {
+                // MCP / Extension Card
+                toolEl.className = 'dialogue-cube-node node-mcp-card group';
+                const shortToolName = tName.replace(/^(memory_|super_|cortex_)/, '');
+
+                toolEl.title = `MCP Dispatch [${tName}]: ${JSON.stringify(tArgs)}`;
+                toolEl.onclick = () => openDialogueNodeModal({
+                  type: 'mcp',
+                  toolName: tName,
+                  tool: tc,
+                  toolIdx: tcIdx,
+                  turnIdx,
+                  turn,
+                  sessionDetail,
+                });
+
+                toolEl.innerHTML = `
+                  <div class="w-full h-full p-2 flex flex-col justify-between overflow-hidden bg-gradient-to-br from-[#1b0730] to-[#0b0214] border border-[#c084fc]/60 rounded-lg shadow-lg group-hover:border-[#c084fc] transition-all text-left">
+                    <div class="flex items-center justify-between gap-1 text-[8px] font-mono">
+                      <span class="flex items-center gap-1 text-purple-300 font-bold truncate max-w-[110px]">
+                        <span class="material-symbols-outlined text-[10px]">hub</span>
+                        <span class="truncate uppercase">MCP CALL</span>
+                      </span>
+                      <span class="text-[7px] text-purple-300 bg-purple-400/15 px-1 rounded font-bold shrink-0">DISPATCH</span>
+                    </div>
+                    <div class="text-[9px] font-mono text-purple-200 truncate font-semibold px-0.5 select-none" title="${escapeHtml(tName)}">
+                      ${escapeHtml(shortToolName)}
+                    </div>
+                    <div class="flex items-center justify-between text-[7px] text-outline font-mono">
+                      <span>#${tcIdx + 1} EXT</span>
+                      <span class="text-purple-300 text-[7px] group-hover:underline">INSPECT ↗</span>
+                    </div>
+                  </div>
+                `;
+              }
+
               nodesLayer.appendChild(toolEl);
 
-              // SVG Branch: Prompt -> Tool
-              const branchPathId = `path-prompt-tool-${turnIdx}-${tcIdx}`;
-              drawSvgBezier(linesGroup, turnBaseX + 64, turnBaseY + 32, toolX, toolY + 32, '#f59e0b', '#00f0ff', branchPathId);
+              // Connect SVG lines:
+              // From Prompt to Col 0:
+              if (col === 0) {
+                const branchPathId = `path-prompt-tool-${turnIdx}-${tcIdx}`;
+                drawSvgBezier(linesGroup, promptX + 64, promptY + 32, toolX, toolY + 32, '#f59e0b', '#00f0ff', branchPathId, 'tool');
+              } else {
+                // From corresponding tool in col - 1 to this tool in col:
+                const prevColTools = toolPositionsByCol[col - 1] || [];
+                const prevTool = prevColTools[Math.min(row, prevColTools.length - 1)];
+                if (prevTool) {
+                  const branchPathId = `path-tool-tool-${turnIdx}-${tcIdx}`;
+                  drawSvgBezier(linesGroup, prevTool.x + 168, prevTool.y + 32, toolX, toolY + 32, '#00f0ff', '#00f0ff', branchPathId, 'tool');
+                }
+              }
 
               dialogueFlatSteps.push({
                 stepIdx: dialogueFlatSteps.length,
                 type: 'tool',
                 turnIdx,
                 nodeId: toolNodeId,
-                pathId: branchPathId,
-                x: toolX + 32,
+                x: toolX + 84,
                 y: toolY + 32,
-                summary: `Turn ${turnIdx + 1} Tool Execution: ${tc.name || 'tool'}`
+                summary: `Turn ${turnIdx + 1} Action: ${tName}`
               });
             });
           }
 
-          // -------------------------------------------------------------
-          // STEP 3: Agent Response Cube Node
-          // -------------------------------------------------------------
+          // 4. Response Node
+          const lastColTools = toolPositionsByCol[numCols - 1] || [];
+          const respX = numCols > 0 ? (toolsBaseX + (numCols - 1) * colWidth + 168 + 45) : (turnStartX + 140);
+          const respY = centerY - 32;
+
           const respNodeId = `node-resp-${turnIdx}`;
-          const respX = turnBaseX + 230;
-          const respY = turnBaseY;
           const respEl = document.createElement('div');
           respEl.id = respNodeId;
           respEl.className = 'dialogue-cube-node node-response group';
@@ -6231,15 +6583,15 @@
           `;
           nodesLayer.appendChild(respEl);
 
-          // SVG Branches into Response: From Tools (or directly from Prompt if no tools)
-          if (toolNodePositions.length > 0) {
-            toolNodePositions.forEach((tp, tpIdx) => {
+          // SVG lines into Response:
+          if (lastColTools.length > 0) {
+            lastColTools.forEach((tp, tpIdx) => {
               const respPathId = `path-tool-resp-${turnIdx}-${tpIdx}`;
-              drawSvgBezier(linesGroup, tp.x + 32, tp.y, respX, respY + 32, '#00f0ff', '#a855f7', respPathId);
+              drawSvgBezier(linesGroup, tp.x + 168, tp.y + 32, respX, respY + 32, '#00f0ff', '#c084fc', respPathId, 'response');
             });
           } else {
             const respPathId = `path-prompt-resp-${turnIdx}`;
-            drawSvgBezier(linesGroup, turnBaseX + 64, turnBaseY + 32, respX, respY + 32, '#f59e0b', '#a855f7', respPathId);
+            drawSvgBezier(linesGroup, promptX + 64, promptY + 32, respX, respY + 32, '#f59e0b', '#c084fc', respPathId, 'response');
           }
 
           dialogueFlatSteps.push({
@@ -6252,12 +6604,10 @@
             summary: `Turn ${turnIdx + 1}: Agent reasoning reified`
           });
 
-          // -------------------------------------------------------------
-          // STEP 4: Merkle Anchor Cube Node
-          // -------------------------------------------------------------
+          // 5. Merkle Anchor Node
+          const anchorX = respX + 105;
+          const anchorY = centerY - 32;
           const anchorNodeId = `node-anchor-${turnIdx}`;
-          const anchorX = turnBaseX + 330;
-          const anchorY = turnBaseY;
           const anchorEl = document.createElement('div');
           anchorEl.id = anchorNodeId;
           anchorEl.className = 'dialogue-cube-node node-anchor group';
@@ -6277,13 +6627,13 @@
           `;
           nodesLayer.appendChild(anchorEl);
 
-          // SVG Link: Response -> Merkle Anchor
+          // SVG link Response -> Anchor:
           const anchorPathId = `path-resp-anchor-${turnIdx}`;
-          drawSvgBezier(linesGroup, respX + 64, respY + 32, anchorX, anchorY + 32, '#a855f7', '#00ffa3', anchorPathId);
+          drawSvgBezier(linesGroup, respX + 64, respY + 32, anchorX, anchorY + 32, '#c084fc', '#00ffa3', anchorPathId, 'anchor');
 
-          // SVG Inter-turn Arc: Previous Anchor -> Current Prompt
+          // SVG Inter-turn Causal Transit Bridge:
           if (prevAnchorPos) {
-            drawSvgTransitBezier(linesGroup, prevAnchorPos.x, prevAnchorPos.y, turnBaseX, turnBaseY + 32);
+            drawSvgTransitBezier(linesGroup, prevAnchorPos.x, prevAnchorPos.y, promptX, promptY + 32);
           }
           prevAnchorPos = { x: anchorX + 64, y: anchorY + 32 };
 
@@ -6296,7 +6646,20 @@
             y: anchorY + 32,
             summary: `Turn ${turnIdx + 1}: Cryptographic Merkle leaf anchored`
           });
+
+          // Advance currentX for next turn
+          currentX += turnWidth + 70;
         });
+
+        // Expand canvas dimensions to hold all turns comfortably
+        const canvasWidth = Math.max(3800, currentX + 300);
+        if (transformLayer) {
+          transformLayer.style.width = `${canvasWidth}px`;
+        }
+        const svgCanvas = document.getElementById('dialogue-svg-canvas');
+        if (svgCanvas) {
+          svgCanvas.setAttribute('width', `${canvasWidth}`);
+        }
 
         const toolsBadge = document.getElementById('dialogue-tools-badge');
         if (toolsBadge) toolsBadge.innerText = `${totalTools} TOOLS EXECUTED`;
@@ -6319,30 +6682,36 @@
       }
     }
 
-    function drawSvgBezier(svgGroup, x1, y1, x2, y2, startCol, endCol, pathId) {
+    function drawSvgBezier(svgGroup, x1, y1, x2, y2, startCol, endCol, pathId, markerType = 'tool') {
       const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
       if (pathId) path.id = pathId;
-      const dx = Math.max(30, (x2 - x1) * 0.5);
+      const dx = Math.max(35, Math.abs(x2 - x1) * 0.45);
       const d = `M ${x1} ${y1} C ${x1 + dx} ${y1}, ${x2 - dx} ${y2}, ${x2} ${y2}`;
       path.setAttribute('d', d);
       path.setAttribute('fill', 'none');
       path.setAttribute('stroke', 'url(#dialogueCausalGrad)');
       path.setAttribute('stroke-width', '2.5');
-      path.setAttribute('stroke-opacity', '0.8');
+      path.setAttribute('stroke-opacity', '0.85');
+      if (markerType) {
+        path.setAttribute('marker-end', `url(#arrow-${markerType})`);
+      }
       svgGroup.appendChild(path);
+      return path;
     }
 
     function drawSvgTransitBezier(svgGroup, x1, y1, x2, y2) {
       const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-      const dx = Math.max(60, (x2 - x1) * 0.5);
+      const dx = Math.max(50, Math.abs(x2 - x1) * 0.4);
       const d = `M ${x1} ${y1} C ${x1 + dx} ${y1}, ${x2 - dx} ${y2}, ${x2} ${y2}`;
       path.setAttribute('d', d);
       path.setAttribute('fill', 'none');
       path.setAttribute('stroke', 'url(#dialogueTransitGrad)');
       path.setAttribute('stroke-width', '2.5');
       path.setAttribute('stroke-dasharray', '6 4');
-      path.setAttribute('stroke-opacity', '0.7');
+      path.setAttribute('stroke-opacity', '0.75');
+      path.setAttribute('marker-end', 'url(#arrow-transit)');
       svgGroup.appendChild(path);
+      return path;
     }
 
     // =========================================================================
@@ -6510,7 +6879,7 @@
     }
 
     // =========================================================================
-    // EXPANDED DIALOGUE CUBE NODE MODAL POP-UP
+    // EXPANDED DIALOGUE CUBE NODE MODAL POP-UP (SPECIALIZED CARDS)
     // =========================================================================
     function openDialogueNodeModal(data) {
       const modal = document.getElementById('dialogue-node-modal');
@@ -6528,6 +6897,8 @@
       const timeEl = document.getElementById('modal-cube-timestamp');
       const iconEl = document.getElementById('modal-cube-icon');
 
+      const cmdSec = document.getElementById('modal-section-command');
+      const fileSec = document.getElementById('modal-section-file');
       const pSec = document.getElementById('modal-section-prompt');
       const tSec = document.getElementById('modal-section-tools');
       const rSec = document.getElementById('modal-section-response');
@@ -6543,43 +6914,76 @@
       // Populate common details
       if (turnBadgeEl) turnBadgeEl.innerText = `TURN ${turnIdx + 1}`;
       if (idEl) idEl.innerText = turn.exchange_id || sessionDetail.session_id || 'EXCHANGE';
-      if (timeEl) timeEl.innerText = turn.created_at || '2026-11-15 UTC';
+      if (timeEl) timeEl.innerText = turn.created_at ? new Date(turn.created_at).toLocaleString() : '2026-11-15 UTC';
       if (turnHashEl) turnHashEl.innerText = turn.turn_hash || '0x000';
       if (parentHashEl) parentHashEl.innerText = turn.parent_hash || '0x000';
       if (merkleRootEl) merkleRootEl.innerText = sessionDetail.merkle_root || '0x000';
 
-      const agentId = (sessionDetail.agent_id || sessionDetail.session_id.split('_')[1] || 'agent').toUpperCase();
+      const agentId = (sessionDetail.agent_id || sessionDetail.session_id?.split('_')[1] || 'agent').toUpperCase();
       if (agentBadgeEl) agentBadgeEl.innerText = agentId;
 
       if (pContent) pContent.innerText = turn.prompt_text || 'No prompt recorded.';
       if (rContent) rContent.innerText = turn.response_text || 'No response recorded.';
 
-      const toolCalls = turn.tool_calls || [];
-      if (tContent) {
-        if (data.type === 'tool' && data.tool) {
-          tContent.innerText = `TOOL: ${data.tool.name}\nARGUMENTS:\n${JSON.stringify(data.tool.arguments || data.tool.args || {}, null, 2)}`;
-        } else {
-          tContent.innerText = JSON.stringify(toolCalls, null, 2);
-        }
-      }
+      // Hide all specialized sections first
+      if (cmdSec) cmdSec.classList.add('hidden');
+      if (fileSec) fileSec.classList.add('hidden');
+      if (pSec) pSec.classList.add('hidden');
+      if (tSec) tSec.classList.add('hidden');
+      if (rSec) rSec.classList.add('hidden');
 
       // Configure based on step type
-      if (type === 'prompt') {
-        if (typeLabelEl) typeLabelEl.innerText = 'PROMPT INSTRUCTION';
+      if (type === 'command') {
+        if (cmdSec) cmdSec.classList.remove('hidden');
+        if (typeLabelEl) typeLabelEl.innerText = `CLI RUNTIME // ${data.toolSummary || 'COMMAND'}`;
+        if (iconEl) iconEl.innerHTML = '<span class="material-symbols-outlined text-lg text-[#00ffa3]">terminal</span>';
+
+        const rawEl = document.getElementById('modal-command-raw');
+        const sumEl = document.getElementById('modal-command-summary');
+        const toolNameEl = document.getElementById('modal-command-toolname');
+        const argsEl = document.getElementById('modal-command-args');
+
+        if (rawEl) rawEl.innerText = data.command || 'run_command';
+        if (sumEl) sumEl.innerText = data.toolSummary || 'Execute command';
+        if (toolNameEl) toolNameEl.innerText = data.tool?.name || 'run_command';
+        if (argsEl) argsEl.innerText = JSON.stringify(data.tool?.args || data.tool?.arguments || {}, null, 2);
+
+      } else if (type === 'file') {
+        if (fileSec) fileSec.classList.remove('hidden');
+        if (typeLabelEl) typeLabelEl.innerText = `WORKSPACE FILE // ${data.toolName?.toUpperCase() || 'FILE'}`;
+        if (iconEl) iconEl.innerHTML = '<span class="material-symbols-outlined text-lg text-amber-400">description</span>';
+
+        const pathEl = document.getElementById('modal-file-path');
+        const payloadEl = document.getElementById('modal-file-payload');
+        const opTitleEl = document.getElementById('modal-file-op-title');
+
+        if (pathEl) pathEl.innerText = data.filePath || 'workspace file';
+        if (opTitleEl) opTitleEl.innerText = `FILE ${data.toolName?.toUpperCase() || 'ACTION'}`;
+        if (payloadEl) payloadEl.innerText = JSON.stringify(data.tool?.args || data.tool?.arguments || {}, null, 2);
+
+      } else if (type === 'prompt') {
+        if (pSec) pSec.classList.remove('hidden');
+        if (typeLabelEl) typeLabelEl.innerText = 'USER INTENT & PROMPT INSTRUCTION';
         if (iconEl) iconEl.innerHTML = '<span class="material-symbols-outlined text-lg text-[#f59e0b]">person</span>';
-        if (tSec) tSec.classList.add('hidden');
-      } else if (type === 'tool') {
-        if (typeLabelEl) typeLabelEl.innerText = `TOOL INVOCATION // ${data.tool?.name || 'EXEC'}`;
-        if (iconEl) iconEl.innerHTML = '<span class="material-symbols-outlined text-lg text-primary-container">build</span>';
-        if (tSec) tSec.classList.remove('hidden');
+
       } else if (type === 'response') {
+        if (rSec) rSec.classList.remove('hidden');
         if (typeLabelEl) typeLabelEl.innerText = 'AGENT REASONING & SYNTHESIS';
         if (iconEl) iconEl.innerHTML = '<span class="material-symbols-outlined text-lg text-[#c084fc]">psychology</span>';
-        if (tSec) tSec.classList.add('hidden');
+
       } else if (type === 'anchor') {
-        if (typeLabelEl) typeLabelEl.innerText = 'CRYPTOGRAPHIC MERKLE ANCHOR';
+        if (pSec) pSec.classList.remove('hidden');
+        if (typeLabelEl) typeLabelEl.innerText = 'CRYPTOGRAPHIC MERKLE STATE ANCHOR';
         if (iconEl) iconEl.innerHTML = '<span class="material-symbols-outlined text-lg text-secondary-container">verified</span>';
-        if (tSec) tSec.classList.add('hidden');
+
+      } else {
+        // Generic Tool / MCP
+        if (tSec) tSec.classList.remove('hidden');
+        if (typeLabelEl) typeLabelEl.innerText = `TOOL INVOCATION // ${data.tool?.name || data.toolName || 'EXEC'}`;
+        if (iconEl) iconEl.innerHTML = '<span class="material-symbols-outlined text-lg text-primary-container">build</span>';
+        if (tContent) {
+          tContent.innerText = `TOOL: ${data.tool?.name || data.toolName}\nARGUMENTS:\n${JSON.stringify(data.tool?.arguments || data.tool?.args || {}, null, 2)}`;
+        }
       }
 
       modal.classList.remove('hidden');
@@ -7295,6 +7699,7 @@
       if (e.key.toLowerCase() === 'z') toggleZenFlight();
       if (e.key.toLowerCase() === 'c') openNewMemoryModal();
       if (e.key.toLowerCase() === 'l' && !e.target.matches('input, textarea, select')) toggleGraphLegend();
+      if ((e.key === '[' || e.key === ']') && !e.target.matches('input, textarea, select')) toggleSpectralDrawer();
     });
 
     window.addEventListener('DOMContentLoaded', initApp);
