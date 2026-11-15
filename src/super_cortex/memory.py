@@ -497,6 +497,12 @@ class SuperCortex:
         """Retrieve full chronological turn trace for a session."""
         return self.store.get_session_turns(session_id)
 
+    def get_chronological_actions(
+        self, session_id: str | None = None, scope_id: str | None = None, limit: int = 300
+    ) -> list[dict[str, Any]]:
+        """Retrieve flattened chronological sequence of all atomic agent actions."""
+        return self.store.get_chronological_actions(session_id=session_id, scope_id=scope_id, limit=limit)
+
     def get_session_merkle_proof(self, session_id: str, turn_index: int = 0) -> dict[str, Any]:
         """Generate a complete cryptographic inclusion proof for a session turn."""
         return self.store.get_session_merkle_proof(session_id, turn_index)

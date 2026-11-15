@@ -681,6 +681,160 @@ class ProvenanceStore:
             for r in rows
         ]
 
+    def get_chronological_actions(
+        self, session_id: str | None = None, scope_id: str | None = None, limit: int = 300
+    ) -> list[dict[str, Any]]:
+        """Retrieve flattened chronological sequence of all atomic agent actions."""
+        with self._get_conn() as conn:
+            query = """
+                SELECT exchange_id, session_id, prompt_text, prompt_hash, response_text, response_hash,
+                       tool_calls_json, turn_hash, parent_hash, created_at, scope_id, agent_id
+                FROM exchanges
+            """
+            conditions = []
+            params: list[Any] = []
+            if session_id:
+                conditions.append("session_id = ?")
+                params.append(session_id)
+            if scope_id and scope_id != "all":
+                target = scope_id.replace("agent:", "").lower()
+                conditions.append("(lower(agent_id) = ? OR lower(scope_id) = ?)")
+                params.extend([target, scope_id.lower()])
+
+            if conditions:
+                query += " WHERE " + " AND ".join(conditions)
+
+            query += " ORDER BY created_at ASC, rowid ASC LIMIT ?"
+            params.append(limit)
+
+            cursor = conn.execute(query, tuple(params))
+            rows = cursor.fetchall()
+
+        actions = []
+        for r in rows:
+            # 1. Prompt / Intent Action
+            actions.append({
+                "action_id": f"act_p_{r['exchange_id']}",
+                "type": "prompt",
+                "category": "intent",
+                "agent_id": r["agent_id"] or "agent",
+                "scope_id": r["scope_id"] or "shared",
+                "session_id": r["session_id"],
+                "exchange_id": r["exchange_id"],
+                "created_at": r["created_at"],
+                "title": (r["prompt_text"] or "Prompt instruction").strip()[:80],
+                "payload": {"prompt_text": r["prompt_text"], "prompt_hash": r["prompt_hash"]},
+                "icon": "person",
+                "color": "#f59e0b",
+                "hash": r["turn_hash"],
+            })
+
+            # 2. Atomic Tool Execution Actions
+            tools = json.loads(r["tool_calls_json"]) if r["tool_calls_json"] else []
+            for t_idx, t in enumerate(tools):
+                t_name = t.get("name") or t.get("tool_name") or "tool"
+                t_args = t.get("args") or t.get("arguments") or {}
+                if isinstance(t_args, str):
+                    try:
+                        t_args = json.loads(t_args)
+                    except Exception:
+                        t_args = {"raw": t_args}
+                elif not isinstance(t_args, dict):
+                    t_args = {}
+
+                tn_low = t_name.lower()
+
+                if any(k in tn_low for k in ("command", "bash", "exec", "sh")):
+                    cat = "command"
+                    icon = "terminal"
+                    color = "#00f0ff"
+                    cmd = t_args.get("CommandLine") or t_args.get("command") or t_args.get("cmd") or t_name
+                    if isinstance(cmd, str):
+                        cmd = cmd.replace('"', "").strip()
+                    summary = t_args.get("toolSummary") or t_args.get("summary") or cmd
+                    title = f"$ {cmd[:60]}" if cmd else f"Command: {str(summary)[:60]}"
+                elif any(k in tn_low for k in ("read_file", "view_file", "cat")):
+                    cat = "file_read"
+                    icon = "find_in_page"
+                    color = "#fbbf24"
+                    path = t_args.get("Path") or t_args.get("path") or "file"
+                    title = f"Read: {str(path).split('/')[-1]}"
+                elif any(k in tn_low for k in ("write_file", "edit_file", "patch")):
+                    cat = "file_edit"
+                    icon = "edit_document"
+                    color = "#fb923c"
+                    path = t_args.get("Path") or t_args.get("path") or "file"
+                    title = f"Edit: {str(path).split('/')[-1]}"
+                elif any(k in tn_low for k in ("mcp", "memory_", "super_", "cortex")):
+                    cat = "mcp"
+                    icon = "hub"
+                    color = "#c084fc"
+                    title = f"MCP: {t_name.replace('memory_', '')}"
+                elif any(k in tn_low for k in ("search", "web", "fetch", "http")):
+                    cat = "web"
+                    icon = "travel_explore"
+                    color = "#38bdf8"
+                    title = f"Web: {t_name}"
+                else:
+                    cat = "tool"
+                    icon = "build"
+                    color = "#00f0ff"
+                    title = f"Action: {t_name}"
+
+                actions.append({
+                    "action_id": f"act_t_{r['exchange_id']}_{t_idx}",
+                    "type": "tool",
+                    "category": cat,
+                    "agent_id": r["agent_id"] or "agent",
+                    "scope_id": r["scope_id"] or "shared",
+                    "session_id": r["session_id"],
+                    "exchange_id": r["exchange_id"],
+                    "created_at": r["created_at"],
+                    "title": title,
+                    "tool_name": t_name,
+                    "payload": t,
+                    "icon": icon,
+                    "color": color,
+                    "hash": r["turn_hash"],
+                })
+
+            # 3. Agent Synthesis Action
+            if r["response_text"]:
+                actions.append({
+                    "action_id": f"act_r_{r['exchange_id']}",
+                    "type": "response",
+                    "category": "synthesis",
+                    "agent_id": r["agent_id"] or "agent",
+                    "scope_id": r["scope_id"] or "shared",
+                    "session_id": r["session_id"],
+                    "exchange_id": r["exchange_id"],
+                    "created_at": r["created_at"],
+                    "title": f"Synthesis: {(r['response_text'] or '').strip()[:60]}...",
+                    "payload": {"response_text": r["response_text"], "response_hash": r["response_hash"]},
+                    "icon": "psychology",
+                    "color": "#c084fc",
+                    "hash": r["turn_hash"],
+                })
+
+            # 4. State Merkle Anchor Action
+            actions.append({
+                "action_id": f"act_a_{r['exchange_id']}",
+                "type": "anchor",
+                "category": "merkle",
+                "agent_id": r["agent_id"] or "agent",
+                "scope_id": r["scope_id"] or "shared",
+                "session_id": r["session_id"],
+                "exchange_id": r["exchange_id"],
+                "created_at": r["created_at"],
+                "title": f"Merkle Anchor: 0x{(r['turn_hash'] or '')[:10]}",
+                "payload": {"turn_hash": r["turn_hash"], "parent_hash": r["parent_hash"]},
+                "icon": "verified",
+                "color": "#00ffa3",
+                "hash": r["turn_hash"],
+            })
+
+        return actions
+
     def save_scope(self, scope: ScopeRecord) -> None:
         """Store or update a memory scope."""
         with self._get_conn() as conn:

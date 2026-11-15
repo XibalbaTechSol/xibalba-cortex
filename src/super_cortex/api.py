@@ -420,6 +420,17 @@ def create_app(config: SuperCortexConfig | None = None) -> Starlette:
             "turns": turns,
         })
 
+    async def api_actions(request: Request) -> JSONResponse:
+        session_id = request.query_params.get("session_id")
+        scope_id = request.query_params.get("scope_id")
+        limit_str = request.query_params.get("limit") or "300"
+        try:
+            limit = int(limit_str)
+        except ValueError:
+            limit = 300
+        actions = cortex.get_chronological_actions(session_id=session_id, scope_id=scope_id, limit=limit)
+        return JSONResponse({"action_count": len(actions), "actions": actions})
+
     async def api_session_proof(request: Request) -> JSONResponse:
         session_id = request.path_params["session_id"]
         turn_str = request.query_params.get("turn_index") or request.query_params.get("turn") or "0"
@@ -841,6 +852,7 @@ def create_app(config: SuperCortexConfig | None = None) -> Starlette:
         Route("/api/agents", api_agents, methods=["GET", "POST"]),
         Route("/api/mcp-config", api_mcp_config, methods=["GET"]),
         Route("/api/sessions", api_sessions, methods=["GET"]),
+        Route("/api/actions", api_actions, methods=["GET"]),
         Route("/api/sessions/import-local", api_import_local_sessions, methods=["GET", "POST"]),
         Route("/api/sessions/{session_id}", api_session_detail, methods=["GET"]),
         Route("/api/sessions/{session_id}/proof", api_session_proof, methods=["GET"]),
