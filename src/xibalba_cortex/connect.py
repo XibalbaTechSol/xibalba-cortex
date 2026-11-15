@@ -57,7 +57,26 @@ def redeem_enrollment_code(*, code: str, api_url: str, did: str, keypair: Any, d
         raise RuntimeError(f"could not reach {api_url} to redeem the enrollment code: {exc}") from exc
 
 
-def connect(*, profile: str | Path, agent: str, harness: str, mcp_url: str, api_url: str, code: str | None = None) -> dict[str, Any]:
+def _register_with_oracle(oracle_url: str | None, did: str, keypair: Any) -> dict[str, Any]:
+    """Gas-free off-chain registration. Never raises: the Oracle must not break connect."""
+    if not oracle_url:
+        return {"status": "skipped"}
+    try:
+        from integrity_sdk.registration_offchain import register_offchain
+    except ImportError:
+        return {"status": "failed", "http_status": None,
+                "detail": "integrity-sdk lacks registration_offchain; upgrade"}
+    try:
+        reg = register_offchain(oracle_url, did, keypair)
+    except Exception as exc:  # OffchainRegistrationError, ValueError (DID/key mismatch), anything else
+        status = getattr(exc, "status", None)
+        return {"status": "failed", "http_status": status if isinstance(status, int) else None,
+                "detail": str(getattr(exc, "detail", None) or exc)}
+    return {"status": "registered", "tier": reg.verification_tier, "outcome": reg.outcome}
+
+
+def connect(*, profile: str | Path, agent: str, harness: str, mcp_url: str, api_url: str,
+            code: str | None = None, oracle_url: str | None = None) -> dict[str, Any]:
     profile_root = Path(profile).expanduser().resolve()
     if not _AGENT_RE.fullmatch(agent):
         raise ValueError("agent must contain 1-128 letters, digits, dots, underscores, or hyphens")
@@ -72,6 +91,8 @@ def connect(*, profile: str | Path, agent: str, harness: str, mcp_url: str, api_
     os.chmod(profile_root, 0o700)
     did, keypair, _ = load_or_create_did(agent, did_home_root=key_store_for_profile(profile_root))
     did_file = write_did_file(profile_root, did=did, public_key=keypair.public_bytes(), agent_id=agent, harness=harness, profile=profile_root.name)
+
+    oracle_registration = _register_with_oracle(oracle_url or os.environ.get("ORACLE_URL"), did, keypair)
 
     env = {"XIBALBA_CORTEX_HOME": str(profile_root), "INTEGRITY_PROFILE_ROOT": str(profile_root)}
     enrollment: dict[str, Any] | None = None
@@ -89,6 +110,7 @@ def connect(*, profile: str | Path, agent: str, harness: str, mcp_url: str, api_
         "api_url": api_url.rstrip("/"),
         "environment": env,
         "enrollment": enrollment,
+        "oracle_registration": oracle_registration,
         "mcp_stdio": {"mcpServers": {"cortex": {"command": "xibalba-cortex", "args": ["--transport", "stdio"], "env": env}}},
         "mcp_remote": {"url": mcp_url.rstrip("/"), "headers": {"Authorization": "Bearer " + chr(36) + "{CORTEX_API_KEY}"}},
         "sdk_snippet": dedent(f'''
@@ -106,7 +128,11 @@ agent.export_cortex(base_url={api_url.rstrip('/')!r}, bearer_token=os.environ["C
             "Store it as CORTEX_API_KEY; never put it in source control.",
             "Run 'cortex setup claude' or 'cortex setup cursor' to add Cortex to your harness.",
         ],
-        "registration": "DID provisioned locally; no Oracle or on-chain registration was performed.",
+        "registration": (
+            "DID provisioned locally; no Oracle registration was attempted (set ORACLE_URL to enable)."
+            if oracle_registration["status"] == "skipped"
+            else f"DID provisioned locally; Oracle off-chain registration: {oracle_registration['status']}."
+        ),
     }
 
 
