@@ -11,7 +11,16 @@ FROM python:3.12-slim
 COPY --from=uv /uv /bin/uv
 WORKDIR /app/xibalba-cortex
 RUN apt-get update && apt-get install -y --no-install-recommends git ca-certificates && rm -rf /var/lib/apt/lists/*
-RUN git clone --depth 1 https://github.com/XibalbaTechSol/integrity-core.git /app/integrity-core
+# integrity-sdk is a path dependency (../integrity-core/integrity-sdk). Fetch exactly the commit in
+# deploy/integrity-core.ref -- the one CI tests against. COPYing the pin first makes Docker's layer
+# cache key on it: the previous unpinned clone layer was reused from cache and shipped a stale SDK
+# (ModuleNotFoundError: integrity_sdk.billing, 2026-11-14).
+COPY deploy/integrity-core.ref /tmp/integrity-core.ref
+RUN ref=$(tr -d '[:space:]' < /tmp/integrity-core.ref) \
+    && git init -q /app/integrity-core \
+    && git -C /app/integrity-core fetch -q --depth 1 https://github.com/XibalbaTechSol/integrity-core.git "$ref" \
+    && git -C /app/integrity-core checkout -q FETCH_HEAD \
+    && test "$(git -C /app/integrity-core rev-parse HEAD)" = "$ref"
 COPY pyproject.toml uv.lock README.md ./
 RUN uv export --frozen --extra managed --no-dev --prune sentence-transformers --no-emit-project --output-file /tmp/requirements.txt \
     && uv pip install --system --no-cache -r /tmp/requirements.txt \
