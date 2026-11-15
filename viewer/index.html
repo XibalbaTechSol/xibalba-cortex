@@ -116,7 +116,8 @@
     <div class="flex items-center gap-3 shrink-0">
       <div class="flex items-center gap-1.5">
         <span class="material-symbols-outlined text-primary-container text-[16px]">view_in_ar</span>
-        <span class="font-display text-[12px] font-bold tracking-tight text-primary uppercase">SUPER-CORTEX // 3D MANIFOLD G=(V,E,Φ)</span>
+        <span class="font-display text-[12px] font-bold tracking-tight text-primary uppercase">SUPER-CORTEX</span>
+        <span class="text-outline text-[10px] hidden xl:inline">// G=(V,E,Φ)</span>
       </div>
       <div class="h-3 w-[1px] bg-outline-variant/50"></div>
       <div class="flex items-center gap-1.5 px-2 py-0.5 bg-surface-container-high border border-secondary-container/20">
@@ -125,20 +126,94 @@
         <span class="text-outline">|</span>
         <span class="text-[9px] text-on-surface">AIS: 984</span>
       </div>
-      <div class="h-3 w-[1px] bg-outline-variant/50 hidden md:block"></div>
-      <div class="hidden md:flex items-center gap-1 bg-surface-container-low px-2 py-0.5 border border-outline-variant/40">
+      <div class="h-3 w-[1px] bg-outline-variant/50 hidden lg:block"></div>
+      <div class="hidden lg:flex items-center gap-1 bg-surface-container-low px-2 py-0.5 border border-outline-variant/40">
         <span class="text-outline text-[10px]">DID:</span>
-        <span id="header-actor-did" class="text-primary truncate max-w-[160px] text-[10px]">did:integrity:68fed133...</span>
+        <span id="header-actor-did" class="text-primary truncate max-w-[130px] text-[10px]">did:integrity:68fed133...</span>
       </div>
     </div>
 
-    <!-- Center Section: Active View Breadcrumb Indicator (Replaced redundant nav buttons) -->
-    <div class="hidden md:flex items-center gap-2 px-3 py-0.5 bg-surface-container-low/70 border border-outline-variant/30 rounded text-[10px] font-mono">
-      <span class="text-outline uppercase text-[9px]">VIEW:</span>
-      <span id="header-active-view-title" class="text-primary-container font-bold uppercase tracking-wider flex items-center gap-1.5">
-        <span class="w-1.5 h-1.5 rounded-full bg-primary-container animate-pulse"></span>
-        <span id="header-view-label">3D Neural Graph Manifold</span>
-      </span>
+    <!-- Center Section: Active View Selector Card & Dropdown -->
+    <div class="relative shrink-0 hidden md:block">
+      <button id="btn-header-view-selector" onclick="toggleHeaderViewDropdown(event)" class="h-6 flex items-center gap-2 px-2.5 bg-[#0e1626]/90 hover:bg-[#121c32] border border-primary-container/40 hover:border-primary-container rounded text-[10px] font-mono whitespace-nowrap transition-all shadow-sm cursor-pointer select-none">
+        <span class="text-outline uppercase text-[9px] font-bold tracking-wider opacity-80">VIEW:</span>
+        <span class="w-1.5 h-1.5 rounded-full bg-primary-container shadow-[0_0_6px_#00f0ff] animate-pulse"></span>
+        <span id="header-view-label" class="text-primary-container font-bold uppercase tracking-wider text-[10px]">3D Neural Graph Manifold</span>
+        <span class="material-symbols-outlined text-[13px] text-primary-container/80 -mr-0.5" id="header-view-chevron">arrow_drop_down</span>
+      </button>
+
+      <!-- Dropdown Menu -->
+      <div id="header-view-dropdown" class="hidden absolute top-8 left-1/2 -translate-x-1/2 w-64 bg-[#0a0f1d]/98 backdrop-blur-2xl border border-primary-container/40 rounded-lg shadow-[0_12px_36px_rgba(0,0,0,0.8)] py-1.5 z-50 font-mono text-[11px] divide-y divide-outline-variant/20">
+        <div class="px-3 py-1 text-[9px] text-outline uppercase font-bold tracking-wider flex justify-between items-center">
+          <span>Active Cognitive View</span>
+          <span class="text-primary-container text-[8px]">8 VIEWS</span>
+        </div>
+        <div class="py-1">
+          <button onclick="selectHeaderView('graph')" class="w-full text-left px-3 py-1.5 hover:bg-surface-container-high flex items-center justify-between group transition-colors">
+            <div class="flex items-center gap-2">
+              <span class="material-symbols-outlined text-sm text-primary-container">hub</span>
+              <span class="text-on-surface group-hover:text-primary-container">3D Neural Graph</span>
+            </div>
+            <span class="text-[9px] text-outline font-sans">G=(V,E)</span>
+          </button>
+          <button onclick="selectHeaderView('spectral')" class="w-full text-left px-3 py-1.5 hover:bg-surface-container-high flex items-center justify-between group transition-colors">
+            <div class="flex items-center gap-2">
+              <span class="material-symbols-outlined text-sm text-secondary-container">multiline_chart</span>
+              <span class="text-on-surface group-hover:text-secondary-container">Spectral Math</span>
+            </div>
+            <span class="text-[9px] text-outline font-sans">λ₁, Dir.</span>
+          </button>
+          <button onclick="selectHeaderView('timeline')" class="w-full text-left px-3 py-1.5 hover:bg-surface-container-high flex items-center justify-between group transition-colors">
+            <div class="flex items-center gap-2">
+              <span class="material-symbols-outlined text-sm text-[#ddb7ff]">timeline</span>
+              <span class="text-on-surface group-hover:text-[#ddb7ff]">Session Timeline</span>
+            </div>
+            <span class="text-[9px] text-outline font-sans">Audit</span>
+          </button>
+          <button onclick="selectHeaderView('dialogue')" class="w-full text-left px-3 py-1.5 hover:bg-surface-container-high flex items-center justify-between group transition-colors">
+            <div class="flex items-center gap-2">
+              <span class="material-symbols-outlined text-sm text-primary">chat_bubble</span>
+              <span class="text-on-surface group-hover:text-primary">Dialogue Reasoning</span>
+            </div>
+            <span class="text-[9px] text-outline font-sans">Turns</span>
+          </button>
+          <button onclick="selectHeaderView('spaces')" class="w-full text-left px-3 py-1.5 hover:bg-surface-container-high flex items-center justify-between group transition-colors">
+            <div class="flex items-center gap-2">
+              <span class="material-symbols-outlined text-sm text-[#38bdf8]">folder_special</span>
+              <span class="text-on-surface group-hover:text-[#38bdf8]">Scopes & MCP</span>
+            </div>
+            <span class="text-[9px] text-outline font-sans">Namespaces</span>
+          </button>
+          <button onclick="selectHeaderView('memories')" class="w-full text-left px-3 py-1.5 hover:bg-surface-container-high flex items-center justify-between group transition-colors">
+            <div class="flex items-center gap-2">
+              <span class="material-symbols-outlined text-sm text-secondary">memory</span>
+              <span class="text-on-surface group-hover:text-secondary">Memory Fabric</span>
+            </div>
+            <span class="text-[9px] text-outline font-sans">Ledger</span>
+          </button>
+          <button onclick="selectHeaderView('connectors')" class="w-full text-left px-3 py-1.5 hover:bg-surface-container-high flex items-center justify-between group transition-colors">
+            <div class="flex items-center gap-2">
+              <span class="material-symbols-outlined text-sm text-amber-400">cable</span>
+              <span class="text-on-surface group-hover:text-amber-400">Connectors Hub</span>
+            </div>
+            <span class="text-[9px] text-outline font-sans">Clipper</span>
+          </button>
+          <button onclick="selectHeaderView('pipeline')" class="w-full text-left px-3 py-1.5 hover:bg-surface-container-high flex items-center justify-between group transition-colors">
+            <div class="flex items-center gap-2">
+              <span class="material-symbols-outlined text-sm text-emerald-400">account_tree</span>
+              <span class="text-on-surface group-hover:text-emerald-400">Extraction Studio</span>
+            </div>
+            <span class="text-[9px] text-outline font-sans">0-Infer</span>
+          </button>
+          <button onclick="selectHeaderView('audit')" class="w-full text-left px-3 py-1.5 hover:bg-surface-container-high flex items-center justify-between group transition-colors">
+            <div class="flex items-center gap-2">
+              <span class="material-symbols-outlined text-sm text-rose-400">verified_user</span>
+              <span class="text-on-surface group-hover:text-rose-400">Cryptographic Audit</span>
+            </div>
+            <span class="text-[9px] text-outline font-sans">Merkle</span>
+          </button>
+        </div>
+      </div>
     </div>
 
     <!-- Right Section: Instrument & Telemetry -->
@@ -3493,6 +3568,28 @@
         loadSpectralData();
       }
     }
+
+    function toggleHeaderViewDropdown(e) {
+      if (e) e.stopPropagation();
+      const dd = document.getElementById('header-view-dropdown');
+      if (dd) dd.classList.toggle('hidden');
+    }
+
+    function selectHeaderView(viewId) {
+      const dd = document.getElementById('header-view-dropdown');
+      if (dd) dd.classList.add('hidden');
+      switchView(viewId);
+    }
+
+    document.addEventListener('click', (e) => {
+      const dd = document.getElementById('header-view-dropdown');
+      const btn = document.getElementById('btn-header-view-selector');
+      if (dd && !dd.classList.contains('hidden')) {
+        if (!btn || (!btn.contains(e.target) && !dd.contains(e.target))) {
+          dd.classList.add('hidden');
+        }
+      }
+    });
 
     function selectDialogueNode(id, title, desc) {
       if (!inspectorOpen) toggleInspector();
