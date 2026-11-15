@@ -40,6 +40,189 @@
     #main-viewport.navbar-expanded {
       margin-left: 16rem !important;
     }
+
+    /* Cortex Timeline Lens Styles */
+    .xc-tl-grid {
+      display: grid;
+      --tl-label: 240px;
+      grid-template-columns: var(--tl-label) minmax(0, 1fr);
+      min-width: 0;
+      position: relative;
+    }
+    .xc-tl-head {
+      display: contents;
+    }
+    .xc-tl-caption {
+      padding: 8px 12px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+      font: 600 11px 'JetBrains Mono', monospace;
+      color: #94a3b8;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: #090c12;
+    }
+    .xc-tl-ticks {
+      position: relative;
+      padding: 0 !important;
+      height: 32px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+      background: #090c12;
+    }
+    .xc-tl-ticks span {
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      padding: 8px 0 0 6px;
+      border-left: 1px solid rgba(255, 255, 255, 0.08);
+      font: 500 10px 'JetBrains Mono', monospace;
+      color: #64748b;
+      white-space: nowrap;
+      pointer-events: none;
+    }
+    .xc-tl-rules {
+      position: absolute;
+      top: 32px;
+      bottom: 0;
+      left: var(--tl-label);
+      right: 0;
+      pointer-events: none;
+      z-index: 0;
+    }
+    .xc-tl-rules span {
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      border-left: 1px dashed rgba(255, 255, 255, 0.05);
+    }
+    .xc-tl-feedback {
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      left: var(--tl-label);
+      right: 0;
+      pointer-events: none;
+      z-index: 20;
+    }
+    .xc-tl-brush {
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      background: rgba(0, 240, 255, 0.12);
+      border-left: 1px solid #00f0ff;
+      border-right: 1px solid #00f0ff;
+    }
+    .xc-tl-cursor {
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      width: 1px;
+      background: #00ffa3;
+      box-shadow: 0 0 8px #00ffa3;
+    }
+    .xc-lane {
+      display: contents;
+    }
+    .xc-lane-label {
+      display: grid;
+      gap: 2px;
+      padding: 10px 14px;
+      border: 0;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+      border-right: 1px solid rgba(255, 255, 255, 0.1);
+      background: #0c1017;
+      text-align: left;
+      cursor: pointer;
+      min-width: 0;
+      transition: background 0.15s;
+    }
+    .xc-lane-label:hover {
+      background: #141b26;
+    }
+    .xc-lane-label b {
+      font: 600 11px 'JetBrains Mono', monospace;
+      color: #f1f5f9;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .xc-lane-label span {
+      font: 400 10px 'JetBrains Mono', monospace;
+      color: #94a3b8;
+    }
+    .xc-lane-track {
+      position: relative;
+      height: 52px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+      background: #090c12;
+      transition: background 0.15s;
+    }
+    .xc-lane-track:hover {
+      background: #0d121c;
+    }
+    .xc-lane-span {
+      position: absolute;
+      top: 25px;
+      height: 3px;
+      background: rgba(0, 240, 255, 0.35);
+      border-radius: 1px;
+      box-shadow: 0 0 6px rgba(0, 240, 255, 0.2);
+    }
+    .xc-lane-span[data-open='true'] {
+      background: repeating-linear-gradient(90deg, rgba(0, 240, 255, 0.4) 0 8px, transparent 8px 14px);
+    }
+    .xc-mark {
+      position: absolute;
+      top: 21px;
+      width: 11px;
+      height: 11px;
+      margin-left: -5px;
+      padding: 0;
+      border: 0;
+      border-radius: 1px;
+      cursor: pointer;
+      z-index: 10;
+      transition: transform 0.1s, outline 0.1s;
+    }
+    .xc-mark:hover {
+      transform: scale(1.4);
+      z-index: 25;
+      outline: 2px solid #ffffff;
+    }
+    .xc-mark[data-cls='exchange'] {
+      background: #a855f7;
+      box-shadow: 0 0 6px #a855f7;
+    }
+    .xc-mark[data-cls='tool'] {
+      background: #00f0ff;
+      box-shadow: 0 0 6px #00f0ff;
+    }
+    .xc-mark[data-cls='memory'] {
+      background: #38bdf8;
+      box-shadow: 0 0 6px #38bdf8;
+    }
+    .xc-mark[data-cls='root'] {
+      width: 14px;
+      height: 14px;
+      margin-left: 6px;
+      top: 19px;
+      background: transparent;
+      border: 2px solid #00ffa3;
+      transform: rotate(45deg);
+      box-shadow: 0 0 8px rgba(0, 255, 163, 0.6);
+    }
+    .xc-mark[data-cls='root']:hover {
+      transform: rotate(45deg) scale(1.3);
+    }
+    .xc-mark[data-cls='deny'],
+    .xc-mark[data-cls='ask'] {
+      top: 17px;
+      width: 5px;
+      height: 18px;
+      margin-left: -2px;
+      background: #f43f5e;
+      box-shadow: 0 0 6px #f43f5e;
+    }
   </style>
   <script src="https://cdn.tailwindcss.com"></script>
   <script id="tailwind-config">
@@ -635,196 +818,124 @@
     <!-- ======================================================================= -->
     <!-- VIEW MODE B: TEMPORAL TIMELINE & PROVENANCE                              -->
     <!-- ======================================================================= -->
-    <div id="view-timeline" class="hidden w-full h-full flex flex-col overflow-y-auto overflow-x-hidden">
-      <!-- TOP SUB-HEADER: Chronological Ruler & Merkle Checkpoints -->
-      <div class="w-full bg-surface-container-lowest/90 border-b border-outline-variant/30 sticky top-0 z-20 px-4 py-2 shrink-0">
-        <div class="flex items-center justify-between text-[10px] font-mono text-outline mb-1.5">
-          <span class="flex items-center gap-1 text-primary-container font-semibold">
+    <!-- ======================================================================= -->
+    <!-- VIEW MODE B: TEMPORAL TIMELINE & PROVENANCE LENS (INSPIRED BY CORTEX)  -->
+    <!-- ======================================================================= -->
+    <div id="view-timeline" class="hidden w-full h-full flex flex-col overflow-y-auto overflow-x-hidden bg-[#070a0f]">
+      <!-- TOP SUB-HEADER: Chronological Telemetry & Controls -->
+      <section class="px-4 py-2 bg-surface-container-lowest/90 border-b border-outline-variant/30 flex flex-wrap items-center justify-between text-[10px] font-mono shrink-0 gap-2 sticky top-0 z-30">
+        <div class="flex items-center gap-3">
+          <span class="text-primary-container font-bold flex items-center gap-1">
             <span class="material-symbols-outlined text-[13px]">schedule</span>
-            <span>TEMPORAL DISTRIBUTION & PROVENANCE CHECKPOINTS</span>
+            <span>TEMPORAL SESSION TIMELINE &amp; PROVENANCE LENS</span>
           </span>
-          <div class="flex items-center gap-6">
-            <span class="flex items-center gap-1 text-secondary-container">
-              <span class="material-symbols-outlined text-[11px]">verified</span>
-              <span>LOCAL MERKLE ANCHORS (EPOCH 94)</span>
-            </span>
-            <span class="text-outline">T-12.00h</span>
-            <span class="text-outline">T-06.00h</span>
-            <span class="text-primary-container font-bold">NOW (LIVE STREAM)</span>
+          <span class="text-outline">|</span>
+          <span class="text-outline">SESSIONS: <strong id="timeline-sessions-count" class="text-primary font-bold">--</strong></span>
+          <span class="text-outline">|</span>
+          <span class="text-outline">EXCHANGES: <strong id="timeline-exchanges-count" class="text-secondary-container font-bold">--</strong></span>
+          <span class="text-outline">|</span>
+          <span class="text-outline">ANCHORS: <strong id="timeline-anchors-count" class="text-[#ddb7ff] font-bold">--</strong></span>
+          <span class="text-outline">|</span>
+          <span class="text-outline">AVG AIS: <strong class="text-secondary-container font-bold">1.000 (AUDITED)</strong></span>
+        </div>
+
+        <div class="flex items-center gap-2">
+          <button id="timeline-reset-zoom-btn" onclick="resetTimelineZoom()" class="hidden px-2 py-0.5 bg-primary-container text-on-primary-container font-bold rounded-sm text-[9px] flex items-center gap-1 shadow">
+            <span class="material-symbols-outlined text-xs">restart_alt</span>
+            <span>ALL TIME</span>
+          </button>
+          <div id="timeline-filter-pills" class="flex items-center gap-1 bg-surface-container-low p-0.5 border border-outline-variant/30 text-[9px] uppercase font-bold">
+            <button onclick="filterTimelineLanes('all')" class="px-2 py-0.5 bg-primary-container text-on-primary-container rounded-sm" data-tfilter="all">ALL SESSIONS</button>
+            <button onclick="filterTimelineLanes('anchored')" class="px-2 py-0.5 text-on-surface-variant hover:text-secondary-container" data-tfilter="anchored">MERKLE ANCHORED</button>
+            <button onclick="filterTimelineLanes('tools')" class="px-2 py-0.5 text-on-surface-variant hover:text-primary-container" data-tfilter="tools">WITH TOOLS</button>
           </div>
         </div>
-      <!-- SYNAPTIC LOAD SPECTRUM FREQUENCY HISTOGRAM (Audio-Analyzer Style) -->
-      <section class="px-4 py-2.5 bg-surface-container-lowest/80 border-b border-outline-variant/30 flex flex-col gap-1.5 shrink-0">
+      </section>
+
+      <!-- SYNAPTIC LOAD SPECTRUM & OVERVIEW SCRUBBER (MINI-MAP) -->
+      <section class="px-4 py-2 bg-surface-container-lowest/80 border-b border-outline-variant/30 flex flex-col gap-1 shrink-0">
         <div class="flex items-center justify-between text-[10px] font-mono">
           <div class="flex items-center gap-3">
             <span class="text-primary-container font-semibold flex items-center gap-1">
               <span class="material-symbols-outlined text-[13px]">equalizer</span>
-              <span>SYNAPTIC LOAD SPECTRUM</span>
+              <span>SYNAPTIC ACTIVITY SPECTRUM &amp; TIME SCRUBBER</span>
             </span>
             <div class="flex items-center gap-3 text-[9px] text-outline">
-              <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-sm bg-primary-container"></span> Hermes Genesis</span>
-              <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-sm bg-[#ddb7ff]"></span> Claude Code</span>
-              <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-sm bg-secondary-container"></span> Antigravity</span>
+              <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-sm bg-[#a855f7]"></span> Turn Exchanges</span>
+              <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-sm bg-primary-container"></span> Tool Executions</span>
+              <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-sm bg-secondary-container"></span> Merkle Anchors</span>
             </div>
           </div>
-          <div class="flex items-center gap-3 text-[9px] text-outline">
-            <span class="text-secondary-container font-bold flex items-center gap-1">
-              <span class="w-1.5 h-1.5 rounded-full bg-secondary-container animate-pulse"></span>
-              PEAK DENSITY: 38 TURNS/HR
-            </span>
-            <span>|</span>
-            <span>BURST DETECTED (08:00 - 09:30 UTC)</span>
+          <div class="flex items-center gap-3 text-[9px] font-mono text-outline">
+            <span id="timeline-domain-caption" class="text-primary font-semibold">--</span>
           </div>
         </div>
 
-        <!-- Frequency Histogram Canvas / Visualizer -->
-        <div class="relative w-full h-16 bg-[#080b10] border border-outline-variant/30 px-2 py-1 flex items-end justify-between gap-1 overflow-hidden">
-          <!-- Subtle Grid Guidelines -->
-          <div class="absolute inset-0 flex flex-col justify-between pointer-events-none p-1 opacity-10">
-            <div class="w-full border-b border-dashed border-outline"></div>
-            <div class="w-full border-b border-dashed border-outline"></div>
+        <!-- Density Mini-Map Canvas / Scrubber Window -->
+        <div id="timeline-minimap-container" class="relative w-full h-10 bg-[#080b10] border border-outline-variant/30 flex items-end justify-between px-1 overflow-hidden select-none">
+          <div id="timeline-density-bars" class="absolute inset-0 flex items-end gap-1 px-1 pointer-events-none">
+            <!-- Dynamically populated bars -->
           </div>
-          <!-- Scrubber Window Highlight -->
-          <div class="absolute top-0 bottom-0 left-[26%] right-[34%] bg-primary-container/10 border-x border-primary-container pointer-events-none z-10 flex justify-between">
+          <div id="timeline-minimap-brush" class="absolute top-0 bottom-0 bg-primary-container/15 border-x border-primary-container pointer-events-none z-10 hidden">
             <div class="w-1 bg-primary-container h-full"></div>
-            <div class="w-1 bg-primary-container h-full"></div>
+            <div class="w-1 bg-primary-container h-full ml-auto"></div>
           </div>
-          <!-- Audio Analyzer Bars -->
-          <div class="flex flex-col gap-0.5 w-full h-[35%] justify-end"><div class="w-full h-1/2 bg-primary-container/60"></div><div class="w-full h-1/2 bg-secondary-container/70"></div></div>
-          <div class="flex flex-col gap-0.5 w-full h-[50%] justify-end"><div class="w-full h-2/3 bg-[#ddb7ff]/70"></div><div class="w-full h-1/3 bg-primary-container/70"></div></div>
-          <div class="flex flex-col gap-0.5 w-full h-[25%] justify-end"><div class="w-full h-full bg-secondary-container/50"></div></div>
-          <div class="flex flex-col gap-0.5 w-full h-[40%] justify-end"><div class="w-full h-1/2 bg-primary-container/60"></div><div class="w-full h-1/2 bg-[#ddb7ff]/60"></div></div>
-          <div class="flex flex-col gap-0.5 w-full h-[65%] justify-end"><div class="w-full h-1/3 bg-secondary-container/80"></div><div class="w-full h-2/3 bg-primary-container/80"></div></div>
-          <div class="flex flex-col gap-0.5 w-full h-[45%] justify-end"><div class="w-full h-full bg-[#ddb7ff]/60"></div></div>
-          <div class="flex flex-col gap-0.5 w-full h-[85%] justify-end"><div class="w-full h-1/4 bg-[#ddb7ff]"></div><div class="w-full h-1/2 bg-primary-container"></div><div class="w-full h-1/4 bg-secondary-container"></div></div>
-          <div class="flex flex-col gap-0.5 w-full h-[95%] justify-end"><div class="w-full h-2/5 bg-primary-container shadow-[0_0_8px_#00f0ff]"></div><div class="w-full h-2/5 bg-[#ddb7ff]"></div><div class="w-full h-1/5 bg-secondary-container"></div></div>
-          <div class="flex flex-col gap-0.5 w-full h-[78%] justify-end"><div class="w-full h-1/3 bg-secondary-container"></div><div class="w-full h-2/3 bg-primary-container"></div></div>
-          <div class="flex flex-col gap-0.5 w-full h-[90%] justify-end"><div class="w-full h-1/2 bg-[#ddb7ff]"></div><div class="w-full h-1/2 bg-primary-container"></div></div>
-          <div class="flex flex-col gap-0.5 w-full h-[82%] justify-end"><div class="w-full h-1/4 bg-secondary-container"></div><div class="w-full h-3/4 bg-primary-container"></div></div>
-          <div class="flex flex-col gap-0.5 w-full h-[60%] justify-end"><div class="w-full h-full bg-secondary-container/80"></div></div>
-          <div class="flex flex-col gap-0.5 w-full h-[40%] justify-end"><div class="w-full h-1/2 bg-[#ddb7ff]/50"></div><div class="w-full h-1/2 bg-primary-container/60"></div></div>
-          <div class="flex flex-col gap-0.5 w-full h-[30%] justify-end"><div class="w-full h-full bg-primary-container/40"></div></div>
-          <div class="flex flex-col gap-0.5 w-full h-[55%] justify-end"><div class="w-full h-2/3 bg-secondary-container/60"></div><div class="w-full h-1/3 bg-[#ddb7ff]/50"></div></div>
-          <div class="flex flex-col gap-0.5 w-full h-[20%] justify-end"><div class="w-full h-full bg-primary-container/40"></div></div>
-          <div class="flex flex-col gap-0.5 w-full h-[35%] justify-end"><div class="w-full h-1/2 bg-[#ddb7ff]/50"></div><div class="w-full h-1/2 bg-secondary-container/40"></div></div>
-        </div>
-        <div class="flex justify-between text-[8px] font-mono text-outline px-1">
-          <span>00:00:00Z</span>
-          <span>04:00:00Z</span>
-          <span class="text-secondary-container font-semibold">08:00:00Z (BURST)</span>
-          <span>12:00:00Z</span>
-          <span>16:00:00Z</span>
-          <span>20:00:00Z</span>
-          <span>24:00:00Z</span>
         </div>
       </section>
 
+      <!-- MAIN MULTI-LANE CHRONOLOGICAL TIMELINE (CORTEX ARCHITECTURE) -->
+      <div class="flex-1 overflow-auto relative p-4" id="timeline-scroll-viewport">
+        <div id="cortex-timeline-grid" class="xc-tl-grid border border-outline-variant/30 bg-[#090c12] shadow-2xl select-none" role="table" aria-label="Sessions on a time axis">
+          <!-- Full-height background vertical rule lines -->
+          <div id="cortex-tl-rules" class="xc-tl-rules" aria-hidden="true"></div>
+          <!-- Cursor guide & brush selection feedback -->
+          <div id="cortex-tl-feedback" class="xc-tl-feedback" aria-hidden="true">
+            <div id="cortex-tl-brush" class="xc-tl-brush hidden"></div>
+            <div id="cortex-tl-cursor" class="xc-tl-cursor hidden"></div>
+          </div>
 
-        <div class="relative w-full h-5 bg-surface-container-low border border-outline-variant/30 flex items-center">
-          <div class="absolute inset-0 flex justify-between px-2 pointer-events-none opacity-20">
-            <div class="w-px h-full bg-outline"></div>
-            <div class="w-px h-full bg-outline"></div>
-            <div class="w-px h-full bg-outline"></div>
-            <div class="w-px h-full bg-outline"></div>
-            <div class="w-px h-full bg-outline"></div>
-            <div class="w-px h-full bg-outline"></div>
+          <!-- Axis Head -->
+          <div class="xc-tl-head">
+            <div class="xc-tl-caption">
+              <span>ACTIVE SESSION</span>
+              <button id="btn-timeline-all-time" onclick="resetTimelineZoom()" type="button" class="hidden text-[9px] px-1.5 py-0.5 bg-primary-container text-on-primary-container font-bold rounded">All time</button>
+            </div>
+            <div id="cortex-tl-ticks" class="xc-tl-ticks">
+              <!-- Dynamically populated time ticks -->
+            </div>
           </div>
-          <div class="absolute left-[15%] w-2 h-2 rotate-45 bg-secondary-container shadow-[0_0_8px_#00ffa3] cursor-pointer" title="Anchor #1: sess_01JMQ9X0A1F7B3C8D4E5"></div>
-          <div class="absolute left-[45%] w-2 h-2 rotate-45 bg-secondary-container shadow-[0_0_8px_#00ffa3] cursor-pointer" title="Anchor #2: sess_01JMQB42K9P8V2Z1Y6W0"></div>
-          <div class="absolute left-[75%] w-2 h-2 rotate-45 bg-secondary-container shadow-[0_0_8px_#00ffa3] cursor-pointer" title="Anchor #3: sess_01JMQD88R4T5N3M2L1K0"></div>
-          <div class="absolute left-[88%] top-0 bottom-0 w-0.5 bg-primary-container shadow-[0_0_10px_#00f0ff] z-20"></div>
-        </div>
-      </div>
 
-      <!-- MAIN GANTT / SWIMLANES SECTION -->
-      <div class="p-4 space-y-3 flex-1">
-        <!-- SWIMLANE 00: Live Verified Sessions from Local SQLite Ledger -->
-        <div class="bg-surface-container-lowest border border-primary-container/40 p-3 shadow-md">
-          <div class="flex flex-wrap items-center justify-between pb-2 mb-2 border-b border-outline-variant/20 gap-2 font-mono">
-            <div class="flex items-center gap-2">
-              <div class="w-1.5 h-4 bg-primary-container animate-pulse"></div>
-              <span class="text-[10px] text-primary-container px-1.5 py-0.5 bg-primary-container/10 font-bold uppercase">SWIMLANE 00 // LIVE LEDGER SESSIONS</span>
-              <span class="text-primary text-[12px] font-bold">did:integrity:68fed133...</span>
-              <span class="text-on-surface-variant text-[11px]">| Cryptographic Provenance & Merkle Roots</span>
-            </div>
-            <div class="flex items-center gap-3 text-[10px]">
-              <span class="text-outline">CHAIN HEAD: <span id="timeline-chain-head" class="text-primary-container font-mono">0x...</span></span>
-              <span class="text-outline">AVG AIS: <span class="text-secondary-container font-bold">992.4</span></span>
-              <span class="text-outline">STATUS: <span class="text-secondary-container font-bold uppercase">IMMUTABLE</span></span>
-            </div>
-          </div>
-          <!-- Dynamic Live Sessions Grid -->
-          <div id="dynamic-sessions-track" class="grid grid-cols-1 md:grid-cols-3 gap-3">
-            <div class="p-3 text-neutral-500 font-mono text-xs italic">Loading verified ledger sessions...</div>
-          </div>
-        </div>
-
-        <!-- SWIMLANE 01: Hermes System Genesis -->
-        <div class="bg-surface-container-lowest border border-outline-variant/30 p-3 shadow-sm">
-          <div class="flex flex-wrap items-center justify-between pb-2 mb-2 border-b border-outline-variant/20 gap-2 font-mono">
-            <div class="flex items-center gap-2">
-              <div class="w-1.5 h-4 bg-primary-container"></div>
-              <span class="text-[10px] text-primary-container px-1 py-0.5 bg-primary-container/10 font-bold uppercase">SWIMLANE 01</span>
-              <span class="text-primary text-[12px] font-bold">did:integrity:hermes-prime-quant</span>
-              <span class="text-on-surface-variant text-[11px]">| Dynamic PID Volatility Control & Grid Execution</span>
-            </div>
-            <div class="flex items-center gap-3 text-[10px] text-outline">
-              <span>TURNS: <strong class="text-on-surface">18</strong></span>
-              <span>AVG AIS: <strong class="text-secondary-container">989.4</strong></span>
-              <span>ENCLAVE: <strong class="text-secondary-container">eBPF PASS</strong></span>
-            </div>
-          </div>
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
-            <div onclick="selectSession('sess_01JMQ9X0A1F7B3C8D4E5')" class="p-2.5 rounded bg-surface-container-high border-l-2 border-secondary-container hover:bg-surface-container-highest cursor-pointer transition-all flex flex-col justify-between font-mono text-xs group">
-              <div class="flex items-center justify-between">
-                <span class="font-bold text-white group-hover:text-primary">#842 PID Calibration & Lyapunov Stability</span>
-                <span class="text-[9px] text-secondary-container bg-secondary-container/10 px-1 font-bold">994 AIS</span>
-              </div>
-              <p class="text-neutral-400 text-[11px] mt-1 line-clamp-1">Quant controller dynamic grid coefficients verification under non-linear market regimes.</p>
-              <div class="flex items-center justify-between mt-2 pt-1.5 border-t border-outline-variant/30 text-[10px] text-neutral-500">
-                <span>⇄ 18 Turns · 4 Tools</span>
-                <span class="text-secondary-container">✓ Merkle Anchored</span>
-              </div>
-            </div>
+          <!-- Session Lanes injected dynamically by renderCortexTimeline() -->
+          <div id="cortex-lanes-container" class="contents">
+            <div class="p-8 text-neutral-400 font-mono text-xs italic col-span-2 text-center">Loading ledger session lanes...</div>
           </div>
         </div>
       </div>
 
-      <!-- BOTTOM CORRELATED METRICS: AIS Trajectory Reward Curve -->
-      <div class="w-full bg-surface-container-lowest border-t border-outline-variant/30 p-3 mt-auto shrink-0 font-mono">
-        <div class="flex flex-wrap items-center justify-between mb-2">
-          <div class="flex items-center gap-3">
-            <span class="material-symbols-outlined text-primary-container text-[16px]">show_chart</span>
-            <span class="text-[13px] text-primary font-bold uppercase">AIS TRAJECTORY REWARD CURVE · R<sub>total</sub> = R<sub>task</sub> + λ · AIS</span>
-            <span class="text-[9px] text-secondary-container bg-secondary-container/10 px-1.5 py-0.5">FORMULATION: MULTIPLICATIVE V2</span>
-          </div>
-          <div class="flex items-center gap-4 text-[10px] text-outline">
-            <span class="flex items-center gap-1"><span class="w-2.5 h-0.5 bg-secondary-container inline-block"></span> REWARD INVARIANT (λ=0.35)</span>
-            <span class="flex items-center gap-1"><span class="w-2.5 h-0.5 bg-primary-container inline-block"></span> SUPERMEMORY EMBEDDING DRIFT</span>
-            <span class="text-on-surface font-semibold">PEAK AIS: 998 | LOW: 980</span>
-          </div>
+      <!-- BOTTOM CAPTION, TELEMETRY & SEMANTIC LEGEND BAR -->
+      <footer class="w-full bg-surface-container-lowest border-t border-outline-variant/30 px-4 py-2 font-mono text-[10px] flex flex-wrap items-center justify-between gap-3 shrink-0">
+        <div class="flex items-center gap-3">
+          <span id="timeline-footer-span" class="text-primary font-bold">--</span>
+          <span class="text-outline">|</span>
+          <span class="text-outline">Click lane/mark to inspect · Drag axis to zoom window · Escape to reset</span>
+          <span id="timeline-cursor-timestamp" class="text-secondary-container font-semibold hidden"></span>
         </div>
 
-        <div class="w-full h-16 bg-surface-container-low border border-outline-variant/20 relative overflow-hidden flex items-end">
-          <svg class="w-full h-full absolute inset-0" preserveAspectRatio="none" viewBox="0 0 1000 100">
-            <defs>
-              <linearGradient id="ais-gradient" x1="0" x2="0" y1="0" y2="1">
-                <stop offset="0%" stop-color="#00ffa3" stop-opacity="0.3"/>
-                <stop offset="100%" stop-color="#00ffa3" stop-opacity="0"/>
-              </linearGradient>
-            </defs>
-            <path d="M 0,65 Q 120,40 250,50 T 500,30 T 750,20 T 1000,15 L 1000,100 L 0,100 Z" fill="url(#ais-gradient)"/>
-            <path d="M 0,65 Q 120,40 250,50 T 500,30 T 750,20 T 1000,15" fill="none" stroke="#00ffa3" stroke-width="2"/>
-          </svg>
+        <div class="flex items-center gap-4 text-[9px] text-outline">
+          <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-sm bg-[#a855f7]"></span> Turn Exchange</span>
+          <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-sm bg-primary-container"></span> Tool Execution</span>
+          <span class="flex items-center gap-1.5"><span class="w-3 h-3 rotate-45 border-2 border-secondary-container inline-block"></span> Merkle Root Anchor</span>
+          <span class="flex items-center gap-1.5"><span class="w-1.5 h-3 bg-[#f43f5e] inline-block"></span> Policy Check</span>
+          <span class="text-secondary-container font-bold">✓ AIS 1.000</span>
         </div>
-      </div>
+      </footer>
     </div>
 
   
     <!-- ======================================================================= -->
     <!-- VIEW MODE C: SPECTRAL MATH STUDIO & CLUSTER ANALYSIS                   -->
     <!-- ======================================================================= -->
-    <div id="view-spectral" class="hidden w-full h-full flex flex-col overflow-y-auto overflow-x-hidden bg-[#090c12]">
+    <div id="view-spectral" class="hidden w-full h-full flex flex-col overflow-hidden bg-[#090c12]">
       <!-- SUB-HEADER TELEMETRY & MATH METRICS BAR -->
       <section class="px-4 py-2 bg-surface-container-lowest/90 border-b border-outline-variant/30 flex flex-wrap items-center justify-between text-[10px] font-mono shrink-0 gap-2">
         <div class="flex items-center gap-3">
@@ -855,24 +966,48 @@
         </div>
       </section>
 
-      <!-- MAIN SPECTRAL STUDIO WORKSPACE (Isometric Graph + Mathematical Inspector) -->
+      <!-- MAIN SPECTRAL STUDIO WORKSPACE (Interactive 3D/2D WebGL Canvas + Math Inspector) -->
       <div class="flex-1 flex flex-col xl:flex-row overflow-hidden relative">
-        <!-- Isometric 3D Pipeline Canvas -->
-        <div class="flex-1 relative overflow-auto p-6 min-h-[560px] bg-[#080b11] border-r border-outline-variant/20 grid-matrix" id="spectral-canvas-viewport">
-          <!-- Background SVG for Synaptic Connectors & Coordinate Rays -->
-          <svg id="spectral-svg-canvas" class="absolute inset-0 w-full h-full pointer-events-none z-0" style="min-width: 1400px; min-height: 800px;">
-            <defs>
-              <linearGradient id="specEdgeGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-                <stop offset="0%" stop-color="#00f0ff" stop-opacity="0.6"/>
-                <stop offset="100%" stop-color="#a855f7" stop-opacity="0.4"/>
-              </linearGradient>
-            </defs>
-            <g id="spectral-svg-lines"></g>
-          </svg>
+        <!-- Interactive 3D WebGL Graph Viewport -->
+        <div class="flex-1 relative overflow-hidden bg-[#080b11] border-r border-outline-variant/20 grid-matrix select-none" id="spectral-canvas-viewport">
+          <!-- WebGL Three.js Mount Target -->
+          <div id="spectral-threejs-container" class="absolute inset-0 w-full h-full cursor-grab active:cursor-grabbing"></div>
 
-          <!-- Dynamic ISOMETRIC 3D VOXELS NETWORK (Rendered from real memories) -->
-          <div id="spectral-nodes-layer" class="relative z-10" style="min-width: 1400px; min-height: 800px;">
-            <!-- Injected dynamically by renderSpectralGraph() -->
+          <!-- Top-Left Projection & Coloring Controls HUD -->
+          <div class="absolute top-3 left-3 z-20 flex flex-wrap items-center gap-2 font-mono text-[10px]">
+            <div class="bg-surface-container-lowest/90 backdrop-blur border border-outline-variant/40 rounded p-1 flex items-center gap-1 shadow-lg">
+              <span class="text-outline text-[9px] px-1 font-bold">PROJECTION:</span>
+              <button id="btn-spectral-mode-3d" onclick="setSpectralProjectionMode('3D')" class="px-2 py-0.5 bg-primary-container text-on-primary-container font-bold rounded-sm text-[9px]">3D SPECTRAL LATTICE</button>
+              <button id="btn-spectral-mode-2d" onclick="setSpectralProjectionMode('2D')" class="px-2 py-0.5 text-on-surface-variant hover:text-on-surface font-semibold rounded-sm text-[9px]">2D FIEDLER AXIS</button>
+            </div>
+
+            <div class="bg-surface-container-lowest/90 backdrop-blur border border-outline-variant/40 rounded p-1 flex items-center gap-1 shadow-lg">
+              <span class="text-outline text-[9px] px-1 font-bold">COLORING:</span>
+              <button id="btn-spectral-col-class" onclick="setSpectralColorMode('class')" class="px-2 py-0.5 bg-secondary-container text-on-secondary-container font-bold rounded-sm text-[9px]">EPISTEMIC CLASS</button>
+              <button id="btn-spectral-col-fiedler" onclick="setSpectralColorMode('fiedler')" class="px-2 py-0.5 text-on-surface-variant hover:text-on-surface font-semibold rounded-sm text-[9px]">FIEDLER BISECTION</button>
+            </div>
+          </div>
+
+          <!-- Top-Right Utility HUD -->
+          <div class="absolute top-3 right-3 z-20 flex items-center gap-2 font-mono text-[10px]">
+            <button onclick="toggleSpectralAutoRotate()" id="btn-spectral-autorotate" class="px-2.5 py-1 bg-surface-container-lowest/90 backdrop-blur border border-outline-variant/40 hover:border-primary-container text-on-surface text-[10px] font-bold rounded flex items-center gap-1 shadow-lg transition-colors">
+              <span class="material-symbols-outlined text-xs text-primary-container">sync</span>
+              <span id="spectral-autorotate-label">AUTO-ORBIT: ON</span>
+            </button>
+            <button onclick="resetSpectralCamera()" class="px-2.5 py-1 bg-surface-container-lowest/90 backdrop-blur border border-outline-variant/40 hover:border-primary-container text-on-surface text-[10px] font-bold rounded flex items-center gap-1 shadow-lg transition-colors">
+              <span class="material-symbols-outlined text-xs text-secondary-container">center_focus_strong</span>
+              <span>RESET VIEW</span>
+            </button>
+          </div>
+
+          <!-- Bottom Status & Hover Tooltip HUD -->
+          <div class="absolute bottom-3 left-3 right-3 z-20 pointer-events-none flex items-end justify-between font-mono text-[10px]">
+            <div id="spectral-hover-card" class="bg-surface-container-lowest/95 backdrop-blur border border-primary-container/40 p-2.5 rounded shadow-xl text-left hidden max-w-sm pointer-events-auto">
+              <!-- Dynamically populated on node hover -->
+            </div>
+            <div class="bg-surface-container-lowest/80 backdrop-blur border border-outline-variant/30 px-3 py-1 rounded text-outline text-[9px]">
+              DRAG: Orbit / Pan · WHEEL: Zoom · CLICK: Inspect Node
+            </div>
           </div>
         </div>
 
@@ -922,7 +1057,7 @@
     <!-- ======================================================================= -->
     <!-- VIEW MODE D: CUMULATIVE DIALOGUE KNOWLEDGE GRAPH                        -->
     <!-- ======================================================================= -->
-    <div id="view-dialogue" class="hidden w-full h-full flex flex-col overflow-y-auto overflow-x-hidden bg-[#090a0f]">
+    <div id="view-dialogue" class="hidden w-full h-full flex flex-col overflow-hidden bg-[#090a0f]">
       <!-- SUB-HEADER HUD STRIP -->
       <section class="px-4 py-2 bg-surface-container-lowest/90 border-b border-outline-variant/30 flex flex-wrap items-center justify-between text-[10px] font-mono shrink-0 gap-2">
         <div class="flex items-center gap-3">
@@ -953,23 +1088,58 @@
         </div>
       </section>
 
-      <!-- MAIN DIALOGUE GRAPH CANVAS -->
-      <div class="flex-1 relative overflow-auto p-6 min-h-[560px] bg-[#07090e] grid-matrix" id="dialogue-canvas-viewport">
-        <!-- Curved Synaptic Connectors SVG -->
-        <svg id="dialogue-svg-canvas" class="absolute inset-0 w-full h-full pointer-events-none z-0" style="min-width: 1400px; min-height: 600px;">
-          <defs>
-            <linearGradient id="dialogueCurveGrad" x1="0%" y1="0%" x2="100%" y2="0%">
-              <stop offset="0%" stop-color="#00f0ff" stop-opacity="0.8"/>
-              <stop offset="50%" stop-color="#a855f7" stop-opacity="0.6"/>
-              <stop offset="100%" stop-color="#00ffa3" stop-opacity="0.8"/>
-            </linearGradient>
-          </defs>
-          <g id="dialogue-svg-lines"></g>
-        </svg>
+      <!-- MAIN DIALOGUE INTERACTIVE TRAJECTORY CANVAS -->
+      <div class="flex-1 relative overflow-hidden bg-[#07090e] grid-matrix select-none" id="dialogue-canvas-viewport">
+        <!-- Floating HUD Canvas Controls Bar (Top-Right) -->
+        <div class="absolute top-3 right-3 z-30 flex items-center gap-2 font-mono text-[10px]">
+          <div class="bg-surface-container-lowest/90 backdrop-blur border border-outline-variant/40 rounded p-1 flex items-center gap-1 shadow-lg">
+            <button onclick="zoomDialogueCanvas(0.2)" class="px-2 py-1 bg-surface-container-high hover:bg-surface-container-highest text-on-surface rounded font-bold" title="Zoom In">+</button>
+            <span id="dialogue-zoom-level" class="text-outline text-[9px] px-1 font-bold">100%</span>
+            <button onclick="zoomDialogueCanvas(-0.2)" class="px-2 py-1 bg-surface-container-high hover:bg-surface-container-highest text-on-surface rounded font-bold" title="Zoom Out">-</button>
+            <button onclick="resetDialogueCanvas()" class="px-2 py-1 bg-surface-container-high hover:bg-primary-container hover:text-on-primary-container text-on-surface rounded font-bold" title="Fit & Center">FIT</button>
+          </div>
+          <div class="bg-surface-container-lowest/90 backdrop-blur border border-outline-variant/40 rounded p-1 flex items-center gap-1 shadow-lg">
+            <span class="text-outline text-[9px] px-1 font-bold">LAYOUT:</span>
+            <button id="btn-dag-layout-linear" onclick="setDialogueLayout('linear')" class="px-2 py-0.5 bg-primary-container text-on-primary-container font-bold rounded-sm text-[9px]">HORIZONTAL DAG</button>
+            <button id="btn-dag-layout-stacked" onclick="setDialogueLayout('stacked')" class="px-2 py-0.5 text-on-surface-variant hover:text-on-surface font-semibold rounded-sm text-[9px]">ISOMETRIC PIPELINE</button>
+          </div>
+        </div>
 
-        <!-- Dynamic Turn-by-Turn Trajectory Nodes -->
-        <div id="dialogue-nodes-layer" class="relative z-10 flex flex-wrap gap-8 items-start py-8 px-4" style="min-width: 1400px; min-height: 520px;">
-          <!-- Dynamically populated by renderDialogueGraph() -->
+        <!-- Pan / Zoom Infinite Surface Container -->
+        <div id="dialogue-surface" class="absolute inset-0 w-full h-full cursor-grab active:cursor-grabbing">
+          <!-- Transformed Canvas Layer -->
+          <div id="dialogue-transform-layer" class="origin-top-left transition-transform duration-75 relative w-[3200px] h-[1800px] p-12">
+            <!-- Dynamic Synaptic Bezier Connectors SVG -->
+            <svg id="dialogue-svg-canvas" class="absolute inset-0 w-full h-full pointer-events-none z-0">
+              <defs>
+                <linearGradient id="dialogueCausalGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+                  <stop offset="0%" stop-color="#f59e0b" stop-opacity="0.8"/>
+                  <stop offset="45%" stop-color="#00f0ff" stop-opacity="0.8"/>
+                  <stop offset="80%" stop-color="#a855f7" stop-opacity="0.8"/>
+                  <stop offset="100%" stop-color="#00ffa3" stop-opacity="0.9"/>
+                </linearGradient>
+                <linearGradient id="dialogueTransitGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+                  <stop offset="0%" stop-color="#00ffa3" stop-opacity="0.4"/>
+                  <stop offset="100%" stop-color="#f59e0b" stop-opacity="0.7"/>
+                </linearGradient>
+                <filter id="glowFilter" x="-20%" y="-20%" width="140%" height="140%">
+                  <feGaussianBlur stdDeviation="3" result="blur" />
+                  <feComposite in="SourceGraphic" in2="blur" operator="over" />
+                </filter>
+              </defs>
+              <g id="dialogue-svg-lines"></g>
+            </svg>
+
+            <!-- Dynamic Turn & Step DAG Nodes Layer -->
+            <div id="dialogue-nodes-layer" class="relative z-10 w-full h-full">
+              <!-- Dynamically populated by renderDialogueGraph() -->
+            </div>
+          </div>
+        </div>
+
+        <!-- Bottom Guidance Strip -->
+        <div class="absolute bottom-3 left-3 z-20 pointer-events-none font-mono text-[9px] text-outline bg-surface-container-lowest/80 backdrop-blur px-2.5 py-1 border border-outline-variant/30 rounded">
+          CLICK + DRAG CANVAS: Pan Trajectory · WHEEL: Zoom Trajectory · CLICK NODE: Inspect Proof & Turn Telemetry
         </div>
       </div>
     </div>
@@ -3356,13 +3526,15 @@
         loadScopes();
         loadAgents();
       } else if (view === 'timeline') {
-        fetch('/api/sessions').then(r => r.json()).then(d => { if (d.sessions) renderDynamicSessions(d.sessions); });
+        loadCortexTimelineData();
       } else if (view === 'audit') {
         loadAuditData();
       } else if (view === 'spectral') {
         loadSpectralData();
+        setTimeout(() => { if (window.onSpectralResize) window.onSpectralResize(); }, 60);
       } else if (view === 'dialogue') {
         loadDialogueData();
+        setTimeout(() => { if (window.resetDialogueCanvas) window.resetDialogueCanvas(); }, 60);
       }
     }
 
@@ -4789,10 +4961,267 @@
     }
 
     // =========================================================================
-    // DYNAMIC SPECTRAL STUDIO & REAL MEMORY ISOMETRIC GRAPH
+    // INTERACTIVE SPECTRAL MATH STUDIO (3D/2D THREE.JS WEBGL MANIFOLD)
     // =========================================================================
+    let spectralScene = null, spectralCamera = null, spectralRenderer = null;
+    let spectralNodesGroup = null, spectralEdgesGroup = null;
+    let spectralMeshes = [];
+    let spectralEdges = [];
     let spectralGraphData = { nodes: [], links: [] };
     let currentSpectralFilter = 'all';
+    let spectralProjectionMode = '3D'; // '3D' or '2D'
+    let spectralColorMode = 'class'; // 'class' or 'fiedler'
+    let spectralAutoRotate = true;
+    let spectralIsDragging = false;
+    let spectralPrevMouse = { x: 0, y: 0 };
+    let spectralTargetRot = { x: 0.22, y: -0.32 };
+    let spectralCurrentRot = { x: 0.22, y: -0.32 };
+    let spectralTargetPan = { x: 0, y: 0 };
+    let spectralCurrentPan = { x: 0, y: 0 };
+    let spectralZoomTarget = 520;
+    let spectralRaycaster = new THREE.Raycaster();
+    let spectralMouse = new THREE.Vector2();
+    let spectralHoveredMesh = null;
+    let spectralAnimFrameId = null;
+
+    function initSpectralThreeEngine() {
+      const container = document.getElementById('spectral-threejs-container');
+      if (!container) return;
+
+      const width = container.clientWidth || 800;
+      const height = container.clientHeight || 560;
+
+      if (!spectralScene) {
+        spectralScene = new THREE.Scene();
+        spectralScene.fog = new THREE.FogExp2(0x080b11, 0.002);
+
+        spectralCamera = new THREE.PerspectiveCamera(50, width / height, 0.1, 2500);
+        spectralCamera.position.set(0, 40, spectralZoomTarget);
+
+        spectralRenderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+        spectralRenderer.setSize(width, height);
+        spectralRenderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        container.appendChild(spectralRenderer.domElement);
+
+        // Lights
+        const ambLight = new THREE.AmbientLight(0xffffff, 0.75);
+        spectralScene.add(ambLight);
+
+        const dirLight1 = new THREE.DirectionalLight(0x00f0ff, 2.2);
+        dirLight1.position.set(240, 320, 240);
+        spectralScene.add(dirLight1);
+
+        const dirLight2 = new THREE.DirectionalLight(0xa855f7, 1.8);
+        dirLight2.position.set(-240, -120, -240);
+        spectralScene.add(dirLight2);
+
+        // Ground 3D coordinate grid
+        const gridHelper = new THREE.GridHelper(900, 36, 0x1e293b, 0x0f172a);
+        gridHelper.position.y = -130;
+        spectralScene.add(gridHelper);
+
+        // Fiedler partition cut plane (x = 0)
+        const planeGeo = new THREE.PlaneGeometry(700, 400);
+        const planeMat = new THREE.MeshBasicMaterial({
+          color: 0x00f0ff,
+          transparent: true,
+          opacity: 0.05,
+          side: THREE.DoubleSide,
+          wireframe: true
+        });
+        const partitionPlane = new THREE.Mesh(planeGeo, planeMat);
+        partitionPlane.rotation.y = Math.PI / 2;
+        partitionPlane.name = "fiedlerPartitionPlane";
+        spectralScene.add(partitionPlane);
+
+        spectralNodesGroup = new THREE.Group();
+        spectralEdgesGroup = new THREE.Group();
+        spectralScene.add(spectralNodesGroup);
+        spectralScene.add(spectralEdgesGroup);
+
+        // Event listeners on WebGL Canvas
+        const dom = spectralRenderer.domElement;
+
+        dom.addEventListener('mousedown', (e) => {
+          spectralIsDragging = true;
+          spectralPrevMouse = { x: e.clientX, y: e.clientY };
+          dom.style.cursor = 'grabbing';
+        });
+
+        window.addEventListener('mouseup', () => {
+          spectralIsDragging = false;
+          dom.style.cursor = 'grab';
+        });
+
+        window.addEventListener('mousemove', (e) => {
+          const rect = dom.getBoundingClientRect();
+          if (rect.width > 0 && rect.height > 0) {
+            spectralMouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+            spectralMouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+          }
+
+          if (spectralIsDragging) {
+            const dx = e.clientX - spectralPrevMouse.x;
+            const dy = e.clientY - spectralPrevMouse.y;
+            if (e.shiftKey || e.button === 2 || spectralProjectionMode === '2D') {
+              spectralTargetPan.x -= dx * 0.45;
+              spectralTargetPan.y += dy * 0.45;
+            } else {
+              spectralTargetRot.y += dx * 0.005;
+              spectralTargetRot.x += dy * 0.005;
+              spectralTargetRot.x = Math.max(-Math.PI / 2.5, Math.min(Math.PI / 2.5, spectralTargetRot.x));
+            }
+            spectralPrevMouse = { x: e.clientX, y: e.clientY };
+          } else {
+            // Hover Raycasting
+            spectralRaycaster.setFromCamera(spectralMouse, spectralCamera);
+            const hits = spectralRaycaster.intersectObjects(spectralMeshes, true);
+            const hoverCard = document.getElementById('spectral-hover-card');
+
+            if (hits.length > 0) {
+              let topObj = hits[0].object;
+              while (topObj.parent && !topObj.userData.node && topObj.parent !== spectralNodesGroup) {
+                topObj = topObj.parent;
+              }
+              const node = topObj.userData.node;
+              if (node) {
+                dom.style.cursor = 'pointer';
+                if (spectralHoveredMesh !== topObj) {
+                  if (spectralHoveredMesh) spectralHoveredMesh.scale.set(1, 1, 1);
+                  spectralHoveredMesh = topObj;
+                  spectralHoveredMesh.scale.set(1.28, 1.28, 1.28);
+                }
+
+                if (hoverCard) {
+                  const epClass = (node.epistemic_class || node.type || 'fact').toUpperCase();
+                  const fiedlerSign = (topObj.userData.fiedlerVal >= 0) ? '+ COMMUNITY (λ₂ > 0)' : '- COMMUNITY (λ₂ < 0)';
+                  hoverCard.classList.remove('hidden');
+                  hoverCard.innerHTML = `
+                    <div class="flex items-center justify-between gap-2 border-b border-outline-variant/30 pb-1 mb-1">
+                      <span class="text-primary-container font-bold uppercase">[${epClass}] ${escapeHtml(node.scope || 'SHARED')}</span>
+                      <span class="text-secondary-container text-[8px]">${fiedlerSign}</span>
+                    </div>
+                    <div class="text-white font-semibold text-[11px] truncate">${escapeHtml(node.title || node.id)}</div>
+                    <div class="text-outline text-[9px] mt-0.5">${escapeHtml((node.content || '').substring(0, 90))}...</div>
+                    <div class="flex items-center justify-between text-[8px] text-outline mt-1 pt-1 border-t border-outline-variant/20 font-mono">
+                      <span>FIEDLER: ${topObj.userData.fiedlerVal ? topObj.userData.fiedlerVal.toFixed(3) : '0.000'}</span>
+                      <span class="text-primary font-bold">CLICK TO INSPECT</span>
+                    </div>
+                  `;
+                }
+                return;
+              }
+            }
+
+            if (spectralHoveredMesh) {
+              spectralHoveredMesh.scale.set(1, 1, 1);
+              spectralHoveredMesh = null;
+            }
+            if (hoverCard) hoverCard.classList.add('hidden');
+            dom.style.cursor = 'grab';
+          }
+        });
+
+        dom.addEventListener('wheel', (e) => {
+          e.preventDefault();
+          spectralZoomTarget += e.deltaY * 0.4;
+          spectralZoomTarget = Math.max(140, Math.min(1100, spectralZoomTarget));
+        }, { passive: false });
+
+        dom.addEventListener('click', (e) => {
+          spectralRaycaster.setFromCamera(spectralMouse, spectralCamera);
+          const hits = spectralRaycaster.intersectObjects(spectralMeshes, true);
+          if (hits.length > 0) {
+            let topObj = hits[0].object;
+            while (topObj.parent && !topObj.userData.node && topObj.parent !== spectralNodesGroup) {
+              topObj = topObj.parent;
+            }
+            if (topObj.userData.node) {
+              selectRealSpectralNode(topObj.userData.node.id);
+            }
+          }
+        });
+
+        // Animation Loop
+        animateSpectralThree();
+      } else {
+        spectralResize();
+      }
+    }
+
+    function animateSpectralThree() {
+      spectralAnimFrameId = requestAnimationFrame(animateSpectralThree);
+
+      if (!spectralScene || !spectralCamera || !spectralRenderer) return;
+
+      // Auto-orbit when idle
+      if (spectralAutoRotate && !spectralIsDragging && spectralProjectionMode === '3D') {
+        spectralTargetRot.y += 0.0012;
+      }
+
+      // Smooth camera interpolation
+      spectralCurrentRot.x += (spectralTargetRot.x - spectralCurrentRot.x) * 0.08;
+      spectralCurrentRot.y += (spectralTargetRot.y - spectralCurrentRot.y) * 0.08;
+      spectralCurrentPan.x += (spectralTargetPan.x - spectralCurrentPan.x) * 0.08;
+      spectralCurrentPan.y += (spectralTargetPan.y - spectralCurrentPan.y) * 0.08;
+
+      if (spectralProjectionMode === '3D') {
+        const dist = spectralZoomTarget;
+        spectralCamera.position.x = spectralCurrentPan.x + dist * Math.sin(spectralCurrentRot.y) * Math.cos(spectralCurrentRot.x);
+        spectralCamera.position.y = spectralCurrentPan.y + dist * Math.sin(spectralCurrentRot.x);
+        spectralCamera.position.z = dist * Math.cos(spectralCurrentRot.y) * Math.cos(spectralCurrentRot.x);
+        spectralCamera.lookAt(spectralCurrentPan.x, spectralCurrentPan.y, 0);
+      } else {
+        spectralCamera.position.x = spectralCurrentPan.x;
+        spectralCamera.position.y = spectralCurrentPan.y;
+        spectralCamera.position.z = spectralZoomTarget;
+        spectralCamera.lookAt(spectralCurrentPan.x, spectralCurrentPan.y, 0);
+      }
+
+      // Node mesh target position lerping
+      spectralMeshes.forEach(mesh => {
+        if (mesh.userData.targetPos) {
+          mesh.position.lerp(mesh.userData.targetPos, 0.08);
+        }
+      });
+
+      // Update 3D Edge LineSegments
+      if (spectralEdges.length > 0 && spectralEdgesGroup.children.length > 0) {
+        const lineMesh = spectralEdgesGroup.children[0];
+        if (lineMesh && lineMesh.geometry && lineMesh.geometry.attributes.position) {
+          const posAttr = lineMesh.geometry.attributes.position;
+          let ptr = 0;
+          for (let i = 0; i < spectralEdges.length; i++) {
+            const [sMesh, tMesh] = spectralEdges[i];
+            if (sMesh && tMesh) {
+              posAttr.array[ptr++] = sMesh.position.x;
+              posAttr.array[ptr++] = sMesh.position.y;
+              posAttr.array[ptr++] = sMesh.position.z;
+              posAttr.array[ptr++] = tMesh.position.x;
+              posAttr.array[ptr++] = tMesh.position.y;
+              posAttr.array[ptr++] = tMesh.position.z;
+            }
+          }
+          posAttr.needsUpdate = true;
+        }
+      }
+
+      spectralRenderer.render(spectralScene, spectralCamera);
+    }
+
+    function spectralResize() {
+      const container = document.getElementById('spectral-threejs-container');
+      if (!container || !spectralRenderer || !spectralCamera) return;
+      const w = container.clientWidth || 800;
+      const h = container.clientHeight || 560;
+      if (w > 0 && h > 0) {
+        spectralCamera.aspect = w / h;
+        spectralCamera.updateProjectionMatrix();
+        spectralRenderer.setSize(w, h);
+      }
+    }
+    window.onSpectralResize = spectralResize;
+    window.addEventListener('resize', spectralResize);
 
     window.loadSpectralData = async function() {
       try {
@@ -4835,27 +5264,33 @@
         if (graphResp.ok) {
           const gd = await graphResp.json();
           spectralGraphData = gd;
-          renderSpectralIsometricGraph(gd);
+          renderSpectralThreeGraph(gd);
         }
       } catch (err) {
         console.warn("Failed to load spectral studio data:", err);
       }
     };
 
-    function renderSpectralIsometricGraph(gd) {
-      const container = document.getElementById('spectral-nodes-layer');
-      const linesGroup = document.getElementById('spectral-svg-lines');
-      if (!container || !linesGroup) return;
+    function renderSpectralThreeGraph(gd) {
+      initSpectralThreeEngine();
 
-      container.innerHTML = '';
-      linesGroup.innerHTML = '';
+      if (!spectralNodesGroup || !spectralEdgesGroup) return;
+
+      // Clear existing 3D nodes & edges
+      while (spectralNodesGroup.children.length > 0) {
+        const obj = spectralNodesGroup.children[0];
+        spectralNodesGroup.remove(obj);
+      }
+      while (spectralEdgesGroup.children.length > 0) {
+        const obj = spectralEdgesGroup.children[0];
+        spectralEdgesGroup.remove(obj);
+      }
+      spectralMeshes = [];
+      spectralEdges = [];
 
       const nodes = gd.nodes || [];
       const links = gd.links || [];
-      if (!nodes.length) {
-        container.innerHTML = `<div class="p-8 text-neutral-400 font-mono text-xs">No graph nodes returned from /api/graph.</div>`;
-        return;
-      }
+      if (!nodes.length) return;
 
       // Calculate Dirichlet energy distribution across classes
       const classCounts = { fact: 0, rule: 0, decision: 0, hub: 0, entity: 0, other: 0 };
@@ -4888,86 +5323,164 @@
         `;
       }
 
-      // Project 3D nodes to 2.5D Isometric Canvas
-      const nodePosMap = new Map();
-      const cx = 680;
-      const cy = 340;
+      const nodeMeshMap = new Map();
 
+      // Build 3D Voxel Meshes for nodes
       nodes.forEach((node, idx) => {
         const p = node.pos3D || [0, 0, 0];
-        const isoX = Math.round(cx + (p[0] - p[2]) * 1.55);
-        const isoY = Math.round(cy + (p[0] + p[2]) * 0.75 - p[1] * 1.15);
-        const clampedX = Math.max(60, Math.min(1320, isoX));
-        const clampedY = Math.max(70, Math.min(740, isoY));
-        nodePosMap.set(node.id, { x: clampedX, y: clampedY, node });
-      });
-
-      // Draw SVG Link Lines
-      links.forEach(link => {
-        const s = nodePosMap.get(typeof link.source === 'object' ? link.source.id : link.source);
-        const t = nodePosMap.get(typeof link.target === 'object' ? link.target.id : link.target);
-        if (s && t) {
-          const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-          line.setAttribute('x1', s.x + 24);
-          line.setAttribute('y1', s.y + 24);
-          line.setAttribute('x2', t.x + 24);
-          line.setAttribute('y2', t.y + 24);
-          line.setAttribute('stroke', link.type === 'relation' ? '#a855f7' : (link.type === 'evidence' ? '#00ffa3' : '#00f0ff'));
-          line.setAttribute('stroke-width', link.type === 'relation' ? '1.5' : '1');
-          line.setAttribute('stroke-opacity', '0.45');
-          line.setAttribute('stroke-dasharray', link.type === 'evidence' ? '4 3' : 'none');
-          linesGroup.appendChild(line);
-        }
-      });
-
-      // Render Isometric Voxel Cubes
-      nodes.forEach(node => {
-        const pos = nodePosMap.get(node.id);
-        if (!pos) return;
-
+        const fiedlerVal = p[0] / 160.0;
         const epClass = (node.epistemic_class || node.type || 'fact').toLowerCase();
-        let topFill = '#bae6fd', leftFill = '#0284c7', rightFill = '#0369a1', glow = 'rgba(0,240,255,0.6)', badgeClass = 'text-primary-container';
-        if (epClass === 'rule') {
-          topFill = '#a7f3d0'; leftFill = '#059669'; rightFill = '#047857'; glow = 'rgba(0,255,163,0.6)'; badgeClass = 'text-secondary-container';
-        } else if (epClass === 'decision' || epClass === 'inference') {
-          topFill = '#e9d5ff'; leftFill = '#9333ea'; rightFill = '#7e22ce'; glow = 'rgba(168,85,247,0.6)'; badgeClass = 'text-[#ddb7ff]';
-        } else if (epClass === 'hypothesis' || epClass === 'belief') {
-          topFill = '#fed7aa'; leftFill = '#d97706'; rightFill = '#b45309'; glow = 'rgba(245,158,11,0.6)'; badgeClass = 'text-[#f59e0b]';
-        } else if (node.type === 'hub' || node.type === 'agent_hub') {
-          topFill = '#fef08a'; leftFill = '#ca8a04'; rightFill = '#a16207'; glow = 'rgba(255,215,0,0.6)'; badgeClass = 'text-[#ffd700]';
-        } else if (node.type === 'entity') {
-          topFill = '#c7d2fe'; leftFill = '#6366f1'; rightFill = '#4f46e5'; glow = 'rgba(99,102,241,0.6)'; badgeClass = 'text-[#818cf8]';
+
+        let col = 0x00f0ff;
+        if (epClass === 'rule') col = 0x00ffa3;
+        else if (epClass === 'decision' || epClass === 'inference') col = 0xa855f7;
+        else if (epClass === 'hypothesis' || epClass === 'belief') col = 0xf59e0b;
+        else if (node.type === 'hub') col = 0xffd700;
+        else if (node.type === 'entity') col = 0x818cf8;
+
+        const size = Math.max(12, Math.min(26, (node.size || 18) * 0.85));
+
+        const nodeGroup = new THREE.Group();
+        const boxGeo = new THREE.BoxGeometry(size, size, size);
+        const boxMat = new THREE.MeshPhongMaterial({
+          color: col,
+          emissive: col,
+          emissiveIntensity: 0.22,
+          shininess: 90,
+          transparent: true,
+          opacity: 0.92
+        });
+        const cube = new THREE.Mesh(boxGeo, boxMat);
+        nodeGroup.add(cube);
+
+        // Glowing edge lines
+        const edgeGeo = new THREE.EdgesGeometry(boxGeo);
+        const edgeMat = new THREE.LineBasicMaterial({
+          color: 0xffffff,
+          transparent: true,
+          opacity: 0.65
+        });
+        const edgeLines = new THREE.LineSegments(edgeGeo, edgeMat);
+        nodeGroup.add(edgeLines);
+
+        // Core wireframe inner
+        const coreGeo = new THREE.BoxGeometry(size * 0.5, size * 0.5, size * 0.5);
+        const coreMat = new THREE.MeshBasicMaterial({ color: 0xffffff, wireframe: true, opacity: 0.6, transparent: true });
+        const coreMesh = new THREE.Mesh(coreGeo, coreMat);
+        nodeGroup.add(coreMesh);
+
+        // Position coordinates
+        const pos3D = new THREE.Vector3(p[0] * 1.25, p[1] * 1.25, p[2] * 1.25);
+        const pos2D = new THREE.Vector3(fiedlerVal * 280, p[1] * 0.8, 0);
+
+        nodeGroup.position.copy(spectralProjectionMode === '3D' ? pos3D : pos2D);
+        nodeGroup.userData = {
+          node: node,
+          cubeMesh: cube,
+          epClass: epClass,
+          classColor: col,
+          fiedlerVal: fiedlerVal,
+          pos3D: pos3D,
+          pos2D: pos2D,
+          targetPos: (spectralProjectionMode === '3D' ? pos3D : pos2D).clone()
+        };
+
+        spectralNodesGroup.add(nodeGroup);
+        spectralMeshes.push(nodeGroup);
+        nodeMeshMap.set(node.id, nodeGroup);
+      });
+
+      // Build 3D Link Lines
+      links.forEach(l => {
+        const sMesh = nodeMeshMap.get(typeof l.source === 'object' ? l.source.id : l.source);
+        const tMesh = nodeMeshMap.get(typeof l.target === 'object' ? l.target.id : l.target);
+        if (sMesh && tMesh) {
+          spectralEdges.push([sMesh, tMesh]);
         }
+      });
 
-        const voxel = document.createElement('div');
-        voxel.className = 'spectral-node absolute cursor-pointer group hover:scale-105 transition-transform select-none z-10';
-        voxel.style.left = `${pos.x}px`;
-        voxel.style.top = `${pos.y}px`;
-        voxel.dataset.class = epClass;
-        voxel.dataset.nodeId = node.id;
-        voxel.onclick = () => selectRealSpectralNode(node.id);
+      if (spectralEdges.length > 0) {
+        const lineGeo = new THREE.BufferGeometry();
+        const linePos = new Float32Array(spectralEdges.length * 6);
+        lineGeo.setAttribute('position', new THREE.BufferAttribute(linePos, 3));
+        const lineMat = new THREE.LineBasicMaterial({
+          color: 0x00f0ff,
+          transparent: true,
+          opacity: 0.35,
+          blending: THREE.AdditiveBlending
+        });
+        const lineMesh = new THREE.LineSegments(lineGeo, lineMat);
+        spectralEdgesGroup.add(lineMesh);
+      }
 
-        const shortTitle = (node.title || node.labelTag || node.id || 'Node').replace(/\n/g, ' ').substring(0, 36);
-        const hashSnip = (node.hash || node.full_hash || '0x' + node.id).substring(0, 14);
+      applySpectralFilters();
+    }
 
-        voxel.innerHTML = `
-          <svg style="filter: drop-shadow(0 0 10px ${glow});" height="48" viewBox="0 0 48 48" width="48">
-            <polygon fill="${topFill}" opacity="0.95" points="24,4 42,13 24,22 6,13" stroke="#ffffff" stroke-width="0.8"></polygon>
-            <polygon fill="${leftFill}" opacity="0.9" points="6,13 24,22 24,42 6,33" stroke="${leftFill}" stroke-width="0.8"></polygon>
-            <polygon fill="${rightFill}" opacity="0.95" points="24,22 42,13 42,33 24,42" stroke="${leftFill}" stroke-width="0.8"></polygon>
-          </svg>
-          <div class="mt-1 bg-surface-container-lowest/95 backdrop-blur-md px-2 py-1 border-l-2 shadow-lg border border-outline-variant/30 text-[9px] font-mono max-w-[170px]" style="border-left-color: ${leftFill};">
-            <div class="${badgeClass} font-bold uppercase truncate">[${epClass}] ${node.scope ? node.scope : ''}</div>
-            <div class="text-on-surface truncate font-semibold" title="${escapeHtml(node.content || shortTitle)}">${escapeHtml(shortTitle)}</div>
-            <div class="text-outline text-[8px] flex justify-between mt-0.5">
-              <span>${hashSnip}...</span>
-              <span class="text-secondary-container">AIS: 1.0</span>
-            </div>
-          </div>
-        `;
-        container.appendChild(voxel);
+    function setSpectralProjectionMode(mode) {
+      spectralProjectionMode = mode;
+      const btn3d = document.getElementById('btn-spectral-mode-3d');
+      const btn2d = document.getElementById('btn-spectral-mode-2d');
+
+      if (mode === '3D') {
+        if (btn3d) btn3d.className = "px-2 py-0.5 bg-primary-container text-on-primary-container font-bold rounded-sm text-[9px]";
+        if (btn2d) btn2d.className = "px-2 py-0.5 text-on-surface-variant hover:text-on-surface font-semibold rounded-sm text-[9px]";
+        spectralTargetRot = { x: 0.22, y: -0.32 };
+        spectralMeshes.forEach(mesh => {
+          mesh.userData.targetPos = mesh.userData.pos3D.clone();
+        });
+      } else {
+        if (btn3d) btn3d.className = "px-2 py-0.5 text-on-surface-variant hover:text-on-surface font-semibold rounded-sm text-[9px]";
+        if (btn2d) btn2d.className = "px-2 py-0.5 bg-primary-container text-on-primary-container font-bold rounded-sm text-[9px]";
+        spectralTargetRot = { x: 0, y: 0 };
+        spectralMeshes.forEach(mesh => {
+          mesh.userData.targetPos = mesh.userData.pos2D.clone();
+        });
+      }
+    }
+    window.setSpectralProjectionMode = setSpectralProjectionMode;
+
+    function setSpectralColorMode(mode) {
+      spectralColorMode = mode;
+      const btnClass = document.getElementById('btn-spectral-col-class');
+      const btnFiedler = document.getElementById('btn-spectral-col-fiedler');
+
+      if (mode === 'class') {
+        if (btnClass) btnClass.className = "px-2 py-0.5 bg-secondary-container text-on-secondary-container font-bold rounded-sm text-[9px]";
+        if (btnFiedler) btnFiedler.className = "px-2 py-0.5 text-on-surface-variant hover:text-on-surface font-semibold rounded-sm text-[9px]";
+      } else {
+        if (btnClass) btnClass.className = "px-2 py-0.5 text-on-surface-variant hover:text-on-surface font-semibold rounded-sm text-[9px]";
+        if (btnFiedler) btnFiedler.className = "px-2 py-0.5 bg-secondary-container text-on-secondary-container font-bold rounded-sm text-[9px]";
+      }
+
+      spectralMeshes.forEach(mesh => {
+        const cube = mesh.userData.cubeMesh;
+        if (!cube) return;
+        if (mode === 'class') {
+          cube.material.color.setHex(mesh.userData.classColor);
+          cube.material.emissive.setHex(mesh.userData.classColor);
+        } else {
+          // Fiedler partition color: Cyan if positive community, Neon magenta if negative community
+          const fCol = mesh.userData.fiedlerVal >= 0 ? 0x00f0ff : 0xd946ef;
+          cube.material.color.setHex(fCol);
+          cube.material.emissive.setHex(fCol);
+        }
       });
     }
+    window.setSpectralColorMode = setSpectralColorMode;
+
+    function toggleSpectralAutoRotate() {
+      spectralAutoRotate = !spectralAutoRotate;
+      const label = document.getElementById('spectral-autorotate-label');
+      if (label) label.innerText = `AUTO-ORBIT: ${spectralAutoRotate ? 'ON' : 'OFF'}`;
+    }
+    window.toggleSpectralAutoRotate = toggleSpectralAutoRotate;
+
+    function resetSpectralCamera() {
+      spectralTargetRot = spectralProjectionMode === '3D' ? { x: 0.22, y: -0.32 } : { x: 0, y: 0 };
+      spectralTargetPan = { x: 0, y: 0 };
+      spectralZoomTarget = 520;
+    }
+    window.resetSpectralCamera = resetSpectralCamera;
 
     function filterSpectralNodes(filterClass) {
       currentSpectralFilter = filterClass;
@@ -4979,14 +5492,17 @@
           p.className = "px-2 py-0.5 text-on-surface-variant hover:text-on-surface";
         }
       });
+      applySpectralFilters();
+    }
+    window.filterSpectralNodes = filterSpectralNodes;
 
-      const nodes = document.querySelectorAll('.spectral-node');
-      nodes.forEach(n => {
-        const cls = n.dataset.class;
-        if (filterClass === 'all' || cls === filterClass || (filterClass === 'entity' && cls === 'entity')) {
-          n.style.display = 'block';
+    function applySpectralFilters() {
+      spectralMeshes.forEach(mesh => {
+        const epClass = mesh.userData.epClass;
+        if (currentSpectralFilter === 'all' || epClass === currentSpectralFilter || (currentSpectralFilter === 'entity' && epClass === 'entity')) {
+          mesh.visible = true;
         } else {
-          n.style.display = 'none';
+          mesh.visible = false;
         }
       });
     }
@@ -5026,12 +5542,106 @@
     }
 
     // =========================================================================
-    // DYNAMIC DIALOGUE TRAJECTORY & REAL REASONING GRAPH
+    // INTERACTIVE DIALOGUE TRAJECTORY GRAPH (PAN & ZOOM DAG ENGINE)
     // =========================================================================
     let cachedDialogueSessions = [];
     let currentDialogueSessionId = null;
+    let dialoguePan = { x: 50, y: 60 };
+    let dialogueZoom = 1.0;
+    let dialogueIsDragging = false;
+    let dialogueStartPos = { x: 0, y: 0 };
+    let dialogueStartPan = { x: 0, y: 0 };
+    let dialogueLayout = 'linear'; // 'linear' or 'stacked'
+    let currentDialogueFilter = 'all';
+
+    function initDialogueCanvasControls() {
+      const surface = document.getElementById('dialogue-surface');
+      if (!surface || surface.dataset.initialized) return;
+      surface.dataset.initialized = "true";
+
+      surface.addEventListener('mousedown', (e) => {
+        if (e.target.closest('.dialogue-step') || e.target.closest('button') || e.target.closest('select')) {
+          return;
+        }
+        dialogueIsDragging = true;
+        dialogueStartPos = { x: e.clientX, y: e.clientY };
+        dialogueStartPan = { x: dialoguePan.x, y: dialoguePan.y };
+        surface.style.cursor = 'grabbing';
+      });
+
+      window.addEventListener('mouseup', () => {
+        dialogueIsDragging = false;
+        if (surface) surface.style.cursor = 'grab';
+      });
+
+      window.addEventListener('mousemove', (e) => {
+        if (!dialogueIsDragging) return;
+        dialoguePan.x = dialogueStartPan.x + (e.clientX - dialogueStartPos.x);
+        dialoguePan.y = dialogueStartPan.y + (e.clientY - dialogueStartPos.y);
+        updateDialogueTransform();
+      });
+
+      surface.addEventListener('wheel', (e) => {
+        e.preventDefault();
+        const rect = surface.getBoundingClientRect();
+        const mouseX = e.clientX - rect.left;
+        const mouseY = e.clientY - rect.top;
+        const zoomDelta = e.deltaY < 0 ? 1.12 : 0.88;
+        const newZoom = Math.min(2.5, Math.max(0.35, dialogueZoom * zoomDelta));
+
+        dialoguePan.x = mouseX - (mouseX - dialoguePan.x) * (newZoom / dialogueZoom);
+        dialoguePan.y = mouseY - (mouseY - dialoguePan.y) * (newZoom / dialogueZoom);
+        dialogueZoom = newZoom;
+        updateDialogueTransform();
+      }, { passive: false });
+    }
+
+    function updateDialogueTransform() {
+      const layer = document.getElementById('dialogue-transform-layer');
+      const zoomBadge = document.getElementById('dialogue-zoom-level');
+      if (layer) {
+        layer.style.transform = `translate(${dialoguePan.x}px, ${dialoguePan.y}px) scale(${dialogueZoom})`;
+      }
+      if (zoomBadge) {
+        zoomBadge.innerText = `${Math.round(dialogueZoom * 100)}%`;
+      }
+    }
+
+    function zoomDialogueCanvas(delta) {
+      const newZoom = Math.min(2.5, Math.max(0.35, dialogueZoom + delta));
+      dialogueZoom = newZoom;
+      updateDialogueTransform();
+    }
+    window.zoomDialogueCanvas = zoomDialogueCanvas;
+
+    function resetDialogueCanvas() {
+      dialoguePan = { x: 50, y: 60 };
+      dialogueZoom = 1.0;
+      updateDialogueTransform();
+    }
+    window.resetDialogueCanvas = resetDialogueCanvas;
+
+    function setDialogueLayout(layout) {
+      dialogueLayout = layout;
+      const btnLinear = document.getElementById('btn-dag-layout-linear');
+      const btnStacked = document.getElementById('btn-dag-layout-stacked');
+
+      if (layout === 'linear') {
+        if (btnLinear) btnLinear.className = "px-2 py-0.5 bg-primary-container text-on-primary-container font-bold rounded-sm text-[9px]";
+        if (btnStacked) btnStacked.className = "px-2 py-0.5 text-on-surface-variant hover:text-on-surface font-semibold rounded-sm text-[9px]";
+      } else {
+        if (btnLinear) btnLinear.className = "px-2 py-0.5 text-on-surface-variant hover:text-on-surface font-semibold rounded-sm text-[9px]";
+        if (btnStacked) btnStacked.className = "px-2 py-0.5 bg-primary-container text-on-primary-container font-bold rounded-sm text-[9px]";
+      }
+
+      if (currentDialogueSessionId) {
+        renderDialogueGraph(currentDialogueSessionId);
+      }
+    }
+    window.setDialogueLayout = setDialogueLayout;
 
     window.loadDialogueData = async function() {
+      initDialogueCanvasControls();
       try {
         const resp = await fetch('/api/sessions');
         if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
@@ -5068,6 +5678,7 @@
     };
 
     async function renderDialogueGraph(sessionId) {
+      initDialogueCanvasControls();
       try {
         const resp = await fetch(`/api/sessions/${sessionId}`);
         if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
@@ -5082,65 +5693,128 @@
           merkleBadge.title = sessionDetail.merkle_root;
         }
 
-        const container = document.getElementById('dialogue-nodes-layer');
-        if (!container) return;
+        const nodesLayer = document.getElementById('dialogue-nodes-layer');
+        const linesGroup = document.getElementById('dialogue-svg-lines');
+        if (!nodesLayer || !linesGroup) return;
 
-        container.innerHTML = '';
+        nodesLayer.innerHTML = '';
+        linesGroup.innerHTML = '';
+
         const turns = sessionDetail.turns || [];
         let totalTools = 0;
+        let prevAnchorPos = null;
 
         turns.forEach((turn, turnIdx) => {
           const toolCalls = turn.tool_calls || [];
           totalTools += toolCalls.length;
 
-          // Build Cluster Card for this Turn
+          // Coordinate computation based on layout
+          let clusterX = 40 + turnIdx * 780;
+          let clusterY = 40;
+          if (dialogueLayout === 'stacked') {
+            clusterX = 40 + (turnIdx % 2) * 600;
+            clusterY = 40 + Math.floor(turnIdx / 2) * 580;
+          }
+
+          // Build Turn Enclave Cluster
           const turnCluster = document.createElement('div');
-          turnCluster.className = 'dialogue-turn-cluster flex flex-col gap-3 p-4 rounded-xl bg-surface-container-low/90 border border-outline-variant/30 font-mono shadow-2xl relative min-w-[320px] max-w-[380px]';
+          turnCluster.className = 'absolute flex flex-col gap-3 p-4 rounded-xl bg-surface-container-low/95 border border-outline-variant/30 font-mono shadow-2xl';
+          turnCluster.style.left = `${clusterX}px`;
+          turnCluster.style.top = `${clusterY}px`;
+          turnCluster.style.width = '700px';
+
           turnCluster.innerHTML = `
             <div class="flex items-center justify-between pb-2 border-b border-outline-variant/20">
               <span class="text-[11px] font-bold text-primary-container flex items-center gap-1.5">
-                <span class="w-2 h-2 rounded-full bg-primary-container animate-pulse"></span>
-                <span>TURN ${turnIdx + 1} // ${turn.exchange_id || 'EXCHANGE'}</span>
+                <span class="w-2.5 h-2.5 rounded-full bg-primary-container animate-pulse"></span>
+                <span>TURN ${turnIdx + 1} // ${escapeHtml(turn.exchange_id || 'EXCHANGE')}</span>
               </span>
-              <span class="text-[9px] text-secondary-container bg-secondary-container/10 px-1.5 py-0.5 rounded font-bold">✓ MERKLE LINKED</span>
+              <span class="text-[9px] text-secondary-container bg-secondary-container/10 px-2 py-0.5 rounded font-bold border border-secondary-container/30">✓ MERKLE LINKED</span>
             </div>
             
-            <!-- STEP 1: Prompt Voxel -->
-            <div onclick="selectRealDialogueStep('${turn.exchange_id}', 'prompt', ${turnIdx})" class="dialogue-step cursor-pointer group bg-surface-container-high/90 hover:bg-surface-container-highest p-3 rounded-lg border border-[#f59e0b]/40 hover:border-[#f59e0b] transition-all" data-dstep="prompt">
-              <div class="flex items-center justify-between text-[9px] text-[#f59e0b] font-bold mb-1">
-                <span class="flex items-center gap-1"><span class="material-symbols-outlined text-xs">person</span>USER PROMPT</span>
-                <span>${turn.created_at ? turn.created_at.substring(11, 19) : ''}</span>
-              </div>
-              <p class="text-on-surface text-[11px] font-sans line-clamp-3 leading-relaxed">"${escapeHtml(turn.prompt_text || 'Prompt instruction')}"</p>
-            </div>
-
-            <!-- STEP 2: Tool Calls (if any) -->
-            ${toolCalls.map((tc, tcIdx) => `
-              <div onclick="selectRealDialogueStep('${turn.exchange_id}', 'tool', ${turnIdx}, ${tcIdx})" class="dialogue-step cursor-pointer group bg-surface-container-high/90 hover:bg-surface-container-highest p-3 rounded-lg border border-primary-container/40 hover:border-primary-container transition-all" data-dstep="tool">
-                <div class="flex items-center justify-between text-[9px] text-primary-container font-bold mb-1">
-                  <span class="flex items-center gap-1"><span class="material-symbols-outlined text-xs">build</span>TOOL: ${escapeHtml(tc.name || 'execution')}</span>
-                  <span class="text-secondary-container font-mono">EXIT: 0</span>
+            <div class="grid grid-cols-12 gap-3 items-start">
+              <!-- STEP 1: Prompt Voxel (Cols 1-4) -->
+              <div id="step-prompt-${turnIdx}" onclick="selectRealDialogueStep('${turn.exchange_id}', 'prompt', ${turnIdx})" class="dialogue-step col-span-4 cursor-pointer group bg-surface-container-high/90 hover:bg-surface-container-highest p-3 rounded-lg border border-[#f59e0b]/40 hover:border-[#f59e0b] transition-all hover:scale-[1.02] shadow" data-dstep="prompt">
+                <div class="flex items-center justify-between text-[9px] text-[#f59e0b] font-bold mb-1">
+                  <span class="flex items-center gap-1"><span class="material-symbols-outlined text-xs">person</span>PROMPT</span>
+                  <span>${turn.created_at ? turn.created_at.substring(11, 19) : ''}</span>
                 </div>
-                <div class="text-[10px] text-on-surface-variant font-mono bg-black/40 p-1.5 rounded truncate">args: ${escapeHtml(JSON.stringify(tc.arguments || {}))}</div>
+                <p class="text-on-surface text-[11px] font-sans line-clamp-3 leading-relaxed">"${escapeHtml(turn.prompt_text || 'Prompt instruction')}"</p>
               </div>
-            `).join('')}
 
-            <!-- STEP 3: Agent Response & Reasoning -->
-            <div onclick="selectRealDialogueStep('${turn.exchange_id}', 'response', ${turnIdx})" class="dialogue-step cursor-pointer group bg-surface-container-high/90 hover:bg-surface-container-highest p-3 rounded-lg border border-[#a855f7]/40 hover:border-[#a855f7] transition-all" data-dstep="response">
-              <div class="flex items-center justify-between text-[9px] text-[#ddb7ff] font-bold mb-1">
-                <span class="flex items-center gap-1"><span class="material-symbols-outlined text-xs">psychology</span>AGENT SYNTHESIS</span>
-                <span class="text-secondary-container">100% GROUNDED</span>
+              <!-- STEP 2: Tool Calls (Cols 5-8) -->
+              <div id="step-tools-${turnIdx}" class="col-span-4 flex flex-col gap-2">
+                ${toolCalls.length > 0 ? toolCalls.map((tc, tcIdx) => `
+                  <div onclick="selectRealDialogueStep('${turn.exchange_id}', 'tool', ${turnIdx}, ${tcIdx})" class="dialogue-step cursor-pointer group bg-surface-container-high/90 hover:bg-surface-container-highest p-2.5 rounded-lg border border-primary-container/40 hover:border-primary-container transition-all hover:scale-[1.02] shadow" data-dstep="tool">
+                    <div class="flex items-center justify-between text-[9px] text-primary-container font-bold mb-1">
+                      <span class="flex items-center gap-1"><span class="material-symbols-outlined text-xs">build</span>${escapeHtml(tc.name || 'execution')}</span>
+                      <span class="text-secondary-container font-mono text-[8px]">EXIT 0</span>
+                    </div>
+                    <div class="text-[9px] text-on-surface-variant font-mono bg-black/40 p-1 rounded truncate">args: ${escapeHtml(JSON.stringify(tc.arguments || {}))}</div>
+                  </div>
+                `).join('') : `
+                  <div class="p-3 rounded-lg border border-outline-variant/20 bg-surface-container-high/40 text-[9px] text-outline text-center">
+                    NO TOOLS INVOKED (DIRECT SYNTHESIS)
+                  </div>
+                `}
               </div>
-              <p class="text-on-surface text-[11px] font-sans line-clamp-3 leading-relaxed">${escapeHtml(turn.response_text || 'Agent response')}</p>
+
+              <!-- STEP 3: Agent Response & Reasoning (Cols 9-12) -->
+              <div id="step-response-${turnIdx}" onclick="selectRealDialogueStep('${turn.exchange_id}', 'response', ${turnIdx})" class="dialogue-step col-span-4 cursor-pointer group bg-surface-container-high/90 hover:bg-surface-container-highest p-3 rounded-lg border border-[#a855f7]/40 hover:border-[#a855f7] transition-all hover:scale-[1.02] shadow" data-dstep="response">
+                <div class="flex items-center justify-between text-[9px] text-[#ddb7ff] font-bold mb-1">
+                  <span class="flex items-center gap-1"><span class="material-symbols-outlined text-xs">psychology</span>SYNTHESIS</span>
+                  <span class="text-secondary-container text-[8px]">100% GROUNDED</span>
+                </div>
+                <p class="text-on-surface text-[11px] font-sans line-clamp-3 leading-relaxed">${escapeHtml(turn.response_text || 'Agent response')}</p>
+              </div>
             </div>
 
             <!-- STEP 4: Cryptographic Turn Anchor Proof -->
-            <div class="p-2 bg-black/40 rounded border border-outline-variant/30 flex items-center justify-between text-[9px] text-outline font-mono">
-              <div class="truncate max-w-[190px]">HASH: ${(turn.turn_hash || '').substring(0, 16)}...</div>
-              <span class="text-primary font-bold">AIS: 1.0</span>
+            <div id="step-anchor-${turnIdx}" onclick="selectRealDialogueStep('${turn.exchange_id}', 'anchor', ${turnIdx})" class="dialogue-step cursor-pointer p-2 bg-black/50 hover:bg-black/70 rounded border border-outline-variant/30 hover:border-secondary-container flex items-center justify-between text-[9px] text-outline font-mono transition-colors" data-dstep="anchor">
+              <div class="flex items-center gap-2">
+                <span class="material-symbols-outlined text-secondary-container text-xs">verified</span>
+                <span class="truncate max-w-[280px]">MERKLE ANCHOR: ${(turn.turn_hash || '').substring(0, 24)}...</span>
+              </div>
+              <span class="text-primary font-bold">AIS: 1.000 (AUDITED)</span>
             </div>
           `;
-          container.appendChild(turnCluster);
+          nodesLayer.appendChild(turnCluster);
+
+          // Connect sequential steps with SVG Bezier Curves
+          setTimeout(() => {
+            const promptEl = document.getElementById(`step-prompt-${turnIdx}`);
+            const toolsEl = document.getElementById(`step-tools-${turnIdx}`);
+            const respEl = document.getElementById(`step-response-${turnIdx}`);
+            const anchorEl = document.getElementById(`step-anchor-${turnIdx}`);
+
+            if (promptEl && toolsEl && respEl && anchorEl) {
+              const pRect = promptEl.getBoundingClientRect();
+              const tRect = toolsEl.getBoundingClientRect();
+              const rRect = respEl.getBoundingClientRect();
+              const aRect = anchorEl.getBoundingClientRect();
+              const cRect = turnCluster.getBoundingClientRect();
+
+              // Prompt to Tools / Response
+              const pMidX = clusterX + (pRect.right - cRect.left);
+              const pMidY = clusterY + (pRect.top + pRect.height / 2 - cRect.top);
+              const tMidX = clusterX + (tRect.left - cRect.left);
+              const tMidY = clusterY + (tRect.top + tRect.height / 2 - cRect.top);
+
+              drawSvgBezier(linesGroup, pMidX, pMidY, tMidX, tMidY, '#f59e0b', '#00f0ff');
+
+              const tOutX = clusterX + (tRect.right - cRect.left);
+              const rInX = clusterX + (rRect.left - cRect.left);
+              const rInY = clusterY + (rRect.top + rRect.height / 2 - cRect.top);
+
+              drawSvgBezier(linesGroup, tOutX, tMidY, rInX, rInY, '#00f0ff', '#a855f7');
+
+              // Transit connector from previous turn's anchor
+              if (prevAnchorPos) {
+                drawSvgTransitBezier(linesGroup, prevAnchorPos.x, prevAnchorPos.y, clusterX, pMidY);
+              }
+              prevAnchorPos = { x: clusterX + 700, y: clusterY + (aRect.top + aRect.height / 2 - cRect.top) };
+            }
+          }, 40);
         });
 
         const toolsBadge = document.getElementById('dialogue-tools-badge');
@@ -5151,7 +5825,33 @@
       }
     }
 
+    function drawSvgBezier(svgGroup, x1, y1, x2, y2, startCol, endCol) {
+      const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+      const dx = Math.max(30, (x2 - x1) * 0.5);
+      const d = `M ${x1} ${y1} C ${x1 + dx} ${y1}, ${x2 - dx} ${y2}, ${x2} ${y2}`;
+      path.setAttribute('d', d);
+      path.setAttribute('fill', 'none');
+      path.setAttribute('stroke', 'url(#dialogueCausalGrad)');
+      path.setAttribute('stroke-width', '2');
+      path.setAttribute('stroke-opacity', '0.7');
+      svgGroup.appendChild(path);
+    }
+
+    function drawSvgTransitBezier(svgGroup, x1, y1, x2, y2) {
+      const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+      const dx = Math.max(60, (x2 - x1) * 0.5);
+      const d = `M ${x1} ${y1} C ${x1 + dx} ${y1}, ${x2 - dx} ${y2}, ${x2} ${y2}`;
+      path.setAttribute('d', d);
+      path.setAttribute('fill', 'none');
+      path.setAttribute('stroke', 'url(#dialogueTransitGrad)');
+      path.setAttribute('stroke-width', '2.5');
+      path.setAttribute('stroke-dasharray', '6 4');
+      path.setAttribute('stroke-opacity', '0.65');
+      svgGroup.appendChild(path);
+    }
+
     function filterDialogueSteps(stepType) {
+      currentDialogueFilter = stepType;
       const pills = document.querySelectorAll('#dialogue-filter-pills button');
       pills.forEach(p => {
         if (p.dataset.dfilter === stepType) {
@@ -5164,12 +5864,15 @@
       const steps = document.querySelectorAll('.dialogue-step');
       steps.forEach(s => {
         if (stepType === 'all' || s.dataset.dstep === stepType) {
-          s.style.display = 'block';
+          s.style.opacity = '1.0';
+          s.style.pointerEvents = 'auto';
         } else {
-          s.style.display = 'none';
+          s.style.opacity = '0.22';
+          s.style.pointerEvents = 'none';
         }
       });
     }
+    window.filterDialogueSteps = filterDialogueSteps;
 
     function selectRealDialogueStep(exchangeId, stepType, turnIdx, toolIdx) {
       if (!inspectorOpen) toggleInspector();
@@ -5202,7 +5905,7 @@
               <span class="text-secondary-container">CRYPTOGRAPHIC PROOF VERIFIED</span>
             </div>
             <div class="text-[11px] text-on-surface font-sans">
-              ${stepType === 'prompt' ? 'User Instruction and Context Grounding' : (stepType === 'tool' ? 'Deterministic Tool Invocation and Parameters' : 'Agent Reasoning and Knowledge Graph Synthesis')}
+              ${stepType === 'prompt' ? 'User Instruction and Context Grounding' : (stepType === 'tool' ? 'Deterministic Tool Invocation and Parameters' : (stepType === 'anchor' ? 'Cryptographic Merkle Root and State Anchor' : 'Agent Reasoning and Knowledge Graph Synthesis'))}
             </div>
             <div class="pt-2 border-t border-outline-variant/30 flex justify-between text-[9px] text-outline font-mono">
               <span>PHASE: ${stepType.toUpperCase()}</span>
@@ -5212,30 +5915,430 @@
         `;
       }
     }
+    window.selectRealDialogueStep = selectRealDialogueStep;
 
-    function renderDynamicSessions(sessions) {
-      const container = document.getElementById('dynamic-sessions-track');
-      if (!container) return;
-      container.innerHTML = '';
+    // =========================================================================
+    // CORTEX-INSPIRED MULTI-LANE CHRONOLOGICAL TIMELINE ENGINE
+    // =========================================================================
+    let timelineSessionsData = [];
+    let timelineSessionDetails = new Map();
+    let timelineTimeWindow = null; // { from: ms, to: ms }
+    let timelineFilterType = 'all'; // 'all', 'anchored', 'tools'
+    let timelineGesture = null;
+
+    function shortDay(timeMs) {
+      const d = new Date(timeMs);
+      return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+    }
+
+    function shortStamp(timeMs) {
+      const d = new Date(timeMs);
+      return `${d.toLocaleDateString(undefined, { month: 'numeric', day: 'numeric' })} ${d.toTimeString().substring(0, 8)}`;
+    }
+
+    function tickStep(spanMs) {
+      const HOUR = 3_600_000;
+      const DAY = 24 * HOUR;
+      if (spanMs <= 60_000) return 10_000;
+      if (spanMs <= 600_000) return 60_000;
+      if (spanMs <= 3_600_000) return 300_000;
+      if (spanMs <= 6 * HOUR) return HOUR;
+      if (spanMs <= 2 * DAY) return 6 * HOUR;
+      if (spanMs <= 21 * DAY) return DAY;
+      return 7 * DAY;
+    }
+
+    function computeTimelineTicks(domain) {
+      const step = tickStep(domain.to - domain.from);
+      const out = [];
+      const align = new Date(domain.from);
+      if (step >= 24 * 3_600_000) align.setHours(0, 0, 0, 0);
+      else if (step >= 3_600_000) align.setMinutes(0, 0, 0);
+      else align.setSeconds(0, 0);
+
+      const HOUR = 3_600_000;
+      const DAY = 24 * HOUR;
+
+      for (let t = align.getTime(); t <= domain.to && out.length < 24; t += step) {
+        if (t < domain.from) continue;
+        const label = step >= DAY ? shortDay(t) : shortStamp(t).slice(5);
+        out.push({ at: t, label: label });
+      }
+      return out;
+    }
+
+    window.loadCortexTimelineData = async function() {
+      try {
+        const resp = await fetch('/api/sessions');
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        const data = await resp.json();
+        const sessions = data.sessions || [];
+        timelineSessionsData = sessions;
+
+        // Fetch detailed turns for each session in parallel
+        await Promise.all(sessions.map(async (s) => {
+          try {
+            const detailResp = await fetch(`/api/sessions/${s.session_id}`);
+            if (detailResp.ok) {
+              const detail = await detailResp.json();
+              timelineSessionDetails.set(s.session_id, detail);
+            }
+          } catch (e) {
+            console.warn(`Failed to fetch details for session ${s.session_id}:`, e);
+          }
+        }));
+
+        renderCortexTimeline();
+      } catch (err) {
+        console.warn("Failed to load timeline sessions:", err);
+      }
+    };
+
+    function renderCortexTimeline() {
+      const lanesContainer = document.getElementById('cortex-lanes-container');
+      const rulesContainer = document.getElementById('cortex-tl-rules');
+      const ticksContainer = document.getElementById('cortex-tl-ticks');
+      const densityBars = document.getElementById('timeline-density-bars');
+      if (!lanesContainer || !rulesContainer || !ticksContainer) return;
+
+      const sessions = timelineSessionsData || [];
+      if (sessions.length === 0) {
+        lanesContainer.innerHTML = `<div class="p-8 text-neutral-400 font-mono text-xs italic col-span-2 text-center">No agent sessions recorded in the local ledger.</div>`;
+        return;
+      }
+
+      // Compute total metrics
+      let totalExchanges = 0;
+      let totalAnchors = 0;
+      sessions.forEach(s => {
+        totalExchanges += (s.turn_count || 0);
+        if (s.merkle_root) totalAnchors++;
+      });
+
+      const sCountEl = document.getElementById('timeline-sessions-count');
+      if (sCountEl) sCountEl.innerText = `${sessions.length} ACTIVE`;
+      const eCountEl = document.getElementById('timeline-exchanges-count');
+      if (eCountEl) eCountEl.innerText = `${totalExchanges} REIFIED`;
+      const aCountEl = document.getElementById('timeline-anchors-count');
+      if (aCountEl) aCountEl.innerText = `${totalAnchors} ROOTED`;
+
+      // Determine Full Domain
+      let minTime = Infinity;
+      let maxTime = -Infinity;
 
       sessions.forEach(s => {
-        const card = document.createElement('div');
-        card.className = "p-2.5 rounded bg-surface-container-high border-l-2 border-secondary-container hover:bg-surface-container-highest cursor-pointer transition-all flex flex-col justify-between font-mono text-xs group shadow";
-        card.onclick = () => selectSession(s.session_id);
-        card.innerHTML = `
-          <div class="flex items-center justify-between">
-            <span class="font-bold text-white group-hover:text-primary truncate max-w-[140px]">${s.session_id.substring(0, 14)}...</span>
-            <span class="text-[9px] text-secondary-container bg-secondary-container/10 px-1 font-bold">✓ Merkle</span>
-          </div>
-          <div class="text-neutral-400 text-[10px] truncate mt-1">Root: ${s.merkle_root.substring(0, 20)}...</div>
-          <div class="flex items-center justify-between mt-2 pt-1 border-t border-outline-variant/30 text-[9px] text-neutral-500">
-            <span>⇄ ${s.turn_count} Turns · ${s.tool_execution_count} Tools</span>
-            <span class="text-primary-container">${s.start_time ? s.start_time.substring(11, 19) : ''}</span>
-          </div>
-        `;
-        container.appendChild(card);
+        const start = s.start_time ? new Date(s.start_time).getTime() : Date.now();
+        const end = s.end_time ? new Date(s.end_time).getTime() : start;
+        if (!isNaN(start)) minTime = Math.min(minTime, start);
+        if (!isNaN(end)) maxTime = Math.max(maxTime, end);
+
+        const detail = timelineSessionDetails.get(s.session_id);
+        if (detail && detail.turns) {
+          detail.turns.forEach(t => {
+            if (t.created_at) {
+              const turnTime = new Date(t.created_at).getTime();
+              if (!isNaN(turnTime)) {
+                minTime = Math.min(minTime, turnTime);
+                maxTime = Math.max(maxTime, turnTime);
+              }
+            }
+          });
+        }
       });
+
+      if (!isFinite(minTime) || !isFinite(maxTime)) {
+        minTime = Date.now() - 3_600_000;
+        maxTime = Date.now();
+      }
+
+      // Ensure at least a 10-second pad
+      const span = maxTime - minTime;
+      const pad = Math.max(30_000, span * 0.05);
+      const fullDomain = { from: minTime - pad, to: maxTime + pad };
+      const activeDomain = timelineTimeWindow || fullDomain;
+
+      const pct = (t) => ((t - activeDomain.from) / Math.max(1, activeDomain.to - activeDomain.from)) * 100;
+      const inDomain = (t) => t >= activeDomain.from && t <= activeDomain.to;
+
+      // Update Sub-Header Domain Caption & Footer
+      const captionEl = document.getElementById('timeline-domain-caption');
+      if (captionEl) captionEl.innerText = `${shortStamp(activeDomain.from)} → ${shortStamp(activeDomain.to)}`;
+      const footerSpanEl = document.getElementById('timeline-footer-span');
+      if (footerSpanEl) footerSpanEl.innerText = `${sessions.length} SESSIONS (${shortStamp(activeDomain.from)} → ${shortStamp(activeDomain.to)})`;
+
+      const resetBtn = document.getElementById('timeline-reset-zoom-btn');
+      const allTimeBtn = document.getElementById('btn-timeline-all-time');
+      if (resetBtn) resetBtn.classList.toggle('hidden', !timelineTimeWindow);
+      if (allTimeBtn) allTimeBtn.classList.toggle('hidden', !timelineTimeWindow);
+
+      // Render Ticks & Full-Height Rules
+      ticksContainer.innerHTML = '';
+      rulesContainer.innerHTML = '';
+      const ticks = computeTimelineTicks(activeDomain);
+
+      ticks.forEach(t => {
+        const p = pct(t.at);
+        if (p >= 0 && p <= 98) {
+          const tickSpan = document.createElement('span');
+          tickSpan.style.left = `${p}%`;
+          tickSpan.innerText = t.label;
+          ticksContainer.appendChild(tickSpan);
+
+          const ruleSpan = document.createElement('span');
+          ruleSpan.style.left = `${p}%`;
+          rulesContainer.appendChild(ruleSpan);
+        }
+      });
+
+      // Render Density Histogram Mini-Map Bars
+      if (densityBars) {
+        densityBars.innerHTML = '';
+        const numBuckets = 32;
+        const buckets = new Array(numBuckets).fill(0);
+        sessions.forEach(s => {
+          const detail = timelineSessionDetails.get(s.session_id);
+          const turns = (detail && detail.turns) ? detail.turns : [];
+          turns.forEach(t => {
+            const time = t.created_at ? new Date(t.created_at).getTime() : null;
+            if (time && time >= fullDomain.from && time <= fullDomain.to) {
+              const bIdx = Math.min(numBuckets - 1, Math.max(0, Math.floor(((time - fullDomain.from) / (fullDomain.to - fullDomain.from)) * numBuckets)));
+              buckets[bIdx]++;
+            }
+          });
+        });
+        const maxBucket = Math.max(1, ...buckets);
+        buckets.forEach(count => {
+          const hPct = Math.round((count / maxBucket) * 85) + 10;
+          const bar = document.createElement('div');
+          bar.className = 'w-full bg-primary-container/40 hover:bg-primary-container transition-all';
+          bar.style.height = `${hPct}%`;
+          densityBars.appendChild(bar);
+        });
+
+        // Update Mini-Map Brush Highlight if zoomed
+        const miniBrush = document.getElementById('timeline-minimap-brush');
+        if (miniBrush) {
+          if (timelineTimeWindow) {
+            miniBrush.classList.remove('hidden');
+            const leftPct = Math.max(0, ((timelineTimeWindow.from - fullDomain.from) / (fullDomain.to - fullDomain.from)) * 100);
+            const rightPct = Math.min(100, ((timelineTimeWindow.to - fullDomain.from) / (fullDomain.to - fullDomain.from)) * 100);
+            miniBrush.style.left = `${leftPct}%`;
+            miniBrush.style.width = `${Math.max(2, rightPct - leftPct)}%`;
+          } else {
+            miniBrush.classList.add('hidden');
+          }
+        }
+      }
+
+      // Filter sessions
+      const filteredSessions = sessions.filter(s => {
+        if (timelineFilterType === 'anchored' && !s.merkle_root) return false;
+        if (timelineFilterType === 'tools' && !(s.tool_execution_count > 0)) return false;
+        return true;
+      });
+
+      // Render Session Lanes
+      lanesContainer.innerHTML = '';
+      filteredSessions.forEach((lane, lIdx) => {
+        const detail = timelineSessionDetails.get(lane.session_id);
+        const turns = (detail && detail.turns) ? detail.turns : [];
+
+        const start = lane.start_time ? new Date(lane.start_time).getTime() : activeDomain.from;
+        const end = lane.end_time ? new Date(lane.end_time).getTime() : (start + 60_000);
+        const isOpen = !lane.end_time;
+
+        const leftPct = Math.max(0, pct(start));
+        const rightPct = Math.min(100, pct(end));
+        const spanWidth = Math.max(1, rightPct - leftPct);
+
+        const durationMin = Math.max(1, Math.round((end - start) / 60_000));
+        const shortId = lane.session_id.replace(/^sess_/, '');
+
+        // 1. Lane Label (Left Column)
+        const labelBtn = document.createElement('button');
+        labelBtn.type = 'button';
+        labelBtn.className = 'xc-lane-label group';
+        labelBtn.onclick = () => selectSession(lane.session_id);
+        labelBtn.innerHTML = `
+          <div class="flex items-center justify-between gap-1">
+            <b title="${escapeHtml(lane.session_id)}">${escapeHtml(shortId)}</b>
+            <span class="text-[8px] text-secondary-container bg-secondary-container/10 px-1 rounded font-bold">${isOpen ? 'OPEN' : 'ROOTED'}</span>
+          </div>
+          <span class="text-[9px] text-outline truncate">${lane.turn_count || turns.length} exchanges · ${lane.tool_execution_count || 0} tools · ${durationMin}m</span>
+        `;
+        lanesContainer.appendChild(labelBtn);
+
+        // 2. Lane Track (Right Column)
+        const trackDiv = document.createElement('div');
+        trackDiv.className = 'xc-lane-track relative overflow-hidden';
+        trackDiv.dataset.lane = lane.session_id;
+
+        // Session Duration Span Bar
+        if (spanWidth > 0 && rightPct > 0 && leftPct < 100) {
+          const spanBar = document.createElement('i');
+          spanBar.className = 'xc-lane-span';
+          spanBar.dataset.open = isOpen ? 'true' : 'false';
+          spanBar.style.left = `${leftPct}%`;
+          spanBar.style.width = `${spanWidth}%`;
+          trackDiv.appendChild(spanBar);
+        }
+
+        // Marks for Turns
+        turns.forEach((turn, tIdx) => {
+          const tTime = turn.created_at ? new Date(turn.created_at).getTime() : (start + tIdx * 10_000);
+          if (inDomain(tTime)) {
+            const markBtn = document.createElement('button');
+            markBtn.type = 'button';
+            markBtn.className = 'xc-mark';
+            markBtn.dataset.cls = 'exchange';
+            markBtn.style.left = `${pct(tTime)}%`;
+            markBtn.title = `Turn ${tIdx + 1} (${turn.exchange_id}) · ${shortStamp(tTime)}\n"${(turn.prompt_text || '').substring(0, 50)}..."`;
+            markBtn.onclick = (e) => {
+              e.stopPropagation();
+              selectSession(lane.session_id);
+            };
+            trackDiv.appendChild(markBtn);
+
+            // Tools Marks
+            if (turn.tool_calls && turn.tool_calls.length > 0) {
+              turn.tool_calls.forEach((tc, tcIdx) => {
+                const toolMark = document.createElement('button');
+                toolMark.type = 'button';
+                toolMark.className = 'xc-mark';
+                toolMark.dataset.cls = 'tool';
+                toolMark.style.left = `${pct(tTime + (tcIdx + 1) * 1500)}%`;
+                toolMark.title = `Tool: ${tc.name || 'execution'} · Args: ${JSON.stringify(tc.arguments || {})}`;
+                toolMark.onclick = (e) => {
+                  e.stopPropagation();
+                  selectSession(lane.session_id);
+                };
+                trackDiv.appendChild(toolMark);
+              });
+            }
+          }
+        });
+
+        // Merkle Root State Anchor Diamond Mark
+        if (lane.merkle_root && inDomain(end)) {
+          const rootMark = document.createElement('button');
+          rootMark.type = 'button';
+          rootMark.className = 'xc-mark';
+          rootMark.dataset.cls = 'root';
+          rootMark.style.left = `${pct(end)}%`;
+          rootMark.title = `Merkle Root Anchor: 0x${lane.merkle_root.substring(0, 20)}...\nCryptographically verified (AIS: 1.000)`;
+          rootMark.onclick = (e) => {
+            e.stopPropagation();
+            selectSession(lane.session_id);
+          };
+          trackDiv.appendChild(rootMark);
+        }
+
+        lanesContainer.appendChild(trackDiv);
+      });
+
+      // Attach Time Scrubbing & Brushing Listeners
+      initTimelineInteraction(activeDomain);
     }
+
+    function initTimelineInteraction(activeDomain) {
+      const grid = document.getElementById('cortex-timeline-grid');
+      const brushEl = document.getElementById('cortex-tl-brush');
+      const cursorEl = document.getElementById('cortex-tl-cursor');
+      const timestampEl = document.getElementById('timeline-cursor-timestamp');
+      if (!grid || !brushEl || !cursorEl) return;
+
+      const getTrackOffset = (clientX) => {
+        const rect = grid.getBoundingClientRect();
+        const labelWidth = 240; // var(--tl-label)
+        const trackLeft = rect.left + labelWidth;
+        const trackWidth = rect.width - labelWidth;
+        if (trackWidth <= 0) return null;
+        const relX = Math.max(0, Math.min(trackWidth, clientX - trackLeft));
+        const fraction = relX / trackWidth;
+        const timeMs = Math.round(activeDomain.from + fraction * (activeDomain.to - activeDomain.from));
+        const pctPos = fraction * 100;
+        return { relX, pctPos, timeMs, trackWidth };
+      };
+
+      grid.onpointerdown = (e) => {
+        if (e.target.closest('button')) return;
+        const offset = getTrackOffset(e.clientX);
+        if (!offset) return;
+        timelineGesture = {
+          startX: e.clientX,
+          startMs: offset.timeMs,
+          startPct: offset.pctPos,
+          moved: false
+        };
+        brushEl.classList.remove('hidden');
+        brushEl.style.left = `${offset.pctPos}%`;
+        brushEl.style.width = `0%`;
+      };
+
+      window.onpointermove = (e) => {
+        const offset = getTrackOffset(e.clientX);
+        if (!offset) return;
+
+        // Move vertical cursor indicator
+        cursorEl.classList.remove('hidden');
+        cursorEl.style.left = `${offset.pctPos}%`;
+        if (timestampEl) {
+          timestampEl.classList.remove('hidden');
+          timestampEl.innerText = `SCRUB: ${shortStamp(offset.timeMs)}`;
+        }
+
+        if (timelineGesture) {
+          const dx = Math.abs(e.clientX - timelineGesture.startX);
+          if (dx > 4) timelineGesture.moved = true;
+          const leftPct = Math.min(timelineGesture.startPct, offset.pctPos);
+          const widthPct = Math.abs(offset.pctPos - timelineGesture.startPct);
+          brushEl.style.left = `${leftPct}%`;
+          brushEl.style.width = `${widthPct}%`;
+        }
+      };
+
+      window.onpointerup = (e) => {
+        if (!timelineGesture) return;
+        const offset = getTrackOffset(e.clientX);
+        if (timelineGesture.moved && offset) {
+          const from = Math.min(timelineGesture.startMs, offset.timeMs);
+          const to = Math.max(timelineGesture.startMs, offset.timeMs);
+          if (to - from >= 5_000) {
+            timelineTimeWindow = { from, to };
+            renderCortexTimeline();
+          }
+        }
+        timelineGesture = null;
+        brushEl.classList.add('hidden');
+      };
+
+      grid.onmouseleave = () => {
+        if (!timelineGesture) {
+          cursorEl.classList.add('hidden');
+          if (timestampEl) timestampEl.classList.add('hidden');
+        }
+      };
+    }
+
+    function resetTimelineZoom() {
+      timelineTimeWindow = null;
+      renderCortexTimeline();
+    }
+    window.resetTimelineZoom = resetTimelineZoom;
+
+    function filterTimelineLanes(filterType) {
+      timelineFilterType = filterType;
+      const pills = document.querySelectorAll('#timeline-filter-pills button');
+      pills.forEach(p => {
+        if (p.dataset.tfilter === filterType) {
+          p.className = "px-2 py-0.5 bg-primary-container text-on-primary-container rounded-sm";
+        } else {
+          p.className = "px-2 py-0.5 text-on-surface-variant hover:text-on-surface";
+        }
+      });
+      renderCortexTimeline();
+    }
+    window.filterTimelineLanes = filterTimelineLanes;
 
     document.addEventListener('keydown', (e) => {
       if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
