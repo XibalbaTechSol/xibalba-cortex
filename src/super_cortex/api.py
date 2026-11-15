@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import json
 import logging
+import time
 from pathlib import Path
 from typing import Any, AsyncGenerator
 
@@ -14,7 +16,9 @@ from starlette.routing import Mount, Route
 from starlette.staticfiles import StaticFiles
 from sse_starlette.sse import EventSourceResponse
 
+from .classifier import classify_epistemic, classify_para, extract_triples
 from .config import SuperCortexConfig
+from .connectors import SuperCortexConnectors
 from .memory import SuperCortex
 
 logger = logging.getLogger(__name__)
@@ -89,25 +93,46 @@ def create_app(config: SuperCortexConfig | None = None) -> Starlette:
         config_payload = {
             "claude_code": {
                 "mcpServers": {
-                    "super-cortex": {
-                        "command": "uv",
-                        "args": ["--directory", repo_dir, "run", "super-cortex", "server"]
-                    }
-                }
-            },
-            "cursor": {
-                "mcpServers": {
-                    "super-cortex": {
-                        "command": "uv",
-                        "args": ["--directory", repo_dir, "run", "super-cortex", "server"]
+                    "super_cortex": {
+                        "command": "/home/xibalba/.local/bin/super-cortex",
+                        "args": ["run", "--transport", "stdio"],
+                        "env": {
+                            "SUPERMEMORY_URL": cfg.supermemory_url,
+                            "SUPERMEMORY_API_KEY": cfg.supermemory_api_key,
+                            "SUPER_CORTEX_DB_PATH": str(cfg.db_path),
+                            "SUPER_CORTEX_DEFAULT_NAMESPACE": cfg.default_namespace,
+                            "SUPER_CORTEX_ACTOR_DID": cfg.actor_did,
+                        }
                     }
                 }
             },
             "antigravity": {
                 "mcpServers": {
-                    "super-cortex": {
-                        "command": "uv",
-                        "args": ["--directory", repo_dir, "run", "super-cortex", "server"]
+                    "super_cortex": {
+                        "command": "/home/xibalba/.local/bin/super-cortex",
+                        "args": ["run", "--transport", "stdio"],
+                        "env": {
+                            "SUPERMEMORY_URL": cfg.supermemory_url,
+                            "SUPERMEMORY_API_KEY": cfg.supermemory_api_key,
+                            "SUPER_CORTEX_DB_PATH": str(cfg.db_path),
+                            "SUPER_CORTEX_DEFAULT_NAMESPACE": cfg.default_namespace,
+                            "SUPER_CORTEX_ACTOR_DID": cfg.actor_did,
+                        }
+                    }
+                }
+            },
+            "cursor": {
+                "mcpServers": {
+                    "super_cortex": {
+                        "command": "/home/xibalba/.local/bin/super-cortex",
+                        "args": ["run", "--transport", "stdio"],
+                        "env": {
+                            "SUPERMEMORY_URL": cfg.supermemory_url,
+                            "SUPERMEMORY_API_KEY": cfg.supermemory_api_key,
+                            "SUPER_CORTEX_DB_PATH": str(cfg.db_path),
+                            "SUPER_CORTEX_DEFAULT_NAMESPACE": cfg.default_namespace,
+                            "SUPER_CORTEX_ACTOR_DID": cfg.actor_did,
+                        }
                     }
                 }
             },
@@ -115,6 +140,7 @@ def create_app(config: SuperCortexConfig | None = None) -> Starlette:
                 "repo_path": repo_dir,
                 "supermemory_local_url": cfg.supermemory_url,
                 "sqlite_ledger_path": str(cfg.db_path),
+                "actor_did": cfg.actor_did,
             }
         }
         return JSONResponse(config_payload)
@@ -408,6 +434,104 @@ def create_app(config: SuperCortexConfig | None = None) -> Starlette:
 
         return EventSourceResponse(event_generator())
 
+    connectors = SuperCortexConnectors(cortex)
+
+    async def api_extract(request: Request) -> JSONResponse:
+        t0 = time.perf_counter()
+        body = await request.json()
+        text = body.get("text", "")
+        if not text:
+            return JSONResponse({"error": "text is required"}, status_code=400)
+
+        ep_class = classify_epistemic(text)
+        para = classify_para(text)
+        triples = extract_triples(text)
+        content_hash = hashlib.sha256(text.encode("utf-8")).hexdigest()
+        elapsed_ms = round((time.perf_counter() - t0) * 1000, 2)
+
+        return JSONResponse({
+            "text": text,
+            "epistemic_class": ep_class.get("epistemic_class") or ep_class.get("class", "fact"),
+            "epistemic_confidence": ep_class.get("confidence", 0.95),
+            "epistemic_rule": ep_class.get("rule_matched") or ep_class.get("method"),
+            "para": para if isinstance(para, dict) else para.model_dump(),
+            "triples": triples,
+            "content_hash": content_hash,
+            "tokens": len(text.split()),
+            "elapsed_ms": elapsed_ms,
+            "is_inference": False,
+            "engine": "Deterministic Syntactic/Lexical ONNX-Free",
+        })
+
+    async def api_connectors(request: Request) -> JSONResponse:
+        if request.method == "GET":
+            stats = connectors.get_connectors_status()
+            return JSONResponse({"connectors": stats})
+        body = await request.json()
+        cid = body.get("connector_id")
+        scope = body.get("scope", "shared")
+        res = await connectors.sync_connector(cid, scope=scope)
+        await broadcast_event("connector_synced", res)
+        return JSONResponse(res)
+
+    async def api_connectors_url(request: Request) -> JSONResponse:
+        body = await request.json()
+        url = body.get("url")
+        if not url:
+            return JSONResponse({"error": "url is required"}, status_code=400)
+        scope = body.get("scope", "shared")
+        agent_id = body.get("agent_id")
+        tags = body.get("tags", [])
+        try:
+            res = await connectors.ingest_url(url=url, scope=scope, agent_id=agent_id, tags=tags)
+            await broadcast_event("url_ingested", res)
+            return JSONResponse(res)
+        except Exception as e:
+            return JSONResponse({"error": str(e)}, status_code=500)
+
+    async def api_connectors_file(request: Request) -> JSONResponse:
+        body = await request.json()
+        filename = body.get("filename", "untitled.txt")
+        content = body.get("content", "")
+        if not content:
+            return JSONResponse({"error": "content is required"}, status_code=400)
+        scope = body.get("scope", "shared")
+        agent_id = body.get("agent_id")
+        tags = body.get("tags", [])
+        res = await connectors.ingest_file(filename=filename, content=content, scope=scope, agent_id=agent_id, tags=tags)
+        await broadcast_event("file_ingested", res)
+        return JSONResponse(res)
+
+    async def api_memories(request: Request) -> JSONResponse:
+        scope = request.query_params.get("scope")
+        epistemic = request.query_params.get("epistemic")
+        q = request.query_params.get("q")
+        limit = int(request.query_params.get("limit", 100))
+        mems = cortex.list_memories(scope=scope, epistemic_class=epistemic, search_query=q, limit=limit)
+        return JSONResponse({"memories": mems, "count": len(mems)})
+
+    async def api_delete_memory(request: Request) -> JSONResponse:
+        mem_id = request.path_params["memory_id"]
+        ok = await cortex.delete_memory(mem_id)
+        if ok:
+            await broadcast_event("memory_deleted", {"memory_id": mem_id})
+            return JSONResponse({"status": "deleted", "memory_id": mem_id})
+        return JSONResponse({"error": "Memory not found"}, status_code=404)
+
+    async def api_settings(request: Request) -> JSONResponse:
+        if request.method == "GET":
+            return JSONResponse({
+                "supermemory_url": cfg.supermemory_url,
+                "supermemory_api_key_configured": bool(cfg.supermemory_api_key),
+                "db_path": str(cfg.db_path),
+                "default_namespace": cfg.default_namespace,
+                "actor_did": cfg.actor_did,
+                "embedding_dimension": 768,
+                "embedding_model": "Xenova/bge-base-en-v1.5",
+            })
+        body = await request.json()
+        return JSONResponse({"status": "updated", "settings": body})
+
     routes = [
         Route("/api/status", api_status, methods=["GET"]),
         Route("/api/graph", api_graph, methods=["GET"]),
@@ -420,6 +544,13 @@ def create_app(config: SuperCortexConfig | None = None) -> Starlette:
         Route("/api/remember", api_remember, methods=["POST"]),
         Route("/api/chat", api_chat, methods=["POST"]),
         Route("/api/events/live", api_live_events, methods=["GET"]),
+        Route("/api/extract", api_extract, methods=["POST"]),
+        Route("/api/connectors", api_connectors, methods=["GET", "POST"]),
+        Route("/api/connectors/url", api_connectors_url, methods=["POST"]),
+        Route("/api/connectors/file", api_connectors_file, methods=["POST"]),
+        Route("/api/memories", api_memories, methods=["GET"]),
+        Route("/api/memories/{memory_id}", api_delete_memory, methods=["DELETE"]),
+        Route("/api/settings", api_settings, methods=["GET", "POST"]),
     ]
 
     # Mount static viewer if dist exists

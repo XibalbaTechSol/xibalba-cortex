@@ -563,3 +563,33 @@ class SuperCortex:
             payload={"agent_id": agent_id, "name": name, "client_type": client_type},
         )
         return agent.model_dump()
+
+    def list_memories(
+        self,
+        scope: str | None = None,
+        epistemic_class: str | None = None,
+        search_query: str | None = None,
+        limit: int = 100,
+        offset: int = 0,
+    ) -> list[dict[str, Any]]:
+        """List stored memories across SQLite ledger with filtering."""
+        return self.store.list_memories(
+            scope=scope,
+            epistemic_class=epistemic_class,
+            search_query=search_query,
+            limit=limit,
+            offset=offset,
+        )
+
+    async def delete_memory(self, memory_id: str) -> bool:
+        """Archive memory in SQLite ledger and provenance log."""
+        rec = self.store.get_memory(memory_id)
+        if not rec:
+            return False
+        self.store.delete_memory(memory_id)
+        self.store.append_event(
+            actor=self.config.actor_did,
+            transition="delete_memory",
+            payload={"memory_id": memory_id, "content_hash": rec.content_hash},
+        )
+        return True

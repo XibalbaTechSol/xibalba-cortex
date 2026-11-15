@@ -60,7 +60,8 @@ def doctor() -> None:
 def run(transport: str = typer.Option("stdio", help="MCP transport: stdio or sse")) -> None:
     """Run the Super-Cortex MCP server."""
     server = create_server()
-    console.print(f"[bold green]Starting Super-Cortex MCP server using {transport} transport...[/bold green]")
+    if transport != "stdio":
+        console.print(f"[bold green]Starting Super-Cortex MCP server using {transport} transport...[/bold green]")
     server.run(transport=transport)
 
 

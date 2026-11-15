@@ -793,3 +793,58 @@ class ProvenanceStore:
                     scope = row["namespace"] or "shared"
                 counts[scope] = counts.get(scope, 0) + 1
         return counts
+
+    def list_memories(
+        self,
+        scope: str | None = None,
+        epistemic_class: str | None = None,
+        search_query: str | None = None,
+        limit: int = 100,
+        offset: int = 0,
+    ) -> list[dict[str, Any]]:
+        """List stored memories with filtering support."""
+        with self._get_conn() as conn:
+            query = "SELECT * FROM memories WHERE lifecycle_status != 'archived'"
+            params: list[Any] = []
+            if epistemic_class and epistemic_class != "all":
+                query += " AND epistemic_class = ?"
+                params.append(epistemic_class)
+            if search_query:
+                query += " AND text LIKE ?"
+                params.append(f"%{search_query}%")
+            query += " ORDER BY created_at DESC LIMIT ? OFFSET ?"
+            params.extend([limit, offset])
+
+            cursor = conn.execute(query, params)
+            rows = cursor.fetchall()
+            results = []
+            for r in rows:
+                meta = {}
+                try:
+                    meta = json.loads(r["metadata_json"])
+                except Exception:
+                    pass
+                m_scope = meta.get("scope", "shared")
+                if scope and scope != "all" and m_scope != scope:
+                    continue
+                results.append({
+                    "id": r["id"],
+                    "source_id": r["source_id"],
+                    "text": r["text"],
+                    "epistemic_class": r["epistemic_class"],
+                    "lifecycle_status": r["lifecycle_status"],
+                    "content_hash": r["content_hash"],
+                    "namespace": r["namespace"],
+                    "scope": m_scope,
+                    "agent_id": meta.get("agent_id"),
+                    "para": meta.get("para", {}),
+                    "triples": meta.get("triples", []),
+                    "tags": meta.get("tags", []),
+                    "created_at": r["created_at"],
+                    "updated_at": r["updated_at"],
+                })
+            return results
+
+    def delete_memory(self, memory_id: str) -> bool:
+        """Mark memory archived and remove from active index."""
+        return self.update_memory_status(memory_id, LifecycleStatus.ARCHIVED)

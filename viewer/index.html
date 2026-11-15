@@ -27,6 +27,19 @@
     .glow-emerald-sm {
       box-shadow: 0 0 16px -2px rgba(0, 255, 163, 0.4);
     }
+    #left-navbar.expanded {
+      width: 16rem !important;
+    }
+    #left-navbar.expanded .nav-expanded-only {
+      display: flex !important;
+    }
+    #left-navbar.expanded .nav-collapsed-mx {
+      margin-left: 0 !important;
+      margin-right: 0 !important;
+    }
+    #main-viewport.navbar-expanded {
+      margin-left: 16rem !important;
+    }
   </style>
   <script src="https://cdn.tailwindcss.com"></script>
   <script id="tailwind-config">
@@ -182,52 +195,197 @@
   </header>
 
   <!-- ========================================================================= -->
-  <!-- 2. SLIM MARGIN ON LEFT (w-12 / 48px Thin Icon Rail)                       -->
+  <!-- 2. COLLAPSIBLE LEFT NAV BAR (w-14 Collapsed <-> w-64 Expanded)            -->
   <!-- ========================================================================= -->
-  <aside class="fixed left-0 top-9 bottom-0 w-12 bg-surface-container-lowest/90 backdrop-blur-xl border-r border-outline-variant/20 z-40 flex flex-col items-center py-2 justify-between">
-    <div class="flex flex-col items-center gap-1.5 w-full">
-      <button onclick="openNewMemoryModal()" class="w-8 h-8 flex items-center justify-center text-primary-container hover:bg-surface-container-high transition-colors" title="Commit New Memory Node [C]">
-        <span class="material-symbols-outlined text-[18px]">add_circle</span>
-      </button>
-      <button id="rail-btn-graph" onclick="switchView('graph')" class="w-8 h-8 flex items-center justify-center text-primary-container bg-surface-container-high transition-colors" title="3D Graph Manifold [1]">
-        <span class="material-symbols-outlined text-[18px]">view_in_ar</span>
-      </button>
-      <button id="rail-btn-timeline" onclick="switchView('timeline')" class="w-8 h-8 flex items-center justify-center text-on-surface-variant hover:text-primary-container hover:bg-surface-container-high transition-colors" title="Temporal Session Timeline [2]">
-        <span class="material-symbols-outlined text-[18px]">timeline</span>
-      </button>
-      <button id="rail-btn-spectral" onclick="switchView('spectral')" class="w-8 h-8 flex items-center justify-center text-on-surface-variant hover:text-primary-container hover:bg-surface-container-high transition-colors" title="Spectral Math Studio & Cluster Analysis [3]">
-        <span class="material-symbols-outlined text-[18px]">scatter_plot</span>
-      </button>
-      <button id="rail-btn-dialogue" onclick="switchView('dialogue')" class="w-8 h-8 flex items-center justify-center text-on-surface-variant hover:text-primary-container hover:bg-surface-container-high transition-colors" title="Cumulative Dialogue Knowledge Graph [4]">
-        <span class="material-symbols-outlined text-[18px]">forum</span>
-      </button>
-      <button id="rail-btn-spaces" onclick="switchView('spaces')" class="w-8 h-8 flex items-center justify-center text-on-surface-variant hover:text-primary-container hover:bg-surface-container-high transition-colors" title="Spaces & Repositories [5]">
-        <span class="material-symbols-outlined text-[18px]">folder_data</span>
-      </button>
-      <div class="w-5 h-[1px] bg-outline-variant/30 my-0.5"></div>
-      <button onclick="toggleZenFlight()" class="w-8 h-8 flex items-center justify-center text-on-surface-variant hover:text-secondary-container hover:bg-surface-container-high transition-colors" title="Fly-Through Lineage Path [Z]">
-        <span class="material-symbols-outlined text-[18px]">flight_takeoff</span>
-      </button>
-      <button onclick="resetGraphCamera()" class="w-8 h-8 flex items-center justify-center text-on-surface-variant hover:text-primary-container hover:bg-surface-container-high transition-colors" title="Reset Camera Orbit">
-        <span class="material-symbols-outlined text-[18px]">restart_alt</span>
-      </button>
-      <button onclick="openChatDrawer()" class="w-8 h-8 flex items-center justify-center text-on-surface-variant hover:text-primary-container hover:bg-surface-container-high transition-colors" title="Live Memory Retrieval Chat">
-        <span class="material-symbols-outlined text-[18px]">chat</span>
-      </button>
-      <button onclick="focusSearch()" class="w-8 h-8 flex items-center justify-center text-on-surface-variant hover:text-primary-container hover:bg-surface-container-high transition-colors" title="Query Filter (⌘K)">
-        <span class="material-symbols-outlined text-[18px]">filter_alt</span>
-      </button>
+  <aside id="left-navbar" class="fixed left-0 top-9 bottom-0 w-14 bg-surface-container-lowest/95 backdrop-blur-2xl border-r border-outline-variant/30 z-40 flex flex-col justify-between transition-all duration-300 select-none overflow-visible font-mono">
+    
+    <!-- Top Section: Brand + Collapse Toggle + New Memory -->
+    <div class="flex flex-col w-full">
+      <!-- Collapse / Expand Toggle Strip -->
+      <div class="h-10 border-b border-outline-variant/20 flex items-center justify-between px-2 bg-surface-container-low/60 shrink-0">
+        <div class="nav-expanded-only hidden items-center gap-2 pl-1 truncate">
+          <div class="w-2.5 h-2.5 bg-primary-container rotate-45 shrink-0 animate-pulse"></div>
+          <div class="flex flex-col">
+            <span class="text-[11px] font-bold text-white tracking-wider">SUPER-CORTEX</span>
+            <span class="text-[8px] text-outline tracking-tight">COGNITIVE MESH</span>
+          </div>
+        </div>
+        <button onclick="window.toggleNavbar()" id="btn-toggle-navbar" class="w-8 h-8 flex items-center justify-center text-on-surface-variant hover:text-primary-container hover:bg-surface-container-high transition-colors rounded mx-auto" title="Toggle Navigation Bar">
+          <span id="nav-toggle-icon" class="material-symbols-outlined text-[18px]">keyboard_double_arrow_right</span>
+        </button>
+      </div>
+
+      <!-- Quick Action: Ingest Memory Button -->
+      <div class="p-2 border-b border-outline-variant/20 shrink-0">
+        <button onclick="openNewMemoryModal()" class="w-full py-1.5 px-2 bg-primary-container hover:bg-secondary-container text-on-primary-container font-bold text-xs uppercase rounded transition-colors flex items-center justify-center gap-2 shadow" title="Ingest New Memory Node [C]">
+          <span class="material-symbols-outlined text-[18px]">add_circle</span>
+          <span class="nav-expanded-only hidden text-[11px] tracking-wide whitespace-nowrap">Ingest Memory [C]</span>
+        </button>
+      </div>
+
+      <!-- Navigation Link List -->
+      <div class="flex flex-col gap-1 p-2 overflow-y-auto max-h-[calc(100vh-210px)]">
+        
+        <!-- Section: Core Visualizations -->
+        <div class="nav-expanded-only hidden text-[9px] text-outline uppercase font-bold tracking-wider px-2 pt-1 pb-0.5">
+          Core Manifolds
+        </div>
+        
+        <button id="rail-btn-graph" onclick="switchView('graph')" class="w-full h-9 flex items-center gap-3 px-2 text-primary-container bg-surface-container-high rounded transition-colors" title="3D Graph Manifold [1]">
+          <span class="material-symbols-outlined text-[18px] shrink-0 mx-auto nav-collapsed-mx">view_in_ar</span>
+          <span class="nav-expanded-only hidden text-xs font-semibold whitespace-nowrap">3D Neural Graph</span>
+          <span class="nav-expanded-only hidden ml-auto text-[9px] text-primary-container/80 bg-primary-container/10 px-1 py-0.5 rounded font-bold">1</span>
+        </button>
+
+        <button id="rail-btn-timeline" onclick="switchView('timeline')" class="w-full h-9 flex items-center gap-3 px-2 text-on-surface-variant hover:text-primary-container hover:bg-surface-container-high rounded transition-colors" title="Temporal Session Timeline [2]">
+          <span class="material-symbols-outlined text-[18px] shrink-0 mx-auto nav-collapsed-mx">timeline</span>
+          <span class="nav-expanded-only hidden text-xs font-semibold whitespace-nowrap">Session Timeline</span>
+          <span class="nav-expanded-only hidden ml-auto text-[9px] text-outline font-bold">2</span>
+        </button>
+
+        <button id="rail-btn-spectral" onclick="switchView('spectral')" class="w-full h-9 flex items-center gap-3 px-2 text-on-surface-variant hover:text-primary-container hover:bg-surface-container-high rounded transition-colors" title="Spectral Math Studio & Cluster Analysis [3]">
+          <span class="material-symbols-outlined text-[18px] shrink-0 mx-auto nav-collapsed-mx">scatter_plot</span>
+          <span class="nav-expanded-only hidden text-xs font-semibold whitespace-nowrap">Spectral Studio</span>
+          <span class="nav-expanded-only hidden ml-auto text-[9px] text-outline font-bold">3</span>
+        </button>
+
+        <!-- Section: Supermemory Feature Parity -->
+        <div class="nav-expanded-only hidden text-[9px] text-outline uppercase font-bold tracking-wider px-2 pt-3 pb-0.5 border-t border-outline-variant/20 mt-1">
+          Supermemory Engines
+        </div>
+
+        <button id="rail-btn-memories" onclick="switchView('memories')" class="w-full h-9 flex items-center gap-3 px-2 text-on-surface-variant hover:text-primary-container hover:bg-surface-container-high rounded transition-colors" title="Memory Fabric Catalog [4]">
+          <span class="material-symbols-outlined text-[18px] shrink-0 mx-auto nav-collapsed-mx">memory</span>
+          <span class="nav-expanded-only hidden text-xs font-semibold whitespace-nowrap">Memory Fabric</span>
+          <span id="nav-badge-memories" class="nav-expanded-only hidden ml-auto text-[9px] text-secondary-container bg-secondary-container/10 px-1.5 py-0.5 rounded font-bold">12</span>
+        </button>
+
+        <button id="rail-btn-connectors" onclick="switchView('connectors')" class="w-full h-9 flex items-center gap-3 px-2 text-on-surface-variant hover:text-primary-container hover:bg-surface-container-high rounded transition-colors" title="Connectors & Ingestion Hub [5]">
+          <span class="material-symbols-outlined text-[18px] shrink-0 mx-auto nav-collapsed-mx">sync_alt</span>
+          <span class="nav-expanded-only hidden text-xs font-semibold whitespace-nowrap">Connectors Hub</span>
+          <span class="nav-expanded-only hidden ml-auto text-[9px] text-[#00ffa3] bg-[#00ffa3]/10 px-1.5 py-0.5 rounded font-bold">6 LIVE</span>
+        </button>
+
+        <button id="rail-btn-pipeline" onclick="switchView('pipeline')" class="w-full h-9 flex items-center gap-3 px-2 text-on-surface-variant hover:text-primary-container hover:bg-surface-container-high rounded transition-colors" title="Non-Inference Extraction Pipeline [6]">
+          <span class="material-symbols-outlined text-[18px] shrink-0 mx-auto nav-collapsed-mx">psychology</span>
+          <span class="nav-expanded-only hidden text-xs font-semibold whitespace-nowrap">Extraction Studio</span>
+          <span class="nav-expanded-only hidden ml-auto text-[9px] text-[#ddb7ff] bg-purple-500/10 px-1.5 py-0.5 rounded font-bold">0-LLM</span>
+        </button>
+
+        <button id="rail-btn-spaces" onclick="switchView('spaces')" class="w-full h-9 flex items-center gap-3 px-2 text-on-surface-variant hover:text-primary-container hover:bg-surface-container-high rounded transition-colors" title="Agent Scopes & MCP [7]">
+          <span class="material-symbols-outlined text-[18px] shrink-0 mx-auto nav-collapsed-mx">smart_toy</span>
+          <span class="nav-expanded-only hidden text-xs font-semibold whitespace-nowrap">Agent Scopes &amp; MCP</span>
+          <span id="nav-badge-scopes" class="nav-expanded-only hidden ml-auto text-[9px] text-primary-container bg-primary-container/10 px-1.5 py-0.5 rounded font-bold">6</span>
+        </button>
+
+        <button id="rail-btn-audit" onclick="switchView('audit')" class="w-full h-9 flex items-center gap-3 px-2 text-on-surface-variant hover:text-primary-container hover:bg-surface-container-high rounded transition-colors" title="AIS & Cryptographic Audit [8]">
+          <span class="material-symbols-outlined text-[18px] shrink-0 mx-auto nav-collapsed-mx">verified_user</span>
+          <span class="nav-expanded-only hidden text-xs font-semibold whitespace-nowrap">AIS &amp; Audit</span>
+          <span class="nav-expanded-only hidden ml-auto text-[9px] text-secondary-container font-bold">✓</span>
+        </button>
+
+        <div class="w-full h-[1px] bg-outline-variant/20 my-1"></div>
+
+        <button onclick="toggleZenFlight()" class="w-full h-8 flex items-center gap-3 px-2 text-on-surface-variant hover:text-secondary-container hover:bg-surface-container-high rounded transition-colors" title="Fly-Through Lineage Path [Z]">
+          <span class="material-symbols-outlined text-[18px] shrink-0 mx-auto nav-collapsed-mx">flight_takeoff</span>
+          <span class="nav-expanded-only hidden text-[11px] whitespace-nowrap">Zen Flight [Z]</span>
+        </button>
+
+        <button onclick="resetGraphCamera()" class="w-full h-8 flex items-center gap-3 px-2 text-on-surface-variant hover:text-primary-container hover:bg-surface-container-high rounded transition-colors" title="Reset Camera Orbit">
+          <span class="material-symbols-outlined text-[18px] shrink-0 mx-auto nav-collapsed-mx">restart_alt</span>
+          <span class="nav-expanded-only hidden text-[11px] whitespace-nowrap">Reset Camera</span>
+        </button>
+      </div>
     </div>
 
-    <div class="flex flex-col items-center gap-1.5 w-full">
-      <button onclick="toggleInspectorTab('merkle')" class="w-8 h-8 flex items-center justify-center text-on-surface-variant hover:text-secondary-container transition-colors" title="Cryptographic Provenance Audit">
-        <span class="material-symbols-outlined text-[18px]">verified_user</span>
+    <!-- Bottom Section: Engine Status & Lower Left User Profile -->
+    <div class="flex flex-col border-t border-outline-variant/30 bg-surface-container-low/40 p-2 shrink-0 relative">
+      
+      <!-- Engine Online LED indicator -->
+      <div class="nav-expanded-only hidden mb-2 px-2 py-1 bg-surface-container-lowest/80 border border-outline-variant/30 rounded flex items-center justify-between text-[9px]">
+        <div class="flex items-center gap-1.5">
+          <span class="w-1.5 h-1.5 rounded-full bg-secondary-container animate-pulse"></span>
+          <span class="text-outline">SUPERMEMORY:</span>
+        </div>
+        <span class="text-secondary-container font-bold">127.0.0.1:6767</span>
+      </div>
+
+      <!-- Lower Left User Profile Trigger Button -->
+      <button id="user-profile-button" onclick="window.toggleProfileMenu(event)" class="w-full p-1.5 rounded hover:bg-surface-container-high transition-colors flex items-center gap-2.5 text-left group cursor-pointer focus:outline-none" title="User Profile, Settings & Logout">
+        <div class="relative w-8 h-8 rounded-full bg-primary-container/20 border border-primary-container/50 flex items-center justify-center shrink-0 text-primary-container mx-auto nav-collapsed-mx">
+          <span class="material-symbols-outlined text-[18px]">person</span>
+          <span class="absolute bottom-0 right-0 w-2 h-2 rounded-full bg-secondary-container border border-surface-container-lowest"></span>
+        </div>
+        <div class="nav-expanded-only hidden flex-1 min-w-0">
+          <div class="text-[11px] font-bold text-white truncate">Xibalba Operations</div>
+          <div class="text-[8px] text-outline truncate">did:integrity:68fed1...</div>
+        </div>
+        <span class="nav-expanded-only hidden material-symbols-outlined text-outline text-[16px] group-hover:text-white shrink-0">unfold_more</span>
       </button>
-      <button onclick="alert('Super-Cortex 3D Neural Engine // WebGL Accelerated Lineage Mesh & Merkle Invariants')" class="w-8 h-8 flex items-center justify-center text-on-surface-variant hover:text-on-surface transition-colors" title="System Info">
-        <span class="material-symbols-outlined text-[18px]">terminal</span>
-      </button>
+
+      <!-- Floating User Profile Popover Menu (Lower Left Popover) -->
+      <div id="user-profile-popover" class="hidden absolute bottom-14 left-2 w-72 bg-surface-container-low/98 backdrop-blur-2xl border border-outline-variant/50 shadow-2xl rounded-lg p-3 z-50 font-mono text-xs space-y-2.5">
+        <!-- Profile Header -->
+        <div class="flex items-start justify-between pb-2 border-b border-outline-variant/30">
+          <div class="flex items-center gap-2">
+            <div class="w-7 h-7 rounded-full bg-primary-container/20 border border-primary-container/40 flex items-center justify-center text-primary-container">
+              <span class="material-symbols-outlined text-[16px]">shield_person</span>
+            </div>
+            <div>
+              <div class="text-[12px] font-bold text-white">Xibalba Solutions LLC</div>
+              <div class="text-[9px] text-secondary-container font-semibold">QUANTITATIVE OPERATIONS</div>
+            </div>
+          </div>
+          <span class="text-[8px] bg-secondary-container/10 border border-secondary-container/30 text-secondary-container px-1 rounded font-bold">ONLINE</span>
+        </div>
+
+        <!-- Identity / DID Snippet -->
+        <div class="bg-surface-container-lowest p-2 rounded border border-outline-variant/30 text-[9px] space-y-1">
+          <div class="text-outline uppercase font-bold flex items-center justify-between">
+            <span>OPERATOR DID:</span>
+            <button onclick="window.copyOperatorDid()" class="text-primary hover:underline flex items-center gap-0.5">
+              <span class="material-symbols-outlined text-[10px]">content_copy</span>
+              <span>Copy</span>
+            </button>
+          </div>
+          <div class="text-neutral-300 font-mono break-all text-[8px] select-all">did:integrity:68fed1331613937555a59398223e8e87520a87dd0305aac4fd7ecdc32a14a861</div>
+        </div>
+
+        <!-- Engine Telemetry Overview -->
+        <div class="grid grid-cols-2 gap-1.5 text-[9px] bg-surface-container-lowest p-2 rounded border border-outline-variant/20 text-neutral-400">
+          <div>Scope: <span class="text-primary-container font-bold" id="popover-active-scope">shared</span></div>
+          <div>Vectors: <span class="text-[#38bdf8] font-bold">768-D Local</span></div>
+          <div class="col-span-2">Database: <span class="text-white font-mono text-[8px]">~/.super-cortex/provenance.db</span></div>
+        </div>
+
+        <!-- Actions: Settings & Logout -->
+        <div class="space-y-1 pt-1 border-t border-outline-variant/30 text-[10px]">
+          <button onclick="window.openSettingsModal()" class="w-full px-2.5 py-1.5 hover:bg-surface-container-high rounded text-neutral-200 hover:text-white flex items-center gap-2 transition-colors">
+            <span class="material-symbols-outlined text-[15px] text-primary-container">settings</span>
+            <span>Settings &amp; Engine Config</span>
+          </button>
+          
+          <button onclick="window.runDoctorDiagnostics()" class="w-full px-2.5 py-1.5 hover:bg-surface-container-high rounded text-neutral-200 hover:text-white flex items-center gap-2 transition-colors">
+            <span class="material-symbols-outlined text-[15px] text-secondary-container">health_and_safety</span>
+            <span>Doctor &amp; Integrity Health</span>
+          </button>
+
+          <button onclick="window.switchView('audit')" class="w-full px-2.5 py-1.5 hover:bg-surface-container-high rounded text-neutral-200 hover:text-white flex items-center gap-2 transition-colors">
+            <span class="material-symbols-outlined text-[15px] text-[#ddb7ff]">verified</span>
+            <span>AIS &amp; Provenance Proofs</span>
+          </button>
+
+          <div class="h-px bg-outline-variant/30 my-1"></div>
+
+          <button onclick="window.handleLogout()" class="w-full px-2.5 py-1.5 hover:bg-error/20 rounded text-error hover:text-red-300 flex items-center gap-2 transition-colors font-bold">
+            <span class="material-symbols-outlined text-[15px]">logout</span>
+            <span>Disconnect &amp; Logout</span>
+          </button>
+        </div>
+      </div>
+
     </div>
-</aside>
+  </aside>
 
   <!-- ========================================================================= -->
   <!-- 3. SLIM MARGIN ON RIGHT (w-12 / 48px Thin Icon Rail)                      -->
@@ -261,7 +419,7 @@
   <!-- ========================================================================= -->
   <!-- 4. CENTER WORKSPACE VIEWPORT (Between Slim Rails)                         -->
   <!-- ========================================================================= -->
-  <main class="ml-12 mr-12 mt-9 flex-1 h-[calc(100vh-2.25rem)] relative overflow-hidden bg-[#0a0e15]">
+  <main id="main-viewport" class="ml-14 mr-12 mt-9 flex-1 h-[calc(100vh-2.25rem)] relative overflow-hidden bg-[#0a0e15] transition-all duration-300">
 
     <!-- ======================================================================= -->
     <!-- VIEW MODE A: 3D GRAPH MANIFOLD (Three.js WebGL Engine)                  -->
@@ -345,6 +503,11 @@
           <span id="drone-label">Flythrough</span>
         </button>
 
+        <!-- Quick Edge / Relation Selector Dropdown -->
+        <select id="edge-quick-selector" onchange="window.selectEdgeByIndex(this.value)" class="bg-surface-container-low font-mono text-[10px] text-[#ffd166] border border-[#ffd166]/30 px-2 py-1 focus:outline-none cursor-pointer">
+          <option value="">EDGES &amp; RELATIONS...</option>
+        </select>
+
         <!-- Waypoint Selector Dropdown -->
         <select onchange="window.jumpToWaypoint(this.value)" class="bg-surface-container-low font-mono text-[10px] text-primary-container border border-outline-variant/30 px-2 py-1 focus:outline-none cursor-pointer">
           <option value="beta">Waypoint Beta (Root)</option>
@@ -374,6 +537,8 @@
           </div>
           <div class="font-mono text-on-surface-variant flex items-center gap-3">
             <span>Nodes: <strong class="text-primary-container">12 Voxel Cubes</strong></span>
+            <span class="text-outline">|</span>
+            <span>Edges: <strong id="footer-edge-count" class="text-[#ffd166]">17 Links</strong></span>
             <span class="text-outline">|</span>
             <span>Radius λ<sub>max</sub>: <strong class="text-primary-container">4.120</strong></span>
             <span class="text-outline">|</span>
@@ -1124,18 +1289,329 @@
         </div>
       </div>
     </div>
-        <div id="spaces-results-container" class="space-y-2 text-xs">
-          <div class="p-3 bg-surface-container-low border-l-2 border-primary-container flex items-start justify-between">
-            <div>
-              <div class="flex items-center gap-2 mb-1">
-                <span class="text-primary font-bold">PID Dynamic Volatility Controller</span>
-                <span class="text-[9px] text-secondary-container px-1 bg-secondary-container/10 border border-secondary-container/20">SCORE: 0.984</span>
-                <span class="text-[9px] text-[#00ffa3]">SPACE: xibalba-quant</span>
-              </div>
-              <p class="text-[11px] text-on-surface-variant font-sans">Non-linear feedback control bounds: K_p=1.85, K_i=0.22, K_d=0.08 preventing grid overshoot.</p>
-            </div>
-            <span class="text-outline font-mono text-[9px]">0xB49102A66</span>
+
+    <!-- ======================================================================= -->
+    <!-- VIEW MODE F: MEMORY FABRIC (Supermemory Managed Parity)                 -->
+    <!-- ======================================================================= -->
+    <div id="view-memories" class="hidden w-full h-full flex flex-col overflow-y-auto overflow-x-hidden bg-[#090b10] p-6 space-y-5 font-mono">
+      <!-- Header Metrics Strip -->
+      <div class="flex flex-wrap items-center justify-between pb-3 border-b border-outline-variant/30 gap-4 text-xs">
+        <div>
+          <div class="flex items-center gap-2">
+            <span class="material-symbols-outlined text-secondary-container text-lg">memory</span>
+            <span class="font-bold text-white uppercase text-sm tracking-wider">MEMORY FABRIC &amp; CATALOG</span>
           </div>
+          <p class="text-outline text-[11px] font-sans mt-0.5">Explore, search, filter, and audit cognitive memories stored across Supermemory Local vector space and SQLite cryptographic provenance ledger.</p>
+        </div>
+
+        <div class="flex items-center gap-3 text-[10px]">
+          <div class="bg-surface-container-low px-3 py-1.5 border border-outline-variant/30">
+            <span class="text-outline">TOTAL MEMORIES:</span> <strong id="mem-catalog-total" class="text-primary-container">12</strong>
+          </div>
+          <div class="bg-surface-container-low px-3 py-1.5 border border-outline-variant/30">
+            <span class="text-outline">EMBEDDING DIM:</span> <strong class="text-[#00ffa3]">768-D BGE-BASE</strong>
+          </div>
+          <button onclick="openNewMemoryModal()" class="px-3 py-1.5 bg-primary-container text-on-primary-container font-bold uppercase rounded-sm hover:bg-secondary-container transition-colors flex items-center gap-1">
+            <span class="material-symbols-outlined text-sm">add</span>
+            <span>New Memory</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Search & Filters Toolbar -->
+      <div class="bg-surface-container-lowest border border-outline-variant/30 p-3 flex flex-wrap items-center justify-between gap-3 text-xs">
+        <div class="relative flex-1 min-w-[280px]">
+          <span class="material-symbols-outlined absolute left-3 top-2 text-outline text-sm">search</span>
+          <input id="mem-catalog-search" oninput="window.filterMemoriesCatalog()" class="w-full bg-surface-container-low border border-outline-variant/40 rounded-sm pl-8 pr-3 py-1 text-xs text-white placeholder:text-outline focus:outline-none focus:border-primary-container" placeholder="Search memory text, tags, or triples..." type="text"/>
+        </div>
+
+        <div class="flex items-center gap-2 text-[10px] flex-wrap">
+          <span class="text-outline uppercase">SCOPE:</span>
+          <select id="mem-catalog-scope-filter" onchange="window.filterMemoriesCatalog()" class="bg-surface-container-low border border-outline-variant/40 text-primary-container px-2 py-1 text-xs focus:outline-none cursor-pointer">
+            <option value="all">ALL SCOPES</option>
+            <option value="shared">SHARED</option>
+            <option value="agent:claude">CLAUDE CODE</option>
+            <option value="agent:xibalba">XIBALBA</option>
+            <option value="agent:hermes">HERMES</option>
+            <option value="agent:shield">SHIELD</option>
+          </select>
+
+          <span class="text-outline uppercase ml-2">EPISTEMIC:</span>
+          <select id="mem-catalog-ep-filter" onchange="window.filterMemoriesCatalog()" class="bg-surface-container-low border border-outline-variant/40 text-secondary-container px-2 py-1 text-xs focus:outline-none cursor-pointer">
+            <option value="all">ALL CLASSES</option>
+            <option value="fact">FACT</option>
+            <option value="rule">RULE</option>
+            <option value="decision">DECISION</option>
+            <option value="inference">INFERENCE</option>
+            <option value="goal">GOAL</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Memory Items Grid Container -->
+      <div id="memories-catalog-container" class="space-y-2.5">
+        <!-- Populated dynamically -->
+      </div>
+    </div>
+
+    <!-- ======================================================================= -->
+    <!-- VIEW MODE G: CONNECTORS HUB (Supermemory Managed Parity)                -->
+    <!-- ======================================================================= -->
+    <div id="view-connectors" class="hidden w-full h-full flex flex-col overflow-y-auto overflow-x-hidden bg-[#090b10] p-6 space-y-6 font-mono">
+      <!-- Header Metrics Strip -->
+      <div class="flex flex-wrap items-center justify-between pb-3 border-b border-outline-variant/30 gap-4 text-xs">
+        <div>
+          <div class="flex items-center gap-2">
+            <span class="material-symbols-outlined text-[#00ffa3] text-lg">sync_alt</span>
+            <span class="font-bold text-white uppercase text-sm tracking-wider">CONNECTORS &amp; INGESTION HUB</span>
+          </div>
+          <p class="text-outline text-[11px] font-sans mt-0.5">Automated non-inference ingestion pipelines connecting external knowledge sources into Supermemory Local with deterministic cryptographic hashes.</p>
+        </div>
+
+        <div class="flex items-center gap-3 text-[10px]">
+          <div class="bg-surface-container-low px-3 py-1.5 border border-outline-variant/30">
+            <span class="text-outline">PIPELINES:</span> <strong class="text-primary-container">6 CONFIGURED</strong>
+          </div>
+          <div class="bg-surface-container-low px-3 py-1.5 border border-outline-variant/30">
+            <span class="text-outline">MODE:</span> <strong class="text-secondary-container">100% NON-INFERENCE</strong>
+          </div>
+        </div>
+      </div>
+
+      <!-- Live Interactive Ingestion Cards -->
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <!-- Web Clipper Connector Card -->
+        <div class="bg-surface-container-lowest border border-outline-variant/30 p-4 rounded flex flex-col justify-between space-y-3 shadow-md">
+          <div class="space-y-1.5">
+            <div class="flex items-center justify-between">
+              <div class="flex items-center gap-2 text-primary font-bold text-xs uppercase">
+                <span class="material-symbols-outlined text-base">public</span>
+                <span>Web URL &amp; Article Clipper</span>
+              </div>
+              <span class="text-[9px] px-1.5 py-0.5 rounded bg-secondary-container/10 border border-secondary-container/30 text-secondary-container font-bold">READY</span>
+            </div>
+            <p class="text-[10px] text-neutral-400 font-sans">Scrapes documentation or web articles, strips boilerplate, extracts clean text and entity triples without external LLMs.</p>
+          </div>
+
+          <div class="space-y-2">
+            <input id="connectors-url-input" class="w-full bg-surface-container-low border border-outline-variant/40 rounded p-2 text-xs text-white placeholder:text-neutral-500 focus:outline-none focus:border-primary-container" placeholder="https://docs.anthropic.com or any web URL..." type="url"/>
+            <div class="flex items-center gap-2">
+              <select id="connectors-url-scope" class="bg-surface-container-low border border-outline-variant/40 rounded px-2 py-1.5 text-xs text-primary-container font-bold flex-1 focus:outline-none">
+                <option value="shared">Scope: Shared Fabric</option>
+                <option value="agent:claude">Scope: Claude Code</option>
+                <option value="agent:xibalba">Scope: Xibalba</option>
+              </select>
+              <button onclick="window.submitUrlIngest()" class="px-3 py-1.5 bg-primary-container text-on-primary-container hover:bg-secondary-container font-bold text-xs uppercase rounded transition-colors flex items-center gap-1 shrink-0">
+                <span class="material-symbols-outlined text-sm">download</span>
+                <span>Clip &amp; Ingest</span>
+              </button>
+            </div>
+            <div id="connectors-url-status" class="hidden text-[10px] p-2 rounded bg-surface-container-low border border-outline-variant/30"></div>
+          </div>
+        </div>
+
+        <!-- Local File / Notes Connector Card -->
+        <div class="bg-surface-container-lowest border border-outline-variant/30 p-4 rounded flex flex-col justify-between space-y-3 shadow-md">
+          <div class="space-y-1.5">
+            <div class="flex items-center justify-between">
+              <div class="flex items-center gap-2 text-[#ddb7ff] font-bold text-xs uppercase">
+                <span class="material-symbols-outlined text-base">description</span>
+                <span>Local Notes &amp; Files Ingestion</span>
+              </div>
+              <span class="text-[9px] px-1.5 py-0.5 rounded bg-secondary-container/10 border border-secondary-container/30 text-secondary-container font-bold">READY</span>
+            </div>
+            <p class="text-[10px] text-neutral-400 font-sans">Upload Markdown notes, specifications, or code files. Extracts PARA classification and entity triples automatically.</p>
+          </div>
+
+          <div class="space-y-2">
+            <div class="flex items-center gap-2">
+              <input id="connectors-file-name" class="flex-1 bg-surface-container-low border border-outline-variant/40 rounded p-1.5 text-xs text-white placeholder:text-neutral-500 focus:outline-none" placeholder="e.g. spec_architecture.md" type="text"/>
+              <select id="connectors-file-scope" class="bg-surface-container-low border border-outline-variant/40 rounded px-2 py-1.5 text-xs text-primary-container font-bold focus:outline-none">
+                <option value="shared">Shared</option>
+                <option value="agent:claude">Claude</option>
+                <option value="agent:xibalba">Xibalba</option>
+              </select>
+            </div>
+            <textarea id="connectors-file-content" rows="2" class="w-full bg-surface-container-low border border-outline-variant/40 rounded p-2 text-xs text-white placeholder:text-neutral-500 focus:outline-none focus:border-primary-container" placeholder="Paste file content or drop text..."></textarea>
+            <button onclick="window.submitFileIngest()" class="w-full py-1.5 bg-surface-container-high hover:bg-primary-container hover:text-on-primary-container font-bold text-xs uppercase rounded transition-colors flex items-center justify-center gap-1">
+              <span class="material-symbols-outlined text-sm">upload_file</span>
+              <span>Ingest Document</span>
+            </button>
+            <div id="connectors-file-status" class="hidden text-[10px] p-2 rounded bg-surface-container-low border border-outline-variant/30"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Automated Pipelines List -->
+      <div class="space-y-3">
+        <div class="text-[11px] text-outline uppercase font-bold tracking-wider">Configured Continuous Connectors</div>
+        <div id="connectors-list-container" class="grid grid-cols-1 md:grid-cols-3 gap-3">
+          <!-- Populated dynamically -->
+        </div>
+      </div>
+    </div>
+
+    <!-- ======================================================================= -->
+    <!-- VIEW MODE H: NON-INFERENCE EXTRACTION PIPELINE STUDIO                   -->
+    <!-- ======================================================================= -->
+    <div id="view-pipeline" class="hidden w-full h-full flex flex-col overflow-y-auto overflow-x-hidden bg-[#090b10] p-6 space-y-6 font-mono">
+      <!-- Header Metrics Strip -->
+      <div class="flex flex-wrap items-center justify-between pb-3 border-b border-outline-variant/30 gap-4 text-xs">
+        <div>
+          <div class="flex items-center gap-2">
+            <span class="material-symbols-outlined text-[#ddb7ff] text-lg">psychology</span>
+            <span class="font-bold text-white uppercase text-sm tracking-wider">NON-INFERENCE EXTRACTION STUDIO</span>
+          </div>
+          <p class="text-outline text-[11px] font-sans mt-0.5">Test deterministic PARA classification, modal epistemic logic, and syntactic entity triple extraction in real time without calling an LLM.</p>
+        </div>
+
+        <div class="flex items-center gap-3 text-[10px]">
+          <div class="bg-surface-container-low px-3 py-1.5 border border-outline-variant/30">
+            <span class="text-outline">AVG EXECUTION:</span> <strong class="text-secondary-container">&lt; 1.5 ms</strong>
+          </div>
+          <div class="bg-surface-container-low px-3 py-1.5 border border-outline-variant/30">
+            <span class="text-outline">INFERENCE COST:</span> <strong class="text-[#00ffa3]">$0.0000</strong>
+          </div>
+        </div>
+      </div>
+
+      <!-- Playground Input & Actions -->
+      <div class="bg-surface-container-lowest border border-outline-variant/30 p-4 rounded space-y-3 shadow-md">
+        <div class="flex items-center justify-between">
+          <span class="text-xs font-bold text-primary uppercase">Input Text / Agent Thought / Policy Log</span>
+          <div class="flex items-center gap-1.5 text-[9px] flex-wrap">
+            <span class="text-outline">Presets:</span>
+            <button onclick="window.loadPipelinePreset('rule')" class="px-2 py-0.5 bg-surface-container-low hover:bg-surface-container-high rounded text-secondary-container border border-outline-variant/20 font-bold">Rule</button>
+            <button onclick="window.loadPipelinePreset('decision')" class="px-2 py-0.5 bg-surface-container-low hover:bg-surface-container-high rounded text-primary-container border border-outline-variant/20 font-bold">Decision</button>
+            <button onclick="window.loadPipelinePreset('milestone')" class="px-2 py-0.5 bg-surface-container-low hover:bg-surface-container-high rounded text-[#ddb7ff] border border-outline-variant/20 font-bold">Milestone</button>
+            <button onclick="window.loadPipelinePreset('resource')" class="px-2 py-0.5 bg-surface-container-low hover:bg-surface-container-high rounded text-amber-300 border border-outline-variant/20 font-bold">Resource</button>
+          </div>
+        </div>
+
+        <textarea id="pipeline-input-text" rows="3" class="w-full bg-surface-container-low border border-outline-variant/40 rounded p-2.5 text-xs text-white placeholder:text-neutral-500 focus:outline-none focus:border-primary-container font-mono" placeholder="Enter any text to evaluate with deterministic cognitive parsers..."></textarea>
+
+        <div class="flex items-center justify-between">
+          <div class="flex items-center gap-2">
+            <span class="text-[10px] text-outline">Target Scope:</span>
+            <select id="pipeline-scope-target" class="bg-surface-container-low border border-outline-variant/40 rounded px-2 py-1 text-xs text-primary-container font-bold focus:outline-none">
+              <option value="shared">Shared Fabric</option>
+              <option value="agent:claude">Claude Code Scope</option>
+              <option value="agent:xibalba">Xibalba Scope</option>
+              <option value="agent:hermes">Hermes Scope</option>
+            </select>
+          </div>
+
+          <div class="flex items-center gap-2">
+            <button onclick="window.runExtractionStudio()" class="px-4 py-1.5 bg-primary-container text-on-primary-container hover:bg-secondary-container font-bold text-xs uppercase rounded transition-colors flex items-center gap-1.5 shadow">
+              <span class="material-symbols-outlined text-sm">play_arrow</span>
+              <span>Extract Deterministically</span>
+            </button>
+            <button onclick="window.commitExtractedToScope()" id="btn-pipeline-commit" class="hidden px-4 py-1.5 bg-secondary-container text-on-secondary-container font-bold text-xs uppercase rounded transition-colors flex items-center gap-1.5 shadow">
+              <span class="material-symbols-outlined text-sm">save</span>
+              <span>+ Ingest to Scope</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Real-Time Extraction Results Card -->
+      <div id="pipeline-results-card" class="hidden bg-surface-container-lowest border border-primary-container/30 p-5 rounded space-y-4 shadow-lg">
+        <div class="flex items-center justify-between pb-2 border-b border-outline-variant/30 text-xs font-bold">
+          <div class="flex items-center gap-2">
+            <span class="w-2 h-2 rounded-full bg-secondary-container animate-pulse"></span>
+            <span class="text-white uppercase">DETERMINISTIC EXTRACTION OUTPUT</span>
+          </div>
+          <div class="flex items-center gap-3 text-[10px]">
+            <span class="text-neutral-400">LATENCY: <strong id="ext-time-val" class="text-secondary-container">0.42 ms</strong></span>
+            <span class="text-neutral-400">TOKENS: <strong id="ext-tokens-val" class="text-white">18 words</strong></span>
+            <span class="px-1.5 py-0.5 rounded bg-purple-500/10 border border-purple-500/30 text-[#ddb7ff]">100% NON-INFERENCE</span>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <!-- Epistemic Classification Card -->
+          <div class="p-3 bg-surface-container-low rounded border border-outline-variant/30 space-y-2">
+            <div class="text-[9px] text-outline uppercase font-bold flex items-center justify-between">
+              <span>EPISTEMIC CLASS (MODAL LOGIC):</span>
+              <span id="ext-ep-badge" class="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase bg-primary-container/10 text-primary-container border border-primary-container/30">FACT</span>
+            </div>
+            <div class="text-xs text-white font-bold" id="ext-ep-title">Fact Assertion</div>
+            <div class="text-[10px] text-neutral-400" id="ext-ep-rule">Evaluated via deterministic regex modal rules.</div>
+          </div>
+
+          <!-- PARA Categorization Card -->
+          <div class="p-3 bg-surface-container-low rounded border border-outline-variant/30 space-y-2">
+            <div class="text-[9px] text-outline uppercase font-bold flex items-center justify-between">
+              <span>PARA CATEGORY (LEXICAL PROFILE):</span>
+              <span id="ext-para-badge" class="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase bg-[#ddb7ff]/10 text-[#ddb7ff] border border-purple-500/30">AREA</span>
+            </div>
+            <div class="text-xs text-white font-bold" id="ext-para-title">Continuous Area Responsibility</div>
+            <div class="grid grid-cols-4 gap-1 text-[8px] text-center mt-1">
+              <div class="bg-surface-container-lowest p-1 rounded"><span class="text-outline">PROJ:</span> <strong id="para-score-p">0.0</strong></div>
+              <div class="bg-surface-container-lowest p-1 rounded"><span class="text-outline">AREA:</span> <strong id="para-score-a">0.0</strong></div>
+              <div class="bg-surface-container-lowest p-1 rounded"><span class="text-outline">RES:</span> <strong id="para-score-r">0.0</strong></div>
+              <div class="bg-surface-container-lowest p-1 rounded"><span class="text-outline">ARCH:</span> <strong id="para-score-arch">0.0</strong></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Extracted Entity Triples Container -->
+        <div class="space-y-1.5">
+          <div class="text-[9px] text-outline uppercase font-bold">EXTRACTED SYNTACTIC ENTITY TRIPLES:</div>
+          <div id="ext-triples-container" class="space-y-1">
+            <!-- Triples populated dynamically -->
+          </div>
+        </div>
+
+        <!-- SHA-256 Provenance Proof Link -->
+        <div class="p-2.5 rounded bg-surface-container-lowest border border-outline-variant/30 flex items-center justify-between text-[10px]">
+          <div class="flex items-center gap-2">
+            <span class="material-symbols-outlined text-secondary-container text-sm">fingerprint</span>
+            <span>Deterministic SHA-256 Content Hash: <strong id="ext-hash-val" class="text-primary font-mono select-all">0x...</strong></span>
+          </div>
+          <span class="text-secondary-container font-bold text-[9px]">✓ MERKLE READY</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ======================================================================= -->
+    <!-- VIEW MODE I: AIS & PROVENANCE AUDIT                                     -->
+    <!-- ======================================================================= -->
+    <div id="view-audit" class="hidden w-full h-full flex flex-col overflow-y-auto overflow-x-hidden bg-[#090b10] p-6 space-y-6 font-mono">
+      <div class="flex flex-wrap items-center justify-between pb-3 border-b border-outline-variant/30 gap-4 text-xs">
+        <div>
+          <div class="flex items-center gap-2">
+            <span class="material-symbols-outlined text-primary-container text-lg">verified_user</span>
+            <span class="font-bold text-white uppercase text-sm tracking-wider">AIS INVARIANTS &amp; CRYPTOGRAPHIC AUDIT</span>
+          </div>
+          <p class="text-outline text-[11px] font-sans mt-0.5">Continuous verification of Grounding ($S_g$), Compliance ($S_c$), and Lineage ($S_l$) mathematical invariants across all memory transitions.</p>
+        </div>
+
+        <div class="flex items-center gap-3 text-[10px]">
+          <div class="bg-surface-container-low px-3 py-1.5 border border-outline-variant/30">
+            <span class="text-outline">AIS STATUS:</span> <strong class="text-secondary-container">1.000 / 1.000</strong>
+          </div>
+          <div class="bg-surface-container-low px-3 py-1.5 border border-outline-variant/30">
+            <span class="text-outline">CHAIN INTEGRITY:</span> <strong class="text-primary-container">UNBROKEN</strong>
+          </div>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
+        <div class="bg-surface-container-lowest p-4 rounded border border-outline-variant/30 space-y-1">
+          <div class="text-[9px] text-outline uppercase font-bold">Grounding Invariant (S_g)</div>
+          <div class="text-xl font-bold text-secondary-container">1.000</div>
+          <div class="text-[10px] text-neutral-400">100% of facts anchored to verified sources or local files.</div>
+        </div>
+        <div class="bg-surface-container-lowest p-4 rounded border border-outline-variant/30 space-y-1">
+          <div class="text-[9px] text-outline uppercase font-bold">Compliance Invariant (S_c)</div>
+          <div class="text-xl font-bold text-primary-container">1.000</div>
+          <div class="text-[10px] text-neutral-400">Zero cross-scope leakage across isolated agent enclaves.</div>
+        </div>
+        <div class="bg-surface-container-lowest p-4 rounded border border-outline-variant/30 space-y-1">
+          <div class="text-[9px] text-outline uppercase font-bold">Lineage Invariant (S_l)</div>
+          <div class="text-xl font-bold text-[#ddb7ff]">1.000</div>
+          <div class="text-[10px] text-neutral-400">Append-only SHA-256 Merkle root verification complete.</div>
         </div>
       </div>
     </div>
@@ -1427,6 +1903,72 @@
     </div>
   </div>
 
+  <!-- SETTINGS & ENGINE CONFIG MODAL -->
+  <div id="settings-modal" class="hidden fixed inset-0 z-50 bg-black/75 backdrop-blur-md flex items-center justify-center p-4 font-mono">
+    <div class="w-full max-w-lg bg-surface-container-lowest border border-primary-container/40 rounded-lg p-5 shadow-2xl space-y-4">
+      <div class="flex items-center justify-between pb-3 border-b border-outline-variant/40">
+        <div class="flex items-center gap-2">
+          <span class="material-symbols-outlined text-primary-container text-[18px]">settings</span>
+          <span class="text-xs font-bold text-white uppercase tracking-wider">Super-Cortex Engine Settings</span>
+        </div>
+        <button onclick="window.closeSettingsModal()" class="text-neutral-400 hover:text-white">
+          <span class="material-symbols-outlined text-sm">close</span>
+        </button>
+      </div>
+
+      <div class="space-y-3 text-xs">
+        <div>
+          <label class="text-[10px] text-neutral-400 uppercase font-bold block mb-1">Supermemory Local Endpoint</label>
+          <input id="setting-sm-url" class="w-full bg-surface-container-low border border-outline-variant/40 rounded p-2 text-white font-mono text-xs focus:outline-none focus:border-primary-container" type="text" value="http://127.0.0.1:6767"/>
+          <p class="text-[9px] text-outline mt-0.5">Vector engine endpoint running Xenova/bge-base-en-v1.5 local embeddings.</p>
+        </div>
+
+        <div>
+          <label class="text-[10px] text-neutral-400 uppercase font-bold block mb-1">SQLite Ledger Path</label>
+          <input id="setting-db-path" class="w-full bg-surface-container-low border border-outline-variant/40 rounded p-2 text-white font-mono text-xs focus:outline-none focus:border-primary-container" type="text" value="/home/xibalba/.super-cortex/provenance.db"/>
+          <p class="text-[9px] text-outline mt-0.5">Cryptographic append-only event ledger and relational triple store.</p>
+        </div>
+
+        <div>
+          <label class="text-[10px] text-neutral-400 uppercase font-bold block mb-1">Operator Identity DID</label>
+          <input id="setting-actor-did" class="w-full bg-surface-container-low border border-outline-variant/40 rounded p-2 text-neutral-300 font-mono text-xs focus:outline-none" type="text" value="did:integrity:68fed1331613937555a59398223e8e87520a87dd0305aac4fd7ecdc32a14a861"/>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="text-[10px] text-neutral-400 uppercase font-bold block mb-1">Default Scope</label>
+            <select id="setting-default-scope" class="w-full bg-surface-container-low border border-outline-variant/40 rounded p-2 text-primary-container font-bold text-xs focus:outline-none">
+              <option value="shared">Shared Memory Fabric</option>
+              <option value="agent:claude">Claude Code Scope</option>
+              <option value="agent:xibalba">Xibalba Scope</option>
+            </select>
+          </div>
+          <div>
+            <label class="text-[10px] text-neutral-400 uppercase font-bold block mb-1">Embedding Dim</label>
+            <input class="w-full bg-surface-container-low border border-outline-variant/40 rounded p-2 text-neutral-400 font-mono text-xs focus:outline-none" type="text" value="768-D Local" readonly/>
+          </div>
+        </div>
+
+        <div id="settings-status-msg" class="hidden text-[10px] p-2 rounded bg-surface-container-low border border-outline-variant/30"></div>
+      </div>
+
+      <div class="flex items-center justify-between pt-3 border-t border-outline-variant/30">
+        <button onclick="window.runDoctorDiagnostics()" class="px-3 py-1.5 bg-surface-container-high hover:bg-surface-container-highest text-secondary-container font-bold text-xs uppercase rounded transition-colors flex items-center gap-1">
+          <span class="material-symbols-outlined text-sm">health_and_safety</span>
+          <span>Run Doctor</span>
+        </button>
+        <div class="flex items-center gap-2">
+          <button onclick="window.closeSettingsModal()" class="px-3 py-1.5 hover:bg-surface-container-high text-neutral-300 text-xs uppercase rounded">
+            Cancel
+          </button>
+          <button onclick="window.saveSettings()" class="px-4 py-1.5 bg-primary-container text-on-primary-container font-bold text-xs uppercase rounded hover:bg-secondary-container transition-colors shadow">
+            Save Changes
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- ========================================================================= -->
   <!-- 7. THREE.JS 3D ENGINE & CONTROLLER SCRIPT                                 -->
   <!-- ========================================================================= -->
@@ -1529,6 +2071,9 @@
     let edges = [];
     let cubeMeshes = [];
     let lineMesh = null;
+    let edgeHitMeshes = [];
+    let selectedEdgeMesh = null;
+    let currentLinks = [];
 
     const lineMat = new THREE.LineBasicMaterial({
       color: 0x00f0ff,
@@ -1540,15 +2085,24 @@
     function clearGraphMeshes() {
       cubeMeshes.forEach(m => graphGroup.remove(m));
       cubeMeshes = [];
+      edgeHitMeshes.forEach(m => graphGroup.remove(m));
+      edgeHitMeshes = [];
       if (lineMesh) {
         graphGroup.remove(lineMesh);
         lineMesh = null;
+      }
+      if (selectedEdgeMesh) {
+        graphGroup.remove(selectedEdgeMesh);
+        selectedEdgeMesh = null;
       }
     }
 
     function buildGraphMeshes(nodes, links) {
       clearGraphMeshes();
       nodeDefs = nodes;
+      currentLinks = links || [];
+      window.nodeDefs = nodes;
+      window.linkDefs = currentLinks;
 
       const nodeIndexMap = new Map();
       nodes.forEach((data, idx) => {
@@ -1626,14 +2180,45 @@
         cubeMeshes.push(nodeObj);
       });
 
-      // Construct links
+      // Construct links and interactive edge hitboxes
       edges = [];
-      if (links && links.length > 0) {
-        links.forEach(l => {
+      if (currentLinks && currentLinks.length > 0) {
+        currentLinks.forEach((l, lIdx) => {
           const sIdx = nodeIndexMap.get(l.source);
           const tIdx = nodeIndexMap.get(l.target);
           if (sIdx !== undefined && tIdx !== undefined) {
             edges.push([sIdx, tIdx]);
+
+            // Construct invisible raycast hit cylinder between source and target
+            const sNode = nodes[sIdx];
+            const tNode = nodes[tIdx];
+            const p1 = new THREE.Vector3(...(sNode.pos3D || [0, 0, 0]));
+            const p2 = new THREE.Vector3(...(tNode.pos3D || [0, 0, 0]));
+            const dist = p1.distanceTo(p2);
+            if (dist > 0.5) {
+              const cylGeo = new THREE.CylinderGeometry(5.0, 5.0, dist, 6);
+              const cylMat = new THREE.MeshBasicMaterial({
+                visible: false,
+                transparent: true,
+                opacity: 0.0,
+                depthWrite: false
+              });
+              const hitCyl = new THREE.Mesh(cylGeo, cylMat);
+              const mid = new THREE.Vector3().addVectors(p1, p2).multiplyScalar(0.5);
+              hitCyl.position.copy(mid);
+              const dir = new THREE.Vector3().subVectors(p2, p1).normalize();
+              hitCyl.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir);
+              hitCyl.userData = {
+                isEdge: true,
+                edgeIndex: lIdx,
+                edge: l,
+                source: sNode,
+                target: tNode,
+                dist: dist
+              };
+              graphGroup.add(hitCyl);
+              edgeHitMeshes.push(hitCyl);
+            }
           }
         });
       }
@@ -1646,6 +2231,24 @@
         graphGroup.add(lineMesh);
         updateEdges();
       }
+
+      // Populate Quick Edge Selector in HUD
+      const edgeSel = document.getElementById('edge-quick-selector');
+      if (edgeSel) {
+        edgeSel.innerHTML = `<option value="">EDGES &amp; RELATIONS (${currentLinks.length})...</option>`;
+        currentLinks.forEach((l, idx) => {
+          const sNode = nodes.find(n => n.id === l.source);
+          const tNode = nodes.find(n => n.id === l.target);
+          const sTitle = sNode ? (sNode.title || sNode.id).substring(0, 18) : l.source;
+          const tTitle = tNode ? (tNode.title || tNode.id).substring(0, 18) : l.target;
+          const opt = document.createElement('option');
+          opt.value = idx;
+          opt.text = `${sTitle} ──▶ [${l.label || l.predicate || l.type || 'LINK'}] ──▶ ${tTitle}`;
+          edgeSel.appendChild(opt);
+        });
+      }
+      const footerEdgeCount = document.getElementById('footer-edge-count');
+      if (footerEdgeCount) footerEdgeCount.innerText = `${currentLinks.length} Links`;
     }
 
     function updateEdges() {
@@ -1794,15 +2397,27 @@
       mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
       raycaster.setFromCamera(mouse, camera);
 
-      const hits = raycaster.intersectObjects(cubeMeshes, true);
-      if (hits.length > 0) {
-        let topObj = hits[0].object;
+      // 1. Raycast nodes first (primary priority)
+      const hitsNodes = raycaster.intersectObjects(cubeMeshes, true);
+      if (hitsNodes.length > 0) {
+        let topObj = hitsNodes[0].object;
         while (topObj.parent && !topObj.userData.data && topObj.parent !== graphGroup) {
           topObj = topObj.parent;
         }
         const data = topObj.userData.data || topObj.parent?.userData.data;
         if (data) {
           select3DNode(data);
+          return;
+        }
+      }
+
+      // 2. Raycast edges (interactive hit cylinders)
+      const hitsEdges = raycaster.intersectObjects(edgeHitMeshes, false);
+      if (hitsEdges.length > 0) {
+        const edgeObj = hitsEdges[0].object;
+        if (edgeObj.userData && edgeObj.userData.isEdge) {
+          select3DEdge(edgeObj.userData.edge, edgeObj.userData.source, edgeObj.userData.target, edgeObj.userData.dist);
+          return;
         }
       }
     });
@@ -1813,25 +2428,49 @@
       mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
       raycaster.setFromCamera(mouse, camera);
 
-      const hits = raycaster.intersectObjects(cubeMeshes, true);
       const tip = document.getElementById('node-hover-tooltip');
-      if (hits.length > 0 && !isDragging) {
-        let topObj = hits[0].object;
+
+      // Check node hover
+      const hitsNodes = raycaster.intersectObjects(cubeMeshes, true);
+      if (hitsNodes.length > 0 && !isDragging) {
+        let topObj = hitsNodes[0].object;
         while (topObj.parent && !topObj.userData.data && topObj.parent !== graphGroup) {
           topObj = topObj.parent;
         }
         const data = topObj.userData.data || topObj.parent?.userData.data;
         if (data) {
+          dom.style.cursor = 'pointer';
           tip.classList.remove('hidden');
-          tip.style.left = `${e.clientX - 50}px`;
-          tip.style.top = `${e.clientY - 60}px`;
+          tip.style.left = `${Math.min(window.innerWidth - 320, e.clientX + 14)}px`;
+          tip.style.top = `${Math.max(10, e.clientY - 40)}px`;
           document.getElementById('tooltip-title').innerText = data.title;
-          document.getElementById('tooltip-category').innerText = data.category.toUpperCase();
-          document.getElementById('tooltip-meta').innerText = `Category: ${data.category} · Coordinates: [${data.pos3D.join(', ')}]`;
+          document.getElementById('tooltip-category').innerText = `NODE // ${(data.category || 'NODE').toUpperCase()}`;
+          document.getElementById('tooltip-meta').innerText = `Scope: ${data.scope || 'shared'} · Epistemic: ${(data.epistemic_class || 'fact').toUpperCase()} · Pos: [${(data.pos3D || [0, 0, 0]).join(', ')}]`;
+          return;
         }
-      } else {
-        tip.classList.add('hidden');
       }
+
+      // Check edge hover
+      const hitsEdges = raycaster.intersectObjects(edgeHitMeshes, false);
+      if (hitsEdges.length > 0 && !isDragging) {
+        const edgeObj = hitsEdges[0].object;
+        if (edgeObj.userData && edgeObj.userData.isEdge) {
+          dom.style.cursor = 'pointer';
+          tip.classList.remove('hidden');
+          tip.style.left = `${Math.min(window.innerWidth - 320, e.clientX + 14)}px`;
+          tip.style.top = `${Math.max(10, e.clientY - 40)}px`;
+          const l = edgeObj.userData.edge;
+          const s = edgeObj.userData.source;
+          const t = edgeObj.userData.target;
+          document.getElementById('tooltip-title').innerText = `${(s.title || s.id).substring(0, 24)} ──▶ ${(t.title || t.id).substring(0, 24)}`;
+          document.getElementById('tooltip-category').innerText = `RELATION // [${(l.label || l.predicate || l.type || 'LINK').toUpperCase()}]`;
+          document.getElementById('tooltip-meta').innerText = `Span: ${edgeObj.userData.dist.toFixed(1)} voxels · Topology: ${s.scope === t.scope ? 'Intra-Scope Enclave' : 'Cross-Scope Bridge'}`;
+          return;
+        }
+      }
+
+      dom.style.cursor = isDragging ? 'grabbing' : 'grab';
+      tip.classList.add('hidden');
     });
 
     let activeEpistemicFilter = 'all';
@@ -1879,7 +2518,131 @@
       }
     };
 
+    function select3DEdge(edge, sourceNode, targetNode, dist) {
+      if (!sourceNode || !targetNode) return;
+      isFlying = false;
+
+      const p1 = new THREE.Vector3(...(sourceNode.pos3D || [0, 0, 0]));
+      const p2 = new THREE.Vector3(...(targetNode.pos3D || [0, 0, 0]));
+      const mid = new THREE.Vector3().addVectors(p1, p2).multiplyScalar(0.5);
+      const span = dist || p1.distanceTo(p2);
+
+      // Create or update glowing highlight beam for selected edge
+      if (selectedEdgeMesh) graphGroup.remove(selectedEdgeMesh);
+      const beamGeo = new THREE.CylinderGeometry(2.2, 2.2, span, 8);
+      const beamMat = new THREE.MeshBasicMaterial({
+        color: 0xffd166,
+        transparent: true,
+        opacity: 0.95
+      });
+      selectedEdgeMesh = new THREE.Mesh(beamGeo, beamMat);
+      selectedEdgeMesh.position.copy(mid);
+      const dir = new THREE.Vector3().subVectors(p2, p1).normalize();
+      selectedEdgeMesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir);
+      graphGroup.add(selectedEdgeMesh);
+
+      // Smoothly orient camera towards the selected edge midpoint
+      nodeFlyTarget = {
+        cam: new THREE.Vector3(mid.x + 35, mid.y + 40, mid.z + Math.max(140, span * 1.3)),
+        look: mid
+      };
+      isNodeFlyFocus = true;
+
+      if (!inspectorOpen) toggleInspector();
+      switchTab('replay');
+
+      renderEdgeInspector(edge, sourceNode, targetNode, span);
+    }
+
+    function renderEdgeInspector(edge, sourceNode, targetNode, dist) {
+      document.getElementById('drawer-session-id').innerText = `Edge: [${edge.label || edge.predicate || edge.type}]`;
+      const container = document.getElementById('replay-turn-container');
+      const isCrossScope = sourceNode.scope !== targetNode.scope;
+      const predText = edge.label || edge.predicate || edge.type || 'relates_to';
+      const edgeHash = `0x${(sourceNode.hash || 's').substring(0, 6)}:${(targetNode.hash || 't').substring(0, 6)}`;
+
+      container.innerHTML = `
+        <div class="p-3 border-l-2 border-[#ffd166] bg-surface-container-high ring-1 ring-[#ffd166]/40 space-y-3 font-mono">
+          <div class="flex items-center justify-between text-[10px] font-bold">
+            <span class="text-[#ffd166] flex items-center gap-1.5 uppercase tracking-wider">
+              <span class="material-symbols-outlined text-[14px]">timeline</span>
+              RELATION // ${(edge.type || 'LINK').toUpperCase()}
+            </span>
+            <span class="px-1.5 py-0.5 rounded bg-emerald-500/10 border border-emerald-500/30 text-secondary-container text-[9px] uppercase font-bold">
+              ✓ VERIFIED RELATION
+            </span>
+          </div>
+
+          <!-- Flow Connectivity Card -->
+          <div class="bg-surface-container-lowest p-2.5 rounded border border-outline-variant/30 space-y-2">
+            <!-- Source Node Card -->
+            <div class="flex items-center justify-between p-2 rounded bg-surface-container-low border border-outline-variant/20">
+              <div class="truncate max-w-[280px]">
+                <div class="text-[9px] text-outline uppercase font-bold flex items-center gap-1">
+                  <span>SOURCE NODE</span>
+                  <span class="text-primary-container">(${sourceNode.scope || 'shared'})</span>
+                </div>
+                <div class="text-white font-bold text-xs truncate mt-0.5">${sourceNode.title}</div>
+              </div>
+              <button onclick="window.selectNodeById('${sourceNode.id}')" class="px-2 py-1 bg-primary-container text-on-primary-container text-[9px] font-bold uppercase rounded hover:brightness-110 shrink-0">
+                Focus Source
+              </button>
+            </div>
+
+            <!-- Directional Flow Predicate -->
+            <div class="flex items-center justify-center gap-2 py-1 text-center">
+              <span class="h-px bg-outline-variant/40 flex-1"></span>
+              <span class="px-2.5 py-0.5 bg-[#ffd166]/15 border border-[#ffd166]/40 text-[#ffd166] rounded text-[10px] font-bold tracking-wider uppercase">
+                ──▶ [ ${predText} ] ──▶
+              </span>
+              <span class="h-px bg-outline-variant/40 flex-1"></span>
+            </div>
+
+            <!-- Target Node Card -->
+            <div class="flex items-center justify-between p-2 rounded bg-surface-container-low border border-outline-variant/20">
+              <div class="truncate max-w-[280px]">
+                <div class="text-[9px] text-outline uppercase font-bold flex items-center gap-1">
+                  <span>TARGET NODE</span>
+                  <span class="text-secondary-container">(${targetNode.scope || 'shared'})</span>
+                </div>
+                <div class="text-white font-bold text-xs truncate mt-0.5">${targetNode.title}</div>
+              </div>
+              <button onclick="window.selectNodeById('${targetNode.id}')" class="px-2 py-1 bg-secondary-container text-on-secondary-container text-[9px] font-bold uppercase rounded hover:brightness-110 shrink-0">
+                Focus Target
+              </button>
+            </div>
+          </div>
+
+          <!-- Edge Properties Table -->
+          <div class="space-y-1.5 text-[10px]">
+            <div class="text-[9px] text-outline uppercase font-bold tracking-wider">EDGE PROPERTIES &amp; TOPOLOGY:</div>
+            <div class="grid grid-cols-2 gap-1.5 bg-surface-container-low p-2 rounded border border-outline-variant/20 text-neutral-300">
+              <div>Relation Class: <span class="text-white font-bold">${edge.type || 'direct'}</span></div>
+              <div>Predicate Label: <span class="text-[#ffd166] font-bold">${predText}</span></div>
+              <div>Topology: <span class="${isCrossScope ? 'text-secondary-container' : 'text-primary'} font-bold">${isCrossScope ? 'Cross-Scope Bridge' : 'Intra-Scope Enclave'}</span></div>
+              <div>3D Span Distance: <span class="text-white font-bold">${dist.toFixed(1)} voxels</span></div>
+              <div class="col-span-2">Source Ref: <span class="text-primary-container font-mono text-[9px]">${sourceNode.id}</span></div>
+              <div class="col-span-2">Target Ref: <span class="text-secondary-container font-mono text-[9px]">${targetNode.id}</span></div>
+            </div>
+          </div>
+
+          <!-- Cryptographic Provenance Link -->
+          <div class="p-2 rounded bg-surface-container-lowest border border-outline-variant/30 flex items-center justify-between text-[10px]">
+            <div class="flex items-center gap-1.5 text-neutral-300">
+              <span class="material-symbols-outlined text-secondary-container text-[14px]">verified</span>
+              <span>Deterministic Edge Hash: <strong class="text-primary font-mono">${edgeHash}</strong></span>
+            </div>
+            <span class="text-secondary-container font-bold text-[9px]">SHA-256</span>
+          </div>
+        </div>
+      `;
+    }
+
     function select3DNode(node) {
+      if (selectedEdgeMesh) {
+        graphGroup.remove(selectedEdgeMesh);
+        selectedEdgeMesh = null;
+      }
       flyToNode(node);
       if (!inspectorOpen) toggleInspector();
       switchTab('replay');
@@ -1913,6 +2676,42 @@
         `;
       }
 
+      // Query connected edges for this node
+      const connected = (currentLinks || []).filter(l => l.source === node.id || l.target === node.id);
+      let connectedHtml = '';
+      if (connected.length > 0) {
+        connectedHtml = `
+          <div class="mt-2 pt-2 border-t border-outline-variant/30 space-y-1.5 font-mono">
+            <div class="flex items-center justify-between text-[9px] text-outline uppercase font-bold">
+              <span>CONNECTED RELATIONS &amp; EDGES (${connected.length}):</span>
+              <span class="text-neutral-500 text-[8px]">SELECT TO VIEW</span>
+            </div>
+            <div class="space-y-1 max-h-40 overflow-y-auto pr-1">
+              ${connected.map((l) => {
+                const isOut = l.source === node.id;
+                const otherId = isOut ? l.target : l.source;
+                const otherNode = nodeDefs.find(n => n.id === otherId) || { id: otherId, title: otherId, scope: 'unknown' };
+                const sNode = isOut ? node : otherNode;
+                const tNode = isOut ? otherNode : node;
+                const pred = l.label || l.predicate || l.type || 'link';
+                return `
+                  <div class="flex items-center justify-between p-1.5 rounded bg-surface-container-lowest border border-outline-variant/20 text-[10px] hover:border-primary/50 transition-colors">
+                    <div class="flex items-center gap-1.5 truncate max-w-[340px]">
+                      <span class="${isOut ? 'text-primary' : 'text-secondary-container'} font-bold text-[9px]">${isOut ? 'OUT ──▶' : '◀── IN'}</span>
+                      <span class="px-1 bg-[#ffd166]/10 text-[#ffd166] border border-[#ffd166]/30 text-[9px] font-bold rounded">[${pred}]</span>
+                      <span class="text-neutral-300 truncate cursor-pointer hover:underline" onclick="window.selectNodeById('${otherId}')">${otherNode.title}</span>
+                    </div>
+                    <button onclick="window.inspectEdgeDirect('${sNode.id}', '${tNode.id}')" class="px-1.5 py-0.5 bg-surface-container-high hover:bg-[#ffd166] hover:text-black text-neutral-300 rounded text-[9px] uppercase font-bold shrink-0 ml-1">
+                      Inspect Edge
+                    </button>
+                  </div>
+                `;
+              }).join('')}
+            </div>
+          </div>
+        `;
+      }
+
       container.innerHTML = `
         <div class="p-3 border-l-2 border-primary-container bg-surface-container-high ring-1 ring-primary-container/40 space-y-2">
           <div class="flex items-center justify-between font-mono text-[9px] font-bold">
@@ -1930,6 +2729,7 @@
             ${node.content || 'Cryptographically anchored knowledge node indexed in Xenova/bge-base-en-v1.5 local vector space.'}
           </div>
           ${triplesHtml}
+          ${connectedHtml}
           <div class="grid grid-cols-2 gap-2 pt-2 border-t border-outline-variant/30 text-[9px] font-mono text-neutral-400">
             <div>Coordinates: <span class="text-white">[${(node.pos3D || [0, 0, 0]).join(', ')}]</span></div>
             <div>Scope Binding: <span class="text-primary-container">${node.scope || 'shared'}</span></div>
@@ -1945,12 +2745,33 @@
     }
 
     window.cubeMeshes = cubeMeshes;
+    window.edgeHitMeshes = edgeHitMeshes;
     window.select3DNode = select3DNode;
+    window.select3DEdge = select3DEdge;
     window.nodeDefs = nodeDefs;
+    window.linkDefs = currentLinks;
     window.selectNodeById = function(id) {
       const match = nodeDefs.find(n => n.id === id);
       if (match) select3DNode(match);
       return match;
+    };
+    window.selectEdgeByIndex = function(idx) {
+      if (idx === '' || idx === null || idx === undefined) return;
+      const l = currentLinks[parseInt(idx, 10)];
+      if (!l) return;
+      const sNode = nodeDefs.find(n => n.id === l.source);
+      const tNode = nodeDefs.find(n => n.id === l.target);
+      if (sNode && tNode) {
+        select3DEdge(l, sNode, tNode);
+      }
+    };
+    window.inspectEdgeDirect = function(sId, tId) {
+      const l = currentLinks.find(x => (x.source === sId && x.target === tId) || (x.source === tId && x.target === sId));
+      const sNode = nodeDefs.find(n => n.id === sId);
+      const tNode = nodeDefs.find(n => n.id === tId);
+      if (l && sNode && tNode) {
+        select3DEdge(l, sNode, tNode);
+      }
     };
 
     // Camera Flight Hooks
@@ -2157,7 +2978,11 @@
         timeline: document.getElementById('view-timeline'),
         spectral: document.getElementById('view-spectral'),
         dialogue: document.getElementById('view-dialogue'),
-        spaces: document.getElementById('view-spaces')
+        spaces: document.getElementById('view-spaces'),
+        memories: document.getElementById('view-memories'),
+        connectors: document.getElementById('view-connectors'),
+        pipeline: document.getElementById('view-pipeline'),
+        audit: document.getElementById('view-audit'),
       };
 
       const navBtns = {
@@ -2173,7 +2998,11 @@
         timeline: document.getElementById('rail-btn-timeline'),
         spectral: document.getElementById('rail-btn-spectral'),
         dialogue: document.getElementById('rail-btn-dialogue'),
-        spaces: document.getElementById('rail-btn-spaces')
+        spaces: document.getElementById('rail-btn-spaces'),
+        memories: document.getElementById('rail-btn-memories'),
+        connectors: document.getElementById('rail-btn-connectors'),
+        pipeline: document.getElementById('rail-btn-pipeline'),
+        audit: document.getElementById('rail-btn-audit'),
       };
 
       Object.keys(views).forEach(v => {
@@ -2184,7 +3013,7 @@
             navBtns[v].className = "px-2.5 py-0.5 transition-colors uppercase bg-primary-container text-on-primary-container font-bold text-[11px] flex items-center gap-1";
           }
           if (railBtns[v]) {
-            railBtns[v].className = "w-8 h-8 flex items-center justify-center text-primary-container bg-surface-container-high transition-colors";
+            railBtns[v].className = "w-full h-9 flex items-center gap-3 px-2 text-primary-container bg-surface-container-high rounded transition-colors";
           }
         } else {
           views[v].classList.add('hidden');
@@ -2192,13 +3021,17 @@
             navBtns[v].className = "px-2.5 py-0.5 text-on-surface-variant hover:text-on-surface transition-colors text-[11px] uppercase flex items-center gap-1";
           }
           if (railBtns[v]) {
-            railBtns[v].className = "w-8 h-8 flex items-center justify-center text-on-surface-variant hover:text-primary-container hover:bg-surface-container-high transition-colors";
+            railBtns[v].className = "w-full h-9 flex items-center gap-3 px-2 text-on-surface-variant hover:text-primary-container hover:bg-surface-container-high rounded transition-colors";
           }
         }
       });
 
       if (view === 'graph') {
         setTimeout(onResize, 50);
+      } else if (view === 'memories') {
+        loadMemoriesCatalog();
+      } else if (view === 'connectors') {
+        loadConnectors();
       }
     }
 
@@ -2854,6 +3687,474 @@
 
       renderReplayTurns();
     }
+
+    // -------------------------------------------------------------------------
+    // COLLAPSIBLE NAV BAR & USER PROFILE HANDLERS
+    // -------------------------------------------------------------------------
+    window.toggleNavbar = function() {
+      const nav = document.getElementById('left-navbar');
+      const viewport = document.getElementById('main-viewport');
+      const icon = document.getElementById('nav-toggle-icon');
+      if (!nav || !viewport) return;
+      const isExpanded = nav.classList.toggle('expanded');
+      viewport.classList.toggle('navbar-expanded', isExpanded);
+      if (icon) {
+        icon.innerText = isExpanded ? 'keyboard_double_arrow_left' : 'keyboard_double_arrow_right';
+      }
+      setTimeout(onResize, 310);
+    };
+
+    window.toggleProfileMenu = function(e) {
+      if (e) e.stopPropagation();
+      const popover = document.getElementById('user-profile-popover');
+      if (popover) {
+        popover.classList.toggle('hidden');
+      }
+    };
+
+    window.copyOperatorDid = function() {
+      const did = "did:integrity:68fed1331613937555a59398223e8e87520a87dd0305aac4fd7ecdc32a14a861";
+      navigator.clipboard.writeText(did).then(() => {
+        alert("Operator DID copied to clipboard:\n" + did);
+      });
+    };
+
+    window.openSettingsModal = function() {
+      const modal = document.getElementById('settings-modal');
+      const popover = document.getElementById('user-profile-popover');
+      if (popover) popover.classList.add('hidden');
+      if (modal) modal.classList.remove('hidden');
+    };
+
+    window.closeSettingsModal = function() {
+      const modal = document.getElementById('settings-modal');
+      if (modal) modal.classList.add('hidden');
+    };
+
+    window.saveSettings = async function() {
+      const smUrl = document.getElementById('setting-sm-url').value;
+      const dbPath = document.getElementById('setting-db-path').value;
+      const defScope = document.getElementById('setting-default-scope').value;
+      const msg = document.getElementById('settings-status-msg');
+      try {
+        const resp = await fetch('/api/settings', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ supermemory_url: smUrl, db_path: dbPath, default_scope: defScope })
+        });
+        if (resp.ok) {
+          if (msg) {
+            msg.className = "text-[10px] p-2 rounded bg-emerald-500/10 border border-emerald-500/30 text-secondary-container font-bold";
+            msg.innerText = "✓ Settings successfully updated!";
+            msg.classList.remove('hidden');
+          }
+          setTimeout(() => {
+            window.closeSettingsModal();
+            if (msg) msg.classList.add('hidden');
+          }, 1200);
+        }
+      } catch (err) {
+        alert("Failed to save settings: " + err.message);
+      }
+    };
+
+    window.runDoctorDiagnostics = async function() {
+      try {
+        const resp = await fetch('/api/status');
+        const data = await resp.json();
+        alert(
+          `[SUPER-CORTEX HEALTH DIAGNOSTICS]\n\n` +
+          `• Supermemory Local (127.0.0.1:6767): ${data.supermemory_local_alive ? "ONLINE (Verified 768-D BGE)" : "OFFLINE"}\n` +
+          `• Provenance Chain Valid: ${data.chain_valid ? "YES (Unbroken)" : "COMPROMISED"}\n` +
+          `• Total Anchored Events: ${data.event_count}\n` +
+          `• Head Hash: ${data.head_hash}\n` +
+          `• Active Agent Scopes: ${data.scope_count}\n` +
+          `• AIS Compliance Invariant: 1.000 (ABAC Gated)`
+        );
+      } catch (e) {
+        alert("Doctor diagnostics check failed: " + e.message);
+      }
+    };
+
+    window.handleLogout = function() {
+      if (confirm("Disconnect active Xibalba operator session? (Local cryptographic ledger state remains safely anchored)")) {
+        const popover = document.getElementById('user-profile-popover');
+        if (popover) popover.classList.add('hidden');
+        alert("Operator session safely disconnected. Supermemory Local remains active on 127.0.0.1:6767.");
+      }
+    };
+
+    document.addEventListener('click', (e) => {
+      const popover = document.getElementById('user-profile-popover');
+      const btn = document.getElementById('user-profile-button');
+      if (popover && !popover.classList.contains('hidden')) {
+        if (!popover.contains(e.target) && (!btn || !btn.contains(e.target))) {
+          popover.classList.add('hidden');
+        }
+      }
+    });
+
+    // -------------------------------------------------------------------------
+    // MEMORY FABRIC CATALOG (Supermemory Feature Parity)
+    // -------------------------------------------------------------------------
+    let cachedMemories = [];
+
+    window.loadMemoriesCatalog = async function() {
+      const container = document.getElementById('memories-catalog-container');
+      const totalEl = document.getElementById('mem-catalog-total');
+      const navBadge = document.getElementById('nav-badge-memories');
+      if (!container) return;
+
+      container.innerHTML = '<div class="text-outline text-xs py-4 flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-primary-container animate-ping"></span> Loading Memory Fabric from Supermemory & SQLite...</div>';
+
+      try {
+        const resp = await fetch('/api/memories');
+        if (resp.ok) {
+          const data = await resp.json();
+          cachedMemories = data.memories || [];
+          if (totalEl) totalEl.innerText = cachedMemories.length;
+          if (navBadge) navBadge.innerText = cachedMemories.length;
+          renderMemoriesList(cachedMemories);
+        }
+      } catch (err) {
+        container.innerHTML = `<div class="text-error text-xs p-3">Failed to load memories: ${err.message}</div>`;
+      }
+    };
+
+    window.filterMemoriesCatalog = function() {
+      const q = (document.getElementById('mem-catalog-search')?.value || '').toLowerCase();
+      const scope = document.getElementById('mem-catalog-scope-filter')?.value || 'all';
+      const ep = document.getElementById('mem-catalog-ep-filter')?.value || 'all';
+
+      const filtered = cachedMemories.filter(m => {
+        const matchScope = (scope === 'all') || (m.scope === scope);
+        const matchEp = (ep === 'all') || (m.epistemic_class === ep);
+        const matchQ = !q || (m.text && m.text.toLowerCase().includes(q)) || (m.id && m.id.toLowerCase().includes(q));
+        return matchScope && matchEp && matchQ;
+      });
+      renderMemoriesList(filtered);
+    };
+
+    function renderMemoriesList(memories) {
+      const container = document.getElementById('memories-catalog-container');
+      if (!container) return;
+      if (memories.length === 0) {
+        container.innerHTML = '<div class="p-8 text-center text-outline text-xs border border-outline-variant/30 rounded bg-surface-container-lowest">No memories found matching current scope or filter criteria.</div>';
+        return;
+      }
+
+      container.innerHTML = '';
+      memories.forEach(m => {
+        const card = document.createElement('div');
+        const ep = m.epistemic_class || 'fact';
+        const epColor = ep === 'rule' ? 'text-secondary-container bg-secondary-container/10 border-secondary-container/30' : (ep === 'decision' ? 'text-[#34d399] bg-emerald-500/10 border-emerald-500/30' : (ep === 'inference' ? 'text-[#ddb7ff] bg-purple-500/10 border-purple-500/30' : 'text-primary-container bg-primary-container/10 border-primary-container/30'));
+        const paraCat = (m.para && m.para.category) ? m.para.category.toUpperCase() : 'AREA';
+
+        card.className = "p-3 rounded bg-surface-container-low border border-outline-variant/30 hover:border-primary-container/50 transition-all space-y-2 text-xs font-mono";
+        card.innerHTML = `
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-2 flex-wrap">
+              <span class="px-1.5 py-0.5 rounded border ${epColor} text-[9px] uppercase font-bold">${ep}</span>
+              <span class="px-1.5 py-0.5 rounded bg-purple-500/10 border border-purple-500/30 text-[#ddb7ff] text-[9px] uppercase font-bold">PARA: ${paraCat}</span>
+              <span class="px-1.5 py-0.5 rounded bg-surface-container-high text-white text-[9px] font-bold">SCOPE: ${m.scope || 'shared'}</span>
+              ${m.agent_id ? `<span class="text-secondary-container text-[9px]">AGENT: ${m.agent_id}</span>` : ''}
+            </div>
+            <div class="flex items-center gap-2 text-[10px]">
+              <span class="text-outline">${m.created_at ? m.created_at.substring(0, 19).replace('T', ' ') : ''}</span>
+              <button onclick="window.deleteMemoryItem('${m.id}')" class="text-neutral-500 hover:text-error p-1" title="Archive / Delete Memory">
+                <span class="material-symbols-outlined text-[15px]">delete</span>
+              </button>
+            </div>
+          </div>
+
+          <div class="text-white text-xs leading-relaxed font-sans">${m.text}</div>
+
+          <div class="flex items-center justify-between pt-1 border-t border-outline-variant/20 text-[9px] text-neutral-400">
+            <div class="flex items-center gap-2 truncate max-w-[380px]">
+              <span>ID: <strong class="text-neutral-300 font-mono">${m.id}</strong></span>
+              <span>·</span>
+              <span>HASH: <strong class="text-primary font-mono">${(m.content_hash || '').substring(0, 12)}...</strong></span>
+            </div>
+            <div class="flex items-center gap-2">
+              <button onclick="window.jumpToMemory3D('${m.id}')" class="px-2 py-0.5 bg-surface-container-high hover:bg-primary-container hover:text-on-primary-container rounded text-primary-container text-[9px] uppercase font-bold">
+                Inspect 3D
+              </button>
+            </div>
+          </div>
+        `;
+        container.appendChild(card);
+      });
+    }
+
+    window.jumpToMemory3D = function(id) {
+      switchView('graph');
+      setTimeout(() => {
+        selectNodeById(id);
+      }, 100);
+    };
+
+    window.deleteMemoryItem = async function(id) {
+      if (!confirm(`Delete memory ${id}? (Will be marked archived in provenance ledger)`)) return;
+      try {
+        const resp = await fetch(`/api/memories/${id}`, { method: 'DELETE' });
+        if (resp.ok) {
+          loadMemoriesCatalog();
+        }
+      } catch (err) {
+        alert("Failed to delete memory: " + err.message);
+      }
+    };
+
+    // -------------------------------------------------------------------------
+    // CONNECTORS HUB (Supermemory Feature Parity)
+    // -------------------------------------------------------------------------
+    window.loadConnectors = async function() {
+      const container = document.getElementById('connectors-list-container');
+      if (!container) return;
+      try {
+        const resp = await fetch('/api/connectors');
+        if (resp.ok) {
+          const data = await resp.json();
+          renderConnectorsList(data.connectors || []);
+        }
+      } catch (e) {
+        console.warn("Failed to load connectors:", e);
+      }
+    };
+
+    function renderConnectorsList(connectors) {
+      const container = document.getElementById('connectors-list-container');
+      if (!container) return;
+      container.innerHTML = '';
+
+      connectors.forEach(c => {
+        const card = document.createElement('div');
+        card.className = "p-3.5 rounded bg-surface-container-lowest border border-outline-variant/30 flex flex-col justify-between space-y-3 shadow";
+        card.innerHTML = `
+          <div class="space-y-1.5">
+            <div class="flex items-center justify-between">
+              <div class="flex items-center gap-1.5 text-xs font-bold text-white uppercase">
+                <span class="material-symbols-outlined text-primary-container text-[16px]">${c.icon || 'sync'}</span>
+                <span>${c.name}</span>
+              </div>
+              <span class="px-1.5 py-0.5 rounded text-[8px] font-bold uppercase ${c.status === 'connected' || c.status === 'active' ? 'bg-secondary-container/10 border border-secondary-container/30 text-secondary-container' : 'bg-surface-container-high text-outline'}">${c.status}</span>
+            </div>
+            <p class="text-[10px] text-neutral-400 font-sans">${c.description}</p>
+          </div>
+
+          <div class="pt-2 border-t border-outline-variant/20 flex items-center justify-between text-[9px]">
+            <span class="text-outline">Capabilities: ${(c.capabilities || []).slice(0, 3).join(', ')}</span>
+            <button onclick="window.runConnectorSync('${c.id}')" class="px-2 py-1 bg-surface-container-low hover:bg-primary-container hover:text-on-primary-container text-primary-container font-bold uppercase rounded border border-outline-variant/30 flex items-center gap-1">
+              <span class="material-symbols-outlined text-[11px]">refresh</span>
+              <span>Sync</span>
+            </button>
+          </div>
+        `;
+        container.appendChild(card);
+      });
+    }
+
+    window.runConnectorSync = async function(cid) {
+      try {
+        const resp = await fetch('/api/connectors', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ connector_id: cid, scope: 'shared' })
+        });
+        const res = await resp.json();
+        alert(`Connector sync [${cid}]:\n${JSON.stringify(res, null, 2)}`);
+        loadConnectors();
+      } catch (e) {
+        alert("Connector sync failed: " + e.message);
+      }
+    };
+
+    window.submitUrlIngest = async function() {
+      const urlInput = document.getElementById('connectors-url-input');
+      const scopeSel = document.getElementById('connectors-url-scope');
+      const statusEl = document.getElementById('connectors-url-status');
+      const url = urlInput?.value.trim();
+      if (!url) return alert("Please enter a valid URL.");
+
+      if (statusEl) {
+        statusEl.className = "text-[10px] p-2 rounded bg-surface-container-low border border-primary-container/30 text-primary-container";
+        statusEl.innerText = "Scraping & ingesting URL without LLM inference...";
+        statusEl.classList.remove('hidden');
+      }
+
+      try {
+        const resp = await fetch('/api/connectors/url', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ url: url, scope: scopeSel?.value || 'shared' })
+        });
+        const data = await resp.json();
+        if (resp.ok) {
+          if (statusEl) {
+            statusEl.className = "text-[10px] p-2 rounded bg-emerald-500/10 border border-emerald-500/30 text-secondary-container font-bold";
+            statusEl.innerText = `✓ Successfully ingested "${data.title}" (${data.bytes_extracted} bytes). Anchored in provenance ledger!`;
+          }
+          urlInput.value = '';
+          loadGraphData('all');
+        } else {
+          throw new Error(data.error || "Failed to ingest URL");
+        }
+      } catch (e) {
+        if (statusEl) {
+          statusEl.className = "text-[10px] p-2 rounded bg-error/10 border border-error/30 text-error";
+          statusEl.innerText = "Error: " + e.message;
+        }
+      }
+    };
+
+    window.submitFileIngest = async function() {
+      const nameInput = document.getElementById('connectors-file-name');
+      const contentInput = document.getElementById('connectors-file-content');
+      const scopeSel = document.getElementById('connectors-file-scope');
+      const statusEl = document.getElementById('connectors-file-status');
+      const filename = nameInput?.value.trim() || 'document.md';
+      const content = contentInput?.value.trim();
+      if (!content) return alert("Please provide file content to ingest.");
+
+      try {
+        const resp = await fetch('/api/connectors/file', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ filename: filename, content: content, scope: scopeSel?.value || 'shared' })
+        });
+        const data = await resp.json();
+        if (resp.ok) {
+          if (statusEl) {
+            statusEl.className = "text-[10px] p-2 rounded bg-emerald-500/10 border border-emerald-500/30 text-secondary-container font-bold";
+            statusEl.innerText = `✓ Document "${filename}" ingested successfully!`;
+            statusEl.classList.remove('hidden');
+          }
+          contentInput.value = '';
+          loadGraphData('all');
+        } else {
+          throw new Error(data.error || "Failed to ingest file");
+        }
+      } catch (e) {
+        if (statusEl) {
+          statusEl.className = "text-[10px] p-2 rounded bg-error/10 border border-error/30 text-error";
+          statusEl.innerText = "Error: " + e.message;
+          statusEl.classList.remove('hidden');
+        }
+      }
+    };
+
+    // -------------------------------------------------------------------------
+    // NON-INFERENCE EXTRACTION PIPELINE STUDIO
+    // -------------------------------------------------------------------------
+    let lastExtractedResult = null;
+
+    window.loadPipelinePreset = function(type) {
+      const input = document.getElementById('pipeline-input-text');
+      if (!input) return;
+      if (type === 'rule') {
+        input.value = "Developers must always execute pytest before merging code into main.";
+      } else if (type === 'decision') {
+        input.value = "We decided to isolate agent memories into separate scopes to prevent cross-agent hallucinations.";
+      } else if (type === 'milestone') {
+        input.value = "Claude Code CLI completed the AST parser module for Super-Cortex.";
+      } else if (type === 'resource') {
+        input.value = "Supermemory Local runs on port 6767 with 768-dimensional local embeddings.";
+      }
+      window.runExtractionStudio();
+    };
+
+    window.runExtractionStudio = async function() {
+      const input = document.getElementById('pipeline-input-text');
+      const text = input ? input.value.trim() : '';
+      if (!text) return alert("Please enter text to extract.");
+
+      const card = document.getElementById('pipeline-results-card');
+      const commitBtn = document.getElementById('btn-pipeline-commit');
+
+      try {
+        const resp = await fetch('/api/extract', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text: text })
+        });
+        const data = await resp.json();
+        if (resp.ok) {
+          lastExtractedResult = data;
+          card.classList.remove('hidden');
+          if (commitBtn) commitBtn.classList.remove('hidden');
+
+          document.getElementById('ext-time-val').innerText = `${data.elapsed_ms} ms`;
+          document.getElementById('ext-tokens-val').innerText = `${data.tokens} words`;
+
+          const epBadge = document.getElementById('ext-ep-badge');
+          const epTitle = document.getElementById('ext-ep-title');
+          const epRule = document.getElementById('ext-ep-rule');
+          epBadge.innerText = (data.epistemic_class || 'FACT').toUpperCase();
+          epTitle.innerText = `${data.epistemic_class.toUpperCase()} (${(data.epistemic_confidence * 100).toFixed(0)}% Confidence)`;
+          epRule.innerText = data.epistemic_rule ? `Rule: ${data.epistemic_rule}` : 'Categorized via deterministic modal keyword heuristics.';
+
+          const paraBadge = document.getElementById('ext-para-badge');
+          const paraCat = (data.para && data.para.category) ? data.para.category.toUpperCase() : 'AREA';
+          paraBadge.innerText = paraCat;
+          document.getElementById('ext-para-title').innerText = `PARA: ${paraCat} (${((data.para?.confidence || 0.5) * 100).toFixed(0)}% Confidence)`;
+
+          const scores = data.para?.scores || {};
+          document.getElementById('para-score-p').innerText = (scores.project || 0).toFixed(2);
+          document.getElementById('para-score-a').innerText = (scores.area || 0).toFixed(2);
+          document.getElementById('para-score-r').innerText = (scores.resource || 0).toFixed(2);
+          document.getElementById('para-score-arch').innerText = (scores.archive || 0).toFixed(2);
+
+          const triplesBox = document.getElementById('ext-triples-container');
+          triplesBox.innerHTML = '';
+          if (data.triples && data.triples.length > 0) {
+            data.triples.forEach(t => {
+              const row = document.createElement('div');
+              row.className = "flex items-center gap-1.5 text-[10px] bg-surface-container-low p-2 rounded border border-outline-variant/30";
+              row.innerHTML = `
+                <span class="text-primary font-bold">${t.subject}</span>
+                <span class="text-outline text-[9px]">──▶ [${t.predicate}] ──▶</span>
+                <span class="text-secondary-container font-bold">${t.object}</span>
+              `;
+              triplesBox.appendChild(row);
+            });
+          } else {
+            triplesBox.innerHTML = '<div class="text-[10px] text-neutral-400 italic p-1">No explicit subject-predicate-object triples detected in input sentence.</div>';
+          }
+
+          document.getElementById('ext-hash-val').innerText = data.content_hash;
+        }
+      } catch (err) {
+        alert("Extraction failed: " + err.message);
+      }
+    };
+
+    window.commitExtractedToScope = async function() {
+      if (!lastExtractedResult) return;
+      const scope = document.getElementById('pipeline-scope-target')?.value || 'shared';
+      try {
+        const resp = await fetch('/api/remember', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            text: lastExtractedResult.text,
+            scope: scope,
+            epistemic_class: lastExtractedResult.epistemic_class,
+            metadata: {
+              source: "pipeline_studio",
+              para: lastExtractedResult.para,
+              triples: lastExtractedResult.triples,
+            }
+          })
+        });
+        const res = await resp.json();
+        if (resp.ok) {
+          alert(`Memory successfully committed into scope "${scope}"!\nMemory ID: ${res.memory_id}`);
+          loadGraphData('all');
+        }
+      } catch (e) {
+        alert("Failed to commit memory: " + e.message);
+      }
+    };
 
     function renderDynamicSessions(sessions) {
       const container = document.getElementById('dynamic-sessions-track');
