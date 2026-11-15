@@ -164,7 +164,10 @@
         <span id="header-merkle-root" class="text-primary-container font-mono">0x7f2a...8c1</span>
         <span class="text-outline">|</span>
         <span class="text-outline">NODES:</span>
-        <span class="text-secondary-container font-bold">12 3D CUBES</span>
+        <span id="header-nodes-count" class="text-secondary-container font-bold">12 3D VOXELS</span>
+        <span class="text-outline">|</span>
+        <span class="text-outline">SCOPES:</span>
+        <span id="header-scopes-count" class="text-[#ddb7ff] font-bold">5 ACTIVE</span>
         <span class="text-outline">|</span>
         <span class="text-outline">SESS:</span>
         <span id="header-sess-count" class="text-on-surface font-semibold">3</span>
@@ -284,6 +287,23 @@
 
       <!-- Floating Top Instrument Ribbon -->
       <div class="absolute top-4 left-1/2 -translate-x-1/2 z-20 flex items-center gap-2 bg-surface-container-lowest/90 backdrop-blur-xl px-2 py-1.5 shadow-2xl border border-outline-variant/30">
+        <!-- Agent Memory Scope Selector -->
+        <div class="flex items-center gap-1.5 bg-surface-container-low px-2 py-1 border border-outline-variant/30 text-[10px] font-mono">
+          <span class="text-outline uppercase text-[9px] flex items-center gap-0.5">
+            <span class="material-symbols-outlined text-[13px] text-secondary-container">domain</span>SCOPE:
+          </span>
+          <select id="graph-scope-selector" onchange="changeGraphScope(this.value)" class="bg-transparent text-primary-container font-bold focus:outline-none cursor-pointer text-[10px]">
+            <option value="all">ALL SCOPES (GALAXY)</option>
+            <option value="shared">SHARED MEMORY FABRIC</option>
+            <option value="agent:xibalba">AGENT: XIBALBA</option>
+            <option value="agent:hermes">AGENT: HERMES</option>
+            <option value="agent:claude">AGENT: CLAUDE</option>
+            <option value="agent:shield">AGENT: SHIELD</option>
+          </select>
+        </div>
+
+        <div class="h-4 w-[1px] bg-outline-variant/50"></div>
+
         <!-- Projection Mode Selector -->
         <div class="flex items-center bg-surface-container-low p-0.5 text-[11px] font-mono">
           <button id="ribbon-btn-3d" onclick="setProjectionMode('3D')" class="px-2.5 py-1 bg-primary-container text-on-primary-container font-bold uppercase flex items-center gap-1">
@@ -300,11 +320,13 @@
 
         <!-- Epistemic Spectral Filter Chips -->
         <div class="flex items-center gap-1 bg-surface-container-low p-0.5 border border-outline-variant/30 text-[9px] font-mono">
-          <button onclick="filterEpistemic('all')" class="filter-chip px-2 py-0.5 bg-primary/20 text-primary border border-primary/50 font-bold uppercase transition-all" data-filter="all">ALL (12)</button>
-          <button onclick="filterEpistemic('fact')" class="filter-chip px-2 py-0.5 text-on-surface-variant hover:text-[#38bdf8] transition-all uppercase" data-filter="fact">FACTS (4)</button>
-          <button onclick="filterEpistemic('rule')" class="filter-chip px-2 py-0.5 text-on-surface-variant hover:text-secondary-container transition-all uppercase" data-filter="rule">RULES (4)</button>
-          <button onclick="filterEpistemic('inference')" class="filter-chip px-2 py-0.5 text-on-surface-variant hover:text-[#ddb7ff] transition-all uppercase" data-filter="inference">INFERENCES (2)</button>
-          <button onclick="filterEpistemic('belief')" class="filter-chip px-2 py-0.5 text-on-surface-variant hover:text-amber-400 transition-all uppercase" data-filter="belief">BELIEFS (1)</button>
+          <button onclick="filterEpistemic('all')" class="filter-chip px-2 py-0.5 bg-primary/20 text-primary border border-primary/50 font-bold uppercase transition-all" data-filter="all">ALL</button>
+          <button onclick="filterEpistemic('rule')" class="filter-chip px-2 py-0.5 text-on-surface-variant hover:text-secondary-container transition-all uppercase" data-filter="rule">RULES</button>
+          <button onclick="filterEpistemic('fact')" class="filter-chip px-2 py-0.5 text-on-surface-variant hover:text-[#38bdf8] transition-all uppercase" data-filter="fact">FACTS</button>
+          <button onclick="filterEpistemic('decision')" class="filter-chip px-2 py-0.5 text-on-surface-variant hover:text-[#34d399] transition-all uppercase" data-filter="decision">DECISIONS</button>
+          <button onclick="filterEpistemic('inference')" class="filter-chip px-2 py-0.5 text-on-surface-variant hover:text-[#ddb7ff] transition-all uppercase" data-filter="inference">INFERENCES</button>
+          <button onclick="filterEpistemic('belief')" class="filter-chip px-2 py-0.5 text-on-surface-variant hover:text-amber-400 transition-all uppercase" data-filter="belief">BELIEFS</button>
+          <button onclick="filterEpistemic('goal')" class="filter-chip px-2 py-0.5 text-on-surface-variant hover:text-rose-400 transition-all uppercase" data-filter="goal">GOALS</button>
         </div>
 
         <div class="h-4 w-[1px] bg-outline-variant/50"></div>
@@ -919,120 +941,159 @@
     </div>
 
     <!-- ======================================================================= -->
-    <!-- VIEW MODE E: SPACES & REPOSITORIES (Multi-Tenant & Storage Explorer)    -->
+    <!-- VIEW MODE E: AGENT SCOPES & MCP CONNECTION HUB                          -->
     <!-- ======================================================================= -->
     <div id="view-spaces" class="hidden w-full h-full flex flex-col overflow-y-auto overflow-x-hidden bg-[#090b10] p-6 space-y-6">
       <!-- HEADER METRICS STRIP -->
       <div class="flex flex-wrap items-center justify-between pb-3 border-b border-outline-variant/30 gap-4 font-mono text-xs">
         <div>
           <div class="flex items-center gap-2">
-            <span class="material-symbols-outlined text-primary-container text-lg">folder_data</span>
-            <span class="font-bold text-primary uppercase text-sm">SPACES & COGNITIVE REPOSITORIES</span>
+            <span class="material-symbols-outlined text-primary-container text-lg">hub</span>
+            <span class="font-bold text-primary uppercase text-sm">AGENT SCOPES &amp; MCP CONNECTION HUB</span>
           </div>
-          <p class="text-outline text-[11px] font-sans mt-0.5">Multi-tenant memory enclaves, vector index health, and SQLite provenance ledger status.</p>
+          <p class="text-outline text-[11px] font-sans mt-0.5">Connect AI agents via MCP. Configure shared team memory or isolated single-agent scopes with 768-D local neural vectors &amp; cryptographic provenance.</p>
         </div>
 
         <div class="flex items-center gap-4 text-[10px]">
           <div class="bg-surface-container-low px-3 py-1.5 border border-outline-variant/30">
-            <span class="text-outline">ACTIVE SPACES:</span> <strong class="text-primary-container">4</strong>
+            <span class="text-outline">ACTIVE SCOPES:</span> <strong id="spaces-active-count" class="text-primary-container">5</strong>
           </div>
           <div class="bg-surface-container-low px-3 py-1.5 border border-outline-variant/30">
-            <span class="text-outline">VECTOR DIM:</span> <strong class="text-secondary-container">768-D BGE</strong>
+            <span class="text-outline">AGENT FLEET:</span> <strong id="spaces-fleet-count" class="text-secondary-container">4 Active</strong>
           </div>
           <div class="bg-surface-container-low px-3 py-1.5 border border-outline-variant/30">
-            <span class="text-outline">STORAGE ENGINE:</span> <strong class="text-on-surface">SQLITE + SUPERMEMORY</strong>
+            <span class="text-outline">VECTOR ENGINE:</span> <strong class="text-on-surface">SUPERMEMORY LOCAL (127.0.0.1:6767)</strong>
           </div>
         </div>
       </div>
 
-      <!-- MULTI-TENANT SPACES GRID -->
-      <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
-        <!-- Space 1: xibalba-core -->
-        <div class="bg-surface-container-lowest border-2 border-primary-container/60 p-4 shadow-lg space-y-3 font-mono">
-          <div class="flex items-center justify-between">
-            <div class="flex items-center gap-2">
-              <div class="w-2.5 h-2.5 bg-primary-container"></div>
-              <span class="font-bold text-primary text-sm">xibalba-core</span>
+      <!-- MCP QUICK CONNECT SECTION -->
+      <div class="bg-surface-container-lowest border border-primary-container/30 p-4 shadow-lg space-y-4 font-mono">
+        <div class="flex items-center justify-between pb-2 border-b border-outline-variant/30">
+          <div class="flex items-center gap-2">
+            <span class="material-symbols-outlined text-secondary-container text-base">cable</span>
+            <span class="font-bold text-white text-xs uppercase tracking-wider">1-Click Agent MCP Integration</span>
+          </div>
+          <span class="text-[10px] text-secondary-container bg-secondary-container/10 px-2 py-0.5 border border-secondary-container/30 font-bold">READY TO CONNECT</span>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <!-- Claude Code -->
+          <div class="bg-surface-container-low p-3 border border-outline-variant/40 rounded flex flex-col justify-between space-y-2">
+            <div>
+              <div class="flex items-center justify-between text-xs font-bold text-primary mb-1">
+                <span>Claude Code CLI</span>
+                <span class="text-[9px] text-outline font-normal">~/.claude.json</span>
+              </div>
+              <p class="text-[10px] text-on-surface-variant font-sans">Connects Claude Code terminal sessions to Super-Cortex memory tools and scopes.</p>
             </div>
-            <span class="text-[9px] text-secondary-container px-1.5 py-0.5 bg-secondary-container/10 font-bold border border-secondary-container/30 uppercase">DEFAULT</span>
+            <pre class="bg-surface-container-lowest p-2 text-[9px] text-neutral-300 font-mono overflow-x-auto rounded border border-outline-variant/20">{
+  "mcpServers": {
+    "super-cortex": {
+      "command": "uv",
+      "args": ["--directory", "/home/xibalba/Projects/super-cortex", "run", "super-cortex", "server"]
+    }
+  }
+}</pre>
+            <button onclick="copyMcpConfig('claude')" class="w-full py-1.5 bg-surface-container-high hover:bg-primary-container hover:text-on-primary-container transition-colors text-[10px] font-bold uppercase flex items-center justify-center gap-1">
+              <span class="material-symbols-outlined text-xs">content_copy</span>
+              <span id="btn-copy-claude">Copy Claude Config</span>
+            </button>
           </div>
-          <p class="text-[11px] text-on-surface-variant font-sans">Master cognitive memory namespace for Xibalba executive orchestrator and enterprise ops.</p>
-          <div class="grid grid-cols-2 gap-2 text-[10px] bg-surface-container-low p-2 border border-outline-variant/30">
-            <div><span class="text-outline text-[8px] uppercase">MEMORIES</span><div class="text-primary-container font-bold text-xs mt-0.5">12 Nodes</div></div>
-            <div><span class="text-outline text-[8px] uppercase">GROUNDING</span><div class="text-secondary-container font-bold text-xs mt-0.5">100% Verified</div></div>
-            <div><span class="text-outline text-[8px] uppercase">RELATIONS</span><div class="text-on-surface font-bold text-xs mt-0.5">14 Edges</div></div>
-            <div><span class="text-outline text-[8px] uppercase">MERKLE HEAD</span><div class="text-[#ddb7ff] font-bold text-xs mt-0.5">0x7f2a...8c1</div></div>
+
+          <!-- Cursor -->
+          <div class="bg-surface-container-low p-3 border border-outline-variant/40 rounded flex flex-col justify-between space-y-2">
+            <div>
+              <div class="flex items-center justify-between text-xs font-bold text-[#00ffa3] mb-1">
+                <span>Cursor IDE</span>
+                <span class="text-[9px] text-outline font-normal">~/.cursor/mcp.json</span>
+              </div>
+              <p class="text-[10px] text-on-surface-variant font-sans">Enables Cursor agent composer to recall memories and register agent actions.</p>
+            </div>
+            <pre class="bg-surface-container-lowest p-2 text-[9px] text-neutral-300 font-mono overflow-x-auto rounded border border-outline-variant/20">{
+  "mcpServers": {
+    "super-cortex": {
+      "command": "uv",
+      "args": ["--directory", "/home/xibalba/Projects/super-cortex", "run", "super-cortex", "server"]
+    }
+  }
+}</pre>
+            <button onclick="copyMcpConfig('cursor')" class="w-full py-1.5 bg-surface-container-high hover:bg-secondary-container hover:text-on-secondary-container transition-colors text-[10px] font-bold uppercase flex items-center justify-center gap-1">
+              <span class="material-symbols-outlined text-xs">content_copy</span>
+              <span id="btn-copy-cursor">Copy Cursor Config</span>
+            </button>
           </div>
-          <button onclick="switchView('graph')" class="w-full py-1.5 bg-surface-container-high hover:bg-primary-container hover:text-on-primary-container transition-colors text-[10px] font-bold uppercase flex items-center justify-center gap-1">
-            <span class="material-symbols-outlined text-xs">view_in_ar</span>
-            <span>Explore 3D Manifold</span>
+
+          <!-- Antigravity / Gemini CLI -->
+          <div class="bg-surface-container-low p-3 border border-outline-variant/40 rounded flex flex-col justify-between space-y-2">
+            <div>
+              <div class="flex items-center justify-between text-xs font-bold text-[#ddb7ff] mb-1">
+                <span>Antigravity / agy</span>
+                <span class="text-[9px] text-outline font-normal">settings.json</span>
+              </div>
+              <p class="text-[10px] text-on-surface-variant font-sans">Primary orchestrator bridge for multi-agent swarm memory federation.</p>
+            </div>
+            <pre class="bg-surface-container-lowest p-2 text-[9px] text-neutral-300 font-mono overflow-x-auto rounded border border-outline-variant/20">{
+  "mcpServers": {
+    "super-cortex": {
+      "command": "uv",
+      "args": ["--directory", "/home/xibalba/Projects/super-cortex", "run", "super-cortex", "server"]
+    }
+  }
+}</pre>
+            <button onclick="copyMcpConfig('antigravity')" class="w-full py-1.5 bg-surface-container-high hover:bg-[#ddb7ff] hover:text-[#2c0051] transition-colors text-[10px] font-bold uppercase flex items-center justify-center gap-1">
+              <span class="material-symbols-outlined text-xs">content_copy</span>
+              <span id="btn-copy-antigravity">Copy Antigravity Config</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ACTIVE MEMORY SCOPES GRID -->
+      <div class="space-y-3 font-mono">
+        <div class="flex items-center justify-between">
+          <div class="flex items-center gap-2">
+            <span class="material-symbols-outlined text-primary-container text-base">folder_special</span>
+            <span class="font-bold text-white text-xs uppercase tracking-wider">Configured Agent Memory Scopes</span>
+          </div>
+          <button onclick="openCreateScopeModal()" class="px-3 py-1 bg-primary-container text-on-primary-container font-bold text-xs uppercase flex items-center gap-1 hover:bg-secondary-container transition-colors">
+            <span class="material-symbols-outlined text-xs">add</span>
+            <span>Create New Scope</span>
           </button>
         </div>
 
-        <!-- Space 2: integrity-ledger -->
-        <div class="bg-surface-container-lowest border border-outline-variant/30 p-4 shadow-sm space-y-3 font-mono">
-          <div class="flex items-center justify-between">
-            <div class="flex items-center gap-2">
-              <div class="w-2.5 h-2.5 bg-secondary-container"></div>
-              <span class="font-bold text-on-surface text-sm">integrity-ledger</span>
-            </div>
-            <span class="text-[9px] text-secondary-container px-1.5 py-0.5 bg-secondary-container/10 font-bold border border-secondary-container/30 uppercase">SYNCED</span>
+        <div id="spaces-dynamic-grid" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+          <!-- Populated dynamically via renderScopesGrid() -->
+        </div>
+      </div>
+
+      <!-- CONNECTED AGENT FLEET TABLE -->
+      <div class="bg-surface-container-lowest border border-outline-variant/30 p-4 shadow-sm space-y-3 font-mono">
+        <div class="flex items-center justify-between pb-2 border-b border-outline-variant/30">
+          <div class="flex items-center gap-2">
+            <span class="material-symbols-outlined text-secondary-container text-base">smart_toy</span>
+            <span class="font-bold text-white text-xs uppercase tracking-wider">Connected AI Agent Fleet</span>
           </div>
-          <p class="text-[11px] text-on-surface-variant font-sans">Cryptographic consensus state, smart BAA registry, and immutable agent DID attestations.</p>
-          <div class="grid grid-cols-2 gap-2 text-[10px] bg-surface-container-low p-2 border border-outline-variant/30">
-            <div><span class="text-outline text-[8px] uppercase">EVENTS</span><div class="text-secondary-container font-bold text-xs mt-0.5">48 Hashes</div></div>
-            <div><span class="text-outline text-[8px] uppercase">CHAIN STATE</span><div class="text-secondary-container font-bold text-xs mt-0.5">Valid</div></div>
-            <div><span class="text-outline text-[8px] uppercase">ACTOR DID</span><div class="text-primary truncate text-[9px] mt-0.5">did:integrity...</div></div>
-            <div><span class="text-outline text-[8px] uppercase">HEAD HASH</span><div class="text-outline font-bold text-xs mt-0.5">0xfb7d...d33</div></div>
-          </div>
-          <button onclick="switchView('timeline')" class="w-full py-1.5 bg-surface-container-high hover:bg-primary-container hover:text-on-primary-container transition-colors text-[10px] font-bold uppercase flex items-center justify-center gap-1">
-            <span class="material-symbols-outlined text-xs">timeline</span>
-            <span>View Timeline</span>
-          </button>
+          <span class="text-[10px] text-outline">AUTO-DISCOVERED VIA MCP</span>
         </div>
 
-        <!-- Space 3: xibalba-quant -->
-        <div class="bg-surface-container-lowest border border-outline-variant/30 p-4 shadow-sm space-y-3 font-mono">
-          <div class="flex items-center justify-between">
-            <div class="flex items-center gap-2">
-              <div class="w-2.5 h-2.5 bg-[#00ffa3]"></div>
-              <span class="font-bold text-on-surface text-sm">xibalba-quant</span>
-            </div>
-            <span class="text-[9px] text-[#00ffa3] px-1.5 py-0.5 bg-[#00ffa3]/10 font-bold border border-[#00ffa3]/30 uppercase">LIVE DAEMON</span>
-          </div>
-          <p class="text-[11px] text-on-surface-variant font-sans">Autonomous dynamic PID grid tuning, volatility surface tensors, and drawdown guardrails.</p>
-          <div class="grid grid-cols-2 gap-2 text-[10px] bg-surface-container-low p-2 border border-outline-variant/30">
-            <div><span class="text-outline text-[8px] uppercase">CONTROLLER</span><div class="text-[#00ffa3] font-bold text-xs mt-0.5">PID Grid</div></div>
-            <div><span class="text-outline text-[8px] uppercase">FEEDBACK</span><div class="text-secondary-container font-bold text-xs mt-0.5">Kp 1.85 / Kd 0.08</div></div>
-            <div><span class="text-outline text-[8px] uppercase">DRAWDOWNS</span><div class="text-secondary-container font-bold text-xs mt-0.5">&lt; 1.2% Safe</div></div>
-            <div><span class="text-outline text-[8px] uppercase">EXECS</span><div class="text-on-surface font-bold text-xs mt-0.5">34 Orders</div></div>
-          </div>
-          <button onclick="switchView('spectral')" class="w-full py-1.5 bg-surface-container-high hover:bg-primary-container hover:text-on-primary-container transition-colors text-[10px] font-bold uppercase flex items-center justify-center gap-1">
-            <span class="material-symbols-outlined text-xs">scatter_plot</span>
-            <span>Spectral Math</span>
-          </button>
-        </div>
-
-        <!-- Space 4: medicaid-ltc -->
-        <div class="bg-surface-container-lowest border border-outline-variant/30 p-4 shadow-sm space-y-3 font-mono">
-          <div class="flex items-center justify-between">
-            <div class="flex items-center gap-2">
-              <div class="w-2.5 h-2.5 bg-[#ddb7ff]"></div>
-              <span class="font-bold text-on-surface text-sm">medicaid-ltc</span>
-            </div>
-            <span class="text-[9px] text-[#ddb7ff] px-1.5 py-0.5 bg-[#ddb7ff]/10 font-bold border border-[#ddb7ff]/30 uppercase">ABAC GATED</span>
-          </div>
-          <p class="text-[11px] text-on-surface-variant font-sans">Personal care agency operating system, patient care plans, EVV tracking, and HIPAA gates.</p>
-          <div class="grid grid-cols-2 gap-2 text-[10px] bg-surface-container-low p-2 border border-outline-variant/30">
-            <div><span class="text-outline text-[8px] uppercase">RECORDS</span><div class="text-[#ddb7ff] font-bold text-xs mt-0.5">19 Anchors</div></div>
-            <div><span class="text-outline text-[8px] uppercase">PRIVACY</span><div class="text-secondary-container font-bold text-xs mt-0.5">Zero-Leakage</div></div>
-            <div><span class="text-outline text-[8px] uppercase">COMPLIANCE</span><div class="text-secondary-container font-bold text-xs mt-0.5">Smart BAA</div></div>
-            <div><span class="text-outline text-[8px] uppercase">ENCLAVE</span><div class="text-on-surface font-bold text-xs mt-0.5">eBPF Verified</div></div>
-          </div>
-          <button onclick="switchView('dialogue')" class="w-full py-1.5 bg-surface-container-high hover:bg-primary-container hover:text-on-primary-container transition-colors text-[10px] font-bold uppercase flex items-center justify-center gap-1">
-            <span class="material-symbols-outlined text-xs">forum</span>
-            <span>Dialogue Stream</span>
-          </button>
+        <div class="overflow-x-auto">
+          <table class="w-full text-left border-collapse text-xs">
+            <thead>
+              <tr class="border-b border-outline-variant/30 text-[10px] text-outline uppercase bg-surface-container-low">
+                <th class="p-2">Agent ID</th>
+                <th class="p-2">Name</th>
+                <th class="p-2">Client Type</th>
+                <th class="p-2">Default Memory Scope</th>
+                <th class="p-2">Status</th>
+                <th class="p-2">Last Active</th>
+                <th class="p-2 text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody id="agents-table-body" class="divide-y divide-outline-variant/20">
+              <!-- Populated dynamically via renderAgentsTable() -->
+            </tbody>
+          </table>
         </div>
       </div>
 
@@ -1043,13 +1104,13 @@
             <span class="material-symbols-outlined text-primary-container text-base">manage_search</span>
             <span class="font-bold text-primary uppercase text-xs">LIVE SEMANTIC HYBRID SEARCH WORKBENCH</span>
           </div>
-          <span class="text-[10px] text-outline">ENDPOINT: /api/chat & /api/graph</span>
+          <span class="text-[10px] text-outline">ENDPOINT: /api/chat &amp; /api/graph</span>
         </div>
 
         <div class="flex gap-2">
           <div class="relative flex-1">
             <span class="material-symbols-outlined absolute left-3 top-2 text-outline text-base">search</span>
-            <input id="spaces-search-input" class="w-full bg-surface-container-low border border-outline-variant/40 rounded-sm pl-9 pr-4 py-1.5 text-xs text-white placeholder:text-outline focus:outline-none focus:border-primary-container font-mono" placeholder="Test semantic query across all spaces (e.g. 'PID controller', 'EGFR mutation', 'Merkle proof')..." type="text" value="PID controller volatility"/>
+            <input id="spaces-search-input" class="w-full bg-surface-container-low border border-outline-variant/40 rounded-sm pl-9 pr-4 py-1.5 text-xs text-white placeholder:text-outline focus:outline-none focus:border-primary-container font-mono" placeholder="Test semantic query across all spaces (e.g. 'Integrity Protocol', 'PID control', 'Agent memory scopes')..." type="text" value="Integrity Protocol"/>
           </div>
           <button onclick="runSpacesQuery()" class="px-4 py-1.5 bg-primary-container text-on-primary-container font-bold text-xs uppercase rounded-sm hover:bg-secondary-container transition-colors flex items-center gap-1">
             <span class="material-symbols-outlined text-sm">send</span>
@@ -1058,6 +1119,11 @@
         </div>
 
         <!-- Query Results Container -->
+        <div id="spaces-results-container" class="space-y-2 text-xs">
+          <!-- Populated dynamically -->
+        </div>
+      </div>
+    </div>
         <div id="spaces-results-container" class="space-y-2 text-xs">
           <div class="p-3 bg-surface-container-low border-l-2 border-primary-container flex items-start justify-between">
             <div>
@@ -1269,18 +1335,33 @@
 
         <div class="grid grid-cols-2 gap-2">
           <div>
+            <label class="text-[10px] text-neutral-400 uppercase font-bold block mb-1">Target Scope</label>
+            <select id="modal-memory-scope" class="w-full bg-surface-container-low border border-outline-variant/40 rounded p-2 text-primary-container font-bold focus:outline-none focus:border-primary-container">
+              <option value="shared">Shared Memory Fabric</option>
+              <option value="agent:xibalba">agent:xibalba (Executive)</option>
+              <option value="agent:hermes">agent:hermes (Hermes)</option>
+              <option value="agent:claude">agent:claude (Claude Code)</option>
+              <option value="agent:shield">agent:shield (Shield)</option>
+            </select>
+          </div>
+          <div>
             <label class="text-[10px] text-neutral-400 uppercase font-bold block mb-1">Epistemic Class</label>
             <select id="modal-epistemic-class" class="w-full bg-surface-container-low border border-outline-variant/40 rounded p-2 text-neutral-300 focus:outline-none focus:border-primary-container">
               <option value="fact">Fact</option>
               <option value="rule">Rule</option>
+              <option value="decision">Decision</option>
               <option value="inference">Inference</option>
-              <option value="assumption">Assumption</option>
+              <option value="belief">Belief</option>
+              <option value="goal">Goal</option>
             </select>
           </div>
-          <div>
-            <label class="text-[10px] text-neutral-400 uppercase font-bold block mb-1">Target Space</label>
-            <input id="modal-namespace" value="xibalba" class="w-full bg-surface-container-low border border-outline-variant/40 rounded p-2 text-white focus:outline-none focus:border-primary-container"/>
-          </div>
+        </div>
+
+        <div class="text-[9px] text-neutral-400 font-mono bg-surface-container-low p-2 border border-outline-variant/20 rounded">
+          <span>Cognitive Extraction: </span>
+          <span class="text-secondary-container">PARA Classification</span> · 
+          <span class="text-primary-container">Triples Parser</span> · 
+          <span class="text-[#ddb7ff]">BGE 768-D Vector</span>
         </div>
       </div>
 
@@ -1288,6 +1369,59 @@
         <button onclick="closeNewMemoryModal()" class="px-3 py-1.5 text-neutral-400 hover:text-white text-xs">Cancel</button>
         <button onclick="commitNewMemory()" class="px-4 py-1.5 bg-primary-container hover:bg-secondary-container text-on-primary-container font-bold text-xs uppercase flex items-center gap-1.5 transition-colors">
           Commit &amp; Anchor
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- CREATE NEW SCOPE MODAL -->
+  <div id="create-scope-modal" class="hidden fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 font-mono">
+    <div class="w-full max-w-md bg-surface-container-lowest border border-secondary-container/40 rounded-lg p-5 shadow-2xl space-y-4">
+      <div class="flex items-center justify-between pb-3 border-b border-outline-variant/40">
+        <div class="flex items-center gap-2">
+          <span class="material-symbols-outlined text-secondary-container text-[18px]">add_moderator</span>
+          <span class="text-xs font-bold text-white uppercase tracking-wider">Configure New Memory Scope</span>
+        </div>
+        <button onclick="closeCreateScopeModal()" class="text-neutral-400 hover:text-white">
+          <span class="material-symbols-outlined text-sm">close</span>
+        </button>
+      </div>
+
+      <div class="space-y-3 text-xs">
+        <div>
+          <label class="text-[10px] text-neutral-400 uppercase font-bold block mb-1">Scope Identifier (e.g. agent:sentinel or shared-team)</label>
+          <input id="new-scope-id" class="w-full bg-surface-container-low border border-outline-variant/40 rounded p-2 text-white placeholder:text-neutral-500 focus:outline-none focus:border-secondary-container" placeholder="agent:my-custom-agent" type="text"/>
+        </div>
+
+        <div>
+          <label class="text-[10px] text-neutral-400 uppercase font-bold block mb-1">Scope Display Name</label>
+          <input id="new-scope-name" class="w-full bg-surface-container-low border border-outline-variant/40 rounded p-2 text-white placeholder:text-neutral-500 focus:outline-none focus:border-secondary-container" placeholder="Sentinel Defensive Scope" type="text"/>
+        </div>
+
+        <div class="grid grid-cols-2 gap-2">
+          <div>
+            <label class="text-[10px] text-neutral-400 uppercase font-bold block mb-1">Scope Type</label>
+            <select id="new-scope-type" class="w-full bg-surface-container-low border border-outline-variant/40 rounded p-2 text-neutral-300 focus:outline-none focus:border-secondary-container">
+              <option value="single_agent">Single Agent Scope</option>
+              <option value="shared">Shared Memory Scope</option>
+            </select>
+          </div>
+          <div>
+            <label class="text-[10px] text-neutral-400 uppercase font-bold block mb-1">Assigned Agent ID</label>
+            <input id="new-scope-agent-id" class="w-full bg-surface-container-low border border-outline-variant/40 rounded p-2 text-white placeholder:text-neutral-500 focus:outline-none focus:border-secondary-container" placeholder="sentinel" type="text"/>
+          </div>
+        </div>
+
+        <div>
+          <label class="text-[10px] text-neutral-400 uppercase font-bold block mb-1">Description</label>
+          <input id="new-scope-desc" class="w-full bg-surface-container-low border border-outline-variant/40 rounded p-2 text-white placeholder:text-neutral-500 focus:outline-none focus:border-secondary-container" placeholder="Isolated operational memory enclave for autonomous sentinel agent" type="text"/>
+        </div>
+      </div>
+
+      <div class="flex justify-end gap-2 pt-2 border-t border-outline-variant/40">
+        <button onclick="closeCreateScopeModal()" class="px-3 py-1.5 text-neutral-400 hover:text-white text-xs">Cancel</button>
+        <button onclick="commitNewScope()" class="px-4 py-1.5 bg-secondary-container hover:bg-primary-container text-on-secondary-container font-bold text-xs uppercase flex items-center gap-1.5 transition-colors">
+          Create Scope
         </button>
       </div>
     </div>
@@ -1391,123 +1525,136 @@
     const graphGroup = new THREE.Group();
     scene.add(graphGroup);
 
-    // 12 Spatial 3D Node Definitions with Epistemic Classifications
-    const nodeDefs = [
-      { id: 'alpha', title: "Quantum Physics & Computing", labelTag: "NODE ALPHA (BRANCH 01)", category: "document", epistemic_class: "document", color: 0x00f0ff, size: 30, pos3D: [0, 20, 0], pos2D: [0, 10, 0], isLineage: true, confidence: 0.99, hash: "0x8F41A990B", content: "Quantum computation foundations, superposition state logic, and topological qubit stability." },
-      { id: 'qubit', title: "Superposition & Qubit Coherence", labelTag: "FACT // QUANTUM", category: "document", epistemic_class: "fact", color: 0x38bdf8, size: 16, pos3D: [-120, 110, 40], pos2D: [-140, 120, 0], confidence: 0.98, hash: "0xA318998AF", content: "Decoherence mitigation times under cryogenic dilution refrigeration at 15mK." },
-      { id: 'zk-circuit', title: "Zero-Knowledge Circuit Verification", labelTag: "RULE // PROT_SEC", category: "security", epistemic_class: "rule", color: 0x00ffa3, size: 18, pos3D: [-90, -70, 70], pos2D: [-110, -80, 0], confidence: 1.00, hash: "0x449977ECD", content: "BCC Middleware integrity rule enforcing zero unauthorized state transitions across all agent turns." },
-      { id: 'entangle', title: "Entanglement Distribution Net", labelTag: "INFERENCE // TOPO", category: "document", epistemic_class: "inference", color: 0xddb7ff, size: 15, pos3D: [110, 130, -50], pos2D: [130, 110, 0], confidence: 0.94, hash: "0x88BC2A9F1", content: "Inferred Bell-state distribution rate across decentralized node clusters." },
-      { id: 'codes', title: "Fault-Tolerant Surface Codes", labelTag: "RULE // STABILITY", category: "security", epistemic_class: "rule", color: 0x00ffa3, size: 16, pos3D: [80, -90, 80], pos2D: [90, -100, 0], confidence: 0.99, hash: "0x9E71F402D", content: "Mandatory threshold bounds for syndrome measurement loops on planar rotated surface codes." },
-      { id: 'beta', title: "Super-Cortex Integrity Protocol", labelTag: "ROOT RULE // GEN 0", category: "security", epistemic_class: "rule", color: 0x00ffa3, size: 32, pos3D: [-240, -40, -100], pos2D: [-260, -30, 0], isLineage: true, confidence: 1.00, hash: "0xFB7D9732A", content: "Immutable genesis root anchoring the SHA-256 event hash chain and domain-separated Merkle roots." },
-      { id: 'anchors', title: "Synaptic State Anchors", labelTag: "FACT // ANCHOR", category: "security", epistemic_class: "fact", color: 0x38bdf8, size: 15, pos3D: [-280, 70, -60], pos2D: [-290, 80, 0], confidence: 0.97, hash: "0xC519283AA", content: "Directly grounded memory anchors verified against SQLite local provenance tables." },
-      { id: 'gamma', title: "ZK Surface Verification Substrate", labelTag: "BELIEF // BAYESIAN", category: "vector", epistemic_class: "belief", color: 0xf59e0b, size: 28, pos3D: [220, 40, -120], pos2D: [240, 30, 0], isLineage: true, confidence: 0.89, hash: "0xE61048B55", content: "Bayesian confidence update predicting multi-tenant lattice scaling without latency degradation." },
-      { id: 'latent', title: "Latent Space Compression v2", labelTag: "INFERENCE // BGE", category: "vector", epistemic_class: "inference", color: 0xddb7ff, size: 14, pos3D: [270, 130, -80], pos2D: [290, 120, 0], confidence: 0.92, hash: "0x127A45B9C", content: "Inferred 768-dimensional embedding density from Xenova/bge-base-en-v1.5 ONNX runtime." },
-      { id: 'leaf', title: "Cryptographic Provenance Leaf", labelTag: "FACT // SHA256", category: "security", epistemic_class: "fact", color: 0x38bdf8, size: 16, pos3D: [180, -80, -160], pos2D: [190, -110, 0], confidence: 0.99, hash: "0xD0386E83F", content: "Verified cryptographic leaf hash matching the latest session transaction record." },
-      { id: 'pid', title: "PID Dynamic Volatility Controller", labelTag: "RULE // CONTROL", category: "control", epistemic_class: "rule", color: 0x00ffa3, size: 18, pos3D: [0, 220, -150], pos2D: [0, 210, 0], confidence: 1.00, hash: "0xB49102A66", content: "Non-linear feedback control bounds: K_p=1.85, K_i=0.22, K_d=0.08 preventing grid overshoot." },
-      { id: 'recall', title: "Semantic Recall Cache (BGE-Base)", labelTag: "FACT // VECTOR", category: "document", epistemic_class: "fact", color: 0x38bdf8, size: 15, pos3D: [-180, 190, 110], pos2D: [-170, 180, 0], confidence: 0.96, hash: "0x33A902C1E", content: "High-speed in-memory vector cache linked directly to http://127.0.0.1:6767." }
-    ];
+    let nodeDefs = [];
+    let edges = [];
+    let cubeMeshes = [];
+    let lineMesh = null;
 
-    const edges = [
-      [0, 1], [0, 2], [0, 3], [0, 4],
-      [2, 5], [5, 6],
-      [0, 7], [7, 8], [7, 9],
-      [1, 10], [3, 10], [1, 11]
-    ];
-
-    const cubeMeshes = [];
-
-    // Construct 3D Voxel Node Meshes
-    nodeDefs.forEach((data, idx) => {
-      const nodeObj = new THREE.Group();
-      nodeObj.position.set(data.pos3D[0], data.pos3D[1], data.pos3D[2]);
-
-      const boxGeo = new THREE.BoxGeometry(data.size, data.size, data.size);
-      const boxMat = new THREE.MeshPhongMaterial({
-        color: data.color,
-        emissive: data.isLineage ? data.color : 0x00f0ff,
-        emissiveIntensity: data.isLineage ? 0.75 : 0.25,
-        transparent: true,
-        opacity: data.isLineage ? 0.95 : 0.7,
-        shininess: 90
-      });
-      const cube = new THREE.Mesh(boxGeo, boxMat);
-      nodeObj.add(cube);
-
-      const edgeGeo = new THREE.EdgesGeometry(boxGeo);
-      const edgeMat = new THREE.LineBasicMaterial({
-        color: data.isLineage ? 0xffffff : data.color,
-        linewidth: 2,
-        transparent: true,
-        opacity: 0.95
-      });
-      const edgeLines = new THREE.LineSegments(edgeGeo, edgeMat);
-      nodeObj.add(edgeLines);
-
-      // Glowing Inner Core & Beacon Halo for Key Nodes
-      let coreMesh = null;
-      let beaconRing = null;
-      if (data.isLineage || data.size > 20) {
-        const coreGeo = new THREE.BoxGeometry(data.size * 0.45, data.size * 0.45, data.size * 0.45);
-        const coreMat = new THREE.MeshBasicMaterial({
-          color: 0xffffff,
-          wireframe: true
-        });
-        coreMesh = new THREE.Mesh(coreGeo, coreMat);
-        nodeObj.add(coreMesh);
-
-        const ringGeo = new THREE.RingGeometry(data.size * 0.85, data.size * 0.98, 32);
-        const ringMat = new THREE.MeshBasicMaterial({
-          color: data.color,
-          side: THREE.DoubleSide,
-          transparent: true,
-          opacity: 0.65
-        });
-        beaconRing = new THREE.Mesh(ringGeo, ringMat);
-        beaconRing.rotation.x = Math.PI / 2;
-        nodeObj.add(beaconRing);
-      }
-
-      nodeObj.userData = {
-        index: idx,
-        id: data.id,
-        data: data,
-        cube: cube,
-        edgeLines: edgeLines,
-        core: coreMesh,
-        beaconRing: beaconRing,
-        boxMat: boxMat,
-        edgeMat: edgeMat,
-        curBase: [...data.pos3D],
-        targetBase: [...data.pos3D],
-        rotSpeed: {
-          x: (Math.random() - 0.5) * 0.012,
-          y: (Math.random() - 0.5) * 0.018,
-          z: (Math.random() - 0.5) * 0.01
-        }
-      };
-
-      graphGroup.add(nodeObj);
-      cubeMeshes.push(nodeObj);
-    });
-
-    // Synaptic Edge Lines
     const lineMat = new THREE.LineBasicMaterial({
       color: 0x00f0ff,
       transparent: true,
       opacity: 0.45,
       blending: THREE.AdditiveBlending
     });
-    const lineGeo = new THREE.BufferGeometry();
-    const linePos = new Float32Array(edges.length * 6);
-    lineGeo.setAttribute('position', new THREE.BufferAttribute(linePos, 3));
-    const lineMesh = new THREE.LineSegments(lineGeo, lineMat);
-    graphGroup.add(lineMesh);
+
+    function clearGraphMeshes() {
+      cubeMeshes.forEach(m => graphGroup.remove(m));
+      cubeMeshes = [];
+      if (lineMesh) {
+        graphGroup.remove(lineMesh);
+        lineMesh = null;
+      }
+    }
+
+    function buildGraphMeshes(nodes, links) {
+      clearGraphMeshes();
+      nodeDefs = nodes;
+
+      const nodeIndexMap = new Map();
+      nodes.forEach((data, idx) => {
+        nodeIndexMap.set(data.id, idx);
+        const nodeObj = new THREE.Group();
+        const pos = data.pos3D || [0, 0, 0];
+        nodeObj.position.set(pos[0], pos[1], pos[2]);
+
+        const size = data.size || 16;
+        const color = data.color || 0x38bdf8;
+        const isHub = data.type === 'hub' || data.type === 'agent_hub' || data.isLineage;
+
+        const boxGeo = new THREE.BoxGeometry(size, size, size);
+        const boxMat = new THREE.MeshPhongMaterial({
+          color: color,
+          emissive: isHub ? color : 0x00f0ff,
+          emissiveIntensity: isHub ? 0.8 : 0.2,
+          transparent: true,
+          opacity: isHub ? 0.95 : 0.75,
+          shininess: 90
+        });
+        const cube = new THREE.Mesh(boxGeo, boxMat);
+        nodeObj.add(cube);
+
+        const edgeGeo = new THREE.EdgesGeometry(boxGeo);
+        const edgeMat = new THREE.LineBasicMaterial({
+          color: isHub ? 0xffffff : color,
+          linewidth: 2,
+          transparent: true,
+          opacity: 0.95
+        });
+        const edgeLines = new THREE.LineSegments(edgeGeo, edgeMat);
+        nodeObj.add(edgeLines);
+
+        let coreMesh = null;
+        let beaconRing = null;
+        if (isHub || size >= 20) {
+          const coreGeo = new THREE.BoxGeometry(size * 0.45, size * 0.45, size * 0.45);
+          const coreMat = new THREE.MeshBasicMaterial({ color: 0xffffff, wireframe: true });
+          coreMesh = new THREE.Mesh(coreGeo, coreMat);
+          nodeObj.add(coreMesh);
+
+          const ringGeo = new THREE.RingGeometry(size * 0.85, size * 0.98, 32);
+          const ringMat = new THREE.MeshBasicMaterial({
+            color: color,
+            side: THREE.DoubleSide,
+            transparent: true,
+            opacity: 0.65
+          });
+          beaconRing = new THREE.Mesh(ringGeo, ringMat);
+          beaconRing.rotation.x = Math.PI / 2;
+          nodeObj.add(beaconRing);
+        }
+
+        nodeObj.userData = {
+          index: idx,
+          id: data.id,
+          data: data,
+          cube: cube,
+          edgeLines: edgeLines,
+          core: coreMesh,
+          beaconRing: beaconRing,
+          boxMat: boxMat,
+          edgeMat: edgeMat,
+          curBase: [...pos],
+          targetBase: [...pos],
+          rotSpeed: {
+            x: (Math.random() - 0.5) * 0.012,
+            y: (Math.random() - 0.5) * 0.018,
+            z: (Math.random() - 0.5) * 0.01
+          }
+        };
+
+        graphGroup.add(nodeObj);
+        cubeMeshes.push(nodeObj);
+      });
+
+      // Construct links
+      edges = [];
+      if (links && links.length > 0) {
+        links.forEach(l => {
+          const sIdx = nodeIndexMap.get(l.source);
+          const tIdx = nodeIndexMap.get(l.target);
+          if (sIdx !== undefined && tIdx !== undefined) {
+            edges.push([sIdx, tIdx]);
+          }
+        });
+      }
+
+      if (edges.length > 0) {
+        const lineGeo = new THREE.BufferGeometry();
+        const linePos = new Float32Array(edges.length * 6);
+        lineGeo.setAttribute('position', new THREE.BufferAttribute(linePos, 3));
+        lineMesh = new THREE.LineSegments(lineGeo, lineMat);
+        graphGroup.add(lineMesh);
+        updateEdges();
+      }
+    }
 
     function updateEdges() {
+      if (!lineMesh) return;
       const posAttr = lineMesh.geometry.attributes.position;
       let ptr = 0;
       for (let i = 0; i < edges.length; i++) {
         const [a, b] = edges[i];
+        if (!cubeMeshes[a] || !cubeMeshes[b]) continue;
         const p1 = cubeMeshes[a].position;
         const p2 = cubeMeshes[b].position;
         posAttr.array[ptr++] = p1.x;
@@ -1739,29 +1886,58 @@
 
       document.getElementById('drawer-session-id').innerText = node.title;
       const container = document.getElementById('replay-turn-container');
-      const classColor = node.epistemic_class === 'rule' ? 'text-secondary-container' : (node.epistemic_class === 'inference' ? 'text-[#ddb7ff]' : (node.epistemic_class === 'belief' ? 'text-amber-400' : 'text-primary-container'));
-      const classBg = node.epistemic_class === 'rule' ? 'bg-secondary-container/10 border-secondary-container/40' : (node.epistemic_class === 'inference' ? 'bg-purple-500/10 border-purple-500/40' : (node.epistemic_class === 'belief' ? 'bg-amber-500/10 border-amber-500/40' : 'bg-primary-container/10 border-primary-container/40'));
+      const classColor = node.epistemic_class === 'rule' ? 'text-secondary-container' : (node.epistemic_class === 'inference' ? 'text-[#ddb7ff]' : (node.epistemic_class === 'belief' ? 'text-amber-400' : (node.epistemic_class === 'decision' ? 'text-[#34d399]' : (node.epistemic_class === 'goal' ? 'text-rose-400' : 'text-primary-container'))));
+      const classBg = node.epistemic_class === 'rule' ? 'bg-secondary-container/10 border-secondary-container/40' : (node.epistemic_class === 'inference' ? 'bg-purple-500/10 border-purple-500/40' : (node.epistemic_class === 'belief' ? 'bg-amber-500/10 border-amber-500/40' : (node.epistemic_class === 'decision' ? 'bg-emerald-500/10 border-emerald-500/40' : (node.epistemic_class === 'goal' ? 'bg-rose-500/10 border-rose-500/40' : 'bg-primary-container/10 border-primary-container/40'))));
+
+      const isShared = !node.scope || node.scope === 'shared';
+      const scopeBadge = isShared
+        ? '<span class="text-primary-container bg-primary-container/10 border border-primary-container/30 px-1.5 py-0.5 rounded text-[9px] uppercase font-bold">SHARED FABRIC</span>'
+        : `<span class="text-secondary-container bg-secondary-container/10 border border-secondary-container/30 px-1.5 py-0.5 rounded text-[9px] uppercase font-bold">SCOPE: ${node.scope}</span>`;
+
+      const paraCat = (node.para && node.para.category) ? node.para.category.toUpperCase() : (node.category || 'AREA').toUpperCase();
+      const paraBadge = `<span class="text-[#ddb7ff] bg-purple-500/10 border border-purple-500/30 px-1.5 py-0.5 rounded text-[9px] uppercase font-bold">PARA: ${paraCat}</span>`;
+
+      let triplesHtml = '';
+      if (node.triples && node.triples.length > 0) {
+        triplesHtml = `
+          <div class="mt-2 pt-2 border-t border-outline-variant/30 space-y-1">
+            <span class="text-[9px] text-outline uppercase font-bold block">EXTRACTED ENTITY TRIPLES:</span>
+            ${node.triples.map(t => `
+              <div class="flex items-center gap-1.5 text-[10px] bg-surface-container-lowest p-1.5 rounded border border-outline-variant/20 font-mono">
+                <span class="text-primary font-bold">${t.subject}</span>
+                <span class="text-outline text-[9px]">──▶ [${t.predicate}] ──▶</span>
+                <span class="text-secondary-container font-bold">${t.object}</span>
+              </div>
+            `).join('')}
+          </div>
+        `;
+      }
 
       container.innerHTML = `
         <div class="p-3 border-l-2 border-primary-container bg-surface-container-high ring-1 ring-primary-container/40 space-y-2">
           <div class="flex items-center justify-between font-mono text-[9px] font-bold">
-            <span class="${classColor}">${node.labelTag}</span>
-            <span class="px-1.5 py-0.5 rounded border ${classBg} font-mono text-[9px] uppercase tracking-wider font-bold ${classColor}">
-              ${(node.epistemic_class || 'fact').toUpperCase()} · ${((node.confidence || 0.95) * 100).toFixed(0)}% CONF
-            </span>
+            <span class="${classColor}">${node.labelTag || (node.epistemic_class || 'FACT').toUpperCase()}</span>
+            <div class="flex items-center gap-1">
+              ${scopeBadge}
+              ${paraBadge}
+              <span class="px-1.5 py-0.5 rounded border ${classBg} font-mono text-[9px] uppercase tracking-wider font-bold ${classColor}">
+                ${(node.epistemic_class || 'fact').toUpperCase()} · ${((node.confidence || 0.95) * 100).toFixed(0)}% CONF
+              </span>
+            </div>
           </div>
           <div class="text-white font-mono text-[13px] font-bold">${node.title}</div>
           <div class="text-neutral-300 font-mono text-[11px] leading-relaxed">
             ${node.content || 'Cryptographically anchored knowledge node indexed in Xenova/bge-base-en-v1.5 local vector space.'}
           </div>
+          ${triplesHtml}
           <div class="grid grid-cols-2 gap-2 pt-2 border-t border-outline-variant/30 text-[9px] font-mono text-neutral-400">
-            <div>Coordinates: <span class="text-white">[${node.pos3D.join(', ')}]</span></div>
-            <div>Dirichlet Energy: <span class="text-secondary-container">0.034 λ</span></div>
-            <div>Event Hash: <span class="text-primary font-mono">${node.hash || '0x7f2a...8c1'}</span></div>
+            <div>Coordinates: <span class="text-white">[${(node.pos3D || [0, 0, 0]).join(', ')}]</span></div>
+            <div>Scope Binding: <span class="text-primary-container">${node.scope || 'shared'}</span></div>
+            <div>Content Hash: <span class="text-primary font-mono">${(node.hash || '0x...').substring(0, 14)}...</span></div>
             <div>Vector Engine: <span class="text-[#38bdf8]">Supermemory Local</span></div>
           </div>
           <div class="p-2 rounded bg-surface-container-lowest font-mono text-[10px] text-primary flex items-center justify-between">
-            <span>Deterministic SHA-256 Event Chain: VERIFIED</span>
+            <span>Deterministic SHA-256 Provenance Chain: ANCHORED</span>
             <span class="text-secondary-container">✓ AUDITED</span>
           </div>
         </div>
@@ -2365,10 +2541,225 @@
       document.getElementById('new-memory-modal').classList.add('hidden');
     }
 
+    function openCreateScopeModal() {
+      document.getElementById('create-scope-modal').classList.remove('hidden');
+    }
+    function closeCreateScopeModal() {
+      document.getElementById('create-scope-modal').classList.add('hidden');
+    }
+
+    window.changeGraphScope = function(scope) {
+      loadGraphData(scope);
+    };
+
+    async function loadGraphData(scope = 'all') {
+      try {
+        const resp = await fetch(`/api/graph?scope=${encodeURIComponent(scope)}`);
+        if (resp.ok) {
+          const data = await resp.json();
+          buildGraphMeshes(data.nodes || [], data.links || []);
+          if (data.stats) {
+            const nodeCountEl = document.getElementById('header-nodes-count');
+            if (nodeCountEl) nodeCountEl.innerText = `${data.stats.total_nodes} 3D VOXELS`;
+          }
+        }
+      } catch (err) {
+        console.warn("Failed to load graph data:", err);
+      }
+    }
+
+    async function loadScopes() {
+      try {
+        const resp = await fetch('/api/scopes');
+        if (resp.ok) {
+          const data = await resp.json();
+          const scopes = data.scopes || [];
+          const scopeCountEl = document.getElementById('header-scopes-count');
+          if (scopeCountEl) scopeCountEl.innerText = `${scopes.length} ACTIVE`;
+          const spacesActiveEl = document.getElementById('spaces-active-count');
+          if (spacesActiveEl) spacesActiveEl.innerText = scopes.length;
+
+          // Populate scope selector dropdowns
+          const graphSel = document.getElementById('graph-scope-selector');
+          const modalSel = document.getElementById('modal-memory-scope');
+          if (graphSel) {
+            const curVal = graphSel.value;
+            graphSel.innerHTML = '<option value="all">ALL SCOPES (GALAXY)</option>';
+            scopes.forEach(s => {
+              const opt = document.createElement('option');
+              opt.value = s.scope_id;
+              opt.innerText = s.name.toUpperCase();
+              graphSel.appendChild(opt);
+            });
+            if (curVal) graphSel.value = curVal;
+          }
+          if (modalSel) {
+            modalSel.innerHTML = '';
+            scopes.forEach(s => {
+              const opt = document.createElement('option');
+              opt.value = s.scope_id;
+              opt.innerText = `${s.name} (${s.scope_id})`;
+              modalSel.appendChild(opt);
+            });
+          }
+
+          // Render scopes grid in view-spaces
+          renderScopesGrid(scopes);
+        }
+      } catch (err) {
+        console.warn("Failed to load scopes:", err);
+      }
+    }
+
+    function renderScopesGrid(scopes) {
+      const container = document.getElementById('spaces-dynamic-grid');
+      if (!container) return;
+      container.innerHTML = '';
+
+      scopes.forEach(s => {
+        const isShared = s.scope_type === 'shared';
+        const card = document.createElement('div');
+        card.className = `bg-surface-container-lowest border-2 ${isShared ? 'border-primary-container/60' : 'border-secondary-container/40'} p-4 shadow-lg space-y-3 font-mono flex flex-col justify-between`;
+        card.innerHTML = `
+          <div>
+            <div class="flex items-center justify-between mb-2">
+              <div class="flex items-center gap-2">
+                <div class="w-2.5 h-2.5 ${isShared ? 'bg-primary-container' : 'bg-secondary-container'}"></div>
+                <span class="font-bold text-white text-sm truncate">${s.name}</span>
+              </div>
+              <span class="text-[9px] ${isShared ? 'text-primary-container bg-primary-container/10 border-primary-container/30' : 'text-secondary-container bg-secondary-container/10 border-secondary-container/30'} px-1.5 py-0.5 font-bold border uppercase">
+                ${isShared ? 'SHARED FABRIC' : 'SINGLE-AGENT'}
+              </span>
+            </div>
+            <p class="text-[11px] text-on-surface-variant font-sans mb-3">${s.description || 'Configured memory enclave'}</p>
+            <div class="grid grid-cols-2 gap-2 text-[10px] bg-surface-container-low p-2 border border-outline-variant/30 mb-3">
+              <div><span class="text-outline text-[8px] uppercase">MEMORIES</span><div class="text-primary-container font-bold text-xs mt-0.5">${s.memory_count || 0} Nodes</div></div>
+              <div><span class="text-outline text-[8px] uppercase">SCOPE ID</span><div class="text-secondary-container font-bold text-[10px] truncate mt-0.5">${s.scope_id}</div></div>
+              <div><span class="text-outline text-[8px] uppercase">ASSIGNED AGENT</span><div class="text-on-surface font-bold text-[10px] mt-0.5">${s.agent_id || 'Collective'}</div></div>
+              <div><span class="text-outline text-[8px] uppercase">PROVENANCE</span><div class="text-[#ddb7ff] font-bold text-xs mt-0.5">SHA-256 Chain</div></div>
+            </div>
+          </div>
+          <button onclick="filterToScopeAndExplore('${s.scope_id}')" class="w-full py-1.5 bg-surface-container-high hover:bg-primary-container hover:text-on-primary-container transition-colors text-[10px] font-bold uppercase flex items-center justify-center gap-1">
+            <span class="material-symbols-outlined text-xs">view_in_ar</span>
+            <span>Explore Scope in 3D</span>
+          </button>
+        `;
+        container.appendChild(card);
+      });
+    }
+
+    window.filterToScopeAndExplore = function(scopeId) {
+      const graphSel = document.getElementById('graph-scope-selector');
+      if (graphSel) graphSel.value = scopeId;
+      loadGraphData(scopeId);
+      switchView('graph');
+    };
+
+    async function loadAgents() {
+      try {
+        const resp = await fetch('/api/agents');
+        if (resp.ok) {
+          const data = await resp.json();
+          const agents = data.agents || [];
+          renderAgentsTable(agents);
+        }
+      } catch (err) {
+        console.warn("Failed to load agents:", err);
+      }
+    }
+
+    function renderAgentsTable(agents) {
+      const tbody = document.getElementById('agents-table-body');
+      if (!tbody) return;
+      tbody.innerHTML = '';
+
+      agents.forEach(a => {
+        const tr = document.createElement('tr');
+        tr.className = "hover:bg-surface-container-low/50 transition-colors";
+        tr.innerHTML = `
+          <td class="p-2 font-bold text-primary">${a.agent_id}</td>
+          <td class="p-2 text-white">${a.name}</td>
+          <td class="p-2 text-neutral-400 font-mono text-[11px]">${a.client_type}</td>
+          <td class="p-2 font-mono text-secondary-container text-[11px]">${a.default_scope_id}</td>
+          <td class="p-2">
+            <span class="inline-flex items-center gap-1 text-[9px] text-secondary-container bg-secondary-container/10 px-1.5 py-0.5 border border-secondary-container/30 uppercase font-bold">
+              <span class="w-1.5 h-1.5 rounded-full bg-secondary-container animate-pulse"></span>
+              ${a.status}
+            </span>
+          </td>
+          <td class="p-2 text-outline text-[10px] font-mono">${a.last_active_at ? a.last_active_at.substring(11, 19) : 'active'}</td>
+          <td class="p-2 text-right">
+            <button onclick="filterToScopeAndExplore('${a.default_scope_id}')" class="px-2 py-0.5 bg-surface-container-high hover:bg-primary-container hover:text-on-primary-container text-[9px] uppercase font-bold transition-colors">
+              Scope 3D
+            </button>
+          </td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    window.commitNewScope = async function() {
+      const scopeId = document.getElementById('new-scope-id').value.trim();
+      const name = document.getElementById('new-scope-name').value.trim();
+      const scopeType = document.getElementById('new-scope-type').value;
+      const agentId = document.getElementById('new-scope-agent-id').value.trim() || null;
+      const description = document.getElementById('new-scope-desc').value.trim();
+
+      if (!scopeId || !name) {
+        alert("Scope ID and Name are required.");
+        return;
+      }
+
+      try {
+        const resp = await fetch('/api/scopes', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            scope_id: scopeId,
+            name: name,
+            scope_type: scopeType,
+            agent_id: agentId,
+            description: description
+          })
+        });
+        if (resp.ok) {
+          closeCreateScopeModal();
+          await loadScopes();
+          loadGraphData('all');
+        } else {
+          const err = await resp.json();
+          alert("Error: " + (err.error || "Failed to create scope"));
+        }
+      } catch (e) {
+        alert("Failed to connect to server.");
+      }
+    };
+
+    window.copyMcpConfig = async function(client) {
+      try {
+        const resp = await fetch('/api/mcp-config');
+        if (resp.ok) {
+          const data = await resp.json();
+          const cfg = data[client] || data.claude_code;
+          const snippet = JSON.stringify(cfg, null, 2);
+          await navigator.clipboard.writeText(snippet);
+          const btnId = `btn-copy-${client}`;
+          const btn = document.getElementById(btnId);
+          if (btn) {
+            const original = btn.innerText;
+            btn.innerText = "COPIED ✓";
+            setTimeout(() => { btn.innerText = original; }, 2000);
+          }
+        }
+      } catch (err) {
+        alert("Could not copy MCP configuration.");
+      }
+    };
+
     async function commitNewMemory() {
       const text = document.getElementById('modal-memory-text').value.trim();
       const cls = document.getElementById('modal-epistemic-class').value;
-      const ns = document.getElementById('modal-namespace').value.trim() || 'xibalba';
+      const scope = document.getElementById('modal-memory-scope').value;
       if (!text) return;
 
       closeNewMemoryModal();
@@ -2378,8 +2769,10 @@
         await fetch('/api/remember', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ text, epistemic_class: cls, namespace: ns })
+          body: JSON.stringify({ text, epistemic_class: cls, scope: scope })
         });
+        await loadScopes();
+        loadGraphData(scope);
       } catch (e) {}
     }
 
@@ -2442,9 +2835,17 @@
         }
       } catch (e) {}
 
+      // Load Scopes, Agents, and 3D Graph
+      await loadScopes();
+      await loadAgents();
+      await loadGraphData('all');
+
       try {
         const ev = new EventSource('/api/events/live');
         ev.addEventListener('update', () => {
+          loadScopes();
+          loadAgents();
+          loadGraphData(document.getElementById('graph-scope-selector')?.value || 'all');
           fetch('/api/sessions')
             .then(r => r.json())
             .then(d => { if (d.sessions) renderDynamicSessions(d.sessions); });

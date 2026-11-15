@@ -3,9 +3,11 @@ from __future__ import annotations
 import logging
 from typing import Any
 
+from .classifier import classify_epistemic, classify_para, extract_triples
 from .client import SupermemoryClient
 from .config import SuperCortexConfig
 from .models import (
+    AgentRecord,
     EntityRecord,
     EpistemicClass,
     EventRecord,
@@ -13,6 +15,8 @@ from .models import (
     LifecycleStatus,
     MemoryRecord,
     RelationRecord,
+    ScopeRecord,
+    ScopeType,
     utc_now_iso,
 )
 from .store import ProvenanceStore, sha256_hex
@@ -37,15 +41,68 @@ class SuperCortex:
     async def remember(
         self,
         text: str,
-        epistemic_class: str = EpistemicClass.FACT.value,
+        epistemic_class: str | None = None,
         namespace: str | None = None,
+        scope: str | None = None,
+        agent_id: str | None = None,
         actor: str | None = None,
         metadata: dict[str, Any] | None = None,
         session_id: str | None = None,
         source_origin: str | None = None,
     ) -> dict[str, Any]:
-        """Store a memory across both the Supermemory vector index and the cryptographic provenance ledger."""
-        ns = namespace or self.config.default_namespace
+        """Store a memory across Supermemory vector index and cryptographic provenance ledger.
+
+        Automatically performs cognitive extraction:
+        - Epistemic classification (rule, fact, decision, inference, belief, goal)
+        - PARA categorization (project, area, resource, archive)
+        - Entity triples extraction ((subject, predicate, object))
+        - Scope isolation (shared vs single-agent scopes)
+        """
+        # Resolve effective scope and agent
+        effective_scope = scope or "shared"
+        if agent_id and not scope:
+            effective_scope = f"agent:{agent_id}"
+
+        # Ensure scope exists in store
+        existing_scope = self.store.get_scope(effective_scope)
+        if not existing_scope:
+            is_agent = effective_scope.startswith("agent:")
+            agent_target = effective_scope.split(":", 1)[1] if is_agent else agent_id
+            self.store.save_scope(
+                ScopeRecord(
+                    scope_id=effective_scope,
+                    name=f"Agent Scope ({agent_target})" if is_agent else effective_scope.title(),
+                    scope_type=ScopeType.SINGLE_AGENT.value if is_agent else ScopeType.SHARED.value,
+                    agent_id=agent_target,
+                    description=f"Isolated scope for {agent_target}" if is_agent else "Shared memory scope",
+                )
+            )
+
+        # Ensure agent exists and is marked active
+        if agent_id:
+            existing_agent = self.store.get_agent(agent_id)
+            if existing_agent:
+                self.store.touch_agent_active(agent_id)
+            else:
+                self.store.save_agent(
+                    AgentRecord(
+                        agent_id=agent_id,
+                        name=agent_id.title(),
+                        default_scope_id=effective_scope,
+                        client_type="custom",
+                        status="active",
+                    )
+                )
+
+        # Map namespace: single-agent scopes use clean identifier
+        if not namespace:
+            if effective_scope == "shared":
+                ns = self.config.default_namespace
+            else:
+                ns = effective_scope.replace(":", "-")
+        else:
+            ns = namespace
+
         act = actor or self.config.actor_did
         meta = metadata or {}
         if session_id:
@@ -56,25 +113,74 @@ class SuperCortex:
         content_hash = sha256_hex(text.strip())
         memory_id = f"mem_{content_hash[:16]}"
 
-        meta["epistemic_class"] = epistemic_class
+        # 1. Deterministic Cognitive Classifications (Tiny / Lexical Models)
+        classified_epistemic = classify_epistemic(text, user_declared=epistemic_class)
+        epistemic_name = classified_epistemic["epistemic_class"]
+        para_res = classify_para(text)
+        triples = extract_triples(text)
+
+        # 2. Extract and link entity triples in local knowledge graph
+        extracted_relations = []
+        for item in triples:
+            sub = item["subject"]
+            pred = item["predicate"]
+            obj = item["object"]
+            conf = item.get("confidence", 0.95)
+            self.store.add_entity(sub, evidence_links=[memory_id])
+            self.store.add_entity(obj, evidence_links=[memory_id])
+            rel = self.store.add_relation(
+                subject=sub,
+                predicate=pred,
+                object=obj,
+                confidence=conf,
+                evidence_links=[memory_id],
+            )
+            extracted_relations.append({
+                "relation_id": rel.relation_id,
+                "subject": sub,
+                "predicate": pred,
+                "object": obj,
+                "confidence": conf,
+            })
+
+        meta["scope"] = effective_scope
+        if agent_id:
+            meta["agent_id"] = agent_id
+        meta["epistemic_class"] = epistemic_name
+        meta["epistemic_details"] = classified_epistemic
+        meta["para"] = para_res
+        meta["triples"] = triples
         meta["content_hash"] = content_hash
 
-        # 1. Ingest into Supermemory Local
+        # Supermemory Local requires primitive values in metadata
+        sm_meta = {
+            "scope": effective_scope,
+            "epistemic_class": epistemic_name,
+            "para_category": para_res.get("category", "area"),
+            "content_hash": content_hash,
+        }
+        if agent_id:
+            sm_meta["agent_id"] = agent_id
+        for k, v in meta.items():
+            if isinstance(v, (str, int, float, bool)):
+                sm_meta[k] = v
+
+        # 3. Ingest into Supermemory Local
         try:
             sm_res = await self.client.ingest_document(
-                namespace=ns, content=text, doc_id=memory_id, metadata=meta
+                namespace=ns, content=text, doc_id=memory_id, metadata=sm_meta
             )
         except Exception as e:
             logger.warning("Supermemory local ingest failed: %s; proceeding with provenance ledger", e)
             sm_res = {"error": str(e), "status": "local_ledger_only"}
 
-        # 2. Persist in cryptographic store
+        # 4. Persist in cryptographic store
         now = utc_now_iso()
         memory_record = MemoryRecord(
             id=memory_id,
             source_id=source_origin,
             text=text,
-            epistemic_class=epistemic_class,
+            epistemic_class=epistemic_name,
             lifecycle_status=LifecycleStatus.ACTIVE.value,
             content_hash=content_hash,
             namespace=ns,
@@ -84,14 +190,18 @@ class SuperCortex:
         )
         self.store.save_memory(memory_record)
 
-        # 3. Append to append-only event chain
+        # 5. Append to append-only event chain
         event = self.store.append_event(
             actor=act,
             transition="remember",
             payload={
                 "memory_id": memory_id,
                 "namespace": ns,
-                "epistemic_class": epistemic_class,
+                "scope": effective_scope,
+                "agent_id": agent_id,
+                "epistemic_class": epistemic_name,
+                "para": para_res,
+                "triples_count": len(triples),
                 "content_hash": content_hash,
                 "text_preview": text[:100],
             },
@@ -100,8 +210,12 @@ class SuperCortex:
         return {
             "memory_id": memory_id,
             "namespace": ns,
+            "scope": effective_scope,
+            "agent_id": agent_id,
             "content_hash": content_hash,
-            "epistemic_class": epistemic_class,
+            "epistemic_class": epistemic_name,
+            "para": para_res,
+            "triples": extracted_relations,
             "event_hash": event.event_hash,
             "supermemory_status": sm_res.get("status", "unknown"),
         }
@@ -117,10 +231,21 @@ class SuperCortex:
         self,
         query: str,
         namespace: str | None = None,
+        scope: str | None = None,
+        agent_id: str | None = None,
         limit: int = 10,
     ) -> dict[str, Any]:
         """Perform semantic hybrid retrieval via Supermemory Local and attach cryptographic provenance."""
-        ns = namespace or self.config.default_namespace
+        # Resolve target namespace from scope or agent
+        if not namespace:
+            if scope and scope != "all":
+                ns = self.config.default_namespace if scope == "shared" else scope.replace(":", "-")
+            elif agent_id:
+                ns = f"agent-{agent_id}"
+            else:
+                ns = self.config.default_namespace
+        else:
+            ns = namespace
 
         # Query Supermemory Local
         try:
@@ -372,3 +497,69 @@ class SuperCortex:
     def get_session_merkle_proof(self, session_id: str, turn_index: int = 0) -> dict[str, Any]:
         """Generate a complete cryptographic inclusion proof for a session turn."""
         return self.store.get_session_merkle_proof(session_id, turn_index)
+
+    def list_scopes(self) -> list[dict[str, Any]]:
+        """List all active scopes with their memory counts."""
+        scopes = self.store.list_scopes()
+        counts = self.store.count_memories_by_scope()
+        result = []
+        for s in scopes:
+            d = s.model_dump()
+            d["memory_count"] = counts.get(s.scope_id, 0)
+            result.append(d)
+        return result
+
+    def create_scope(
+        self,
+        scope_id: str,
+        name: str,
+        scope_type: str = ScopeType.SINGLE_AGENT.value,
+        agent_id: str | None = None,
+        description: str = "",
+    ) -> dict[str, Any]:
+        """Create a new memory scope (Shared or Single-Agent)."""
+        scope = ScopeRecord(
+            scope_id=scope_id,
+            name=name,
+            scope_type=scope_type,
+            agent_id=agent_id,
+            description=description,
+        )
+        self.store.save_scope(scope)
+        self.store.append_event(
+            actor=self.config.actor_did,
+            transition="create_scope",
+            payload={"scope_id": scope_id, "scope_type": scope_type, "name": name},
+        )
+        return scope.model_dump()
+
+    def list_agents(self) -> list[dict[str, Any]]:
+        """List all registered agents and their statuses."""
+        agents = self.store.list_agents()
+        return [a.model_dump() for a in agents]
+
+    def register_agent(
+        self,
+        agent_id: str,
+        name: str,
+        default_scope_id: str = "shared",
+        client_type: str = "custom",
+    ) -> dict[str, Any]:
+        """Register or update an AI agent connected via MCP or REST."""
+        now = utc_now_iso()
+        agent = AgentRecord(
+            agent_id=agent_id,
+            name=name,
+            default_scope_id=default_scope_id,
+            client_type=client_type,
+            status="active",
+            last_active_at=now,
+            created_at=now,
+        )
+        self.store.save_agent(agent)
+        self.store.append_event(
+            actor=self.config.actor_did,
+            transition="register_agent",
+            payload={"agent_id": agent_id, "name": name, "client_type": client_type},
+        )
+        return agent.model_dump()

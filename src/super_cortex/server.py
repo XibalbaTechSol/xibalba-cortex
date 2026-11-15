@@ -21,16 +21,27 @@ def create_server(config: SuperCortexConfig | None = None) -> MCPServer:
     @server.tool()
     async def memory_remember(
         text: str,
-        epistemic_class: str = "fact",
+        epistemic_class: str | None = None,
+        scope: str | None = "shared",
+        agent_id: str | None = None,
         namespace: str | None = None,
         metadata: dict[str, Any] | None = None,
         session_id: str | None = None,
         source_origin: str | None = None,
     ) -> str:
-        """Store a new memory item into Supermemory semantic index and Cortex cryptographic provenance ledger."""
+        """Store a new memory item into Supermemory semantic index and Cortex cryptographic provenance ledger.
+
+        Automatically performs cognitive extraction:
+        - Epistemic classification (rule, fact, decision, inference, belief, goal)
+        - PARA categorization (project, area, resource, archive)
+        - Entity triples extraction ((subject, predicate, object))
+        - Scope isolation (e.g. 'shared' or 'agent:<id>')
+        """
         res = await cortex.remember(
             text=text,
             epistemic_class=epistemic_class,
+            scope=scope,
+            agent_id=agent_id,
             namespace=namespace,
             metadata=metadata,
             session_id=session_id,
@@ -49,11 +60,65 @@ def create_server(config: SuperCortexConfig | None = None) -> MCPServer:
     @server.tool()
     async def memory_hybrid_retrieve(
         query: str,
+        scope: str | None = None,
+        agent_id: str | None = None,
         namespace: str | None = None,
         limit: int = 10,
     ) -> str:
         """Perform semantic hybrid retrieval against Supermemory Local with cryptographic provenance metadata."""
-        res = await cortex.hybrid_retrieve(query=query, namespace=namespace, limit=limit)
+        res = await cortex.hybrid_retrieve(
+            query=query,
+            scope=scope,
+            agent_id=agent_id,
+            namespace=namespace,
+            limit=limit,
+        )
+        return json.dumps(res, indent=2)
+
+    @server.tool()
+    def memory_scopes_list() -> str:
+        """List all registered memory scopes (Shared Memory Fabric & Single-Agent scopes)."""
+        res = cortex.list_scopes()
+        return json.dumps(res, indent=2)
+
+    @server.tool()
+    def memory_scope_create(
+        scope_id: str,
+        name: str,
+        scope_type: str = "single_agent",
+        agent_id: str | None = None,
+        description: str = "",
+    ) -> str:
+        """Create a new memory scope ('shared' or 'single_agent' tied to an agent_id)."""
+        res = cortex.create_scope(
+            scope_id=scope_id,
+            name=name,
+            scope_type=scope_type,
+            agent_id=agent_id,
+            description=description,
+        )
+        return json.dumps(res, indent=2)
+
+    @server.tool()
+    def memory_agents_list() -> str:
+        """List all registered AI agents in the fleet with their default memory scopes and activity statuses."""
+        res = cortex.list_agents()
+        return json.dumps(res, indent=2)
+
+    @server.tool()
+    def memory_agent_register(
+        agent_id: str,
+        name: str,
+        default_scope_id: str = "shared",
+        client_type: str = "custom",
+    ) -> str:
+        """Register or update an AI agent connected to Super-Cortex via MCP."""
+        res = cortex.register_agent(
+            agent_id=agent_id,
+            name=name,
+            default_scope_id=default_scope_id,
+            client_type=client_type,
+        )
         return json.dumps(res, indent=2)
 
     @server.tool()

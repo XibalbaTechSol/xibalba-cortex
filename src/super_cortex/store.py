@@ -8,12 +8,15 @@ from pathlib import Path
 from typing import Any
 
 from .models import (
+    AgentRecord,
     EntityRecord,
     EventRecord,
     ExchangeRecord,
     LifecycleStatus,
     MemoryRecord,
     RelationRecord,
+    ScopeRecord,
+    ScopeType,
     utc_now_iso,
 )
 
@@ -170,8 +173,61 @@ class ProvenanceStore:
                 CREATE INDEX IF NOT EXISTS idx_relations_subject ON relations(subject);
                 CREATE INDEX IF NOT EXISTS idx_relations_object ON relations(object);
                 CREATE INDEX IF NOT EXISTS idx_exchanges_session ON exchanges(session_id);
+
+                CREATE TABLE IF NOT EXISTS scopes (
+                    scope_id TEXT PRIMARY KEY,
+                    name TEXT NOT NULL,
+                    scope_type TEXT NOT NULL,
+                    agent_id TEXT,
+                    description TEXT NOT NULL,
+                    created_at TEXT NOT NULL
+                );
+
+                CREATE TABLE IF NOT EXISTS agents (
+                    agent_id TEXT PRIMARY KEY,
+                    name TEXT NOT NULL,
+                    default_scope_id TEXT NOT NULL,
+                    client_type TEXT NOT NULL,
+                    status TEXT NOT NULL,
+                    last_active_at TEXT NOT NULL,
+                    created_at TEXT NOT NULL
+                );
+
+                CREATE INDEX IF NOT EXISTS idx_scopes_type ON scopes(scope_type);
+                CREATE INDEX IF NOT EXISTS idx_scopes_agent ON scopes(agent_id);
                 """
             )
+            # Seed default scopes if none exist
+            cursor = conn.execute("SELECT COUNT(*) as count FROM scopes")
+            if cursor.fetchone()["count"] == 0:
+                now = utc_now_iso()
+                default_scopes = [
+                    ("shared", "Shared Memory Fabric", ScopeType.SHARED.value, None, "Collective operational knowledge accessible across all authorized agent scopes", now),
+                    ("agent:xibalba", "Xibalba Executive Scope", ScopeType.SINGLE_AGENT.value, "xibalba", "Isolated operational memory enclave for Xibalba orchestrator", now),
+                    ("agent:hermes", "Hermes Agent Scope", ScopeType.SINGLE_AGENT.value, "hermes", "Private operational memory for Hermes agent", now),
+                    ("agent:claude", "Claude Code Scope", ScopeType.SINGLE_AGENT.value, "claude", "Private operational memory for Claude Code CLI sessions", now),
+                    ("agent:shield", "Xibalba Shield Scope", ScopeType.SINGLE_AGENT.value, "shield", "Private operational memory for Xibalba Shield defensive monitoring", now),
+                ]
+                conn.executemany(
+                    "INSERT INTO scopes (scope_id, name, scope_type, agent_id, description, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+                    default_scopes,
+                )
+
+            # Seed default agents if none exist
+            cursor = conn.execute("SELECT COUNT(*) as count FROM agents")
+            if cursor.fetchone()["count"] == 0:
+                now = utc_now_iso()
+                default_agents = [
+                    ("xibalba", "Xibalba Orchestrator", "shared", "antigravity", "active", now, now),
+                    ("hermes", "Hermes Core Agent", "agent:hermes", "hermes", "active", now, now),
+                    ("claude", "Claude Code CLI", "agent:claude", "claude_code", "active", now, now),
+                    ("shield", "Xibalba Shield", "agent:shield", "shield", "active", now, now),
+                ]
+                conn.executemany(
+                    "INSERT INTO agents (agent_id, name, default_scope_id, client_type, status, last_active_at, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                    default_agents,
+                )
+            conn.commit()
 
     def append_event(self, actor: str, transition: str, payload: dict[str, Any]) -> EventRecord:
         """Append an event to the append-only cryptographic hash chain."""
@@ -583,3 +639,157 @@ class ProvenanceStore:
             }
             for r in rows
         ]
+
+    def save_scope(self, scope: ScopeRecord) -> None:
+        """Store or update a memory scope."""
+        with self._get_conn() as conn:
+            conn.execute(
+                """
+                INSERT INTO scopes (scope_id, name, scope_type, agent_id, description, created_at)
+                VALUES (?, ?, ?, ?, ?, ?)
+                ON CONFLICT(scope_id) DO UPDATE SET
+                    name = excluded.name,
+                    scope_type = excluded.scope_type,
+                    agent_id = excluded.agent_id,
+                    description = excluded.description
+                """,
+                (
+                    scope.scope_id,
+                    scope.name,
+                    scope.scope_type,
+                    scope.agent_id,
+                    scope.description,
+                    scope.created_at,
+                ),
+            )
+            conn.commit()
+
+    def list_scopes(self) -> list[ScopeRecord]:
+        """List all registered scopes."""
+        with self._get_conn() as conn:
+            cursor = conn.execute(
+                "SELECT scope_id, name, scope_type, agent_id, description, created_at FROM scopes ORDER BY created_at ASC"
+            )
+            rows = cursor.fetchall()
+
+        return [
+            ScopeRecord(
+                scope_id=r["scope_id"],
+                name=r["name"],
+                scope_type=r["scope_type"],
+                agent_id=r["agent_id"],
+                description=r["description"],
+                created_at=r["created_at"],
+            )
+            for r in rows
+        ]
+
+    def get_scope(self, scope_id: str) -> ScopeRecord | None:
+        """Get a single scope by id."""
+        with self._get_conn() as conn:
+            cursor = conn.execute(
+                "SELECT scope_id, name, scope_type, agent_id, description, created_at FROM scopes WHERE scope_id = ?",
+                (scope_id,),
+            )
+            r = cursor.fetchone()
+            if not r:
+                return None
+            return ScopeRecord(
+                scope_id=r["scope_id"],
+                name=r["name"],
+                scope_type=r["scope_type"],
+                agent_id=r["agent_id"],
+                description=r["description"],
+                created_at=r["created_at"],
+            )
+
+    def save_agent(self, agent: AgentRecord) -> None:
+        """Store or update an AI agent registration."""
+        with self._get_conn() as conn:
+            conn.execute(
+                """
+                INSERT INTO agents (agent_id, name, default_scope_id, client_type, status, last_active_at, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(agent_id) DO UPDATE SET
+                    name = excluded.name,
+                    default_scope_id = excluded.default_scope_id,
+                    client_type = excluded.client_type,
+                    status = excluded.status,
+                    last_active_at = excluded.last_active_at
+                """,
+                (
+                    agent.agent_id,
+                    agent.name,
+                    agent.default_scope_id,
+                    agent.client_type,
+                    agent.status,
+                    agent.last_active_at,
+                    agent.created_at,
+                ),
+            )
+            conn.commit()
+
+    def list_agents(self) -> list[AgentRecord]:
+        """List all registered agents."""
+        with self._get_conn() as conn:
+            cursor = conn.execute(
+                "SELECT agent_id, name, default_scope_id, client_type, status, last_active_at, created_at FROM agents ORDER BY created_at ASC"
+            )
+            rows = cursor.fetchall()
+
+        return [
+            AgentRecord(
+                agent_id=r["agent_id"],
+                name=r["name"],
+                default_scope_id=r["default_scope_id"],
+                client_type=r["client_type"],
+                status=r["status"],
+                last_active_at=r["last_active_at"],
+                created_at=r["created_at"],
+            )
+            for r in rows
+        ]
+
+    def get_agent(self, agent_id: str) -> AgentRecord | None:
+        """Get an agent by id."""
+        with self._get_conn() as conn:
+            cursor = conn.execute(
+                "SELECT agent_id, name, default_scope_id, client_type, status, last_active_at, created_at FROM agents WHERE agent_id = ?",
+                (agent_id,),
+            )
+            r = cursor.fetchone()
+            if not r:
+                return None
+            return AgentRecord(
+                agent_id=r["agent_id"],
+                name=r["name"],
+                default_scope_id=r["default_scope_id"],
+                client_type=r["client_type"],
+                status=r["status"],
+                last_active_at=r["last_active_at"],
+                created_at=r["created_at"],
+            )
+
+    def touch_agent_active(self, agent_id: str) -> None:
+        """Update last active timestamp of an agent."""
+        now = utc_now_iso()
+        with self._get_conn() as conn:
+            conn.execute(
+                "UPDATE agents SET last_active_at = ? WHERE agent_id = ?",
+                (now, agent_id),
+            )
+            conn.commit()
+
+    def count_memories_by_scope(self) -> dict[str, int]:
+        """Count memories grouped by scope (parsed from metadata_json or namespace)."""
+        counts: dict[str, int] = {}
+        with self._get_conn() as conn:
+            cursor = conn.execute("SELECT metadata_json, namespace FROM memories")
+            for row in cursor.fetchall():
+                try:
+                    meta = json.loads(row["metadata_json"])
+                    scope = meta.get("scope") or row["namespace"] or "shared"
+                except Exception:
+                    scope = row["namespace"] or "shared"
+                counts[scope] = counts.get(scope, 0) + 1
+        return counts

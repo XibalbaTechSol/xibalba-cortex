@@ -33,6 +33,8 @@ def create_app(config: SuperCortexConfig | None = None) -> Starlette:
     async def api_status(request: Request) -> JSONResponse:
         alive = await cortex.client.ping()
         chain = cortex.verify_chain()
+        scopes = cortex.list_scopes()
+        agents = cortex.list_agents()
         return JSONResponse({
             "status": "online",
             "supermemory_local_alive": alive,
@@ -41,69 +43,273 @@ def create_app(config: SuperCortexConfig | None = None) -> Starlette:
             "event_count": chain.get("event_count", 0),
             "head_hash": chain.get("head_hash"),
             "actor_did": cfg.actor_did,
+            "scope_count": len(scopes),
+            "agent_count": len(agents),
         })
 
+    async def api_scopes(request: Request) -> JSONResponse:
+        if request.method == "GET":
+            return JSONResponse({"scopes": cortex.list_scopes()})
+        elif request.method == "POST":
+            body = await request.json()
+            scope_id = body.get("scope_id", "").strip()
+            name = body.get("name", "").strip()
+            if not scope_id or not name:
+                return JSONResponse({"error": "scope_id and name are required"}, status_code=400)
+            res = cortex.create_scope(
+                scope_id=scope_id,
+                name=name,
+                scope_type=body.get("scope_type", "single_agent"),
+                agent_id=body.get("agent_id"),
+                description=body.get("description", ""),
+            )
+            await broadcast_event("scope_created", res)
+            return JSONResponse(res)
+
+    async def api_agents(request: Request) -> JSONResponse:
+        if request.method == "GET":
+            return JSONResponse({"agents": cortex.list_agents()})
+        elif request.method == "POST":
+            body = await request.json()
+            agent_id = body.get("agent_id", "").strip()
+            name = body.get("name", "").strip()
+            if not agent_id or not name:
+                return JSONResponse({"error": "agent_id and name are required"}, status_code=400)
+            res = cortex.register_agent(
+                agent_id=agent_id,
+                name=name,
+                default_scope_id=body.get("default_scope_id", "shared"),
+                client_type=body.get("client_type", "custom"),
+            )
+            await broadcast_event("agent_registered", res)
+            return JSONResponse(res)
+
+    async def api_mcp_config(request: Request) -> JSONResponse:
+        repo_dir = str(Path(__file__).resolve().parent.parent.parent)
+        config_payload = {
+            "claude_code": {
+                "mcpServers": {
+                    "super-cortex": {
+                        "command": "uv",
+                        "args": ["--directory", repo_dir, "run", "super-cortex", "server"]
+                    }
+                }
+            },
+            "cursor": {
+                "mcpServers": {
+                    "super-cortex": {
+                        "command": "uv",
+                        "args": ["--directory", repo_dir, "run", "super-cortex", "server"]
+                    }
+                }
+            },
+            "antigravity": {
+                "mcpServers": {
+                    "super-cortex": {
+                        "command": "uv",
+                        "args": ["--directory", repo_dir, "run", "super-cortex", "server"]
+                    }
+                }
+            },
+            "environment": {
+                "repo_path": repo_dir,
+                "supermemory_local_url": cfg.supermemory_url,
+                "sqlite_ledger_path": str(cfg.db_path),
+            }
+        }
+        return JSONResponse(config_payload)
+
     async def api_graph(request: Request) -> JSONResponse:
-        # Retrieve memories and relations from store
+        import math
+        selected_scope = request.query_params.get("scope", "all")
+
+        # 1. Fetch registered scopes and agents
+        scopes = cortex.list_scopes()
+        agents = cortex.list_agents()
+
+        # 2. Retrieve memories and relations from store
         with cortex.store._get_conn() as conn:
             cursor = conn.execute(
-                "SELECT id, source_id, text, epistemic_class, lifecycle_status, content_hash, namespace, metadata_json, created_at FROM memories ORDER BY rowid DESC LIMIT 100"
+                "SELECT id, source_id, text, epistemic_class, lifecycle_status, content_hash, namespace, metadata_json, created_at FROM memories ORDER BY rowid DESC LIMIT 150"
             )
             mem_rows = cursor.fetchall()
 
             rel_cursor = conn.execute(
-                "SELECT relation_id, subject, predicate, object, confidence, evidence_links_json, created_at FROM relations ORDER BY rowid DESC LIMIT 100"
+                "SELECT relation_id, subject, predicate, object, confidence, evidence_links_json, created_at FROM relations ORDER BY rowid DESC LIMIT 150"
             )
             rel_rows = rel_cursor.fetchall()
 
-        nodes = []
-        links = []
+        nodes: list[dict[str, Any]] = []
+        links: list[dict[str, Any]] = []
 
-        # Add central root document
+        # Color mapping by epistemic class
+        epistemic_colors = {
+            "rule": 0x00ffa3,       # Emerald
+            "fact": 0x38bdf8,       # Sky Cyan
+            "decision": 0x34d399,   # Teal
+            "inference": 0xddb7ff,  # Lavender
+            "belief": 0xf59e0b,     # Amber
+            "goal": 0xf43f5e,       # Rose
+            "document": 0x00f0ff,   # Cyan
+        }
+
+        # Central Root Hub: Shared Memory Fabric
         nodes.append({
-            "id": "doc_root_hub",
-            "label": "Xibalba & Super-Cortex Knowledge Fabric",
-            "type": "document",
+            "id": "hub_shared",
+            "title": "Shared Memory Fabric",
+            "labelTag": "SHARED MEMORY HUB",
+            "category": "shared",
+            "type": "hub",
             "status": "active",
-            "space": cfg.default_namespace,
-            "version": "v1 // LATEST",
-            "relevanceScore": 100,
-            "date": "14/11/2026",
-            "hash": "0x8F41A990B",
-            "content": "Root cognitive fabric combining Supermemory local neural embeddings with Cortex cryptographic provenance.",
+            "epistemic_class": "rule",
+            "color": 0x00f0ff,
+            "size": 34,
+            "pos3D": [0, 20, 0],
+            "pos2D": [0, 20, 0],
+            "isLineage": True,
+            "confidence": 1.0,
+            "hash": "0xSHARED_FABRIC",
+            "content": "Collective operational memory accessible across all authorized agent scopes via Supermemory 768-D local embeddings.",
+            "scope": "shared",
         })
 
-        for row in mem_rows:
+        # Satellite Agent Hubs
+        agent_positions: dict[str, list[float]] = {}
+        active_agents = [a for a in agents if a["status"] == "active"]
+        num_agents = max(len(active_agents), 1)
+
+        for i, agent in enumerate(active_agents):
+            aid = agent["agent_id"]
+            angle = (2 * math.pi / num_agents) * i
+            radius = 240.0
+            ax = math.cos(angle) * radius
+            ay = math.sin(angle * 2) * 40.0 + 10.0
+            az = math.sin(angle) * radius
+            agent_positions[aid] = [ax, ay, az]
+
+            hub_id = f"hub_agent_{aid}"
+            nodes.append({
+                "id": hub_id,
+                "title": f"Agent Scope: {agent['name']}",
+                "labelTag": f"AGENT // {aid.upper()}",
+                "category": "agent",
+                "type": "agent_hub",
+                "status": agent["status"],
+                "epistemic_class": "decision",
+                "color": 0x00ffa3,
+                "size": 26,
+                "pos3D": [round(ax, 1), round(ay, 1), round(az, 1)],
+                "pos2D": [round(ax, 1), round(ay, 1), 0],
+                "isLineage": True,
+                "confidence": 1.0,
+                "hash": f"0xAGENT_{aid.upper()}",
+                "content": f"Isolated private memory scope for {agent['name']} ({agent['client_type']} client).",
+                "scope": f"agent:{aid}",
+                "agent_id": aid,
+            })
+
+            # Federation link between Shared Fabric and Agent Hub
+            links.append({
+                "source": "hub_shared",
+                "target": hub_id,
+                "type": "federation",
+                "label": "Federated Scope Bridge",
+            })
+
+        # Memory Voxel Nodes
+        for idx, row in enumerate(mem_rows):
             mem_id = row["id"]
+            try:
+                meta = json.loads(row["metadata_json"])
+            except Exception:
+                meta = {}
+
+            mem_scope = meta.get("scope") or "shared"
+            mem_agent_id = meta.get("agent_id")
+            ep_class = row["epistemic_class"]
+            para = meta.get("para", {})
+            para_cat = para.get("category", "area") if isinstance(para, dict) else "area"
+            triples = meta.get("triples", [])
+
+            # Filter if a specific scope is requested
+            if selected_scope and selected_scope != "all" and mem_scope != selected_scope:
+                continue
+
+            # Deterministic spatial positioning around respective hub
+            int_seed = int(row["content_hash"][:8], 16)
+            theta = (int_seed % 360) * (math.pi / 180.0)
+            phi = ((int_seed >> 8) % 180) * (math.pi / 180.0)
+
+            if mem_scope.startswith("agent:") and mem_agent_id in agent_positions:
+                center = agent_positions[mem_agent_id]
+                m_rad = 60.0 + (int_seed % 40)
+            elif mem_scope.startswith("agent:"):
+                # Agent scope without registered position
+                center = [120, 80, -120]
+                m_rad = 60.0
+            else:
+                # Shared scope clusters around center
+                center = [0, 20, 0]
+                m_rad = 120.0 + (int_seed % 70)
+
+            px = center[0] + m_rad * math.sin(phi) * math.cos(theta)
+            py = center[1] + m_rad * math.cos(phi) * 0.6
+            pz = center[2] + m_rad * math.sin(phi) * math.sin(theta)
+
+            color = epistemic_colors.get(ep_class, 0x38bdf8)
+
             nodes.append({
                 "id": mem_id,
-                "label": row["text"][:50] + ("..." if len(row["text"]) > 50 else ""),
-                "type": "memory-latest",
+                "title": row["text"][:45] + ("..." if len(row["text"]) > 45 else ""),
+                "labelTag": f"{ep_class.upper()} // {para_cat.upper()}",
+                "category": para_cat,
+                "type": "memory",
                 "status": row["lifecycle_status"],
-                "epistemic_class": row["epistemic_class"],
-                "space": row["namespace"],
-                "version": "v1",
-                "relevanceScore": 95,
-                "date": row["created_at"][:10],
+                "epistemic_class": ep_class,
+                "para": para,
+                "triples": triples,
+                "color": color,
+                "size": 15,
+                "pos3D": [round(px, 1), round(py, 1), round(pz, 1)],
+                "pos2D": [round(px, 1), round(py, 1), 0],
+                "confidence": 0.95,
                 "hash": row["content_hash"][:16],
                 "full_hash": row["content_hash"],
                 "content": row["text"],
-            })
-            links.append({
-                "source": "doc_root_hub",
-                "target": mem_id,
-                "type": "doc-to-memory",
+                "scope": mem_scope,
+                "agent_id": mem_agent_id,
+                "created_at": row["created_at"],
             })
 
+            # Link memory to its parent hub
+            target_hub = f"hub_agent_{mem_agent_id}" if mem_scope.startswith("agent:") and mem_agent_id else "hub_shared"
+            links.append({
+                "source": target_hub,
+                "target": mem_id,
+                "type": "scope-to-memory",
+                "label": f"belongs_to ({mem_scope})",
+            })
+
+        # Relational edges from triples
         for r in rel_rows:
             links.append({
                 "source": r["subject"],
                 "target": r["object"],
-                "type": "version-chain",
+                "type": "relation",
                 "label": r["predicate"],
             })
 
-        return JSONResponse({"nodes": nodes, "links": links})
+        return JSONResponse({
+            "nodes": nodes,
+            "links": links,
+            "stats": {
+                "total_nodes": len(nodes),
+                "total_links": len(links),
+                "selected_scope": selected_scope,
+                "scopes_count": len(scopes),
+                "agents_count": len(agents),
+            }
+        })
 
     async def api_sessions(request: Request) -> JSONResponse:
         sessions = cortex.get_session_distribution()
@@ -128,17 +334,23 @@ def create_app(config: SuperCortexConfig | None = None) -> Starlette:
 
     async def api_remember(request: Request) -> JSONResponse:
         body = await request.json()
-        text = body.get("text", "")
+        text = body.get("text", "").strip()
         if not text:
             return JSONResponse({"error": "text is required"}, status_code=400)
 
-        epistemic_class = body.get("epistemic_class", "fact")
-        namespace = body.get("namespace", cfg.default_namespace)
+        epistemic_class = body.get("epistemic_class")
+        namespace = body.get("namespace")
+        scope = body.get("scope", "shared")
+        agent_id = body.get("agent_id")
+        metadata = body.get("metadata")
 
         res = await cortex.remember(
             text=text,
             epistemic_class=epistemic_class,
             namespace=namespace,
+            scope=scope,
+            agent_id=agent_id,
+            metadata=metadata,
         )
         await broadcast_event("memory_created", res)
         return JSONResponse(res)
@@ -149,8 +361,16 @@ def create_app(config: SuperCortexConfig | None = None) -> Starlette:
         if not query:
             return JSONResponse({"error": "message is required"}, status_code=400)
 
+        scope = body.get("scope")
+        agent_id = body.get("agent_id")
+
         # Hybrid retrieve from Supermemory and Ledger
-        retrieval = await cortex.hybrid_retrieve(query=query, limit=5)
+        retrieval = await cortex.hybrid_retrieve(
+            query=query,
+            scope=scope,
+            agent_id=agent_id,
+            limit=5,
+        )
         results = retrieval.get("results", [])
 
         # Construct context summary
@@ -191,6 +411,9 @@ def create_app(config: SuperCortexConfig | None = None) -> Starlette:
     routes = [
         Route("/api/status", api_status, methods=["GET"]),
         Route("/api/graph", api_graph, methods=["GET"]),
+        Route("/api/scopes", api_scopes, methods=["GET", "POST"]),
+        Route("/api/agents", api_agents, methods=["GET", "POST"]),
+        Route("/api/mcp-config", api_mcp_config, methods=["GET"]),
         Route("/api/sessions", api_sessions, methods=["GET"]),
         Route("/api/sessions/{session_id}", api_session_detail, methods=["GET"]),
         Route("/api/sessions/{session_id}/proof", api_session_proof, methods=["GET"]),

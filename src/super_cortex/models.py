@@ -18,6 +18,7 @@ class EpistemicClass(str, Enum):
     GOAL = "goal"
     OBSERVATION = "observation"
     RULE = "rule"
+    DECISION = "decision"
 
 
 class LifecycleStatus(str, Enum):
@@ -26,6 +27,30 @@ class LifecycleStatus(str, Enum):
     CONTRADICTED = "contradicted"
     QUARANTINED = "quarantined"
     FORGOTTEN = "forgotten"
+
+
+class ScopeType(str, Enum):
+    SHARED = "shared"
+    SINGLE_AGENT = "single_agent"
+
+
+class ScopeRecord(BaseModel):
+    scope_id: str
+    name: str
+    scope_type: str = ScopeType.SHARED.value
+    agent_id: str | None = None
+    description: str = ""
+    created_at: str = Field(default_factory=utc_now_iso)
+
+
+class AgentRecord(BaseModel):
+    agent_id: str
+    name: str
+    default_scope_id: str = "shared"
+    client_type: str = "custom"
+    status: str = "active"
+    last_active_at: str = Field(default_factory=utc_now_iso)
+    created_at: str = Field(default_factory=utc_now_iso)
 
 
 class MemoryRecord(BaseModel):
