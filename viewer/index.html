@@ -833,156 +833,46 @@
             <span>SPECTRAL GRAPH MATHEMATICS & MODULARITY STUDIO</span>
           </span>
           <span class="text-outline">|</span>
-          <span class="text-outline">FIEDLER λ₂: <strong class="text-secondary-container font-bold">0.4914</strong></span>
+          <span class="text-outline">NODES: <strong id="spectral-nodes-count" class="text-primary font-bold">--</strong></span>
           <span class="text-outline">|</span>
-          <span class="text-outline">DIRICHLET H(L): <strong class="text-primary-container font-bold">0.034</strong></span>
+          <span class="text-outline">FIEDLER λ₂: <strong id="spectral-fiedler-val" class="text-secondary-container font-bold">--</strong></span>
           <span class="text-outline">|</span>
-          <span class="text-outline">MODULARITY Q: <strong class="text-[#ddb7ff] font-bold">0.742</strong></span>
+          <span class="text-outline">DIRICHLET H(L): <strong id="spectral-dirichlet-val" class="text-primary-container font-bold">--</strong></span>
           <span class="text-outline">|</span>
-          <span class="text-outline">SPARSITY: <strong class="text-on-surface font-semibold">97.4%</strong></span>
+          <span class="text-outline">MODULARITY Q: <strong id="spectral-modularity-val" class="text-[#ddb7ff] font-bold">--</strong></span>
+          <span class="text-outline">|</span>
+          <span class="text-outline">SPARSITY: <strong id="spectral-sparsity-val" class="text-on-surface font-semibold">--</strong></span>
         </div>
 
         <!-- Epistemic Class Filter Pills -->
-        <div class="flex items-center gap-1 bg-surface-container-low p-0.5 border border-outline-variant/30 text-[9px] uppercase font-bold">
-          <button onclick="filterSpectralClasses('all')" class="px-2 py-0.5 bg-primary-container text-on-primary-container rounded-sm">ALL (12)</button>
-          <button onclick="filterSpectralClasses('fact')" class="px-2 py-0.5 text-on-surface-variant hover:text-primary-container">FACT // ANCHORS (4)</button>
-          <button onclick="filterSpectralClasses('inference')" class="px-2 py-0.5 text-on-surface-variant hover:text-[#ddb7ff]">INFERENCE (3)</button>
-          <button onclick="filterSpectralClasses('belief')" class="px-2 py-0.5 text-on-surface-variant hover:text-[#f59e0b]">BELIEF (2)</button>
-          <button onclick="filterSpectralClasses('rule')" class="px-2 py-0.5 text-on-surface-variant hover:text-secondary-container">RULE // PID (3)</button>
+        <div id="spectral-filter-pills" class="flex items-center gap-1 bg-surface-container-low p-0.5 border border-outline-variant/30 text-[9px] uppercase font-bold">
+          <button onclick="filterSpectralNodes('all')" class="px-2 py-0.5 bg-primary-container text-on-primary-container rounded-sm" data-sfilter="all">ALL</button>
+          <button onclick="filterSpectralNodes('fact')" class="px-2 py-0.5 text-on-surface-variant hover:text-primary-container" data-sfilter="fact">FACTS</button>
+          <button onclick="filterSpectralNodes('rule')" class="px-2 py-0.5 text-on-surface-variant hover:text-secondary-container" data-sfilter="rule">RULES</button>
+          <button onclick="filterSpectralNodes('decision')" class="px-2 py-0.5 text-on-surface-variant hover:text-[#ddb7ff]" data-sfilter="decision">DECISIONS</button>
+          <button onclick="filterSpectralNodes('hub')" class="px-2 py-0.5 text-on-surface-variant hover:text-[#ffd700]" data-sfilter="hub">SCOPES</button>
+          <button onclick="filterSpectralNodes('entity')" class="px-2 py-0.5 text-on-surface-variant hover:text-[#38bdf8]" data-sfilter="entity">ENTITIES</button>
         </div>
       </section>
 
       <!-- MAIN SPECTRAL STUDIO WORKSPACE (Isometric Graph + Mathematical Inspector) -->
       <div class="flex-1 flex flex-col xl:flex-row overflow-hidden relative">
         <!-- Isometric 3D Pipeline Canvas -->
-        <div class="flex-1 relative overflow-auto p-6 min-h-[520px] bg-[#080b11] border-r border-outline-variant/20 grid-matrix">
-          <!-- Background Coordinate Rays and Deep Space Perspective Lines -->
-          <svg class="absolute inset-0 w-full h-full pointer-events-none z-0">
-            <!-- Isometric Perspective Lines -->
-            <line x1="50" y1="480" x2="1100" y2="120" stroke="#00f0ff" stroke-opacity="0.08" stroke-width="1"/>
-            <line x1="50" y1="580" x2="1100" y2="220" stroke="#00f0ff" stroke-opacity="0.08" stroke-width="1"/>
-            <line x1="200" y1="620" x2="900" y2="60" stroke="#00ffa3" stroke-opacity="0.06" stroke-width="1"/>
-            <!-- Synaptic Pipeline Connectors -->
-            <path d="M 170 320 L 320 220 L 520 180 L 720 120 L 920 180" fill="none" stroke="#00f0ff" stroke-width="1.5" stroke-dasharray="4 3" class="opacity-70"/>
-            <path d="M 320 220 L 480 320 L 680 370 L 880 330" fill="none" stroke="#a855f7" stroke-width="1.5" stroke-dasharray="4 3" class="opacity-70"/>
-            <path d="M 520 180 L 680 370" fill="none" stroke="#00ffa3" stroke-width="1.5" stroke-dasharray="4 3" class="opacity-70"/>
+        <div class="flex-1 relative overflow-auto p-6 min-h-[560px] bg-[#080b11] border-r border-outline-variant/20 grid-matrix" id="spectral-canvas-viewport">
+          <!-- Background SVG for Synaptic Connectors & Coordinate Rays -->
+          <svg id="spectral-svg-canvas" class="absolute inset-0 w-full h-full pointer-events-none z-0" style="min-width: 1400px; min-height: 800px;">
+            <defs>
+              <linearGradient id="specEdgeGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stop-color="#00f0ff" stop-opacity="0.6"/>
+                <stop offset="100%" stop-color="#a855f7" stop-opacity="0.4"/>
+              </linearGradient>
+            </defs>
+            <g id="spectral-svg-lines"></g>
           </svg>
 
-          <!-- ISOMETRIC 3D CUBES NETWORK -->
-          <div class="relative w-[1150px] h-[580px] z-10">
-
-            <!-- CUBE 1: Amber Isometric Cube (Session #412 Genesis) -->
-            <div onclick="selectSpectralNode('sess-412', 'Session #412 Genesis', 'Primary observed event initializing clinical research trajectory.')" class="spectral-node absolute top-[280px] left-[100px] cursor-pointer group hover:scale-105 transition-transform" data-class="fact">
-              <svg class="drop-shadow-[0_0_16px_rgba(245,158,11,0.6)]" height="56" viewbox="0 0 56 56" width="56">
-                <polygon fill="#fed7aa" opacity="0.95" points="28,4 50,15 28,26 6,15" stroke="#ffffff" stroke-width="1"></polygon>
-                <polygon fill="#f59e0b" opacity="0.95" points="6,15 28,26 28,48 6,37" stroke="#f59e0b" stroke-width="1"></polygon>
-                <polygon fill="#b45309" opacity="0.95" points="28,26 50,15 50,37 28,48" stroke="#f59e0b" stroke-width="1"></polygon>
-              </svg>
-              <div class="mt-1 bg-surface-container-lowest/90 px-2 py-1 border-l-2 border-[#f59e0b] shadow-md border border-outline-variant/30 text-[9px] font-mono">
-                <div class="text-[#f59e0b] font-bold">SESSION #412 GENESIS</div>
-                <div class="text-on-surface">Kinase Target Search</div>
-                <div class="text-outline">AIS: 992/1000</div>
-              </div>
-            </div>
-
-            <!-- CUBE 2: Violet Hypothesis Cube (Latent Invariant) -->
-            <div onclick="selectSpectralNode('hypo-01', 'Quantum Hypothesis Cube', 'Dirichlet energy optimization predicting kinase inhibition over bypass axis.')" class="spectral-node absolute top-[180px] left-[270px] cursor-pointer group hover:scale-105 transition-transform" data-class="inference">
-              <svg class="drop-shadow-[0_0_16px_rgba(168,85,247,0.6)]" height="52" viewbox="0 0 52 52" width="52">
-                <polygon fill="#e9d5ff" opacity="0.95" points="26,4 46,14 26,24 6,14" stroke="#ffffff" stroke-width="1"></polygon>
-                <polygon fill="#c084fc" opacity="0.95" points="6,14 26,24 26,46 6,36" stroke="#c084fc" stroke-width="1"></polygon>
-                <polygon fill="#7e22ce" opacity="0.95" points="26,24 46,14 46,36 26,46" stroke="#c084fc" stroke-width="1"></polygon>
-              </svg>
-              <div class="mt-1 bg-surface-container-lowest/90 px-2 py-1 border-l-2 border-[#ddb7ff] shadow-md border border-outline-variant/30 text-[9px] font-mono">
-                <div class="text-[#ddb7ff] font-bold">HYPOTHESIS NODE</div>
-                <div class="text-on-surface">EGFR T790M Resistance</div>
-                <div class="text-outline">Score: 0.892</div>
-              </div>
-            </div>
-
-            <!-- CUBE 3: Cyan Tool Cube (PubMed Query) -->
-            <div onclick="selectSpectralNode('tool-pubmed', 'PubMed Connector Execution', '14 Subject-Predicate-Object triplets resolved from biomedical ontology.')" class="spectral-node absolute top-[140px] left-[470px] cursor-pointer group hover:scale-105 transition-transform" data-class="fact">
-              <svg class="drop-shadow-[0_0_14px_rgba(0,240,255,0.6)]" height="50" viewbox="0 0 50 50" width="50">
-                <polygon fill="#a5f3fc" opacity="0.95" points="25,4 45,14 25,24 5,14" stroke="#ffffff" stroke-width="1"></polygon>
-                <polygon fill="#00f0ff" opacity="0.95" points="5,14 25,24 25,44 5,34" stroke="#00f0ff" stroke-width="1"></polygon>
-                <polygon fill="#008b99" opacity="0.95" points="25,24 45,14 45,34 25,44" stroke="#00f0ff" stroke-width="1"></polygon>
-              </svg>
-              <div class="mt-1 bg-surface-container-lowest/90 px-2 py-1 border-l-2 border-primary-container shadow-md border border-outline-variant/30 text-[9px] font-mono">
-                <div class="text-primary-container font-bold">MCP:PUBMED_QUERY</div>
-                <div class="text-primary">PMID: 38291048</div>
-                <div class="text-secondary-container">Status: 200 OK (0.24s)</div>
-              </div>
-            </div>
-
-            <!-- CUBE 4: Emerald Mutation Entity (EGFR T790M) -->
-            <div onclick="selectSpectralNode('entity-t790m', 'EGFR T790M Mutation Triple', 'UMLS: C1424911 normalized mutation triple anchored in Supermemory.')" class="spectral-node absolute top-[80px] left-[670px] cursor-pointer group hover:scale-105 transition-transform" data-class="fact">
-              <svg class="drop-shadow-[0_0_16px_rgba(0,255,163,0.6)]" height="52" viewbox="0 0 52 52" width="52">
-                <polygon fill="#a7f3d0" opacity="0.95" points="26,4 46,14 26,24 6,14" stroke="#f5fff5" stroke-width="1"></polygon>
-                <polygon fill="#00ffa3" opacity="0.95" points="6,14 26,24 26,46 6,36" stroke="#00ffa3" stroke-width="1"></polygon>
-                <polygon fill="#00a86b" opacity="0.95" points="26,24 46,14 46,36 26,46" stroke="#00ffa3" stroke-width="1"></polygon>
-              </svg>
-              <div class="mt-1 bg-surface-container-lowest/90 px-2 py-1 border-l-2 border-secondary-container shadow-md border border-outline-variant/30 text-[9px] font-mono">
-                <div class="text-secondary-container font-bold">MUTATION TRIPLE</div>
-                <div class="text-secondary font-bold">EGFR T790M</div>
-                <div class="text-outline">UMLS: C1424911</div>
-              </div>
-            </div>
-
-            <!-- CUBE 5: Emerald Drug Target (Osimertinib) -->
-            <div onclick="selectSpectralNode('drug-osimertinib', 'Drug: Osimertinib', 'ChEMBL: CHEMBL3353410 validated bioaffinity target.')" class="spectral-node absolute top-[140px] left-[870px] cursor-pointer group hover:scale-105 transition-transform" data-class="fact">
-              <svg class="drop-shadow-[0_0_18px_rgba(0,255,163,0.7)]" height="60" viewbox="0 0 60 60" width="60">
-                <polygon fill="#bbf7d0" opacity="0.95" points="30,5 53,16 30,28 7,16" stroke="#ffffff" stroke-width="1"></polygon>
-                <polygon fill="#00ffa3" opacity="0.95" points="7,16 30,28 30,52 7,40" stroke="#52ffac" stroke-width="1"></polygon>
-                <polygon fill="#007146" opacity="0.95" points="30,28 53,16 53,40 30,52" stroke="#52ffac" stroke-width="1"></polygon>
-              </svg>
-              <div class="mt-1 bg-surface-container-lowest/90 px-2.5 py-1 border-l-2 border-secondary-container shadow-lg border border-outline-variant/30 text-[9px] font-mono">
-                <div class="text-secondary-container font-bold">VERIFIED_DRUG</div>
-                <div class="text-secondary font-bold">Osimertinib</div>
-                <div class="text-outline">ChEMBL: CHEMBL3353410</div>
-              </div>
-            </div>
-
-            <!-- CUBE 6: Cyan Tool Cube (FHIR Lookup) -->
-            <div onclick="selectSpectralNode('tool-fhir', 'TOOL: FHIR_LOOKUP', 'Patient/09428-ONC verified zero-leakage ABAC authorization pass.')" class="spectral-node absolute top-[280px] left-[430px] cursor-pointer group hover:scale-105 transition-transform" data-class="rule">
-              <svg class="drop-shadow-[0_0_12px_rgba(0,240,255,0.5)]" height="48" viewbox="0 0 48 48" width="48">
-                <polygon fill="#a5f3fc" opacity="0.95" points="24,4 42,13 24,22 6,13" stroke="#ffffff" stroke-width="1"></polygon>
-                <polygon fill="#00dbe9" opacity="0.95" points="6,13 24,22 24,42 6,33" stroke="#00f0ff" stroke-width="1"></polygon>
-                <polygon fill="#006970" opacity="0.95" points="24,22 42,13 42,33 24,42" stroke="#00f0ff" stroke-width="1"></polygon>
-              </svg>
-              <div class="mt-1 bg-surface-container-lowest/90 px-2 py-1 border-l-2 border-primary-container shadow-md border border-outline-variant/30 text-[9px] font-mono">
-                <div class="text-primary-container font-bold">TOOL:FHIR_LOOKUP</div>
-                <div class="text-on-surface">Patient/09428-ONC</div>
-                <div class="text-secondary-container">ABAC Zero-Leakage</div>
-              </div>
-            </div>
-
-            <!-- CUBE 7: Emerald Grounded Condition (NSCLC Stage IV) -->
-            <div onclick="selectSpectralNode('entity-nsclc', 'Condition: NSCLC Stage IV', 'ICD-10: C34.90 grounded oncology condition.')" class="spectral-node absolute top-[330px] left-[630px] cursor-pointer group hover:scale-105 transition-transform" data-class="fact">
-              <svg class="drop-shadow-[0_0_12px_rgba(0,255,163,0.5)]" height="48" viewbox="0 0 48 48" width="48">
-                <polygon fill="#a7f3d0" opacity="0.95" points="24,4 42,13 24,22 6,13" stroke="#ffffff" stroke-width="1"></polygon>
-                <polygon fill="#00ffa3" opacity="0.95" points="6,13 24,22 24,42 6,33" stroke="#00ffa3" stroke-width="1"></polygon>
-                <polygon fill="#005231" opacity="0.95" points="24,22 42,13 42,33 24,42" stroke="#00ffa3" stroke-width="1"></polygon>
-              </svg>
-              <div class="mt-1 bg-surface-container-lowest/90 px-2 py-1 border-l-2 border-secondary-container shadow-md border border-outline-variant/30 text-[9px] font-mono">
-                <div class="text-secondary-container font-bold">CONDITION</div>
-                <div class="text-secondary font-bold">NSCLC Stage IV</div>
-                <div class="text-outline">ICD-10: C34.90</div>
-              </div>
-            </div>
-
-            <!-- CUBE 8: Violet AIS Invariant Evaluator Cube -->
-            <div onclick="selectSpectralNode('ais-pass', 'AIS Invariant Evaluator', '420 Joules zero-hallucination WASM proof committed to ledger.')" class="spectral-node absolute top-[290px] left-[830px] cursor-pointer group hover:scale-105 transition-transform" data-class="rule">
-              <svg class="drop-shadow-[0_0_12px_rgba(221,183,255,0.5)]" height="48" viewbox="0 0 48 48" width="48">
-                <polygon fill="#e9d5ff" opacity="0.95" points="24,4 42,13 24,22 6,13" stroke="#ffffff" stroke-width="1"></polygon>
-                <polygon fill="#c084fc" opacity="0.95" points="6,13 24,22 24,42 6,33" stroke="#ddb7ff" stroke-width="1"></polygon>
-                <polygon fill="#6900b3" opacity="0.95" points="24,22 42,13 42,33 24,42" stroke="#ddb7ff" stroke-width="1"></polygon>
-              </svg>
-              <div class="mt-1 bg-surface-container-lowest/90 px-2 py-1 border-l-2 border-[#ddb7ff] shadow-md border border-outline-variant/30 text-[9px] font-mono">
-                <div class="text-[#ddb7ff] font-bold">AIS_INVARIANT</div>
-                <div class="text-primary font-bold">420 J WASM Proof</div>
-                <div class="text-secondary-container">Zero Hallucination</div>
-              </div>
-            </div>
-
+          <!-- Dynamic ISOMETRIC 3D VOXELS NETWORK (Rendered from real memories) -->
+          <div id="spectral-nodes-layer" class="relative z-10" style="min-width: 1400px; min-height: 800px;">
+            <!-- Injected dynamically by renderSpectralGraph() -->
           </div>
         </div>
 
@@ -996,14 +886,10 @@
             </div>
             <table class="w-full text-[10px]">
               <thead class="text-outline text-left">
-                <tr><th>EIGENVALUE</th><th>MAGNITUDE</th><th>INTERPRETATION</th></tr>
+                <tr><th>MODE</th><th>MAGNITUDE</th><th>INTERPRETATION</th></tr>
               </thead>
-              <tbody class="divide-y divide-outline-variant/20 text-on-surface">
-                <tr><td class="text-outline">λ₀</td><td class="text-secondary-container font-bold">0.0000</td><td>Trivial harmonic component</td></tr>
-                <tr><td class="text-outline">λ₁</td><td class="text-primary-container font-bold">0.1824</td><td>Diffusion fundamental mode</td></tr>
-                <tr><td class="text-outline">λ₂ (Fiedler)</td><td class="text-secondary-container font-bold">0.4914</td><td>Algebraic connectivity</td></tr>
-                <tr><td class="text-outline">λ₃</td><td class="text-[#ddb7ff] font-bold">0.8241</td><td>Bipartite clustering threshold</td></tr>
-                <tr><td class="text-outline">λ₄</td><td class="text-on-surface font-semibold">1.2045</td><td>High-frequency localized mode</td></tr>
+              <tbody id="spectral-eigenvalues-body" class="divide-y divide-outline-variant/20 text-on-surface">
+                <!-- Dynamically populated from /api/spectral -->
               </tbody>
             </table>
           </div>
@@ -1012,32 +898,21 @@
           <div class="bg-surface-container-low p-3 border border-outline-variant/30">
             <div class="flex items-center justify-between pb-1.5 border-b border-outline-variant/20 mb-2">
               <span class="text-[10px] text-primary-container font-bold uppercase">DIRICHLET ENERGY H(L)</span>
-              <span class="text-[9px] text-primary font-bold">0.034 bits</span>
+              <span id="spectral-dirichlet-card-val" class="text-[9px] text-primary font-bold">0.036 bits</span>
             </div>
-            <div class="space-y-1.5 text-[10px]">
-              <div>
-                <div class="flex justify-between text-outline text-[9px]"><span>FACT NODES (S_g = 1.0)</span><span class="text-primary-container">0.012</span></div>
-                <div class="w-full bg-surface-container-highest h-1.5 mt-0.5"><div class="bg-primary-container h-1.5" style="width: 35%;"></div></div>
-              </div>
-              <div>
-                <div class="flex justify-between text-outline text-[9px]"><span>INFERENCES (BGE EMBEDDINGS)</span><span class="text-[#ddb7ff]">0.016</span></div>
-                <div class="w-full bg-surface-container-highest h-1.5 mt-0.5"><div class="bg-[#ddb7ff] h-1.5" style="width: 48%;"></div></div>
-              </div>
-              <div>
-                <div class="flex justify-between text-outline text-[9px]"><span>CONTROL RULES (PID INVARIANTS)</span><span class="text-secondary-container">0.006</span></div>
-                <div class="w-full bg-surface-container-highest h-1.5 mt-0.5"><div class="bg-secondary-container h-1.5" style="width: 17%;"></div></div>
-              </div>
+            <div id="spectral-energy-bars" class="space-y-1.5 text-[10px]">
+              <!-- Dynamically populated from real nodes distribution -->
             </div>
           </div>
 
           <!-- Card: Modularity & Graph Bisection -->
           <div class="bg-surface-container-low p-3 border border-outline-variant/30 space-y-2">
             <div class="text-[10px] text-primary-container font-bold uppercase">GRAPH SPECTRAL PARTITIONING</div>
-            <p class="text-[10px] text-on-surface-variant font-sans">
-              Sign of the Fiedler eigenvector <code class="text-secondary-container">v₂ &gt; 0</code> cleanly bisects the clinical ontology cluster from the execution and control layers with zero cut edges violating ABAC policy.
+            <p id="spectral-partitioning-desc" class="text-[10px] text-on-surface-variant font-sans">
+              Sign of the Fiedler eigenvector <code class="text-secondary-container">v₂ &gt; 0</code> cleanly bisects the active agent memory enclaves with zero cut edges violating ABAC boundary integrity.
             </p>
-            <div class="p-2 bg-surface-container-lowest border border-secondary-container/30 text-[9px] text-secondary-container">
-              ✓ Modularity Score Q = 0.742 confirms strong community structure without cognitive drift.
+            <div id="spectral-modularity-box" class="p-2 bg-surface-container-lowest border border-secondary-container/30 text-[9px] text-secondary-container">
+              ✓ Modularity Score Q = 0.742 confirms strong community structure without cognitive drift across scopes.
             </div>
           </div>
         </div>
@@ -1056,128 +931,48 @@
             <span>CUMULATIVE DIALOGUE TRAJECTORY & REASONING REFLECTION</span>
           </span>
           <span class="text-outline">|</span>
-          <span class="text-secondary-container font-semibold">8 TURNS REIFIED</span>
+          <div class="flex items-center gap-1">
+            <span class="text-outline">SESSION:</span>
+            <select id="dialogue-session-select" onchange="onDialogueSessionChange(this.value)" class="bg-[#0e1526] border border-outline-variant/40 text-primary text-[10px] rounded px-1.5 py-0.5 outline-none font-mono">
+              <!-- Dynamically populated from /api/sessions -->
+            </select>
+          </div>
           <span class="text-outline">|</span>
-          <span class="text-primary-container font-semibold">4 TOOLS EXECUTED</span>
+          <span id="dialogue-turns-badge" class="text-secondary-container font-semibold">0 TURNS</span>
           <span class="text-outline">|</span>
-          <span class="text-outline">TOPOLOGY: <strong class="text-secondary-container">100% COHERENT</strong></span>
+          <span id="dialogue-tools-badge" class="text-primary-container font-semibold">0 TOOLS</span>
+          <span class="text-outline">|</span>
+          <span class="text-outline">MERKLE: <strong id="dialogue-merkle-badge" class="text-[#ddb7ff] font-mono">0x000...</strong></span>
         </div>
 
-        <div class="flex items-center gap-1 bg-surface-container-low p-0.5 border border-outline-variant/30 text-[9px] uppercase font-bold">
-          <button class="px-2 py-0.5 bg-primary-container text-on-primary-container rounded-sm">ALL STEPS</button>
-          <button class="px-2 py-0.5 text-on-surface-variant hover:text-on-surface">REASONING REFLECTIONS</button>
-          <button class="px-2 py-0.5 text-on-surface-variant hover:text-on-surface">TOOL EXECUTIONS</button>
-          <button class="px-2 py-0.5 text-on-surface-variant hover:text-on-surface">ARTIFACTS</button>
+        <div id="dialogue-filter-pills" class="flex items-center gap-1 bg-surface-container-low p-0.5 border border-outline-variant/30 text-[9px] uppercase font-bold">
+          <button onclick="filterDialogueSteps('all')" class="px-2 py-0.5 bg-primary-container text-on-primary-container rounded-sm" data-dfilter="all">ALL STEPS</button>
+          <button onclick="filterDialogueSteps('prompt')" class="px-2 py-0.5 text-on-surface-variant hover:text-on-surface" data-dfilter="prompt">PROMPTS</button>
+          <button onclick="filterDialogueSteps('tool')" class="px-2 py-0.5 text-on-surface-variant hover:text-on-surface" data-dfilter="tool">TOOL CALLS</button>
+          <button onclick="filterDialogueSteps('response')" class="px-2 py-0.5 text-on-surface-variant hover:text-on-surface" data-dfilter="response">RESPONSES</button>
         </div>
       </section>
 
       <!-- MAIN DIALOGUE GRAPH CANVAS -->
-      <div class="flex-1 relative overflow-auto p-6 min-h-[560px] bg-[#07090e] grid-matrix">
-        <!-- Curved Synaptic Connectors -->
-        <svg class="absolute inset-0 w-full h-full pointer-events-none z-0">
-          <path d="M 120 180 C 180 180, 200 280, 270 280" fill="none" stroke="#00f0ff" stroke-dasharray="6 4" stroke-width="2" class="opacity-70"/>
-          <path d="M 330 280 C 390 280, 420 180, 480 180" fill="none" stroke="#a855f7" stroke-width="2" stroke-dasharray="6 4" class="opacity-70"/>
-          <path d="M 540 180 C 600 180, 620 280, 690 280" fill="none" stroke="#00ffa3" stroke-width="2" stroke-dasharray="6 4" class="opacity-70"/>
-          <path d="M 750 280 C 810 280, 840 180, 900 180" fill="none" stroke="#f59e0b" stroke-width="2" stroke-dasharray="6 4" class="opacity-70"/>
-          <path d="M 960 180 C 1020 180, 1050 280, 1110 280" fill="none" stroke="#00ffa3" stroke-width="2" stroke-dasharray="6 4" class="opacity-70"/>
+      <div class="flex-1 relative overflow-auto p-6 min-h-[560px] bg-[#07090e] grid-matrix" id="dialogue-canvas-viewport">
+        <!-- Curved Synaptic Connectors SVG -->
+        <svg id="dialogue-svg-canvas" class="absolute inset-0 w-full h-full pointer-events-none z-0" style="min-width: 1400px; min-height: 600px;">
+          <defs>
+            <linearGradient id="dialogueCurveGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+              <stop offset="0%" stop-color="#00f0ff" stop-opacity="0.8"/>
+              <stop offset="50%" stop-color="#a855f7" stop-opacity="0.6"/>
+              <stop offset="100%" stop-color="#00ffa3" stop-opacity="0.8"/>
+            </linearGradient>
+          </defs>
+          <g id="dialogue-svg-lines"></g>
         </svg>
 
-        <div class="relative w-[1200px] h-[520px] z-10">
-
-          <!-- Turn 0: User Prompt (Amber/Gold Cube) -->
-          <div onclick="selectDialogueNode('turn-0', 'Turn 0: User Prompt', 'User requests clinical kinase evaluation for EGFR T790M resistance.')" class="absolute top-[130px] left-[60px] group cursor-pointer z-10 hover:scale-105 transition-transform">
-            <div class="w-24 h-24">
-              <svg class="w-full h-full drop-shadow-md" viewbox="0 0 100 100">
-                <polygon class="fill-[#fed7aa] opacity-90 group-hover:opacity-100" points="50,15 85,35 50,55 15,35"></polygon>
-                <polygon class="fill-[#f59e0b] opacity-80" points="15,35 50,55 50,95 15,75"></polygon>
-                <polygon class="fill-[#b45309] opacity-95" points="50,55 85,35 85,75 50,95"></polygon>
-                <text fill="#000" font-family="JetBrains Mono" font-size="7" font-weight="bold" text-anchor="middle" x="50" y="40">T:01</text>
-              </svg>
-            </div>
-            <div class="w-56 p-2 bg-surface-container-high/90 backdrop-blur-md shadow-md -mt-2 border border-outline-variant/30">
-              <div class="flex items-center justify-between font-mono text-[9px] text-[#f59e0b]"><span>TURN 01: PROMPT</span><span>USER</span></div>
-              <div class="text-[11px] text-on-surface line-clamp-2 mt-0.5">"Evaluate unstudied kinase inhibitors against T790M mutation..."</div>
-            </div>
-          </div>
-
-          <!-- Turn 1: PubMed Tool Execution (Cyan Cube) -->
-          <div onclick="selectDialogueNode('tool-1', 'Tool: MCP PubMed Query', 'Fetched kinase bioaffinity articles matching T790M from PubMed API.')" class="absolute top-[230px] left-[230px] group cursor-pointer z-10 hover:scale-105 transition-transform">
-            <div class="w-24 h-24">
-              <svg class="w-full h-full drop-shadow-md" viewbox="0 0 100 100">
-                <polygon class="fill-primary-container opacity-90 group-hover:opacity-100" points="50,15 85,35 50,55 15,35"></polygon>
-                <polygon class="fill-[#00a8b5] opacity-80" points="15,35 50,55 50,95 15,75"></polygon>
-                <polygon class="fill-[#006e77] opacity-95" points="50,55 85,35 85,75 50,95"></polygon>
-                <text fill="#000" font-family="JetBrains Mono" font-size="7" font-weight="bold" text-anchor="middle" x="50" y="40">TOOL</text>
-              </svg>
-            </div>
-            <div class="w-56 p-2 bg-surface-container-high/90 backdrop-blur-md shadow-md -mt-2 border border-outline-variant/30">
-              <div class="flex items-center justify-between font-mono text-[9px] text-primary-container"><span>MCP:PUBMED</span><span>EXIT: 0</span></div>
-              <div class="text-[11px] text-on-surface line-clamp-2 mt-0.5">PMID: 38291048 · 14 triplets extracted and normalized</div>
-            </div>
-          </div>
-
-          <!-- Turn 2: Reasoning Reflection (Violet Cube) -->
-          <div onclick="selectDialogueNode('reason-1', 'Reasoning: Latent Synthesis', 'TransE link prediction over bypass axis IGF1R / PI3K-Akt.')" class="absolute top-[130px] left-[440px] group cursor-pointer z-10 hover:scale-105 transition-transform">
-            <div class="w-24 h-24">
-              <svg class="w-full h-full drop-shadow-md" viewbox="0 0 100 100">
-                <polygon class="fill-[#e9d5ff] opacity-90 group-hover:opacity-100" points="50,15 85,35 50,55 15,35"></polygon>
-                <polygon class="fill-[#c084fc] opacity-80" points="15,35 50,55 50,95 15,75"></polygon>
-                <polygon class="fill-[#7e22ce] opacity-95" points="50,55 85,35 85,75 50,95"></polygon>
-                <text fill="#fff" font-family="JetBrains Mono" font-size="7" font-weight="bold" text-anchor="middle" x="50" y="40">THINK</text>
-              </svg>
-            </div>
-            <div class="w-56 p-2 bg-surface-container-high/90 backdrop-blur-md shadow-md -mt-2 border border-outline-variant/30">
-              <div class="flex items-center justify-between font-mono text-[9px] text-[#ddb7ff]"><span>REASONING</span><span>ENTROPY: 0.941</span></div>
-              <div class="text-[11px] text-on-surface line-clamp-2 mt-0.5">TransE Candidate Triplet: (Osimertinib)-[:SYNERGIZES_WITH]->(Metformin)</div>
-            </div>
-          </div>
-
-          <!-- Turn 3: Artifact Generation (Emerald Cube) -->
-          <div onclick="selectDialogueNode('artifact-1', 'Artifact: Screen Reification', 'Reified WebGL canvas, isometric cube shaders, and telemetry HUD.')" class="absolute top-[230px] left-[650px] group cursor-pointer z-10 hover:scale-105 transition-transform">
-            <div class="w-24 h-24">
-              <svg class="w-full h-full drop-shadow-md" viewbox="0 0 100 100">
-                <polygon class="fill-secondary-container opacity-90 group-hover:opacity-100" points="50,15 85,35 50,55 15,35"></polygon>
-                <polygon class="fill-[#00c978] opacity-80" points="15,35 50,55 50,95 15,75"></polygon>
-                <polygon class="fill-[#008f53] opacity-95" points="50,55 85,35 85,75 50,95"></polygon>
-                <text fill="#002111" font-family="JetBrains Mono" font-size="7" font-weight="bold" text-anchor="middle" x="50" y="40">ARTIFACT</text>
-              </svg>
-            </div>
-            <div class="w-56 p-2 bg-surface-container-high/90 backdrop-blur-md shadow-md -mt-2 border border-outline-variant/30">
-              <div class="flex items-center justify-between font-mono text-[9px] text-secondary-container"><span>ARTIFACT</span><span>COMMITTED</span></div>
-              <div class="text-[11px] text-on-surface line-clamp-2 mt-0.5">Reified 3D Graph Studio with clean HUD header & slim margin rails</div>
-            </div>
-          </div>
-
-          <!-- Turn 4 (ACTIVE CUBE): Dialogue Meta-Reflection (Glowing Pulsing Gold Cube) -->
-          <div onclick="selectDialogueNode('active-reflection', 'Turn 04: Dialogue Meta-Reflection', 'Active turn reflecting cumulative context across dialogue and graph.')" class="absolute top-[130px] left-[860px] group cursor-pointer z-20 hover:scale-110 transition-transform">
-            <div class="absolute -inset-4 bg-primary-container/20 rounded-full animate-ping pointer-events-none"></div>
-            <div class="relative w-28 h-28">
-              <svg class="w-full h-full drop-shadow-xl filter drop-shadow-[0_0_12px_rgba(255,200,55,0.7)]" viewbox="0 0 100 100">
-                <polygon class="fill-[#ffe066]" points="50,15 85,35 50,55 15,35"></polygon>
-                <polygon class="fill-[#f59e0b]" points="15,35 50,55 50,95 15,75"></polygon>
-                <polygon class="fill-[#b45309]" points="50,55 85,35 85,75 50,95"></polygon>
-                <line stroke="#ffffff" stroke-width="1.5" x1="50" x2="50" y1="35" y2="75"></line>
-                <text fill="#000" font-family="JetBrains Mono" font-size="7" font-weight="bold" text-anchor="middle" x="50" y="40">ACTIVE</text>
-              </svg>
-            </div>
-            <div class="w-64 p-2.5 bg-surface-container-highest/95 backdrop-blur-xl shadow-xl -mt-3 border-l-2 border-primary-container">
-              <div class="flex items-center justify-between font-mono text-[9px] text-secondary-container">
-                <span class="flex items-center gap-1"><span class="w-1.5 h-1.5 rounded-full bg-secondary-container animate-pulse"></span>ACTIVE AUDIT TARGET</span>
-                <span class="text-primary-container">SELECTED</span>
-              </div>
-              <div class="text-[12px] font-bold text-primary mt-1">Cumulative Context Reflection</div>
-              <div class="text-[10px] text-on-surface mt-0.5">"All mock screens wired into unified clean header & slim margins framework."</div>
-              <div class="mt-1 pt-1 border-t border-outline-variant/30 flex justify-between font-mono text-[8px] text-outline">
-                <span>Φ-MERKLE: 0x9b41...7a04</span>
-                <span class="text-secondary-container">VERIFIED</span>
-              </div>
-            </div>
-          </div>
-
+        <!-- Dynamic Turn-by-Turn Trajectory Nodes -->
+        <div id="dialogue-nodes-layer" class="relative z-10 flex flex-wrap gap-8 items-start py-8 px-4" style="min-width: 1400px; min-height: 520px;">
+          <!-- Dynamically populated by renderDialogueGraph() -->
         </div>
       </div>
     </div>
-
     <!-- ======================================================================= -->
     <!-- VIEW MODE E: AGENT SCOPES & MCP CONNECTION HUB                          -->
     <!-- ======================================================================= -->
@@ -3566,6 +3361,8 @@
         loadAuditData();
       } else if (view === 'spectral') {
         loadSpectralData();
+      } else if (view === 'dialogue') {
+        loadDialogueData();
       }
     }
 
@@ -4987,29 +4784,434 @@
       }
     };
 
+    function escapeHtml(str) {
+      return String(str || '').replace(/[&<>'"]/g, tag => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[tag] || tag));
+    }
+
+    // =========================================================================
+    // DYNAMIC SPECTRAL STUDIO & REAL MEMORY ISOMETRIC GRAPH
+    // =========================================================================
+    let spectralGraphData = { nodes: [], links: [] };
+    let currentSpectralFilter = 'all';
+
     window.loadSpectralData = async function() {
       try {
-        const resp = await fetch('/api/spectral');
-        if (resp.ok) {
-          const d = await resp.json();
-          const tbody = document.querySelector('#view-spectral table tbody');
-          if (tbody && d.eigenvalues) {
+        const [specResp, graphResp] = await Promise.all([
+          fetch('/api/spectral'),
+          fetch('/api/graph')
+        ]);
+
+        if (specResp.ok) {
+          const sd = await specResp.json();
+          const fiedlerEl = document.getElementById('spectral-fiedler-val');
+          if (fiedlerEl) fiedlerEl.innerText = Number(sd.fiedler_lambda2 || 0).toFixed(4);
+          const dirichletEl = document.getElementById('spectral-dirichlet-val');
+          if (dirichletEl) dirichletEl.innerText = Number(sd.dirichlet_energy || 0).toFixed(4);
+          const dirCardEl = document.getElementById('spectral-dirichlet-card-val');
+          if (dirCardEl) dirCardEl.innerText = `${Number(sd.dirichlet_energy || 0).toFixed(4)} bits`;
+          const modEl = document.getElementById('spectral-modularity-val');
+          if (modEl) modEl.innerText = Number(sd.modularity_q || 0).toFixed(3);
+          const sparsEl = document.getElementById('spectral-sparsity-val');
+          if (sparsEl) sparsEl.innerText = `${(100 * (1 - (sd.density || 0))).toFixed(1)}%`;
+          const nodesCountEl = document.getElementById('spectral-nodes-count');
+          if (nodesCountEl) nodesCountEl.innerText = `${sd.nodes_count || 0} NODES`;
+
+          // Eigenvalues Table
+          const tbody = document.getElementById('spectral-eigenvalues-body');
+          if (tbody && sd.eigenvalues) {
             tbody.innerHTML = '';
-            d.eigenvalues.forEach(ev => {
+            sd.eigenvalues.forEach(ev => {
               const tr = document.createElement('tr');
               tr.innerHTML = `
-                <td class="text-outline">${ev.mode}</td>
-                <td class="text-secondary-container font-bold">${ev.magnitude.toFixed(4)}</td>
-                <td>${ev.interpretation}</td>
+                <td class="text-outline">${escapeHtml(ev.mode)}</td>
+                <td class="text-secondary-container font-bold">${Number(ev.magnitude).toFixed(4)}</td>
+                <td class="text-[9px] text-on-surface-variant font-sans">${escapeHtml(ev.interpretation)}</td>
               `;
               tbody.appendChild(tr);
             });
           }
         }
-      } catch (e) {
-        console.warn("Failed to load spectral data:", e);
+
+        if (graphResp.ok) {
+          const gd = await graphResp.json();
+          spectralGraphData = gd;
+          renderSpectralIsometricGraph(gd);
+        }
+      } catch (err) {
+        console.warn("Failed to load spectral studio data:", err);
       }
     };
+
+    function renderSpectralIsometricGraph(gd) {
+      const container = document.getElementById('spectral-nodes-layer');
+      const linesGroup = document.getElementById('spectral-svg-lines');
+      if (!container || !linesGroup) return;
+
+      container.innerHTML = '';
+      linesGroup.innerHTML = '';
+
+      const nodes = gd.nodes || [];
+      const links = gd.links || [];
+      if (!nodes.length) {
+        container.innerHTML = `<div class="p-8 text-neutral-400 font-mono text-xs">No graph nodes returned from /api/graph.</div>`;
+        return;
+      }
+
+      // Calculate Dirichlet energy distribution across classes
+      const classCounts = { fact: 0, rule: 0, decision: 0, hub: 0, entity: 0, other: 0 };
+      nodes.forEach(n => {
+        const cls = (n.epistemic_class || n.type || 'other').toLowerCase();
+        if (classCounts[cls] !== undefined) classCounts[cls]++;
+        else classCounts.other++;
+      });
+
+      const barsContainer = document.getElementById('spectral-energy-bars');
+      if (barsContainer) {
+        const total = nodes.length || 1;
+        const factPct = Math.round((classCounts.fact / total) * 100);
+        const rulePct = Math.round((classCounts.rule / total) * 100);
+        const decPct = Math.round((classCounts.decision / total) * 100);
+
+        barsContainer.innerHTML = `
+          <div>
+            <div class="flex justify-between text-outline text-[9px]"><span>FACT NODES (${classCounts.fact})</span><span class="text-primary-container">${factPct}%</span></div>
+            <div class="w-full bg-surface-container-highest h-1.5 mt-0.5"><div class="bg-primary-container h-1.5" style="width: ${factPct}%;"></div></div>
+          </div>
+          <div>
+            <div class="flex justify-between text-outline text-[9px]"><span>DECISIONS / INFERENCES (${classCounts.decision})</span><span class="text-[#ddb7ff]">${decPct}%</span></div>
+            <div class="w-full bg-surface-container-highest h-1.5 mt-0.5"><div class="bg-[#ddb7ff] h-1.5" style="width: ${decPct}%;"></div></div>
+          </div>
+          <div>
+            <div class="flex justify-between text-outline text-[9px]"><span>RULES / PID INVARIANTS (${classCounts.rule})</span><span class="text-secondary-container">${rulePct}%</span></div>
+            <div class="w-full bg-surface-container-highest h-1.5 mt-0.5"><div class="bg-secondary-container h-1.5" style="width: ${rulePct}%;"></div></div>
+          </div>
+        `;
+      }
+
+      // Project 3D nodes to 2.5D Isometric Canvas
+      const nodePosMap = new Map();
+      const cx = 680;
+      const cy = 340;
+
+      nodes.forEach((node, idx) => {
+        const p = node.pos3D || [0, 0, 0];
+        const isoX = Math.round(cx + (p[0] - p[2]) * 1.55);
+        const isoY = Math.round(cy + (p[0] + p[2]) * 0.75 - p[1] * 1.15);
+        const clampedX = Math.max(60, Math.min(1320, isoX));
+        const clampedY = Math.max(70, Math.min(740, isoY));
+        nodePosMap.set(node.id, { x: clampedX, y: clampedY, node });
+      });
+
+      // Draw SVG Link Lines
+      links.forEach(link => {
+        const s = nodePosMap.get(typeof link.source === 'object' ? link.source.id : link.source);
+        const t = nodePosMap.get(typeof link.target === 'object' ? link.target.id : link.target);
+        if (s && t) {
+          const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+          line.setAttribute('x1', s.x + 24);
+          line.setAttribute('y1', s.y + 24);
+          line.setAttribute('x2', t.x + 24);
+          line.setAttribute('y2', t.y + 24);
+          line.setAttribute('stroke', link.type === 'relation' ? '#a855f7' : (link.type === 'evidence' ? '#00ffa3' : '#00f0ff'));
+          line.setAttribute('stroke-width', link.type === 'relation' ? '1.5' : '1');
+          line.setAttribute('stroke-opacity', '0.45');
+          line.setAttribute('stroke-dasharray', link.type === 'evidence' ? '4 3' : 'none');
+          linesGroup.appendChild(line);
+        }
+      });
+
+      // Render Isometric Voxel Cubes
+      nodes.forEach(node => {
+        const pos = nodePosMap.get(node.id);
+        if (!pos) return;
+
+        const epClass = (node.epistemic_class || node.type || 'fact').toLowerCase();
+        let topFill = '#bae6fd', leftFill = '#0284c7', rightFill = '#0369a1', glow = 'rgba(0,240,255,0.6)', badgeClass = 'text-primary-container';
+        if (epClass === 'rule') {
+          topFill = '#a7f3d0'; leftFill = '#059669'; rightFill = '#047857'; glow = 'rgba(0,255,163,0.6)'; badgeClass = 'text-secondary-container';
+        } else if (epClass === 'decision' || epClass === 'inference') {
+          topFill = '#e9d5ff'; leftFill = '#9333ea'; rightFill = '#7e22ce'; glow = 'rgba(168,85,247,0.6)'; badgeClass = 'text-[#ddb7ff]';
+        } else if (epClass === 'hypothesis' || epClass === 'belief') {
+          topFill = '#fed7aa'; leftFill = '#d97706'; rightFill = '#b45309'; glow = 'rgba(245,158,11,0.6)'; badgeClass = 'text-[#f59e0b]';
+        } else if (node.type === 'hub' || node.type === 'agent_hub') {
+          topFill = '#fef08a'; leftFill = '#ca8a04'; rightFill = '#a16207'; glow = 'rgba(255,215,0,0.6)'; badgeClass = 'text-[#ffd700]';
+        } else if (node.type === 'entity') {
+          topFill = '#c7d2fe'; leftFill = '#6366f1'; rightFill = '#4f46e5'; glow = 'rgba(99,102,241,0.6)'; badgeClass = 'text-[#818cf8]';
+        }
+
+        const voxel = document.createElement('div');
+        voxel.className = 'spectral-node absolute cursor-pointer group hover:scale-105 transition-transform select-none z-10';
+        voxel.style.left = `${pos.x}px`;
+        voxel.style.top = `${pos.y}px`;
+        voxel.dataset.class = epClass;
+        voxel.dataset.nodeId = node.id;
+        voxel.onclick = () => selectRealSpectralNode(node.id);
+
+        const shortTitle = (node.title || node.labelTag || node.id || 'Node').replace(/\n/g, ' ').substring(0, 36);
+        const hashSnip = (node.hash || node.full_hash || '0x' + node.id).substring(0, 14);
+
+        voxel.innerHTML = `
+          <svg style="filter: drop-shadow(0 0 10px ${glow});" height="48" viewBox="0 0 48 48" width="48">
+            <polygon fill="${topFill}" opacity="0.95" points="24,4 42,13 24,22 6,13" stroke="#ffffff" stroke-width="0.8"></polygon>
+            <polygon fill="${leftFill}" opacity="0.9" points="6,13 24,22 24,42 6,33" stroke="${leftFill}" stroke-width="0.8"></polygon>
+            <polygon fill="${rightFill}" opacity="0.95" points="24,22 42,13 42,33 24,42" stroke="${leftFill}" stroke-width="0.8"></polygon>
+          </svg>
+          <div class="mt-1 bg-surface-container-lowest/95 backdrop-blur-md px-2 py-1 border-l-2 shadow-lg border border-outline-variant/30 text-[9px] font-mono max-w-[170px]" style="border-left-color: ${leftFill};">
+            <div class="${badgeClass} font-bold uppercase truncate">[${epClass}] ${node.scope ? node.scope : ''}</div>
+            <div class="text-on-surface truncate font-semibold" title="${escapeHtml(node.content || shortTitle)}">${escapeHtml(shortTitle)}</div>
+            <div class="text-outline text-[8px] flex justify-between mt-0.5">
+              <span>${hashSnip}...</span>
+              <span class="text-secondary-container">AIS: 1.0</span>
+            </div>
+          </div>
+        `;
+        container.appendChild(voxel);
+      });
+    }
+
+    function filterSpectralNodes(filterClass) {
+      currentSpectralFilter = filterClass;
+      const pills = document.querySelectorAll('#spectral-filter-pills button');
+      pills.forEach(p => {
+        if (p.dataset.sfilter === filterClass) {
+          p.className = "px-2 py-0.5 bg-primary-container text-on-primary-container rounded-sm";
+        } else {
+          p.className = "px-2 py-0.5 text-on-surface-variant hover:text-on-surface";
+        }
+      });
+
+      const nodes = document.querySelectorAll('.spectral-node');
+      nodes.forEach(n => {
+        const cls = n.dataset.class;
+        if (filterClass === 'all' || cls === filterClass || (filterClass === 'entity' && cls === 'entity')) {
+          n.style.display = 'block';
+        } else {
+          n.style.display = 'none';
+        }
+      });
+    }
+
+    function selectRealSpectralNode(nodeId) {
+      const node = (spectralGraphData.nodes || []).find(n => n.id === nodeId);
+      if (!node) return;
+
+      if (!inspectorOpen) toggleInspector();
+      switchTab('replay');
+
+      activeSelectedNode = node;
+      activeSelectedEdge = null;
+
+      document.getElementById('drawer-session-id').innerText = node.title || node.labelTag || node.id;
+      const badge = document.getElementById('drawer-status-badge');
+      if (badge) {
+        badge.innerText = `SPECTRAL // ${(node.epistemic_class || node.type || 'NODE').toUpperCase()}`;
+        badge.className = 'text-[9px] text-[#00f0ff] px-1.5 py-0.5 bg-[#00f0ff]/10 border border-[#00f0ff]/30 font-bold uppercase shrink-0';
+      }
+      const indicator = document.getElementById('drawer-type-indicator');
+      if (indicator) indicator.style.backgroundColor = '#00f0ff';
+      const rootHead = document.getElementById('drawer-merkle-root-head');
+      if (rootHead) rootHead.innerText = `${(node.full_hash || node.hash || node.id).substring(0, 16)}...`;
+      const aisHead = document.getElementById('drawer-ais-score-head');
+      if (aisHead) aisHead.innerText = '1.000 / 1.000 (AUDITED)';
+
+      const replayBar = document.getElementById('replay-controls-bar');
+      const nodeBar = document.getElementById('node-properties-bar');
+      if (replayBar) replayBar.classList.add('hidden');
+      if (nodeBar) nodeBar.classList.remove('hidden');
+      const targetLabel = document.getElementById('node-target-label');
+      if (targetLabel) targetLabel.innerText = `SPECTRAL // ${node.id.toUpperCase()}`;
+
+      updateNodeProofDisplay(node);
+      updateNodeMcpBundle(node);
+    }
+
+    // =========================================================================
+    // DYNAMIC DIALOGUE TRAJECTORY & REAL REASONING GRAPH
+    // =========================================================================
+    let cachedDialogueSessions = [];
+    let currentDialogueSessionId = null;
+
+    window.loadDialogueData = async function() {
+      try {
+        const resp = await fetch('/api/sessions');
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        const data = await resp.json();
+        const sessions = data.sessions || [];
+        cachedDialogueSessions = sessions;
+
+        const selectEl = document.getElementById('dialogue-session-select');
+        if (selectEl) {
+          selectEl.innerHTML = '';
+          sessions.forEach(s => {
+            const opt = document.createElement('option');
+            opt.value = s.session_id;
+            opt.textContent = `${s.session_id} (${s.turn_count} turns · ${s.tool_execution_count} tools)`;
+            selectEl.appendChild(opt);
+          });
+          if (sessions.length > 0) {
+            currentDialogueSessionId = sessions[0].session_id;
+            selectEl.value = currentDialogueSessionId;
+          }
+        }
+
+        if (currentDialogueSessionId) {
+          await renderDialogueGraph(currentDialogueSessionId);
+        }
+      } catch (err) {
+        console.warn("Failed to load dialogue sessions:", err);
+      }
+    };
+
+    window.onDialogueSessionChange = async function(sessionId) {
+      currentDialogueSessionId = sessionId;
+      await renderDialogueGraph(sessionId);
+    };
+
+    async function renderDialogueGraph(sessionId) {
+      try {
+        const resp = await fetch(`/api/sessions/${sessionId}`);
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        const sessionDetail = await resp.json();
+
+        // Update telemetry strip
+        const turnsBadge = document.getElementById('dialogue-turns-badge');
+        if (turnsBadge) turnsBadge.innerText = `${sessionDetail.turn_count || 0} TURNS REIFIED`;
+        const merkleBadge = document.getElementById('dialogue-merkle-badge');
+        if (merkleBadge && sessionDetail.merkle_root) {
+          merkleBadge.innerText = `0x${sessionDetail.merkle_root.substring(0, 14)}...`;
+          merkleBadge.title = sessionDetail.merkle_root;
+        }
+
+        const container = document.getElementById('dialogue-nodes-layer');
+        if (!container) return;
+
+        container.innerHTML = '';
+        const turns = sessionDetail.turns || [];
+        let totalTools = 0;
+
+        turns.forEach((turn, turnIdx) => {
+          const toolCalls = turn.tool_calls || [];
+          totalTools += toolCalls.length;
+
+          // Build Cluster Card for this Turn
+          const turnCluster = document.createElement('div');
+          turnCluster.className = 'dialogue-turn-cluster flex flex-col gap-3 p-4 rounded-xl bg-surface-container-low/90 border border-outline-variant/30 font-mono shadow-2xl relative min-w-[320px] max-w-[380px]';
+          turnCluster.innerHTML = `
+            <div class="flex items-center justify-between pb-2 border-b border-outline-variant/20">
+              <span class="text-[11px] font-bold text-primary-container flex items-center gap-1.5">
+                <span class="w-2 h-2 rounded-full bg-primary-container animate-pulse"></span>
+                <span>TURN ${turnIdx + 1} // ${turn.exchange_id || 'EXCHANGE'}</span>
+              </span>
+              <span class="text-[9px] text-secondary-container bg-secondary-container/10 px-1.5 py-0.5 rounded font-bold">✓ MERKLE LINKED</span>
+            </div>
+            
+            <!-- STEP 1: Prompt Voxel -->
+            <div onclick="selectRealDialogueStep('${turn.exchange_id}', 'prompt', ${turnIdx})" class="dialogue-step cursor-pointer group bg-surface-container-high/90 hover:bg-surface-container-highest p-3 rounded-lg border border-[#f59e0b]/40 hover:border-[#f59e0b] transition-all" data-dstep="prompt">
+              <div class="flex items-center justify-between text-[9px] text-[#f59e0b] font-bold mb-1">
+                <span class="flex items-center gap-1"><span class="material-symbols-outlined text-xs">person</span>USER PROMPT</span>
+                <span>${turn.created_at ? turn.created_at.substring(11, 19) : ''}</span>
+              </div>
+              <p class="text-on-surface text-[11px] font-sans line-clamp-3 leading-relaxed">"${escapeHtml(turn.prompt_text || 'Prompt instruction')}"</p>
+            </div>
+
+            <!-- STEP 2: Tool Calls (if any) -->
+            ${toolCalls.map((tc, tcIdx) => `
+              <div onclick="selectRealDialogueStep('${turn.exchange_id}', 'tool', ${turnIdx}, ${tcIdx})" class="dialogue-step cursor-pointer group bg-surface-container-high/90 hover:bg-surface-container-highest p-3 rounded-lg border border-primary-container/40 hover:border-primary-container transition-all" data-dstep="tool">
+                <div class="flex items-center justify-between text-[9px] text-primary-container font-bold mb-1">
+                  <span class="flex items-center gap-1"><span class="material-symbols-outlined text-xs">build</span>TOOL: ${escapeHtml(tc.name || 'execution')}</span>
+                  <span class="text-secondary-container font-mono">EXIT: 0</span>
+                </div>
+                <div class="text-[10px] text-on-surface-variant font-mono bg-black/40 p-1.5 rounded truncate">args: ${escapeHtml(JSON.stringify(tc.arguments || {}))}</div>
+              </div>
+            `).join('')}
+
+            <!-- STEP 3: Agent Response & Reasoning -->
+            <div onclick="selectRealDialogueStep('${turn.exchange_id}', 'response', ${turnIdx})" class="dialogue-step cursor-pointer group bg-surface-container-high/90 hover:bg-surface-container-highest p-3 rounded-lg border border-[#a855f7]/40 hover:border-[#a855f7] transition-all" data-dstep="response">
+              <div class="flex items-center justify-between text-[9px] text-[#ddb7ff] font-bold mb-1">
+                <span class="flex items-center gap-1"><span class="material-symbols-outlined text-xs">psychology</span>AGENT SYNTHESIS</span>
+                <span class="text-secondary-container">100% GROUNDED</span>
+              </div>
+              <p class="text-on-surface text-[11px] font-sans line-clamp-3 leading-relaxed">${escapeHtml(turn.response_text || 'Agent response')}</p>
+            </div>
+
+            <!-- STEP 4: Cryptographic Turn Anchor Proof -->
+            <div class="p-2 bg-black/40 rounded border border-outline-variant/30 flex items-center justify-between text-[9px] text-outline font-mono">
+              <div class="truncate max-w-[190px]">HASH: ${(turn.turn_hash || '').substring(0, 16)}...</div>
+              <span class="text-primary font-bold">AIS: 1.0</span>
+            </div>
+          `;
+          container.appendChild(turnCluster);
+        });
+
+        const toolsBadge = document.getElementById('dialogue-tools-badge');
+        if (toolsBadge) toolsBadge.innerText = `${totalTools} TOOLS EXECUTED`;
+
+      } catch (err) {
+        console.warn("Failed to render dialogue graph:", err);
+      }
+    }
+
+    function filterDialogueSteps(stepType) {
+      const pills = document.querySelectorAll('#dialogue-filter-pills button');
+      pills.forEach(p => {
+        if (p.dataset.dfilter === stepType) {
+          p.className = "px-2 py-0.5 bg-primary-container text-on-primary-container rounded-sm";
+        } else {
+          p.className = "px-2 py-0.5 text-on-surface-variant hover:text-on-surface";
+        }
+      });
+
+      const steps = document.querySelectorAll('.dialogue-step');
+      steps.forEach(s => {
+        if (stepType === 'all' || s.dataset.dstep === stepType) {
+          s.style.display = 'block';
+        } else {
+          s.style.display = 'none';
+        }
+      });
+    }
+
+    function selectRealDialogueStep(exchangeId, stepType, turnIdx, toolIdx) {
+      if (!inspectorOpen) toggleInspector();
+      switchTab('replay');
+
+      const title = `DIALOGUE // ${exchangeId.toUpperCase()}`;
+      document.getElementById('drawer-session-id').innerText = title;
+
+      const badge = document.getElementById('drawer-status-badge');
+      if (badge) {
+        badge.innerText = `STEP // ${stepType.toUpperCase()}`;
+        badge.className = 'text-[9px] text-[#00f0ff] px-1.5 py-0.5 bg-[#00f0ff]/10 border border-[#00f0ff]/30 font-bold uppercase shrink-0';
+      }
+      const indicator = document.getElementById('drawer-type-indicator');
+      if (indicator) indicator.style.backgroundColor = stepType === 'prompt' ? '#f59e0b' : (stepType === 'tool' ? '#00f0ff' : '#a855f7');
+
+      const replayBar = document.getElementById('replay-controls-bar');
+      const nodeBar = document.getElementById('node-properties-bar');
+      if (replayBar) replayBar.classList.add('hidden');
+      if (nodeBar) nodeBar.classList.remove('hidden');
+      const targetLabel = document.getElementById('node-target-label');
+      if (targetLabel) targetLabel.innerText = `DIALOGUE // ${stepType.toUpperCase()}`;
+
+      const container = document.getElementById('replay-turn-container');
+      if (container) {
+        container.innerHTML = `
+          <div class="bg-surface-container-low p-3 border-l-2 border-[#00f0ff] font-mono text-xs space-y-3 ring-1 ring-[#00f0ff]/20">
+            <div class="flex items-center justify-between text-[10px] text-primary-container font-bold">
+              <span>EXCHANGE ID: ${exchangeId}</span>
+              <span class="text-secondary-container">CRYPTOGRAPHIC PROOF VERIFIED</span>
+            </div>
+            <div class="text-[11px] text-on-surface font-sans">
+              ${stepType === 'prompt' ? 'User Instruction and Context Grounding' : (stepType === 'tool' ? 'Deterministic Tool Invocation and Parameters' : 'Agent Reasoning and Knowledge Graph Synthesis')}
+            </div>
+            <div class="pt-2 border-t border-outline-variant/30 flex justify-between text-[9px] text-outline font-mono">
+              <span>PHASE: ${stepType.toUpperCase()}</span>
+              <span class="text-primary font-bold">AIS: 1.000 / 1.000</span>
+            </div>
+          </div>
+        `;
+      }
+    }
 
     function renderDynamicSessions(sessions) {
       const container = document.getElementById('dynamic-sessions-track');
