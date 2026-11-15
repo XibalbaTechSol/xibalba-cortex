@@ -292,15 +292,15 @@
 <body class="bg-surface font-sans text-on-surface antialiased select-none h-screen w-screen flex flex-col overflow-hidden">
 
   <!-- ========================================================================= -->
+  <!-- ========================================================================= -->
   <!-- 1. CLEAN TOP HEADER (h-9, 36px HUD Bar)                                   -->
   <!-- ========================================================================= -->
   <header class="fixed top-0 left-0 right-0 h-9 z-50 bg-[#0a0e15]/95 backdrop-blur-xl border-b border-outline-variant/30 flex items-center justify-between px-3 font-mono text-[11px] text-on-surface-variant shrink-0">
-    <!-- Left Section: Engine & DID -->
+    <!-- Left Section: Engine & Agent Scope Dropdown -->
     <div class="flex items-center gap-3 shrink-0">
       <div class="flex items-center gap-1.5">
         <span class="material-symbols-outlined text-primary-container text-[16px]">view_in_ar</span>
         <span class="font-display text-[12px] font-bold tracking-tight text-primary uppercase">SUPER-CORTEX</span>
-        <span class="text-outline text-[10px] hidden xl:inline">// G=(V,E,Φ)</span>
       </div>
       <div class="h-3 w-[1px] bg-outline-variant/50"></div>
       <div class="flex items-center gap-1.5 px-2 py-0.5 bg-surface-container-high border border-secondary-container/20">
@@ -309,98 +309,125 @@
         <span class="text-outline">|</span>
         <span class="text-[9px] text-on-surface">AIS: 984</span>
       </div>
-      <div class="h-3 w-[1px] bg-outline-variant/50 hidden lg:block"></div>
-      <div class="hidden lg:flex items-center gap-1 bg-surface-container-low px-2 py-0.5 border border-outline-variant/40">
-        <span class="text-outline text-[10px]">DID:</span>
-        <span id="header-actor-did" class="text-primary truncate max-w-[130px] text-[10px]">did:integrity:68fed133...</span>
+      <div class="h-3 w-[1px] bg-outline-variant/50 hidden sm:block"></div>
+      
+      <!-- AGENT SCOPE SELECTOR DROPDOWN -->
+      <div class="relative shrink-0">
+        <button id="btn-header-scope-selector" onclick="toggleHeaderScopeDropdown(event)" class="h-6 flex items-center gap-1.5 px-2.5 bg-[#0e1626]/90 hover:bg-[#121c32] border border-primary-container/40 hover:border-primary-container rounded text-[10px] font-mono whitespace-nowrap transition-all shadow-sm cursor-pointer select-none">
+          <span class="text-outline text-[9px] font-bold uppercase tracking-wider">SCOPE:</span>
+          <span class="w-1.5 h-1.5 rounded-full bg-secondary-container shadow-[0_0_6px_#00ffa3] animate-pulse"></span>
+          <span id="header-active-scope-label" class="text-primary font-bold tracking-wider text-[10px] truncate max-w-[140px]">All Agent Scopes</span>
+          <span class="material-symbols-outlined text-[13px] text-primary-container/80 -mr-0.5">arrow_drop_down</span>
+        </button>
+
+        <!-- Scope Dropdown Menu -->
+        <div id="header-scope-dropdown" class="hidden absolute top-8 left-0 w-80 bg-[#0a0f1d]/98 backdrop-blur-2xl border border-primary-container/40 rounded-lg shadow-[0_12px_36px_rgba(0,0,0,0.8)] py-1.5 z-50 font-mono text-[11px] divide-y divide-outline-variant/20">
+          <div class="px-3 py-1 text-[9px] text-outline uppercase font-bold tracking-wider flex justify-between items-center">
+            <span>Registered Agent Harness</span>
+            <span id="header-scope-count-badge" class="text-secondary-container text-[8px]">8 REGISTERED</span>
+          </div>
+          <div id="header-scope-list" class="py-1 max-h-80 overflow-y-auto">
+            <!-- All Scopes Option -->
+            <button onclick="selectHeaderScope('all', 'All Agent Scopes', 'did:integrity:mesh')" class="w-full text-left px-3 py-1.5 hover:bg-surface-container-high flex items-center justify-between group transition-colors">
+              <div class="flex items-center gap-2 truncate">
+                <span class="w-2 h-2 rounded-full bg-primary-container"></span>
+                <span class="font-bold text-white group-hover:text-primary-container">All Agent Scopes (Global)</span>
+              </div>
+              <span class="text-[8px] text-outline">GLOBAL MESH</span>
+            </button>
+            <!-- Hermes Prime -->
+            <button onclick="selectHeaderScope('agent:hermes', 'Hermes Prime', 'did:integrity:68fed1331613937555a59398223e8e87520a87dd0305aac4fd7ecdc32a14a861')" class="w-full text-left px-3 py-1.5 hover:bg-surface-container-high flex items-center justify-between group transition-colors">
+              <div class="flex items-center gap-2 truncate">
+                <span class="w-2 h-2 rounded-full bg-secondary-container"></span>
+                <div class="flex flex-col truncate">
+                  <span class="font-bold text-white group-hover:text-secondary-container">Hermes Prime (Quant)</span>
+                  <span class="text-[8px] text-outline truncate">did:integrity:68fed133...</span>
+                </div>
+              </div>
+              <span class="text-[8px] text-secondary-container bg-secondary-container/10 px-1 rounded">ED25519</span>
+            </button>
+            <!-- Antigravity Controller -->
+            <button onclick="selectHeaderScope('agent:agy', 'Antigravity (AGY)', 'did:integrity:agy-system-controller')" class="w-full text-left px-3 py-1.5 hover:bg-surface-container-high flex items-center justify-between group transition-colors">
+              <div class="flex items-center gap-2 truncate">
+                <span class="w-2 h-2 rounded-full bg-primary-container"></span>
+                <div class="flex flex-col truncate">
+                  <span class="font-bold text-white group-hover:text-primary-container">Antigravity Controller</span>
+                  <span class="text-[8px] text-outline truncate">did:integrity:agy-system...</span>
+                </div>
+              </div>
+              <span class="text-[8px] text-primary-container bg-primary-container/10 px-1 rounded">SWARM</span>
+            </button>
+            <!-- Claude Code CLI -->
+            <button onclick="selectHeaderScope('agent:claude', 'Claude Code', 'did:integrity:claude-code-dev')" class="w-full text-left px-3 py-1.5 hover:bg-surface-container-high flex items-center justify-between group transition-colors">
+              <div class="flex items-center gap-2 truncate">
+                <span class="w-2 h-2 rounded-full bg-[#ddb7ff]"></span>
+                <div class="flex flex-col truncate">
+                  <span class="font-bold text-white group-hover:text-[#ddb7ff]">Claude Code CLI</span>
+                  <span class="text-[8px] text-outline truncate">did:integrity:claude-code...</span>
+                </div>
+              </div>
+              <span class="text-[8px] text-[#ddb7ff] bg-purple-500/10 px-1 rounded">CLI</span>
+            </button>
+            <!-- Xibalba Cortex Engine -->
+            <button onclick="selectHeaderScope('agent:cortex', 'Xibalba Cortex', 'did:integrity:xibalba-cortex-engine')" class="w-full text-left px-3 py-1.5 hover:bg-surface-container-high flex items-center justify-between group transition-colors">
+              <div class="flex items-center gap-2 truncate">
+                <span class="w-2 h-2 rounded-full bg-emerald-400"></span>
+                <div class="flex flex-col truncate">
+                  <span class="font-bold text-white group-hover:text-emerald-400">Xibalba Cortex</span>
+                  <span class="text-[8px] text-outline truncate">did:integrity:xibalba-cortex...</span>
+                </div>
+              </div>
+              <span class="text-[8px] text-emerald-400 bg-emerald-500/10 px-1 rounded">GRAPH</span>
+            </button>
+            <!-- Cursor IDE Composer -->
+            <button onclick="selectHeaderScope('agent:cursor', 'Cursor IDE', 'did:integrity:cursor-composer-agent')" class="w-full text-left px-3 py-1.5 hover:bg-surface-container-high flex items-center justify-between group transition-colors">
+              <div class="flex items-center gap-2 truncate">
+                <span class="w-2 h-2 rounded-full bg-[#38bdf8]"></span>
+                <div class="flex flex-col truncate">
+                  <span class="font-bold text-white group-hover:text-[#38bdf8]">Cursor Composer</span>
+                  <span class="text-[8px] text-outline truncate">did:integrity:cursor-composer...</span>
+                </div>
+              </div>
+              <span class="text-[8px] text-[#38bdf8] bg-sky-500/10 px-1 rounded">IDE</span>
+            </button>
+            <!-- Xibalba Shield -->
+            <button onclick="selectHeaderScope('agent:shield', 'Xibalba Shield', 'did:integrity:xibalba-shield-monitor')" class="w-full text-left px-3 py-1.5 hover:bg-surface-container-high flex items-center justify-between group transition-colors">
+              <div class="flex items-center gap-2 truncate">
+                <span class="w-2 h-2 rounded-full bg-rose-400"></span>
+                <div class="flex flex-col truncate">
+                  <span class="font-bold text-white group-hover:text-rose-400">Xibalba Shield</span>
+                  <span class="text-[8px] text-outline truncate">did:integrity:shield-monitor...</span>
+                </div>
+              </div>
+              <span class="text-[8px] text-rose-400 bg-rose-500/10 px-1 rounded">DEFENSE</span>
+            </button>
+            <!-- Shared Memory Fabric -->
+            <button onclick="selectHeaderScope('shared', 'Shared Memory Fabric', 'did:integrity:shared-fabric')" class="w-full text-left px-3 py-1.5 hover:bg-surface-container-high flex items-center justify-between group transition-colors">
+              <div class="flex items-center gap-2 truncate">
+                <span class="w-2 h-2 rounded-full bg-amber-400"></span>
+                <div class="flex flex-col truncate">
+                  <span class="font-bold text-white group-hover:text-amber-400">Shared Memory Fabric</span>
+                  <span class="text-[8px] text-outline truncate">Collective Agent Pool</span>
+                </div>
+              </div>
+              <span class="text-[8px] text-amber-400 bg-amber-500/10 px-1 rounded">SHARED</span>
+            </button>
+          </div>
+        </div>
       </div>
     </div>
 
-    <!-- Center Section: Active View Selector Card & Dropdown -->
-    <div class="relative shrink-0 hidden md:block">
-      <button id="btn-header-view-selector" onclick="toggleHeaderViewDropdown(event)" class="h-6 flex items-center gap-2 px-2.5 bg-[#0e1626]/90 hover:bg-[#121c32] border border-primary-container/40 hover:border-primary-container rounded text-[10px] font-mono whitespace-nowrap transition-all shadow-sm cursor-pointer select-none">
-        <span class="text-outline uppercase text-[9px] font-bold tracking-wider opacity-80">VIEW:</span>
-        <span class="w-1.5 h-1.5 rounded-full bg-primary-container shadow-[0_0_6px_#00f0ff] animate-pulse"></span>
-        <span id="header-view-label" class="text-primary-container font-bold uppercase tracking-wider text-[10px]">3D Neural Graph Manifold</span>
-        <span class="material-symbols-outlined text-[13px] text-primary-container/80 -mr-0.5" id="header-view-chevron">arrow_drop_down</span>
+    <!-- Right Section: Projection, Universal Legend & Telemetry -->
+    <div class="flex items-center gap-2.5 shrink-0">
+      <!-- Universal Graph Legend Toggle Button -->
+      <button id="btn-toggle-legend" onclick="toggleGraphLegend()" class="h-6 flex items-center gap-1.5 px-2 bg-surface-container-low hover:bg-surface-container-high border border-outline-variant/40 hover:border-primary-container rounded text-[10px] font-mono text-on-surface hover:text-primary-container transition-all shadow-sm cursor-pointer select-none" title="Toggle Graph Legend (L)">
+        <span class="material-symbols-outlined text-[13px] text-primary-container">category</span>
+        <span class="font-bold">LEGEND</span>
+        <span class="text-[8px] text-outline bg-surface-container-high px-1 rounded font-bold">L</span>
       </button>
 
-      <!-- Dropdown Menu -->
-      <div id="header-view-dropdown" class="hidden absolute top-8 left-1/2 -translate-x-1/2 w-64 bg-[#0a0f1d]/98 backdrop-blur-2xl border border-primary-container/40 rounded-lg shadow-[0_12px_36px_rgba(0,0,0,0.8)] py-1.5 z-50 font-mono text-[11px] divide-y divide-outline-variant/20">
-        <div class="px-3 py-1 text-[9px] text-outline uppercase font-bold tracking-wider flex justify-between items-center">
-          <span>Active Cognitive View</span>
-          <span class="text-primary-container text-[8px]">8 VIEWS</span>
-        </div>
-        <div class="py-1">
-          <button onclick="selectHeaderView('graph')" class="w-full text-left px-3 py-1.5 hover:bg-surface-container-high flex items-center justify-between group transition-colors">
-            <div class="flex items-center gap-2">
-              <span class="material-symbols-outlined text-sm text-primary-container">hub</span>
-              <span class="text-on-surface group-hover:text-primary-container">3D Neural Graph</span>
-            </div>
-            <span class="text-[9px] text-outline font-sans">G=(V,E)</span>
-          </button>
-          <button onclick="selectHeaderView('spectral')" class="w-full text-left px-3 py-1.5 hover:bg-surface-container-high flex items-center justify-between group transition-colors">
-            <div class="flex items-center gap-2">
-              <span class="material-symbols-outlined text-sm text-secondary-container">multiline_chart</span>
-              <span class="text-on-surface group-hover:text-secondary-container">Spectral Math</span>
-            </div>
-            <span class="text-[9px] text-outline font-sans">λ₁, Dir.</span>
-          </button>
-          <button onclick="selectHeaderView('timeline')" class="w-full text-left px-3 py-1.5 hover:bg-surface-container-high flex items-center justify-between group transition-colors">
-            <div class="flex items-center gap-2">
-              <span class="material-symbols-outlined text-sm text-[#ddb7ff]">timeline</span>
-              <span class="text-on-surface group-hover:text-[#ddb7ff]">Session Timeline</span>
-            </div>
-            <span class="text-[9px] text-outline font-sans">Audit</span>
-          </button>
-          <button onclick="selectHeaderView('dialogue')" class="w-full text-left px-3 py-1.5 hover:bg-surface-container-high flex items-center justify-between group transition-colors">
-            <div class="flex items-center gap-2">
-              <span class="material-symbols-outlined text-sm text-primary">chat_bubble</span>
-              <span class="text-on-surface group-hover:text-primary">Dialogue Reasoning</span>
-            </div>
-            <span class="text-[9px] text-outline font-sans">Turns</span>
-          </button>
-          <button onclick="selectHeaderView('spaces')" class="w-full text-left px-3 py-1.5 hover:bg-surface-container-high flex items-center justify-between group transition-colors">
-            <div class="flex items-center gap-2">
-              <span class="material-symbols-outlined text-sm text-[#38bdf8]">folder_special</span>
-              <span class="text-on-surface group-hover:text-[#38bdf8]">Scopes & MCP</span>
-            </div>
-            <span class="text-[9px] text-outline font-sans">Namespaces</span>
-          </button>
-          <button onclick="selectHeaderView('memories')" class="w-full text-left px-3 py-1.5 hover:bg-surface-container-high flex items-center justify-between group transition-colors">
-            <div class="flex items-center gap-2">
-              <span class="material-symbols-outlined text-sm text-secondary">memory</span>
-              <span class="text-on-surface group-hover:text-secondary">Memory Fabric</span>
-            </div>
-            <span class="text-[9px] text-outline font-sans">Ledger</span>
-          </button>
-          <button onclick="selectHeaderView('connectors')" class="w-full text-left px-3 py-1.5 hover:bg-surface-container-high flex items-center justify-between group transition-colors">
-            <div class="flex items-center gap-2">
-              <span class="material-symbols-outlined text-sm text-amber-400">cable</span>
-              <span class="text-on-surface group-hover:text-amber-400">Connectors Hub</span>
-            </div>
-            <span class="text-[9px] text-outline font-sans">Clipper</span>
-          </button>
-          <button onclick="selectHeaderView('pipeline')" class="w-full text-left px-3 py-1.5 hover:bg-surface-container-high flex items-center justify-between group transition-colors">
-            <div class="flex items-center gap-2">
-              <span class="material-symbols-outlined text-sm text-emerald-400">account_tree</span>
-              <span class="text-on-surface group-hover:text-emerald-400">Extraction Studio</span>
-            </div>
-            <span class="text-[9px] text-outline font-sans">0-Infer</span>
-          </button>
-          <button onclick="selectHeaderView('audit')" class="w-full text-left px-3 py-1.5 hover:bg-surface-container-high flex items-center justify-between group transition-colors">
-            <div class="flex items-center gap-2">
-              <span class="material-symbols-outlined text-sm text-rose-400">verified_user</span>
-              <span class="text-on-surface group-hover:text-rose-400">Cryptographic Audit</span>
-            </div>
-            <span class="text-[9px] text-outline font-sans">Merkle</span>
-          </button>
-        </div>
-      </div>
-    </div>
+      <div class="h-3 w-[1px] bg-outline-variant/50 hidden xl:block"></div>
 
-    <!-- Right Section: Instrument & Telemetry -->
-    <div class="flex items-center gap-3 shrink-0">
       <div class="hidden xl:flex items-center bg-surface-container-low p-0.5 border border-outline-variant/40 text-[9px] font-bold uppercase">
         <button id="btn-projection-3d" onclick="setProjectionMode('3D')" class="px-2 py-0.5 text-primary-container bg-surface-container-high">3D LATTICE</button>
         <button id="btn-projection-2d" onclick="setProjectionMode('2D')" class="px-2 py-0.5 text-on-surface-variant hover:text-on-surface">2D PLANAR</button>
@@ -3538,21 +3565,118 @@
       }
     }
 
-    function toggleHeaderViewDropdown(e) {
+    // -------------------------------------------------------------------------
+    // AGENT SCOPE SELECTOR & UNIVERSAL GRAPH LEGEND CONTROLLERS
+    // -------------------------------------------------------------------------
+    let activeAgentScopeFilter = 'all';
+    let graphLegendOpen = false;
+
+    function toggleHeaderScopeDropdown(e) {
       if (e) e.stopPropagation();
-      const dd = document.getElementById('header-view-dropdown');
+      const dd = document.getElementById('header-scope-dropdown');
       if (dd) dd.classList.toggle('hidden');
     }
+    window.toggleHeaderScopeDropdown = toggleHeaderScopeDropdown;
 
-    function selectHeaderView(viewId) {
-      const dd = document.getElementById('header-view-dropdown');
+    function selectHeaderScope(scopeId, label, did) {
+      activeAgentScopeFilter = scopeId;
+      const dd = document.getElementById('header-scope-dropdown');
       if (dd) dd.classList.add('hidden');
-      switchView(viewId);
+
+      const labelEl = document.getElementById('header-active-scope-label');
+      if (labelEl) labelEl.innerText = label;
+
+      const didEl = document.getElementById('header-actor-did');
+      if (didEl && did) {
+        didEl.innerText = `${did.substring(0, 18)}...`;
+        didEl.title = did;
+      }
+
+      // Filter active views by selected agent scope
+      applyScopeFilterAcrossViews(scopeId);
     }
+    window.selectHeaderScope = selectHeaderScope;
+
+    function applyScopeFilterAcrossViews(scopeId) {
+      // 1. Filter 3D Graph Nodes
+      if (cubeMeshes && cubeMeshes.length > 0) {
+        cubeMeshes.forEach(mesh => {
+          const data = mesh.userData?.data;
+          if (!data) return;
+          const nodeScope = (data.scope || 'shared').toLowerCase();
+          const targetScope = scopeId.replace(/^agent:/, '').toLowerCase();
+
+          if (scopeId === 'all') {
+            mesh.visible = true;
+          } else if (nodeScope === targetScope || nodeScope === scopeId.toLowerCase() || (targetScope === 'shared' && nodeScope === 'shared')) {
+            mesh.visible = true;
+          } else {
+            mesh.visible = false;
+          }
+        });
+        if (typeof updateEdges === 'function') updateEdges();
+      }
+
+      // 2. Filter Spectral Studio 3D Meshes
+      if (spectralMeshes && spectralMeshes.length > 0) {
+        spectralMeshes.forEach(mesh => {
+          const node = mesh.userData?.node;
+          if (!node) return;
+          const nodeScope = (node.scope || 'shared').toLowerCase();
+          const targetScope = scopeId.replace(/^agent:/, '').toLowerCase();
+
+          if (scopeId === 'all') {
+            mesh.visible = true;
+          } else if (nodeScope === targetScope || nodeScope === scopeId.toLowerCase() || (targetScope === 'shared' && nodeScope === 'shared')) {
+            mesh.visible = true;
+          } else {
+            mesh.visible = false;
+          }
+        });
+      }
+
+      // 3. Filter Timeline Lanes if open
+      if (currentView === 'timeline' && typeof renderCortexTimeline === 'function') {
+        renderCortexTimeline();
+      }
+    }
+    window.applyScopeFilterAcrossViews = applyScopeFilterAcrossViews;
+
+    function toggleGraphLegend() {
+      graphLegendOpen = !graphLegendOpen;
+      const legend = document.getElementById('universal-graph-legend');
+      const btn = document.getElementById('btn-toggle-legend');
+      if (legend) {
+        legend.classList.toggle('hidden', !graphLegendOpen);
+      }
+      if (btn) {
+        if (graphLegendOpen) {
+          btn.className = "h-6 flex items-center gap-1.5 px-2 bg-primary-container text-on-primary-container font-bold rounded text-[10px] font-mono shadow-sm cursor-pointer select-none";
+        } else {
+          btn.className = "h-6 flex items-center gap-1.5 px-2 bg-surface-container-low hover:bg-surface-container-high border border-outline-variant/40 hover:border-primary-container rounded text-[10px] font-mono text-on-surface hover:text-primary-container transition-all shadow-sm cursor-pointer select-none";
+        }
+      }
+    }
+    window.toggleGraphLegend = toggleGraphLegend;
+
+    function filterByLegendClass(epClass) {
+      if (currentView === 'spectral') {
+        filterSpectralNodes(epClass);
+      } else if (currentView === 'graph') {
+        cubeMeshes.forEach(mesh => {
+          const data = mesh.userData?.data;
+          if (!data) return;
+          const cls = (data.epistemic_class || data.type || 'fact').toLowerCase();
+          mesh.visible = (cls === epClass || epClass === 'all');
+        });
+        if (typeof updateEdges === 'function') updateEdges();
+      }
+    }
+    window.filterByLegendClass = filterByLegendClass;
 
     document.addEventListener('click', (e) => {
-      const dd = document.getElementById('header-view-dropdown');
-      const btn = document.getElementById('btn-header-view-selector');
+      const dd = document.getElementById('header-scope-dropdown');
+      const btn = document.getElementById('btn-header-scope-selector');
       if (dd && !dd.classList.contains('hidden')) {
         if (!btn || (!btn.contains(e.target) && !dd.contains(e.target))) {
           dd.classList.add('hidden');
@@ -6352,9 +6476,123 @@
       if (e.key === '5') switchView('spaces');
       if (e.key.toLowerCase() === 'z') toggleZenFlight();
       if (e.key.toLowerCase() === 'c') openNewMemoryModal();
+      if (e.key.toLowerCase() === 'l' && !e.target.matches('input, textarea, select')) toggleGraphLegend();
     });
 
     window.addEventListener('DOMContentLoaded', initApp);
   </script>
+
+  <!-- ========================================================================= -->
+  <!-- UNIVERSAL GRAPH LEGEND & ONTOLOGY PANEL (Toggleable across all views)     -->
+  <!-- ========================================================================= -->
+  <div id="universal-graph-legend" class="fixed bottom-4 right-14 w-80 bg-[#090d16]/98 backdrop-blur-2xl border border-primary-container/40 rounded-xl shadow-[0_16px_48px_rgba(0,0,0,0.85)] z-40 font-mono text-xs overflow-hidden transition-all duration-300 transform translate-y-0 hidden">
+    <!-- Header -->
+    <div class="px-3.5 py-2.5 bg-surface-container-low border-b border-outline-variant/30 flex items-center justify-between">
+      <div class="flex items-center gap-2">
+        <span class="material-symbols-outlined text-primary-container text-base">category</span>
+        <span class="font-bold text-white uppercase text-[11px] tracking-wider">GRAPH ONTOLOGY LEGEND</span>
+      </div>
+      <div class="flex items-center gap-1.5">
+        <span class="text-[9px] text-outline bg-black/40 px-1.5 py-0.5 rounded font-mono">KEY: L</span>
+        <button onclick="toggleGraphLegend()" class="w-5 h-5 flex items-center justify-center text-outline hover:text-white rounded hover:bg-surface-container-high transition-colors" title="Close Legend">
+          <span class="material-symbols-outlined text-sm">close</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Body Sections -->
+    <div class="p-3 space-y-3.5 max-h-[70vh] overflow-y-auto text-[10px]">
+      <!-- 1. Epistemic Node Classes -->
+      <div>
+        <div class="flex items-center justify-between text-[9px] text-primary-container font-bold uppercase mb-1.5 pb-1 border-b border-outline-variant/20">
+          <span>EPISTEMIC NODE CLASSES</span>
+          <span class="text-outline text-[8px]">CLICK TO ISOLATE</span>
+        </div>
+        <div class="space-y-1.5">
+          <div onclick="filterByLegendClass('fact')" class="flex items-start gap-2 p-1.5 rounded hover:bg-surface-container-high/60 cursor-pointer transition-colors group">
+            <span class="w-3.5 h-3.5 rounded-sm bg-[#00f0ff] shadow-[0_0_8px_#00f0ff] shrink-0 mt-0.5"></span>
+            <div>
+              <div class="text-[#00f0ff] font-bold group-hover:underline">FACT (AIS: 1.0)</div>
+              <div class="text-outline text-[9px]">Verified immutable assertion grounded in deterministic evidence.</div>
+            </div>
+          </div>
+          <div onclick="filterByLegendClass('rule')" class="flex items-start gap-2 p-1.5 rounded hover:bg-surface-container-high/60 cursor-pointer transition-colors group">
+            <span class="w-3.5 h-3.5 rounded-sm bg-[#00ffa3] shadow-[0_0_8px_#00ffa3] shrink-0 mt-0.5"></span>
+            <div>
+              <div class="text-[#00ffa3] font-bold group-hover:underline">RULE / INVARIANT</div>
+              <div class="text-outline text-[9px]">ABAC boundary policy, Lyapunov/PID stability, security constraint.</div>
+            </div>
+          </div>
+          <div onclick="filterByLegendClass('decision')" class="flex items-start gap-2 p-1.5 rounded hover:bg-surface-container-high/60 cursor-pointer transition-colors group">
+            <span class="w-3.5 h-3.5 rounded-sm bg-[#a855f7] shadow-[0_0_8px_#a855f7] shrink-0 mt-0.5"></span>
+            <div>
+              <div class="text-[#ddb7ff] font-bold group-hover:underline">DECISION / INFERENCE</div>
+              <div class="text-outline text-[9px]">Multi-turn cognitive synthesis, agent deductions &amp; action proposals.</div>
+            </div>
+          </div>
+          <div onclick="filterByLegendClass('hub')" class="flex items-start gap-2 p-1.5 rounded hover:bg-surface-container-high/60 cursor-pointer transition-colors group">
+            <span class="w-3.5 h-3.5 rounded-sm bg-[#ffd700] shadow-[0_0_8px_#ffd700] shrink-0 mt-0.5"></span>
+            <div>
+              <div class="text-[#ffd700] font-bold group-hover:underline">SCOPE ORIGIN (HUB)</div>
+              <div class="text-outline text-[9px]">Agent namespace enclave root &amp; Shared Memory Fabric anchor.</div>
+            </div>
+          </div>
+          <div onclick="filterByLegendClass('entity')" class="flex items-start gap-2 p-1.5 rounded hover:bg-surface-container-high/60 cursor-pointer transition-colors group">
+            <span class="w-3.5 h-3.5 rounded-sm bg-[#818cf8] shadow-[0_0_8px_#818cf8] shrink-0 mt-0.5"></span>
+            <div>
+              <div class="text-[#818cf8] font-bold group-hover:underline">KNOWLEDGE ENTITY</div>
+              <div class="text-outline text-[9px]">Extracted RDF subject or object vertex in the relational graph.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 2. Synaptic Link & Edge Types -->
+      <div>
+        <div class="text-[9px] text-secondary-container font-bold uppercase mb-1.5 pb-1 border-b border-outline-variant/20">
+          SYNAPTIC CONNECTOR EDGES
+        </div>
+        <div class="space-y-1.5">
+          <div class="flex items-center gap-2 p-1">
+            <div class="w-6 h-0.5 bg-[#a855f7] shrink-0"></div>
+            <div class="text-neutral-300"><strong class="text-[#ddb7ff]">RELATION:</strong> Directed semantic triple link (S ──▶ P ──▶ O).</div>
+          </div>
+          <div class="flex items-center gap-2 p-1">
+            <div class="w-6 h-0.5 border-t border-dashed border-[#00ffa3] shrink-0"></div>
+            <div class="text-neutral-300"><strong class="text-secondary-container">EVIDENCE:</strong> Cryptographic source grounding proof.</div>
+          </div>
+          <div class="flex items-center gap-2 p-1">
+            <div class="w-6 h-0.5 bg-gradient-to-r from-[#00f0ff] to-[#a855f7] shrink-0 animate-pulse"></div>
+            <div class="text-neutral-300"><strong class="text-primary-container">SYNAPSE:</strong> Inter-agent dialogue turn progression.</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 3. Timeline & Provenance Marks -->
+      <div>
+        <div class="text-[9px] text-[#ddb7ff] font-bold uppercase mb-1.5 pb-1 border-b border-outline-variant/20">
+          TIMELINE &amp; PROVENANCE SYMBOLS
+        </div>
+        <div class="grid grid-cols-2 gap-2">
+          <div class="flex items-center gap-1.5 p-1 bg-surface-container-high/40 rounded">
+            <span class="w-2.5 h-2.5 rounded-sm bg-[#a855f7]"></span>
+            <span class="text-outline text-[9px]">Turn Exchange</span>
+          </div>
+          <div class="flex items-center gap-1.5 p-1 bg-surface-container-high/40 rounded">
+            <span class="w-2.5 h-2.5 rounded-sm bg-[#00f0ff]"></span>
+            <span class="text-outline text-[9px]">Tool Call (Exit 0)</span>
+          </div>
+          <div class="flex items-center gap-1.5 p-1 bg-surface-container-high/40 rounded">
+            <span class="w-2.5 h-2.5 rotate-45 border-2 border-secondary-container inline-block"></span>
+            <span class="text-outline text-[9px]">Merkle Root</span>
+          </div>
+          <div class="flex items-center gap-1.5 p-1 bg-surface-container-high/40 rounded">
+            <span class="w-1.5 h-3 bg-[#f43f5e] inline-block"></span>
+            <span class="text-outline text-[9px]">Policy Check</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
 </body>
 </html>

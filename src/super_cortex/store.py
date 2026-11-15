@@ -207,7 +207,10 @@ class ProvenanceStore:
                     ("shared", "Shared Memory Fabric", ScopeType.SHARED.value, None, "Collective operational knowledge accessible across all authorized agent scopes", now),
                     ("agent:xibalba", "Xibalba Executive Scope", ScopeType.SINGLE_AGENT.value, "xibalba", "Isolated operational memory enclave for Xibalba orchestrator", now),
                     ("agent:hermes", "Hermes Agent Scope", ScopeType.SINGLE_AGENT.value, "hermes", "Private operational memory for Hermes agent", now),
+                    ("agent:agy", "Antigravity Agent Scope", ScopeType.SINGLE_AGENT.value, "agy", "Autonomous workspace orchestration and swarm execution memory", now),
                     ("agent:claude", "Claude Code Scope", ScopeType.SINGLE_AGENT.value, "claude", "Private operational memory for Claude Code CLI sessions", now),
+                    ("agent:cortex", "Xibalba Cortex Scope", ScopeType.SINGLE_AGENT.value, "cortex", "Graph Laplacian & Epistemic verification memory engine", now),
+                    ("agent:cursor", "Cursor IDE Scope", ScopeType.SINGLE_AGENT.value, "cursor", "Composer agent code synthesis and editor workspace memory", now),
                     ("agent:shield", "Xibalba Shield Scope", ScopeType.SINGLE_AGENT.value, "shield", "Private operational memory for Xibalba Shield defensive monitoring", now),
                 ]
                 conn.executemany(
@@ -221,8 +224,11 @@ class ProvenanceStore:
                 now = utc_now_iso()
                 default_agents = [
                     ("xibalba", "Xibalba Orchestrator", "shared", "antigravity", "active", now, now),
-                    ("hermes", "Hermes Core Agent", "agent:hermes", "hermes", "active", now, now),
+                    ("hermes", "Hermes Prime", "agent:hermes", "hermes", "active", now, now),
+                    ("agy", "Antigravity Controller", "agent:agy", "antigravity", "active", now, now),
                     ("claude", "Claude Code CLI", "agent:claude", "claude_code", "active", now, now),
+                    ("cortex", "Xibalba Cortex", "agent:cortex", "cortex", "active", now, now),
+                    ("cursor", "Cursor IDE Composer", "agent:cursor", "cursor", "active", now, now),
                     ("shield", "Xibalba Shield", "agent:shield", "shield", "active", now, now),
                 ]
                 conn.executemany(
