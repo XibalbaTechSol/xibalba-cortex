@@ -45,7 +45,12 @@ class SupermemoryClient:
                     f"Failed to list namespaces: {resp.status_code} {resp.text}"
                 )
             data = resp.json()
-            return [ns["name"] if isinstance(ns, dict) else str(ns) for ns in data.get("namespaces", [])]
+            return [
+                ns.get("namespace") or ns.get("name") or str(ns)
+                if isinstance(ns, dict)
+                else str(ns)
+                for ns in data.get("namespaces", [])
+            ]
 
     async def ingest_document(
         self,

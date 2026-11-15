@@ -845,6 +845,48 @@ def create_app(config: SuperCortexConfig | None = None) -> Starlette:
             conn.commit()
         return JSONResponse({"status": "success", "updated_memories": updated_count, "new_relations": new_relations})
 
+    async def api_profile(request: Request) -> JSONResponse:
+        """Retrieves synthesized cognitive profile facts and buckets from Supermemory Local."""
+        namespace = request.query_params.get("namespace") or cfg.default_namespace
+        buckets_param = request.query_params.get("buckets")
+        buckets = [b.strip() for b in buckets_param.split(",")] if buckets_param else None
+        try:
+            profile_data = await cortex.get_profile(namespace=namespace, buckets=buckets)
+            return JSONResponse({
+                "status": "success",
+                "namespace": namespace,
+                "profile": profile_data.get("profile", {}),
+                "daemon_url": cfg.supermemory_url,
+            })
+        except Exception as e:
+            logger.warning("Failed to fetch profile from Supermemory Local: %s", e)
+            return JSONResponse({
+                "status": "error",
+                "namespace": namespace,
+                "error": str(e),
+                "profile": {"static": [], "dynamic": [], "buckets": {}},
+                "daemon_url": cfg.supermemory_url,
+            }, status_code=200)
+
+    async def api_namespaces(request: Request) -> JSONResponse:
+        """Lists all active namespaces from Supermemory Local."""
+        try:
+            ns_list = await cortex.client.list_namespaces()
+            return JSONResponse({
+                "status": "success",
+                "namespaces": ns_list,
+                "default": cfg.default_namespace,
+                "daemon_url": cfg.supermemory_url,
+            })
+        except Exception as e:
+            logger.warning("Failed to list namespaces from Supermemory: %s", e)
+            return JSONResponse({
+                "status": "partial",
+                "namespaces": [cfg.default_namespace, "shared", "agent-claude", "agent-xibalba", "agent-hermes", "agent-agy"],
+                "default": cfg.default_namespace,
+                "daemon_url": cfg.supermemory_url,
+            })
+
     routes = [
         Route("/api/status", api_status, methods=["GET"]),
         Route("/api/graph", api_graph, methods=["GET"]),
@@ -872,6 +914,8 @@ def create_app(config: SuperCortexConfig | None = None) -> Starlette:
         Route("/api/triples/backfill", api_triples_backfill, methods=["POST"]),
         Route("/api/audit", api_audit, methods=["GET"]),
         Route("/api/spectral", api_spectral, methods=["GET"]),
+        Route("/api/profile", api_profile, methods=["GET", "POST"]),
+        Route("/api/namespaces", api_namespaces, methods=["GET"]),
     ]
 
     # Mount static viewer if dist exists
