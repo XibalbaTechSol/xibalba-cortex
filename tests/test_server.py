@@ -90,3 +90,36 @@ async def test_server_scope_and_agent_tools(test_server):
     assert mem_data["agent_id"] == "atlas"
     assert "para" in mem_data
     assert "triples" in mem_data
+
+
+@pytest.mark.asyncio
+async def test_server_record_thought_and_exchange(test_server):
+    # Test recording reasoning step via memory_record_thought
+    thought_res = await test_server.call_tool(
+        "memory_record_thought",
+        {
+            "session_id": "sess_test_cot_stream",
+            "thought_text": "Evaluating security policy: command complies with boundary constraints.",
+            "step_phase": "pre_execution",
+            "prompt_context": "Run unit test suite"
+        }
+    )
+    thought_data = json.loads(thought_res.content[0].text)
+    assert thought_data["status"] == "recorded"
+    assert thought_data["session_id"] == "sess_test_cot_stream"
+    assert "turn_hash" in thought_data
+
+    # Test recording full exchange with thinking_text
+    exch_res = await test_server.call_tool(
+        "memory_record_model_exchange",
+        {
+            "session_id": "sess_test_cot_stream",
+            "prompt_text": "Verify git status",
+            "response_text": "Working tree is clean.",
+            "thinking_text": "Inspecting branch tracking, checking uncommitted worktrees.",
+            "tool_calls": [{"name": "run_command", "args": {"CommandLine": "git status"}}]
+        }
+    )
+    exch_data = json.loads(exch_res.content[0].text)
+    assert exch_data["session_id"] == "sess_test_cot_stream"
+    assert "session_merkle_root" in exch_data

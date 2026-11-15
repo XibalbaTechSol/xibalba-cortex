@@ -101,6 +101,7 @@ class ExchangeRecord(BaseModel):
     prompt_hash: str
     response_text: str
     response_hash: str
+    thinking_text: str = ""
     tool_calls: list[dict[str, Any]] = Field(default_factory=list)
     context_hashes: list[str] = Field(default_factory=list)
     turn_hash: str

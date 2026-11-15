@@ -163,6 +163,7 @@ class ProvenanceStore:
                     prompt_hash TEXT NOT NULL,
                     response_text TEXT NOT NULL,
                     response_hash TEXT NOT NULL,
+                    thinking_text TEXT DEFAULT '',
                     tool_calls_json TEXT NOT NULL,
                     context_hashes_json TEXT NOT NULL,
                     turn_hash TEXT NOT NULL,
@@ -201,6 +202,12 @@ class ProvenanceStore:
                 CREATE INDEX IF NOT EXISTS idx_scopes_agent ON scopes(agent_id);
                 """
             )
+            # Automatic column migration for existing databases
+            try:
+                conn.execute("ALTER TABLE exchanges ADD COLUMN thinking_text TEXT DEFAULT ''")
+            except Exception:
+                pass
+
             # Seed default scopes if none exist
             cursor = conn.execute("SELECT COUNT(*) as count FROM scopes")
             if cursor.fetchone()["count"] == 0:
@@ -479,6 +486,7 @@ class ProvenanceStore:
         session_id: str,
         prompt_text: str,
         response_text: str,
+        thinking_text: str = "",
         tool_calls: list[dict[str, Any]] | None = None,
         context_hashes: list[str] | None = None,
         created_at: str | None = None,
@@ -514,13 +522,13 @@ class ProvenanceStore:
             row = cursor.fetchone()
             parent_hash = row["turn_hash"] if row else GENESIS_HASH
 
-            turn_raw = f"{parent_hash}:{session_id}:{prompt_hash}:{response_hash}:{tools_str}:{context_str}:{now}"
+            turn_raw = f"{parent_hash}:{session_id}:{prompt_hash}:{response_hash}:{thinking_text}:{tools_str}:{context_str}:{now}"
             turn_hash = sha256_hex(turn_raw)
 
             conn.execute(
                 """
-                INSERT INTO exchanges (exchange_id, session_id, prompt_text, prompt_hash, response_text, response_hash, tool_calls_json, context_hashes_json, turn_hash, parent_hash, created_at, scope_id, agent_id)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO exchanges (exchange_id, session_id, prompt_text, prompt_hash, response_text, response_hash, thinking_text, tool_calls_json, context_hashes_json, turn_hash, parent_hash, created_at, scope_id, agent_id)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     exchange_id,
@@ -529,6 +537,7 @@ class ProvenanceStore:
                     prompt_hash,
                     response_text,
                     response_hash,
+                    thinking_text,
                     tools_str,
                     context_str,
                     turn_hash,
@@ -547,6 +556,7 @@ class ProvenanceStore:
             prompt_hash=prompt_hash,
             response_text=response_text,
             response_hash=response_hash,
+            thinking_text=thinking_text,
             tool_calls=tool_calls,
             context_hashes=context_hashes,
             turn_hash=turn_hash,
@@ -656,7 +666,7 @@ class ProvenanceStore:
             cursor = conn.execute(
                 """
                 SELECT exchange_id, session_id, prompt_text, prompt_hash, response_text, response_hash,
-                       tool_calls_json, context_hashes_json, turn_hash, parent_hash, created_at, scope_id, agent_id
+                       thinking_text, tool_calls_json, context_hashes_json, turn_hash, parent_hash, created_at, scope_id, agent_id
                 FROM exchanges
                 WHERE session_id = ?
                 ORDER BY rowid ASC
@@ -671,6 +681,7 @@ class ProvenanceStore:
                 "session_id": r["session_id"],
                 "prompt_text": r["prompt_text"],
                 "response_text": r["response_text"],
+                "thinking_text": r["thinking_text"] if ("thinking_text" in r.keys() and r["thinking_text"]) else "",
                 "tool_calls": json.loads(r["tool_calls_json"]) if r["tool_calls_json"] else [],
                 "turn_hash": r["turn_hash"],
                 "parent_hash": r["parent_hash"],
@@ -688,7 +699,7 @@ class ProvenanceStore:
         with self._get_conn() as conn:
             query = """
                 SELECT exchange_id, session_id, prompt_text, prompt_hash, response_text, response_hash,
-                       tool_calls_json, turn_hash, parent_hash, created_at, scope_id, agent_id
+                       thinking_text, tool_calls_json, turn_hash, parent_hash, created_at, scope_id, agent_id
                 FROM exchanges
             """
             conditions = []
@@ -728,6 +739,25 @@ class ProvenanceStore:
                 "color": "#f59e0b",
                 "hash": r["turn_hash"],
             })
+
+            # 1b. Reasoning / Internal Chain-of-Thought Action
+            th_text = (r["thinking_text"] or "").strip() if "thinking_text" in r.keys() else ""
+            if th_text:
+                actions.append({
+                    "action_id": f"act_th_{r['exchange_id']}",
+                    "type": "thought",
+                    "category": "reasoning",
+                    "agent_id": r["agent_id"] or "agent",
+                    "scope_id": r["scope_id"] or "shared",
+                    "session_id": r["session_id"],
+                    "exchange_id": r["exchange_id"],
+                    "created_at": r["created_at"],
+                    "title": f"Chain of Thought: {th_text[:75]}...",
+                    "payload": {"thinking_text": th_text},
+                    "icon": "psychology",
+                    "color": "#a855f7",
+                    "hash": r["turn_hash"],
+                })
 
             # 2. Atomic Tool Execution Actions
             tools = json.loads(r["tool_calls_json"]) if r["tool_calls_json"] else []

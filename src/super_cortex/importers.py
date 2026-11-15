@@ -80,6 +80,7 @@ def scan_and_import_local_sessions(
                 turns = []
                 cur_prompt = None
                 cur_response = ""
+                cur_thinking = ""
                 cur_tools = []
                 cur_time = None
 
@@ -92,14 +93,21 @@ def scan_and_import_local_sessions(
                             stype = step.get("type")
                             if stype == "USER_INPUT":
                                 if cur_prompt is not None:
-                                    turns.append((cur_prompt, cur_response, cur_tools, cur_time))
+                                    turns.append((cur_prompt, cur_response, cur_thinking, cur_tools, cur_time))
                                     if len(turns) >= max_turns_per_session:
                                         break
                                 cur_prompt = step.get("content", "")
                                 cur_response = ""
+                                cur_thinking = ""
                                 cur_tools = []
                                 cur_time = _parse_iso_or_millis(step.get("created_at"))
                             elif stype == "PLANNER_RESPONSE":
+                                th = step.get("thinking")
+                                if th and isinstance(th, str) and th.strip():
+                                    if cur_thinking:
+                                        cur_thinking += "\n\n" + th.strip()
+                                    else:
+                                        cur_thinking = th.strip()
                                 tc = step.get("tool_calls", [])
                                 if tc:
                                     for t in tc:
@@ -110,11 +118,14 @@ def scan_and_import_local_sessions(
                                     cur_response += step.get("content") + " "
 
                     if cur_prompt is not None and len(turns) < max_turns_per_session:
-                        turns.append((cur_prompt, cur_response, cur_tools, cur_time))
+                        turns.append((cur_prompt, cur_response, cur_thinking, cur_tools, cur_time))
 
                     if turns:
                         actor = "did:integrity:agy-system-controller"
-                        for p, r, tools, ttime in turns:
+                        with cortex.store._get_conn() as conn:
+                            conn.execute("DELETE FROM exchanges WHERE session_id = ?", (session_id,))
+                            conn.commit()
+                        for p, r, th_text, tools, ttime in turns:
                             # Clean up prompt if contains user request tags
                             clean_prompt = p.replace("<USER_REQUEST>", "").replace("</USER_REQUEST>", "").strip()
                             clean_prompt = clean_prompt[:250] if clean_prompt else "Execute Antigravity action"
@@ -124,6 +135,7 @@ def scan_and_import_local_sessions(
                                 session_id=session_id,
                                 prompt_text=clean_prompt,
                                 response_text=clean_response,
+                                thinking_text=th_text,
                                 tool_calls=tools,
                                 actor=actor,
                                 created_at=ttime,
@@ -160,6 +172,7 @@ def scan_and_import_local_sessions(
                 turns = []
                 cur_prompt = None
                 cur_response = ""
+                cur_thinking = ""
                 cur_tools = []
                 cur_time = None
 
@@ -176,7 +189,7 @@ def scan_and_import_local_sessions(
 
                             if dtype == "user" or mrole == "user":
                                 if cur_prompt is not None:
-                                    turns.append((cur_prompt, cur_response, cur_tools, cur_time))
+                                    turns.append((cur_prompt, cur_response, cur_thinking, cur_tools, cur_time))
                                     if len(turns) >= max_turns_per_session:
                                         break
                                 cur_prompt = ""
@@ -185,6 +198,7 @@ def scan_and_import_local_sessions(
                                 elif isinstance(content, list):
                                     cur_prompt = " ".join([b.get("text", "") for b in content if isinstance(b, dict) and b.get("type") == "text"])
                                 cur_response = ""
+                                cur_thinking = ""
                                 cur_tools = []
                                 cur_time = _parse_iso_or_millis(d.get("timestamp") or d.get("createdAt"))
                             elif dtype == "assistant" or mrole == "assistant":
@@ -193,17 +207,24 @@ def scan_and_import_local_sessions(
                                         if isinstance(b, dict):
                                             if b.get("type") == "text":
                                                 cur_response += b.get("text", "") + " "
+                                            elif b.get("type") in ("thinking", "thought"):
+                                                th = b.get("thinking") or b.get("text") or ""
+                                                if th:
+                                                    cur_thinking += th.strip() + "\n\n"
                                             elif b.get("type") == "tool_use":
                                                 cur_tools.append({"name": b.get("name"), "args": b.get("input")})
                                 elif isinstance(content, str):
                                     cur_response += content + " "
 
                     if cur_prompt is not None and len(turns) < max_turns_per_session:
-                        turns.append((cur_prompt, cur_response, cur_tools, cur_time))
+                        turns.append((cur_prompt, cur_response, cur_thinking, cur_tools, cur_time))
 
                     if turns:
                         actor = "did:integrity:claude-code-dev"
-                        for p, r, tools, ttime in turns:
+                        with cortex.store._get_conn() as conn:
+                            conn.execute("DELETE FROM exchanges WHERE session_id = ?", (session_id,))
+                            conn.commit()
+                        for p, r, th_text, tools, ttime in turns:
                             clean_prompt = p.strip()[:250] if p else "Execute Claude Code task"
                             clean_response = r.strip()[:400] if r else "Completed task."
 
@@ -211,6 +232,7 @@ def scan_and_import_local_sessions(
                                 session_id=session_id,
                                 prompt_text=clean_prompt,
                                 response_text=clean_response,
+                                thinking_text=th_text,
                                 tool_calls=tools,
                                 actor=actor,
                                 created_at=ttime,

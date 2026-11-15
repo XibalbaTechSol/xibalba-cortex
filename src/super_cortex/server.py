@@ -198,6 +198,7 @@ def create_server(config: SuperCortexConfig | None = None) -> MCPServer:
         session_id: str,
         prompt_text: str,
         response_text: str,
+        thinking_text: str = "",
         tool_calls: list[dict[str, Any]] | None = None,
         context_hashes: list[str] | None = None,
     ) -> str:
@@ -206,10 +207,34 @@ def create_server(config: SuperCortexConfig | None = None) -> MCPServer:
             session_id=session_id,
             prompt_text=prompt_text,
             response_text=response_text,
+            thinking_text=thinking_text,
             tool_calls=tool_calls,
             context_hashes=context_hashes,
         )
         return json.dumps(res, indent=2)
+
+    @server.tool()
+    def memory_record_thought(
+        session_id: str,
+        thought_text: str,
+        step_phase: str = "planning",
+        prompt_context: str | None = None,
+    ) -> str:
+        """Record an agent's real-time internal chain-of-thought (COT), deliberation, or guardrail check into Super-Cortex."""
+        res = cortex.record_exchange(
+            session_id=session_id,
+            prompt_text=prompt_context or "Internal cognitive deliberation",
+            response_text="Thought anchored to cognitive ledger.",
+            thinking_text=thought_text,
+            tool_calls=[],
+        )
+        return json.dumps({
+            "status": "recorded",
+            "session_id": session_id,
+            "step_phase": step_phase,
+            "turn_hash": res.get("turn_hash"),
+            "session_merkle_root": res.get("session_merkle_root"),
+        }, indent=2)
 
     @server.tool()
     def memory_verify_chain() -> str:
