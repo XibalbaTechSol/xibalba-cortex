@@ -767,14 +767,18 @@ def create_app(config: SuperCortexConfig | None = None) -> Starlette:
 
     async def api_triples_backfill(request: Request) -> JSONResponse:
         """Backfills Subject-Object-Predicate triples and relations for all stored memories in SQLite."""
+        from .store import canonical_json
+        from .models import utc_now_iso
+        import uuid
+        now = utc_now_iso()
+        updated_count = 0
+        new_relations = 0
+
         with cortex.store._get_conn() as conn:
             cur = conn.cursor()
             cur.execute("SELECT id, text, metadata_json FROM memories")
-            rows = cur.fetchall()
-            from .models import utc_now_iso
-            now = utc_now_iso()
-            updated_count = 0
-            new_relations = 0
+            rows = [dict(r) for r in cur.fetchall()]
+
             for r in rows:
                 mem_id = r["id"]
                 text = r["text"]
@@ -788,8 +792,22 @@ def create_app(config: SuperCortexConfig | None = None) -> Starlette:
                 updated_count += 1
                 for t in triples:
                     sub, pred, obj = t["subject"], t["predicate"], t["object"]
-                    cortex.store.add_entity(sub, evidence_links=[mem_id])
-                    cortex.store.add_entity(obj, evidence_links=[mem_id])
+                    for ent_label in (sub, obj):
+                        cur.execute("SELECT entity_id, aliases_json, evidence_links_json FROM entities WHERE label = ?", (ent_label,))
+                        erow = cur.fetchone()
+                        if erow:
+                            evs = set(json.loads(erow["evidence_links_json"]))
+                            evs.add(mem_id)
+                            cur.execute(
+                                "UPDATE entities SET evidence_links_json = ? WHERE entity_id = ?",
+                                (canonical_json(sorted(evs)), erow["entity_id"])
+                            )
+                        else:
+                            eid = f"ent_{uuid.uuid4().hex[:16]}"
+                            cur.execute(
+                                "INSERT INTO entities (entity_id, label, aliases_json, evidence_links_json, created_at) VALUES (?, ?, ?, ?, ?)",
+                                (eid, ent_label, json.dumps([]), canonical_json([mem_id]), now)
+                            )
                     rel_key = f"{sub}::{pred}::{obj}"
                     rid = f"rel_{hashlib.sha256(rel_key.encode()).hexdigest()[:16]}"
                     cur.execute("SELECT relation_id FROM relations WHERE subject = ? AND predicate = ? AND object = ?", (sub, pred, obj))

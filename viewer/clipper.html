@@ -90,6 +90,49 @@
         <div class="text-[11px] text-neutral-400">Every clipped article receives an append-only event hash and Merkle root verification.</div>
       </div>
     </div>
+
+    <!-- Full Chrome Extension Section -->
+    <div class="bg-gradient-to-r from-blue-950/40 to-purple-950/40 border border-primary/30 rounded-lg p-5 space-y-4">
+      <div class="flex items-center justify-between">
+        <div class="flex items-center gap-2.5">
+          <span class="material-symbols-outlined text-primary text-xl">extension</span>
+          <h3 class="text-xs font-bold text-white uppercase tracking-wider">Official Chrome Extension (Manifest V3)</h3>
+        </div>
+        <a href="/super_cortex_extension.zip" download="super_cortex_extension.zip" class="px-3 py-1 bg-primary text-black font-extrabold text-xs uppercase rounded hover:brightness-110 flex items-center gap-1.5 shadow">
+          <span class="material-symbols-outlined text-sm">download</span>
+          <span>Download .ZIP</span>
+        </a>
+      </div>
+
+      <p class="text-[11px] text-neutral-300">
+        Prefer a native browser extension with shortcut keys, right-click context menus, and inline semantic recall?
+      </p>
+
+      <div class="grid grid-cols-3 gap-2 text-[10px] font-mono">
+        <div class="bg-black/50 p-2.5 rounded border border-white/5 space-y-1">
+          <div class="text-primary font-bold">⚡ Shortcut Key</div>
+          <div class="text-neutral-400"><kbd class="bg-neutral-800 px-1 py-0.5 rounded text-white">Alt+Shift+C</kbd> instantly anchors the active tab.</div>
+        </div>
+        <div class="bg-black/50 p-2.5 rounded border border-white/5 space-y-1">
+          <div class="text-secondary font-bold">🖱 Context Menu</div>
+          <div class="text-neutral-400">Highlight any text, right click &gt; "Clip Selection to Super-Cortex".</div>
+        </div>
+        <div class="bg-black/50 p-2.5 rounded border border-white/5 space-y-1">
+          <div class="text-purple-400 font-bold">🔍 Instant Recall</div>
+          <div class="text-neutral-400">Query your cognitive memory ledger directly from any tab.</div>
+        </div>
+      </div>
+
+      <div class="text-[11px] text-neutral-400 bg-black/40 p-3 rounded border border-white/5">
+        <strong>Install Instructions:</strong>
+        <ol class="list-decimal list-inside space-y-1 mt-1 text-neutral-300">
+          <li>Unzip <code>super_cortex_extension.zip</code> or load from <code>~/Projects/super-cortex/extension/</code></li>
+          <li>Open Chrome and navigate to <code class="text-primary">chrome://extensions</code></li>
+          <li>Toggle on <strong>Developer mode</strong> (top-right switch)</li>
+          <li>Click <strong>Load unpacked</strong> and select the <code>extension</code> folder</li>
+        </ol>
+      </div>
+    </div>
   </div>
 
   <script>
