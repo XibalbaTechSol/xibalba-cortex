@@ -398,6 +398,15 @@ def create_app(config: SuperCortexConfig | None = None) -> Starlette:
 
     async def api_sessions(request: Request) -> JSONResponse:
         sessions = cortex.get_session_distribution()
+        scope = request.query_params.get("scope")
+        if scope and scope != "all":
+            target = scope.replace("agent:", "").lower()
+            sessions = [
+                s for s in sessions
+                if s.get("scope_id", "").lower() == scope.lower()
+                or s.get("agent_id", "").lower() == target
+                or target in s.get("session_id", "").lower()
+            ]
         return JSONResponse({"sessions": sessions})
 
     async def api_session_detail(request: Request) -> JSONResponse:
@@ -421,6 +430,11 @@ def create_app(config: SuperCortexConfig | None = None) -> Starlette:
         proof = cortex.get_session_merkle_proof(session_id, turn_index)
         proof["valid"] = proof.get("verified", True)
         return JSONResponse(proof)
+
+    async def api_import_local_sessions(request: Request) -> JSONResponse:
+        from super_cortex.importers import scan_and_import_local_sessions
+        res = scan_and_import_local_sessions(cortex=cortex)
+        return JSONResponse(res)
 
     async def api_audit(request: Request) -> JSONResponse:
         """Comprehensive cryptographic provenance and AIS invariant audit report."""
@@ -827,6 +841,7 @@ def create_app(config: SuperCortexConfig | None = None) -> Starlette:
         Route("/api/agents", api_agents, methods=["GET", "POST"]),
         Route("/api/mcp-config", api_mcp_config, methods=["GET"]),
         Route("/api/sessions", api_sessions, methods=["GET"]),
+        Route("/api/sessions/import-local", api_import_local_sessions, methods=["GET", "POST"]),
         Route("/api/sessions/{session_id}", api_session_detail, methods=["GET"]),
         Route("/api/sessions/{session_id}/proof", api_session_proof, methods=["GET"]),
         Route("/api/remember", api_remember, methods=["POST"]),

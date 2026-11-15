@@ -223,6 +223,66 @@
       background: #f43f5e;
       box-shadow: 0 0 6px #f43f5e;
     }
+
+    /* Dialogue Isometric 3D Cube Nodes */
+    .dialogue-cube-node {
+      position: absolute;
+      width: 64px;
+      height: 64px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      border-radius: 10px;
+      cursor: pointer;
+      user-select: none;
+      transition: transform 0.22s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.22s ease, opacity 0.2s ease;
+      box-shadow: 0 10px 24px rgba(0,0,0,0.8), inset 0 1px 0 rgba(255,255,255,0.22);
+      z-index: 10;
+    }
+    .dialogue-cube-node:hover {
+      transform: scale(1.22) translateY(-4px) !important;
+      z-index: 40 !important;
+      box-shadow: 0 16px 36px rgba(0,0,0,0.95), 0 0 24px currentColor !important;
+    }
+    .dialogue-cube-node.node-prompt {
+      background: linear-gradient(135deg, #451a03 0%, #1c0b02 100%);
+      border: 1.5px solid #f59e0b;
+      color: #f59e0b;
+    }
+    .dialogue-cube-node.node-tool {
+      background: linear-gradient(135deg, #082f49 0%, #031422 100%);
+      border: 1.5px solid #00f0ff;
+      color: #00f0ff;
+    }
+    .dialogue-cube-node.node-response {
+      background: linear-gradient(135deg, #3b0764 0%, #170228 100%);
+      border: 1.5px solid #c084fc;
+      color: #c084fc;
+    }
+    .dialogue-cube-node.node-anchor {
+      background: linear-gradient(135deg, #064e3b 0%, #022018 100%);
+      border: 1.5px solid #00ffa3;
+      color: #00ffa3;
+      border-radius: 8px;
+    }
+    .dialogue-cube-node.active-replaying {
+      animation: cubePulse 1.1s infinite alternate;
+      border-width: 2.5px;
+      z-index: 35;
+    }
+    @keyframes cubePulse {
+      0% { transform: scale(1.0); box-shadow: 0 0 10px currentColor; }
+      100% { transform: scale(1.25); box-shadow: 0 0 28px currentColor; }
+    }
+    @keyframes branchPopIn {
+      0% { opacity: 0; transform: scale(0.2) translateY(15px); }
+      70% { opacity: 1; transform: scale(1.15) translateY(-2px); }
+      100% { opacity: 1; transform: scale(1) translateY(0); }
+    }
+    .cube-pop-in {
+      animation: branchPopIn 0.35s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+    }
   </style>
   <script src="https://cdn.tailwindcss.com"></script>
   <script id="tailwind-config">
@@ -910,6 +970,49 @@
         </div>
       </section>
 
+      <!-- VIDEO REPLAY DECK FOR TIMELINE -->
+      <section class="px-4 py-1.5 bg-[#080d16] border-b border-primary-container/20 flex flex-wrap items-center justify-between text-[10px] font-mono shrink-0 gap-3">
+        <div class="flex items-center gap-2">
+          <!-- Play / Pause Button -->
+          <button id="btn-timeline-replay-play" onclick="toggleTimelineVideoReplay()" type="button" class="h-6 flex items-center gap-1.5 px-2.5 bg-primary-container text-on-primary-container font-bold rounded shadow hover:opacity-90 transition-all">
+            <span id="timeline-replay-play-icon" class="material-symbols-outlined text-[13px]">play_arrow</span>
+            <span id="timeline-replay-play-text">PLAY TIMELINE VIDEO</span>
+          </button>
+          <!-- Rewind Button -->
+          <button onclick="rewindTimelineVideoReplay()" type="button" class="h-6 px-2 bg-surface-container-high hover:bg-surface-container-highest text-white rounded font-bold" title="Rewind to start">
+            <span class="material-symbols-outlined text-[13px]">fast_rewind</span>
+          </button>
+          <!-- Step Forward Button -->
+          <button onclick="stepTimelineVideoReplay(1)" type="button" class="h-6 px-2 bg-surface-container-high hover:bg-surface-container-highest text-white rounded font-bold" title="Step forward">
+            <span class="material-symbols-outlined text-[13px]">step_forward</span>
+          </button>
+
+          <!-- Timeline Scrubber Slider -->
+          <div class="flex items-center gap-2 pl-2">
+            <span class="text-outline text-[9px]">TIME:</span>
+            <input type="range" id="timeline-video-scrubber" min="0" max="100" value="100" oninput="onTimelineVideoScrub(this.value)" class="w-36 md:w-56 h-1 bg-surface-container-high rounded appearance-none cursor-pointer accent-[#00ffa3]">
+            <span id="timeline-video-time-label" class="text-secondary-container font-mono font-bold text-[9px] w-32 truncate">PRESENT TIME</span>
+          </div>
+        </div>
+
+        <div class="flex items-center gap-3">
+          <!-- Live Timeline Event Readout -->
+          <div id="timeline-live-banner" class="hidden flex items-center gap-1.5 px-2 py-0.5 rounded bg-secondary-container/10 border border-secondary-container/30 text-secondary-container text-[9px] font-mono animate-pulse">
+            <span class="material-symbols-outlined text-[11px]">bolt</span>
+            <span id="timeline-live-text">Replaying time...</span>
+          </div>
+
+          <!-- Speed Controls -->
+          <div class="flex items-center gap-1 bg-surface-container-low p-0.5 border border-outline-variant/30 text-[9px] rounded font-bold">
+            <span class="text-outline text-[8px] px-1">SPEED:</span>
+            <button onclick="setTimelineReplaySpeed(0.5)" id="btn-tl-speed-05" class="px-1.5 py-0.2 rounded hover:bg-surface-container-high text-on-surface">0.5x</button>
+            <button onclick="setTimelineReplaySpeed(1)" id="btn-tl-speed-1" class="px-1.5 py-0.2 rounded bg-primary-container text-on-primary-container font-bold">1x</button>
+            <button onclick="setTimelineReplaySpeed(2)" id="btn-tl-speed-2" class="px-1.5 py-0.2 rounded hover:bg-surface-container-high text-on-surface">2x</button>
+            <button onclick="setTimelineReplaySpeed(5)" id="btn-tl-speed-5" class="px-1.5 py-0.2 rounded hover:bg-surface-container-high text-on-surface">5x</button>
+          </div>
+        </div>
+      </section>
+
       <!-- MAIN MULTI-LANE CHRONOLOGICAL TIMELINE (CORTEX ARCHITECTURE) -->
       <div class="flex-1 overflow-auto relative p-4" id="timeline-scroll-viewport">
         <div id="cortex-timeline-grid" class="xc-tl-grid border border-outline-variant/30 bg-[#090c12] shadow-2xl select-none" role="table" aria-label="Sessions on a time axis">
@@ -1112,6 +1215,49 @@
           <button onclick="filterDialogueSteps('prompt')" class="px-2 py-0.5 text-on-surface-variant hover:text-on-surface" data-dfilter="prompt">PROMPTS</button>
           <button onclick="filterDialogueSteps('tool')" class="px-2 py-0.5 text-on-surface-variant hover:text-on-surface" data-dfilter="tool">TOOL CALLS</button>
           <button onclick="filterDialogueSteps('response')" class="px-2 py-0.5 text-on-surface-variant hover:text-on-surface" data-dfilter="response">RESPONSES</button>
+        </div>
+      </section>
+
+      <!-- VIDEO REPLAY DECK FOR DIALOGUE GRAPH -->
+      <section class="px-4 py-1.5 bg-[#080d16] border-b border-primary-container/20 flex flex-wrap items-center justify-between text-[10px] font-mono shrink-0 gap-3">
+        <div class="flex items-center gap-2">
+          <!-- Play / Pause Button -->
+          <button id="btn-dialogue-replay-play" onclick="toggleDialogueVideoReplay()" type="button" class="h-6 flex items-center gap-1.5 px-2.5 bg-primary-container text-on-primary-container font-bold rounded shadow hover:opacity-90 transition-all">
+            <span id="dialogue-replay-play-icon" class="material-symbols-outlined text-[13px]">play_arrow</span>
+            <span id="dialogue-replay-play-text">PLAY VIDEO REPLAY</span>
+          </button>
+          <!-- Rewind Button -->
+          <button onclick="rewindDialogueVideoReplay()" type="button" class="h-6 px-2 bg-surface-container-high hover:bg-surface-container-highest text-white rounded font-bold" title="Rewind to start">
+            <span class="material-symbols-outlined text-[13px]">fast_rewind</span>
+          </button>
+          <!-- Step Forward Button -->
+          <button onclick="stepDialogueVideoReplay(1)" type="button" class="h-6 px-2 bg-surface-container-high hover:bg-surface-container-highest text-white rounded font-bold" title="Step one branch forward">
+            <span class="material-symbols-outlined text-[13px]">step_forward</span>
+          </button>
+
+          <!-- Video Scrubber Slider -->
+          <div class="flex items-center gap-2 pl-2">
+            <span class="text-outline text-[9px]">STEP:</span>
+            <input type="range" id="dialogue-video-scrubber" min="0" max="100" value="100" oninput="onDialogueVideoScrub(this.value)" class="w-36 md:w-56 h-1 bg-surface-container-high rounded appearance-none cursor-pointer accent-[#00f0ff]">
+            <span id="dialogue-video-step-label" class="text-secondary-container font-mono font-bold text-[9px] w-24">ALL STEPS</span>
+          </div>
+        </div>
+
+        <div class="flex items-center gap-3">
+          <!-- Live Branching Action Display -->
+          <div id="dialogue-live-branching-banner" class="hidden flex items-center gap-1.5 px-2 py-0.5 rounded bg-primary-container/10 border border-primary-container/30 text-primary-container text-[9px] font-mono animate-pulse">
+            <span class="material-symbols-outlined text-[11px]">fork_right</span>
+            <span id="dialogue-live-branch-text">Branching...</span>
+          </div>
+
+          <!-- Speed Controls -->
+          <div class="flex items-center gap-1 bg-surface-container-low p-0.5 border border-outline-variant/30 text-[9px] rounded font-bold">
+            <span class="text-outline text-[8px] px-1">SPEED:</span>
+            <button onclick="setDialogueReplaySpeed(0.5)" id="btn-speed-05" class="px-1.5 py-0.2 rounded hover:bg-surface-container-high text-on-surface" data-dspeed="0.5">0.5x</button>
+            <button onclick="setDialogueReplaySpeed(1)" id="btn-speed-1" class="px-1.5 py-0.2 rounded bg-primary-container text-on-primary-container font-bold" data-dspeed="1">1x</button>
+            <button onclick="setDialogueReplaySpeed(2)" id="btn-speed-2" class="px-1.5 py-0.2 rounded hover:bg-surface-container-high text-on-surface" data-dspeed="2">2x</button>
+            <button onclick="setDialogueReplaySpeed(5)" id="btn-speed-5" class="px-1.5 py-0.2 rounded hover:bg-surface-container-high text-on-surface" data-dspeed="5">5x</button>
+          </div>
         </div>
       </section>
 
@@ -2147,6 +2293,90 @@
             Save Changes
           </button>
         </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: EXPANDED DIALOGUE CUBE NODE INSPECTOR -->
+  <div id="dialogue-node-modal" class="hidden fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 font-mono select-text" onclick="if(event.target === this) closeDialogueNodeModal()">
+    <div class="bg-[#0b101b] border border-primary-container/50 rounded-xl p-6 shadow-[0_20px_60px_rgba(0,0,0,0.9)] max-w-3xl w-full max-h-[88vh] flex flex-col gap-4 overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+      <!-- Modal Header -->
+      <div class="flex items-center justify-between pb-3 border-b border-outline-variant/30 shrink-0">
+        <div class="flex items-center gap-2.5">
+          <span id="modal-cube-icon" class="w-8 h-8 rounded-lg flex items-center justify-center bg-primary-container/20 text-primary-container border border-primary-container/40">
+            <span class="material-symbols-outlined text-lg">psychology</span>
+          </span>
+          <div>
+            <div class="flex items-center gap-2">
+              <span id="modal-cube-type" class="text-xs font-bold uppercase tracking-wider text-primary-container">PROMPT INSTRUCTION</span>
+              <span id="modal-cube-turn" class="text-[9px] px-1.5 py-0.5 rounded bg-surface-container-high text-outline">TURN 1</span>
+              <span id="modal-cube-agent-badge" class="text-[8px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wider bg-secondary-container/15 text-secondary-container">HERMES</span>
+            </div>
+            <span id="modal-cube-id" class="text-[10px] text-outline font-mono">exch_0123456789abcdef</span>
+          </div>
+        </div>
+        <div class="flex items-center gap-2">
+          <span id="modal-cube-timestamp" class="text-[10px] text-secondary-container bg-secondary-container/10 px-2 py-0.5 rounded border border-secondary-container/30">2026-11-15 10:14:22 UTC</span>
+          <button onclick="closeDialogueNodeModal()" class="w-7 h-7 rounded bg-surface-container-high hover:bg-surface-container-highest text-on-surface hover:text-white flex items-center justify-center text-sm font-bold transition-colors">✕</button>
+        </div>
+      </div>
+
+      <!-- Modal Body (Scrollable) -->
+      <div class="flex-1 overflow-y-auto space-y-4 pr-1 text-xs">
+        <!-- Section: Prompt -->
+        <div id="modal-section-prompt" class="space-y-1.5">
+          <div class="flex items-center justify-between text-[10px] text-[#f59e0b] font-bold">
+            <span class="flex items-center gap-1"><span class="material-symbols-outlined text-xs">person</span>PROMPT INSTRUCTION</span>
+            <button onclick="copyModalField('modal-prompt-content')" class="text-[9px] text-outline hover:text-white">COPY</button>
+          </div>
+          <div id="modal-prompt-content" class="p-3 rounded-lg bg-surface-container-lowest border border-outline-variant/30 text-white font-sans text-xs whitespace-pre-wrap leading-relaxed max-h-48 overflow-y-auto"></div>
+        </div>
+
+        <!-- Section: Tool Execution -->
+        <div id="modal-section-tools" class="space-y-1.5 hidden">
+          <div class="flex items-center justify-between text-[10px] text-primary-container font-bold">
+            <span class="flex items-center gap-1"><span class="material-symbols-outlined text-xs">build</span>TOOL INVOCATION &amp; ARGS</span>
+            <span class="text-secondary-container text-[9px]">EXIT CODE 0</span>
+          </div>
+          <pre id="modal-tools-content" class="p-3 rounded-lg bg-surface-container-lowest border border-outline-variant/30 text-primary-container font-mono text-[11px] overflow-x-auto max-h-48 leading-relaxed"></pre>
+        </div>
+
+        <!-- Section: Model Response & Synthesis -->
+        <div id="modal-section-response" class="space-y-1.5">
+          <div class="flex items-center justify-between text-[10px] text-[#c084fc] font-bold">
+            <span class="flex items-center gap-1"><span class="material-symbols-outlined text-xs">psychology</span>AGENT REASONING &amp; SYNTHESIS</span>
+            <button onclick="copyModalField('modal-response-content')" class="text-[9px] text-outline hover:text-white">COPY</button>
+          </div>
+          <div id="modal-response-content" class="p-3 rounded-lg bg-surface-container-lowest border border-outline-variant/30 text-neutral-200 font-sans text-xs whitespace-pre-wrap leading-relaxed max-h-56 overflow-y-auto"></div>
+        </div>
+
+        <!-- Section: Cryptographic Provenance & Proof -->
+        <div class="p-3 rounded-lg bg-black/60 border border-outline-variant/30 space-y-1.5 text-[10px]">
+          <div class="flex items-center justify-between text-secondary-container font-bold">
+            <span class="flex items-center gap-1"><span class="material-symbols-outlined text-xs">verified</span>CRYPTOGRAPHIC PROVENANCE LINK</span>
+            <span>AIS: 1.000 (AUDITED)</span>
+          </div>
+          <div class="grid grid-cols-2 gap-2 text-[9px] font-mono">
+            <div>
+              <span class="text-outline block">TURN HASH:</span>
+              <span id="modal-turn-hash" class="text-white truncate block">0x000...</span>
+            </div>
+            <div>
+              <span class="text-outline block">PARENT HASH:</span>
+              <span id="modal-parent-hash" class="text-white truncate block">0x000...</span>
+            </div>
+            <div class="col-span-2">
+              <span class="text-outline block">MERKLE ROOT:</span>
+              <span id="modal-merkle-root" class="text-[#ddb7ff] truncate block">0x000...</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Modal Footer -->
+      <div class="pt-3 border-t border-outline-variant/30 flex items-center justify-between text-[10px] shrink-0">
+        <span class="text-outline">Click outside or press <kbd class="px-1.5 py-0.5 bg-surface-container-high rounded text-white">ESC</kbd> to close</span>
+        <button onclick="closeDialogueNodeModal()" class="px-4 py-1.5 bg-primary-container text-on-primary-container font-bold rounded hover:opacity-90 transition-opacity">CLOSE</button>
       </div>
     </div>
   </div>
@@ -3635,9 +3865,14 @@
         });
       }
 
-      // 3. Filter Timeline Lanes if open
-      if (currentView === 'timeline' && typeof renderCortexTimeline === 'function') {
+      // 3. Filter Timeline Lanes
+      if (typeof renderCortexTimeline === 'function') {
         renderCortexTimeline();
+      }
+
+      // 4. Filter Dialogue Sessions dropdown and re-render DAG
+      if (typeof updateDialogueScopeFilter === 'function') {
+        updateDialogueScopeFilter(scopeId);
       }
     }
     window.applyScopeFilterAcrossViews = applyScopeFilterAcrossViews;
@@ -5666,17 +5901,25 @@
     }
 
     // =========================================================================
-    // INTERACTIVE DIALOGUE TRAJECTORY GRAPH (PAN & ZOOM DAG ENGINE)
+    // INTERACTIVE DIALOGUE TRAJECTORY GRAPH (CUBE NODES & VIDEO REPLAY ENGINE)
     // =========================================================================
     let cachedDialogueSessions = [];
     let currentDialogueSessionId = null;
+    let dialogueActiveSessionData = null;
     let dialoguePan = { x: 50, y: 60 };
-    let dialogueZoom = 1.0;
+    let dialogueZoom = 0.95;
     let dialogueIsDragging = false;
     let dialogueStartPos = { x: 0, y: 0 };
     let dialogueStartPan = { x: 0, y: 0 };
     let dialogueLayout = 'linear'; // 'linear' or 'stacked'
     let currentDialogueFilter = 'all';
+
+    // Video Replay State
+    let dialogueReplayPlaying = false;
+    let dialogueReplayTimer = null;
+    let dialogueReplaySpeed = 1.0;
+    let dialogueFlatSteps = [];
+    let currentDialogueReplayStep = 0;
 
     function initDialogueCanvasControls() {
       const surface = document.getElementById('dialogue-surface');
@@ -5684,7 +5927,7 @@
       surface.dataset.initialized = "true";
 
       surface.addEventListener('mousedown', (e) => {
-        if (e.target.closest('.dialogue-step') || e.target.closest('button') || e.target.closest('select')) {
+        if (e.target.closest('.dialogue-cube-node') || e.target.closest('button') || e.target.closest('select') || e.target.closest('input')) {
           return;
         }
         dialogueIsDragging = true;
@@ -5711,7 +5954,7 @@
         const mouseX = e.clientX - rect.left;
         const mouseY = e.clientY - rect.top;
         const zoomDelta = e.deltaY < 0 ? 1.12 : 0.88;
-        const newZoom = Math.min(2.5, Math.max(0.35, dialogueZoom * zoomDelta));
+        const newZoom = Math.min(2.5, Math.max(0.25, dialogueZoom * zoomDelta));
 
         dialoguePan.x = mouseX - (mouseX - dialoguePan.x) * (newZoom / dialogueZoom);
         dialoguePan.y = mouseY - (mouseY - dialoguePan.y) * (newZoom / dialogueZoom);
@@ -5732,7 +5975,7 @@
     }
 
     function zoomDialogueCanvas(delta) {
-      const newZoom = Math.min(2.5, Math.max(0.35, dialogueZoom + delta));
+      const newZoom = Math.min(2.5, Math.max(0.25, dialogueZoom + delta));
       dialogueZoom = newZoom;
       updateDialogueTransform();
     }
@@ -5740,7 +5983,7 @@
 
     function resetDialogueCanvas() {
       dialoguePan = { x: 50, y: 60 };
-      dialogueZoom = 1.0;
+      dialogueZoom = 0.95;
       updateDialogueTransform();
     }
     window.resetDialogueCanvas = resetDialogueCanvas;
@@ -5773,29 +6016,54 @@
         const sessions = data.sessions || [];
         cachedDialogueSessions = sessions;
 
-        const selectEl = document.getElementById('dialogue-session-select');
-        if (selectEl) {
-          selectEl.innerHTML = '';
-          sessions.forEach(s => {
-            const opt = document.createElement('option');
-            opt.value = s.session_id;
-            const agentTag = (s.agent_id && s.agent_id !== 'unknown') ? `[${s.agent_id.toUpperCase()}] ` : '';
-            opt.textContent = `${agentTag}${s.session_id} (${s.turn_count} turns · ${s.tool_execution_count} tools)`;
-            selectEl.appendChild(opt);
-          });
-          if (sessions.length > 0) {
-            currentDialogueSessionId = sessions[0].session_id;
-            selectEl.value = currentDialogueSessionId;
-          }
-        }
-
-        if (currentDialogueSessionId) {
-          await renderDialogueGraph(currentDialogueSessionId);
-        }
+        updateDialogueScopeFilter(activeAgentScopeFilter || 'all');
       } catch (err) {
         console.warn("Failed to load dialogue sessions:", err);
       }
     };
+
+    function updateDialogueScopeFilter(scopeId) {
+      const selectEl = document.getElementById('dialogue-session-select');
+      if (!selectEl) return;
+
+      const sessions = cachedDialogueSessions || [];
+      const targetAgent = scopeId === 'all' ? null : scopeId.replace(/^agent:/, '').toLowerCase();
+
+      const filtered = sessions.filter(s => {
+        if (!targetAgent) return true;
+        const sAgent = (s.agent_id || '').toLowerCase();
+        const sScope = (s.scope_id || '').toLowerCase();
+        const sId = (s.session_id || '').toLowerCase();
+        return sAgent === targetAgent || sScope === scopeId.toLowerCase() || sId.includes(targetAgent);
+      });
+
+      selectEl.innerHTML = '';
+      filtered.forEach(s => {
+        const opt = document.createElement('option');
+        opt.value = s.session_id;
+        const agentTag = (s.agent_id && s.agent_id !== 'unknown') ? `[${s.agent_id.toUpperCase()}] ` : '';
+        opt.textContent = `${agentTag}${s.session_id} (${s.turn_count} turns · ${s.tool_execution_count} tools)`;
+        selectEl.appendChild(opt);
+      });
+
+      if (filtered.length > 0) {
+        // If current session is not in filtered list, select the first one
+        if (!filtered.some(s => s.session_id === currentDialogueSessionId)) {
+          currentDialogueSessionId = filtered[0].session_id;
+        }
+        selectEl.value = currentDialogueSessionId;
+        renderDialogueGraph(currentDialogueSessionId);
+      } else {
+        const opt = document.createElement('option');
+        opt.textContent = `No sessions found for scope: ${scopeId}`;
+        selectEl.appendChild(opt);
+        const nodesLayer = document.getElementById('dialogue-nodes-layer');
+        const linesGroup = document.getElementById('dialogue-svg-lines');
+        if (nodesLayer) nodesLayer.innerHTML = '<div class="p-8 text-neutral-400 font-mono text-xs italic">No dialogue sessions found for this agent scope.</div>';
+        if (linesGroup) linesGroup.innerHTML = '';
+      }
+    }
+    window.updateDialogueScopeFilter = updateDialogueScopeFilter;
 
     window.onDialogueSessionChange = async function(sessionId) {
       currentDialogueSessionId = sessionId;
@@ -5804,10 +6072,13 @@
 
     async function renderDialogueGraph(sessionId) {
       initDialogueCanvasControls();
+      stopDialogueVideoReplay();
+
       try {
         const resp = await fetch(`/api/sessions/${sessionId}`);
         if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
         const sessionDetail = await resp.json();
+        dialogueActiveSessionData = sessionDetail;
 
         // Update telemetry strip
         const turnsBadge = document.getElementById('dialogue-turns-badge');
@@ -5820,6 +6091,7 @@
 
         const nodesLayer = document.getElementById('dialogue-nodes-layer');
         const linesGroup = document.getElementById('dialogue-svg-lines');
+        const transformLayer = document.getElementById('dialogue-transform-layer');
         if (!nodesLayer || !linesGroup) return;
 
         nodesLayer.innerHTML = '';
@@ -5828,127 +6100,512 @@
         const turns = sessionDetail.turns || [];
         let totalTools = 0;
         let prevAnchorPos = null;
+        dialogFlatSteps = [];
+
+        // Expand canvas dimensions to hold all turns comfortably
+        const canvasWidth = Math.max(3800, (turns.length + 2) * 440);
+        if (transformLayer) {
+          transformLayer.style.width = `${canvasWidth}px`;
+        }
 
         turns.forEach((turn, turnIdx) => {
           const toolCalls = turn.tool_calls || [];
           totalTools += toolCalls.length;
 
-          // Coordinate computation based on layout
-          let clusterX = 40 + turnIdx * 780;
-          let clusterY = 40;
+          // Coordinates
+          let turnBaseX = 60 + turnIdx * 430;
+          let turnBaseY = 320;
+
           if (dialogueLayout === 'stacked') {
-            clusterX = 40 + (turnIdx % 2) * 600;
-            clusterY = 40 + Math.floor(turnIdx / 2) * 580;
+            turnBaseX = 60 + (turnIdx % 3) * 440;
+            turnBaseY = 120 + Math.floor(turnIdx / 3) * 290;
           }
 
-          // Build Turn Enclave Cluster
-          const turnCluster = document.createElement('div');
-          turnCluster.className = 'absolute flex flex-col gap-3 p-4 rounded-xl bg-surface-container-low/95 border border-outline-variant/30 font-mono shadow-2xl';
-          turnCluster.style.left = `${clusterX}px`;
-          turnCluster.style.top = `${clusterY}px`;
-          turnCluster.style.width = '700px';
-
-          turnCluster.innerHTML = `
-            <div class="flex items-center justify-between pb-2 border-b border-outline-variant/20">
-              <span class="text-[11px] font-bold text-primary-container flex items-center gap-1.5">
-                <span class="w-2.5 h-2.5 rounded-full bg-primary-container animate-pulse"></span>
-                <span>TURN ${turnIdx + 1} // ${escapeHtml(turn.exchange_id || 'EXCHANGE')}</span>
-              </span>
-              <span class="text-[9px] text-secondary-container bg-secondary-container/10 px-2 py-0.5 rounded font-bold border border-secondary-container/30">✓ MERKLE LINKED</span>
-            </div>
-            
-            <div class="grid grid-cols-12 gap-3 items-start">
-              <!-- STEP 1: Prompt Voxel (Cols 1-4) -->
-              <div id="step-prompt-${turnIdx}" onclick="selectRealDialogueStep('${turn.exchange_id}', 'prompt', ${turnIdx})" class="dialogue-step col-span-4 cursor-pointer group bg-surface-container-high/90 hover:bg-surface-container-highest p-3 rounded-lg border border-[#f59e0b]/40 hover:border-[#f59e0b] transition-all hover:scale-[1.02] shadow" data-dstep="prompt">
-                <div class="flex items-center justify-between text-[9px] text-[#f59e0b] font-bold mb-1">
-                  <span class="flex items-center gap-1"><span class="material-symbols-outlined text-xs">person</span>PROMPT</span>
-                  <span>${turn.created_at ? turn.created_at.substring(11, 19) : ''}</span>
-                </div>
-                <p class="text-on-surface text-[11px] font-sans line-clamp-3 leading-relaxed">"${escapeHtml(turn.prompt_text || 'Prompt instruction')}"</p>
-              </div>
-
-              <!-- STEP 2: Tool Calls (Cols 5-8) -->
-              <div id="step-tools-${turnIdx}" class="col-span-4 flex flex-col gap-2">
-                ${toolCalls.length > 0 ? toolCalls.map((tc, tcIdx) => `
-                  <div onclick="selectRealDialogueStep('${turn.exchange_id}', 'tool', ${turnIdx}, ${tcIdx})" class="dialogue-step cursor-pointer group bg-surface-container-high/90 hover:bg-surface-container-highest p-2.5 rounded-lg border border-primary-container/40 hover:border-primary-container transition-all hover:scale-[1.02] shadow" data-dstep="tool">
-                    <div class="flex items-center justify-between text-[9px] text-primary-container font-bold mb-1">
-                      <span class="flex items-center gap-1"><span class="material-symbols-outlined text-xs">build</span>${escapeHtml(tc.name || 'execution')}</span>
-                      <span class="text-secondary-container font-mono text-[8px]">EXIT 0</span>
-                    </div>
-                    <div class="text-[9px] text-on-surface-variant font-mono bg-black/40 p-1 rounded truncate">args: ${escapeHtml(JSON.stringify(tc.arguments || {}))}</div>
-                  </div>
-                `).join('') : `
-                  <div class="p-3 rounded-lg border border-outline-variant/20 bg-surface-container-high/40 text-[9px] text-outline text-center">
-                    NO TOOLS INVOKED (DIRECT SYNTHESIS)
-                  </div>
-                `}
-              </div>
-
-              <!-- STEP 3: Agent Response & Reasoning (Cols 9-12) -->
-              <div id="step-response-${turnIdx}" onclick="selectRealDialogueStep('${turn.exchange_id}', 'response', ${turnIdx})" class="dialogue-step col-span-4 cursor-pointer group bg-surface-container-high/90 hover:bg-surface-container-highest p-3 rounded-lg border border-[#a855f7]/40 hover:border-[#a855f7] transition-all hover:scale-[1.02] shadow" data-dstep="response">
-                <div class="flex items-center justify-between text-[9px] text-[#ddb7ff] font-bold mb-1">
-                  <span class="flex items-center gap-1"><span class="material-symbols-outlined text-xs">psychology</span>SYNTHESIS</span>
-                  <span class="text-secondary-container text-[8px]">100% GROUNDED</span>
-                </div>
-                <p class="text-on-surface text-[11px] font-sans line-clamp-3 leading-relaxed">${escapeHtml(turn.response_text || 'Agent response')}</p>
-              </div>
-            </div>
-
-            <!-- STEP 4: Cryptographic Turn Anchor Proof -->
-            <div id="step-anchor-${turnIdx}" onclick="selectRealDialogueStep('${turn.exchange_id}', 'anchor', ${turnIdx})" class="dialogue-step cursor-pointer p-2 bg-black/50 hover:bg-black/70 rounded border border-outline-variant/30 hover:border-secondary-container flex items-center justify-between text-[9px] text-outline font-mono transition-colors" data-dstep="anchor">
-              <div class="flex items-center gap-2">
-                <span class="material-symbols-outlined text-secondary-container text-xs">verified</span>
-                <span class="truncate max-w-[280px]">MERKLE ANCHOR: ${(turn.turn_hash || '').substring(0, 24)}...</span>
-              </div>
-              <span class="text-primary font-bold">AIS: 1.000 (AUDITED)</span>
-            </div>
+          // -------------------------------------------------------------
+          // STEP 1: Prompt Cube Node
+          // -------------------------------------------------------------
+          const promptNodeId = `node-prompt-${turnIdx}`;
+          const promptEl = document.createElement('div');
+          promptEl.id = promptNodeId;
+          promptEl.className = 'dialogue-cube-node node-prompt group';
+          promptEl.style.left = `${turnBaseX}px`;
+          promptEl.style.top = `${turnBaseY}px`;
+          promptEl.title = `Turn ${turnIdx + 1} Prompt: ${(turn.prompt_text || '').substring(0, 80)}...`;
+          promptEl.onclick = () => openDialogueNodeModal({
+            type: 'prompt',
+            turnIdx,
+            turn,
+            sessionDetail,
+          });
+          promptEl.innerHTML = `
+            <span class="material-symbols-outlined text-lg">person</span>
+            <span class="text-[9px] font-bold mt-0.5">P${turnIdx + 1}</span>
+            <span class="text-[7px] text-amber-300 font-mono tracking-wider">PROMPT</span>
           `;
-          nodesLayer.appendChild(turnCluster);
+          nodesLayer.appendChild(promptEl);
 
-          // Connect sequential steps with SVG Bezier Curves
-          setTimeout(() => {
-            const promptEl = document.getElementById(`step-prompt-${turnIdx}`);
-            const toolsEl = document.getElementById(`step-tools-${turnIdx}`);
-            const respEl = document.getElementById(`step-response-${turnIdx}`);
-            const anchorEl = document.getElementById(`step-anchor-${turnIdx}`);
+          dialogueFlatSteps.push({
+            stepIdx: dialogueFlatSteps.length,
+            type: 'prompt',
+            turnIdx,
+            nodeId: promptNodeId,
+            x: turnBaseX + 32,
+            y: turnBaseY + 32,
+            summary: `Turn ${turnIdx + 1}: Prompt instruction received`
+          });
 
-            if (promptEl && toolsEl && respEl && anchorEl) {
-              const pRect = promptEl.getBoundingClientRect();
-              const tRect = toolsEl.getBoundingClientRect();
-              const rRect = respEl.getBoundingClientRect();
-              const aRect = anchorEl.getBoundingClientRect();
-              const cRect = turnCluster.getBoundingClientRect();
+          // -------------------------------------------------------------
+          // STEP 2: Tool Branch Cube Nodes
+          // -------------------------------------------------------------
+          const toolNodePositions = [];
+          if (toolCalls.length > 0) {
+            toolCalls.forEach((tc, tcIdx) => {
+              const toolNodeId = `node-tool-${turnIdx}-${tcIdx}`;
+              const toolX = turnBaseX + 115;
+              const offsetY = ((tcIdx - (toolCalls.length - 1) / 2) * 76);
+              const toolY = turnBaseY + offsetY;
+              toolNodePositions.push({ x: toolX + 32, y: toolY + 32 });
 
-              // Prompt to Tools / Response
-              const pMidX = clusterX + (pRect.right - cRect.left);
-              const pMidY = clusterY + (pRect.top + pRect.height / 2 - cRect.top);
-              const tMidX = clusterX + (tRect.left - cRect.left);
-              const tMidY = clusterY + (tRect.top + tRect.height / 2 - cRect.top);
+              const toolEl = document.createElement('div');
+              toolEl.id = toolNodeId;
+              toolEl.className = 'dialogue-cube-node node-tool group';
+              toolEl.style.left = `${toolX}px`;
+              toolEl.style.top = `${toolY}px`;
+              toolEl.title = `Tool [${tc.name || 'exec'}]: ${JSON.stringify(tc.arguments || {})}`;
+              toolEl.onclick = () => openDialogueNodeModal({
+                type: 'tool',
+                toolIdx: tcIdx,
+                tool: tc,
+                turnIdx,
+                turn,
+                sessionDetail,
+              });
 
-              drawSvgBezier(linesGroup, pMidX, pMidY, tMidX, tMidY, '#f59e0b', '#00f0ff');
+              const shortToolName = (tc.name || 'tool').replace(/^(memory_|super_)/, '');
+              toolEl.innerHTML = `
+                <span class="material-symbols-outlined text-lg">build</span>
+                <span class="text-[8px] font-bold mt-0.5 truncate max-w-[56px] text-center">${escapeHtml(shortToolName)}</span>
+                <span class="text-[7px] text-primary-container font-mono">EXIT 0</span>
+              `;
+              nodesLayer.appendChild(toolEl);
 
-              const tOutX = clusterX + (tRect.right - cRect.left);
-              const rInX = clusterX + (rRect.left - cRect.left);
-              const rInY = clusterY + (rRect.top + rRect.height / 2 - cRect.top);
+              // SVG Branch: Prompt -> Tool
+              const branchPathId = `path-prompt-tool-${turnIdx}-${tcIdx}`;
+              drawSvgBezier(linesGroup, turnBaseX + 64, turnBaseY + 32, toolX, toolY + 32, '#f59e0b', '#00f0ff', branchPathId);
 
-              drawSvgBezier(linesGroup, tOutX, tMidY, rInX, rInY, '#00f0ff', '#a855f7');
+              dialogueFlatSteps.push({
+                stepIdx: dialogueFlatSteps.length,
+                type: 'tool',
+                turnIdx,
+                nodeId: toolNodeId,
+                pathId: branchPathId,
+                x: toolX + 32,
+                y: toolY + 32,
+                summary: `Turn ${turnIdx + 1} Tool Execution: ${tc.name || 'tool'}`
+              });
+            });
+          }
 
-              // Transit connector from previous turn's anchor
-              if (prevAnchorPos) {
-                drawSvgTransitBezier(linesGroup, prevAnchorPos.x, prevAnchorPos.y, clusterX, pMidY);
-              }
-              prevAnchorPos = { x: clusterX + 700, y: clusterY + (aRect.top + aRect.height / 2 - cRect.top) };
-            }
-          }, 40);
+          // -------------------------------------------------------------
+          // STEP 3: Agent Response Cube Node
+          // -------------------------------------------------------------
+          const respNodeId = `node-resp-${turnIdx}`;
+          const respX = turnBaseX + 230;
+          const respY = turnBaseY;
+          const respEl = document.createElement('div');
+          respEl.id = respNodeId;
+          respEl.className = 'dialogue-cube-node node-response group';
+          respEl.style.left = `${respX}px`;
+          respEl.style.top = `${respY}px`;
+          respEl.title = `Agent Synthesis: ${(turn.response_text || '').substring(0, 80)}...`;
+          respEl.onclick = () => openDialogueNodeModal({
+            type: 'response',
+            turnIdx,
+            turn,
+            sessionDetail,
+          });
+          respEl.innerHTML = `
+            <span class="material-symbols-outlined text-lg">psychology</span>
+            <span class="text-[9px] font-bold mt-0.5">R${turnIdx + 1}</span>
+            <span class="text-[7px] text-purple-300 font-mono tracking-wider">SYNTH</span>
+          `;
+          nodesLayer.appendChild(respEl);
+
+          // SVG Branches into Response: From Tools (or directly from Prompt if no tools)
+          if (toolNodePositions.length > 0) {
+            toolNodePositions.forEach((tp, tpIdx) => {
+              const respPathId = `path-tool-resp-${turnIdx}-${tpIdx}`;
+              drawSvgBezier(linesGroup, tp.x + 32, tp.y, respX, respY + 32, '#00f0ff', '#a855f7', respPathId);
+            });
+          } else {
+            const respPathId = `path-prompt-resp-${turnIdx}`;
+            drawSvgBezier(linesGroup, turnBaseX + 64, turnBaseY + 32, respX, respY + 32, '#f59e0b', '#a855f7', respPathId);
+          }
+
+          dialogueFlatSteps.push({
+            stepIdx: dialogueFlatSteps.length,
+            type: 'response',
+            turnIdx,
+            nodeId: respNodeId,
+            x: respX + 32,
+            y: respY + 32,
+            summary: `Turn ${turnIdx + 1}: Agent reasoning reified`
+          });
+
+          // -------------------------------------------------------------
+          // STEP 4: Merkle Anchor Cube Node
+          // -------------------------------------------------------------
+          const anchorNodeId = `node-anchor-${turnIdx}`;
+          const anchorX = turnBaseX + 330;
+          const anchorY = turnBaseY;
+          const anchorEl = document.createElement('div');
+          anchorEl.id = anchorNodeId;
+          anchorEl.className = 'dialogue-cube-node node-anchor group';
+          anchorEl.style.left = `${anchorX}px`;
+          anchorEl.style.top = `${anchorY}px`;
+          anchorEl.title = `Merkle Leaf Root: ${(turn.turn_hash || '')}`;
+          anchorEl.onclick = () => openDialogueNodeModal({
+            type: 'anchor',
+            turnIdx,
+            turn,
+            sessionDetail,
+          });
+          anchorEl.innerHTML = `
+            <span class="material-symbols-outlined text-lg">verified</span>
+            <span class="text-[8px] font-bold mt-0.5">⚓ ROOT</span>
+            <span class="text-[7px] text-emerald-300 font-mono tracking-wider">${(turn.turn_hash || '').substring(0, 5)}</span>
+          `;
+          nodesLayer.appendChild(anchorEl);
+
+          // SVG Link: Response -> Merkle Anchor
+          const anchorPathId = `path-resp-anchor-${turnIdx}`;
+          drawSvgBezier(linesGroup, respX + 64, respY + 32, anchorX, anchorY + 32, '#a855f7', '#00ffa3', anchorPathId);
+
+          // SVG Inter-turn Arc: Previous Anchor -> Current Prompt
+          if (prevAnchorPos) {
+            drawSvgTransitBezier(linesGroup, prevAnchorPos.x, prevAnchorPos.y, turnBaseX, turnBaseY + 32);
+          }
+          prevAnchorPos = { x: anchorX + 64, y: anchorY + 32 };
+
+          dialogueFlatSteps.push({
+            stepIdx: dialogueFlatSteps.length,
+            type: 'anchor',
+            turnIdx,
+            nodeId: anchorNodeId,
+            x: anchorX + 32,
+            y: anchorY + 32,
+            summary: `Turn ${turnIdx + 1}: Cryptographic Merkle leaf anchored`
+          });
         });
 
         const toolsBadge = document.getElementById('dialogue-tools-badge');
         if (toolsBadge) toolsBadge.innerText = `${totalTools} TOOLS EXECUTED`;
 
+        // Update Replay Slider
+        const scrubber = document.getElementById('dialogue-video-scrubber');
+        const stepLabel = document.getElementById('dialogue-video-step-label');
+        if (scrubber) {
+          scrubber.min = 0;
+          scrubber.max = Math.max(0, dialogueFlatSteps.length - 1);
+          scrubber.value = scrubber.max;
+        }
+        if (stepLabel) {
+          stepLabel.innerText = `ALL (${dialogueFlatSteps.length})`;
+        }
+        currentDialogueReplayStep = dialogueFlatSteps.length - 1;
+
       } catch (err) {
         console.warn("Failed to render dialogue graph:", err);
       }
     }
+
+    function drawSvgBezier(svgGroup, x1, y1, x2, y2, startCol, endCol, pathId) {
+      const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+      if (pathId) path.id = pathId;
+      const dx = Math.max(30, (x2 - x1) * 0.5);
+      const d = `M ${x1} ${y1} C ${x1 + dx} ${y1}, ${x2 - dx} ${y2}, ${x2} ${y2}`;
+      path.setAttribute('d', d);
+      path.setAttribute('fill', 'none');
+      path.setAttribute('stroke', 'url(#dialogueCausalGrad)');
+      path.setAttribute('stroke-width', '2.5');
+      path.setAttribute('stroke-opacity', '0.8');
+      svgGroup.appendChild(path);
+    }
+
+    function drawSvgTransitBezier(svgGroup, x1, y1, x2, y2) {
+      const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+      const dx = Math.max(60, (x2 - x1) * 0.5);
+      const d = `M ${x1} ${y1} C ${x1 + dx} ${y1}, ${x2 - dx} ${y2}, ${x2} ${y2}`;
+      path.setAttribute('d', d);
+      path.setAttribute('fill', 'none');
+      path.setAttribute('stroke', 'url(#dialogueTransitGrad)');
+      path.setAttribute('stroke-width', '2.5');
+      path.setAttribute('stroke-dasharray', '6 4');
+      path.setAttribute('stroke-opacity', '0.7');
+      svgGroup.appendChild(path);
+    }
+
+    // =========================================================================
+    // VIDEO REPLAY ENGINE CONTROLLER
+    // =========================================================================
+    function toggleDialogueVideoReplay() {
+      if (dialogueReplayPlaying) {
+        pauseDialogueVideoReplay();
+      } else {
+        startDialogueVideoReplay();
+      }
+    }
+    window.toggleDialogueVideoReplay = toggleDialogueVideoReplay;
+
+    function startDialogueVideoReplay() {
+      if (!dialogueFlatSteps || dialogueFlatSteps.length === 0) return;
+      dialogueReplayPlaying = true;
+
+      const playBtn = document.getElementById('btn-dialogue-replay-play');
+      const playIcon = document.getElementById('dialogue-replay-play-icon');
+      const playText = document.getElementById('dialogue-replay-play-text');
+      const banner = document.getElementById('dialogue-live-branching-banner');
+
+      if (playBtn) playBtn.className = "h-6 flex items-center gap-1.5 px-2.5 bg-secondary-container text-[#00363a] font-bold rounded shadow-lg animate-pulse transition-all";
+      if (playIcon) playIcon.innerText = "pause";
+      if (playText) playText.innerText = "PAUSE REPLAY";
+      if (banner) banner.classList.remove('hidden');
+
+      if (currentDialogueReplayStep >= dialogueFlatSteps.length - 1) {
+        currentDialogueReplayStep = 0;
+      }
+
+      applyDialogueReplayStep(currentDialogueReplayStep, true);
+
+      clearInterval(dialogueReplayTimer);
+      const intervalMs = Math.max(120, Math.round(900 / dialogueReplaySpeed));
+      dialogueReplayTimer = setInterval(() => {
+        if (currentDialogueReplayStep < dialogueFlatSteps.length - 1) {
+          currentDialogueReplayStep++;
+          applyDialogueReplayStep(currentDialogueReplayStep, true);
+        } else {
+          pauseDialogueVideoReplay();
+        }
+      }, intervalMs);
+    }
+    window.startDialogueVideoReplay = startDialogueVideoReplay;
+
+    function pauseDialogueVideoReplay() {
+      dialogueReplayPlaying = false;
+      clearInterval(dialogueReplayTimer);
+
+      const playBtn = document.getElementById('btn-dialogue-replay-play');
+      const playIcon = document.getElementById('dialogue-replay-play-icon');
+      const playText = document.getElementById('dialogue-replay-play-text');
+      const banner = document.getElementById('dialogue-live-branching-banner');
+
+      if (playBtn) playBtn.className = "h-6 flex items-center gap-1.5 px-2.5 bg-primary-container text-on-primary-container font-bold rounded shadow hover:opacity-90 transition-all";
+      if (playIcon) playIcon.innerText = "play_arrow";
+      if (playText) playText.innerText = "RESUME REPLAY";
+      if (banner) banner.classList.add('hidden');
+    }
+    window.pauseDialogueVideoReplay = pauseDialogueVideoReplay;
+
+    function stopDialogueVideoReplay() {
+      pauseDialogueVideoReplay();
+      const playText = document.getElementById('dialogue-replay-play-text');
+      if (playText) playText.innerText = "PLAY VIDEO REPLAY";
+    }
+
+    function rewindDialogueVideoReplay() {
+      stopDialogueVideoReplay();
+      currentDialogueReplayStep = 0;
+      applyDialogueReplayStep(0, false);
+    }
+    window.rewindDialogueVideoReplay = rewindDialogueVideoReplay;
+
+    function stepDialogueVideoReplay(dir) {
+      pauseDialogueVideoReplay();
+      const nextStep = Math.max(0, Math.min(dialogueFlatSteps.length - 1, currentDialogueReplayStep + dir));
+      currentDialogueReplayStep = nextStep;
+      applyDialogueReplayStep(currentDialogueReplayStep, true);
+    }
+    window.stepDialogueVideoReplay = stepDialogueVideoReplay;
+
+    function onDialogueVideoScrub(val) {
+      pauseDialogueVideoReplay();
+      currentDialogueReplayStep = parseInt(val, 10);
+      applyDialogueReplayStep(currentDialogueReplayStep, false);
+    }
+    window.onDialogueVideoScrub = onDialogueVideoScrub;
+
+    function setDialogueReplaySpeed(spd) {
+      dialogueReplaySpeed = spd;
+      [0.5, 1, 2, 5].forEach(s => {
+        const btn = document.getElementById(`btn-speed-${s == 0.5 ? '05' : s}`);
+        if (btn) {
+          if (s === spd) {
+            btn.className = "px-1.5 py-0.2 rounded bg-primary-container text-on-primary-container font-bold";
+          } else {
+            btn.className = "px-1.5 py-0.2 rounded hover:bg-surface-container-high text-on-surface";
+          }
+        }
+      });
+      if (dialogueReplayPlaying) {
+        startDialogueVideoReplay();
+      }
+    }
+    window.setDialogueReplaySpeed = setDialogueReplaySpeed;
+
+    function applyDialogueReplayStep(stepIndex, animate = true) {
+      if (!dialogueFlatSteps || dialogueFlatSteps.length === 0) return;
+
+      const scrubber = document.getElementById('dialogue-video-scrubber');
+      const stepLabel = document.getElementById('dialogue-video-step-label');
+      const branchText = document.getElementById('dialogue-live-branch-text');
+
+      if (scrubber) scrubber.value = stepIndex;
+      if (stepLabel) stepLabel.innerText = `${stepIndex + 1} / ${dialogueFlatSteps.length}`;
+
+      const activeStep = dialogueFlatSteps[stepIndex];
+      if (branchText && activeStep) {
+        branchText.innerText = activeStep.summary;
+      }
+
+      // Show/hide nodes and paths according to step index
+      dialogueFlatSteps.forEach((s, idx) => {
+        const nodeEl = document.getElementById(s.nodeId);
+        if (nodeEl) {
+          if (idx <= stepIndex) {
+            nodeEl.style.opacity = '1';
+            nodeEl.style.pointerEvents = 'auto';
+            if (idx === stepIndex && animate) {
+              nodeEl.classList.add('cube-pop-in', 'active-replaying');
+            } else {
+              nodeEl.classList.remove('active-replaying');
+            }
+          } else {
+            nodeEl.style.opacity = '0.08';
+            nodeEl.style.pointerEvents = 'none';
+            nodeEl.classList.remove('active-replaying', 'cube-pop-in');
+          }
+        }
+
+        if (s.pathId) {
+          const pathEl = document.getElementById(s.pathId);
+          if (pathEl) {
+            pathEl.style.opacity = idx <= stepIndex ? '0.8' : '0.05';
+          }
+        }
+      });
+
+      // Smooth pan to keep the active branching node centered
+      if (animate && activeStep) {
+        const viewport = document.getElementById('dialogue-canvas-viewport');
+        if (viewport) {
+          const vWidth = viewport.clientWidth;
+          const vHeight = viewport.clientHeight;
+          const targetPanX = vWidth / 2 - activeStep.x * dialogueZoom;
+          const targetPanY = vHeight / 2 - activeStep.y * dialogueZoom;
+          dialoguePan.x += (targetPanX - dialoguePan.x) * 0.25;
+          dialoguePan.y += (targetPanY - dialoguePan.y) * 0.25;
+          updateDialogueTransform();
+        }
+      }
+    }
+
+    // =========================================================================
+    // EXPANDED DIALOGUE CUBE NODE MODAL POP-UP
+    // =========================================================================
+    function openDialogueNodeModal(data) {
+      const modal = document.getElementById('dialogue-node-modal');
+      if (!modal) return;
+
+      const type = data.type || 'prompt';
+      const turnIdx = data.turnIdx || 0;
+      const turn = data.turn || {};
+      const sessionDetail = data.sessionDetail || {};
+
+      const typeLabelEl = document.getElementById('modal-cube-type');
+      const turnBadgeEl = document.getElementById('modal-cube-turn');
+      const agentBadgeEl = document.getElementById('modal-cube-agent-badge');
+      const idEl = document.getElementById('modal-cube-id');
+      const timeEl = document.getElementById('modal-cube-timestamp');
+      const iconEl = document.getElementById('modal-cube-icon');
+
+      const pSec = document.getElementById('modal-section-prompt');
+      const tSec = document.getElementById('modal-section-tools');
+      const rSec = document.getElementById('modal-section-response');
+
+      const pContent = document.getElementById('modal-prompt-content');
+      const tContent = document.getElementById('modal-tools-content');
+      const rContent = document.getElementById('modal-response-content');
+
+      const turnHashEl = document.getElementById('modal-turn-hash');
+      const parentHashEl = document.getElementById('modal-parent-hash');
+      const merkleRootEl = document.getElementById('modal-merkle-root');
+
+      // Populate common details
+      if (turnBadgeEl) turnBadgeEl.innerText = `TURN ${turnIdx + 1}`;
+      if (idEl) idEl.innerText = turn.exchange_id || sessionDetail.session_id || 'EXCHANGE';
+      if (timeEl) timeEl.innerText = turn.created_at || '2026-11-15 UTC';
+      if (turnHashEl) turnHashEl.innerText = turn.turn_hash || '0x000';
+      if (parentHashEl) parentHashEl.innerText = turn.parent_hash || '0x000';
+      if (merkleRootEl) merkleRootEl.innerText = sessionDetail.merkle_root || '0x000';
+
+      const agentId = (sessionDetail.agent_id || sessionDetail.session_id.split('_')[1] || 'agent').toUpperCase();
+      if (agentBadgeEl) agentBadgeEl.innerText = agentId;
+
+      if (pContent) pContent.innerText = turn.prompt_text || 'No prompt recorded.';
+      if (rContent) rContent.innerText = turn.response_text || 'No response recorded.';
+
+      const toolCalls = turn.tool_calls || [];
+      if (tContent) {
+        if (data.type === 'tool' && data.tool) {
+          tContent.innerText = `TOOL: ${data.tool.name}\nARGUMENTS:\n${JSON.stringify(data.tool.arguments || data.tool.args || {}, null, 2)}`;
+        } else {
+          tContent.innerText = JSON.stringify(toolCalls, null, 2);
+        }
+      }
+
+      // Configure based on step type
+      if (type === 'prompt') {
+        if (typeLabelEl) typeLabelEl.innerText = 'PROMPT INSTRUCTION';
+        if (iconEl) iconEl.innerHTML = '<span class="material-symbols-outlined text-lg text-[#f59e0b]">person</span>';
+        if (tSec) tSec.classList.add('hidden');
+      } else if (type === 'tool') {
+        if (typeLabelEl) typeLabelEl.innerText = `TOOL INVOCATION // ${data.tool?.name || 'EXEC'}`;
+        if (iconEl) iconEl.innerHTML = '<span class="material-symbols-outlined text-lg text-primary-container">build</span>';
+        if (tSec) tSec.classList.remove('hidden');
+      } else if (type === 'response') {
+        if (typeLabelEl) typeLabelEl.innerText = 'AGENT REASONING & SYNTHESIS';
+        if (iconEl) iconEl.innerHTML = '<span class="material-symbols-outlined text-lg text-[#c084fc]">psychology</span>';
+        if (tSec) tSec.classList.add('hidden');
+      } else if (type === 'anchor') {
+        if (typeLabelEl) typeLabelEl.innerText = 'CRYPTOGRAPHIC MERKLE ANCHOR';
+        if (iconEl) iconEl.innerHTML = '<span class="material-symbols-outlined text-lg text-secondary-container">verified</span>';
+        if (tSec) tSec.classList.add('hidden');
+      }
+
+      modal.classList.remove('hidden');
+    }
+    window.openDialogueNodeModal = openDialogueNodeModal;
+
+    function closeDialogueNodeModal() {
+      const modal = document.getElementById('dialogue-node-modal');
+      if (modal) modal.classList.add('hidden');
+    }
+    window.closeDialogueNodeModal = closeDialogueNodeModal;
+
+    function copyModalField(elementId) {
+      const el = document.getElementById(elementId);
+      if (el) {
+        navigator.clipboard.writeText(el.innerText || '');
+      }
+    }
+    window.copyModalField = copyModalField;
+
+    // Hotkey listener for Escape to close modal
+    window.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') {
+        closeDialogueNodeModal();
+      }
+    });
 
     function drawSvgBezier(svgGroup, x1, y1, x2, y2, startCol, endCol) {
       const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
@@ -6462,11 +7119,147 @@
       };
 
       grid.onmouseleave = () => {
-        if (!timelineGesture) {
+        if (!timelineGesture && !timelineReplayPlaying) {
           cursorEl.classList.add('hidden');
           if (timestampEl) timestampEl.classList.add('hidden');
         }
       };
+    }
+
+    // -------------------------------------------------------------------------
+    // TIMELINE VIDEO REPLAY CONTROLLER
+    // -------------------------------------------------------------------------
+    let timelineReplayPlaying = false;
+    let timelineReplayTimer = null;
+    let timelineReplaySpeed = 1.0;
+    let timelineCurrentReplayPct = 0;
+
+    function toggleTimelineVideoReplay() {
+      if (timelineReplayPlaying) {
+        pauseTimelineVideoReplay();
+      } else {
+        startTimelineVideoReplay();
+      }
+    }
+    window.toggleTimelineVideoReplay = toggleTimelineVideoReplay;
+
+    function startTimelineVideoReplay() {
+      timelineReplayPlaying = true;
+      const playBtn = document.getElementById('btn-timeline-replay-play');
+      const playIcon = document.getElementById('timeline-replay-play-icon');
+      const playText = document.getElementById('timeline-replay-play-text');
+      const banner = document.getElementById('timeline-live-banner');
+
+      if (playBtn) playBtn.className = "h-6 flex items-center gap-1.5 px-2.5 bg-secondary-container text-[#00363a] font-bold rounded shadow-lg animate-pulse transition-all";
+      if (playIcon) playIcon.innerText = "pause";
+      if (playText) playText.innerText = "PAUSE VIDEO";
+      if (banner) banner.classList.remove('hidden');
+
+      if (timelineCurrentReplayPct >= 100) {
+        timelineCurrentReplayPct = 0;
+      }
+
+      clearInterval(timelineReplayTimer);
+      timelineReplayTimer = setInterval(() => {
+        if (timelineCurrentReplayPct < 100) {
+          timelineCurrentReplayPct += (0.5 * timelineReplaySpeed);
+          if (timelineCurrentReplayPct > 100) timelineCurrentReplayPct = 100;
+          applyTimelineReplayPct(timelineCurrentReplayPct);
+        } else {
+          pauseTimelineVideoReplay();
+        }
+      }, 50);
+    }
+    window.startTimelineVideoReplay = startTimelineVideoReplay;
+
+    function pauseTimelineVideoReplay() {
+      timelineReplayPlaying = false;
+      clearInterval(timelineReplayTimer);
+      const playBtn = document.getElementById('btn-timeline-replay-play');
+      const playIcon = document.getElementById('timeline-replay-play-icon');
+      const playText = document.getElementById('timeline-replay-play-text');
+      const banner = document.getElementById('timeline-live-banner');
+
+      if (playBtn) playBtn.className = "h-6 flex items-center gap-1.5 px-2.5 bg-primary-container text-on-primary-container font-bold rounded shadow hover:opacity-90 transition-all";
+      if (playIcon) playIcon.innerText = "play_arrow";
+      if (playText) playText.innerText = "RESUME VIDEO";
+      if (banner) banner.classList.add('hidden');
+    }
+    window.pauseTimelineVideoReplay = pauseTimelineVideoReplay;
+
+    function rewindTimelineVideoReplay() {
+      pauseTimelineVideoReplay();
+      timelineCurrentReplayPct = 0;
+      applyTimelineReplayPct(0);
+    }
+    window.rewindTimelineVideoReplay = rewindTimelineVideoReplay;
+
+    function stepTimelineVideoReplay(dir) {
+      pauseTimelineVideoReplay();
+      timelineCurrentReplayPct = Math.max(0, Math.min(100, timelineCurrentReplayPct + dir * 5));
+      applyTimelineReplayPct(timelineCurrentReplayPct);
+    }
+    window.stepTimelineVideoReplay = stepTimelineVideoReplay;
+
+    function onTimelineVideoScrub(val) {
+      pauseTimelineVideoReplay();
+      timelineCurrentReplayPct = parseFloat(val);
+      applyTimelineReplayPct(timelineCurrentReplayPct);
+    }
+    window.onTimelineVideoScrub = onTimelineVideoScrub;
+
+    function setTimelineReplaySpeed(spd) {
+      timelineReplaySpeed = spd;
+      [0.5, 1, 2, 5].forEach(s => {
+        const btn = document.getElementById(`btn-tl-speed-${s == 0.5 ? '05' : s}`);
+        if (btn) {
+          if (s === spd) {
+            btn.className = "px-1.5 py-0.2 rounded bg-primary-container text-on-primary-container font-bold";
+          } else {
+            btn.className = "px-1.5 py-0.2 rounded hover:bg-surface-container-high text-on-surface";
+          }
+        }
+      });
+      if (timelineReplayPlaying) {
+        startTimelineVideoReplay();
+      }
+    }
+    window.setTimelineReplaySpeed = setTimelineReplaySpeed;
+
+    function applyTimelineReplayPct(pct) {
+      const scrubber = document.getElementById('timeline-video-scrubber');
+      const timeLabel = document.getElementById('timeline-video-time-label');
+      const cursor = document.getElementById('cortex-tl-cursor');
+      const liveText = document.getElementById('timeline-live-text');
+
+      if (scrubber) scrubber.value = pct;
+
+      // Position timeline cursor line
+      if (cursor) {
+        cursor.classList.remove('hidden');
+        cursor.style.left = `${pct}%`;
+      }
+
+      // Check marks passing under the playhead
+      let latestEvent = "Replaying temporal stream...";
+      document.querySelectorAll('.xc-mark').forEach(mark => {
+        const markLeftPct = parseFloat(mark.style.left);
+        if (markLeftPct <= pct) {
+          mark.style.opacity = '1';
+          if (Math.abs(markLeftPct - pct) < 2.5) {
+            mark.style.transform = 'scale(1.7)';
+            if (mark.title) latestEvent = mark.title.split('\n')[0];
+          } else {
+            mark.style.transform = '';
+          }
+        } else {
+          mark.style.opacity = '0.15';
+          mark.style.transform = '';
+        }
+      });
+
+      if (liveText) liveText.innerText = latestEvent;
+      if (timeLabel) timeLabel.innerText = `${Math.round(pct)}% OF HORIZON`;
     }
 
     function resetTimelineZoom() {

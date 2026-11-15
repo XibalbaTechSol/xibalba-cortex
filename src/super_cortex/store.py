@@ -167,7 +167,9 @@ class ProvenanceStore:
                     context_hashes_json TEXT NOT NULL,
                     turn_hash TEXT NOT NULL,
                     parent_hash TEXT NOT NULL,
-                    created_at TEXT NOT NULL
+                    created_at TEXT NOT NULL,
+                    scope_id TEXT,
+                    agent_id TEXT
                 );
 
                 CREATE INDEX IF NOT EXISTS idx_memories_namespace ON memories(namespace);
@@ -480,12 +482,24 @@ class ProvenanceStore:
         tool_calls: list[dict[str, Any]] | None = None,
         context_hashes: list[str] | None = None,
         created_at: str | None = None,
+        scope_id: str | None = None,
+        agent_id: str | None = None,
     ) -> ExchangeRecord:
-        """Capture a model exchange turn with cryptographic hash link."""
+        """Capture a model exchange turn with cryptographic hash link and agent scoping."""
         tool_calls = tool_calls or []
         context_hashes = context_hashes or []
         exchange_id = f"exch_{uuid.uuid4().hex[:16]}"
         now = created_at or utc_now_iso()
+
+        if not agent_id:
+            for cand in ("hermes", "agy", "claude", "cortex", "cursor", "shield", "deepseek", "chrome", "quant", "xibalba"):
+                if cand in session_id.lower():
+                    agent_id = cand
+                    break
+            agent_id = agent_id or "xibalba"
+
+        if not scope_id:
+            scope_id = f"agent:{agent_id}" if agent_id != "shared" else "shared"
 
         prompt_hash = sha256_hex(prompt_text)
         response_hash = sha256_hex(response_text)
@@ -505,8 +519,8 @@ class ProvenanceStore:
 
             conn.execute(
                 """
-                INSERT INTO exchanges (exchange_id, session_id, prompt_text, prompt_hash, response_text, response_hash, tool_calls_json, context_hashes_json, turn_hash, parent_hash, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO exchanges (exchange_id, session_id, prompt_text, prompt_hash, response_text, response_hash, tool_calls_json, context_hashes_json, turn_hash, parent_hash, created_at, scope_id, agent_id)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     exchange_id,
@@ -520,6 +534,8 @@ class ProvenanceStore:
                     turn_hash,
                     parent_hash,
                     now,
+                    scope_id,
+                    agent_id,
                 ),
             )
             conn.commit()
@@ -583,7 +599,7 @@ class ProvenanceStore:
         }
 
     def get_session_distribution(self) -> list[dict[str, Any]]:
-        """Retrieve temporal distribution of all agent interaction sessions."""
+        """Retrieve temporal distribution of all agent interaction sessions with scope attribution."""
         with self._get_conn() as conn:
             cursor = conn.execute(
                 """
@@ -592,7 +608,9 @@ class ProvenanceStore:
                     MIN(created_at) as start_time,
                     MAX(created_at) as end_time,
                     COUNT(*) as turn_count,
-                    GROUP_CONCAT(tool_calls_json) as all_tools
+                    GROUP_CONCAT(tool_calls_json) as all_tools,
+                    MAX(scope_id) as scope_id,
+                    MAX(agent_id) as agent_id
                 FROM exchanges
                 GROUP BY session_id
                 ORDER BY start_time DESC
@@ -610,17 +628,20 @@ class ProvenanceStore:
                 for chunk in r["all_tools"].split("],["):
                     tool_count += chunk.count('"name"')
 
-            # Extract agent harness from session_id prefix if present
-            agent_id = "unknown"
-            parts = sid.split("_")
-            if len(parts) >= 2 and parts[0] == "sess":
-                candidate = parts[1].lower()
-                if candidate in ("hermes", "agy", "claude", "cortex", "cursor", "shield", "deepseek", "chrome", "quant", "xibalba"):
-                    agent_id = candidate
+            agent_id = r["agent_id"]
+            if not agent_id or agent_id == "unknown":
+                for cand in ("hermes", "agy", "claude", "cortex", "cursor", "shield", "deepseek", "chrome", "quant", "xibalba"):
+                    if cand in sid.lower():
+                        agent_id = cand
+                        break
+                agent_id = agent_id or "xibalba"
+
+            scope_id = r["scope_id"] or (f"agent:{agent_id}" if agent_id != "shared" else "shared")
 
             sessions.append({
                 "session_id": sid,
                 "agent_id": agent_id,
+                "scope_id": scope_id,
                 "start_time": r["start_time"],
                 "end_time": r["end_time"],
                 "turn_count": r["turn_count"],
@@ -635,7 +656,7 @@ class ProvenanceStore:
             cursor = conn.execute(
                 """
                 SELECT exchange_id, session_id, prompt_text, prompt_hash, response_text, response_hash,
-                       tool_calls_json, context_hashes_json, turn_hash, parent_hash, created_at
+                       tool_calls_json, context_hashes_json, turn_hash, parent_hash, created_at, scope_id, agent_id
                 FROM exchanges
                 WHERE session_id = ?
                 ORDER BY rowid ASC
@@ -650,10 +671,12 @@ class ProvenanceStore:
                 "session_id": r["session_id"],
                 "prompt_text": r["prompt_text"],
                 "response_text": r["response_text"],
-                "tool_calls": json.loads(r["tool_calls_json"]),
+                "tool_calls": json.loads(r["tool_calls_json"]) if r["tool_calls_json"] else [],
                 "turn_hash": r["turn_hash"],
                 "parent_hash": r["parent_hash"],
                 "created_at": r["created_at"],
+                "scope_id": r["scope_id"],
+                "agent_id": r["agent_id"],
             }
             for r in rows
         ]
