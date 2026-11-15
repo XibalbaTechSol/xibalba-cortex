@@ -143,20 +143,41 @@ def classify_epistemic(text: str, user_declared: str | None = None) -> dict[str,
 # 3. ENTITY & RELATION EXTRACTION (Subject - Predicate - Object Triples)
 # =============================================================================
 
+ACTION_VERBS = (
+    r"integrat(?:e|es|ed)(?:\s+with)?|us(?:e|es|ed)|utiliz(?:e|es|ed)|enforc(?:e|es|ed)|"
+    r"verif(?:y|ies|ied)|anchor(?:s|ed)?|calibrat(?:e|es|ed)|deploy(?:s|ed)?|manag(?:e|es|ed)|"
+    r"implement(?:s|ed)?|connect(?:s|ed)?(?:\s+to)?|rout(?:e|es|ed)(?:\s+to)?|refactor(?:s|ed)?|"
+    r"configur(?:e|es|ed)|execut(?:e|es|ed)|optimiz(?:e|es|ed)|analyz(?:e|es|ed)|track(?:s|ed)?|"
+    r"bind(?:s)?|bound|protect(?:s|ed)?|monitor(?:s|ed)?|stor(?:e|es|ed)|distribut(?:e|es|ed)|"
+    r"enabl(?:e|es|ed)|isolat(?:e|es|ed)|generat(?:e|es|ed)|provid(?:e|es|ed)|build(?:s)?|built|"
+    r"serv(?:e|es|ed)|index(?:es|ed)?|run(?:s)?|ran|bridg(?:e|es|ed)|link(?:s|ed)?"
+)
+
 RELATION_PATTERNS = [
-    # "X uses/integrates/enforces Y"
+    # Decision / Intent: "We decided to isolate agent memories into separate scopes"
     re.compile(
-        r"^(?P<subject>[A-Z][A-Za-z0-9_\-\s]{1,30})\s+(?P<predicate>uses|utilizes|integrates|enforces|verifies|anchors|calibrates|deploys|manages|implements|connects to|routes to)\s+(?P<object>[A-Za-z0-9_\-\s]{2,40})",
+        r"(?:^|\b)(?:we|team|agent)\s+(?:decided|chose|resolved)\s+to\s+(?P<predicate>[a-z]{3,20})\s+(?P<subject>[A-Za-z0-9_\-\s]{2,30}?)\s+(?:into|as|for)\s+(?P<object>[A-Za-z0-9_\-\s]{2,50})",
         re.IGNORECASE,
     ),
-    # "X is a/an Y"
+    # Active Transitive Verb with optional modal auxiliary
     re.compile(
-        r"^(?P<subject>[A-Z][A-Za-z0-9_\-\s]{1,30})\s+is\s+(?:an?|the)\s+(?P<object>[A-Za-z0-9_\-\s]{2,40})",
+        rf"(?:^|\b)(?P<subject>[A-Za-z0-9_\-\s]{{2,40}}?)\s+"
+        rf"(?P<predicate>(?:(?:must|should|shall|will|can)\s+(?:always|never|strictly)?\s+)?(?:{ACTION_VERBS}))\s+"
+        rf"(?P<object>[A-Za-z0-9_\-\.\:\/]{{2,60}}(?:\s+[A-Za-z0-9_\-\.\:\/]{{1,30}}){{0,6}})",
         re.IGNORECASE,
     ),
-    # "X has/contains Y"
+    # Copula / Definitional: "X is the / a / an Y" or "X are Y"
     re.compile(
-        r"^(?P<subject>[A-Z][A-Za-z0-9_\-\s]{1,30})\s+(?P<predicate>has|contains|stores|requires|maintains)\s+(?P<object>[A-Za-z0-9_\-\s]{2,40})",
+        r"(?:^|\b)(?P<subject>[A-Za-z0-9_\-\s]{2,40}?)\s+"
+        r"(?P<predicate>is(?:\s+an?|\s+the)?|are(?:\s+an?|\s+the)?)\s+"
+        r"(?P<object>[A-Za-z0-9_\-\.\:\/]{2,60}(?:\s+[A-Za-z0-9_\-\.\:\/]{1,30}){0,6})",
+        re.IGNORECASE,
+    ),
+    # Possession / Invariant Containment: "X has / contains / requires Y"
+    re.compile(
+        r"(?:^|\b)(?P<subject>[A-Za-z0-9_\-\s]{2,40}?)\s+"
+        r"(?P<predicate>has|have|contains|requires|maintains|stores)\s+"
+        r"(?P<object>[A-Za-z0-9_\-\.\:\/]{2,60}(?:\s+[A-Za-z0-9_\-\.\:\/]{1,30}){0,6})",
         re.IGNORECASE,
     ),
 ]
@@ -173,9 +194,19 @@ def extract_triples(text: str) -> list[dict[str, Any]]:
             m = pat.search(sentence)
             if m:
                 groups = m.groupdict()
-                sub = groups.get("subject", "").strip().rstrip(".,")
-                obj = groups.get("object", "").strip().rstrip(".,")
-                pred = groups.get("predicate", "is_a").strip().replace(" ", "_").lower()
+                raw_sub = groups.get("subject", "").strip().rstrip(".,")
+                raw_obj = groups.get("object", "").strip().rstrip(".,")
+                raw_pred = groups.get("predicate", "is_a").strip().replace(" ", "_").lower()
+
+                # Clean subject: strip leading determiners and trailing modal leakages
+                sub = re.sub(r"^(?:the|a|an)\s+", "", raw_sub, flags=re.IGNORECASE)
+                sub = re.sub(r"\s+(?:must|should|shall|will|can)(?:\s+(?:always|never|strictly))?$", "", sub, flags=re.IGNORECASE).strip()
+
+                # Clean predicate: strip modal prefixes for clean graph labeling
+                pred = re.sub(r"^(?:must_always_|must_|should_|will_|can_)", "", raw_pred)
+
+                # Clean object: truncate long subordinate prepositional clauses
+                obj = re.split(r"\s+(?:with|across|before|without|to prevent|in order to)\b", raw_obj, flags=re.IGNORECASE)[0].strip("., ")
 
                 # Filter out stopword-only or noise subjects
                 if len(sub) >= 2 and len(obj) >= 2 and sub.lower() not in {"this", "that", "there", "it"}:
@@ -183,7 +214,7 @@ def extract_triples(text: str) -> list[dict[str, Any]]:
                         "subject": sub,
                         "predicate": pred,
                         "object": obj,
-                        "confidence": 0.90,
+                        "confidence": 0.95,
                     })
                 break
 

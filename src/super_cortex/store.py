@@ -827,6 +827,11 @@ class ProvenanceStore:
                 m_scope = meta.get("scope", "shared")
                 if scope and scope != "all" and m_scope != scope:
                     continue
+                valid_time = meta.get("valid_time") or {
+                    "valid_from": r["created_at"],
+                    "valid_until": None,
+                    "is_currently_valid": r["lifecycle_status"] == "active",
+                }
                 results.append({
                     "id": r["id"],
                     "source_id": r["source_id"],
@@ -839,6 +844,7 @@ class ProvenanceStore:
                     "agent_id": meta.get("agent_id"),
                     "para": meta.get("para", {}),
                     "triples": meta.get("triples", []),
+                    "valid_time": valid_time,
                     "tags": meta.get("tags", []),
                     "created_at": r["created_at"],
                     "updated_at": r["updated_at"],

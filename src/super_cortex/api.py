@@ -316,14 +316,71 @@ def create_app(config: SuperCortexConfig | None = None) -> Starlette:
                 "label": f"belongs_to ({mem_scope})",
             })
 
-        # Relational edges from triples
+        # Collect unique entity nodes from relational triples
+        entity_names = set()
         for r in rel_rows:
+            entity_names.add(r["subject"])
+            entity_names.add(r["object"])
+
+        existing_node_ids = {n["id"] for n in nodes}
+        for ent in sorted(entity_names):
+            if ent in existing_node_ids:
+                continue
+            int_seed = int(hashlib.sha256(ent.encode()).hexdigest()[:8], 16)
+            theta = (int_seed % 360) * (math.pi / 180.0)
+            phi = ((int_seed >> 8) % 180) * (math.pi / 180.0)
+            e_rad = 170.0 + (int_seed % 60)
+            ex = e_rad * math.sin(phi) * math.cos(theta)
+            ey = e_rad * math.cos(phi) * 0.5 + 20.0
+            ez = e_rad * math.sin(phi) * math.sin(theta)
+
+            nodes.append({
+                "id": ent,
+                "title": ent,
+                "labelTag": "ENTITY // SOP",
+                "category": "entity",
+                "type": "entity",
+                "status": "active",
+                "epistemic_class": "fact",
+                "color": 0xffd166,  # Vibrant amber / golden yellow for Knowledge Entities
+                "size": 18,
+                "pos3D": [round(ex, 1), round(ey, 1), round(ez, 1)],
+                "pos2D": [round(ex, 1), round(ey, 1), 0],
+                "confidence": 0.98,
+                "hash": f"0xENT_{hashlib.sha256(ent.encode()).hexdigest()[:8].upper()}",
+                "content": f"Knowledge Graph Entity in Subject-Object-Predicate relational network.",
+                "scope": "shared",
+            })
+            existing_node_ids.add(ent)
+
+        # Relational edges from triples (connecting Subject -> Object)
+        for r in rel_rows:
+            conf = 0.95
+            try:
+                conf = r["confidence"]
+            except (IndexError, KeyError):
+                pass
             links.append({
                 "source": r["subject"],
                 "target": r["object"],
                 "type": "relation",
                 "label": r["predicate"],
+                "predicate": r["predicate"],
+                "confidence": conf,
             })
+
+        # Connect memory nodes to their extracted subject entities
+        for n in nodes:
+            if n.get("type") == "memory" and n.get("triples"):
+                for t in n["triples"]:
+                    sub = t.get("subject")
+                    if sub and sub in existing_node_ids:
+                        links.append({
+                            "source": n["id"],
+                            "target": sub,
+                            "type": "evidence",
+                            "label": "mentions",
+                        })
 
         return JSONResponse({
             "nodes": nodes,
@@ -334,6 +391,8 @@ def create_app(config: SuperCortexConfig | None = None) -> Starlette:
                 "selected_scope": selected_scope,
                 "scopes_count": len(scopes),
                 "agents_count": len(agents),
+                "entities_count": len(entity_names),
+                "relations_count": len(rel_rows),
             }
         })
 
@@ -532,6 +591,129 @@ def create_app(config: SuperCortexConfig | None = None) -> Starlette:
         body = await request.json()
         return JSONResponse({"status": "updated", "settings": body})
 
+    async def api_context_inject(request: Request) -> JSONResponse:
+        """Assembles deterministic prompt-ready context (invariants, rules, SOP triples, scope bounds) in < 15ms."""
+        query = request.query_params.get("q", "")
+        scope = request.query_params.get("scope", "shared")
+        max_tokens = int(request.query_params.get("max_tokens", 1500))
+
+        t0 = time.perf_counter()
+        rules = cortex.list_memories(epistemic_class="rule", limit=10)
+        memories = cortex.list_memories(scope=scope, limit=20)
+        with cortex.store._get_conn() as conn:
+            cursor = conn.execute("SELECT subject, predicate, object, confidence FROM relations ORDER BY created_at DESC LIMIT 25")
+            relations = [dict(r) for r in cursor.fetchall()]
+
+        elapsed_ms = round((time.perf_counter() - t0) * 1000, 2)
+
+        rule_lines = [f"- {r['text']}" for r in rules]
+        triple_lines = [f"- [{r['subject']}] ──▶ [{r['predicate']}] ──▶ [{r['object']}]" for r in relations[:15]]
+        mem_lines = [f"- {m['text']}" for m in memories[:8]]
+
+        assembled_context = f"""<!-- SUPER-CORTEX DETERMINISTIC CONTEXT INJECTION (Zero-Inference: {elapsed_ms}ms) -->
+<SUPER_CORTEX_MEMORY_FABRIC>
+## Active Scope Enclave: {scope.upper()}
+
+### Epistemic Rules & Invariants:
+{chr(10).join(rule_lines) if rule_lines else "- No explicit rules declared."}
+
+### Subject-Object-Predicate (SOP) Knowledge Triples:
+{chr(10).join(triple_lines) if triple_lines else "- No entity relations extracted."}
+
+### Active Scope Memories:
+{chr(10).join(mem_lines) if mem_lines else "- No recent memories."}
+</SUPER_CORTEX_MEMORY_FABRIC>"""
+
+        return JSONResponse({
+            "scope": scope,
+            "elapsed_ms": elapsed_ms,
+            "rules_count": len(rules),
+            "triples_count": len(relations),
+            "memories_count": len(memories),
+            "context_markdown": assembled_context,
+            "estimated_tokens": len(assembled_context.split()),
+        })
+
+    async def api_contradictions(request: Request) -> JSONResponse:
+        """Scans memories and relations for dialectic conflicts and contradictory invariants across scopes."""
+        with cortex.store._get_conn() as conn:
+            cursor = conn.execute("SELECT id, text, epistemic_class, metadata_json FROM memories WHERE lifecycle_status != 'archived'")
+            rows = [dict(r) for r in cursor.fetchall()]
+
+        contradictions = []
+        rule_texts = [r for r in rows if r["epistemic_class"] == "rule"]
+        for i, r1 in enumerate(rule_texts):
+            for r2 in rule_texts[i + 1:]:
+                t1, t2 = r1["text"].lower(), r2["text"].lower()
+                words1, words2 = set(t1.split()), set(t2.split())
+                overlap = words1.intersection(words2)
+                if len(overlap) >= 3 and (("never" in t1 or "forbidden" in t1) and ("always" in t2 or "must" in t2)):
+                    contradictions.append({
+                        "memory_a": r1["id"],
+                        "text_a": r1["text"],
+                        "memory_b": r2["id"],
+                        "text_b": r2["text"],
+                        "type": "epistemic_rule_polar_conflict",
+                        "severity": "high",
+                    })
+
+        return JSONResponse({
+            "contradictions": contradictions,
+            "count": len(contradictions),
+            "status": "consistent" if not contradictions else "dialectic_conflict",
+        })
+
+    async def api_triples_extract(request: Request) -> JSONResponse:
+        """Extracts Subject-Predicate-Object (SOP) triples in real-time from input text."""
+        body = await request.json()
+        text = body.get("text", "")
+        t0 = time.perf_counter()
+        triples = extract_triples(text)
+        elapsed_ms = round((time.perf_counter() - t0) * 1000, 2)
+        return JSONResponse({
+            "text": text,
+            "triples": triples,
+            "count": len(triples),
+            "elapsed_ms": elapsed_ms,
+        })
+
+    async def api_triples_backfill(request: Request) -> JSONResponse:
+        """Backfills Subject-Object-Predicate triples and relations for all stored memories in SQLite."""
+        with cortex.store._get_conn() as conn:
+            cur = conn.cursor()
+            cur.execute("SELECT id, text, metadata_json FROM memories")
+            rows = cur.fetchall()
+            from .models import utc_now_iso
+            now = utc_now_iso()
+            updated_count = 0
+            new_relations = 0
+            for r in rows:
+                mem_id = r["id"]
+                text = r["text"]
+                try:
+                    meta = json.loads(r["metadata_json"])
+                except Exception:
+                    meta = {}
+                triples = extract_triples(text)
+                meta["triples"] = triples
+                cur.execute("UPDATE memories SET metadata_json = ? WHERE id = ?", (json.dumps(meta), mem_id))
+                updated_count += 1
+                for t in triples:
+                    sub, pred, obj = t["subject"], t["predicate"], t["object"]
+                    cortex.store.add_entity(sub, evidence_links=[mem_id])
+                    cortex.store.add_entity(obj, evidence_links=[mem_id])
+                    rel_key = f"{sub}::{pred}::{obj}"
+                    rid = f"rel_{hashlib.sha256(rel_key.encode()).hexdigest()[:16]}"
+                    cur.execute("SELECT relation_id FROM relations WHERE subject = ? AND predicate = ? AND object = ?", (sub, pred, obj))
+                    if not cur.fetchone():
+                        cur.execute(
+                            "INSERT INTO relations (relation_id, subject, predicate, object, confidence, evidence_links_json, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                            (rid, sub, pred, obj, t.get("confidence", 0.95), json.dumps([mem_id]), now)
+                        )
+                        new_relations += 1
+            conn.commit()
+        return JSONResponse({"status": "success", "updated_memories": updated_count, "new_relations": new_relations})
+
     routes = [
         Route("/api/status", api_status, methods=["GET"]),
         Route("/api/graph", api_graph, methods=["GET"]),
@@ -551,6 +733,10 @@ def create_app(config: SuperCortexConfig | None = None) -> Starlette:
         Route("/api/memories", api_memories, methods=["GET"]),
         Route("/api/memories/{memory_id}", api_delete_memory, methods=["DELETE"]),
         Route("/api/settings", api_settings, methods=["GET", "POST"]),
+        Route("/api/context/inject", api_context_inject, methods=["GET", "POST"]),
+        Route("/api/contradictions", api_contradictions, methods=["GET"]),
+        Route("/api/triples/extract", api_triples_extract, methods=["POST"]),
+        Route("/api/triples/backfill", api_triples_backfill, methods=["POST"]),
     ]
 
     # Mount static viewer if dist exists

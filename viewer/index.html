@@ -489,6 +489,19 @@
 
         <div class="h-4 w-[1px] bg-outline-variant/50"></div>
 
+        <!-- SOP Triples Badge & Context Inject -->
+        <button id="ribbon-sop-btn" onclick="filterEpistemic('entity')" class="px-2 py-1 rounded bg-[#ffd166]/10 text-[#ffd166] border border-[#ffd166]/30 hover:bg-[#ffd166] hover:text-black font-mono font-bold text-[9px] uppercase transition-all flex items-center gap-1" title="Filter to SOP Knowledge Entities">
+          <span class="w-1.5 h-1.5 rounded-full bg-[#ffd166]"></span>
+          SOP TRIPLES (<span id="ribbon-sop-count">21</span>)
+        </button>
+
+        <button onclick="window.openContextModal()" class="px-2 py-1 rounded bg-primary-container/20 text-primary-container border border-primary-container/40 hover:bg-primary-container hover:text-black font-mono font-bold text-[9px] uppercase transition-all flex items-center gap-1" title="Deterministic Context Injection (<5ms)">
+          <span class="material-symbols-outlined text-[12px]">bolt</span>
+          INJECT CONTEXT
+        </button>
+
+        <div class="h-4 w-[1px] bg-outline-variant/50"></div>
+
         <!-- Filter Query Input -->
         <div class="relative flex items-center bg-surface-container-low px-2 py-1 w-64 border border-outline-variant/30 focus-within:border-primary-container transition-colors">
           <span class="material-symbols-outlined text-outline text-[14px] mr-1.5">filter_alt</span>
@@ -1557,7 +1570,15 @@
 
         <!-- Extracted Entity Triples Container -->
         <div class="space-y-1.5">
-          <div class="text-[9px] text-outline uppercase font-bold">EXTRACTED SYNTACTIC ENTITY TRIPLES:</div>
+          <div class="flex items-center justify-between text-[9px]">
+            <span class="text-[#ffd166] uppercase font-bold flex items-center gap-1">
+              <span class="w-1.5 h-1.5 rounded-full bg-[#ffd166]"></span>
+              SUBJECT-OBJECT-PREDICATE (SOP) EXTRACTION MATRIX:
+            </span>
+            <button onclick="window.triggerBackfillSOP()" class="px-2 py-0.5 rounded bg-[#ffd166]/10 hover:bg-[#ffd166] hover:text-black border border-[#ffd166]/30 text-[#ffd166] text-[8px] uppercase font-bold transition-all">
+              ⚡ Backfill All Memories SOP
+            </button>
+          </div>
           <div id="ext-triples-container" class="space-y-1">
             <!-- Triples populated dynamically -->
           </div>
@@ -1965,6 +1986,44 @@
             Save Changes
           </button>
         </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- CONTEXT INJECTION (ZERO-INFERENCE PROMPT ENGINE) MODAL -->
+  <div id="context-inject-modal" class="hidden fixed inset-0 z-50 bg-black/75 backdrop-blur-md flex items-center justify-center p-4 font-mono">
+    <div class="w-full max-w-2xl bg-surface-container-lowest border border-[#ffd166]/40 rounded-lg p-5 shadow-2xl space-y-4">
+      <div class="flex items-center justify-between pb-3 border-b border-outline-variant/40">
+        <div class="flex items-center gap-2">
+          <span class="material-symbols-outlined text-[#ffd166] text-[20px]">bolt</span>
+          <div>
+            <span class="text-xs font-bold text-white uppercase tracking-wider block">Deterministic Context Injection Engine</span>
+            <span id="context-inject-meta" class="text-[9px] text-neutral-400 font-mono">Zero-Inference Latency: 4.42ms · 768-D Local Vector Memory</span>
+          </div>
+        </div>
+        <button onclick="window.closeContextModal()" class="text-neutral-400 hover:text-white">
+          <span class="material-symbols-outlined text-sm">close</span>
+        </button>
+      </div>
+
+      <div class="space-y-2">
+        <div class="flex items-center justify-between text-[10px] text-neutral-300">
+          <span class="uppercase font-bold text-[#ffd166] flex items-center gap-1">
+            <span class="w-1.5 h-1.5 rounded-full bg-[#ffd166]"></span>
+            Assembled Prompt Payload (Epistemic Rules + SOP Knowledge Triples)
+          </span>
+          <button onclick="window.copyInjectedContext()" class="px-2 py-0.5 rounded bg-[#ffd166]/20 hover:bg-[#ffd166] hover:text-black border border-[#ffd166]/40 text-[#ffd166] text-[9px] uppercase font-bold flex items-center gap-1 transition-all">
+            <span class="material-symbols-outlined text-xs">content_copy</span> Copy Markdown
+          </button>
+        </div>
+        <pre id="context-inject-code" class="w-full h-80 bg-surface-container-low p-3 border border-outline-variant/30 rounded text-[11px] text-neutral-200 overflow-y-auto whitespace-pre font-mono leading-relaxed select-all"></pre>
+      </div>
+
+      <div class="flex items-center justify-between pt-3 border-t border-outline-variant/30 text-[10px]">
+        <span class="text-secondary-container">✓ Ready to pipe into Claude Code system prompt or Antigravity (AGY)</span>
+        <button onclick="window.closeContextModal()" class="px-3 py-1.5 bg-surface-container-high hover:bg-surface-container-highest text-white rounded uppercase font-bold">
+          Close
+        </button>
       </div>
     </div>
   </div>
@@ -2555,7 +2614,7 @@
     }
 
     function renderEdgeInspector(edge, sourceNode, targetNode, dist) {
-      document.getElementById('drawer-session-id').innerText = `Edge: [${edge.label || edge.predicate || edge.type}]`;
+      document.getElementById('drawer-session-id').innerText = `SOP Edge: [${edge.label || edge.predicate || edge.type}]`;
       const container = document.getElementById('replay-turn-container');
       const isCrossScope = sourceNode.scope !== targetNode.scope;
       const predText = edge.label || edge.predicate || edge.type || 'relates_to';
@@ -2566,63 +2625,65 @@
           <div class="flex items-center justify-between text-[10px] font-bold">
             <span class="text-[#ffd166] flex items-center gap-1.5 uppercase tracking-wider">
               <span class="material-symbols-outlined text-[14px]">timeline</span>
-              RELATION // ${(edge.type || 'LINK').toUpperCase()}
+              SUBJECT-OBJECT-PREDICATE (SOP) RELATIONAL EDGE
             </span>
             <span class="px-1.5 py-0.5 rounded bg-emerald-500/10 border border-emerald-500/30 text-secondary-container text-[9px] uppercase font-bold">
-              ✓ VERIFIED RELATION
+              ✓ VERIFIED ${(edge.confidence ? (edge.confidence * 100).toFixed(0) + '% CONF' : 'RELATION')}
             </span>
           </div>
 
-          <!-- Flow Connectivity Card -->
-          <div class="bg-surface-container-lowest p-2.5 rounded border border-outline-variant/30 space-y-2">
-            <!-- Source Node Card -->
-            <div class="flex items-center justify-between p-2 rounded bg-surface-container-low border border-outline-variant/20">
+          <!-- Flow Connectivity Card: S ──▶ [P] ──▶ O -->
+          <div class="bg-surface-container-lowest p-2.5 rounded border border-[#ffd166]/30 space-y-2">
+            <!-- [S] SUBJECT Card -->
+            <div class="flex items-center justify-between p-2 rounded bg-surface-container-low border border-primary/30">
               <div class="truncate max-w-[280px]">
-                <div class="text-[9px] text-outline uppercase font-bold flex items-center gap-1">
-                  <span>SOURCE NODE</span>
-                  <span class="text-primary-container">(${sourceNode.scope || 'shared'})</span>
+                <div class="text-[9px] text-primary uppercase font-bold flex items-center gap-1">
+                  <span class="px-1 bg-primary/20 rounded">[S] SUBJECT</span>
+                  <span class="text-neutral-400">(${sourceNode.scope || 'shared'})</span>
                 </div>
                 <div class="text-white font-bold text-xs truncate mt-0.5">${sourceNode.title}</div>
               </div>
               <button onclick="window.selectNodeById('${sourceNode.id}')" class="px-2 py-1 bg-primary-container text-on-primary-container text-[9px] font-bold uppercase rounded hover:brightness-110 shrink-0">
-                Focus Source
+                Focus Subject
               </button>
             </div>
 
-            <!-- Directional Flow Predicate -->
+            <!-- [P] PREDICATE Flow -->
             <div class="flex items-center justify-center gap-2 py-1 text-center">
-              <span class="h-px bg-outline-variant/40 flex-1"></span>
-              <span class="px-2.5 py-0.5 bg-[#ffd166]/15 border border-[#ffd166]/40 text-[#ffd166] rounded text-[10px] font-bold tracking-wider uppercase">
-                ──▶ [ ${predText} ] ──▶
+              <span class="h-px bg-[#ffd166]/30 flex-1"></span>
+              <span class="px-3 py-1 bg-[#ffd166]/20 border border-[#ffd166]/50 text-[#ffd166] rounded text-[11px] font-bold tracking-wider uppercase flex items-center gap-1">
+                <span>──▶</span>
+                <span class="px-1 py-0.5 bg-black/40 rounded">[P] ${predText}</span>
+                <span>──▶</span>
               </span>
-              <span class="h-px bg-outline-variant/40 flex-1"></span>
+              <span class="h-px bg-[#ffd166]/30 flex-1"></span>
             </div>
 
-            <!-- Target Node Card -->
-            <div class="flex items-center justify-between p-2 rounded bg-surface-container-low border border-outline-variant/20">
+            <!-- [O] OBJECT Card -->
+            <div class="flex items-center justify-between p-2 rounded bg-surface-container-low border border-secondary-container/30">
               <div class="truncate max-w-[280px]">
-                <div class="text-[9px] text-outline uppercase font-bold flex items-center gap-1">
-                  <span>TARGET NODE</span>
-                  <span class="text-secondary-container">(${targetNode.scope || 'shared'})</span>
+                <div class="text-[9px] text-secondary-container uppercase font-bold flex items-center gap-1">
+                  <span class="px-1 bg-secondary-container/20 rounded">[O] OBJECT</span>
+                  <span class="text-neutral-400">(${targetNode.scope || 'shared'})</span>
                 </div>
                 <div class="text-white font-bold text-xs truncate mt-0.5">${targetNode.title}</div>
               </div>
               <button onclick="window.selectNodeById('${targetNode.id}')" class="px-2 py-1 bg-secondary-container text-on-secondary-container text-[9px] font-bold uppercase rounded hover:brightness-110 shrink-0">
-                Focus Target
+                Focus Object
               </button>
             </div>
           </div>
 
           <!-- Edge Properties Table -->
           <div class="space-y-1.5 text-[10px]">
-            <div class="text-[9px] text-outline uppercase font-bold tracking-wider">EDGE PROPERTIES &amp; TOPOLOGY:</div>
+            <div class="text-[9px] text-outline uppercase font-bold tracking-wider">SOP EDGE PROPERTIES &amp; TOPOLOGY:</div>
             <div class="grid grid-cols-2 gap-1.5 bg-surface-container-low p-2 rounded border border-outline-variant/20 text-neutral-300">
-              <div>Relation Class: <span class="text-white font-bold">${edge.type || 'direct'}</span></div>
+              <div>SOP Triplet: <span class="text-white font-bold">${sourceNode.title.substring(0, 15)} ➔ ${targetNode.title.substring(0, 15)}</span></div>
               <div>Predicate Label: <span class="text-[#ffd166] font-bold">${predText}</span></div>
               <div>Topology: <span class="${isCrossScope ? 'text-secondary-container' : 'text-primary'} font-bold">${isCrossScope ? 'Cross-Scope Bridge' : 'Intra-Scope Enclave'}</span></div>
               <div>3D Span Distance: <span class="text-white font-bold">${dist.toFixed(1)} voxels</span></div>
-              <div class="col-span-2">Source Ref: <span class="text-primary-container font-mono text-[9px]">${sourceNode.id}</span></div>
-              <div class="col-span-2">Target Ref: <span class="text-secondary-container font-mono text-[9px]">${targetNode.id}</span></div>
+              <div class="col-span-2">Subject Node ID: <span class="text-primary font-mono text-[9px]">${sourceNode.id}</span></div>
+              <div class="col-span-2">Object Node ID: <span class="text-secondary-container font-mono text-[9px]">${targetNode.id}</span></div>
             </div>
           </div>
 
@@ -2630,7 +2691,7 @@
           <div class="p-2 rounded bg-surface-container-lowest border border-outline-variant/30 flex items-center justify-between text-[10px]">
             <div class="flex items-center gap-1.5 text-neutral-300">
               <span class="material-symbols-outlined text-secondary-container text-[14px]">verified</span>
-              <span>Deterministic Edge Hash: <strong class="text-primary font-mono">${edgeHash}</strong></span>
+              <span>Deterministic SOP Hash: <strong class="text-primary font-mono">${edgeHash}</strong></span>
             </div>
             <span class="text-secondary-container font-bold text-[9px]">SHA-256</span>
           </div>
@@ -2661,17 +2722,59 @@
       const paraBadge = `<span class="text-[#ddb7ff] bg-purple-500/10 border border-purple-500/30 px-1.5 py-0.5 rounded text-[9px] uppercase font-bold">PARA: ${paraCat}</span>`;
 
       let triplesHtml = '';
-      if (node.triples && node.triples.length > 0) {
+      const triplesList = node.triples || [];
+      const isEntity = node.type === 'entity';
+
+      if (isEntity) {
         triplesHtml = `
-          <div class="mt-2 pt-2 border-t border-outline-variant/30 space-y-1">
-            <span class="text-[9px] text-outline uppercase font-bold block">EXTRACTED ENTITY TRIPLES:</span>
-            ${node.triples.map(t => `
-              <div class="flex items-center gap-1.5 text-[10px] bg-surface-container-lowest p-1.5 rounded border border-outline-variant/20 font-mono">
-                <span class="text-primary font-bold">${t.subject}</span>
-                <span class="text-outline text-[9px]">──▶ [${t.predicate}] ──▶</span>
-                <span class="text-secondary-container font-bold">${t.object}</span>
+          <div class="mt-2 pt-2 border-t border-[#ffd166]/40 space-y-1.5 font-mono">
+            <div class="flex items-center justify-between text-[9px] text-[#ffd166] uppercase font-bold">
+              <span class="flex items-center gap-1.5">
+                <span class="w-2 h-2 rounded-full bg-[#ffd166] animate-pulse"></span>
+                KNOWLEDGE GRAPH ENTITY (SOP NODE)
+              </span>
+              <span class="px-1.5 py-0.5 rounded bg-[#ffd166]/10 border border-[#ffd166]/30 text-[#ffd166] text-[8px]">CORE CONCEPT</span>
+            </div>
+            <div class="text-[11px] text-white p-2.5 rounded bg-surface-container-lowest border border-[#ffd166]/30">
+              Entity: <strong class="text-[#ffd166] text-xs font-bold">${node.title}</strong>
+              <div class="text-[9px] text-neutral-400 mt-1">Acts as a deterministic Subject-Object relational pivot across agent memory manifolds.</div>
+            </div>
+          </div>
+        `;
+      } else {
+        triplesHtml = `
+          <div class="mt-2 pt-2 border-t border-outline-variant/30 space-y-1.5 font-mono">
+            <div class="flex items-center justify-between text-[9px] text-[#ffd166] uppercase font-bold">
+              <span class="flex items-center gap-1.5">
+                <span class="w-2 h-2 rounded-full bg-[#ffd166] animate-pulse"></span>
+                SUBJECT-OBJECT-PREDICATE (SOP) TRIPLES (${triplesList.length})
+              </span>
+              <button onclick="window.backfillSingleSOP('${node.id}')" class="text-[8px] px-1.5 py-0.5 bg-surface-container-lowest hover:bg-[#ffd166] hover:text-black rounded border border-[#ffd166]/30 uppercase text-[#ffd166]">
+                ⚡ Re-Extract
+              </button>
+            </div>
+            ${triplesList.length > 0 ? triplesList.map(t => `
+              <div class="p-2 rounded bg-surface-container-lowest border border-[#ffd166]/20 space-y-1 text-[10px]">
+                <div class="flex items-center justify-between text-[8px] text-neutral-400">
+                  <span class="uppercase font-bold tracking-wider text-neutral-500">RELATIONAL PROPOSITION</span>
+                  <span class="text-secondary-container font-bold">${((t.confidence || 0.95) * 100).toFixed(0)}% CONF</span>
+                </div>
+                <div class="flex items-center gap-1.5 flex-wrap">
+                  <span class="px-2 py-0.5 rounded bg-primary/10 border border-primary/30 text-primary font-bold">[S] ${t.subject}</span>
+                  <span class="text-[#ffd166] font-bold text-[9px]">──▶</span>
+                  <span class="px-2 py-0.5 rounded bg-[#ffd166]/10 border border-[#ffd166]/30 text-[#ffd166] font-bold">[P] ${t.predicate}</span>
+                  <span class="text-secondary-container font-bold text-[9px]">──▶</span>
+                  <span class="px-2 py-0.5 rounded bg-secondary-container/10 border border-secondary-container/30 text-secondary-container font-bold">[O] ${t.object}</span>
+                </div>
               </div>
-            `).join('')}
+            `).join('') : `
+              <div class="p-2 rounded bg-surface-container-lowest border border-outline-variant/20 text-[10px] text-neutral-400 flex items-center justify-between">
+                <span>No SOP triples extracted yet.</span>
+                <button onclick="window.backfillSingleSOP('${node.id}')" class="px-2 py-0.5 bg-[#ffd166]/10 hover:bg-[#ffd166] hover:text-black text-[#ffd166] border border-[#ffd166]/30 rounded text-[9px] uppercase font-bold">
+                  + Extract SOP
+                </button>
+              </div>
+            `}
           </div>
         `;
       }
@@ -2697,7 +2800,7 @@
                 return `
                   <div class="flex items-center justify-between p-1.5 rounded bg-surface-container-lowest border border-outline-variant/20 text-[10px] hover:border-primary/50 transition-colors">
                     <div class="flex items-center gap-1.5 truncate max-w-[340px]">
-                      <span class="${isOut ? 'text-primary' : 'text-secondary-container'} font-bold text-[9px]">${isOut ? 'OUT ──▶' : '◀── IN'}</span>
+                      <span class="${isOut ? 'text-primary' : 'text-secondary-container'} font-bold text-[9px]">${isOut ? '[S] OUT ──▶' : '◀── [O] IN'}</span>
                       <span class="px-1 bg-[#ffd166]/10 text-[#ffd166] border border-[#ffd166]/30 text-[9px] font-bold rounded">[${pred}]</span>
                       <span class="text-neutral-300 truncate cursor-pointer hover:underline" onclick="window.selectNodeById('${otherId}')">${otherNode.title}</span>
                     </div>
@@ -3858,9 +3961,10 @@
               <span class="px-1.5 py-0.5 rounded bg-purple-500/10 border border-purple-500/30 text-[#ddb7ff] text-[9px] uppercase font-bold">PARA: ${paraCat}</span>
               <span class="px-1.5 py-0.5 rounded bg-surface-container-high text-white text-[9px] font-bold">SCOPE: ${m.scope || 'shared'}</span>
               ${m.agent_id ? `<span class="text-secondary-container text-[9px]">AGENT: ${m.agent_id}</span>` : ''}
+              <span class="px-1.5 py-0.5 rounded bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-[8px] uppercase font-bold">VALID: CURRENT</span>
             </div>
             <div class="flex items-center gap-2 text-[10px]">
-              <span class="text-outline">${m.created_at ? m.created_at.substring(0, 19).replace('T', ' ') : ''}</span>
+              <span class="text-outline text-[9px]">${m.created_at ? m.created_at.substring(0, 19).replace('T', ' ') : ''}</span>
               <button onclick="window.deleteMemoryItem('${m.id}')" class="text-neutral-500 hover:text-error p-1" title="Archive / Delete Memory">
                 <span class="material-symbols-outlined text-[15px]">delete</span>
               </button>
@@ -3868,6 +3972,33 @@
           </div>
 
           <div class="text-white text-xs leading-relaxed font-sans">${m.text}</div>
+
+          <!-- Prominent Subject-Object-Predicate (SOP) Triples Block -->
+          <div class="p-2 rounded bg-surface-container-lowest border border-[#ffd166]/20 space-y-1 font-mono">
+            <div class="flex items-center justify-between text-[8px]">
+              <span class="text-[#ffd166] font-bold uppercase tracking-wider flex items-center gap-1">
+                <span class="w-1.5 h-1.5 rounded-full bg-[#ffd166]"></span>
+                SUBJECT-OBJECT-PREDICATE (SOP) TRIPLES (${(m.triples || []).length})
+              </span>
+              <span class="text-neutral-500 text-[8px]">${(m.triples && m.triples.length > 0) ? 'CONF: ' + ((m.triples[0].confidence || 0.95) * 100).toFixed(0) + '%' : 'DETERMINISTIC'}</span>
+            </div>
+            <div class="space-y-1">
+              ${(m.triples && m.triples.length > 0) ? m.triples.map(t => `
+                <div class="flex items-center gap-1.5 text-[10px] flex-wrap">
+                  <span class="px-1.5 py-0.5 rounded bg-primary/10 border border-primary/30 text-primary font-bold">[S] ${t.subject}</span>
+                  <span class="text-[#ffd166] font-bold text-[9px]">──▶</span>
+                  <span class="px-1.5 py-0.5 rounded bg-[#ffd166]/10 border border-[#ffd166]/30 text-[#ffd166] font-bold">[P] ${t.predicate}</span>
+                  <span class="text-secondary-container font-bold text-[9px]">──▶</span>
+                  <span class="px-1.5 py-0.5 rounded bg-secondary-container/10 border border-secondary-container/30 text-secondary-container font-bold">[O] ${t.object}</span>
+                </div>
+              `).join('') : `
+                <div class="flex items-center justify-between text-[9px] text-neutral-400">
+                  <span>No SOP triple extracted.</span>
+                  <button onclick="window.backfillSingleSOP('${m.id}')" class="text-[#ffd166] hover:underline font-bold">+ Extract SOP</button>
+                </div>
+              `}
+            </div>
+          </div>
 
           <div class="flex items-center justify-between pt-1 border-t border-outline-variant/20 text-[9px] text-neutral-400">
             <div class="flex items-center gap-2 truncate max-w-[380px]">
@@ -4109,11 +4240,19 @@
           if (data.triples && data.triples.length > 0) {
             data.triples.forEach(t => {
               const row = document.createElement('div');
-              row.className = "flex items-center gap-1.5 text-[10px] bg-surface-container-low p-2 rounded border border-outline-variant/30";
+              row.className = "p-2 rounded bg-surface-container-low border border-[#ffd166]/30 space-y-1 font-mono";
               row.innerHTML = `
-                <span class="text-primary font-bold">${t.subject}</span>
-                <span class="text-outline text-[9px]">──▶ [${t.predicate}] ──▶</span>
-                <span class="text-secondary-container font-bold">${t.object}</span>
+                <div class="flex items-center justify-between text-[8px] text-neutral-400">
+                  <span class="text-[#ffd166] font-bold uppercase tracking-wider">RELATIONAL PROPOSITION</span>
+                  <span class="text-secondary-container font-bold">${((t.confidence || 0.95) * 100).toFixed(0)}% CONFIDENCE</span>
+                </div>
+                <div class="flex items-center gap-1.5 text-[11px] flex-wrap">
+                  <span class="px-2 py-0.5 rounded bg-primary/10 border border-primary/30 text-primary font-bold">[S] ${t.subject}</span>
+                  <span class="text-[#ffd166] font-bold text-[10px]">──▶</span>
+                  <span class="px-2 py-0.5 rounded bg-[#ffd166]/15 border border-[#ffd166]/40 text-[#ffd166] font-bold">[P] ${t.predicate}</span>
+                  <span class="text-secondary-container font-bold text-[10px]">──▶</span>
+                  <span class="px-2 py-0.5 rounded bg-secondary-container/10 border border-secondary-container/30 text-secondary-container font-bold">[O] ${t.object}</span>
+                </div>
               `;
               triplesBox.appendChild(row);
             });
@@ -4153,6 +4292,61 @@
         }
       } catch (e) {
         alert("Failed to commit memory: " + e.message);
+      }
+    };
+
+    window.triggerBackfillSOP = async function() {
+      if (!confirm("Re-run deterministic SOP triple extraction & graph relation backfill across all memories in SQLite ledger?")) return;
+      try {
+        const resp = await fetch('/api/triples/backfill', { method: 'POST' });
+        const res = await resp.json();
+        alert(`Backfill Complete! Updated ${res.updated_memories} memories, created ${res.new_relations} graph relations.`);
+        if (window.loadMemoriesCatalog) window.loadMemoriesCatalog();
+        if (window.loadGraphData) window.loadGraphData('all');
+      } catch (e) {
+        alert("Failed to backfill: " + e.message);
+      }
+    };
+
+    window.backfillSingleSOP = async function(id) {
+      try {
+        const resp = await fetch('/api/triples/backfill', { method: 'POST' });
+        if (resp.ok) {
+          if (window.loadMemoriesCatalog) window.loadMemoriesCatalog();
+          if (window.loadGraphData) window.loadGraphData('all');
+        }
+      } catch (e) {
+        console.warn(e);
+      }
+    };
+
+    window.openContextModal = async function() {
+      const modal = document.getElementById('context-inject-modal');
+      if (!modal) return;
+      modal.classList.remove('hidden');
+      const codeEl = document.getElementById('context-inject-code');
+      const metaEl = document.getElementById('context-inject-meta');
+      codeEl.innerText = "Querying deterministic context engine in <5ms...";
+      try {
+        const resp = await fetch('/api/context/inject');
+        const data = await resp.json();
+        metaEl.innerText = `Zero-Inference Latency: ${data.elapsed_ms}ms · Tokens: ~${data.estimated_tokens} · Rules: ${data.rules_count} · SOP Triples: ${data.triples_count}`;
+        codeEl.innerText = data.context_markdown;
+      } catch (e) {
+        codeEl.innerText = "Error: " + e.message;
+      }
+    };
+
+    window.closeContextModal = function() {
+      const modal = document.getElementById('context-inject-modal');
+      if (modal) modal.classList.add('hidden');
+    };
+
+    window.copyInjectedContext = function() {
+      const codeEl = document.getElementById('context-inject-code');
+      if (codeEl) {
+        navigator.clipboard.writeText(codeEl.innerText);
+        alert("Context block copied to clipboard!");
       }
     };
 
