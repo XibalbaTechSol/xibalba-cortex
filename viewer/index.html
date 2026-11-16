@@ -441,20 +441,11 @@
   <!-- 1. CLEAN TOP HEADER (h-9, 36px HUD Bar)                                   -->
   <!-- ========================================================================= -->
   <header class="fixed top-0 left-0 right-0 h-9 z-50 bg-[#0a0e15]/95 backdrop-blur-xl border-b border-outline-variant/30 flex items-center justify-between px-3 font-mono text-[11px] text-on-surface-variant shrink-0">
-    <!-- Left Section: Engine & Agent Scope Dropdown -->
-    <div class="flex items-center gap-3 shrink-0">
-      <div class="flex items-center gap-1.5">
-        <span class="material-symbols-outlined text-primary-container text-[16px]">view_in_ar</span>
-        <span class="font-display text-[12px] font-bold tracking-tight text-primary uppercase">SUPER-CORTEX</span>
+    <!-- Left Section: Clean Brand Icon & Agent Scope Dropdown -->
+    <div class="flex items-center gap-2.5 shrink-0">
+      <div class="flex items-center justify-center text-primary-container" title="Agent Memory Fabric">
+        <span class="material-symbols-outlined text-[18px]">view_in_ar</span>
       </div>
-      <div class="h-3 w-[1px] bg-outline-variant/50"></div>
-      <div class="flex items-center gap-1.5 px-2 py-0.5 bg-surface-container-high border border-secondary-container/20">
-        <span class="w-1.5 h-1.5 rounded-full bg-secondary-container animate-pulse"></span>
-        <span class="text-[9px] font-bold text-secondary-container uppercase tracking-wider">ENGINE: ONLINE</span>
-        <span class="text-outline">|</span>
-        <span class="text-[9px] text-on-surface">AIS: 984</span>
-      </div>
-      <div class="h-3 w-[1px] bg-outline-variant/50 hidden sm:block"></div>
       
       <!-- AGENT SCOPE SELECTOR DROPDOWN -->
       <div class="relative shrink-0">
@@ -571,29 +562,25 @@
         <span class="text-[8px] text-outline bg-surface-container-high px-1 rounded font-bold">L</span>
       </button>
 
-      <div class="h-3 w-[1px] bg-outline-variant/50 hidden xl:block"></div>
+      <div class="h-3 w-[1px] bg-outline-variant/50 hidden md:block"></div>
 
-      <div class="hidden xl:flex items-center bg-surface-container-low p-0.5 border border-outline-variant/40 text-[9px] font-bold uppercase">
-        <button id="btn-projection-3d" onclick="setProjectionMode('3D')" class="px-2 py-0.5 text-primary-container bg-surface-container-high">3D LATTICE</button>
-        <button id="btn-projection-2d" onclick="setProjectionMode('2D')" class="px-2 py-0.5 text-on-surface-variant hover:text-on-surface">2D PLANAR</button>
+      <!-- Merkle & Node Counter Pill -->
+      <div class="hidden md:flex items-center gap-2 text-[10px]">
+        <div class="px-2 py-0.5 rounded bg-surface-container-low border border-outline-variant/30 flex items-center gap-1.5">
+          <span class="w-1.5 h-1.5 rounded-full bg-secondary-container animate-pulse"></span>
+          <span id="header-nodes-count" class="text-secondary-container font-bold">-- Nodes</span>
+        </div>
+        <div class="px-2 py-0.5 rounded bg-surface-container-low border border-outline-variant/30 text-outline hidden lg:flex items-center gap-1">
+          <span>ROOT:</span>
+          <span id="header-merkle-root" class="text-primary-container font-mono">0x7f2a...</span>
+        </div>
       </div>
 
-      <div class="h-3 w-[1px] bg-outline-variant/50 hidden lg:block"></div>
-
-      <!-- Merkle State Pill -->
-      <div class="hidden md:flex items-center gap-1.5 text-[9px]">
-        <span class="text-outline">MERKLE:</span>
-        <span id="header-merkle-root" class="text-primary-container font-mono">0x7f2a...8c1</span>
-        <span class="text-outline">|</span>
-        <span class="text-outline">NODES:</span>
-        <span id="header-nodes-count" class="text-secondary-container font-bold">12 3D VOXELS</span>
-        <span class="text-outline">|</span>
-        <span class="text-outline">SCOPES:</span>
-        <span id="header-scopes-count" class="text-[#ddb7ff] font-bold">5 ACTIVE</span>
-        <span class="text-outline">|</span>
-        <span class="text-outline">SESS:</span>
-        <span id="header-sess-count" class="text-on-surface font-semibold">3</span>
-      </div>
+      <!-- Retained hidden elements for script reference safety -->
+      <span id="header-scopes-count" class="hidden"></span>
+      <span id="header-sess-count" class="hidden"></span>
+      <button id="btn-projection-3d" class="hidden"></button>
+      <button id="btn-projection-2d" class="hidden"></button>
 
       <div class="h-3 w-[1px] bg-outline-variant/50"></div>
 
@@ -613,11 +600,8 @@
       <!-- Collapse / Expand Toggle Strip -->
       <div class="h-10 border-b border-outline-variant/20 flex items-center justify-between px-2 bg-surface-container-low/60 shrink-0">
         <div class="nav-expanded-only hidden items-center gap-2 pl-1 truncate">
-          <div class="w-2.5 h-2.5 bg-primary-container rotate-45 shrink-0 animate-pulse"></div>
-          <div class="flex flex-col">
-            <span class="text-[11px] font-bold text-white tracking-wider">SUPER-CORTEX</span>
-            <span class="text-[8px] text-outline tracking-tight">COGNITIVE MESH</span>
-          </div>
+          <div class="w-2 h-2 rounded-full bg-secondary-container"></div>
+          <span class="text-[10px] font-bold text-neutral-300 uppercase tracking-wider">Workspace</span>
         </div>
         <button onclick="window.toggleNavbar()" id="btn-toggle-navbar" class="w-8 h-8 flex items-center justify-center text-on-surface-variant hover:text-primary-container hover:bg-surface-container-high transition-colors rounded mx-auto" title="Toggle Navigation Bar">
           <span id="nav-toggle-icon" class="material-symbols-outlined text-[18px]">keyboard_double_arrow_right</span>
@@ -843,20 +827,9 @@
       <!-- THREE.JS WEBGL CANVAS CONTAINER -->
       <div id="threejs-container" class="absolute inset-0 w-full h-full cursor-grab"></div>
 
-      <!-- Active Camera Crosshair HUD Overlay -->
-      <div class="absolute top-4 left-4 z-20 flex items-center gap-3 bg-surface-container-lowest/80 backdrop-blur-md px-3 py-1.5 border-l-2 border-primary-container pointer-events-none">
-        <div class="relative w-4 h-4 flex items-center justify-center">
-          <span class="w-full h-[1px] bg-primary-container/70 absolute"></span>
-          <span class="h-full w-[1px] bg-primary-container/70 absolute"></span>
-          <span class="w-1.5 h-1.5 rounded-full bg-secondary-container animate-ping"></span>
-        </div>
-        <div class="flex flex-col">
-          <span class="font-mono text-[9px] text-outline uppercase tracking-wider">3D LATTICE COORDINATES</span>
-          <span id="hud-camera-coords" class="font-mono text-[11px] text-primary tracking-widest font-semibold">X: +000.00 &nbsp; Y: +150.00 &nbsp; Z: +480.00</span>
-        </div>
-        <div class="h-4 w-[1px] bg-outline-variant/40 ml-1"></div>
-        <span id="hud-flight-state" class="font-mono text-[9px] px-1 bg-surface-container-high text-secondary-container font-bold">MODE: 3D ORBIT</span>
-      </div>
+      <!-- Hidden HUD state anchors for script reference safety -->
+      <span id="hud-camera-coords" class="hidden"></span>
+      <span id="hud-flight-state" class="hidden"></span>
 
       <!-- Floating Top Instrument Ribbon -->
       <div class="absolute top-4 left-1/2 -translate-x-1/2 z-20 flex items-center gap-2 bg-surface-container-lowest/90 backdrop-blur-xl px-2 py-1.5 shadow-2xl border border-outline-variant/30">
@@ -940,15 +913,6 @@
         <!-- Quick Edge / Relation Selector Dropdown -->
         <select id="edge-quick-selector" onchange="window.selectEdgeByIndex(this.value)" class="bg-surface-container-low font-mono text-[10px] text-[#ffd166] border border-[#ffd166]/30 px-2 py-1 focus:outline-none cursor-pointer">
           <option value="">EDGES &amp; RELATIONS...</option>
-        </select>
-
-        <!-- Waypoint Selector Dropdown -->
-        <select onchange="window.jumpToWaypoint(this.value)" class="bg-surface-container-low font-mono text-[10px] text-primary-container border border-outline-variant/30 px-2 py-1 focus:outline-none cursor-pointer">
-          <option value="beta">Waypoint Beta (Root)</option>
-          <option value="fork">Fork Junction</option>
-          <option value="alpha" selected>Waypoint Alpha (Quantum)</option>
-          <option value="gamma">Waypoint Gamma (ZK Surface)</option>
-          <option value="triad">Triad Overlook</option>
         </select>
       </div>
 
@@ -1075,34 +1039,16 @@
         <div id="tooltip-meta" class="text-[9px] text-outline">Category: document · Pos: [0, 20, 0]</div>
       </div>
 
-      <!-- FLOATING TELEMETRY HUD FOOTER WIDGET -->
-      <div class="absolute bottom-3 left-4 right-4 z-20 flex flex-wrap items-center justify-between gap-3 bg-surface-container-lowest/90 backdrop-blur-xl px-4 py-2 border border-outline-variant/30 text-mono">
-        <div class="flex items-center gap-4 flex-wrap text-[11px]">
-          <div class="flex items-center gap-1.5">
-            <span class="w-1.5 h-1.5 bg-secondary-container animate-pulse"></span>
-            <span class="font-mono text-[9px] text-outline uppercase tracking-wider">SPECTRAL 3D GRAPH METRICS:</span>
-          </div>
-          <div class="font-mono text-on-surface-variant flex items-center gap-3">
-            <span>Nodes: <strong id="footer-node-count-display" class="text-primary-container">-- Voxel Cubes</strong></span>
-            <span class="text-outline">|</span>
-            <span>Edges: <strong id="footer-edge-count" class="text-[#ffd166]">17 Links</strong></span>
-            <span class="text-outline">|</span>
-            <span>Radius λ<sub>max</sub>: <strong class="text-primary-container">4.120</strong></span>
-            <span class="text-outline">|</span>
-            <span>Fiedler λ<sub>2</sub>: <strong class="text-secondary-container">0.482</strong></span>
-            <span class="text-outline">|</span>
-            <span>Dirichlet Energy: <strong class="text-primary">0.034</strong></span>
-            <span class="text-outline">|</span>
-            <span>Camera: <strong id="footer-cam-zoom" class="text-[#ddb7ff]">Dist 480</strong></span>
-          </div>
+      <!-- Minimalist Status Pill -->
+      <div class="absolute bottom-3 left-4 z-20 flex items-center gap-3 bg-surface-container-lowest/80 backdrop-blur-md px-3 py-1.5 rounded border border-outline-variant/30 font-mono text-[10px]">
+        <div class="flex items-center gap-1.5">
+          <span class="w-1.5 h-1.5 rounded-full bg-secondary-container animate-pulse"></span>
+          <span id="footer-node-count-display" class="text-primary font-bold">-- Nodes</span>
         </div>
-
-        <div class="flex items-center gap-2 font-mono text-[9px] text-on-surface-variant">
-          <span class="px-1.5 py-0.5 bg-surface-container-high text-primary-container border border-outline-variant/30">[DRAG] 3D ROTATE</span>
-          <span class="px-1.5 py-0.5 bg-surface-container-high text-primary-container border border-outline-variant/30">[SCROLL] 3D ZOOM</span>
-          <span class="px-1.5 py-0.5 bg-surface-container-high text-primary-container border border-outline-variant/30">[Z] FLYTHROUGH</span>
-          <span class="px-1.5 py-0.5 bg-surface-container-high text-secondary-container border border-outline-variant/30">[CLICK] INSPECT</span>
-        </div>
+        <span class="text-outline">·</span>
+        <span id="footer-edge-count" class="text-[#ffd166] font-bold">-- Edges</span>
+        <span class="text-outline">·</span>
+        <span id="footer-cam-zoom" class="text-neutral-400">Dist 480</span>
       </div>
     </div>
 
@@ -5052,8 +4998,11 @@
       }
 
       // Update HUD Camera Coordinates
-      document.getElementById('hud-camera-coords').innerText =
-        `X: ${camera.position.x >= 0 ? '+' : ''}${camera.position.x.toFixed(1)}   Y: ${camera.position.y >= 0 ? '+' : ''}${camera.position.y.toFixed(1)}   Z: ${camera.position.z >= 0 ? '+' : ''}${camera.position.z.toFixed(1)}`;
+      const hudCoordsEl = document.getElementById('hud-camera-coords');
+      if (hudCoordsEl) {
+        hudCoordsEl.innerText =
+          `X: ${camera.position.x >= 0 ? '+' : ''}${camera.position.x.toFixed(1)}   Y: ${camera.position.y >= 0 ? '+' : ''}${camera.position.y.toFixed(1)}   Z: ${camera.position.z >= 0 ? '+' : ''}${camera.position.z.toFixed(1)}`;
+      }
 
       // Voxel Levitation & Rotation
       cubeMeshes.forEach((mesh, idx) => {
