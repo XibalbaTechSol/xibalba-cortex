@@ -240,10 +240,15 @@
       z-index: 35 !important;
       box-shadow: 0 0 10px #00f0ff;
     }
-    .xc-lane[data-selected='true'] .xc-lane-label {
-      background: rgba(0, 240, 255, 0.12);
-      border-left: 3px solid #00f0ff;
-      color: #fff;
+    .xc-lane[data-selected='true'] .xc-lane-label,
+    .xc-lane-label[data-selected='true'] {
+      background: rgba(0, 240, 255, 0.15) !important;
+      border-left: 3px solid #00f0ff !important;
+      color: #fff !important;
+    }
+    .xc-lane[data-selected='true'] .xc-lane-track,
+    .xc-lane-track[data-selected='true'] {
+      background: rgba(0, 240, 255, 0.06) !important;
     }
 
     /* Dialogue Isometric 3D Cube Nodes & Command Cards (Compact High-Density Mode) */
@@ -2843,209 +2848,213 @@
   </aside>
 
   <!-- ========================================================================= -->
-  <!-- 6. CANVAS & ENVIRONMENT CUSTOMIZER STUDIO (w-[380px] max-w-[95vw])          -->
+  <!-- 6. GRAPH CANVAS STUDIO (Ultra-Compact 4-Tab Precision Controller w-76)     -->
   <!-- ========================================================================= -->
-  <aside id="canvas-customizer-drawer" class="fixed top-10 right-0 bottom-0 w-[380px] max-w-[95vw] bg-[#070b14]/98 backdrop-blur-2xl z-50 border-l border-cyan-500/40 shadow-2xl flex flex-col transition-all duration-300 font-mono text-xs translate-x-full">
-    <!-- Header -->
-    <div class="px-4 py-3 bg-surface-container-low/90 border-b border-outline-variant/30 flex items-center justify-between shrink-0">
-      <div class="flex items-center gap-2">
-        <span class="material-symbols-outlined text-cyan-400 text-base">palette</span>
-        <div>
-          <div class="font-bold text-white text-[11px] tracking-wider uppercase">CANVAS &amp; ENVIRONMENT</div>
-          <div class="text-[8px] text-cyan-400">PHOTOMETRICS &amp; 3D LATTICE CONTROLS</div>
-        </div>
-      </div>
+  <aside id="canvas-customizer-drawer" style="width: 310px;" class="fixed top-10 right-0 bottom-0 max-w-[95vw] bg-[#070b14]/98 backdrop-blur-2xl z-50 border-l border-cyan-500/40 shadow-2xl flex flex-col font-mono text-xs transition-all duration-300 translate-x-full">
+    <!-- Header (Compact 32px) -->
+    <div class="px-3 py-2 bg-surface-container-low/90 border-b border-outline-variant/30 flex items-center justify-between shrink-0">
       <div class="flex items-center gap-1.5">
-        <button onclick="resetCanvasDefaults()" class="px-2 py-0.5 rounded bg-surface-container-high hover:bg-cyan-500/20 text-slate-300 hover:text-cyan-300 border border-outline-variant/30 text-[9px] font-bold transition-all cursor-pointer" title="Reset all canvas settings to factory defaults">RESET</button>
-        <button onclick="toggleCanvasCustomizer(false)" class="w-6 h-6 rounded flex items-center justify-center text-slate-400 hover:text-white hover:bg-surface-container-high transition-colors cursor-pointer" title="Close Canvas Studio [C]">
-          <span class="material-symbols-outlined text-sm">close</span>
+        <span class="material-symbols-outlined text-cyan-400 text-sm">palette</span>
+        <span class="font-bold text-white text-[10px] tracking-wider uppercase">GRAPH CANVAS STUDIO</span>
+      </div>
+      <div class="flex items-center gap-1">
+        <button onclick="resetCanvasDefaults()" class="px-1.5 py-0.5 rounded bg-surface-container-high hover:bg-cyan-500/20 text-slate-300 hover:text-cyan-300 border border-outline-variant/30 text-[8px] font-bold transition-all cursor-pointer" title="Reset all settings to factory defaults">RESET</button>
+        <button onclick="toggleCanvasCustomizer(false)" class="w-5 h-5 rounded flex items-center justify-center text-slate-400 hover:text-white hover:bg-surface-container-high transition-colors cursor-pointer" title="Close Studio [C]">
+          <span class="material-symbols-outlined text-xs">close</span>
         </button>
       </div>
     </div>
 
-    <!-- Scrollable Controls Body -->
-    <div class="p-3.5 space-y-4 overflow-y-auto flex-1 text-[10px]">
-      <!-- 1. Atmospheric Presets (One-Click) -->
-      <div class="space-y-1.5">
-        <div class="text-[9px] text-cyan-300 font-bold uppercase tracking-wider flex items-center justify-between">
-          <span>ATMOSPHERIC PRESETS</span>
-          <span class="text-[8px] text-slate-500">ONE-CLICK</span>
-        </div>
-        <div class="grid grid-cols-2 gap-1.5">
-          <button onclick="applyCanvasPreset('deep_void')" class="p-2 rounded-lg bg-surface-container-high hover:bg-cyan-500/20 border border-cyan-500/30 text-left transition-all cursor-pointer group">
-            <div class="font-bold text-white text-[9px] group-hover:text-cyan-300">🛰️ DEEP VOID</div>
-            <div class="text-[8px] text-slate-400">Aerospace void, cyan grid</div>
+    <!-- Segmented Tab Bar (4 Tabs: THEMES, GRID, LIGHT, NODES) -->
+    <div class="px-2 py-1 bg-surface-container-lowest/90 border-b border-outline-variant/30 flex items-center gap-1 text-[8.5px]">
+      <button id="studio-tab-btn-themes" onclick="switchStudioTab('themes')" class="flex-1 py-1 rounded flex items-center justify-center gap-0.5 font-bold bg-cyan-500/20 text-cyan-300 border border-cyan-400/30 transition-all cursor-pointer">
+        <span>🎨</span><span>THEME</span>
+      </button>
+      <button id="studio-tab-btn-grid" onclick="switchStudioTab('grid')" class="flex-1 py-1 rounded flex items-center justify-center gap-0.5 font-bold text-neutral-400 hover:text-white border border-transparent transition-all cursor-pointer">
+        <span>🌐</span><span>GRID</span>
+      </button>
+      <button id="studio-tab-btn-light" onclick="switchStudioTab('light')" class="flex-1 py-1 rounded flex items-center justify-center gap-0.5 font-bold text-neutral-400 hover:text-white border border-transparent transition-all cursor-pointer">
+        <span>💡</span><span>LIGHT</span>
+      </button>
+      <button id="studio-tab-btn-nodes" onclick="switchStudioTab('nodes')" class="flex-1 py-1 rounded flex items-center justify-center gap-0.5 font-bold text-neutral-400 hover:text-white border border-transparent transition-all cursor-pointer">
+        <span>⚛️</span><span>NODES</span>
+      </button>
+    </div>
+
+    <!-- Tab Panels Body (Zero cutoffs, dense cyber layout) -->
+    <div class="p-2.5 overflow-y-auto flex-1 text-[9px] space-y-2">
+      <!-- ================= TAB 1: THEMES & ATMOSPHERE ================= -->
+      <div id="studio-panel-themes" class="space-y-2">
+        <div class="text-[8px] text-cyan-300 font-bold uppercase tracking-wider">ONE-CLICK ATMOSPHERIC PRESETS</div>
+        <div class="grid grid-cols-2 gap-1">
+          <button onclick="applyCanvasPreset('deep_void')" class="p-1.5 rounded-lg bg-surface-container-high/80 hover:bg-cyan-500/20 border border-cyan-500/30 text-left transition-all cursor-pointer group">
+            <div class="font-bold text-white text-[8.5px] group-hover:text-cyan-300">🛰️ DEEP VOID</div>
+            <div class="text-[7.5px] text-slate-400">Cyan grid on dark void</div>
           </button>
-          <button onclick="applyCanvasPreset('obsidian_cyber')" class="p-2 rounded-lg bg-surface-container-high hover:bg-emerald-500/20 border border-emerald-500/30 text-left transition-all cursor-pointer group">
-            <div class="font-bold text-white text-[9px] group-hover:text-emerald-300">⚡ OBSIDIAN</div>
-            <div class="text-[8px] text-slate-400">Carbon black, neon green</div>
+          <button onclick="applyCanvasPreset('obsidian_cyber')" class="p-1.5 rounded-lg bg-surface-container-high/80 hover:bg-emerald-500/20 border border-emerald-500/30 text-left transition-all cursor-pointer group">
+            <div class="font-bold text-white text-[8.5px] group-hover:text-emerald-300">⚡ OBSIDIAN</div>
+            <div class="text-[7.5px] text-slate-400">Carbon black &amp; green</div>
           </button>
-          <button onclick="applyCanvasPreset('cosmic_nebula')" class="p-2 rounded-lg bg-surface-container-high hover:bg-purple-500/20 border border-purple-500/30 text-left transition-all cursor-pointer group">
-            <div class="font-bold text-white text-[9px] group-hover:text-purple-300">🌌 NEBULA</div>
-            <div class="text-[8px] text-slate-400">Cosmic violet, pink aura</div>
+          <button onclick="applyCanvasPreset('cosmic_nebula')" class="p-1.5 rounded-lg bg-surface-container-high/80 hover:bg-purple-500/20 border border-purple-500/30 text-left transition-all cursor-pointer group">
+            <div class="font-bold text-white text-[8.5px] group-hover:text-purple-300">🌌 NEBULA</div>
+            <div class="text-[7.5px] text-slate-400">Violet void, pink aura</div>
           </button>
-          <button onclick="applyCanvasPreset('paper_blueprint')" class="p-2 rounded-lg bg-surface-container-high hover:bg-sky-500/20 border border-sky-500/30 text-left transition-all cursor-pointer group">
-            <div class="font-bold text-white text-[9px] group-hover:text-sky-300">📐 BLUEPRINT</div>
-            <div class="text-[8px] text-slate-400">Navy slate, white grid</div>
+          <button onclick="applyCanvasPreset('paper_blueprint')" class="p-1.5 rounded-lg bg-surface-container-high/80 hover:bg-sky-500/20 border border-sky-500/30 text-left transition-all cursor-pointer group">
+            <div class="font-bold text-white text-[8.5px] group-hover:text-sky-300">📐 BLUEPRINT</div>
+            <div class="text-[7.5px] text-slate-400">Navy slate &amp; white</div>
           </button>
-          <button onclick="applyCanvasPreset('solaris_core')" class="col-span-2 p-2 rounded-lg bg-surface-container-high hover:bg-amber-500/20 border border-amber-500/30 text-left transition-all cursor-pointer group flex items-center justify-between">
+          <button onclick="applyCanvasPreset('solaris_core')" class="col-span-2 p-1.5 rounded-lg bg-surface-container-high/80 hover:bg-amber-500/20 border border-amber-500/30 text-left transition-all cursor-pointer group flex items-center justify-between">
             <div>
-              <div class="font-bold text-white text-[9px] group-hover:text-amber-300">☀️ SOLARIS CORE</div>
-              <div class="text-[8px] text-slate-400">Warm obsidian void with solar gold coordinate grid</div>
+              <div class="font-bold text-white text-[8.5px] group-hover:text-amber-300">☀️ SOLARIS CORE</div>
+              <div class="text-[7.5px] text-slate-400">Amber solar gold coordinate grid</div>
             </div>
-            <span class="text-xs">🔥</span>
+            <span class="text-[10px]">🔥</span>
           </button>
         </div>
-      </div>
 
-      <!-- 2. Canvas Background & Fog -->
-      <div class="space-y-2 p-2.5 bg-surface-container-low/70 rounded-xl border border-outline-variant/30">
-        <div class="text-[9px] text-primary-container font-bold uppercase tracking-wider">CANVAS BACKGROUND &amp; ATMOSPHERE</div>
-        
-        <div class="flex items-center justify-between">
-          <span class="text-slate-300">Background Color</span>
-          <div class="flex items-center gap-1.5">
-            <input type="color" id="cfg-bg-color" onchange="updateCanvasSetting('bgColor', this.value)" class="w-6 h-6 rounded border border-outline-variant/40 bg-transparent cursor-pointer">
-            <span id="cfg-bg-color-val" class="font-mono text-[9px] text-slate-400">#040711</span>
+        <div class="p-2 bg-surface-container-low/80 rounded-lg border border-outline-variant/30 space-y-2 mt-2">
+          <div class="flex items-center justify-between">
+            <span class="text-slate-300 font-bold">Canvas Background</span>
+            <div class="flex items-center gap-1.5">
+              <input type="color" id="cfg-bg-color" onchange="updateCanvasSetting('bgColor', this.value)" class="w-5 h-5 rounded border border-outline-variant/40 bg-transparent cursor-pointer">
+              <span id="cfg-bg-color-val" class="font-mono text-[8px] text-slate-400">#040711</span>
+            </div>
           </div>
-        </div>
 
-        <div class="flex items-center justify-between">
-          <span class="text-slate-300">Atmospheric Fog</span>
-          <input type="checkbox" id="cfg-fog-enabled" onchange="updateCanvasSetting('fogEnabled', this.checked)" class="toggle-checkbox cursor-pointer" checked>
-        </div>
-
-        <div class="space-y-1">
-          <div class="flex items-center justify-between text-[8px] text-slate-400">
-            <span>Fog Density</span>
-            <span id="cfg-fog-density-val" class="font-mono">0.0022</span>
+          <div class="flex items-center justify-between">
+            <span class="text-slate-300">Atmospheric Fog</span>
+            <input type="checkbox" id="cfg-fog-enabled" onchange="updateCanvasSetting('fogEnabled', this.checked)" class="toggle-checkbox cursor-pointer">
           </div>
-          <input type="range" id="cfg-fog-density" min="0.0002" max="0.0060" step="0.0002" value="0.0022" oninput="updateCanvasSetting('fogDensity', parseFloat(this.value))" class="w-full accent-cyan-400 h-1 bg-surface-container-high rounded cursor-pointer">
-        </div>
 
-        <div class="flex items-center justify-between pt-1">
-          <span class="text-slate-300">Cosmic Stardust</span>
-          <input type="checkbox" id="cfg-stardust-enabled" onchange="updateCanvasSetting('stardustEnabled', this.checked)" class="toggle-checkbox cursor-pointer" checked>
+          <div class="space-y-1">
+            <div class="flex items-center justify-between text-[7.5px] text-slate-400">
+              <span>Fog Density</span>
+              <span id="cfg-fog-density-val" class="font-mono">0.0022</span>
+            </div>
+            <input type="range" id="cfg-fog-density" min="0.0002" max="0.0060" step="0.0002" value="0.0022" oninput="updateCanvasSetting('fogDensity', parseFloat(this.value))" class="w-full accent-cyan-400 h-1 bg-surface-container-high rounded cursor-pointer">
+          </div>
+
+          <div class="flex items-center justify-between pt-0.5">
+            <span class="text-slate-300">Cosmic Stardust Field</span>
+            <input type="checkbox" id="cfg-stardust-enabled" onchange="updateCanvasSetting('stardustEnabled', this.checked)" class="toggle-checkbox cursor-pointer">
+          </div>
         </div>
       </div>
 
-      <!-- 3. Spatial Coordinate Grid System (3D/2D) -->
-      <div class="space-y-2.5 p-2.5 bg-surface-container-low/70 rounded-xl border border-outline-variant/30">
-        <div class="text-[9px] text-cyan-300 font-bold uppercase tracking-wider">SPATIAL COORDINATE GRID (3D &amp; 2D)</div>
-        
-        <div class="flex items-center justify-between">
-          <span class="text-slate-300">Grid Visibility</span>
-          <div class="flex items-center gap-1">
-            <button onclick="updateCanvasSetting('gridVisible', true); updateCanvasSetting('gridMode', '3d');" id="cfg-gridmode-3d" class="px-1.5 py-0.5 rounded text-[8px] border border-outline-variant/40 cursor-pointer">3D</button>
-            <button onclick="updateCanvasSetting('gridVisible', true); updateCanvasSetting('gridMode', '2d');" id="cfg-gridmode-2d" class="px-1.5 py-0.5 rounded text-[8px] border border-outline-variant/40 cursor-pointer">2D</button>
-            <button onclick="updateCanvasSetting('gridVisible', true); updateCanvasSetting('gridMode', 'both');" id="cfg-gridmode-both" class="px-1.5 py-0.5 rounded text-[8px] border border-cyan-400/50 bg-cyan-500/20 text-cyan-300 font-bold cursor-pointer">BOTH</button>
-            <button onclick="updateCanvasSetting('gridVisible', false);" id="cfg-gridmode-off" class="px-1.5 py-0.5 rounded text-[8px] border border-outline-variant/40 text-slate-500 cursor-pointer">OFF</button>
+      <!-- ================= TAB 2: SPATIAL GRID ================= -->
+      <div id="studio-panel-grid" class="hidden space-y-2">
+        <div class="p-2 bg-surface-container-low/80 rounded-lg border border-outline-variant/30 space-y-2">
+          <div class="flex items-center justify-between">
+            <span class="text-slate-300 font-bold">Grid Visibility</span>
+            <div class="flex items-center gap-1">
+              <button onclick="updateCanvasSetting('gridVisible', true); updateCanvasSetting('gridMode', '3d');" id="cfg-gridmode-3d" class="px-1.5 py-0.5 rounded text-[7.5px] border border-outline-variant/40 cursor-pointer">3D</button>
+              <button onclick="updateCanvasSetting('gridVisible', true); updateCanvasSetting('gridMode', '2d');" id="cfg-gridmode-2d" class="px-1.5 py-0.5 rounded text-[7.5px] border border-outline-variant/40 cursor-pointer">2D</button>
+              <button onclick="updateCanvasSetting('gridVisible', true); updateCanvasSetting('gridMode', 'both');" id="cfg-gridmode-both" class="px-1.5 py-0.5 rounded text-[7.5px] border border-cyan-400/50 bg-cyan-500/20 text-cyan-300 font-bold cursor-pointer">BOTH</button>
+              <button onclick="updateCanvasSetting('gridVisible', false);" id="cfg-gridmode-off" class="px-1.5 py-0.5 rounded text-[7.5px] border border-outline-variant/40 text-slate-500 cursor-pointer">OFF</button>
+            </div>
           </div>
-        </div>
 
-        <div class="flex items-center justify-between">
-          <span class="text-slate-300">Grid Line Weight</span>
-          <div class="flex items-center gap-1">
-            <button onclick="updateCanvasSetting('gridThickness', 'hairline')" id="cfg-thickness-hairline" class="px-2 py-0.5 rounded text-[8px] font-bold bg-cyan-500/20 text-cyan-300 border border-cyan-400/40 cursor-pointer">1px</button>
-            <button onclick="updateCanvasSetting('gridThickness', 'crisp')" id="cfg-thickness-crisp" class="px-2 py-0.5 rounded text-[8px] border border-outline-variant/40 text-slate-400 cursor-pointer">2px</button>
-            <button onclick="updateCanvasSetting('gridThickness', 'bold')" id="cfg-thickness-bold" class="px-2 py-0.5 rounded text-[8px] border border-outline-variant/40 text-slate-400 cursor-pointer">3px</button>
+          <div class="flex items-center justify-between">
+            <span class="text-slate-300">Line Thickness</span>
+            <div class="flex items-center gap-1">
+              <button onclick="updateCanvasSetting('gridThickness', 'hairline')" id="cfg-thickness-hairline" class="px-1.5 py-0.5 rounded text-[7.5px] font-bold bg-cyan-500/20 text-cyan-300 border border-cyan-400/40 cursor-pointer">1px</button>
+              <button onclick="updateCanvasSetting('gridThickness', 'crisp')" id="cfg-thickness-crisp" class="px-1.5 py-0.5 rounded text-[7.5px] border border-outline-variant/40 text-slate-400 cursor-pointer">2px</button>
+              <button onclick="updateCanvasSetting('gridThickness', 'bold')" id="cfg-thickness-bold" class="px-1.5 py-0.5 rounded text-[7.5px] border border-outline-variant/40 text-slate-400 cursor-pointer">3px</button>
+            </div>
           </div>
-        </div>
 
-        <div class="flex items-center justify-between">
-          <span class="text-slate-300">Primary Grid Color</span>
-          <div class="flex items-center gap-1.5">
-            <input type="color" id="cfg-grid-pcolor" onchange="updateCanvasSetting('gridPrimaryColor', this.value)" class="w-6 h-6 rounded border border-outline-variant/40 bg-transparent cursor-pointer">
-            <span id="cfg-grid-pcolor-val" class="font-mono text-[9px] text-slate-400">#00f0ff</span>
+          <div class="flex items-center justify-between">
+            <span class="text-slate-300">Primary Color</span>
+            <div class="flex items-center gap-1.5">
+              <input type="color" id="cfg-grid-pcolor" onchange="updateCanvasSetting('gridPrimaryColor', this.value)" class="w-5 h-5 rounded border border-outline-variant/40 bg-transparent cursor-pointer">
+              <span id="cfg-grid-pcolor-val" class="font-mono text-[8px] text-slate-400">#00f0ff</span>
+            </div>
           </div>
-        </div>
 
-        <div class="space-y-1">
-          <div class="flex items-center justify-between text-[8px] text-slate-400">
-            <span>Primary Grid Opacity</span>
-            <span id="cfg-grid-popacity-val" class="font-mono">35%</span>
+          <div class="space-y-1">
+            <div class="flex items-center justify-between text-[7.5px] text-slate-400">
+              <span>Primary Opacity</span>
+              <span id="cfg-grid-popacity-val" class="font-mono">35%</span>
+            </div>
+            <input type="range" id="cfg-grid-popacity" min="0.05" max="0.9" step="0.05" value="0.35" oninput="updateCanvasSetting('gridPrimaryOpacity', parseFloat(this.value))" class="w-full accent-cyan-400 h-1 bg-surface-container-high rounded cursor-pointer">
           </div>
-          <input type="range" id="cfg-grid-popacity" min="0.05" max="0.9" step="0.05" value="0.35" oninput="updateCanvasSetting('gridPrimaryOpacity', parseFloat(this.value))" class="w-full accent-cyan-400 h-1 bg-surface-container-high rounded cursor-pointer">
-        </div>
 
-        <div class="flex items-center justify-between">
-          <span class="text-slate-300">Division Line Color</span>
-          <div class="flex items-center gap-1.5">
-            <input type="color" id="cfg-grid-scolor" onchange="updateCanvasSetting('gridDivisionColor', this.value)" class="w-6 h-6 rounded border border-outline-variant/40 bg-transparent cursor-pointer">
-            <span id="cfg-grid-scolor-val" class="font-mono text-[9px] text-slate-400">#1e293b</span>
+          <div class="flex items-center justify-between">
+            <span class="text-slate-300">Division Color</span>
+            <div class="flex items-center gap-1.5">
+              <input type="color" id="cfg-grid-scolor" onchange="updateCanvasSetting('gridDivisionColor', this.value)" class="w-5 h-5 rounded border border-outline-variant/40 bg-transparent cursor-pointer">
+              <span id="cfg-grid-scolor-val" class="font-mono text-[8px] text-slate-400">#1e293b</span>
+            </div>
           </div>
-        </div>
 
-        <div class="space-y-1">
-          <div class="flex items-center justify-between text-[8px] text-slate-400">
-            <span>Ground Plane Y-Offset</span>
-            <span id="cfg-grid-yoffset-val" class="font-mono">0u</span>
+          <div class="space-y-1">
+            <div class="flex items-center justify-between text-[7.5px] text-slate-400">
+              <span>Ground Offset</span>
+              <span id="cfg-grid-yoffset-val" class="font-mono">0u</span>
+            </div>
+            <input type="range" id="cfg-grid-yoffset" min="-180" max="180" step="10" value="0" oninput="updateCanvasSetting('gridYOffset', parseInt(this.value))" class="w-full accent-cyan-400 h-1 bg-surface-container-high rounded cursor-pointer">
           </div>
-          <input type="range" id="cfg-grid-yoffset" min="-180" max="180" step="10" value="0" oninput="updateCanvasSetting('gridYOffset', parseInt(this.value))" class="w-full accent-cyan-400 h-1 bg-surface-container-high rounded cursor-pointer">
-        </div>
 
-        <div class="flex items-center justify-between pt-1">
-          <span class="text-slate-300">3D RGB Axis Guide Rays</span>
-          <input type="checkbox" id="cfg-axis-guides" onchange="updateCanvasSetting('axisGuidesVisible', this.checked)" class="toggle-checkbox cursor-pointer" checked>
+          <div class="flex items-center justify-between pt-0.5">
+            <span class="text-slate-300">3D Axis Rays (RGB)</span>
+            <input type="checkbox" id="cfg-axis-guides" onchange="updateCanvasSetting('axisGuidesVisible', this.checked)" class="toggle-checkbox cursor-pointer" checked>
+          </div>
         </div>
       </div>
 
-      <!-- 4. Lighting & Photometrics -->
-      <div class="space-y-2 p-2.5 bg-surface-container-low/70 rounded-xl border border-outline-variant/30">
-        <div class="text-[9px] text-amber-300 font-bold uppercase tracking-wider">ILLUMINATION &amp; PHOTOMETRICS</div>
-
-        <div class="space-y-1">
-          <div class="flex items-center justify-between text-[8px] text-slate-400">
-            <span>Ambient Light Intensity</span>
-            <span id="cfg-ambient-val" class="font-mono">0.75</span>
+      <!-- ================= TAB 3: LIGHTING ================= -->
+      <div id="studio-panel-light" class="hidden space-y-2">
+        <div class="p-2 bg-surface-container-low/80 rounded-lg border border-outline-variant/30 space-y-2">
+          <div class="space-y-1">
+            <div class="flex items-center justify-between text-[7.5px] text-slate-400">
+              <span>Ambient Light Intensity</span>
+              <span id="cfg-ambient-val" class="font-mono">0.75</span>
+            </div>
+            <input type="range" id="cfg-ambient-intensity" min="0.1" max="2.0" step="0.05" value="0.75" oninput="updateCanvasSetting('ambientIntensity', parseFloat(this.value))" class="w-full accent-amber-400 h-1 bg-surface-container-high rounded cursor-pointer">
           </div>
-          <input type="range" id="cfg-ambient-intensity" min="0.1" max="2.0" step="0.05" value="0.75" oninput="updateCanvasSetting('ambientIntensity', parseFloat(this.value))" class="w-full accent-amber-400 h-1 bg-surface-container-high rounded cursor-pointer">
-        </div>
 
-        <div class="space-y-1">
-          <div class="flex items-center justify-between text-[8px] text-slate-400">
-            <span>Directional Solar Light</span>
-            <span id="cfg-dirlight-val" class="font-mono">2.2</span>
+          <div class="space-y-1">
+            <div class="flex items-center justify-between text-[7.5px] text-slate-400">
+              <span>Directional Solar Light</span>
+              <span id="cfg-dirlight-val" class="font-mono">2.2</span>
+            </div>
+            <input type="range" id="cfg-dirlight-intensity" min="0.5" max="3.5" step="0.1" value="2.2" oninput="updateCanvasSetting('dirLightIntensity', parseFloat(this.value))" class="w-full accent-amber-400 h-1 bg-surface-container-high rounded cursor-pointer">
           </div>
-          <input type="range" id="cfg-dirlight-intensity" min="0.5" max="3.5" step="0.1" value="2.2" oninput="updateCanvasSetting('dirLightIntensity', parseFloat(this.value))" class="w-full accent-amber-400 h-1 bg-surface-container-high rounded cursor-pointer">
-        </div>
 
-        <div class="flex items-center justify-between pt-1">
-          <span class="text-slate-300">Central Solar Corona Sun</span>
-          <input type="checkbox" id="cfg-corona-enabled" onchange="updateCanvasSetting('sunCoronaEnabled', this.checked)" class="toggle-checkbox cursor-pointer" checked>
+          <div class="flex items-center justify-between pt-0.5">
+            <span class="text-slate-300">Central Solar Corona Sun</span>
+            <input type="checkbox" id="cfg-corona-enabled" onchange="updateCanvasSetting('sunCoronaEnabled', this.checked)" class="toggle-checkbox cursor-pointer" checked>
+          </div>
         </div>
       </div>
 
-      <!-- 5. Node Physics & 60FPS Performance Engine -->
-      <div class="space-y-2.5 p-2.5 bg-surface-container-low/70 rounded-xl border border-outline-variant/30">
-        <div class="text-[9px] text-emerald-400 font-bold uppercase tracking-wider flex items-center justify-between">
-          <span>NODE PHYSICS &amp; SPEED</span>
-          <span class="px-1 py-0.2 rounded bg-emerald-500/20 text-emerald-300 text-[7px] font-bold">60 FPS MODE</span>
-        </div>
-
-        <div class="space-y-1">
-          <div class="flex items-center justify-between text-[8px] text-slate-400">
-            <span>Levitation Amplitude</span>
-            <span id="cfg-levitation-val" class="font-mono font-bold text-emerald-400">0.0px (Fast)</span>
+      <!-- ================= TAB 4: NODES & SPEED ================= -->
+      <div id="studio-panel-nodes" class="hidden space-y-2">
+        <div class="p-2 bg-surface-container-low/80 rounded-lg border border-outline-variant/30 space-y-2">
+          <div class="space-y-1">
+            <div class="flex items-center justify-between text-[7.5px] text-slate-400">
+              <span>Levitation Amplitude</span>
+              <span id="cfg-levitation-val" class="font-mono font-bold text-emerald-400">0.0px (60 FPS)</span>
+            </div>
+            <input type="range" id="cfg-levitation" min="0" max="6.0" step="0.5" value="0" oninput="updateCanvasSetting('levitationAmplitude', parseFloat(this.value))" class="w-full accent-emerald-400 h-1 bg-surface-container-high rounded cursor-pointer">
+            <p class="text-[7px] text-slate-400">0px enables fast 60FPS mode by caching static node positions.</p>
           </div>
-          <input type="range" id="cfg-levitation" min="0" max="6.0" step="0.5" value="0" oninput="updateCanvasSetting('levitationAmplitude', parseFloat(this.value))" class="w-full accent-emerald-400 h-1 bg-surface-container-high rounded cursor-pointer">
-          <p class="text-[7.5px] text-slate-400">Setting to 0px enables ultra-fast 60FPS mode by caching static node positions.</p>
-        </div>
 
-        <div class="space-y-1">
-          <div class="flex items-center justify-between text-[8px] text-slate-400">
-            <span>Voxel Scale Factor</span>
-            <span id="cfg-voxel-scale-val" class="font-mono">1.0x</span>
+          <div class="space-y-1">
+            <div class="flex items-center justify-between text-[7.5px] text-slate-400">
+              <span>Voxel Scale Factor</span>
+              <span id="cfg-voxel-scale-val" class="font-mono">1.0x</span>
+            </div>
+            <input type="range" id="cfg-voxel-scale" min="0.6" max="2.0" step="0.1" value="1.0" oninput="updateCanvasSetting('voxelScale', parseFloat(this.value))" class="w-full accent-emerald-400 h-1 bg-surface-container-high rounded cursor-pointer">
           </div>
-          <input type="range" id="cfg-voxel-scale" min="0.6" max="2.0" step="0.1" value="1.0" oninput="updateCanvasSetting('voxelScale', parseFloat(this.value))" class="w-full accent-emerald-400 h-1 bg-surface-container-high rounded cursor-pointer">
-        </div>
 
-        <div class="flex items-center justify-between pt-1">
-          <span class="text-slate-300">Inner Core Spinning</span>
-          <div class="flex items-center gap-1">
-            <button onclick="updateCanvasSetting('innerCoreSpin', 'hubs_only')" id="cfg-spin-hubs" class="px-1.5 py-0.5 rounded text-[8px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-400/40 cursor-pointer">HUBS</button>
-            <button onclick="updateCanvasSetting('innerCoreSpin', 'all')" id="cfg-spin-all" class="px-1.5 py-0.5 rounded text-[8px] border border-outline-variant/40 text-slate-400 cursor-pointer">ALL</button>
-            <button onclick="updateCanvasSetting('innerCoreSpin', 'off')" id="cfg-spin-off" class="px-1.5 py-0.5 rounded text-[8px] border border-outline-variant/40 text-slate-400 cursor-pointer">OFF</button>
+          <div class="flex items-center justify-between pt-0.5">
+            <span class="text-slate-300">Inner Core Spin</span>
+            <div class="flex items-center gap-1">
+              <button onclick="updateCanvasSetting('innerCoreSpin', 'hubs_only')" id="cfg-spin-hubs" class="px-1.5 py-0.5 rounded text-[7.5px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-400/40 cursor-pointer">HUBS</button>
+              <button onclick="updateCanvasSetting('innerCoreSpin', 'all')" id="cfg-spin-all" class="px-1.5 py-0.5 rounded text-[7.5px] border border-outline-variant/40 text-slate-400 cursor-pointer">ALL</button>
+              <button onclick="updateCanvasSetting('innerCoreSpin', 'off')" id="cfg-spin-off" class="px-1.5 py-0.5 rounded text-[7.5px] border border-outline-variant/40 text-slate-400 cursor-pointer">OFF</button>
+            </div>
           </div>
         </div>
       </div>
@@ -4801,6 +4810,8 @@
     // Granular Camera, Pan & Orbit State
     let isDragging = false;
     let dragMode = 'rotate'; // 'rotate' or 'pan'
+    let dragStartPos = { x: 0, y: 0 };
+    let hasDragged = false;
     let prevMouse = { x: 0, y: 0 };
     let targetRotation = { x: 0.15, y: -0.2 };
     let currentRotation = { x: 0.15, y: -0.2 };
@@ -4817,6 +4828,8 @@
     dom.addEventListener('mousedown', (e) => {
       if (isFlying) return;
       isDragging = true;
+      hasDragged = false;
+      dragStartPos = { x: e.clientX, y: e.clientY };
       prevMouse = { x: e.clientX, y: e.clientY };
       
       // Right click (2), Middle click (1), Shift+Left click, or 2D mode triggers PAN
@@ -4836,6 +4849,11 @@
 
     window.addEventListener('mousemove', (e) => {
       if (!isDragging || isFlying) return;
+      const totalDist = Math.hypot(e.clientX - dragStartPos.x, e.clientY - dragStartPos.y);
+      if (totalDist > 5) {
+        hasDragged = true;
+      }
+
       const deltaX = e.clientX - prevMouse.x;
       const deltaY = e.clientY - prevMouse.y;
 
@@ -4869,12 +4887,19 @@
     const mouse = new THREE.Vector2();
 
     dom.addEventListener('click', (e) => {
+      // If user dragged/orbited the scene, completely suppress click to prevent accidental selections
+      if (hasDragged) {
+        hasDragged = false;
+        return;
+      }
+      hasDragged = false;
+
       const rect = dom.getBoundingClientRect();
       mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
       mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
       raycaster.setFromCamera(mouse, camera);
 
-      // 1. Raycast nodes first (primary priority)
+      // 1. Raycast nodes first (primary priority - opens inspector drawer)
       const hitsNodes = raycaster.intersectObjects(cubeMeshes, true);
       if (hitsNodes.length > 0) {
         let topObj = hitsNodes[0].object;
@@ -4888,15 +4913,32 @@
         }
       }
 
-      // 2. Raycast edges (interactive hit cylinders on layer 1)
-      raycaster.layers.set(1);
-      const hitsEdges = raycaster.intersectObjects(edgeHitMeshes, false);
-      raycaster.layers.set(0);
-      if (hitsEdges.length > 0) {
-        const edgeObj = hitsEdges[0].object;
-        if (edgeObj.userData && edgeObj.userData.isEdge) {
-          select3DEdge(edgeObj.userData.edge, edgeObj.userData.source, edgeObj.userData.target, edgeObj.userData.dist);
-          return;
+      // 2. Raycast edges (interactive hit cylinders on layer 1 - does NOT open drawer)
+      if (showEdgesEnabled) {
+        raycaster.layers.set(1);
+        const hitsEdges = raycaster.intersectObjects(edgeHitMeshes, false);
+        raycaster.layers.set(0);
+        if (hitsEdges.length > 0) {
+          const edgeObj = hitsEdges[0].object;
+          if (edgeObj.userData && edgeObj.userData.isEdge) {
+            select3DEdge(edgeObj.userData.edge, edgeObj.userData.source, edgeObj.userData.target, edgeObj.userData.dist);
+            return;
+          }
+        }
+      }
+
+      // 3. User clicked empty canvas space: close drawer if open, clear active node/edge highlight
+      if (typeof closeInspector === 'function') {
+        closeInspector();
+      }
+      if (activeSelectedNode || activeSelectedEdge) {
+        activeSelectedNode = null;
+        window.activeSelectedNode = null;
+        activeSelectedEdge = null;
+        window.activeSelectedEdge = null;
+        if (selectedEdgeMesh) {
+          graphGroup.remove(selectedEdgeMesh);
+          selectedEdgeMesh = null;
         }
       }
     });
@@ -5090,10 +5132,12 @@
       targetPan.set(-midRot.x, -midRot.y, -midRot.z);
       zoomTarget = Math.max(160, span * 1.35);
 
-      if (!inspectorOpen) toggleInspector();
-      switchTab('replay');
-
-      renderEdgeInspector(edge, sourceNode, targetNode, span);
+      // Only update inspector content if drawer is ALREADY open; do NOT pop open on edge click
+      // (User directive: right drawer should only pop out when user clicks on nodes)
+      if (inspectorOpen) {
+        switchTab('replay');
+        renderEdgeInspector(edge, sourceNode, targetNode, span);
+      }
       if (typeof window.updateZoomHud === 'function') window.updateZoomHud();
     }
 
@@ -5396,7 +5440,11 @@
         selectedEdgeMesh = null;
       }
       flyToNode(node);
-      if (!inspectorOpen) toggleInspector();
+      if (typeof openInspector === 'function') {
+        openInspector();
+      } else if (!inspectorOpen) {
+        toggleInspector();
+      }
       switchTab('replay');
 
       activeSelectedNode = node;
@@ -7011,6 +7059,26 @@
 
     window.canvasCustomizerOpen = false;
 
+        window.switchStudioTab = function(tab) {
+      const tabs = ['themes', 'grid', 'light', 'nodes'];
+      tabs.forEach(t => {
+        const btn = document.getElementById(`studio-tab-btn-${t}`);
+        const panel = document.getElementById(`studio-panel-${t}`);
+        if (t === tab) {
+          if (btn) {
+            btn.className = "flex-1 py-1 rounded flex items-center justify-center gap-0.5 font-bold bg-cyan-500/20 text-cyan-300 border border-cyan-400/30 transition-all cursor-pointer";
+          }
+          if (panel) panel.classList.remove('hidden');
+        } else {
+          if (btn) {
+            btn.className = "flex-1 py-1 rounded flex items-center justify-center gap-0.5 font-bold text-neutral-400 hover:text-white border border-transparent transition-all cursor-pointer";
+          }
+          if (panel) panel.classList.add('hidden');
+        }
+      });
+      syncCustomizerUI(window.canvasConfig);
+    };
+
     window.toggleCanvasCustomizer = function(force) {
       const drawer = document.getElementById('canvas-customizer-drawer');
       const railInd = document.getElementById('rail-canvas-indicator');
@@ -7665,6 +7733,18 @@
       }
     }
 
+    function openInspector() {
+      const drawer = document.getElementById('inspector-drawer');
+      inspectorOpen = true;
+      if (drawer) {
+        drawer.classList.remove('translate-x-full');
+        drawer.style.transform = 'translateX(0)';
+      }
+      const legend = document.getElementById('universal-graph-legend');
+      if (legend) legend.style.right = '560px';
+    }
+    window.openInspector = openInspector;
+
     function toggleInspector() {
       const drawer = document.getElementById('inspector-drawer');
       inspectorOpen = !inspectorOpen;
@@ -7679,15 +7759,19 @@
         if (legend) legend.style.right = '48px';
       }
     }
+    window.toggleInspector = toggleInspector;
 
     function closeInspector() {
       const drawer = document.getElementById('inspector-drawer');
       inspectorOpen = false;
-      drawer.style.transform = 'translateX(100%)';
-      setTimeout(() => drawer.classList.add('translate-x-full'), 300);
+      if (drawer) {
+        drawer.style.transform = 'translateX(100%)';
+        setTimeout(() => drawer.classList.add('translate-x-full'), 300);
+      }
       const legend = document.getElementById('universal-graph-legend');
       if (legend) legend.style.right = '48px';
     }
+    window.closeInspector = closeInspector;
 
     function switchTab(tab) {
       currentTab = tab;
@@ -7756,12 +7840,25 @@
       }
     });
 
-    async function selectSession(id) {
+    async function selectSession(id, opts = {}) {
       activeSessionId = id;
       activeSelectedNode = null;
       activeSelectedEdge = null;
-      if (!inspectorOpen) toggleInspector();
-      switchTab('replay');
+
+      // Update active selection state across timeline lanes
+      document.querySelectorAll('.xc-lane-label').forEach(el => {
+        el.dataset.selected = (el.dataset.lane === id) ? 'true' : 'false';
+      });
+      document.querySelectorAll('.xc-lane-track').forEach(el => {
+        el.dataset.selected = (el.dataset.lane === id) ? 'true' : 'false';
+      });
+
+      // User directive: right drawer should only pop out when user clicks on nodes.
+      // Selecting a session updates inspector content if already open, but never forces it open.
+      if (opts.openDrawer && !inspectorOpen) {
+        if (typeof openInspector === 'function') openInspector();
+      }
+      if (inspectorOpen) switchTab('replay');
 
       document.getElementById('drawer-session-id').innerText = `Session ${id.substring(0, 16)}...`;
       const badge = document.getElementById('drawer-status-badge');
@@ -10049,9 +10146,13 @@ ${staticFacts.length > 0 ? `## Static Knowledge Core:\n${staticFacts.map(f => `-
 
         // Event listeners on WebGL Canvas
         const dom = spectralRenderer.domElement;
+        let spectralDragStartPos = { x: 0, y: 0 };
+        let spectralHasDragged = false;
 
         dom.addEventListener('mousedown', (e) => {
           spectralIsDragging = true;
+          spectralHasDragged = false;
+          spectralDragStartPos = { x: e.clientX, y: e.clientY };
           spectralPrevMouse = { x: e.clientX, y: e.clientY };
           dom.style.cursor = 'grabbing';
         });
@@ -10069,6 +10170,10 @@ ${staticFacts.length > 0 ? `## Static Knowledge Core:\n${staticFacts.map(f => `-
           }
 
           if (spectralIsDragging) {
+            const totalDist = Math.hypot(e.clientX - spectralDragStartPos.x, e.clientY - spectralDragStartPos.y);
+            if (totalDist > 5) {
+              spectralHasDragged = true;
+            }
             const dx = e.clientX - spectralPrevMouse.x;
             const dy = e.clientY - spectralPrevMouse.y;
             if (e.shiftKey || e.button === 2 || spectralProjectionMode === '2D') {
@@ -10137,6 +10242,12 @@ ${staticFacts.length > 0 ? `## Static Knowledge Core:\n${staticFacts.map(f => `-
         }, { passive: false });
 
         dom.addEventListener('click', (e) => {
+          if (spectralHasDragged) {
+            spectralHasDragged = false;
+            return;
+          }
+          spectralHasDragged = false;
+
           spectralRaycaster.setFromCamera(spectralMouse, spectralCamera);
           const hits = spectralRaycaster.intersectObjects(spectralMeshes, true);
           if (hits.length > 0) {
@@ -12254,8 +12365,13 @@ ${staticFacts.length > 0 ? `## Static Knowledge Core:\n${staticFacts.map(f => `-
 
         // 2. Lane Track (Right Column)
         const trackDiv = document.createElement('div');
-        trackDiv.className = 'xc-lane-track relative overflow-hidden';
+        trackDiv.className = 'xc-lane-track relative overflow-hidden cursor-pointer';
         trackDiv.dataset.lane = lane.session_id;
+        trackDiv.onclick = (e) => {
+          if (!e.target.closest('.xc-mark')) {
+            selectSession(lane.session_id);
+          }
+        };
 
         // Session Duration Span Bar
         if (spanWidth > 0 && rightPct > 0 && leftPct < 100) {
