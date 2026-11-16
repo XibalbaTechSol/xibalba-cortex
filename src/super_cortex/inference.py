@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
+import os
 import re
 import time
 from typing import Any
@@ -14,12 +16,48 @@ from .store import SuperCortexStore
 logger = logging.getLogger(__name__)
 
 
+def extract_json_array(text: str) -> list[dict[str, Any]]:
+    """Robustly extract a JSON array from model output."""
+    text = text.strip()
+    # 1. Try direct json.loads
+    try:
+        val = json.loads(text)
+        if isinstance(val, list):
+            return val
+    except Exception:
+        pass
+
+    # 2. Try markdown code fence
+    fence_match = re.search(r"```(?:json)?\s*(\[.*?\])\s*```", text, re.DOTALL)
+    if fence_match:
+        try:
+            val = json.loads(fence_match.group(1))
+            if isinstance(val, list):
+                return val
+        except Exception:
+            pass
+
+    # 3. Try finding brackets
+    start = text.find("[")
+    end = text.rfind("]")
+    if start != -1 and end > start:
+        try:
+            val = json.loads(text[start : end + 1])
+            if isinstance(val, list):
+                return val
+        except Exception:
+            pass
+
+    return []
+
+
 async def call_llm(
     prompt: str,
     system_prompt: str = "",
     provider: ProviderRecord | None = None,
     model: str | None = None,
-    timeout: float = 30.0,
+    timeout: float = 90.0,
+    response_mime_type: str | None = None,
 ) -> dict[str, Any]:
     """Execute an LLM completion request against any configured provider (Claude, Gemini, OpenAI, etc.)."""
     if not provider:
@@ -31,11 +69,12 @@ async def call_llm(
     async with httpx.AsyncClient(timeout=timeout) as client:
         # 1. ANTHROPIC CLAUDE
         if provider.provider_type == ProviderType.ANTHROPIC.value:
-            if not provider.api_key:
+            key = provider.api_key or os.getenv("ANTHROPIC_API_KEY") or ""
+            if not key:
                 raise ValueError("Anthropic API key is required. Please configure it in Provider Settings.")
             api_url = f"{provider.base_url.rstrip('/')}/messages" if not provider.base_url.endswith("/messages") else provider.base_url
             headers = {
-                "x-api-key": provider.api_key,
+                "x-api-key": key,
                 "anthropic-version": "2023-06-01",
                 "content-type": "application/json",
             }
@@ -60,21 +99,57 @@ async def call_llm(
 
         # 2. GOOGLE GEMINI
         elif provider.provider_type == ProviderType.GEMINI.value:
-            if not provider.api_key:
+            key = provider.api_key or os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY") or ""
+            if not key:
                 raise ValueError("Google Gemini API key is required. Please configure it in Provider Settings.")
             gemini_model = chosen_model or "gemini-2.5-flash"
             base = provider.base_url.rstrip("/") if provider.base_url else "https://generativelanguage.googleapis.com/v1beta"
-            api_url = f"{base}/models/{gemini_model}:generateContent?key={provider.api_key}"
+            api_url = f"{base}/models/{gemini_model}:generateContent?key={key}"
             headers = {"content-type": "application/json"}
-            payload = {
-                "contents": [{"parts": [{"text": prompt}]}]
+            generation_config: dict[str, Any] = {
+                "temperature": 0.2,
+                "maxOutputTokens": 8192,
+                "thinkingConfig": {"thinkingBudget": 1024},
+            }
+            if response_mime_type:
+                generation_config["responseMimeType"] = response_mime_type
+
+            payload: dict[str, Any] = {
+                "contents": [{"parts": [{"text": prompt}]}],
+                "generationConfig": generation_config,
             }
             if system_prompt:
                 payload["systemInstruction"] = {"parts": [{"text": system_prompt}]}
 
-            resp = await client.post(api_url, headers=headers, json=payload)
-            if not resp.is_success:
-                raise RuntimeError(f"Gemini API error ({resp.status_code}): {resp.text}")
+            max_retries = 3
+            resp = None
+            for attempt in range(max_retries):
+                resp = await client.post(api_url, headers=headers, json=payload)
+                if resp.status_code == 503 and attempt < max_retries - 1:
+                    wait_time = 2.0 * (attempt + 1)
+                    logger.warning(
+                        "Gemini API 503 (high demand), retrying in %.1fs (attempt %d/%d)...",
+                        wait_time,
+                        attempt + 1,
+                        max_retries,
+                    )
+                    await asyncio.sleep(wait_time)
+                    continue
+                elif resp.status_code == 429 and gemini_model != "gemini-3.5-flash":
+                    logger.warning(
+                        "Gemini model %s quota exceeded (429). Gracefully falling back to gemini-3.5-flash...",
+                        gemini_model,
+                    )
+                    gemini_model = "gemini-3.5-flash"
+                    chosen_model = gemini_model
+                    api_url = f"{base}/models/{gemini_model}:generateContent?key={key}"
+                    continue
+                break
+
+            if resp is None or not resp.is_success:
+                raise RuntimeError(
+                    f"Gemini API error ({resp.status_code if resp else 'no response'}): {resp.text if resp else ''}"
+                )
 
             data = resp.json()
             candidates = data.get("candidates", [])
@@ -90,8 +165,9 @@ async def call_llm(
             base = provider.base_url.rstrip("/") if provider.base_url else "https://api.openai.com/v1"
             api_url = f"{base}/chat/completions"
             headers = {"Content-Type": "application/json"}
-            if provider.api_key:
-                headers["Authorization"] = f"Bearer {provider.api_key}"
+            key = provider.api_key or (os.getenv("OPENAI_API_KEY") if provider.provider_type == "openai" else os.getenv("GROQ_API_KEY") if provider.provider_type == "groq" else "")
+            if key:
+                headers["Authorization"] = f"Bearer {key}"
 
             messages: list[dict[str, str]] = []
             if system_prompt:
@@ -381,17 +457,18 @@ async def run_link_discovery(
         "Ensure subjects and objects match or clearly map to existing knowledge entities. Output ONLY the JSON array."
     )
 
-    res = await call_llm(prompt=user_prompt, system_prompt=system_prompt, provider=provider)
+    res = await call_llm(
+        prompt=user_prompt,
+        system_prompt=system_prompt,
+        provider=provider,
+        response_mime_type="application/json",
+    )
     raw_text = res["text"].strip()
 
     # Extract JSON array
-    json_match = re.search(r"\[.*\]", raw_text, re.DOTALL)
-    discovered_links: list[dict[str, Any]] = []
-    if json_match:
-        try:
-            discovered_links = json.loads(json_match.group(0))
-        except Exception:
-            pass
+    discovered_links: list[dict[str, Any]] = extract_json_array(raw_text)
+    if not discovered_links:
+        logger.warning("Failed to parse discovered links from model response: %s", raw_text[:300])
 
     return {
         "discovered_links": discovered_links,

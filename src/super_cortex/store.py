@@ -1610,6 +1610,20 @@ class ProvenanceStore:
         """Mark memory archived and remove from active index."""
         return self.update_memory_status(memory_id, LifecycleStatus.ARCHIVED)
 
+    def _resolve_env_key(self, provider_type: str, current_key: str) -> str:
+        import os
+        if current_key and current_key.strip():
+            return current_key.strip()
+        if provider_type == ProviderType.GEMINI.value:
+            return os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY") or ""
+        elif provider_type == ProviderType.ANTHROPIC.value:
+            return os.getenv("ANTHROPIC_API_KEY") or ""
+        elif provider_type == ProviderType.OPENAI.value:
+            return os.getenv("OPENAI_API_KEY") or ""
+        elif provider_type == ProviderType.GROQ.value:
+            return os.getenv("GROQ_API_KEY") or ""
+        return ""
+
     def list_providers(self) -> list[ProviderRecord]:
         with self._get_conn() as conn:
             cursor = conn.execute(
@@ -1622,12 +1636,13 @@ class ProvenanceStore:
                     sett = json.loads(r["settings_json"]) if r["settings_json"] else {}
                 except Exception:
                     sett = {}
+                resolved_key = self._resolve_env_key(r["provider_type"], r["api_key"] or "")
                 providers.append(
                     ProviderRecord(
                         id=r["id"],
                         name=r["name"],
                         provider_type=r["provider_type"],
-                        api_key=r["api_key"] or "",
+                        api_key=resolved_key,
                         base_url=r["base_url"] or "",
                         default_model=r["default_model"] or "",
                         is_active=bool(r["is_active"]),
@@ -1651,11 +1666,12 @@ class ProvenanceStore:
                 sett = json.loads(r["settings_json"]) if r["settings_json"] else {}
             except Exception:
                 sett = {}
+            resolved_key = self._resolve_env_key(r["provider_type"], r["api_key"] or "")
             return ProviderRecord(
                 id=r["id"],
                 name=r["name"],
                 provider_type=r["provider_type"],
-                api_key=r["api_key"] or "",
+                api_key=resolved_key,
                 base_url=r["base_url"] or "",
                 default_model=r["default_model"] or "",
                 is_active=bool(r["is_active"]),
@@ -1676,16 +1692,17 @@ class ProvenanceStore:
                 )
                 r = cursor.fetchone()
             if not r:
-                return None
+                return self.get_provider("gemini")
             try:
                 sett = json.loads(r["settings_json"]) if r["settings_json"] else {}
             except Exception:
                 sett = {}
+            resolved_key = self._resolve_env_key(r["provider_type"], r["api_key"] or "")
             return ProviderRecord(
                 id=r["id"],
                 name=r["name"],
                 provider_type=r["provider_type"],
-                api_key=r["api_key"] or "",
+                api_key=resolved_key,
                 base_url=r["base_url"] or "",
                 default_model=r["default_model"] or "",
                 is_active=bool(r["is_active"]),
