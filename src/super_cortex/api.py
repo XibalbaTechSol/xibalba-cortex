@@ -19,7 +19,22 @@ from sse_starlette.sse import EventSourceResponse
 from .classifier import classify_epistemic, classify_para, extract_triples
 from .config import SuperCortexConfig
 from .connectors import SuperCortexConnectors
+from .deterministic import (
+    compute_pagerank,
+    compute_shannon_entropy,
+    compute_temporal_retention,
+    detect_contradictions,
+    detect_cycles,
+)
+from .inference import (
+    call_llm,
+    run_graph_rag_query,
+    run_graph_synthesis,
+    run_link_discovery,
+    test_provider_connection,
+)
 from .memory import SuperCortex
+from .models import ProviderRecord, ProviderType
 
 logger = logging.getLogger(__name__)
 
@@ -465,6 +480,52 @@ def create_app(config: SuperCortexConfig | None = None) -> Starlette:
                             "label": "mentions",
                         })
 
+        # ---------------------------------------------------------------------
+        # Deterministic Zero-Inference Engine Analysis
+        # 1. Dialectic Contradiction Graphing
+        # ---------------------------------------------------------------------
+        mem_dicts = [dict(r) for r in mem_rows]
+        rel_dicts = [dict(r) for r in rel_rows]
+        contradictions = detect_contradictions(mem_dicts, rel_dicts)
+
+        node_map = {n["id"]: n for n in nodes}
+        for c in contradictions:
+            s_node = node_map.get(c["source_id"])
+            t_node = node_map.get(c["target_id"])
+            if s_node:
+                s_node["hasContradiction"] = True
+                s_node.setdefault("contradictions", []).append(c)
+            if t_node:
+                t_node["hasContradiction"] = True
+                t_node.setdefault("contradictions", []).append(c)
+
+            # Add explicit 3D graph contradiction edge
+            links.append({
+                "source": c["source_id"],
+                "target": c["target_id"],
+                "type": "contradiction",
+                "label": f"CONTRADICTS: {c['reason']}",
+                "predicate": "contradicts",
+                "severity": c["severity"],
+                "confidence": 1.0,
+                "color": 0xef4444,  # Glowing Crimson
+                "isContradiction": True,
+            })
+
+        # 2. Power-Iteration PageRank & Keystone Centrality
+        ranks = compute_pagerank(nodes, links)
+        for n in nodes:
+            nid = n["id"]
+            pr = ranks.get(nid, 0.05)
+            n["pageRank"] = pr
+            n["isKeystone"] = bool(pr >= 0.65)
+            if n.get("type") in ("memory", "thought"):
+                n["entropy"] = compute_shannon_entropy(n.get("content", ""))
+                n["retention"] = compute_temporal_retention(n.get("created_at"), n.get("epistemic_class", "fact"))
+
+        # 3. Tarjan Cycle Detection
+        cycles = detect_cycles(nodes, links)
+
         return JSONResponse({
             "nodes": nodes,
             "links": links,
@@ -477,6 +538,9 @@ def create_app(config: SuperCortexConfig | None = None) -> Starlette:
                 "entities_count": len(entity_names),
                 "relations_count": len(rel_rows),
                 "thoughts_count": thought_count,
+                "contradictions_count": len(contradictions),
+                "keystone_invariants_count": sum(1 for n in nodes if n.get("isKeystone")),
+                "cycles_count": len(cycles),
             }
         })
 
@@ -650,6 +714,7 @@ def create_app(config: SuperCortexConfig | None = None) -> Starlette:
 
         scope = body.get("scope")
         agent_id = body.get("agent_id")
+        provider_id = body.get("provider_id")
 
         # Hybrid retrieve from Supermemory and Ledger
         retrieval = await cortex.hybrid_retrieve(
@@ -664,17 +729,185 @@ def create_app(config: SuperCortexConfig | None = None) -> Starlette:
         context_snippets = [f"- {r.get('content')}" for r in results if r.get("content")]
         context_text = "\n".join(context_snippets) if context_snippets else "No prior memories matched."
 
-        response_text = (
-            f"Super-Cortex analyzed your query across local memory namespaces.\n\n"
-            f"**Relevant Stored Knowledge:**\n{context_text}\n\n"
-            f"✓ Cryptographic integrity validated against local ledger."
-        )
+        active_provider = cortex.store.get_provider(provider_id) if provider_id else cortex.store.get_active_provider()
+        model_used = "deterministic-rag"
+        provider_used = "local"
+
+        if active_provider and (active_provider.api_key or active_provider.provider_type == "ollama"):
+            try:
+                rag_res = await run_graph_rag_query(
+                    cortex.store, query=query, scope=scope or "all", provider=active_provider
+                )
+                response_text = rag_res["answer"]
+                model_used = rag_res["model"]
+                provider_used = rag_res["provider"]
+            except Exception as e:
+                logger.warning("LLM chat fallback: %s", e)
+                response_text = (
+                    f"Super-Cortex analyzed your query across local memory namespaces.\n\n"
+                    f"**Relevant Stored Knowledge:**\n{context_text}\n\n"
+                    f"✓ Cryptographic integrity validated against local ledger."
+                )
+        else:
+            response_text = (
+                f"Super-Cortex analyzed your query across local memory namespaces.\n\n"
+                f"**Relevant Stored Knowledge:**\n{context_text}\n\n"
+                f"✓ Cryptographic integrity validated against local ledger. (Tip: Configure Claude or Gemini in AI Providers for full generative reasoning)."
+            )
 
         return JSONResponse({
             "reply": response_text,
             "retrieval": results,
             "query": query,
+            "model": model_used,
+            "provider": provider_used,
         })
+
+    # =========================================================================
+    # INFERENCE PROVIDER MANAGEMENT & AI GRAPH OPERATIONS
+    # =========================================================================
+    async def api_providers_list(request: Request) -> JSONResponse:
+        providers = cortex.store.list_providers()
+        payload = [
+            {
+                "id": p.id,
+                "name": p.name,
+                "provider_type": p.provider_type,
+                "masked_key": p.masked_key(),
+                "has_key": bool(p.api_key),
+                "base_url": p.base_url,
+                "default_model": p.default_model,
+                "is_active": p.is_active,
+                "settings": p.settings,
+                "created_at": p.created_at,
+                "updated_at": p.updated_at,
+            }
+            for p in providers
+        ]
+        return JSONResponse({"providers": payload})
+
+    async def api_providers_save(request: Request) -> JSONResponse:
+        body = await request.json()
+        pid = body.get("id") or body.get("name", "custom").lower().replace(" ", "_")
+        name = body.get("name", "Custom Provider")
+        ptype = body.get("provider_type", "custom")
+        api_key = body.get("api_key", "").strip()
+        base_url = body.get("base_url", "").strip()
+        default_model = body.get("default_model", "").strip()
+        is_active = bool(body.get("is_active", False))
+        settings = body.get("settings", {})
+
+        record = ProviderRecord(
+            id=pid,
+            name=name,
+            provider_type=ptype,
+            api_key=api_key,
+            base_url=base_url,
+            default_model=default_model,
+            is_active=is_active,
+            settings=settings,
+        )
+        saved = cortex.store.save_provider(record)
+        return JSONResponse({
+            "status": "success",
+            "provider": {
+                "id": saved.id,
+                "name": saved.name,
+                "provider_type": saved.provider_type,
+                "masked_key": saved.masked_key(),
+                "default_model": saved.default_model,
+                "is_active": saved.is_active,
+            }
+        })
+
+    async def api_providers_delete(request: Request) -> JSONResponse:
+        pid = request.path_params["provider_id"]
+        deleted = cortex.store.delete_provider(pid)
+        return JSONResponse({"status": "deleted" if deleted else "not_found", "id": pid})
+
+    async def api_providers_activate(request: Request) -> JSONResponse:
+        pid = request.path_params["provider_id"]
+        activated = cortex.store.set_active_provider(pid)
+        return JSONResponse({"status": "active" if activated else "not_found", "id": pid})
+
+    async def api_providers_test(request: Request) -> JSONResponse:
+        body = await request.json()
+        pid = body.get("id")
+        provider = cortex.store.get_provider(pid) if pid else None
+        if not provider:
+            provider = ProviderRecord(
+                id="test_ephemeral",
+                name=body.get("name", "Test Provider"),
+                provider_type=body.get("provider_type", "gemini"),
+                api_key=body.get("api_key", "").strip(),
+                base_url=body.get("base_url", "").strip(),
+                default_model=body.get("default_model", "").strip(),
+            )
+        result = await test_provider_connection(provider)
+        return JSONResponse(result)
+
+    async def api_graph_synthesize(request: Request) -> JSONResponse:
+        body = await request.json() if request.method == "POST" else {}
+        scope = body.get("scope", "all")
+        focus = body.get("focus", "")
+        pid = body.get("provider_id")
+        provider = cortex.store.get_provider(pid) if pid else cortex.store.get_active_provider()
+        try:
+            res = await run_graph_synthesis(cortex.store, scope=scope, focus=focus, provider=provider)
+            return JSONResponse(res)
+        except Exception as e:
+            logger.error("Synthesis failed: %s", e)
+            return JSONResponse({"error": str(e)}, status_code=500)
+
+    async def api_graph_discover_links(request: Request) -> JSONResponse:
+        body = await request.json() if request.method == "POST" else {}
+        scope = body.get("scope", "all")
+        pid = body.get("provider_id")
+        provider = cortex.store.get_provider(pid) if pid else cortex.store.get_active_provider()
+        try:
+            res = await run_link_discovery(cortex.store, scope=scope, provider=provider)
+            return JSONResponse(res)
+        except Exception as e:
+            logger.error("Link discovery failed: %s", e)
+            return JSONResponse({"error": str(e)}, status_code=500)
+
+    async def api_graph_commit_links(request: Request) -> JSONResponse:
+        body = await request.json()
+        links = body.get("links", [])
+        created_count = 0
+        for l in links:
+            sub = l.get("subject", "").strip()
+            pred = l.get("predicate", "").strip()
+            obj = l.get("object", "").strip()
+            conf = float(l.get("confidence", 0.95))
+            if sub and pred and obj:
+                cortex.store.add_entity(sub, evidence_links=["ai_discovery"])
+                cortex.store.add_entity(obj, evidence_links=["ai_discovery"])
+                cortex.store.add_relation(
+                    subject=sub,
+                    predicate=pred,
+                    object=obj,
+                    confidence=conf,
+                    evidence_memories=["ai_discovery"],
+                )
+                created_count += 1
+        await broadcast_event("relations_updated", {"created_count": created_count})
+        return JSONResponse({"status": "success", "created_relations": created_count})
+
+    async def api_graph_query(request: Request) -> JSONResponse:
+        body = await request.json()
+        query = body.get("query", "").strip()
+        if not query:
+            return JSONResponse({"error": "query is required"}, status_code=400)
+        scope = body.get("scope", "all")
+        pid = body.get("provider_id")
+        provider = cortex.store.get_provider(pid) if pid else cortex.store.get_active_provider()
+        try:
+            res = await run_graph_rag_query(cortex.store, query=query, scope=scope, provider=provider)
+            return JSONResponse(res)
+        except Exception as e:
+            logger.error("Graph RAG query failed: %s", e)
+            return JSONResponse({"error": str(e)}, status_code=500)
 
     async def api_live_events(request: Request) -> EventSourceResponse:
         queue: asyncio.Queue = asyncio.Queue()
@@ -839,25 +1072,12 @@ def create_app(config: SuperCortexConfig | None = None) -> Starlette:
     async def api_contradictions(request: Request) -> JSONResponse:
         """Scans memories and relations for dialectic conflicts and contradictory invariants across scopes."""
         with cortex.store._get_conn() as conn:
-            cursor = conn.execute("SELECT id, text, epistemic_class, metadata_json FROM memories WHERE lifecycle_status != 'archived'")
-            rows = [dict(r) for r in cursor.fetchall()]
+            m_cursor = conn.execute("SELECT id, text, epistemic_class, lifecycle_status, metadata_json, created_at FROM memories WHERE lifecycle_status != 'archived'")
+            mem_rows = [dict(r) for r in m_cursor.fetchall()]
+            r_cursor = conn.execute("SELECT relation_id, subject, predicate, object, confidence, created_at FROM relations")
+            rel_rows = [dict(r) for r in r_cursor.fetchall()]
 
-        contradictions = []
-        rule_texts = [r for r in rows if r["epistemic_class"] == "rule"]
-        for i, r1 in enumerate(rule_texts):
-            for r2 in rule_texts[i + 1:]:
-                t1, t2 = r1["text"].lower(), r2["text"].lower()
-                words1, words2 = set(t1.split()), set(t2.split())
-                overlap = words1.intersection(words2)
-                if len(overlap) >= 3 and (("never" in t1 or "forbidden" in t1) and ("always" in t2 or "must" in t2)):
-                    contradictions.append({
-                        "memory_a": r1["id"],
-                        "text_a": r1["text"],
-                        "memory_b": r2["id"],
-                        "text_b": r2["text"],
-                        "type": "epistemic_rule_polar_conflict",
-                        "severity": "high",
-                    })
+        contradictions = detect_contradictions(mem_rows, rel_rows)
 
         return JSONResponse({
             "contradictions": contradictions,
@@ -1006,6 +1226,15 @@ def create_app(config: SuperCortexConfig | None = None) -> Starlette:
         Route("/api/spectral", api_spectral, methods=["GET"]),
         Route("/api/profile", api_profile, methods=["GET", "POST"]),
         Route("/api/namespaces", api_namespaces, methods=["GET"]),
+        Route("/api/providers", api_providers_list, methods=["GET"]),
+        Route("/api/providers", api_providers_save, methods=["POST"]),
+        Route("/api/providers/test", api_providers_test, methods=["POST"]),
+        Route("/api/providers/{provider_id}", api_providers_delete, methods=["DELETE"]),
+        Route("/api/providers/{provider_id}/activate", api_providers_activate, methods=["POST"]),
+        Route("/api/graph/operations/synthesize", api_graph_synthesize, methods=["GET", "POST"]),
+        Route("/api/graph/operations/discover-links", api_graph_discover_links, methods=["GET", "POST"]),
+        Route("/api/graph/operations/commit-links", api_graph_commit_links, methods=["POST"]),
+        Route("/api/graph/operations/query", api_graph_query, methods=["POST"]),
     ]
 
     # Mount static viewer if dist exists

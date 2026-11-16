@@ -109,3 +109,33 @@ class ExchangeRecord(BaseModel):
     created_at: str = Field(default_factory=utc_now_iso)
     scope_id: str = "shared"
     agent_id: str = "xibalba"
+
+
+class ProviderType(str, Enum):
+    ANTHROPIC = "anthropic"
+    GEMINI = "gemini"
+    OPENAI = "openai"
+    GROQ = "groq"
+    OPENROUTER = "openrouter"
+    OLLAMA = "ollama"
+    CUSTOM = "custom"
+
+
+class ProviderRecord(BaseModel):
+    id: str
+    name: str
+    provider_type: str = ProviderType.GEMINI.value
+    api_key: str = ""
+    base_url: str = ""
+    default_model: str = ""
+    is_active: bool = False
+    settings: dict[str, Any] = Field(default_factory=dict)
+    created_at: str = Field(default_factory=utc_now_iso)
+    updated_at: str = Field(default_factory=utc_now_iso)
+
+    def masked_key(self) -> str:
+        if not self.api_key:
+            return ""
+        if len(self.api_key) <= 8:
+            return "••••••••"
+        return f"{self.api_key[:4]}••••{self.api_key[-4:]}"

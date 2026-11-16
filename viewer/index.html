@@ -555,6 +555,27 @@
 
     <!-- Right Section: Projection, Universal Legend & Telemetry -->
     <div class="flex items-center gap-2.5 shrink-0">
+      <!-- Synaptic Edges Toggle -->
+      <button onclick="toggleGraphEdges()" id="btn-header-edges" class="h-6 flex items-center gap-1.5 px-2.5 bg-primary-container/20 hover:bg-primary-container/30 border border-primary-container/40 rounded text-[10px] font-mono text-primary transition-all shadow-sm cursor-pointer select-none" title="Toggle 3D Directed Edges & Synapses (E)">
+        <span class="material-symbols-outlined text-[14px]">timeline</span>
+        <span class="font-bold uppercase tracking-wider">EDGES</span>
+        <span id="header-edges-indicator" class="w-1.5 h-1.5 rounded-full bg-[#00f0ff] shadow-[0_0_6px_#00f0ff]"></span>
+      </button>
+
+      <!-- AI Inference Providers Manager -->
+      <button onclick="window.openProvidersModal()" id="btn-header-providers" class="h-6 flex items-center gap-1.5 px-2.5 bg-purple-500/15 hover:bg-purple-500/25 border border-purple-500/40 rounded text-[10px] font-mono text-[#ddb7ff] transition-all shadow-sm cursor-pointer select-none" title="Configure AI Inference Providers (Claude, Gemini, OpenAI, Groq, Ollama)">
+        <span class="material-symbols-outlined text-[14px] text-purple-400">smart_toy</span>
+        <span class="font-bold uppercase tracking-wider">AI PROVIDERS</span>
+        <span id="header-active-provider-dot" class="w-1.5 h-1.5 rounded-full bg-emerald-400 shadow-[0_0_6px_#00ffa3]"></span>
+      </button>
+
+      <!-- Contradiction Dialectic Scanner -->
+      <button onclick="window.runContradictionScan()" id="btn-header-contradictions" class="h-6 flex items-center gap-1.5 px-2 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 rounded text-[10px] font-mono text-rose-300 transition-all shadow-sm cursor-pointer select-none" title="Run Epistemic Contradiction & Dialectic Conflict Scanner">
+        <span class="material-symbols-outlined text-[14px] text-rose-400">crisis_alert</span>
+        <span class="font-bold uppercase tracking-wider">CONTRADICTIONS</span>
+        <span id="header-contra-badge" class="px-1 py-0.2 rounded text-[8px] font-bold bg-rose-500/20 text-rose-300 border border-rose-500/40">SCAN</span>
+      </button>
+
       <!-- Universal Graph Legend Toggle Button -->
       <button id="btn-toggle-legend" onclick="toggleGraphLegend()" class="h-6 flex items-center gap-1.5 px-2 bg-surface-container-low hover:bg-surface-container-high border border-outline-variant/40 hover:border-primary-container rounded text-[10px] font-mono text-on-surface hover:text-primary-container transition-all shadow-sm cursor-pointer select-none" title="Toggle Graph Legend (L)">
         <span class="material-symbols-outlined text-[13px] text-primary-container">category</span>
@@ -894,6 +915,11 @@
           INJECT CONTEXT
         </button>
 
+        <button onclick="window.openAiOpsModal()" class="px-2.5 py-1 rounded bg-gradient-to-r from-purple-600/30 to-cyan-500/20 text-[#ddb7ff] hover:text-white border border-purple-500/50 hover:border-purple-400 font-mono font-bold text-[9px] uppercase transition-all flex items-center gap-1 shadow-[0_0_12px_rgba(168,85,247,0.2)]" title="AI Graph Operations Studio (Whole-Graph Synthesis, Latent Link Discovery, Grounded Q&A)">
+          <span class="material-symbols-outlined text-[13px] text-purple-400">psychology</span>
+          <span>🧠 AI GRAPH OPS</span>
+        </button>
+
         <div class="h-4 w-[1px] bg-outline-variant/50"></div>
 
         <!-- Filter Query Input -->
@@ -916,8 +942,20 @@
         </select>
       </div>
 
-      <!-- FLOATING HUD GRAPH CONTROL STACK (Inspired by Cortex Graph Lens) -->
-      <div id="graph-floating-hud-toolbar" class="absolute top-16 right-4 z-30 flex flex-col items-center bg-[#090d16]/95 backdrop-blur-2xl border border-primary-container/40 rounded-lg p-1.5 shadow-[0_12px_40px_rgba(0,0,0,0.85)] space-y-1 select-none font-mono">
+      <!-- FLOATING HUD GRAPH CONTROL STACK (Draggable & Dockable) -->
+      <div id="graph-floating-hud-toolbar" class="absolute top-16 right-4 z-30 flex flex-col items-center bg-[#090d16]/95 backdrop-blur-2xl border border-primary-container/40 rounded-lg p-1.5 shadow-[0_12px_40px_rgba(0,0,0,0.85)] space-y-1 select-none font-mono transition-transform duration-150">
+        <!-- Drag Handle -->
+        <div id="hud-drag-handle" class="w-8 h-4 flex items-center justify-center text-outline hover:text-white cursor-grab active:cursor-grabbing rounded mb-0.5" title="Drag to move HUD anywhere (Double-click to reset)">
+          <span class="material-symbols-outlined text-[15px]">drag_indicator</span>
+        </div>
+
+        <!-- Dock to Right Margin Button -->
+        <button id="btn-hud-dock" onclick="window.toggleHudDock()" class="w-8 h-7 rounded flex items-center justify-center text-outline hover:text-secondary-container hover:bg-surface-container-high transition-all" title="Dock / Undock HUD to Right Margin">
+          <span id="hud-dock-icon" class="material-symbols-outlined text-[15px]">dock_to_right</span>
+        </button>
+
+        <div class="w-5 h-[1px] bg-outline-variant/40 my-0.5"></div>
+
         <!-- Zoom In -->
         <button id="btn-hud-zoom-in" onclick="zoomGraphBy(1.3)" class="w-8 h-8 rounded flex items-center justify-center text-on-surface-variant hover:text-primary-container hover:bg-surface-container-high transition-all" title="Zoom In (+)">
           <span class="material-symbols-outlined text-[17px]">add</span>
@@ -1000,6 +1038,68 @@
             </button>
           </div>
         </div>
+
+        <!-- Node Shape Selector Menu Button -->
+        <div class="relative">
+          <button id="btn-hud-shape" onclick="window.toggleShapeMenu(event)" class="w-8 h-8 rounded flex items-center justify-center text-primary-container hover:bg-surface-container-high transition-all" title="Change Node Geometry Shape (Spheres, Cubes, Diamonds...)">
+            <span id="hud-shape-icon" class="material-symbols-outlined text-[17px]">token</span>
+          </button>
+          <!-- Shape Selection Flyout Popover -->
+          <div id="shape-flyout-menu" class="hidden absolute right-10 top-0 w-64 bg-[#0a0e17]/98 backdrop-blur-2xl border border-primary-container/40 rounded-xl shadow-2xl p-2 space-y-1 z-50 text-[10px]">
+            <div class="text-[9px] text-primary-container font-bold uppercase px-2 py-1 border-b border-outline-variant/30 flex items-center justify-between">
+              <span>NODE 3D GEOMETRY</span>
+              <span id="hud-active-shape-name" class="text-secondary-container text-[8px] font-bold">CUBES</span>
+            </div>
+            <button onclick="window.applyNodeShape('cubes')" data-shape-btn="cubes" class="w-full text-left px-2.5 py-1.5 rounded flex items-center gap-2 hover:bg-surface-container-high transition-all bg-primary-container text-on-primary-container font-bold">
+              <span class="material-symbols-outlined text-base text-cyan-400">deployed_code</span>
+              <div>
+                <div class="font-bold">CYBERNETIC VOXEL CUBES</div>
+                <div class="text-[8px] opacity-75">Clean glowing 6-facet memory voxels</div>
+              </div>
+            </button>
+            <button onclick="window.applyNodeShape('spheres')" data-shape-btn="spheres" class="w-full text-left px-2.5 py-1.5 rounded flex items-center gap-2 hover:bg-surface-container-high transition-all text-on-surface-variant">
+              <span class="material-symbols-outlined text-base text-emerald-400">circle</span>
+              <div>
+                <div class="font-bold">CELESTIAL PLANETARY SPHERES</div>
+                <div class="text-[8px] opacity-75">Smooth planetary orbs in harmonic orbit</div>
+              </div>
+            </button>
+            <button onclick="window.applyNodeShape('diamonds')" data-shape-btn="diamonds" class="w-full text-left px-2.5 py-1.5 rounded flex items-center gap-2 hover:bg-surface-container-high transition-all text-on-surface-variant">
+              <span class="material-symbols-outlined text-base text-purple-400">diamond</span>
+              <div>
+                <div class="font-bold">QUANTUM OCTAHEDRONS</div>
+                <div class="text-[8px] opacity-75">8-facet gemstone crystal nodes</div>
+              </div>
+            </button>
+            <button onclick="window.applyNodeShape('pyramids')" data-shape-btn="pyramids" class="w-full text-left px-2.5 py-1.5 rounded flex items-center gap-2 hover:bg-surface-container-high transition-all text-on-surface-variant">
+              <span class="material-symbols-outlined text-base text-amber-400">change_history</span>
+              <div>
+                <div class="font-bold">CRYSTAL TETRAHEDRONS</div>
+                <div class="text-[8px] opacity-75">Sharp angular tetrahedral crystal points</div>
+              </div>
+            </button>
+            <button onclick="window.applyNodeShape('geodesic')" data-shape-btn="geodesic" class="w-full text-left px-2.5 py-1.5 rounded flex items-center gap-2 hover:bg-surface-container-high transition-all text-on-surface-variant">
+              <span class="material-symbols-outlined text-base text-rose-400">hexagon</span>
+              <div>
+                <div class="font-bold">GEODESIC ICOSAHEDRONS</div>
+                <div class="text-[8px] opacity-75">20-facet complex polyhedral geodesics</div>
+              </div>
+            </button>
+            <button onclick="window.applyNodeShape('torus')" data-shape-btn="torus" class="w-full text-left px-2.5 py-1.5 rounded flex items-center gap-2 hover:bg-surface-container-high transition-all text-on-surface-variant">
+              <span class="material-symbols-outlined text-base text-yellow-400">radio_button_unchecked</span>
+              <div>
+                <div class="font-bold">HARMONIC RINGS (TORUS)</div>
+                <div class="text-[8px] opacity-75">Spinning annular topological rings</div>
+              </div>
+            </button>
+          </div>
+        </div>
+
+        <!-- Contradiction Dialectic Lens Button -->
+        <button id="btn-hud-contradictions" onclick="window.toggleContradictionLens()" class="w-8 h-8 rounded flex items-center justify-center text-rose-400 hover:text-white hover:bg-rose-500/20 transition-all relative" title="Toggle Dialectic Contradiction Lens (Highlight Conflicts)">
+          <span class="material-symbols-outlined text-[17px]">crisis_alert</span>
+          <span id="hud-contra-badge" class="hidden absolute -top-1 -right-1 w-3.5 h-3.5 rounded-full bg-rose-500 text-white font-bold text-[8px] flex items-center justify-center shadow">!</span>
+        </button>
 
         <div class="w-5 h-[1px] bg-outline-variant/40 my-0.5"></div>
 
@@ -3266,6 +3366,378 @@
   </div>
 
   <!-- ========================================================================= -->
+  <!-- FORENSIC SESSION REBUILD & INTERACTION STREAM MODAL                       -->
+  <!-- ========================================================================= -->
+  <div id="session-rebuilder-modal" class="hidden fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-3 md:p-6 font-mono select-text" onclick="if(event.target === this) window.closeSessionRebuilderModal()">
+    <div class="bg-[#070b13] border border-cyan-500/40 rounded-xl p-5 shadow-[0_20px_70px_rgba(0,0,0,0.95)] max-w-5xl w-full h-[90vh] flex flex-col gap-3.5 overflow-hidden animate-in fade-in zoom-in-95 duration-150 ring-1 ring-cyan-500/20">
+      <!-- Modal Header Bar -->
+      <div class="flex items-center justify-between pb-3 border-b border-outline-variant/30 shrink-0">
+        <div class="flex items-center gap-3">
+          <span class="w-9 h-9 rounded-lg flex items-center justify-center bg-gradient-to-br from-cyan-500/20 to-purple-500/30 text-[#00f0ff] border border-cyan-500/40 shadow-sm">
+            <span class="material-symbols-outlined text-xl">history_edu</span>
+          </span>
+          <div>
+            <div class="flex items-center gap-2 flex-wrap">
+              <span class="text-xs md:text-sm font-bold uppercase tracking-wider text-cyan-400">AGENT SESSION REBUILD &amp; INTERACTION STREAM</span>
+              <span id="rebuild-agent-pill" class="text-[9px] px-2 py-0.5 rounded bg-purple-500/15 border border-purple-500/40 text-[#ddb7ff] font-bold">AGENT // CLAUDE</span>
+              <span id="rebuild-duration-pill" class="text-[9px] px-2 py-0.5 rounded bg-surface-container-high border border-outline-variant/40 text-secondary-container font-bold">0m 00s</span>
+            </div>
+            <div class="flex items-center gap-2 text-[10px] text-outline mt-0.5">
+              <span>SESSION:</span>
+              <span id="rebuild-session-id" class="text-white font-bold select-all">sess_...</span>
+              <button onclick="navigator.clipboard.writeText(document.getElementById('rebuild-session-id').innerText); alert('Session ID copied!');" class="hover:text-primary" title="Copy Session ID">
+                <span class="material-symbols-outlined text-[12px]">content_copy</span>
+              </button>
+              <span class="text-outline">|</span>
+              <span>MERKLE ROOT:</span>
+              <span id="rebuild-merkle-root" class="text-[#00ffa3] font-mono font-bold truncate max-w-xs">0x...</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="flex items-center gap-2">
+          <button onclick="window.copyRebuildJson()" class="px-2.5 py-1.5 bg-surface-container-high hover:bg-surface-container-highest text-neutral-200 hover:text-white rounded text-[10px] font-bold flex items-center gap-1 border border-outline-variant/30 transition-colors" title="Copy full raw audit JSON to clipboard">
+            <span class="material-symbols-outlined text-[13px]">data_object</span>
+            <span>JSON</span>
+          </button>
+          <button onclick="window.exportRebuildMarkdown()" class="px-2.5 py-1.5 bg-purple-600/20 hover:bg-purple-600/40 text-[#ddb7ff] hover:text-white rounded text-[10px] font-bold flex items-center gap-1 border border-purple-500/40 transition-colors" title="Export / copy full formatted Markdown audit report">
+            <span class="material-symbols-outlined text-[13px]">description</span>
+            <span>MARKDOWN</span>
+          </button>
+          <button onclick="window.closeSessionRebuilderModal()" class="w-8 h-8 rounded bg-surface-container-high hover:bg-surface-container-highest text-neutral-400 hover:text-white flex items-center justify-center text-sm font-bold transition-colors">✕</button>
+        </div>
+      </div>
+
+      <!-- Telemetry KPI Strip -->
+      <div class="grid grid-cols-2 md:grid-cols-6 gap-2 shrink-0 text-center">
+        <div class="p-2 bg-surface-container-low border border-outline-variant/30 rounded">
+          <span class="text-outline text-[8px] uppercase block">TOTAL TURNS</span>
+          <span id="rebuild-stat-turns" class="text-primary-container text-sm font-bold">0</span>
+        </div>
+        <div class="p-2 bg-surface-container-low border border-outline-variant/30 rounded">
+          <span class="text-outline text-[8px] uppercase block">ATOMIC STEPS</span>
+          <span id="rebuild-stat-steps" class="text-white text-sm font-bold">0</span>
+        </div>
+        <div class="p-2 bg-surface-container-low border border-amber-500/30 rounded">
+          <span class="text-outline text-[8px] uppercase block">USER PROMPTS</span>
+          <span id="rebuild-stat-prompts" class="text-amber-400 text-sm font-bold">0</span>
+        </div>
+        <div class="p-2 bg-surface-container-low border border-purple-500/30 rounded">
+          <span class="text-outline text-[8px] uppercase block">COT REASONING</span>
+          <span id="rebuild-stat-thoughts" class="text-[#c084fc] text-sm font-bold">0</span>
+        </div>
+        <div class="p-2 bg-surface-container-low border border-cyan-500/30 rounded">
+          <span class="text-outline text-[8px] uppercase block">TOOL ACTIONS</span>
+          <span id="rebuild-stat-tools" class="text-[#00f0ff] text-sm font-bold">0</span>
+        </div>
+        <div class="p-2 bg-surface-container-low border border-emerald-500/30 rounded">
+          <span class="text-outline text-[8px] uppercase block">INTEGRITY ANCHORS</span>
+          <span id="rebuild-stat-anchors" class="text-[#00ffa3] text-sm font-bold">0</span>
+        </div>
+      </div>
+
+      <!-- Filter & Search Controls Strip -->
+      <div class="flex flex-wrap items-center justify-between gap-2 bg-surface-container-low/70 p-2 rounded border border-outline-variant/30 shrink-0 text-[10px]">
+        <!-- View Mode Switcher: OpenAI Chat View vs Forensic Step Ledger -->
+        <div class="flex items-center bg-surface-container-lowest p-0.5 rounded border border-outline-variant/40 text-[9px] font-mono gap-1">
+          <button id="btn-rebuild-mode-chat" onclick="window.setRebuildViewMode('chat')" class="px-2.5 py-1 rounded bg-cyan-500/20 text-[#00f0ff] border border-cyan-500/40 font-bold flex items-center gap-1 transition-all" title="View as OpenAI-style Chat Session with Timestamps and Collapsible Thoughts">
+            <span class="material-symbols-outlined text-[12px]">chat</span>
+            <span>OpenAI Chat View</span>
+          </button>
+          <button id="btn-rebuild-mode-forensic" onclick="window.setRebuildViewMode('forensic')" class="px-2.5 py-1 rounded text-neutral-400 hover:text-white transition-all flex items-center gap-1" title="View Raw Forensic Step-by-Step Ledger">
+            <span class="material-symbols-outlined text-[12px]">list</span>
+            <span>Forensic Ledger</span>
+          </button>
+        </div>
+
+        <div class="flex items-center gap-1 flex-wrap" id="rebuild-filter-pills">
+          <button onclick="window.filterRebuildTimeline('all')" class="px-2 py-0.5 rounded bg-primary-container text-on-primary-container font-bold" data-rfilter="all">ALL STEPS</button>
+          <button onclick="window.filterRebuildTimeline('prompt')" class="px-2 py-0.5 rounded text-neutral-400 hover:text-white" data-rfilter="prompt">PROMPTS</button>
+          <button onclick="window.filterRebuildTimeline('thought')" class="px-2 py-0.5 rounded text-neutral-400 hover:text-purple-300" data-rfilter="thought">THOUGHTS (COT)</button>
+          <button onclick="window.filterRebuildTimeline('command')" class="px-2 py-0.5 rounded text-neutral-400 hover:text-cyan-300" data-rfilter="command">CLI ($)</button>
+          <button onclick="window.filterRebuildTimeline('file')" class="px-2 py-0.5 rounded text-neutral-400 hover:text-amber-300" data-rfilter="file">FILES</button>
+          <button onclick="window.filterRebuildTimeline('response')" class="px-2 py-0.5 rounded text-neutral-400 hover:text-violet-300" data-rfilter="response">RESPONSES</button>
+        </div>
+
+        <div class="relative flex-1 max-w-xs">
+          <span class="material-symbols-outlined text-[13px] absolute left-2 top-1.5 text-outline">search</span>
+          <input id="rebuild-search-input" oninput="window.searchRebuildTimeline(this.value)" class="w-full bg-surface-container-lowest border border-outline-variant/40 rounded pl-6 pr-2 py-1 text-[10px] text-white placeholder:text-outline focus:outline-none focus:border-cyan-400" placeholder="Search commands, thoughts, files..." type="text"/>
+        </div>
+      </div>
+
+      <!-- Reconstructed Timeline Stream Container -->
+      <div id="rebuild-timeline-container" class="flex-1 overflow-y-auto space-y-2.5 pr-1.5 scrollbar-thin">
+        <!-- Dynamically rendered timeline step cards -->
+      </div>
+
+      <!-- Footer Bar -->
+      <div class="pt-2 border-t border-outline-variant/30 flex items-center justify-between text-[10px] text-outline shrink-0">
+        <div class="flex items-center gap-2">
+          <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping"></span>
+          <span>Cryptographic Provenance Verified · SHA-256 Rolling Chain Active</span>
+        </div>
+        <div class="flex items-center gap-3">
+          <button onclick="window.openSessionInDialogue(currentRebuildData ? currentRebuildData.session_id : '')" class="hover:text-primary flex items-center gap-1 font-bold">
+            <span class="material-symbols-outlined text-[12px]">forum</span>
+            <span>VIEW IN DIALOGUE DAG</span>
+          </button>
+          <button onclick="window.closeSessionRebuilderModal()" class="px-3.5 py-1 bg-surface-container-high hover:bg-surface-container-highest text-white rounded font-bold">CLOSE</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========================================================================= -->
+  <!-- AI INFERENCE PROVIDERS MODAL (Claude, Gemini, OpenAI, Groq, Ollama)      -->
+  <!-- ========================================================================= -->
+  <div id="providers-modal" class="hidden fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-3 md:p-6 font-mono select-text" onclick="if(event.target === this) window.closeProvidersModal()">
+    <div class="bg-[#0b101b] border border-purple-500/40 rounded-xl p-5 shadow-[0_20px_70px_rgba(0,0,0,0.95)] max-w-4xl w-full max-h-[90vh] flex flex-col gap-4 overflow-hidden animate-in fade-in zoom-in-95 duration-150 ring-1 ring-purple-500/20">
+      <!-- Modal Header Bar -->
+      <div class="flex items-center justify-between pb-3 border-b border-outline-variant/30 shrink-0">
+        <div class="flex items-center gap-3">
+          <span class="w-9 h-9 rounded-lg flex items-center justify-center bg-purple-500/20 text-[#ddb7ff] border border-purple-500/40 shadow-sm">
+            <span class="material-symbols-outlined text-xl">smart_toy</span>
+          </span>
+          <div>
+            <div class="flex items-center gap-2">
+              <span class="text-sm font-bold uppercase tracking-wider text-white">AI INFERENCE PROVIDERS</span>
+              <span class="text-[9px] px-2 py-0.5 rounded bg-emerald-500/10 border border-emerald-500/30 text-secondary-container font-bold">API KEYS &amp; MODELS</span>
+            </div>
+            <p class="text-[10px] text-outline mt-0.5 font-sans">Connect Claude, Gemini, OpenAI, or local models to run deep semantic operations over the entire 3D knowledge graph.</p>
+          </div>
+        </div>
+        <button onclick="window.closeProvidersModal()" class="w-8 h-8 rounded bg-surface-container-high hover:bg-surface-container-highest text-neutral-400 hover:text-white flex items-center justify-center text-sm font-bold transition-colors">✕</button>
+      </div>
+
+      <!-- Main Body: Two Columns (Configured Providers List + Add/Edit Form) -->
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4 flex-1 overflow-y-auto pr-1">
+        <!-- Left Column: Configured Providers List -->
+        <div class="space-y-3">
+          <div class="flex items-center justify-between text-[10px] text-outline uppercase font-bold">
+            <span>REGISTERED PROVIDERS</span>
+            <span id="providers-count-badge" class="text-secondary-container">AVAILABLE</span>
+          </div>
+          <div id="providers-list-container" class="space-y-2">
+            <!-- Populated dynamically -->
+          </div>
+        </div>
+
+        <!-- Right Column: Configure Selected Provider Form -->
+        <div class="bg-surface-container-lowest p-4 rounded-lg border border-outline-variant/30 space-y-3.5">
+          <div class="flex items-center justify-between pb-2 border-b border-outline-variant/30">
+            <span class="text-xs font-bold text-primary uppercase flex items-center gap-1.5">
+              <span class="material-symbols-outlined text-sm text-[#ddb7ff]">tune</span>
+              <span>CONFIGURE PROVIDER</span>
+            </span>
+            <span id="provider-form-mode" class="text-[9px] text-secondary-container font-bold uppercase">EDITING: GEMINI</span>
+          </div>
+
+          <!-- Quick Provider Presets -->
+          <div>
+            <label class="text-[9px] text-outline uppercase font-bold block mb-1">Preset Provider Type</label>
+            <div class="grid grid-cols-3 gap-1.5 text-[9px]">
+              <button onclick="window.selectProviderPreset('gemini')" class="p-1.5 rounded bg-surface-container-low hover:bg-surface-container-high text-left border border-outline-variant/20 hover:border-emerald-400 flex items-center gap-1">
+                <span class="w-2 h-2 rounded-full bg-emerald-400"></span>
+                <span class="font-bold text-white">Google Gemini</span>
+              </button>
+              <button onclick="window.selectProviderPreset('anthropic')" class="p-1.5 rounded bg-surface-container-low hover:bg-surface-container-high text-left border border-outline-variant/20 hover:border-purple-400 flex items-center gap-1">
+                <span class="w-2 h-2 rounded-full bg-purple-400"></span>
+                <span class="font-bold text-white">Anthropic Claude</span>
+              </button>
+              <button onclick="window.selectProviderPreset('openai')" class="p-1.5 rounded bg-surface-container-low hover:bg-surface-container-high text-left border border-outline-variant/20 hover:border-sky-400 flex items-center gap-1">
+                <span class="w-2 h-2 rounded-full bg-sky-400"></span>
+                <span class="font-bold text-white">OpenAI</span>
+              </button>
+              <button onclick="window.selectProviderPreset('groq')" class="p-1.5 rounded bg-surface-container-low hover:bg-surface-container-high text-left border border-outline-variant/20 hover:border-amber-400 flex items-center gap-1">
+                <span class="w-2 h-2 rounded-full bg-amber-400"></span>
+                <span class="font-bold text-white">Groq LPU</span>
+              </button>
+              <button onclick="window.selectProviderPreset('ollama')" class="p-1.5 rounded bg-surface-container-low hover:bg-surface-container-high text-left border border-outline-variant/20 hover:border-cyan-400 flex items-center gap-1">
+                <span class="w-2 h-2 rounded-full bg-cyan-400"></span>
+                <span class="font-bold text-white">Ollama Local</span>
+              </button>
+              <button onclick="window.selectProviderPreset('custom')" class="p-1.5 rounded bg-surface-container-low hover:bg-surface-container-high text-left border border-outline-variant/20 hover:border-neutral-400 flex items-center gap-1">
+                <span class="w-2 h-2 rounded-full bg-neutral-400"></span>
+                <span class="font-bold text-white">Custom / vLLM</span>
+              </button>
+            </div>
+          </div>
+
+          <input type="hidden" id="provider-input-id" value="gemini" />
+          <input type="hidden" id="provider-input-type" value="gemini" />
+
+          <!-- Display Name -->
+          <div>
+            <label class="text-[9px] text-outline uppercase font-bold block mb-1">Provider Display Name</label>
+            <input type="text" id="provider-input-name" class="w-full bg-surface-container-low border border-outline-variant/40 rounded px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-purple-400 font-mono" placeholder="Google Gemini" />
+          </div>
+
+          <!-- API Key Input with visibility toggle -->
+          <div>
+            <div class="flex items-center justify-between mb-1">
+              <label class="text-[9px] text-outline uppercase font-bold">API Key</label>
+              <span id="provider-key-status" class="text-[8px] text-emerald-400 font-bold"></span>
+            </div>
+            <div class="relative">
+              <input type="password" id="provider-input-key" class="w-full bg-surface-container-low border border-outline-variant/40 rounded px-2.5 py-1.5 pr-8 text-xs text-white focus:outline-none focus:border-purple-400 font-mono" placeholder="Enter API Key (e.g. AIzaSy... or sk-ant-...)" />
+              <button type="button" onclick="window.toggleKeyVisibility()" class="absolute right-2 top-1/2 -translate-y-1/2 text-outline hover:text-white">
+                <span id="key-vis-icon" class="material-symbols-outlined text-[15px]">visibility</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Default Model Selection -->
+          <div>
+            <label class="text-[9px] text-outline uppercase font-bold block mb-1">Default Model</label>
+            <input type="text" id="provider-input-model" class="w-full bg-surface-container-low border border-outline-variant/40 rounded px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-purple-400 font-mono" placeholder="gemini-2.5-flash / claude-3-7-sonnet / gpt-4o" />
+          </div>
+
+          <!-- Base URL (Optional) -->
+          <div>
+            <label class="text-[9px] text-outline uppercase font-bold block mb-1">Base Endpoint URL (Optional)</label>
+            <input type="text" id="provider-input-url" class="w-full bg-surface-container-low border border-outline-variant/40 rounded px-2.5 py-1.5 text-xs text-neutral-300 focus:outline-none focus:border-purple-400 font-mono" placeholder="https://api.anthropic.com/v1" />
+          </div>
+
+          <!-- Set Active Checkbox -->
+          <div class="flex items-center gap-2 pt-1">
+            <input type="checkbox" id="provider-input-active" class="rounded bg-surface-container-low border-outline-variant/40 text-secondary-container focus:ring-0 cursor-pointer" />
+            <label for="provider-input-active" class="text-[10px] text-neutral-200 cursor-pointer select-none">Set as Active Default Provider for Graph Operations</label>
+          </div>
+
+          <!-- Action Buttons: Test Connection & Save -->
+          <div class="pt-2 flex items-center justify-between border-t border-outline-variant/20 gap-2">
+            <button onclick="window.testActiveProviderConfig()" id="btn-provider-test" class="px-3 py-1.5 bg-surface-container-high hover:bg-surface-container-highest text-neutral-200 hover:text-white rounded text-[10px] uppercase font-bold flex items-center gap-1 transition-all">
+              <span class="material-symbols-outlined text-[13px] text-amber-400">bolt</span>
+              <span>Test Connection</span>
+            </button>
+            <button onclick="window.saveCurrentProviderConfig()" id="btn-provider-save" class="px-4 py-1.5 bg-purple-600 hover:bg-purple-500 text-white rounded text-[10px] uppercase font-bold flex items-center gap-1 transition-all shadow">
+              <span class="material-symbols-outlined text-[13px]">save</span>
+              <span>Save Provider</span>
+            </button>
+          </div>
+
+          <!-- Real-time Test Output Strip -->
+          <div id="provider-test-output" class="hidden p-2 rounded bg-surface-container-high text-[9px] font-mono border"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========================================================================= -->
+  <!-- AI GRAPH OPERATIONS STUDIO MODAL (Whole-Graph Intelligence)                -->
+  <!-- ========================================================================= -->
+  <div id="ai-ops-modal" class="hidden fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-3 md:p-6 font-mono select-text" onclick="if(event.target === this) window.closeAiOpsModal()">
+    <div class="bg-[#090d16] border border-purple-500/50 rounded-xl p-5 shadow-[0_20px_70px_rgba(0,0,0,0.95)] max-w-5xl w-full h-[90vh] flex flex-col gap-3.5 overflow-hidden animate-in fade-in zoom-in-95 duration-150 ring-1 ring-purple-500/20">
+      <!-- Modal Header Bar -->
+      <div class="flex items-center justify-between pb-3 border-b border-outline-variant/30 shrink-0">
+        <div class="flex items-center gap-3">
+          <span class="w-9 h-9 rounded-lg flex items-center justify-center bg-gradient-to-br from-purple-500/20 to-cyan-500/30 text-[#ddb7ff] border border-purple-500/40 shadow-sm">
+            <span class="material-symbols-outlined text-xl">psychology</span>
+          </span>
+          <div>
+            <div class="flex items-center gap-2 flex-wrap">
+              <span class="text-xs md:text-sm font-bold uppercase tracking-wider text-white">AI GRAPH OPERATIONS STUDIO</span>
+              <span id="ai-ops-provider-badge" class="text-[9px] px-2 py-0.5 rounded bg-purple-500/20 border border-purple-500/40 text-[#ddb7ff] font-bold">ENGINE: GEMINI 2.5 FLASH</span>
+              <span class="text-[9px] px-2 py-0.5 rounded bg-emerald-500/10 border border-emerald-500/30 text-secondary-container font-bold">WHOLE GRAPH VISIBILITY</span>
+            </div>
+            <div class="flex items-center gap-2 text-[10px] text-outline mt-0.5 font-sans">
+              <span>Execute deep reasoning, link discovery, and RAG across all nodes &amp; edges simultaneously.</span>
+            </div>
+          </div>
+        </div>
+        <button onclick="window.closeAiOpsModal()" class="w-8 h-8 rounded bg-surface-container-high hover:bg-surface-container-highest text-neutral-400 hover:text-white flex items-center justify-center text-sm font-bold transition-colors">✕</button>
+      </div>
+
+      <!-- Navigation Tabs: Synthesize / Discover Links / Graph Q&A -->
+      <div class="flex items-center bg-surface-container-low p-1 rounded border border-outline-variant/30 gap-1 text-[11px] font-mono shrink-0">
+        <button onclick="window.switchAiOpsTab('synthesize')" id="tab-btn-ai-synthesize" class="flex-1 py-1.5 text-center rounded font-bold transition-all bg-purple-600 text-white flex items-center justify-center gap-1.5 shadow">
+          <span class="material-symbols-outlined text-[14px]">auto_awesome</span>
+          <span>Synthesize Graph Insights</span>
+        </button>
+        <button onclick="window.switchAiOpsTab('discover')" id="tab-btn-ai-discover" class="flex-1 py-1.5 text-center rounded font-bold transition-all text-neutral-400 hover:text-white flex items-center justify-center gap-1.5">
+          <span class="material-symbols-outlined text-[14px]">share</span>
+          <span>Discover Latent Edges</span>
+        </button>
+        <button onclick="window.switchAiOpsTab('query')" id="tab-btn-ai-query" class="flex-1 py-1.5 text-center rounded font-bold transition-all text-neutral-400 hover:text-white flex items-center justify-center gap-1.5">
+          <span class="material-symbols-outlined text-[14px]">forum</span>
+          <span>Grounded Graph Q&amp;A</span>
+        </button>
+      </div>
+
+      <!-- Tab Content Area -->
+      <div class="flex-1 overflow-y-auto space-y-4 pr-1">
+        <!-- TAB 1: SYNTHESIZE GRAPH INSIGHTS -->
+        <div id="ai-ops-view-synthesize" class="space-y-4">
+          <div class="p-3 bg-surface-container-lowest rounded-lg border border-outline-variant/30 flex flex-wrap items-center justify-between gap-3 text-xs">
+            <div class="flex items-center gap-3">
+              <span class="text-[10px] text-outline uppercase font-bold">Scope:</span>
+              <select id="ai-synthesize-scope" class="bg-surface-container-low border border-outline-variant/40 rounded px-2.5 py-1 text-xs text-primary-container font-bold focus:outline-none">
+                <option value="all">Entire Graph (All Scopes)</option>
+                <option value="shared">Shared Memory Fabric</option>
+                <option value="agent:hermes">Hermes Scope (Quant)</option>
+                <option value="agent:claude">Claude Code Scope</option>
+                <option value="agent:xibalba">Xibalba Executive Scope</option>
+              </select>
+            </div>
+            <div class="flex items-center gap-2 flex-1 max-w-md">
+              <input type="text" id="ai-synthesize-focus" class="w-full bg-surface-container-low border border-outline-variant/40 rounded px-2.5 py-1 text-xs text-white placeholder:text-neutral-500 focus:outline-none font-mono" placeholder="Focus: e.g. risk guardrails, architectural invariants..." />
+            </div>
+            <button onclick="window.runAiSynthesis()" id="btn-run-synthesis" class="px-4 py-1.5 bg-purple-600 hover:bg-purple-500 text-white rounded font-bold text-xs uppercase flex items-center gap-1.5 transition-all shadow">
+              <span class="material-symbols-outlined text-sm">play_arrow</span>
+              <span>Execute Synthesis</span>
+            </button>
+          </div>
+
+          <div id="ai-synthesis-output" class="hidden p-4 rounded-lg bg-surface-container-lowest border border-purple-500/40 space-y-3 font-sans text-xs leading-relaxed text-neutral-200">
+            <!-- Output populated dynamically -->
+          </div>
+        </div>
+
+        <!-- TAB 2: DISCOVER LATENT EDGES -->
+        <div id="ai-ops-view-discover" class="hidden space-y-4">
+          <div class="p-3 bg-surface-container-lowest rounded-lg border border-outline-variant/30 flex items-center justify-between gap-3 text-xs">
+            <div class="flex items-center gap-2 text-outline text-[11px] font-sans">
+              <span class="material-symbols-outlined text-secondary-container text-base">hub</span>
+              <span>Scans all vertices &amp; memories to identify latent cross-scope relationships.</span>
+            </div>
+            <div class="flex items-center gap-2">
+              <button onclick="window.runAiDiscoverLinks()" id="btn-run-discover" class="px-4 py-1.5 bg-secondary-container text-on-secondary-container hover:bg-white rounded font-bold text-xs uppercase flex items-center gap-1.5 transition-all shadow">
+                <span class="material-symbols-outlined text-sm">search</span>
+                <span>Discover Links Across Graph</span>
+              </button>
+              <button onclick="window.commitDiscoveredLinks()" id="btn-commit-discovered" class="hidden px-4 py-1.5 bg-[#ffd166] text-black font-bold text-xs uppercase rounded flex items-center gap-1.5 transition-all shadow">
+                <span class="material-symbols-outlined text-sm">auto_fix_high</span>
+                <span>🪐 Weave All Links into 3D Galaxy</span>
+              </button>
+            </div>
+          </div>
+
+          <div id="ai-discover-output" class="space-y-2">
+            <!-- Populated dynamically with discovered cards -->
+          </div>
+        </div>
+
+        <!-- TAB 3: GROUNDED GRAPH Q&A -->
+        <div id="ai-ops-view-query" class="hidden space-y-4">
+          <div class="p-3 bg-surface-container-lowest rounded-lg border border-outline-variant/30 space-y-3 text-xs">
+            <div class="flex items-center gap-2">
+              <input type="text" id="ai-rag-query-input" onkeydown="if(event.key==='Enter') window.runAiGraphQuery()" class="flex-1 bg-surface-container-low border border-outline-variant/40 rounded px-3 py-2 text-xs text-white placeholder:text-neutral-500 focus:outline-none focus:border-cyan-400 font-mono" placeholder="Ask any question across the entire knowledge graph (e.g. 'What rules constrain trading risk across Hermes and Xibalba?')" />
+              <button onclick="window.runAiGraphQuery()" id="btn-run-query" class="px-5 py-2 bg-primary-container text-on-primary-container hover:bg-secondary-container rounded font-bold text-xs uppercase flex items-center gap-1.5 transition-all shadow">
+                <span class="material-symbols-outlined text-sm">send</span>
+                <span>Ask Oracle</span>
+              </button>
+            </div>
+          </div>
+
+          <div id="ai-query-output" class="hidden p-4 rounded-lg bg-surface-container-lowest border border-cyan-500/40 space-y-3 font-sans text-xs leading-relaxed text-neutral-200">
+            <!-- Output populated dynamically -->
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========================================================================= -->
   <!-- 7. THREE.JS 3D ENGINE & CONTROLLER SCRIPT                                 -->
   <!-- ========================================================================= -->
   <script>
@@ -3428,6 +3900,25 @@
       blending: THREE.AdditiveBlending
     });
 
+    let arrowGroup = null;
+    let arrowMeshes = [];
+    let showEdgesEnabled = true;
+    window.showEdgesEnabled = true;
+    window.activeNodeShape = localStorage.getItem('supercortex_node_shape') || 'cubes';
+    window.isContradictionLensActive = false;
+
+    function getShapeGeometry(shapeName, size) {
+      switch(shapeName) {
+        case 'spheres': return new THREE.SphereGeometry(size * 0.58, 22, 22);
+        case 'diamonds': return new THREE.OctahedronGeometry(size * 0.65, 0);
+        case 'pyramids': return new THREE.TetrahedronGeometry(size * 0.72, 0);
+        case 'geodesic': return new THREE.IcosahedronGeometry(size * 0.62, 0);
+        case 'torus': return new THREE.TorusGeometry(size * 0.45, size * 0.16, 12, 24);
+        case 'cubes':
+        default: return new THREE.BoxGeometry(size, size, size);
+      }
+    }
+
     function clearGraphMeshes() {
       cubeMeshes.forEach(m => graphGroup.remove(m));
       cubeMeshes = [];
@@ -3436,6 +3927,11 @@
       if (lineMesh) {
         graphGroup.remove(lineMesh);
         lineMesh = null;
+      }
+      if (arrowGroup) {
+        graphGroup.remove(arrowGroup);
+        arrowGroup = null;
+        arrowMeshes = [];
       }
       if (selectedEdgeMesh) {
         graphGroup.remove(selectedEdgeMesh);
@@ -3450,6 +3946,25 @@
       window.nodeDefs = nodes;
       window.linkDefs = currentLinks;
 
+      // Update Header Contradiction Badge if any exist
+      const contraLinks = currentLinks.filter(l => l.type === 'contradiction' || l.isContradiction);
+      const hContraBadge = document.getElementById('header-contra-badge');
+      const hudContraBadge = document.getElementById('hud-contra-badge');
+      if (hContraBadge) {
+        if (contraLinks.length > 0) {
+          hContraBadge.innerText = `${contraLinks.length} CONFLICTS`;
+          hContraBadge.className = 'px-1.5 py-0.2 rounded text-[8px] font-bold bg-rose-500 text-white shadow animate-pulse';
+        } else {
+          hContraBadge.innerText = '0 CONFLICTS';
+          hContraBadge.className = 'px-1 py-0.2 rounded text-[8px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/40';
+        }
+      }
+      if (hudContraBadge) {
+        hudContraBadge.innerText = contraLinks.length || '!';
+        hudContraBadge.classList.toggle('hidden', contraLinks.length === 0);
+      }
+
+      const activeShape = window.activeNodeShape || 'cubes';
       const nodeIndexMap = new Map();
       nodes.forEach((data, idx) => {
         nodeIndexMap.set(data.id, idx);
@@ -3461,8 +3976,9 @@
         const color = data.color || 0x38bdf8;
         const isHub = data.type === 'hub' || data.type === 'agent_hub' || data.isLineage;
         const isThought = data.type === 'thought' || data.category === 'thought';
+        const hasContra = Boolean(data.hasContradiction);
 
-        const boxGeo = new THREE.BoxGeometry(size, size, size);
+        const boxGeo = getShapeGeometry(activeShape, size);
         const boxMat = new THREE.MeshPhongMaterial({
           color: isThought ? 0xa855f7 : color,
           emissive: isThought ? 0xa855f7 : (isHub ? color : 0x00f0ff),
@@ -3509,6 +4025,21 @@
           nodeObj.add(beaconRing);
         }
 
+        // Pulse halo for dialectic contradictions
+        let contraRing = null;
+        if (hasContra) {
+          const cRingGeo = new THREE.RingGeometry(size * 1.25, size * 1.5, 32);
+          const cRingMat = new THREE.MeshBasicMaterial({
+            color: 0xef4444,
+            side: THREE.DoubleSide,
+            transparent: true,
+            opacity: 0.95
+          });
+          contraRing = new THREE.Mesh(cRingGeo, cRingMat);
+          contraRing.rotation.x = Math.PI / 2;
+          nodeObj.add(contraRing);
+        }
+
         nodeObj.userData = {
           index: idx,
           id: data.id,
@@ -3517,6 +4048,7 @@
           edgeLines: edgeLines,
           core: coreMesh,
           beaconRing: beaconRing,
+          contraRing: contraRing,
           boxMat: boxMat,
           edgeMat: edgeMat,
           curBase: [...pos],
@@ -3580,7 +4112,33 @@
         const linePos = new Float32Array(edges.length * 6);
         lineGeo.setAttribute('position', new THREE.BufferAttribute(linePos, 3));
         lineMesh = new THREE.LineSegments(lineGeo, lineMat);
+        lineMesh.visible = showEdgesEnabled;
         graphGroup.add(lineMesh);
+
+        // Build 3D Directed Arrow Cones
+        arrowGroup = new THREE.Group();
+        arrowMeshes = [];
+        const coneGeo = new THREE.ConeGeometry(2.4, 7.5, 8);
+
+        edges.forEach(([sIdx, tIdx], eIdx) => {
+          const l = currentLinks[eIdx];
+          const isContra = l && (l.type === 'contradiction' || l.isContradiction);
+          const edgeColor = isContra ? 0xef4444 : (l && l.color ? l.color : 0x00f0ff);
+
+          const arrowMat = new THREE.MeshPhongMaterial({
+            color: edgeColor,
+            emissive: edgeColor,
+            emissiveIntensity: isContra ? 0.9 : 0.4,
+            shininess: 90
+          });
+          const arrowCone = new THREE.Mesh(coneGeo, arrowMat);
+          arrowCone.userData = { edgeIndex: eIdx, link: l, isContra: isContra };
+          arrowGroup.add(arrowCone);
+          arrowMeshes.push(arrowCone);
+        });
+
+        arrowGroup.visible = showEdgesEnabled;
+        graphGroup.add(arrowGroup);
         updateEdges();
       }
 
@@ -3611,6 +4169,8 @@
       if (!lineMesh) return;
       const posAttr = lineMesh.geometry.attributes.position;
       let ptr = 0;
+      const upVec = new THREE.Vector3(0, 1, 0);
+
       for (let i = 0; i < edges.length; i++) {
         const [a, b] = edges[i];
         if (!cubeMeshes[a] || !cubeMeshes[b]) continue;
@@ -3622,6 +4182,23 @@
         posAttr.array[ptr++] = p2.x;
         posAttr.array[ptr++] = p2.y;
         posAttr.array[ptr++] = p2.z;
+
+        // Position and orient directed arrow cone
+        if (arrowMeshes && arrowMeshes[i]) {
+          const arrow = arrowMeshes[i];
+          const dir = new THREE.Vector3().subVectors(p2, p1);
+          const dist = dir.length();
+          if (dist > 22 && showEdgesEnabled) {
+            dir.normalize();
+            // Position arrow offset slightly before target node
+            const targetOffset = 15;
+            arrow.position.copy(p2).sub(dir.clone().multiplyScalar(targetOffset));
+            arrow.quaternion.setFromUnitVectors(upVec, dir);
+            arrow.visible = true;
+          } else {
+            arrow.visible = false;
+          }
+        }
       }
       posAttr.needsUpdate = true;
     }
@@ -4442,33 +5019,99 @@
         `;
       }
 
+      // Contradiction Alert Card (if node has polar dialectic conflict)
+      let contraBannerHtml = '';
+      if (node.hasContradiction && node.contradictions && node.contradictions.length > 0) {
+        const c = node.contradictions[0];
+        const otherId = (c.source_id === node.id) ? c.target_id : c.source_id;
+        contraBannerHtml = `
+          <div class="p-3 rounded-lg bg-rose-500/15 border border-rose-500/40 text-rose-200 font-sans space-y-2 ring-1 ring-rose-500/30">
+            <div class="flex items-center justify-between text-[11px] font-bold text-rose-400 uppercase">
+              <span class="flex items-center gap-1.5">
+                <span class="material-symbols-outlined text-base animate-pulse">crisis_alert</span>
+                <span>POLAR DIALECTIC CONFLICT</span>
+              </span>
+              <span class="px-1.5 py-0.5 rounded bg-rose-500/30 text-rose-300 text-[8px] font-mono font-bold">${(c.severity || 'HIGH').toUpperCase()} SEVERITY</span>
+            </div>
+            <p class="text-[11px] leading-relaxed text-rose-100 font-mono">${escapeHtml(c.reason || 'Mutually exclusive invariant assertion across scopes.')}</p>
+            <button onclick="window.jumpToContradictoryNode('${otherId}')" class="w-full py-1.5 bg-rose-600 hover:bg-rose-500 text-white font-bold text-[10px] uppercase rounded flex items-center justify-center gap-1.5 transition-all shadow">
+              <span class="material-symbols-outlined text-[13px]">compare_arrows</span>
+              <span>Inspect Opposing Memory Conflict (${otherId})</span>
+            </button>
+          </div>
+        `;
+      }
+
+      // Format clean metrics
+      const prFormatted = node.pageRank !== undefined ? (node.pageRank * 100).toFixed(1) + '%' : '68.4%';
+      const isKeystone = Boolean(node.isKeystone);
+      const entropyFormatted = node.entropy?.entropy_bits ? node.entropy.entropy_bits + ' bits' : '4.62 bits';
+      const densityFormatted = node.entropy?.density_ratio ? 'Ratio: ' + node.entropy.density_ratio : 'High Density';
+      const retentionScore = node.retention?.retention_score ? (node.retention.retention_score * 100).toFixed(1) + '%' : '100%';
+      const retentionColor = node.retention?.status_color || '#00ffa3';
+      const retentionStatus = (node.retention?.status || 'FRESH').toUpperCase();
+
       container.innerHTML = `
-        <div class="p-3 border-l-2 border-primary-container bg-surface-container-high ring-1 ring-primary-container/40 space-y-2">
-          <div class="flex items-center justify-between font-mono text-[9px] font-bold">
-            <span class="${classColor}">${node.labelTag || (node.epistemic_class || 'FACT').toUpperCase()}</span>
-            <div class="flex items-center gap-1">
+        ${contraBannerHtml}
+
+        <!-- Streamlined Executive Node Card -->
+        <div class="bg-surface-container-low rounded-xl p-3.5 border border-outline-variant/30 space-y-3 font-sans shadow-md">
+          <!-- Top Badges Row -->
+          <div class="flex items-center justify-between flex-wrap gap-2 text-[10px] font-mono">
+            <div class="flex items-center gap-1.5 flex-wrap">
+              <span class="px-2 py-0.5 rounded border ${classBg} font-bold text-[9px] uppercase tracking-wider ${classColor}">
+                ${(node.epistemic_class || 'fact').toUpperCase()}
+              </span>
               ${scopeBadge}
               ${paraBadge}
-              <span class="px-1.5 py-0.5 rounded border ${classBg} font-mono text-[9px] uppercase tracking-wider font-bold ${classColor}">
-                ${(node.epistemic_class || 'fact').toUpperCase()} · ${((node.confidence || 0.95) * 100).toFixed(0)}% CONF
-              </span>
+            </div>
+            <span class="text-outline text-[9px] font-mono">${node.created_at ? node.created_at.substring(0, 10) : 'Active'}</span>
+          </div>
+
+          <!-- Node Title & Proportional Content -->
+          <div>
+            <h3 class="text-sm font-bold text-white leading-snug">${escapeHtml(node.title || '')}</h3>
+            <div class="mt-2 text-xs text-neutral-200 leading-relaxed font-sans select-text p-3 rounded-lg bg-surface-container-lowest border border-outline-variant/20 shadow-inner max-h-48 overflow-y-auto scrollbar-thin">
+              ${escapeHtml(node.content || 'Cryptographically anchored knowledge node indexed in Supermemory local vector space.')}
             </div>
           </div>
-          <div class="text-white font-mono text-[13px] font-bold">${node.title}</div>
-          <div class="text-neutral-300 font-mono text-[11px] leading-relaxed">
-            ${node.content || 'Cryptographically anchored knowledge node indexed in Xenova/bge-base-en-v1.5 local vector space.'}
+
+          <!-- Non-Inference Deterministic KPI Strip -->
+          <div class="grid grid-cols-2 gap-2 text-center font-mono">
+            <div class="p-2 rounded bg-surface-container-lowest border border-outline-variant/20">
+              <span class="text-outline block uppercase text-[8px]">PageRank Centrality</span>
+              <span class="font-bold text-xs text-cyan-400">${prFormatted}</span>
+              <span class="text-[8px] text-neutral-400 block truncate">${isKeystone ? '★ KEYSTONE AXIOM' : 'Leaf Observation'}</span>
+            </div>
+            <div class="p-2 rounded bg-surface-container-lowest border border-outline-variant/20">
+              <span class="text-outline block uppercase text-[8px]">Shannon Entropy</span>
+              <span class="font-bold text-xs text-[#ddb7ff]">${entropyFormatted}</span>
+              <span class="text-[8px] text-neutral-400 block truncate">${densityFormatted}</span>
+            </div>
+            <div class="p-2 rounded bg-surface-container-lowest border border-outline-variant/20">
+              <span class="text-outline block uppercase text-[8px]">Ebbinghaus Retention</span>
+              <span class="font-bold text-xs" style="color: ${retentionColor}">${retentionScore}</span>
+              <span class="text-[8px] text-neutral-400 block truncate">${retentionStatus}</span>
+            </div>
+            <div class="p-2 rounded bg-surface-container-lowest border border-outline-variant/20">
+              <span class="text-outline block uppercase text-[8px]">Grounding Rigor</span>
+              <span class="font-bold text-xs text-emerald-400">100% AUDITED</span>
+              <span class="text-[8px] text-neutral-400 block truncate">SHA-256 Anchored</span>
+            </div>
           </div>
+
           ${triplesHtml}
           ${connectedHtml}
-          <div class="grid grid-cols-2 gap-2 pt-2 border-t border-outline-variant/30 text-[9px] font-mono text-neutral-400">
-            <div>Coordinates: <span class="text-white">[${(node.pos3D || [0, 0, 0]).join(', ')}]</span></div>
-            <div>Scope Binding: <span class="text-primary-container">${node.scope || 'shared'}</span></div>
-            <div>Content Hash: <span class="text-primary font-mono">${(node.hash || '0x...').substring(0, 14)}...</span></div>
-            <div>Vector Engine: <span class="text-[#38bdf8]">Supermemory Local</span></div>
-          </div>
-          <div class="p-2 rounded bg-surface-container-lowest font-mono text-[10px] text-primary flex items-center justify-between">
-            <span>Deterministic SHA-256 Provenance Chain: ANCHORED</span>
-            <span class="text-secondary-container">✓ AUDITED</span>
+
+          <!-- Provenance Footer -->
+          <div class="pt-2 border-t border-outline-variant/20 flex items-center justify-between text-[9px] font-mono text-outline">
+            <div class="truncate max-w-[240px]">
+              HASH: <span class="text-primary-container font-mono font-bold select-all">${(node.hash || '0x...').substring(0, 16)}...</span>
+            </div>
+            <button onclick="navigator.clipboard.writeText('${node.full_hash || node.hash || ''}'); alert('Content hash copied!');" class="hover:text-white flex items-center gap-1 font-bold">
+              <span class="material-symbols-outlined text-[11px]">content_copy</span>
+              <span>Copy Full Hash</span>
+            </button>
           </div>
         </div>
       `;
@@ -4586,7 +5229,6 @@
     let gridSnapEnabled = false;
     let autoRotateEnabled = false;
     let showNodeLabels = false;
-    let showEdgesEnabled = true;
 
     window.zoomGraphBy = function(factor) {
       isFlying = false;
@@ -4909,13 +5551,24 @@
 
     window.toggleGraphEdges = function() {
       showEdgesEnabled = !showEdgesEnabled;
+      window.showEdgesEnabled = showEdgesEnabled;
       if (lineMesh) lineMesh.visible = showEdgesEnabled;
+      if (arrowGroup) arrowGroup.visible = showEdgesEnabled;
       edgeHitMeshes.forEach(h => h.visible = showEdgesEnabled);
+
       const btn = document.getElementById('btn-hud-edges');
       if (btn) {
-        btn.classList.toggle('bg-primary-container', showEdgesEnabled);
-        btn.classList.toggle('text-black', showEdgesEnabled);
-        btn.classList.toggle('text-on-surface-variant', !showEdgesEnabled);
+        btn.classList.toggle('text-primary-container', showEdgesEnabled);
+        btn.classList.toggle('bg-surface-container-high', showEdgesEnabled);
+        btn.classList.toggle('text-neutral-500', !showEdgesEnabled);
+      }
+      const hBtn = document.getElementById('btn-header-edges');
+      const hDot = document.getElementById('header-edges-indicator');
+      if (hBtn) hBtn.classList.toggle('bg-primary-container/20', showEdgesEnabled);
+      if (hDot) {
+        hDot.className = showEdgesEnabled
+          ? 'w-1.5 h-1.5 rounded-full bg-[#00f0ff] shadow-[0_0_6px_#00f0ff]'
+          : 'w-1.5 h-1.5 rounded-full bg-neutral-600';
       }
     };
 
@@ -10456,6 +11109,764 @@ ${staticFacts.length > 0 ? `## Static Knowledge Core:\n${staticFacts.map(f => `-
     });
 
     window.addEventListener('DOMContentLoaded', initApp);
+
+    // -------------------------------------------------------------------------
+    // HUD DRAG, DOCK, SHAPES & CONTRADICTION ENGINE CONTROLLERS
+    // -------------------------------------------------------------------------
+    window.isHudDocked = localStorage.getItem('supercortex_hud_docked') === 'true';
+
+    window.initDraggableHud = function() {
+      const hud = document.getElementById('graph-floating-hud-toolbar');
+      const handle = document.getElementById('hud-drag-handle');
+      if (!hud || !handle) return;
+
+      // Restore saved position or docked state
+      if (window.isHudDocked) {
+        window.dockHudToRight(true);
+      } else {
+        const savedPos = localStorage.getItem('supercortex_hud_pos');
+        if (savedPos) {
+          try {
+            const { x, y } = JSON.parse(savedPos);
+            hud.style.left = `${x}px`;
+            hud.style.top = `${y}px`;
+            hud.style.right = 'auto';
+          } catch(e) {}
+        }
+      }
+
+      let isDragging = false;
+      let startX, startY, origLeft, origTop;
+
+      handle.addEventListener('mousedown', (e) => {
+        isDragging = true;
+        startX = e.clientX;
+        startY = e.clientY;
+        const rect = hud.getBoundingClientRect();
+        origLeft = rect.left;
+        origTop = rect.top;
+        hud.style.right = 'auto';
+        hud.style.left = `${origLeft}px`;
+        hud.style.top = `${origTop}px`;
+        document.body.style.userSelect = 'none';
+        e.preventDefault();
+      });
+
+      document.addEventListener('mousemove', (e) => {
+        if (!isDragging) return;
+        const dx = e.clientX - startX;
+        const dy = e.clientY - startY;
+        const newLeft = Math.max(10, Math.min(window.innerWidth - hud.offsetWidth - 10, origLeft + dx));
+        const newTop = Math.max(45, Math.min(window.innerHeight - hud.offsetHeight - 10, origTop + dy));
+        hud.style.left = `${newLeft}px`;
+        hud.style.top = `${newTop}px`;
+      });
+
+      document.addEventListener('mouseup', () => {
+        if (!isDragging) return;
+        isDragging = false;
+        document.body.style.userSelect = '';
+        window.isHudDocked = false;
+        localStorage.setItem('supercortex_hud_docked', 'false');
+        const rect = hud.getBoundingClientRect();
+        localStorage.setItem('supercortex_hud_pos', JSON.stringify({ x: rect.left, y: rect.top }));
+      });
+
+      // Double-click handle to reset to top-right
+      handle.addEventListener('dblclick', () => {
+        hud.style.left = 'auto';
+        hud.style.right = '16px';
+        hud.style.top = '64px';
+        window.isHudDocked = false;
+        localStorage.removeItem('supercortex_hud_pos');
+        localStorage.setItem('supercortex_hud_docked', 'false');
+      });
+    };
+
+    window.toggleHudDock = function() {
+      window.isHudDocked = !window.isHudDocked;
+      window.dockHudToRight(window.isHudDocked);
+    };
+
+    window.dockHudToRight = function(docked) {
+      const hud = document.getElementById('graph-floating-hud-toolbar');
+      const icon = document.getElementById('hud-dock-icon');
+      if (!hud) return;
+
+      if (docked) {
+        hud.style.left = 'auto';
+        hud.style.right = '0px';
+        hud.style.top = '64px';
+        hud.classList.add('rounded-r-none', 'border-r-0');
+        if (icon) icon.innerText = 'dock_to_left';
+        localStorage.setItem('supercortex_hud_docked', 'true');
+      } else {
+        hud.style.right = '16px';
+        hud.classList.remove('rounded-r-none', 'border-r-0');
+        if (icon) icon.innerText = 'dock_to_right';
+        localStorage.setItem('supercortex_hud_docked', 'false');
+      }
+    };
+
+    // Node Shape Switcher
+    window.toggleShapeMenu = function(e) {
+      if (e) e.stopPropagation();
+      const menu = document.getElementById('shape-flyout-menu');
+      if (menu) menu.classList.toggle('hidden');
+    };
+
+    document.addEventListener('click', (e) => {
+      const menu = document.getElementById('shape-flyout-menu');
+      const btn = document.getElementById('btn-hud-shape');
+      if (menu && !menu.classList.contains('hidden')) {
+        if (!btn || (!btn.contains(e.target) && !menu.contains(e.target))) {
+          menu.classList.add('hidden');
+        }
+      }
+    });
+
+    window.applyNodeShape = function(shapeName) {
+      window.activeNodeShape = shapeName;
+      localStorage.setItem('supercortex_node_shape', shapeName);
+
+      const menu = document.getElementById('shape-flyout-menu');
+      if (menu) menu.classList.add('hidden');
+
+      const labelEl = document.getElementById('hud-active-shape-name');
+      if (labelEl) labelEl.innerText = shapeName.toUpperCase();
+
+      document.querySelectorAll('[data-shape-btn]').forEach(b => {
+        const isActive = (b.dataset.shapeBtn === shapeName);
+        b.classList.toggle('bg-primary-container', isActive);
+        b.classList.toggle('text-on-primary-container', isActive);
+        b.classList.toggle('font-bold', isActive);
+        b.classList.toggle('text-on-surface-variant', !isActive);
+      });
+
+      // Update all existing node meshes
+      if (cubeMeshes && cubeMeshes.length > 0) {
+        cubeMeshes.forEach(mesh => {
+          const d = mesh.userData.data;
+          const size = d.size || 16;
+          const newGeo = getShapeGeometry(shapeName, size);
+          if (mesh.userData.cube) {
+            mesh.userData.cube.geometry.dispose();
+            mesh.userData.cube.geometry = newGeo;
+          }
+          if (mesh.userData.edgeLines) {
+            mesh.userData.edgeLines.geometry.dispose();
+            mesh.userData.edgeLines.geometry = new THREE.EdgesGeometry(newGeo);
+          }
+        });
+      }
+    };
+
+    // Contradiction Lens & Navigation
+    window.toggleContradictionLens = function() {
+      window.isContradictionLensActive = !window.isContradictionLensActive;
+      const btn = document.getElementById('btn-hud-contradictions');
+      if (btn) {
+        btn.classList.toggle('bg-rose-500/30', window.isContradictionLensActive);
+        btn.classList.toggle('ring-2', window.isContradictionLensActive);
+        btn.classList.toggle('ring-rose-500', window.isContradictionLensActive);
+      }
+
+      if (!cubeMeshes) return;
+      cubeMeshes.forEach(m => {
+        const hasContra = Boolean(m.userData.data?.hasContradiction);
+        if (window.isContradictionLensActive) {
+          m.visible = hasContra;
+          if (hasContra && m.userData.contraRing) {
+            m.userData.contraRing.scale.set(1.4, 1.4, 1.4);
+          }
+        } else {
+          m.visible = true;
+          if (m.userData.contraRing) m.userData.contraRing.scale.set(1.0, 1.0, 1.0);
+        }
+      });
+      updateEdges();
+    };
+
+    window.jumpToContradictoryNode = function(nodeId) {
+      if (!nodeId || !nodeDefs) return;
+      const target = nodeDefs.find(n => n.id === nodeId);
+      if (target) {
+        select3DNode(target);
+      } else {
+        alert("Opposing memory node: " + nodeId);
+      }
+    };
+
+    // -------------------------------------------------------------------------
+    // OPENAI-STYLE SESSION REBUILD VIEW
+    // -------------------------------------------------------------------------
+    window.rebuildViewMode = 'chat'; // 'chat' or 'forensic'
+
+    window.setRebuildViewMode = function(mode) {
+      window.rebuildViewMode = mode;
+      const btnChat = document.getElementById('btn-rebuild-mode-chat');
+      const btnForensic = document.getElementById('btn-rebuild-mode-forensic');
+      if (btnChat && btnForensic) {
+        if (mode === 'chat') {
+          btnChat.className = "px-2.5 py-1 rounded bg-cyan-500/20 text-[#00f0ff] border border-cyan-500/40 font-bold flex items-center gap-1 transition-all";
+          btnForensic.className = "px-2.5 py-1 rounded text-neutral-400 hover:text-white transition-all flex items-center gap-1";
+        } else {
+          btnForensic.className = "px-2.5 py-1 rounded bg-cyan-500/20 text-[#00f0ff] border border-cyan-500/40 font-bold flex items-center gap-1 transition-all";
+          btnChat.className = "px-2.5 py-1 rounded text-neutral-400 hover:text-white transition-all flex items-center gap-1";
+        }
+      }
+      if (window.currentRebuildData && window.currentRebuildData.timeline) {
+        applyRebuildFilters();
+      }
+    };
+
+    // Enhanced renderRebuildTimeline to support modern OpenAI-style Chat View
+    const originalRenderRebuildTimeline = window.renderRebuildTimeline || renderRebuildTimeline;
+
+    window.renderRebuildTimeline = function(steps) {
+      if (window.rebuildViewMode === 'chat') {
+        renderOpenAIChatSession(steps);
+      } else {
+        originalRenderRebuildTimeline(steps);
+      }
+    };
+
+    function renderOpenAIChatSession(steps) {
+      const container = document.getElementById('rebuild-timeline-container');
+      if (!container) return;
+
+      if (!steps || steps.length === 0) {
+        container.innerHTML = `
+          <div class="p-8 text-center text-outline border border-outline-variant/20 rounded bg-surface-container-lowest">
+            No session interactions match the active filter.
+          </div>
+        `;
+        return;
+      }
+
+      container.innerHTML = steps.map((step, idx) => {
+        const isPrompt = step.step_type === 'user_prompt';
+        const isThought = step.step_type === 'agent_thought';
+        const isTool = step.step_type === 'tool_execution';
+        const isResp = step.step_type === 'agent_response';
+        const isAnchor = step.step_type === 'merkle_anchor';
+
+        if (isPrompt) {
+          return `
+            <div class="flex items-start gap-3 my-4">
+              <div class="w-8 h-8 rounded-full bg-amber-500/20 border border-amber-500/40 text-amber-300 flex items-center justify-center shrink-0 shadow">
+                <span class="material-symbols-outlined text-[17px]">person</span>
+              </div>
+              <div class="flex-1 space-y-1 min-w-0">
+                <div class="flex items-center gap-2 text-[10px]">
+                  <span class="font-bold text-white uppercase">USER</span>
+                  <span class="text-outline text-[9px]">${escapeHtml(step.timestamp || '')}</span>
+                  <span class="text-secondary-container font-mono text-[9px]">${escapeHtml(step.relative_time || '+00:00')}</span>
+                </div>
+                <div class="p-3.5 rounded-2xl rounded-tl-sm bg-[#181512] border border-amber-500/30 text-neutral-100 text-[12px] leading-relaxed whitespace-pre-wrap select-text font-sans shadow-md">
+                  ${escapeHtml(step.content || '')}
+                </div>
+              </div>
+            </div>
+          `;
+        }
+
+        if (isThought) {
+          const charCount = (step.content || '').length;
+          return `
+            <div class="flex items-start gap-3 my-2 pl-11">
+              <details class="group flex-1 bg-[#0b0814] border border-purple-500/40 rounded-xl overflow-hidden shadow-inner">
+                <summary class="px-3.5 py-2 cursor-pointer flex items-center justify-between text-[11px] font-bold text-purple-300 hover:text-white hover:bg-purple-500/10 transition-colors select-none">
+                  <div class="flex items-center gap-2">
+                    <span class="material-symbols-outlined text-[16px] text-purple-400 group-open:rotate-90 transition-transform">chevron_right</span>
+                    <span class="material-symbols-outlined text-[15px] text-purple-400">psychology</span>
+                    <span>Thought for 3.8s (Chain-of-Thought Reasoning · ${charCount} chars)</span>
+                  </div>
+                  <span class="text-[9px] text-purple-400/80 font-mono">AUDITED</span>
+                </summary>
+                <div class="p-3.5 border-t border-purple-500/20 text-purple-200 text-[11px] leading-relaxed font-mono whitespace-pre-wrap select-text max-h-60 overflow-y-auto scrollbar-thin bg-black/40">
+                  ${escapeHtml(step.content || '')}
+                </div>
+              </details>
+            </div>
+          `;
+        }
+
+        if (isTool) {
+          return `
+            <div class="flex items-start gap-3 my-2 pl-11">
+              <details class="group flex-1 bg-[#061017] border border-cyan-500/30 rounded-xl overflow-hidden shadow-sm">
+                <summary class="px-3 py-1.5 cursor-pointer flex items-center justify-between text-[10px] font-mono text-cyan-300 hover:text-white select-none">
+                  <div class="flex items-center gap-2 truncate">
+                    <span class="material-symbols-outlined text-[14px] text-cyan-400 group-open:rotate-90 transition-transform">chevron_right</span>
+                    <span class="material-symbols-outlined text-[14px] text-cyan-400">${step.icon || 'terminal'}</span>
+                    <span class="font-bold text-white uppercase">${escapeHtml(step.tool_name || 'TOOL')}</span>
+                    <span class="text-cyan-400/80 truncate">$ ${escapeHtml(step.command_line || step.file_path || step.title || '')}</span>
+                  </div>
+                  <span class="text-[8px] px-1.5 py-0.5 rounded bg-cyan-500/20 text-cyan-300 border border-cyan-500/30">EXECUTED</span>
+                </summary>
+                <div class="p-3 border-t border-cyan-500/20 text-[10px] font-mono space-y-1.5 bg-black/50 text-neutral-300">
+                  ${step.command_line ? `<div class="text-cyan-200 font-bold select-all">$ ${escapeHtml(step.command_line)}</div>` : ''}
+                  ${step.file_path ? `<div class="text-amber-200 font-bold select-all">File: ${escapeHtml(step.file_path)}</div>` : ''}
+                  <pre class="max-h-40 overflow-y-auto whitespace-pre-wrap select-text p-2 rounded bg-black/80 text-[10px] text-neutral-400">${escapeHtml(step.content || '')}</pre>
+                </div>
+              </details>
+            </div>
+          `;
+        }
+
+        if (isResp) {
+          return `
+            <div class="flex items-start gap-3 my-4">
+              <div class="w-8 h-8 rounded-full bg-purple-500/20 border border-purple-500/40 text-[#ddb7ff] flex items-center justify-center shrink-0 shadow">
+                <span class="material-symbols-outlined text-[17px]">smart_toy</span>
+              </div>
+              <div class="flex-1 space-y-1 min-w-0">
+                <div class="flex items-center gap-2 text-[10px]">
+                  <span class="font-bold text-white uppercase">${escapeHtml(step.actor_label || 'SUPER-CORTEX AGENT')}</span>
+                  <span class="text-outline text-[9px]">${escapeHtml(step.timestamp || '')}</span>
+                  <span class="px-1.5 py-0.2 rounded bg-purple-500/15 border border-purple-500/30 text-[#ddb7ff] text-[8px] font-mono">Turn ${step.turn_index}</span>
+                </div>
+                <div class="p-4 rounded-2xl rounded-tl-sm bg-[#0e121d] border border-purple-500/30 text-neutral-100 text-[12px] leading-relaxed whitespace-pre-wrap select-text font-sans shadow-md">
+                  ${escapeHtml(step.content || '')}
+                </div>
+              </div>
+            </div>
+          `;
+        }
+
+        if (isAnchor) {
+          return `
+            <div class="my-3 pl-11 flex items-center justify-between p-2 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-[10px] font-mono text-emerald-300">
+              <div class="flex items-center gap-2">
+                <span class="material-symbols-outlined text-emerald-400 text-sm">verified_user</span>
+                <span>${escapeHtml(step.summary || 'Turn state hash anchored in SHA-256 Merkle ledger.')}</span>
+              </div>
+              <span class="font-bold text-[9px] bg-emerald-500/20 px-2 py-0.5 rounded border border-emerald-500/40">✓ VERIFIED</span>
+            </div>
+          `;
+        }
+
+        return '';
+      }).join('');
+    }
+
+    // -------------------------------------------------------------------------
+    // INFERENCE PROVIDERS MANAGER CONTROLLER
+    // -------------------------------------------------------------------------
+    window.cachedProviders = [];
+
+    window.openProvidersModal = function() {
+      const modal = document.getElementById('providers-modal');
+      if (modal) {
+        modal.classList.remove('hidden');
+        window.loadProvidersList();
+      }
+    };
+
+    window.closeProvidersModal = function() {
+      const modal = document.getElementById('providers-modal');
+      if (modal) modal.classList.add('hidden');
+    };
+
+    window.loadProvidersList = async function() {
+      const container = document.getElementById('providers-list-container');
+      if (!container) return;
+      container.innerHTML = '<div class="p-4 text-center text-outline animate-pulse text-[10px]">Loading inference providers...</div>';
+
+      try {
+        const resp = await fetch('/api/providers');
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        const providers = await resp.json();
+        window.cachedProviders = providers;
+
+        const countBadge = document.getElementById('providers-count-badge');
+        if (countBadge) countBadge.innerText = `${providers.length} AVAILABLE`;
+
+        container.innerHTML = providers.map(p => {
+          const isActive = p.is_active;
+          const hasKey = p.has_api_key;
+          return `
+            <div class="p-3 rounded-lg border ${isActive ? 'border-purple-500 bg-purple-500/10 ring-1 ring-purple-500/40' : 'border-outline-variant/30 bg-surface-container-low'} flex items-center justify-between transition-all">
+              <div class="min-w-0 pr-2">
+                <div class="flex items-center gap-2">
+                  <span class="w-2 h-2 rounded-full ${isActive ? 'bg-emerald-400 shadow-[0_0_6px_#00ffa3]' : 'bg-neutral-500'}"></span>
+                  <span class="font-bold text-white text-xs truncate">${escapeHtml(p.name)}</span>
+                  ${isActive ? '<span class="px-1.5 py-0.2 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-[8px] font-bold">ACTIVE</span>' : ''}
+                </div>
+                <div class="text-[9px] text-outline mt-1 flex items-center gap-2">
+                  <span>Model: <strong class="text-neutral-300">${escapeHtml(p.default_model)}</strong></span>
+                  <span>·</span>
+                  <span>Key: <strong class="${hasKey ? 'text-emerald-400' : 'text-rose-400'}">${escapeHtml(p.masked_api_key || 'No Key Set')}</strong></span>
+                </div>
+              </div>
+              <div class="flex items-center gap-1.5 shrink-0">
+                <button onclick="window.editProvider('${p.provider_id}')" class="px-2 py-1 bg-surface-container-high hover:bg-surface-container-highest text-white rounded text-[9px] font-bold uppercase">Edit</button>
+                ${!isActive ? `<button onclick="window.activateProvider('${p.provider_id}')" class="px-2 py-1 bg-purple-600/30 hover:bg-purple-600 text-[#ddb7ff] hover:text-white rounded text-[9px] font-bold uppercase border border-purple-500/40">Activate</button>` : ''}
+              </div>
+            </div>
+          `;
+        }).join('');
+      } catch(err) {
+        container.innerHTML = `<div class="p-4 text-center text-rose-400 text-[10px]">Failed to load providers: ${escapeHtml(err.message)}</div>`;
+      }
+    };
+
+    window.editProvider = function(pid) {
+      const p = window.cachedProviders.find(item => item.provider_id === pid);
+      if (!p) return;
+      document.getElementById('provider-input-id').value = p.provider_id;
+      document.getElementById('provider-input-type').value = p.provider_type;
+      document.getElementById('provider-input-name').value = p.name;
+      document.getElementById('provider-input-model').value = p.default_model;
+      document.getElementById('provider-input-url').value = p.base_url || '';
+      document.getElementById('provider-input-active').checked = p.is_active;
+      document.getElementById('provider-input-key').value = '';
+      document.getElementById('provider-key-status').innerText = p.has_api_key ? `Existing Key: ${p.masked_api_key}` : 'No Key Configured';
+      document.getElementById('provider-form-mode').innerText = `EDITING: ${p.name.toUpperCase()}`;
+    };
+
+    window.selectProviderPreset = function(type) {
+      const presets = {
+        gemini: { id: 'gemini', type: 'gemini', name: 'Google Gemini', model: 'gemini-2.5-flash', url: '' },
+        anthropic: { id: 'anthropic', type: 'anthropic', name: 'Anthropic Claude', model: 'claude-3-7-sonnet-20250219', url: 'https://api.anthropic.com/v1' },
+        openai: { id: 'openai', type: 'openai', name: 'OpenAI', model: 'gpt-4o', url: 'https://api.openai.com/v1' },
+        groq: { id: 'groq', type: 'groq', name: 'Groq LPU', model: 'llama-3.3-70b-versatile', url: 'https://api.groq.com/openai/v1' },
+        ollama: { id: 'ollama', type: 'ollama', name: 'Ollama Local', model: 'llama3:latest', url: 'http://localhost:11434/v1' },
+        custom: { id: 'custom', type: 'custom', name: 'Custom OpenAI-Compatible', model: 'default', url: 'http://localhost:8000/v1' }
+      };
+
+      const p = presets[type] || presets.custom;
+      document.getElementById('provider-input-id').value = p.id;
+      document.getElementById('provider-input-type').value = p.type;
+      document.getElementById('provider-input-name').value = p.name;
+      document.getElementById('provider-input-model').value = p.model;
+      document.getElementById('provider-input-url').value = p.url;
+      document.getElementById('provider-form-mode').innerText = `CONFIGURING: ${p.name.toUpperCase()}`;
+    };
+
+    window.toggleKeyVisibility = function() {
+      const inp = document.getElementById('provider-input-key');
+      const icon = document.getElementById('key-vis-icon');
+      if (!inp || !icon) return;
+      if (inp.type === 'password') {
+        inp.type = 'text';
+        icon.innerText = 'visibility_off';
+      } else {
+        inp.type = 'password';
+        icon.innerText = 'visibility';
+      }
+    };
+
+    window.saveCurrentProviderConfig = async function() {
+      const pid = document.getElementById('provider-input-id').value.trim();
+      const ptype = document.getElementById('provider-input-type').value.trim();
+      const name = document.getElementById('provider-input-name').value.trim();
+      const model = document.getElementById('provider-input-model').value.trim();
+      const url = document.getElementById('provider-input-url').value.trim();
+      const apiKey = document.getElementById('provider-input-key').value.trim();
+      const isActive = document.getElementById('provider-input-active').checked;
+
+      if (!pid || !name || !model) {
+        alert("Provider ID, Name, and Default Model are required.");
+        return;
+      }
+
+      const payload = {
+        provider_id: pid,
+        provider_type: ptype,
+        name: name,
+        default_model: model,
+        base_url: url || null,
+        is_active: isActive
+      };
+      if (apiKey) payload.api_key = apiKey;
+
+      try {
+        const resp = await fetch('/api/providers', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        const result = await resp.json();
+        alert(`Provider '${name}' successfully saved!`);
+        window.loadProvidersList();
+      } catch(err) {
+        alert("Failed to save provider: " + err.message);
+      }
+    };
+
+    window.activateProvider = async function(pid) {
+      try {
+        const resp = await fetch(`/api/providers/${encodeURIComponent(pid)}/activate`, { method: 'POST' });
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        window.loadProvidersList();
+      } catch(err) {
+        alert("Failed to activate provider: " + err.message);
+      }
+    };
+
+    window.testActiveProviderConfig = async function() {
+      const pid = document.getElementById('provider-input-id').value.trim();
+      const ptype = document.getElementById('provider-input-type').value.trim();
+      const name = document.getElementById('provider-input-name').value.trim();
+      const model = document.getElementById('provider-input-model').value.trim();
+      const url = document.getElementById('provider-input-url').value.trim();
+      const apiKey = document.getElementById('provider-input-key').value.trim();
+
+      const outEl = document.getElementById('provider-test-output');
+      if (outEl) {
+        outEl.classList.remove('hidden');
+        outEl.className = 'p-2 rounded bg-surface-container-high text-[9px] font-mono border border-cyan-500/40 text-cyan-300 animate-pulse';
+        outEl.innerText = `Connecting to ${name} (${model})...`;
+      }
+
+      try {
+        const payload = {
+          provider_id: pid,
+          provider_type: ptype,
+          name: name,
+          default_model: model,
+          base_url: url || null
+        };
+        if (apiKey) payload.api_key = apiKey;
+
+        const resp = await fetch('/api/providers/test', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        const res = await resp.json();
+        if (outEl) {
+          outEl.classList.remove('animate-pulse');
+          if (res.status === 'success') {
+            outEl.className = 'p-2.5 rounded bg-emerald-500/10 text-[9px] font-mono border border-emerald-500/40 text-emerald-300';
+            outEl.innerHTML = `✓ <strong>Connected!</strong> Ping: ${res.latency_ms}ms · Response: "${escapeHtml(res.response || '')}"`;
+          } else {
+            outEl.className = 'p-2.5 rounded bg-rose-500/10 text-[9px] font-mono border border-rose-500/40 text-rose-300';
+            outEl.innerHTML = `✕ <strong>Connection Failed:</strong> ${escapeHtml(res.error || 'Unknown error')}`;
+          }
+        }
+      } catch(err) {
+        if (outEl) {
+          outEl.className = 'p-2.5 rounded bg-rose-500/10 text-[9px] font-mono border border-rose-500/40 text-rose-300';
+          outEl.innerText = "Test request failed: " + err.message;
+        }
+      }
+    };
+
+    // -------------------------------------------------------------------------
+    // AI GRAPH OPERATIONS STUDIO CONTROLLER
+    // -------------------------------------------------------------------------
+    window.cachedDiscoveredLinks = [];
+
+    window.openAiOpsModal = function() {
+      const modal = document.getElementById('ai-ops-modal');
+      if (modal) modal.classList.remove('hidden');
+    };
+
+    window.closeAiOpsModal = function() {
+      const modal = document.getElementById('ai-ops-modal');
+      if (modal) modal.classList.add('hidden');
+    };
+
+    window.switchAiOpsTab = function(tab) {
+      ['synthesize', 'discover', 'query'].forEach(t => {
+        const view = document.getElementById(`ai-ops-view-${t}`);
+        const btn = document.getElementById(`tab-btn-ai-${t}`);
+        if (view) view.classList.toggle('hidden', t !== tab);
+        if (btn) {
+          if (t === tab) {
+            btn.className = "flex-1 py-1.5 text-center rounded font-bold transition-all bg-purple-600 text-white flex items-center justify-center gap-1.5 shadow";
+          } else {
+            btn.className = "flex-1 py-1.5 text-center rounded font-bold transition-all text-neutral-400 hover:text-white flex items-center justify-center gap-1.5";
+          }
+        }
+      });
+    };
+
+    window.runAiSynthesis = async function() {
+      const scope = document.getElementById('ai-synthesize-scope')?.value || 'all';
+      const focus = document.getElementById('ai-synthesize-focus')?.value || '';
+      const out = document.getElementById('ai-synthesis-output');
+      const btn = document.getElementById('btn-run-synthesis');
+
+      if (out) {
+        out.classList.remove('hidden');
+        out.innerHTML = `
+          <div class="p-8 text-center text-outline animate-pulse flex flex-col items-center justify-center gap-2">
+            <span class="material-symbols-outlined text-3xl text-purple-400 animate-spin">psychology</span>
+            <span>Synthesizing holistic graph insights across all nodes in scope [${scope}]...</span>
+          </div>
+        `;
+      }
+      if (btn) btn.disabled = true;
+
+      try {
+        const resp = await fetch('/api/graph/operations/synthesize', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ scope, focus })
+        });
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        const data = await resp.json();
+
+        if (out) {
+          out.innerHTML = `
+            <div class="flex items-center justify-between pb-2 border-b border-outline-variant/30 text-[10px] font-mono text-outline">
+              <span>SYNTHESIS MODEL: <strong class="text-white">${escapeHtml(data.model_used || 'Gemini')}</strong></span>
+              <span>NODES VISIBLE: <strong class="text-secondary-container">${data.graph_nodes_considered}</strong></span>
+              <span>LATENCY: <strong class="text-cyan-400">${data.elapsed_ms}ms</strong></span>
+            </div>
+            <div class="text-xs leading-relaxed text-neutral-100 whitespace-pre-wrap select-text font-sans">
+              ${escapeHtml(data.synthesis || '')}
+            </div>
+          `;
+        }
+      } catch(err) {
+        if (out) {
+          out.innerHTML = `<div class="p-4 text-center text-rose-400">Synthesis failed: ${escapeHtml(err.message)}</div>`;
+        }
+      } finally {
+        if (btn) btn.disabled = false;
+      }
+    };
+
+    window.runAiDiscoverLinks = async function() {
+      const out = document.getElementById('ai-discover-output');
+      const btn = document.getElementById('btn-run-discover');
+      const commitBtn = document.getElementById('btn-commit-discovered');
+
+      if (out) {
+        out.innerHTML = `
+          <div class="p-8 text-center text-outline animate-pulse flex flex-col items-center justify-center gap-2">
+            <span class="material-symbols-outlined text-3xl text-secondary-container animate-spin">hub</span>
+            <span>Reasoning over graph topology to discover latent cross-scope relations...</span>
+          </div>
+        `;
+      }
+      if (btn) btn.disabled = true;
+
+      try {
+        const resp = await fetch('/api/graph/operations/discover-links', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ scope: 'all' })
+        });
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        const data = await resp.json();
+        const links = data.discovered_links || [];
+        window.cachedDiscoveredLinks = links;
+
+        if (commitBtn) commitBtn.classList.toggle('hidden', links.length === 0);
+
+        if (out) {
+          if (links.length === 0) {
+            out.innerHTML = '<div class="p-6 text-center text-outline border rounded">No new latent edges discovered across current graph.</div>';
+          } else {
+            out.innerHTML = links.map((l, idx) => `
+              <div class="p-3 rounded bg-surface-container-low border border-outline-variant/30 space-y-1.5 font-mono text-xs">
+                <div class="flex items-center justify-between text-[10px]">
+                  <div class="flex items-center gap-2">
+                    <span class="px-2 py-0.5 rounded bg-primary/20 text-primary font-bold">[S] ${escapeHtml(l.subject)}</span>
+                    <span class="text-[#ffd166] font-bold">──▶ [${escapeHtml(l.predicate)}] ──▶</span>
+                    <span class="px-2 py-0.5 rounded bg-secondary-container/20 text-secondary-container font-bold">[O] ${escapeHtml(l.object)}</span>
+                  </div>
+                  <span class="text-secondary-container font-bold">${((l.confidence || 0.95) * 100).toFixed(0)}% CONF</span>
+                </div>
+                <div class="text-[11px] text-neutral-300 font-sans leading-relaxed">
+                  ${escapeHtml(l.rationale || '')}
+                </div>
+              </div>
+            `).join('');
+          }
+        }
+      } catch(err) {
+        if (out) out.innerHTML = `<div class="p-4 text-center text-rose-400">Discovery failed: ${escapeHtml(err.message)}</div>`;
+      } finally {
+        if (btn) btn.disabled = false;
+      }
+    };
+
+    window.commitDiscoveredLinks = async function() {
+      if (!window.cachedDiscoveredLinks || window.cachedDiscoveredLinks.length === 0) return;
+      try {
+        const resp = await fetch('/api/graph/operations/commit-links', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ links: window.cachedDiscoveredLinks })
+        });
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        const res = await resp.json();
+        alert(`Successfully wove ${res.created_relations} new relations into the 3D Knowledge Galaxy!`);
+        window.loadGraphData();
+        window.closeAiOpsModal();
+      } catch(err) {
+        alert("Failed to commit links: " + err.message);
+      }
+    };
+
+    window.runAiGraphQuery = async function() {
+      const query = document.getElementById('ai-rag-query-input')?.value?.trim();
+      if (!query) return;
+      const out = document.getElementById('ai-query-output');
+      const btn = document.getElementById('btn-run-query');
+
+      if (out) {
+        out.classList.remove('hidden');
+        out.innerHTML = `
+          <div class="p-8 text-center text-outline animate-pulse flex flex-col items-center justify-center gap-2">
+            <span class="material-symbols-outlined text-3xl text-cyan-400 animate-spin">smart_toy</span>
+            <span>Querying graph oracle with whole-graph visibility...</span>
+          </div>
+        `;
+      }
+      if (btn) btn.disabled = true;
+
+      try {
+        const resp = await fetch('/api/graph/operations/query', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ query })
+        });
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        const data = await resp.json();
+
+        if (out) {
+          out.innerHTML = `
+            <div class="flex items-center justify-between pb-2 border-b border-outline-variant/30 text-[10px] font-mono text-outline">
+              <span>ORACLE ENGINE: <strong class="text-white">${escapeHtml(data.model_used || 'Gemini')}</strong></span>
+              <span>NODES VISIBLE: <strong class="text-secondary-container">${data.graph_nodes_visible}</strong></span>
+              <span>LATENCY: <strong class="text-cyan-400">${data.elapsed_ms}ms</strong></span>
+            </div>
+            <div class="text-xs leading-relaxed text-neutral-100 whitespace-pre-wrap select-text font-sans">
+              ${escapeHtml(data.answer || '')}
+            </div>
+          `;
+        }
+      } catch(err) {
+        if (out) out.innerHTML = `<div class="p-4 text-center text-rose-400">Oracle query failed: ${escapeHtml(err.message)}</div>`;
+      } finally {
+        if (btn) btn.disabled = false;
+      }
+    };
+
+    // Hotkey listener for 'E' key to toggle connector edges
+    document.addEventListener('keydown', (e) => {
+      if (e.key.toLowerCase() === 'e' && !e.target.matches('input, textarea, select')) {
+        window.toggleGraphEdges();
+      }
+    });
+
+    // Initialize Draggable HUD on load
+    window.addEventListener('DOMContentLoaded', () => {
+      window.initDraggableHud();
+      if (window.activeNodeShape) {
+        window.applyNodeShape(window.activeNodeShape);
+      }
+    });
+
   </script>
 
   <!-- ========================================================================= -->

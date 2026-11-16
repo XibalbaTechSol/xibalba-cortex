@@ -15,6 +15,8 @@ from .models import (
     ExchangeRecord,
     LifecycleStatus,
     MemoryRecord,
+    ProviderRecord,
+    ProviderType,
     RelationRecord,
     ScopeRecord,
     ScopeType,
@@ -199,8 +201,22 @@ class ProvenanceStore:
                     created_at TEXT NOT NULL
                 );
 
+                CREATE TABLE IF NOT EXISTS providers (
+                    id TEXT PRIMARY KEY,
+                    name TEXT NOT NULL,
+                    provider_type TEXT NOT NULL,
+                    api_key TEXT,
+                    base_url TEXT,
+                    default_model TEXT,
+                    is_active INTEGER DEFAULT 0,
+                    settings_json TEXT,
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL
+                );
+
                 CREATE INDEX IF NOT EXISTS idx_scopes_type ON scopes(scope_type);
                 CREATE INDEX IF NOT EXISTS idx_scopes_agent ON scopes(agent_id);
+                CREATE INDEX IF NOT EXISTS idx_providers_active ON providers(is_active);
                 """
             )
             # Automatic column migration for existing databases
@@ -244,6 +260,87 @@ class ProvenanceStore:
                 conn.executemany(
                     "INSERT INTO agents (agent_id, name, default_scope_id, client_type, status, last_active_at, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
                     default_agents,
+                )
+
+            # Seed default providers if none exist
+            cursor = conn.execute("SELECT COUNT(*) as count FROM providers")
+            if cursor.fetchone()["count"] == 0:
+                import os
+                now = utc_now_iso()
+                gemini_env = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY") or ""
+                anthropic_env = os.getenv("ANTHROPIC_API_KEY") or ""
+                openai_env = os.getenv("OPENAI_API_KEY") or ""
+                groq_env = os.getenv("GROQ_API_KEY") or ""
+
+                has_gemini = bool(gemini_env)
+                default_providers = [
+                    (
+                        "gemini",
+                        "Google Gemini",
+                        ProviderType.GEMINI.value,
+                        gemini_env,
+                        "https://generativelanguage.googleapis.com/v1beta",
+                        "gemini-2.5-flash",
+                        1 if has_gemini else 0,
+                        json.dumps({"description": "Google Gemini 2.5 Flash / Pro Multimodal Engine", "rpm_limit": 60}),
+                        now,
+                        now,
+                    ),
+                    (
+                        "anthropic",
+                        "Anthropic Claude",
+                        ProviderType.ANTHROPIC.value,
+                        anthropic_env,
+                        "https://api.anthropic.com/v1",
+                        "claude-3-7-sonnet-20250219",
+                        1 if (not has_gemini and anthropic_env) else 0,
+                        json.dumps({"description": "Anthropic Claude 3.7 / 3.5 Sonnet Deep Reasoning", "max_tokens": 1500}),
+                        now,
+                        now,
+                    ),
+                    (
+                        "openai",
+                        "OpenAI",
+                        ProviderType.OPENAI.value,
+                        openai_env,
+                        "https://api.openai.com/v1",
+                        "gpt-4o",
+                        0,
+                        json.dumps({"description": "OpenAI GPT-4o / GPT-4o-mini", "max_tokens": 1500}),
+                        now,
+                        now,
+                    ),
+                    (
+                        "groq",
+                        "Groq LPU",
+                        ProviderType.GROQ.value,
+                        groq_env,
+                        "https://api.groq.com/openai/v1",
+                        "llama-3.3-70b-versatile",
+                        0,
+                        json.dumps({"description": "Groq Ultra-Fast LPU Inference"}),
+                        now,
+                        now,
+                    ),
+                    (
+                        "ollama",
+                        "Ollama Local",
+                        ProviderType.OLLAMA.value,
+                        "",
+                        "http://localhost:11434/v1",
+                        "llama3.2",
+                        0,
+                        json.dumps({"description": "Local Offline Ollama Endpoint"}),
+                        now,
+                        now,
+                    ),
+                ]
+                conn.executemany(
+                    """
+                    INSERT INTO providers (id, name, provider_type, api_key, base_url, default_model, is_active, settings_json, created_at, updated_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    default_providers,
                 )
             conn.commit()
 
@@ -1405,3 +1502,142 @@ class ProvenanceStore:
     def delete_memory(self, memory_id: str) -> bool:
         """Mark memory archived and remove from active index."""
         return self.update_memory_status(memory_id, LifecycleStatus.ARCHIVED)
+
+    def list_providers(self) -> list[ProviderRecord]:
+        with self._get_conn() as conn:
+            cursor = conn.execute(
+                "SELECT id, name, provider_type, api_key, base_url, default_model, is_active, settings_json, created_at, updated_at FROM providers ORDER BY is_active DESC, name ASC"
+            )
+            rows = cursor.fetchall()
+            providers = []
+            for r in rows:
+                try:
+                    sett = json.loads(r["settings_json"]) if r["settings_json"] else {}
+                except Exception:
+                    sett = {}
+                providers.append(
+                    ProviderRecord(
+                        id=r["id"],
+                        name=r["name"],
+                        provider_type=r["provider_type"],
+                        api_key=r["api_key"] or "",
+                        base_url=r["base_url"] or "",
+                        default_model=r["default_model"] or "",
+                        is_active=bool(r["is_active"]),
+                        settings=sett,
+                        created_at=r["created_at"],
+                        updated_at=r["updated_at"],
+                    )
+                )
+            return providers
+
+    def get_provider(self, provider_id: str) -> ProviderRecord | None:
+        with self._get_conn() as conn:
+            cursor = conn.execute(
+                "SELECT id, name, provider_type, api_key, base_url, default_model, is_active, settings_json, created_at, updated_at FROM providers WHERE id = ?",
+                (provider_id,),
+            )
+            r = cursor.fetchone()
+            if not r:
+                return None
+            try:
+                sett = json.loads(r["settings_json"]) if r["settings_json"] else {}
+            except Exception:
+                sett = {}
+            return ProviderRecord(
+                id=r["id"],
+                name=r["name"],
+                provider_type=r["provider_type"],
+                api_key=r["api_key"] or "",
+                base_url=r["base_url"] or "",
+                default_model=r["default_model"] or "",
+                is_active=bool(r["is_active"]),
+                settings=sett,
+                created_at=r["created_at"],
+                updated_at=r["updated_at"],
+            )
+
+    def get_active_provider(self) -> ProviderRecord | None:
+        with self._get_conn() as conn:
+            cursor = conn.execute(
+                "SELECT id, name, provider_type, api_key, base_url, default_model, is_active, settings_json, created_at, updated_at FROM providers WHERE is_active = 1 LIMIT 1"
+            )
+            r = cursor.fetchone()
+            if not r:
+                cursor = conn.execute(
+                    "SELECT id, name, provider_type, api_key, base_url, default_model, is_active, settings_json, created_at, updated_at FROM providers WHERE (api_key IS NOT NULL AND api_key != '') OR provider_type = 'ollama' LIMIT 1"
+                )
+                r = cursor.fetchone()
+            if not r:
+                return None
+            try:
+                sett = json.loads(r["settings_json"]) if r["settings_json"] else {}
+            except Exception:
+                sett = {}
+            return ProviderRecord(
+                id=r["id"],
+                name=r["name"],
+                provider_type=r["provider_type"],
+                api_key=r["api_key"] or "",
+                base_url=r["base_url"] or "",
+                default_model=r["default_model"] or "",
+                is_active=bool(r["is_active"]),
+                settings=sett,
+                created_at=r["created_at"],
+                updated_at=r["updated_at"],
+            )
+
+    def save_provider(self, record: ProviderRecord) -> ProviderRecord:
+        now = utc_now_iso()
+        with self._get_conn() as conn:
+            if record.is_active:
+                conn.execute("UPDATE providers SET is_active = 0")
+            conn.execute(
+                """
+                INSERT INTO providers (id, name, provider_type, api_key, base_url, default_model, is_active, settings_json, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(id) DO UPDATE SET
+                    name = excluded.name,
+                    provider_type = excluded.provider_type,
+                    api_key = CASE WHEN excluded.api_key != '' THEN excluded.api_key ELSE providers.api_key END,
+                    base_url = excluded.base_url,
+                    default_model = excluded.default_model,
+                    is_active = excluded.is_active,
+                    settings_json = excluded.settings_json,
+                    updated_at = excluded.updated_at
+                """,
+                (
+                    record.id,
+                    record.name,
+                    record.provider_type,
+                    record.api_key,
+                    record.base_url,
+                    record.default_model,
+                    1 if record.is_active else 0,
+                    json.dumps(record.settings),
+                    record.created_at or now,
+                    now,
+                ),
+            )
+            conn.commit()
+        return self.get_provider(record.id) or record
+
+    def delete_provider(self, provider_id: str) -> bool:
+        with self._get_conn() as conn:
+            cursor = conn.execute("DELETE FROM providers WHERE id = ?", (provider_id,))
+            conn.commit()
+            return cursor.rowcount > 0
+
+    def set_active_provider(self, provider_id: str) -> bool:
+        with self._get_conn() as conn:
+            conn.execute("UPDATE providers SET is_active = 0")
+            cursor = conn.execute(
+                "UPDATE providers SET is_active = 1, updated_at = ? WHERE id = ?",
+                (utc_now_iso(), provider_id),
+            )
+            conn.commit()
+            return cursor.rowcount > 0
+
+
+# Convenient alias
+SuperCortexStore = ProvenanceStore
