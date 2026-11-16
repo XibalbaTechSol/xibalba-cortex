@@ -270,6 +270,23 @@ def create_server(config: SuperCortexConfig | None = None) -> MCPServer:
         )
 
     @server.tool()
+    def memory_session_rebuild(session_id: str, format: str = "json") -> str:
+        """Reconstruct the complete chronological session timeline between user and agent.
+        
+        Unfolds every turn into sequential atomic steps with exact timestamps, user prompts,
+        agent reasoning (chain-of-thought), tool executions (commands, file operations, MCP calls),
+        synthesis responses, and cryptographic Merkle leaf anchors.
+        
+        Args:
+            session_id: The session ID to reconstruct.
+            format: 'json' for full structured audit manifest, or 'markdown' for human-readable audit report.
+        """
+        rebuilt = cortex.rebuild_session(session_id)
+        if format.lower() == "markdown":
+            return rebuilt.get("markdown_transcript", "")
+        return json.dumps(rebuilt, indent=2)
+
+    @server.tool()
     async def supermemory_status() -> str:
         """Check Supermemory Local daemon status and active namespaces."""
         alive = await cortex.client.ping()

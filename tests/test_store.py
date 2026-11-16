@@ -133,3 +133,27 @@ def test_compute_merkle_root_empty_and_odd():
     leaf3 = sha256_hex("leaf3")
     root_3 = compute_merkle_root([leaf1, leaf2, leaf3])
     assert len(root_3) == 64
+
+
+def test_rebuild_session(temp_store: ProvenanceStore):
+    session_id = "sess_rebuild_test_001"
+    temp_store.save_exchange(
+        session_id=session_id,
+        prompt_text="Run test suite",
+        response_text="Test suite completed successfully",
+        thinking_text="Checking dependencies before running pytest...",
+        tool_calls=[{
+            "name": "run_command",
+            "args": {"CommandLine": "pytest tests/", "toolSummary": "Run test suite"}
+        }],
+    )
+
+    rebuild = temp_store.rebuild_session(session_id)
+    assert rebuild["found"] is True
+    assert rebuild["session_id"] == session_id
+    assert rebuild["turn_count"] == 1
+    assert rebuild["step_count"] >= 5  # prompt, thought, tool, response, anchor
+    assert "markdown_transcript" in rebuild
+    assert "# Session Forensic Rebuild" in rebuild["markdown_transcript"]
+    assert "Checking dependencies" in rebuild["markdown_transcript"]
+    assert "pytest tests/" in rebuild["markdown_transcript"]

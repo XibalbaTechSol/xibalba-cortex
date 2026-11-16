@@ -509,6 +509,10 @@ class SuperCortex:
         """Generate a complete cryptographic inclusion proof for a session turn."""
         return self.store.get_session_merkle_proof(session_id, turn_index)
 
+    def rebuild_session(self, session_id: str) -> dict[str, Any]:
+        """Reconstruct the complete chronological session timeline between user and agent."""
+        return self.store.rebuild_session(session_id)
+
     def list_scopes(self) -> list[dict[str, Any]]:
         """List all active scopes with their memory counts."""
         scopes = self.store.list_scopes()

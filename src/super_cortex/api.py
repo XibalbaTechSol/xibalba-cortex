@@ -316,6 +316,86 @@ def create_app(config: SuperCortexConfig | None = None) -> Starlette:
                 "label": f"belongs_to ({mem_scope})",
             })
 
+        # Agent Thought & Deliberation Nodes (Chain-of-Thought Reasoning on Main Graph)
+        with cortex.store._get_conn() as conn:
+            thought_cursor = conn.execute(
+                """
+                SELECT exchange_id, session_id, prompt_text, response_text, thinking_text,
+                       turn_hash, parent_hash, created_at, scope_id, agent_id
+                FROM exchanges
+                WHERE thinking_text IS NOT NULL AND trim(thinking_text) != ''
+                ORDER BY rowid DESC LIMIT 80
+                """
+            )
+            thought_rows = thought_cursor.fetchall()
+
+        thought_count = 0
+        for trow in thought_rows:
+            th_text = (trow["thinking_text"] or "").strip()
+            if not th_text:
+                continue
+            th_aid = trow["agent_id"] or "agent"
+            th_scope = trow["scope_id"] or f"agent:{th_aid}"
+
+            # Filter if a specific scope is requested
+            if selected_scope and selected_scope != "all" and th_scope != selected_scope and selected_scope != f"agent:{th_aid}":
+                continue
+
+            th_id = f"thought_{trow['exchange_id']}"
+            int_seed = int(trow["turn_hash"][:8], 16)
+            theta = (int_seed % 360) * (math.pi / 180.0)
+            phi = ((int_seed >> 8) % 180) * (math.pi / 180.0)
+
+            if th_aid in agent_positions:
+                center = agent_positions[th_aid]
+                th_rad = 50.0 + (int_seed % 35)
+            elif th_scope.startswith("agent:"):
+                center = [120, 80, -120]
+                th_rad = 50.0 + (int_seed % 30)
+            else:
+                center = [0, 60, 0]
+                th_rad = 80.0 + (int_seed % 40)
+
+            tx = center[0] + th_rad * math.sin(phi) * math.cos(theta)
+            ty = center[1] + th_rad * math.cos(phi) * 0.7
+            tz = center[2] + th_rad * math.sin(phi) * math.sin(theta)
+
+            th_title = th_text[:40] + ("..." if len(th_text) > 40 else "")
+            nodes.append({
+                "id": th_id,
+                "title": f"Thought: {th_title}",
+                "labelTag": "REASONING // COT",
+                "category": "thought",
+                "type": "thought",
+                "status": "audited",
+                "epistemic_class": "inference",
+                "color": 0xa855f7,  # Vibrant Amethyst Purple for Chain-of-Thought Reasoning
+                "size": 17,
+                "pos3D": [round(tx, 1), round(ty, 1), round(tz, 1)],
+                "pos2D": [round(tx, 1), round(ty, 1), 0],
+                "confidence": 0.99,
+                "hash": f"0xCOT_{trow['turn_hash'][:12]}",
+                "full_hash": trow["turn_hash"],
+                "content": th_text,
+                "scope": th_scope,
+                "agent_id": th_aid,
+                "session_id": trow["session_id"],
+                "exchange_id": trow["exchange_id"],
+                "created_at": trow["created_at"],
+                "prompt_text": trow["prompt_text"],
+                "response_text": trow["response_text"],
+            })
+            thought_count += 1
+
+            # Connect thought to its Agent Scope Hub
+            target_hub = f"hub_agent_{th_aid}" if th_aid in agent_positions else "hub_shared"
+            links.append({
+                "source": target_hub,
+                "target": th_id,
+                "type": "deliberation",
+                "label": "deliberates (COT)",
+            })
+
         # Collect unique entity nodes from relational triples
         entity_names = set()
         for r in rel_rows:
@@ -393,6 +473,7 @@ def create_app(config: SuperCortexConfig | None = None) -> Starlette:
                 "agents_count": len(agents),
                 "entities_count": len(entity_names),
                 "relations_count": len(rel_rows),
+                "thoughts_count": thought_count,
             }
         })
 
@@ -419,6 +500,11 @@ def create_app(config: SuperCortexConfig | None = None) -> Starlette:
             "turn_count": len(turns),
             "turns": turns,
         })
+
+    async def api_session_rebuild(request: Request) -> JSONResponse:
+        session_id = request.path_params["session_id"]
+        res = cortex.rebuild_session(session_id)
+        return JSONResponse(res)
 
     async def api_actions(request: Request) -> JSONResponse:
         session_id = request.query_params.get("session_id")
@@ -898,6 +984,7 @@ def create_app(config: SuperCortexConfig | None = None) -> Starlette:
         Route("/api/sessions/import-local", api_import_local_sessions, methods=["GET", "POST"]),
         Route("/api/sessions/{session_id}", api_session_detail, methods=["GET"]),
         Route("/api/sessions/{session_id}/proof", api_session_proof, methods=["GET"]),
+        Route("/api/sessions/{session_id}/rebuild", api_session_rebuild, methods=["GET"]),
         Route("/api/remember", api_remember, methods=["POST"]),
         Route("/api/chat", api_chat, methods=["POST"]),
         Route("/api/events/live", api_live_events, methods=["GET"]),

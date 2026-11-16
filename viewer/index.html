@@ -910,6 +910,12 @@
           SOP TRIPLES (<span id="ribbon-sop-count">21</span>)
         </button>
 
+        <!-- Agent Thoughts (COT) Button -->
+        <button id="ribbon-thoughts-btn" onclick="filterEpistemic('thought')" class="px-2 py-1 rounded bg-purple-500/10 text-[#ddb7ff] border border-purple-500/30 hover:bg-purple-500 hover:text-black font-mono font-bold text-[9px] uppercase transition-all flex items-center gap-1" title="Filter to Agent Thoughts (Chain-of-Thought Reasoning)">
+          <span class="w-1.5 h-1.5 rounded-full bg-[#c084fc] animate-pulse"></span>
+          THOUGHTS (COT) (<span id="ribbon-thoughts-count">0</span>)
+        </button>
+
         <button onclick="window.openContextModal()" class="px-2 py-1 rounded bg-primary-container/20 text-primary-container border border-primary-container/40 hover:bg-primary-container hover:text-black font-mono font-bold text-[9px] uppercase transition-all flex items-center gap-1" title="Deterministic Context Injection (<5ms)">
           <span class="material-symbols-outlined text-[12px]">bolt</span>
           INJECT CONTEXT
@@ -1317,6 +1323,11 @@
           <span id="dialogue-tools-badge" class="text-primary-container font-semibold">0 TOOLS</span>
           <span class="text-outline">|</span>
           <span class="text-outline">MERKLE: <strong id="dialogue-merkle-badge" class="text-[#ddb7ff] font-mono">0x000...</strong></span>
+          <span class="text-outline">|</span>
+          <button id="btn-rebuild-session" onclick="window.openSessionRebuilderModal(currentDialogueSessionId)" class="px-2.5 py-0.5 bg-gradient-to-r from-cyan-500/20 to-purple-600/30 hover:from-cyan-500/40 hover:to-purple-600/50 border border-primary-container/40 text-primary hover:text-white rounded font-mono font-bold text-[9px] flex items-center gap-1 shadow-sm transition-all" title="Reconstruct and rebuild entire interaction stream between agent and user">
+            <span class="material-symbols-outlined text-[12px]">history_edu</span>
+            <span>REBUILD SESSION</span>
+          </button>
         </div>
 
         <div id="dialogue-filter-pills" class="flex items-center gap-1 bg-surface-container-low p-0.5 border border-outline-variant/30 text-[9px] uppercase font-bold">
@@ -1418,6 +1429,10 @@
             <button onclick="zoomToFitDialogue()" class="px-2.5 py-1 bg-surface-container-high hover:bg-primary-container hover:text-on-primary-container text-primary-container border border-primary-container/40 rounded font-bold flex items-center gap-1 shadow-sm" title="Calculate bounding box and zoom to fit entire graph">
               <span class="material-symbols-outlined text-[13px]">fit_screen</span>
               <span>ZOOM TO FIT</span>
+            </button>
+            <button onclick="window.openSessionRebuilderModal(currentDialogueSessionId)" class="px-2.5 py-1 bg-surface-container-high hover:bg-purple-600/30 text-[#ddb7ff] hover:text-white border border-purple-500/40 rounded font-bold flex items-center gap-1 shadow-sm transition-colors" title="Reconstruct and export full session interaction timeline">
+              <span class="material-symbols-outlined text-[13px]">history_edu</span>
+              <span>REBUILD</span>
             </button>
           </div>
           <div class="bg-surface-container-lowest/90 backdrop-blur border border-outline-variant/40 rounded p-1 flex items-center gap-1 shadow-lg">
@@ -3079,6 +3094,116 @@
   </div>
 
   <!-- ========================================================================= -->
+  <!-- FORENSIC SESSION REBUILD & INTERACTION STREAM MODAL                       -->
+  <!-- ========================================================================= -->
+  <div id="session-rebuilder-modal" class="hidden fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-3 md:p-6 font-mono select-text" onclick="if(event.target === this) window.closeSessionRebuilderModal()">
+    <div class="bg-[#070b13] border border-cyan-500/40 rounded-xl p-5 shadow-[0_20px_70px_rgba(0,0,0,0.95)] max-w-5xl w-full h-[90vh] flex flex-col gap-3.5 overflow-hidden animate-in fade-in zoom-in-95 duration-150 ring-1 ring-cyan-500/20">
+      <!-- Modal Header Bar -->
+      <div class="flex items-center justify-between pb-3 border-b border-outline-variant/30 shrink-0">
+        <div class="flex items-center gap-3">
+          <span class="w-9 h-9 rounded-lg flex items-center justify-center bg-gradient-to-br from-cyan-500/20 to-purple-500/30 text-[#00f0ff] border border-cyan-500/40 shadow-sm">
+            <span class="material-symbols-outlined text-xl">history_edu</span>
+          </span>
+          <div>
+            <div class="flex items-center gap-2 flex-wrap">
+              <span class="text-xs md:text-sm font-bold uppercase tracking-wider text-cyan-400">FORENSIC SESSION REBUILD &amp; INTERACTION STREAM</span>
+              <span id="rebuild-agent-pill" class="text-[9px] px-2 py-0.5 rounded bg-purple-500/15 border border-purple-500/40 text-[#ddb7ff] font-bold">AGENT // CLAUDE</span>
+              <span id="rebuild-duration-pill" class="text-[9px] px-2 py-0.5 rounded bg-surface-container-high border border-outline-variant/40 text-secondary-container font-bold">0m 00s</span>
+            </div>
+            <div class="flex items-center gap-2 text-[10px] text-outline mt-0.5">
+              <span>SESSION:</span>
+              <span id="rebuild-session-id" class="text-white font-bold select-all">sess_...</span>
+              <button onclick="navigator.clipboard.writeText(document.getElementById('rebuild-session-id').innerText); alert('Session ID copied!');" class="hover:text-primary" title="Copy Session ID">
+                <span class="material-symbols-outlined text-[12px]">content_copy</span>
+              </button>
+              <span class="text-outline">|</span>
+              <span>MERKLE ROOT:</span>
+              <span id="rebuild-merkle-root" class="text-[#00ffa3] font-mono font-bold truncate max-w-xs">0x...</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="flex items-center gap-2">
+          <button onclick="window.copyRebuildJson()" class="px-2.5 py-1.5 bg-surface-container-high hover:bg-surface-container-highest text-neutral-200 hover:text-white rounded text-[10px] font-bold flex items-center gap-1 border border-outline-variant/30 transition-colors" title="Copy full raw audit JSON to clipboard">
+            <span class="material-symbols-outlined text-[13px]">data_object</span>
+            <span>JSON</span>
+          </button>
+          <button onclick="window.exportRebuildMarkdown()" class="px-2.5 py-1.5 bg-purple-600/20 hover:bg-purple-600/40 text-[#ddb7ff] hover:text-white rounded text-[10px] font-bold flex items-center gap-1 border border-purple-500/40 transition-colors" title="Export / copy full formatted Markdown audit report">
+            <span class="material-symbols-outlined text-[13px]">description</span>
+            <span>MARKDOWN</span>
+          </button>
+          <button onclick="window.closeSessionRebuilderModal()" class="w-8 h-8 rounded bg-surface-container-high hover:bg-surface-container-highest text-neutral-400 hover:text-white flex items-center justify-center text-sm font-bold transition-colors">✕</button>
+        </div>
+      </div>
+
+      <!-- Telemetry KPI Strip -->
+      <div class="grid grid-cols-2 md:grid-cols-6 gap-2 shrink-0 text-center">
+        <div class="p-2 bg-surface-container-low border border-outline-variant/30 rounded">
+          <span class="text-outline text-[8px] uppercase block">TOTAL TURNS</span>
+          <span id="rebuild-stat-turns" class="text-primary-container text-sm font-bold">0</span>
+        </div>
+        <div class="p-2 bg-surface-container-low border border-outline-variant/30 rounded">
+          <span class="text-outline text-[8px] uppercase block">ATOMIC STEPS</span>
+          <span id="rebuild-stat-steps" class="text-white text-sm font-bold">0</span>
+        </div>
+        <div class="p-2 bg-surface-container-low border border-amber-500/30 rounded">
+          <span class="text-outline text-[8px] uppercase block">USER PROMPTS</span>
+          <span id="rebuild-stat-prompts" class="text-amber-400 text-sm font-bold">0</span>
+        </div>
+        <div class="p-2 bg-surface-container-low border border-purple-500/30 rounded">
+          <span class="text-outline text-[8px] uppercase block">COT REASONING</span>
+          <span id="rebuild-stat-thoughts" class="text-[#c084fc] text-sm font-bold">0</span>
+        </div>
+        <div class="p-2 bg-surface-container-low border border-cyan-500/30 rounded">
+          <span class="text-outline text-[8px] uppercase block">TOOL ACTIONS</span>
+          <span id="rebuild-stat-tools" class="text-[#00f0ff] text-sm font-bold">0</span>
+        </div>
+        <div class="p-2 bg-surface-container-low border border-emerald-500/30 rounded">
+          <span class="text-outline text-[8px] uppercase block">INTEGRITY ANCHORS</span>
+          <span id="rebuild-stat-anchors" class="text-[#00ffa3] text-sm font-bold">0</span>
+        </div>
+      </div>
+
+      <!-- Filter & Search Controls Strip -->
+      <div class="flex flex-wrap items-center justify-between gap-2 bg-surface-container-low/70 p-2 rounded border border-outline-variant/30 shrink-0 text-[10px]">
+        <div class="flex items-center gap-1 flex-wrap" id="rebuild-filter-pills">
+          <button onclick="window.filterRebuildTimeline('all')" class="px-2 py-0.5 rounded bg-primary-container text-on-primary-container font-bold" data-rfilter="all">ALL STEPS</button>
+          <button onclick="window.filterRebuildTimeline('prompt')" class="px-2 py-0.5 rounded text-neutral-400 hover:text-white" data-rfilter="prompt">PROMPTS</button>
+          <button onclick="window.filterRebuildTimeline('thought')" class="px-2 py-0.5 rounded text-neutral-400 hover:text-purple-300" data-rfilter="thought">THOUGHTS (COT)</button>
+          <button onclick="window.filterRebuildTimeline('command')" class="px-2 py-0.5 rounded text-neutral-400 hover:text-cyan-300" data-rfilter="command">CLI ($)</button>
+          <button onclick="window.filterRebuildTimeline('file')" class="px-2 py-0.5 rounded text-neutral-400 hover:text-amber-300" data-rfilter="file">FILES</button>
+          <button onclick="window.filterRebuildTimeline('response')" class="px-2 py-0.5 rounded text-neutral-400 hover:text-violet-300" data-rfilter="response">RESPONSES</button>
+        </div>
+
+        <div class="relative flex-1 max-w-xs">
+          <span class="material-symbols-outlined text-[13px] absolute left-2 top-1.5 text-outline">search</span>
+          <input id="rebuild-search-input" oninput="window.searchRebuildTimeline(this.value)" class="w-full bg-surface-container-lowest border border-outline-variant/40 rounded pl-6 pr-2 py-1 text-[10px] text-white placeholder:text-outline focus:outline-none focus:border-cyan-400" placeholder="Search commands, thoughts, files..." type="text"/>
+        </div>
+      </div>
+
+      <!-- Reconstructed Timeline Stream Container -->
+      <div id="rebuild-timeline-container" class="flex-1 overflow-y-auto space-y-2.5 pr-1.5 scrollbar-thin">
+        <!-- Dynamically rendered timeline step cards -->
+      </div>
+
+      <!-- Footer Bar -->
+      <div class="pt-2 border-t border-outline-variant/30 flex items-center justify-between text-[10px] text-outline shrink-0">
+        <div class="flex items-center gap-2">
+          <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping"></span>
+          <span>Zero-Drift Forensic Replay Engine · SHA-256 Provenance Chain Active</span>
+        </div>
+        <div class="flex items-center gap-3">
+          <button onclick="window.openSessionInDialogue(currentRebuildData ? currentRebuildData.session_id : '')" class="hover:text-primary flex items-center gap-1 font-bold">
+            <span class="material-symbols-outlined text-[12px]">forum</span>
+            <span>VIEW IN DIALOGUE DAG</span>
+          </button>
+          <button onclick="window.closeSessionRebuilderModal()" class="px-3.5 py-1 bg-surface-container-high hover:bg-surface-container-highest text-white rounded font-bold">CLOSE</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========================================================================= -->
   <!-- 7. THREE.JS 3D ENGINE & CONTROLLER SCRIPT                                 -->
   <!-- ========================================================================= -->
   <script>
@@ -3223,14 +3348,15 @@
         const size = data.size || 16;
         const color = data.color || 0x38bdf8;
         const isHub = data.type === 'hub' || data.type === 'agent_hub' || data.isLineage;
+        const isThought = data.type === 'thought' || data.category === 'thought';
 
         const boxGeo = new THREE.BoxGeometry(size, size, size);
         const boxMat = new THREE.MeshPhongMaterial({
-          color: color,
-          emissive: isHub ? color : 0x00f0ff,
-          emissiveIntensity: isHub ? 0.8 : 0.2,
+          color: isThought ? 0xa855f7 : color,
+          emissive: isThought ? 0xa855f7 : (isHub ? color : 0x00f0ff),
+          emissiveIntensity: isThought ? 0.8 : (isHub ? 0.8 : 0.2),
           transparent: true,
-          opacity: isHub ? 0.95 : 0.75,
+          opacity: isHub ? 0.95 : (isThought ? 0.88 : 0.75),
           shininess: 90
         });
         const cube = new THREE.Mesh(boxGeo, boxMat);
@@ -3238,7 +3364,7 @@
 
         const edgeGeo = new THREE.EdgesGeometry(boxGeo);
         const edgeMat = new THREE.LineBasicMaterial({
-          color: isHub ? 0xffffff : color,
+          color: isHub ? 0xffffff : (isThought ? 0xddb7ff : color),
           linewidth: 2,
           transparent: true,
           opacity: 0.95
@@ -3248,7 +3374,12 @@
 
         let coreMesh = null;
         let beaconRing = null;
-        if (isHub || size >= 20) {
+        if (isThought) {
+          const coreGeo = new THREE.OctahedronGeometry(size * 0.45);
+          const coreMat = new THREE.MeshBasicMaterial({ color: 0xddb7ff, wireframe: true });
+          coreMesh = new THREE.Mesh(coreGeo, coreMat);
+          nodeObj.add(coreMesh);
+        } else if (isHub || size >= 20) {
           const coreGeo = new THREE.BoxGeometry(size * 0.45, size * 0.45, size * 0.45);
           const coreMat = new THREE.MeshBasicMaterial({ color: 0xffffff, wireframe: true });
           coreMesh = new THREE.Mesh(coreGeo, coreMat);
@@ -3552,9 +3683,12 @@
           tip.classList.remove('hidden');
           tip.style.left = `${Math.min(window.innerWidth - 320, e.clientX + 14)}px`;
           tip.style.top = `${Math.max(10, e.clientY - 40)}px`;
+          const isThought = data.type === 'thought' || data.category === 'thought';
           document.getElementById('tooltip-title').innerText = data.title;
-          document.getElementById('tooltip-category').innerText = `NODE // ${(data.category || 'NODE').toUpperCase()}`;
-          document.getElementById('tooltip-meta').innerText = `Scope: ${data.scope || 'shared'} · Epistemic: ${(data.epistemic_class || 'fact').toUpperCase()} · Pos: [${(data.pos3D || [0, 0, 0]).join(', ')}]`;
+          document.getElementById('tooltip-category').innerText = isThought ? 'REASONING // CHAIN-OF-THOUGHT' : `NODE // ${(data.category || 'NODE').toUpperCase()}`;
+          document.getElementById('tooltip-meta').innerText = isThought
+            ? `Agent: ${data.agent_id || 'agent'} · Length: ${(data.content || '').length} chars · Session: ${data.session_id || 'unknown'}`
+            : `Scope: ${data.scope || 'shared'} · Epistemic: ${(data.epistemic_class || 'fact').toUpperCase()} · Pos: [${(data.pos3D || [0, 0, 0]).join(', ')}]`;
           return;
         }
       }
@@ -3598,9 +3732,20 @@
         }
       });
 
+      const thoughtBtn = document.getElementById('ribbon-thoughts-btn');
+      if (thoughtBtn) {
+        if (cls === 'thought') {
+          thoughtBtn.classList.add('bg-purple-500', 'text-black');
+          thoughtBtn.classList.remove('bg-purple-500/10', 'text-[#ddb7ff]');
+        } else {
+          thoughtBtn.classList.remove('bg-purple-500', 'text-black');
+          thoughtBtn.classList.add('bg-purple-500/10', 'text-[#ddb7ff]');
+        }
+      }
+
       cubeMeshes.forEach(mesh => {
         const data = mesh.userData.data;
-        const matches = (cls === 'all') || (data.epistemic_class === cls) || (data.category === cls);
+        const matches = (cls === 'all') || (data.epistemic_class === cls) || (data.category === cls) || (data.type === cls) || (cls === 'thought' && (data.type === 'thought' || data.category === 'thought'));
         mesh.userData.boxMat.opacity = matches ? (data.isLineage ? 0.95 : 0.75) : 0.08;
         mesh.userData.edgeMat.opacity = matches ? 0.95 : 0.08;
         mesh.scale.setScalar(matches ? 1.0 : 0.35);
@@ -3964,18 +4109,19 @@
       activeSelectedEdge = null;
 
       const isEntity = node.type === 'entity';
+      const isThought = node.type === 'thought' || node.category === 'thought';
       const nodeTitleShort = node.title.length > 32 ? node.title.substring(0, 32) + '...' : node.title;
-      document.getElementById('drawer-session-id').innerText = (isEntity ? 'Entity: ' : 'Memory: ') + nodeTitleShort;
+      document.getElementById('drawer-session-id').innerText = (isThought ? 'Thought: ' : (isEntity ? 'Entity: ' : 'Memory: ')) + nodeTitleShort;
 
       // Update Header Badges & Indicator
-      const classColorHex = isEntity ? '#ffd166' : (node.epistemic_class === 'rule' ? '#10b981' : (node.epistemic_class === 'inference' ? '#c084fc' : (node.epistemic_class === 'belief' ? '#fbbf24' : (node.epistemic_class === 'decision' ? '#34d399' : (node.epistemic_class === 'goal' ? '#fb7185' : '#38bdf8')))));
+      const classColorHex = isThought ? '#c084fc' : (isEntity ? '#ffd166' : (node.epistemic_class === 'rule' ? '#10b981' : (node.epistemic_class === 'inference' ? '#c084fc' : (node.epistemic_class === 'belief' ? '#fbbf24' : (node.epistemic_class === 'decision' ? '#34d399' : (node.epistemic_class === 'goal' ? '#fb7185' : '#38bdf8'))))));
       const indicator = document.getElementById('drawer-type-indicator');
       if (indicator) indicator.style.backgroundColor = classColorHex;
 
       const badge = document.getElementById('drawer-status-badge');
       if (badge) {
-        badge.innerText = isEntity ? 'KNOWLEDGE ENTITY' : (node.epistemic_class || 'FACT').toUpperCase();
-        badge.className = `text-[9px] px-1.5 py-0.5 rounded font-bold uppercase shrink-0 border ${isEntity ? 'text-[#ffd166] bg-[#ffd166]/10 border-[#ffd166]/30' : 'text-secondary-container bg-surface-container-high border-secondary-container/30'}`;
+        badge.innerText = isThought ? 'AGENT REASONING (COT)' : (isEntity ? 'KNOWLEDGE ENTITY' : (node.epistemic_class || 'FACT').toUpperCase());
+        badge.className = `text-[9px] px-1.5 py-0.5 rounded font-bold uppercase shrink-0 border ${isThought ? 'text-[#ddb7ff] bg-purple-500/20 border-purple-500/40' : (isEntity ? 'text-[#ffd166] bg-[#ffd166]/10 border-[#ffd166]/30' : 'text-secondary-container bg-surface-container-high border-secondary-container/30')}`;
       }
 
       const rootHead = document.getElementById('drawer-merkle-root-head');
@@ -3989,15 +4135,93 @@
       if (replayBar) replayBar.classList.add('hidden');
       if (nodeBar) nodeBar.classList.remove('hidden');
       const targetLabel = document.getElementById('node-target-label');
-      if (targetLabel) targetLabel.innerText = isEntity ? `KNOWLEDGE ENTITY // ${node.title}` : `MEMORY VOXEL // ${node.id || ''}`;
+      if (targetLabel) targetLabel.innerText = isThought ? `AGENT REASONING // ${node.agent_id || 'COT'}` : (isEntity ? `KNOWLEDGE ENTITY // ${node.title}` : `MEMORY VOXEL // ${node.id || ''}`);
       const tabLabel = document.getElementById('tab-label-replay');
-      if (tabLabel) tabLabel.innerText = 'Node Inspector';
+      if (tabLabel) tabLabel.innerText = isThought ? 'Reasoning Inspector' : 'Node Inspector';
 
       // Update Proof and MCP tabs
       updateNodeProofDisplay(node);
       updateNodeMcpBundle(node);
 
       const container = document.getElementById('replay-turn-container');
+      if (isThought) {
+        container.innerHTML = `
+          <div class="p-3 border-l-2 border-purple-500 bg-[#0c0915] ring-1 ring-purple-500/40 space-y-3 font-mono">
+            <div class="flex items-center justify-between text-[9px] font-bold">
+              <span class="text-[#ddb7ff] flex items-center gap-1">
+                <span class="material-symbols-outlined text-[13px] text-purple-400">psychology</span>
+                <span>AGENT CHAIN-OF-THOUGHT (COT)</span>
+              </span>
+              <div class="flex items-center gap-1">
+                <span class="text-secondary-container bg-secondary-container/10 border border-secondary-container/30 px-1.5 py-0.5 rounded text-[8px] uppercase font-bold">AGENT: ${(node.agent_id || 'AGENT').toUpperCase()}</span>
+                <span class="px-1.5 py-0.5 rounded border bg-purple-500/10 border-purple-500/40 text-[8px] uppercase tracking-wider font-bold text-[#ddb7ff]">
+                  AUDITED
+                </span>
+              </div>
+            </div>
+
+            <!-- Session & Turn Meta -->
+            <div class="p-2 rounded bg-surface-container-lowest border border-outline-variant/30 flex items-center justify-between text-[10px]">
+              <div>Session: <strong class="text-primary cursor-pointer hover:underline" onclick="window.openSessionInDialogue('${node.session_id}')">${node.session_id}</strong></div>
+              <div class="text-neutral-400">Exchange: <span class="font-mono text-outline">${(node.exchange_id || '').substring(0, 14)}</span></div>
+            </div>
+
+            ${node.prompt_text ? `
+              <div class="p-2.5 rounded bg-amber-500/10 border border-amber-500/30 text-[10px] space-y-1">
+                <div class="flex items-center justify-between text-[9px] font-bold text-amber-400 uppercase">
+                  <span>Triggering User Prompt:</span>
+                  <span class="material-symbols-outlined text-[12px]">person</span>
+                </div>
+                <div class="text-neutral-200 line-clamp-3">${node.prompt_text}</div>
+              </div>
+            ` : ''}
+
+            <!-- Full Reasoning Text Box -->
+            <div class="space-y-1">
+              <div class="flex items-center justify-between text-[9px] font-bold text-purple-400 uppercase">
+                <span class="flex items-center gap-1">
+                  <span class="w-1.5 h-1.5 rounded-full bg-purple-400 animate-pulse"></span>
+                  Internal Deliberation Stream (${(node.content || '').length} chars):
+                </span>
+                <button onclick="navigator.clipboard.writeText(unescape(\`${encodeURIComponent(node.content || '')}\`)); alert('Chain-of-thought copied to clipboard!');" class="text-[8px] px-1.5 py-0.5 rounded bg-purple-500/20 hover:bg-purple-500 hover:text-black border border-purple-500/40 text-purple-300">
+                  Copy Thought
+                </button>
+              </div>
+              <div class="p-3 rounded bg-[#07050d] border border-purple-500/40 text-purple-200 text-[11px] leading-relaxed max-h-72 overflow-y-auto whitespace-pre-wrap select-text shadow-[inset_0_0_15px_rgba(168,85,247,0.15)] scrollbar-thin">
+                ${node.content}
+              </div>
+            </div>
+
+            ${node.response_text ? `
+              <div class="p-2.5 rounded bg-purple-900/15 border border-purple-400/30 text-[10px] space-y-1">
+                <div class="flex items-center justify-between text-[9px] font-bold text-purple-300 uppercase">
+                  <span>Resulting Synthesis:</span>
+                  <span class="material-symbols-outlined text-[12px]">forum</span>
+                </div>
+                <div class="text-neutral-300 line-clamp-3">${node.response_text}</div>
+              </div>
+            ` : ''}
+
+            <!-- Quick Action Hub -->
+            <div class="pt-2 border-t border-purple-500/30 flex items-center gap-2">
+              <button onclick="window.openSessionInDialogue('${node.session_id}')" class="flex-1 py-1.5 bg-primary-container text-on-primary-container hover:bg-secondary-container font-bold text-[10px] rounded flex items-center justify-center gap-1 shadow transition-colors">
+                <span class="material-symbols-outlined text-[13px]">forum</span>
+                <span>Open in Dialogue Graph</span>
+              </button>
+              <button onclick="window.openSessionRebuilderModal('${node.session_id}')" class="flex-1 py-1.5 bg-gradient-to-r from-cyan-500/20 to-purple-600/30 hover:from-cyan-500/40 hover:to-purple-600/50 border border-primary-container/40 text-primary hover:text-white font-bold text-[10px] rounded flex items-center justify-center gap-1 transition-all">
+                <span class="material-symbols-outlined text-[13px]">history_edu</span>
+                <span>Rebuild Session</span>
+              </button>
+            </div>
+
+            <div class="p-2 rounded bg-surface-container-lowest font-mono text-[9px] text-neutral-400 flex items-center justify-between">
+              <div>Turn Hash: <span class="text-primary font-mono">${(node.hash || '').substring(0, 16)}...</span></div>
+              <div class="text-[#00ffa3] font-bold">✓ MERKLE ANCHORED</div>
+            </div>
+          </div>
+        `;
+        return;
+      }
       const classColor = node.epistemic_class === 'rule' ? 'text-secondary-container' : (node.epistemic_class === 'inference' ? 'text-[#ddb7ff]' : (node.epistemic_class === 'belief' ? 'text-amber-400' : (node.epistemic_class === 'decision' ? 'text-[#34d399]' : (node.epistemic_class === 'goal' ? 'text-rose-400' : 'text-primary-container'))));
       const classBg = node.epistemic_class === 'rule' ? 'bg-secondary-container/10 border-secondary-container/40' : (node.epistemic_class === 'inference' ? 'bg-purple-500/10 border-purple-500/40' : (node.epistemic_class === 'belief' ? 'bg-amber-500/10 border-amber-500/40' : (node.epistemic_class === 'decision' ? 'bg-emerald-500/10 border-emerald-500/40' : (node.epistemic_class === 'goal' ? 'bg-rose-500/10 border-rose-500/40' : 'bg-primary-container/10 border-primary-container/40'))));
 
@@ -5068,6 +5292,8 @@
           if (data.stats) {
             const nodeCountEl = document.getElementById('header-nodes-count');
             if (nodeCountEl) nodeCountEl.innerText = `${data.stats.total_nodes} 3D VOXELS`;
+            const thoughtsCountEl = document.getElementById('ribbon-thoughts-count');
+            if (thoughtsCountEl) thoughtsCountEl.innerText = `${data.stats.thoughts_count || 0}`;
           }
         }
       } catch (err) {
@@ -6261,6 +6487,289 @@ ${staticFacts.length > 0 ? `## Static Knowledge Core:\n${staticFacts.map(f => `-
     window.closeAISAuditModal = function() {
       const modal = document.getElementById('ais-audit-report-modal');
       if (modal) modal.classList.add('hidden');
+    };
+
+    // -------------------------------------------------------------------------
+    // FORENSIC SESSION REBUILD CONTROLLER
+    // -------------------------------------------------------------------------
+    window.currentRebuildData = null;
+    window.activeRebuildFilter = 'all';
+
+    window.openSessionInDialogue = function(sessionId) {
+      if (!sessionId) return;
+      if (window.closeSessionRebuilderModal) window.closeSessionRebuilderModal();
+      switchView('dialogue');
+      const sel = document.getElementById('dialogue-session-select');
+      if (sel) {
+        sel.value = sessionId;
+        if (window.onDialogueSessionChange) {
+          window.onDialogueSessionChange(sessionId);
+        }
+      }
+    };
+
+    window.openSessionRebuilderModal = async function(sessionId) {
+      const modal = document.getElementById('session-rebuilder-modal');
+      if (!modal) return;
+      modal.classList.remove('hidden');
+
+      const targetSession = sessionId || currentDialogueSessionId || 'sess_01JMQ9X0A1F7B3C8D4E5';
+      const container = document.getElementById('rebuild-timeline-container');
+      if (container) {
+        container.innerHTML = `
+          <div class="p-12 text-center text-outline animate-pulse flex flex-col items-center justify-center gap-2">
+            <span class="material-symbols-outlined text-3xl text-cyan-400 animate-spin">refresh</span>
+            <span class="text-xs">Reconstructing session interaction stream from cryptographic provenance ledger...</span>
+          </div>
+        `;
+      }
+
+      // Reset filters
+      window.activeRebuildFilter = 'all';
+      const searchInput = document.getElementById('rebuild-search-input');
+      if (searchInput) searchInput.value = '';
+      updateRebuildFilterButtons('all');
+
+      try {
+        const resp = await fetch(`/api/sessions/${encodeURIComponent(targetSession)}/rebuild`);
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        const data = await resp.json();
+        window.currentRebuildData = data;
+
+        // Populate Header
+        const sessEl = document.getElementById('rebuild-session-id');
+        if (sessEl) sessEl.innerText = data.session_id || targetSession;
+        const agentPill = document.getElementById('rebuild-agent-pill');
+        if (agentPill) agentPill.innerText = `AGENT // ${(data.agent_id || 'AGENT').toUpperCase()}`;
+        const durPill = document.getElementById('rebuild-duration-pill');
+        if (durPill) durPill.innerText = data.duration_formatted || '0s';
+        const rootEl = document.getElementById('rebuild-merkle-root');
+        if (rootEl) rootEl.innerText = data.merkle_root ? `0x${data.merkle_root.substring(0, 16)}...` : '0x000...';
+
+        // Populate KPI stats
+        const counts = data.counts || {};
+        const setVal = (id, v) => { const el = document.getElementById(id); if (el) el.innerText = v; };
+        setVal('rebuild-stat-turns', data.turn_count || 0);
+        setVal('rebuild-stat-steps', data.step_count || (data.timeline ? data.timeline.length : 0));
+        setVal('rebuild-stat-prompts', counts.user_prompts || 0);
+        setVal('rebuild-stat-thoughts', counts.agent_thoughts || 0);
+        setVal('rebuild-stat-tools', counts.tool_actions || 0);
+        setVal('rebuild-stat-anchors', counts.merkle_anchors || 0);
+
+        renderRebuildTimeline(data.timeline || []);
+      } catch (err) {
+        console.warn("Rebuild fetch failed:", err);
+        if (container) {
+          container.innerHTML = `
+            <div class="p-8 text-center text-rose-400 border border-rose-500/30 rounded bg-rose-500/10">
+              <span class="material-symbols-outlined text-2xl block mb-1">error</span>
+              <span class="font-bold">Failed to reconstruct session:</span> ${escapeHtml(err.message)}
+            </div>
+          `;
+        }
+      }
+    };
+
+    window.closeSessionRebuilderModal = function() {
+      const modal = document.getElementById('session-rebuilder-modal');
+      if (modal) modal.classList.add('hidden');
+    };
+
+    function updateRebuildFilterButtons(active) {
+      document.querySelectorAll('#rebuild-filter-pills button').forEach(btn => {
+        if (btn.dataset.rfilter === active) {
+          btn.className = "px-2 py-0.5 rounded bg-primary-container text-on-primary-container font-bold";
+        } else {
+          btn.className = "px-2 py-0.5 rounded text-neutral-400 hover:text-white";
+        }
+      });
+    }
+
+    window.filterRebuildTimeline = function(filter) {
+      window.activeRebuildFilter = filter;
+      updateRebuildFilterButtons(filter);
+      applyRebuildFilters();
+    };
+
+    window.searchRebuildTimeline = function(query) {
+      applyRebuildFilters();
+    };
+
+    function applyRebuildFilters() {
+      if (!window.currentRebuildData || !window.currentRebuildData.timeline) return;
+      const filter = window.activeRebuildFilter;
+      const query = (document.getElementById('rebuild-search-input')?.value || '').toLowerCase().trim();
+
+      const filtered = window.currentRebuildData.timeline.filter(step => {
+        // 1. Filter by category / type
+        if (filter === 'prompt' && step.step_type !== 'user_prompt') return false;
+        if (filter === 'thought' && step.step_type !== 'agent_thought') return false;
+        if (filter === 'command' && step.category !== 'command') return false;
+        if (filter === 'file' && step.category !== 'file_read' && step.category !== 'file_edit') return false;
+        if (filter === 'response' && step.step_type !== 'agent_response') return false;
+
+        // 2. Filter by search query
+        if (query) {
+          const matchTitle = (step.title || '').toLowerCase().includes(query);
+          const matchContent = (step.content || '').toLowerCase().includes(query);
+          const matchCmd = (step.command_line || '').toLowerCase().includes(query);
+          const matchPath = (step.file_path || '').toLowerCase().includes(query);
+          const matchTool = (step.tool_name || '').toLowerCase().includes(query);
+          if (!matchTitle && !matchContent && !matchCmd && !matchPath && !matchTool) return false;
+        }
+
+        return true;
+      });
+
+      renderRebuildTimeline(filtered);
+    }
+
+    function renderRebuildTimeline(steps) {
+      const container = document.getElementById('rebuild-timeline-container');
+      if (!container) return;
+
+      if (!steps || steps.length === 0) {
+        container.innerHTML = `
+          <div class="p-8 text-center text-outline border border-outline-variant/20 rounded bg-surface-container-lowest">
+            No steps match the active filter criteria.
+          </div>
+        `;
+        return;
+      }
+
+      container.innerHTML = steps.map((step, idx) => {
+        const isPrompt = step.step_type === 'user_prompt';
+        const isThought = step.step_type === 'agent_thought';
+        const isTool = step.step_type === 'tool_execution';
+        const isResp = step.step_type === 'agent_response';
+        const isAnchor = step.step_type === 'merkle_anchor';
+
+        let borderColor = 'border-outline-variant/30';
+        let badgeBg = 'bg-surface-container-high text-white';
+        let iconName = step.icon || 'terminal';
+        let accentColor = '#38bdf8';
+
+        if (isPrompt) {
+          borderColor = 'border-amber-500/40 bg-amber-500/5';
+          badgeBg = 'bg-amber-500/20 text-amber-300 border border-amber-500/40';
+          accentColor = '#f59e0b';
+        } else if (isThought) {
+          borderColor = 'border-purple-500/40 bg-[#0e0918]';
+          badgeBg = 'bg-purple-500/20 text-[#ddb7ff] border border-purple-500/40';
+          accentColor = '#a855f7';
+        } else if (isTool) {
+          if (step.category === 'command') {
+            borderColor = 'border-cyan-500/40 bg-[#061017]';
+            badgeBg = 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40';
+            accentColor = '#00f0ff';
+          } else if (step.category === 'file_read' || step.category === 'file_edit') {
+            borderColor = 'border-amber-400/30 bg-[#120e06]';
+            badgeBg = 'bg-amber-400/20 text-amber-300 border border-amber-400/30';
+            accentColor = '#fbbf24';
+          } else {
+            borderColor = 'border-primary-container/30 bg-surface-container-lowest';
+            badgeBg = 'bg-primary-container/20 text-primary-container border border-primary-container/30';
+            accentColor = '#38bdf8';
+          }
+        } else if (isResp) {
+          borderColor = 'border-purple-400/30 bg-purple-900/10';
+          badgeBg = 'bg-purple-400/20 text-purple-200 border border-purple-400/30';
+          accentColor = '#c084fc';
+        } else if (isAnchor) {
+          borderColor = 'border-emerald-500/30 bg-emerald-500/5';
+          badgeBg = 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40';
+          accentColor = '#00ffa3';
+        }
+
+        return `
+          <div class="p-3 rounded-lg border ${borderColor} space-y-2 relative transition-all hover:ring-1 hover:ring-cyan-500/30">
+            <!-- Step Header Bar -->
+            <div class="flex items-center justify-between text-[10px] flex-wrap gap-1">
+              <div class="flex items-center gap-2">
+                <span class="w-5 h-5 rounded flex items-center justify-center font-bold text-[9px] bg-surface-container-high text-white">#${step.step_index}</span>
+                <span class="px-1.5 py-0.5 rounded text-[8px] font-bold ${badgeBg}">${step.actor_label}</span>
+                <span class="text-white font-bold text-[11px]">${escapeHtml(step.title || '')}</span>
+              </div>
+              <div class="flex items-center gap-2 text-outline text-[9px]">
+                <span class="text-secondary-container font-mono">${escapeHtml(step.relative_time || '+00:00.000')}</span>
+                <span class="text-outline">|</span>
+                <span>${escapeHtml(step.timestamp || '')}</span>
+                <span class="px-1.5 py-0.2 rounded bg-surface-container-high text-outline text-[8px]">Turn ${step.turn_index}</span>
+              </div>
+            </div>
+
+            <!-- Specific Content Card by Step Type -->
+            ${isPrompt ? `
+              <div class="p-2.5 rounded bg-surface-container-lowest border border-amber-500/20 text-neutral-100 text-[11px] leading-relaxed whitespace-pre-wrap select-all">
+                ${escapeHtml(step.content || '')}
+              </div>
+            ` : ''}
+
+            ${isThought ? `
+              <div class="space-y-1">
+                <div class="flex items-center justify-between text-[9px] text-purple-400 font-bold">
+                  <span>CHAIN-OF-THOUGHT REASONING DELIBERATION (${step.char_count || (step.content || '').length} chars):</span>
+                  <button onclick="navigator.clipboard.writeText(unescape(\`${encodeURIComponent(step.content || '')}\`)); alert('Thought copied!');" class="hover:text-white text-[8px] px-1 py-0.2 bg-purple-500/20 rounded">Copy</button>
+                </div>
+                <div class="p-3 rounded bg-[#07050d] border border-purple-500/30 text-purple-200 text-[11px] leading-relaxed max-h-56 overflow-y-auto whitespace-pre-wrap select-all shadow-inner scrollbar-thin">
+                  ${escapeHtml(step.content || '')}
+                </div>
+              </div>
+            ` : ''}
+
+            ${isTool ? `
+              <div class="space-y-1.5">
+                ${step.command_line ? `
+                  <div class="p-2.5 rounded bg-black/60 border border-cyan-500/30 font-mono text-cyan-200 text-[11px] flex items-center justify-between">
+                    <span class="break-all select-all font-bold">$ ${escapeHtml(step.command_line)}</span>
+                    <button onclick="navigator.clipboard.writeText(unescape(\`${encodeURIComponent(step.command_line)}\`)); alert('Command copied!');" class="text-cyan-400 hover:text-white ml-2 shrink-0" title="Copy command">
+                      <span class="material-symbols-outlined text-[13px]">content_copy</span>
+                    </button>
+                  </div>
+                ` : ''}
+                ${step.file_path ? `
+                  <div class="p-2 rounded bg-black/40 border border-amber-400/20 text-amber-200 text-[10px] flex items-center gap-2">
+                    <span class="material-symbols-outlined text-[14px]">description</span>
+                    <span class="font-bold select-all">${escapeHtml(step.file_path)}</span>
+                  </div>
+                ` : ''}
+                <details class="text-[9px] text-neutral-400">
+                  <summary class="cursor-pointer hover:text-white uppercase font-bold py-0.5">View Execution Arguments / Payload</summary>
+                  <pre class="p-2 rounded bg-surface-container-lowest border border-outline-variant/30 text-[10px] overflow-x-auto text-neutral-300 max-h-36">${escapeHtml(step.content || '')}</pre>
+                </details>
+              </div>
+            ` : ''}
+
+            ${isResp ? `
+              <div class="p-3 rounded bg-surface-container-lowest border border-purple-400/20 text-neutral-200 text-[11px] leading-relaxed max-h-60 overflow-y-auto whitespace-pre-wrap select-all">
+                ${escapeHtml(step.content || '')}
+              </div>
+            ` : ''}
+
+            ${isAnchor ? `
+              <div class="p-2 rounded bg-surface-container-lowest border border-emerald-500/20 flex items-center justify-between text-[10px]">
+                <div class="flex items-center gap-2">
+                  <span class="material-symbols-outlined text-emerald-400 text-[15px]">verified_user</span>
+                  <span class="text-neutral-300">${escapeHtml(step.summary || '')}</span>
+                </div>
+                <span class="text-emerald-400 font-bold text-[9px]">HASH VERIFIED</span>
+              </div>
+            ` : ''}
+          </div>
+        `;
+      }).join('');
+    }
+
+    window.copyRebuildJson = function() {
+      if (!window.currentRebuildData) return;
+      navigator.clipboard.writeText(JSON.stringify(window.currentRebuildData, null, 2));
+      alert("Full session rebuild JSON copied to clipboard!");
+    };
+
+    window.exportRebuildMarkdown = function() {
+      if (!window.currentRebuildData || !window.currentRebuildData.markdown_transcript) return;
+      navigator.clipboard.writeText(window.currentRebuildData.markdown_transcript);
+      alert("Formatted Markdown Session Audit Transcript copied to clipboard!");
     };
 
     window.runContradictionScan = async function() {
@@ -9262,6 +9771,7 @@ ${staticFacts.length > 0 ? `## Static Knowledge Core:\n${staticFacts.map(f => `-
         if (window.closeMemoryAuditModal) window.closeMemoryAuditModal();
         if (window.closeAISAuditModal) window.closeAISAuditModal();
         if (window.closeDialogueNodeModal) window.closeDialogueNodeModal();
+        if (window.closeSessionRebuilderModal) window.closeSessionRebuilderModal();
       }
       if (e.key.toLowerCase() === 'z') toggleZenFlight();
       if (e.key.toLowerCase() === 'c') openNewMemoryModal();

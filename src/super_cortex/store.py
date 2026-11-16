@@ -4,6 +4,7 @@ import hashlib
 import json
 import sqlite3
 import uuid
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -864,6 +865,327 @@ class ProvenanceStore:
             })
 
         return actions
+
+    def rebuild_session(self, session_id: str) -> dict[str, Any]:
+        """Reconstruct the complete chronological session timeline between user and agent.
+        
+        Unfolds every turn into sequential atomic steps with exact timestamps, user prompts,
+        agent reasoning (chain-of-thought), tool executions (commands, file operations, MCP calls),
+        synthesis responses, and cryptographic Merkle leaf anchors.
+        """
+        turns = self.get_session_turns(session_id)
+        if not turns:
+            return {
+                "session_id": session_id,
+                "found": False,
+                "error": f"Session '{session_id}' not found in provenance ledger.",
+                "turn_count": 0,
+                "step_count": 0,
+                "timeline": [],
+                "counts": {},
+                "markdown_transcript": f"# Session Rebuild: {session_id}\n\nNo records found in provenance ledger.",
+            }
+
+        root = self.session_merkle_root(session_id)
+
+        first_turn = turns[0]
+        last_turn = turns[-1]
+        start_ts = first_turn.get("created_at") or ""
+        end_ts = last_turn.get("created_at") or ""
+
+        dt_start = None
+        dt_end = None
+        try:
+            dt_start = datetime.fromisoformat(start_ts.replace("Z", "+00:00"))
+            dt_end = datetime.fromisoformat(end_ts.replace("Z", "+00:00"))
+        except Exception:
+            pass
+
+        duration_sec = 0.0
+        if dt_start and dt_end:
+            duration_sec = max(0.0, (dt_end - dt_start).total_seconds())
+
+        mins = int(duration_sec // 60)
+        secs = int(duration_sec % 60)
+        duration_fmt = f"{mins}m {secs}s" if mins > 0 else f"{duration_sec:.2f}s"
+
+        timeline: list[dict[str, Any]] = []
+        global_step = 1
+        agent_id = first_turn.get("agent_id") or "agent"
+        scope_id = first_turn.get("scope_id") or f"agent:{agent_id}"
+
+        counts = {
+            "user_prompts": 0,
+            "agent_thoughts": 0,
+            "tool_actions": 0,
+            "agent_responses": 0,
+            "merkle_anchors": 0,
+            "commands": 0,
+            "file_reads": 0,
+            "file_edits": 0,
+            "mcp_calls": 0,
+            "other_tools": 0,
+        }
+
+        for t_idx, turn in enumerate(turns, start=1):
+            ts = turn.get("created_at") or ""
+            delta_str = "+00:00.000"
+            try:
+                dt_curr = datetime.fromisoformat(ts.replace("Z", "+00:00"))
+                if dt_start and dt_curr:
+                    delta_sec = max(0.0, (dt_curr - dt_start).total_seconds())
+                    d_mins = int(delta_sec // 60)
+                    d_s = delta_sec % 60
+                    delta_str = f"+{d_mins:02d}:{d_s:06.3f}"
+            except Exception:
+                pass
+
+            p_text = (turn.get("prompt_text") or "").strip()
+            th_text = (turn.get("thinking_text") or "").strip()
+            r_text = (turn.get("response_text") or "").strip()
+            tools = turn.get("tool_calls") or []
+
+            # 1. User Prompt
+            timeline.append({
+                "step_index": global_step,
+                "turn_index": t_idx,
+                "timestamp": ts,
+                "relative_time": delta_str,
+                "actor": "user",
+                "actor_label": "USER",
+                "step_type": "user_prompt",
+                "category": "intent",
+                "title": f"Turn {t_idx} Instruction",
+                "summary": p_text[:120] + ("..." if len(p_text) > 120 else ""),
+                "content": p_text,
+                "hash": turn.get("turn_hash", ""),
+                "icon": "person",
+                "color": "#f59e0b",
+                "exchange_id": turn.get("exchange_id"),
+            })
+            global_step += 1
+            counts["user_prompts"] += 1
+
+            # 2. Agent Chain-of-Thought
+            if th_text:
+                timeline.append({
+                    "step_index": global_step,
+                    "turn_index": t_idx,
+                    "timestamp": ts,
+                    "relative_time": delta_str,
+                    "actor": "agent",
+                    "actor_label": f"AGENT // {agent_id.upper()}",
+                    "step_type": "agent_thought",
+                    "category": "reasoning",
+                    "title": f"Turn {t_idx} Reasoning (COT)",
+                    "summary": th_text[:120] + ("..." if len(th_text) > 120 else ""),
+                    "content": th_text,
+                    "char_count": len(th_text),
+                    "hash": turn.get("turn_hash", ""),
+                    "icon": "psychology",
+                    "color": "#a855f7",
+                    "exchange_id": turn.get("exchange_id"),
+                })
+                global_step += 1
+                counts["agent_thoughts"] += 1
+
+            # 3. Tool Calls
+            for tool_sub_idx, t in enumerate(tools, start=1):
+                t_name = t.get("name") or t.get("tool_name") or "tool"
+                t_args = t.get("args") or t.get("arguments") or {}
+                if isinstance(t_args, str):
+                    try:
+                        t_args = json.loads(t_args)
+                    except Exception:
+                        t_args = {"raw": t_args}
+                elif not isinstance(t_args, dict):
+                    t_args = {}
+
+                tn_low = t_name.lower()
+                cmd_line = None
+                file_path = None
+
+                if any(k in tn_low for k in ("command", "bash", "exec", "sh")):
+                    cat = "command"
+                    icon = "terminal"
+                    color = "#00f0ff"
+                    cmd = t_args.get("CommandLine") or t_args.get("command") or t_args.get("cmd") or t_name
+                    if isinstance(cmd, str):
+                        cmd = cmd.strip()
+                    summary = t_args.get("toolSummary") or t_args.get("summary") or cmd
+                    title = f"$ {cmd}" if cmd else f"Command: {str(summary)[:60]}"
+                    cmd_line = cmd
+                    counts["commands"] += 1
+                elif any(k in tn_low for k in ("read_file", "view_file", "cat")):
+                    cat = "file_read"
+                    icon = "find_in_page"
+                    color = "#fbbf24"
+                    path = t_args.get("Path") or t_args.get("path") or "file"
+                    file_path = str(path)
+                    title = f"Read: {file_path.split('/')[-1]}"
+                    counts["file_reads"] += 1
+                elif any(k in tn_low for k in ("write_file", "edit_file", "patch")):
+                    cat = "file_edit"
+                    icon = "edit_document"
+                    color = "#fb923c"
+                    path = t_args.get("Path") or t_args.get("path") or "file"
+                    file_path = str(path)
+                    title = f"Edit: {file_path.split('/')[-1]}"
+                    counts["file_edits"] += 1
+                elif any(k in tn_low for k in ("mcp", "memory_", "super_", "cortex")):
+                    cat = "mcp"
+                    icon = "hub"
+                    color = "#c084fc"
+                    title = f"MCP: {t_name.replace('memory_', '')}"
+                    counts["mcp_calls"] += 1
+                else:
+                    cat = "tool"
+                    icon = "build"
+                    color = "#38bdf8"
+                    title = f"Action: {t_name}"
+                    counts["other_tools"] += 1
+
+                timeline.append({
+                    "step_index": global_step,
+                    "turn_index": t_idx,
+                    "tool_index": tool_sub_idx,
+                    "timestamp": ts,
+                    "relative_time": delta_str,
+                    "actor": "agent",
+                    "actor_label": f"AGENT // {agent_id.upper()}",
+                    "step_type": "tool_execution",
+                    "category": cat,
+                    "tool_name": t_name,
+                    "title": title,
+                    "summary": title,
+                    "arguments": t_args,
+                    "command_line": cmd_line,
+                    "file_path": file_path,
+                    "content": json.dumps(t_args, indent=2),
+                    "hash": turn.get("turn_hash", ""),
+                    "icon": icon,
+                    "color": color,
+                    "exchange_id": turn.get("exchange_id"),
+                })
+                global_step += 1
+                counts["tool_actions"] += 1
+
+            # 4. Agent Synthesis
+            if r_text:
+                timeline.append({
+                    "step_index": global_step,
+                    "turn_index": t_idx,
+                    "timestamp": ts,
+                    "relative_time": delta_str,
+                    "actor": "agent",
+                    "actor_label": f"AGENT // {agent_id.upper()}",
+                    "step_type": "agent_response",
+                    "category": "synthesis",
+                    "title": f"Turn {t_idx} Model Synthesis",
+                    "summary": r_text[:120] + ("..." if len(r_text) > 120 else ""),
+                    "content": r_text,
+                    "char_count": len(r_text),
+                    "hash": turn.get("turn_hash", ""),
+                    "icon": "forum",
+                    "color": "#c084fc",
+                    "exchange_id": turn.get("exchange_id"),
+                })
+                global_step += 1
+                counts["agent_responses"] += 1
+
+            # 5. Merkle Anchor
+            timeline.append({
+                "step_index": global_step,
+                "turn_index": t_idx,
+                "timestamp": ts,
+                "relative_time": delta_str,
+                "actor": "provenance",
+                "actor_label": "MERKLE PROVENANCE",
+                "step_type": "merkle_anchor",
+                "category": "merkle",
+                "title": f"Turn {t_idx} Cryptographic Anchor",
+                "summary": f"Leaf: 0x{turn.get('turn_hash', '')[:16]} | Parent: 0x{turn.get('parent_hash', '')[:16]}",
+                "content": json.dumps({
+                    "turn_hash": turn.get("turn_hash"),
+                    "parent_hash": turn.get("parent_hash"),
+                    "exchange_id": turn.get("exchange_id"),
+                    "turn_index": t_idx,
+                }, indent=2),
+                "hash": turn.get("turn_hash", ""),
+                "icon": "verified",
+                "color": "#00ffa3",
+                "exchange_id": turn.get("exchange_id"),
+            })
+            global_step += 1
+            counts["merkle_anchors"] += 1
+
+        md_lines = [
+            f"# Session Forensic Rebuild & Audit Manifest",
+            f"",
+            f"- **Session ID:** `{session_id}`",
+            f"- **Agent ID:** `{agent_id}` | **Scope:** `{scope_id}`",
+            f"- **Domain-Separated Merkle Root:** `0x{root}`",
+            f"- **Session Window:** `{start_ts}` to `{end_ts}` ({duration_fmt})",
+            f"- **Total Turns:** `{len(turns)}` | **Total Atomic Steps:** `{len(timeline)}`",
+            f"- **Action Breakdown:** {counts['user_prompts']} Prompts, {counts['agent_thoughts']} Thoughts, {counts['tool_actions']} Tools ({counts['commands']} CLI, {counts['file_reads']} Reads, {counts['file_edits']} Edits, {counts['mcp_calls']} MCP), {counts['agent_responses']} Responses",
+            f"",
+            f"---",
+            f"",
+            f"## Reconstructed Interaction Stream",
+            f"",
+        ]
+
+        for step in timeline:
+            s_idx = step["step_index"]
+            t_idx = step["turn_index"]
+            r_time = step["relative_time"]
+            ts_str = step["timestamp"]
+            s_type = step["step_type"]
+
+            if s_type == "user_prompt":
+                md_lines.append(f"### [Step {s_idx:02d} | Turn {t_idx}] {ts_str} ({r_time}) 👤 USER INSTRUCTION")
+                md_lines.append(f"> {step['content']}")
+                md_lines.append(f"")
+            elif s_type == "agent_thought":
+                md_lines.append(f"### [Step {s_idx:02d} | Turn {t_idx}] {ts_str} ({r_time}) 🧠 AGENT REASONING (COT)")
+                md_lines.append(f"```text\n{step['content']}\n```")
+                md_lines.append(f"")
+            elif s_type == "tool_execution":
+                t_name = step.get("tool_name", "tool")
+                md_lines.append(f"### [Step {s_idx:02d} | Turn {t_idx}] {ts_str} ({r_time}) ⚡ ACTION: {t_name}")
+                if step.get("command_line"):
+                    md_lines.append(f"```bash\n$ {step['command_line']}\n```")
+                elif step.get("file_path"):
+                    md_lines.append(f"**Path:** `{step['file_path']}`")
+                md_lines.append(f"```json\n{step['content']}\n```")
+                md_lines.append(f"")
+            elif s_type == "agent_response":
+                md_lines.append(f"### [Step {s_idx:02d} | Turn {t_idx}] {ts_str} ({r_time}) 💬 AGENT SYNTHESIS")
+                md_lines.append(f"{step['content']}")
+                md_lines.append(f"")
+            elif s_type == "merkle_anchor":
+                md_lines.append(f"### [Step {s_idx:02d} | Turn {t_idx}] {ts_str} ({r_time}) 🔒 MERKLE LEAF ANCHOR")
+                md_lines.append(f"- **Turn Hash:** `0x{step['hash']}`")
+                md_lines.append(f"")
+
+        markdown_transcript = "\n".join(md_lines)
+
+        return {
+            "session_id": session_id,
+            "found": True,
+            "agent_id": agent_id,
+            "scope_id": scope_id,
+            "merkle_root": root,
+            "start_time": start_ts,
+            "end_time": end_ts,
+            "duration_seconds": duration_sec,
+            "duration_formatted": duration_fmt,
+            "turn_count": len(turns),
+            "step_count": len(timeline),
+            "counts": counts,
+            "timeline": timeline,
+            "markdown_transcript": markdown_transcript,
+        }
 
     def save_scope(self, scope: ScopeRecord) -> None:
         """Store or update a memory scope."""
