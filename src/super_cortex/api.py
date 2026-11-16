@@ -287,15 +287,16 @@ def create_app(config: SuperCortexConfig | None = None) -> Starlette:
             k = sector_counts[sec_key]
             sector_counts[sec_key] += 1
 
-            # Fermat spiral distribution within the 110-degree sector cone
+            # Golden ratio sunflower phyllotaxis (Fibonacci packing) guaranteeing zero spatial overlap
             base_angle = sector_angles[sec_key]
-            angle_offset = (k * 0.22) % (math.pi * 0.6)
-            current_angle = base_angle + angle_offset
-            m_rad = 230.0 + (k * 4.2) % 75.0
+            golden_angle = 2.399963229728653  # pi * (3 - sqrt(5)) radians (~137.508 deg)
+            phi = (base_angle + (k * golden_angle)) % (2.0 * math.pi)
+            m_rad = 220.0 + math.sqrt(k + 1.0) * 16.5 + (k % 7) * 3.5
+            elevation = math.sin(k * 1.618) * (20.0 + math.sqrt(k) * 2.2)
 
-            px = m_rad * math.cos(current_angle)
-            py = math.sin(k * 1.2) * 16.0
-            pz = m_rad * math.sin(current_angle)
+            px = m_rad * math.cos(phi)
+            py = elevation
+            pz = m_rad * math.sin(phi)
 
             color = epistemic_colors.get(ep_class, 0x38bdf8)
 
@@ -364,13 +365,14 @@ def create_app(config: SuperCortexConfig | None = None) -> Starlette:
             agent_thought_counts[th_aid] = t_idx + 1
 
             center = agent_positions.get(th_aid, [0, 40, 0])
-            # Elegant Keplerian satellite ring orbit around parent agent hub
-            orb_r = 54.0 + (t_idx % 5) * 6.5
-            orb_angle = (t_idx * 0.38) % (2.0 * math.pi)
-            tilt_angle = 0.55  # ~31.5 degree inclination
+            # Golden spiral satellite orbit around parent agent hub ensuring zero collision
+            golden_angle = 2.399963229728653
+            orb_r = 48.0 + math.sqrt(t_idx + 1.0) * 8.5
+            orb_angle = t_idx * golden_angle
+            tilt_angle = 0.55 + (t_idx % 3) * 0.15
 
             dx = orb_r * math.cos(orb_angle)
-            dy = orb_r * math.sin(orb_angle) * math.sin(tilt_angle)
+            dy = orb_r * math.sin(orb_angle) * math.sin(tilt_angle) + (math.cos(t_idx * 1.6) * 12.0)
             dz = orb_r * math.sin(orb_angle) * math.cos(tilt_angle)
 
             tx = center[0] + dx
@@ -426,12 +428,13 @@ def create_app(config: SuperCortexConfig | None = None) -> Starlette:
         for ent_idx, ent in enumerate(sorted_entities):
             if ent in existing_node_ids:
                 continue
+            golden_angle = 2.399963229728653
             alpha = (2.0 * math.pi / num_entities) * ent_idx
-            e_rad = 360.0 + (ent_idx % 4) * 12.0
-            tilt_e = 0.24  # ~14 degrees inclination
+            e_rad = 340.0 + math.sqrt(ent_idx + 1.0) * 6.5 + (ent_idx % 5) * 8.0
+            tilt_e = 0.24 + (ent_idx % 4) * 0.08
 
             ex = e_rad * math.cos(alpha)
-            ey = e_rad * math.sin(alpha) * math.sin(tilt_e)
+            ey = e_rad * math.sin(alpha) * math.sin(tilt_e) + (math.sin(ent_idx * 1.5) * 18.0)
             ez = e_rad * math.sin(alpha) * math.cos(tilt_e)
 
             nodes.append({

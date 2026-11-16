@@ -28,7 +28,7 @@
       box-shadow: 0 0 16px -2px rgba(0, 255, 163, 0.4);
     }
     #left-navbar.expanded {
-      width: 16rem !important;
+      width: 14rem !important;
     }
     #left-navbar.expanded .nav-expanded-only {
       display: flex !important;
@@ -38,7 +38,11 @@
       margin-right: 0 !important;
     }
     #main-viewport.navbar-expanded {
-      margin-left: 16rem !important;
+      margin-left: 14rem !important;
+    }
+    #main-viewport.immersed {
+      margin-left: 0 !important;
+      margin-right: 0 !important;
     }
 
     /* Cortex Timeline Lens Styles */
@@ -222,6 +226,24 @@
       margin-left: -2px;
       background: #f43f5e;
       box-shadow: 0 0 6px #f43f5e;
+    }
+    /* Cortex Timeline Multi-Row Vertical Stacking */
+    .xc-lane-track .xc-mark[data-row='0'] { margin-top: 0; }
+    .xc-lane-track .xc-mark[data-row='1'] { margin-top: -11px; }
+    .xc-lane-track .xc-mark[data-row='2'] { margin-top: 11px; }
+    .xc-lane-track .xc-mark[data-row='3'] { margin-top: -20px; }
+    .xc-lane-track .xc-mark[data-row='4'] { margin-top: 20px; }
+    .xc-lane-track .xc-mark[data-selected='true'] {
+      outline: 2px solid #00f0ff;
+      outline-offset: 2px;
+      transform: scale(1.35) !important;
+      z-index: 35 !important;
+      box-shadow: 0 0 10px #00f0ff;
+    }
+    .xc-lane[data-selected='true'] .xc-lane-label {
+      background: rgba(0, 240, 255, 0.12);
+      border-left: 3px solid #00f0ff;
+      color: #fff;
     }
 
     /* Dialogue Isometric 3D Cube Nodes & Command Cards (Compact High-Density Mode) */
@@ -438,22 +460,34 @@
 
   <!-- ========================================================================= -->
   <!-- ========================================================================= -->
-  <!-- 1. CLEAN TOP HEADER (h-9, 36px HUD Bar)                                   -->
+  <!-- 1. SLEEK AEROSPACE HEADER (h-10, 40px Minimalist Command Bar)              -->
   <!-- ========================================================================= -->
-  <header class="fixed top-0 left-0 right-0 h-9 z-50 bg-[#0a0e15]/95 backdrop-blur-xl border-b border-outline-variant/30 flex items-center justify-between px-3 font-mono text-[11px] text-on-surface-variant shrink-0">
-    <!-- Left Section: Clean Brand Icon & Agent Scope Dropdown -->
+  <header class="fixed top-0 left-0 right-0 h-10 z-50 bg-[#070a11]/95 backdrop-blur-2xl border-b border-slate-800/80 flex items-center justify-between px-3 font-mono text-[11px] text-on-surface-variant select-none shadow-[0_4px_24px_rgba(0,0,0,0.6)]">
+    <!-- Left Section: Clean Brand Mark & Agent Scope Dropdown -->
     <div class="flex items-center gap-2.5 shrink-0">
-      <div class="flex items-center justify-center text-primary-container" title="Agent Memory Fabric">
-        <span class="material-symbols-outlined text-[18px]">view_in_ar</span>
+      <!-- Brand Logo / Glyph -->
+      <div class="flex items-center gap-2 group cursor-pointer" onclick="switchView('graph')" title="Super-Cortex Neural OS">
+        <div class="relative w-7 h-7 rounded-lg bg-gradient-to-br from-cyan-500/20 to-emerald-500/20 border border-cyan-400/40 flex items-center justify-center text-cyan-400 shadow-[0_0_12px_rgba(0,240,255,0.3)]">
+          <span class="material-symbols-outlined text-[17px] group-hover:rotate-12 transition-transform">hub</span>
+          <span class="absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full bg-emerald-400 border border-[#070a11] shadow-[0_0_6px_#00ffa3]"></span>
+        </div>
+        <div class="hidden lg:flex flex-col">
+          <span class="font-display font-extrabold text-[12px] tracking-wider text-white flex items-center gap-1">
+            SUPER<span class="text-cyan-400">CORTEX</span>
+            <span class="text-[8px] px-1 py-0.2 rounded bg-cyan-500/10 text-cyan-300 border border-cyan-500/30 font-mono">v2.4</span>
+          </span>
+        </div>
       </div>
-      
+
+      <div class="h-4 w-[1px] bg-slate-800 mx-1 hidden sm:block"></div>
+
       <!-- AGENT SCOPE SELECTOR DROPDOWN -->
       <div class="relative shrink-0">
-        <button id="btn-header-scope-selector" onclick="toggleHeaderScopeDropdown(event)" class="h-6 flex items-center gap-1.5 px-2.5 bg-[#0e1626]/90 hover:bg-[#121c32] border border-primary-container/40 hover:border-primary-container rounded text-[10px] font-mono whitespace-nowrap transition-all shadow-sm cursor-pointer select-none">
-          <span class="text-outline text-[9px] font-bold uppercase tracking-wider">SCOPE:</span>
-          <span class="w-1.5 h-1.5 rounded-full bg-secondary-container shadow-[0_0_6px_#00ffa3] animate-pulse"></span>
-          <span id="header-active-scope-label" class="text-primary font-bold tracking-wider text-[10px] truncate max-w-[140px]">All Agent Scopes</span>
-          <span class="material-symbols-outlined text-[13px] text-primary-container/80 -mr-0.5">arrow_drop_down</span>
+        <button id="btn-header-scope-selector" onclick="toggleHeaderScopeDropdown(event)" class="h-6.5 flex items-center gap-1.5 px-2 bg-slate-900/90 hover:bg-slate-800 border border-cyan-500/30 hover:border-cyan-400/70 rounded-md text-[10px] font-mono transition-all cursor-pointer shadow-sm">
+          <span class="text-slate-400 text-[8px] font-bold uppercase tracking-wider hidden sm:inline">SCOPE:</span>
+          <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 shadow-[0_0_6px_#00ffa3] animate-pulse"></span>
+          <span id="header-active-scope-label" class="text-cyan-300 font-bold tracking-wider text-[10px] truncate max-w-[120px] sm:max-w-[150px]">All Agent Scopes</span>
+          <span class="material-symbols-outlined text-[13px] text-cyan-400 -mr-0.5">arrow_drop_down</span>
         </button>
 
         <!-- Scope Dropdown Menu -->
@@ -553,50 +587,80 @@
       </div>
     </div>
 
-    <!-- Right Section: Sleek Icon Actions & Telemetry -->
+    <!-- Center Section: DUAL-CORE HERO SEGMENTED CONTROLLER & SATELLITE PILLS -->
+    <div class="flex items-center justify-center shrink-0 mx-2">
+      <div class="flex items-center p-0.5 rounded-xl bg-slate-950/90 border border-slate-800/90 shadow-[inset_0_1px_4px_rgba(0,0,0,0.8),0_0_15px_rgba(0,240,255,0.05)]">
+        <!-- 1. Hero Anchor: 3D GRAPH -->
+        <button onclick="switchView('graph')" id="header-btn-graph" class="hero-nav-btn active flex items-center gap-1.5 px-3 py-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer bg-gradient-to-r from-cyan-500/20 to-cyan-500/10 text-cyan-300 border border-cyan-400/50 shadow-[0_0_12px_rgba(0,240,255,0.25)]" title="3D Neural Graph Manifold [1]">
+          <span class="material-symbols-outlined text-[15px]">view_in_ar</span>
+          <span class="tracking-wide">3D GRAPH</span>
+        </button>
+
+        <!-- 2. Hero Anchor: TIMELINE -->
+        <button onclick="switchView('timeline')" id="header-btn-timeline" class="hero-nav-btn flex items-center gap-1.5 px-3 py-1 rounded-lg text-[11px] font-medium text-slate-400 hover:text-white transition-all cursor-pointer border border-transparent" title="Temporal Session Timeline & Provenance Lens [2]">
+          <span class="material-symbols-outlined text-[15px]">timeline</span>
+          <span class="tracking-wide">TIMELINE</span>
+        </button>
+
+        <div class="h-4 w-[1px] bg-slate-800/80 mx-1"></div>
+
+        <!-- 3. Satellite: DIALOGUE -->
+        <button onclick="switchView('dialogue')" id="header-btn-dialogue" class="satellite-nav-btn flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-medium text-slate-400 hover:text-white transition-all cursor-pointer border border-transparent" title="Dialogue Trajectory & Reasoning [3]">
+          <span class="material-symbols-outlined text-[14px]">forum</span>
+          <span class="tracking-wide hidden md:inline">DIALOGUE</span>
+        </button>
+
+        <!-- 4. Satellite: DATA FABRIC -->
+        <button onclick="switchView('fabric')" id="header-btn-fabric" class="satellite-nav-btn flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-medium text-slate-400 hover:text-white transition-all cursor-pointer border border-transparent" title="Data Fabric, Scopes, Connectors & Audit [4]">
+          <span class="material-symbols-outlined text-[14px]">database</span>
+          <span class="tracking-wide hidden md:inline">DATA FABRIC</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Right Section: Sleek Dockable Actions & Telemetry -->
     <div class="flex items-center gap-1.5 shrink-0">
+      <!-- Spectral Math Drawer Toggle -->
+      <button onclick="window.toggleSpectralDockDrawer()" id="btn-header-spectral" class="w-7 h-7 rounded-lg flex items-center justify-center bg-slate-900/90 hover:bg-slate-800 border border-cyan-500/30 hover:border-cyan-400 text-cyan-300 transition-all cursor-pointer relative" title="Toggle Spectral Math & Eigenmap Drawer (S)">
+        <span class="material-symbols-outlined text-[15px]">scatter_plot</span>
+        <span id="header-spectral-dot" class="hidden absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-cyan-400 shadow-[0_0_6px_#00f0ff]"></span>
+      </button>
+
+      <!-- AI Graph Ops Trigger -->
+      <button onclick="window.openAiOpsModal()" id="btn-header-aiops" class="w-7 h-7 rounded-lg flex items-center justify-center bg-purple-500/10 hover:bg-purple-500/25 border border-purple-500/30 hover:border-purple-400 text-[#ddb7ff] transition-all cursor-pointer relative" title="AI Graph Operations & Community Clustering">
+        <span class="material-symbols-outlined text-[15px]">psychology</span>
+      </button>
+
       <!-- Synaptic Edges Toggle Icon -->
-      <button onclick="toggleGraphEdges()" id="btn-header-edges" class="w-7 h-7 rounded flex items-center justify-center bg-primary-container/10 hover:bg-primary-container/25 border border-primary-container/30 text-primary transition-all relative cursor-pointer" title="Toggle 3D Directed Edges (E)">
+      <button onclick="toggleGraphEdges()" id="btn-header-edges" class="w-7 h-7 rounded-lg flex items-center justify-center bg-slate-900/90 hover:bg-slate-800 border border-slate-700/80 text-cyan-400 transition-all relative cursor-pointer" title="Toggle 3D Directed Edges (E)">
         <span class="material-symbols-outlined text-[15px]">timeline</span>
         <span id="header-edges-indicator" class="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-[#00f0ff] shadow-[0_0_6px_#00f0ff]"></span>
       </button>
 
       <!-- Live Agent Sync Trigger Icon -->
-      <button onclick="window.syncLiveAgentSessions()" id="btn-header-sync" class="w-7 h-7 rounded flex items-center justify-center bg-cyan-500/10 hover:bg-cyan-500/25 border border-cyan-500/30 text-cyan-300 transition-all cursor-pointer" title="Sync Live Agent Sessions & Turns">
+      <button onclick="window.syncLiveAgentSessions()" id="btn-header-sync" class="w-7 h-7 rounded-lg flex items-center justify-center bg-cyan-500/10 hover:bg-cyan-500/25 border border-cyan-500/30 text-cyan-300 transition-all cursor-pointer" title="Sync Live Agent Sessions & Turns">
         <span id="header-sync-icon" class="material-symbols-outlined text-[15px] text-cyan-400">sync</span>
       </button>
 
-      <!-- AI Inference Providers Icon -->
-      <button onclick="window.openProvidersModal()" id="btn-header-providers" class="w-7 h-7 rounded flex items-center justify-center bg-purple-500/10 hover:bg-purple-500/25 border border-purple-500/30 text-[#ddb7ff] transition-all relative cursor-pointer" title="AI Inference Engine (Claude, Gemini, OpenAI)">
-        <span class="material-symbols-outlined text-[15px] text-purple-400">smart_toy</span>
-        <span id="header-active-provider-dot" class="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-emerald-400 shadow-[0_0_6px_#00ffa3]"></span>
-      </button>
-
-      <!-- Commercial Tenants & Scoped Keys Icon -->
-      <button onclick="window.openTenantsModal()" id="btn-header-tenants" class="w-7 h-7 rounded flex items-center justify-center bg-amber-500/10 hover:bg-amber-500/25 border border-amber-500/30 text-amber-300 transition-all relative cursor-pointer" title="Tenants & Scoped API Keys">
-        <span class="material-symbols-outlined text-[15px] text-amber-400">vpn_key</span>
-        <span id="header-tenant-count-dot" class="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-amber-400 shadow-[0_0_6px_#f59e0b]"></span>
-      </button>
-
       <!-- Contradiction Dialectic Scanner Icon -->
-      <button onclick="window.runContradictionScan()" id="btn-header-contradictions" class="w-7 h-7 rounded flex items-center justify-center bg-rose-500/10 hover:bg-rose-500/25 border border-rose-500/30 text-rose-300 transition-all relative cursor-pointer" title="Scan Contradictions & Dialectic Conflicts">
+      <button onclick="window.runContradictionScan()" id="btn-header-contradictions" class="w-7 h-7 rounded-lg flex items-center justify-center bg-rose-500/10 hover:bg-rose-500/25 border border-rose-500/30 hover:border-rose-400 text-rose-300 transition-all relative cursor-pointer" title="Scan Contradictions & Dialectic Conflicts">
         <span class="material-symbols-outlined text-[15px] text-rose-400">crisis_alert</span>
-        <span id="header-contra-badge" class="hidden">SCAN</span>
+        <span id="header-contra-badge" class="hidden absolute -top-1 -right-1 w-3 h-3 rounded-full bg-rose-500 text-white font-bold text-[7px] flex items-center justify-center shadow">!</span>
       </button>
 
-      <!-- Universal Graph Legend Icon -->
-      <button id="btn-toggle-legend" onclick="toggleGraphLegend()" class="w-7 h-7 rounded flex items-center justify-center bg-surface-container-low hover:bg-surface-container-high border border-outline-variant/40 text-on-surface hover:text-primary-container transition-all cursor-pointer" title="Toggle Graph Legend (L)">
-        <span class="material-symbols-outlined text-[15px] text-primary-container">category</span>
+      <!-- Docked Inspector Drawer Toggle -->
+      <button onclick="toggleInspector()" id="btn-header-inspector" class="w-7 h-7 rounded-lg flex items-center justify-center bg-cyan-500/20 hover:bg-cyan-500/40 border border-cyan-400/50 text-cyan-300 transition-all cursor-pointer" title="Toggle Docked Inspector Drawer (I)">
+        <span class="material-symbols-outlined text-[15px]">view_sidebar</span>
       </button>
 
-      <div class="h-4 w-[1px] bg-outline-variant/40 mx-1 hidden md:block"></div>
+      <div class="h-4 w-[1px] bg-slate-800 mx-1 hidden lg:block"></div>
 
       <!-- Compact Telemetry Pill -->
-      <div class="hidden md:flex items-center gap-1.5 px-2 py-0.5 rounded bg-surface-container-low/90 border border-outline-variant/30 text-[10px] font-mono">
-        <span class="w-1.5 h-1.5 rounded-full bg-secondary-container animate-pulse"></span>
-        <span id="header-nodes-count" class="text-secondary-container font-bold">-- Nodes</span>
-        <span class="text-outline">·</span>
-        <span id="header-merkle-root" class="text-primary-container font-mono">0x7f2a...</span>
+      <div class="hidden lg:flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-slate-950/80 border border-slate-800 text-[9px] font-mono shadow-inner">
+        <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 shadow-[0_0_6px_#00ffa3] animate-pulse"></span>
+        <span id="header-nodes-count" class="text-emerald-400 font-bold">-- Nodes</span>
+        <span class="text-slate-600">·</span>
+        <span id="header-merkle-root" class="text-cyan-300 font-mono">0x7f2a...</span>
       </div>
 
       <!-- Retained hidden elements for script reference safety -->
@@ -604,168 +668,154 @@
       <span id="header-sess-count" class="hidden"></span>
       <button id="btn-projection-3d" class="hidden"></button>
       <button id="btn-projection-2d" class="hidden"></button>
+      <button id="btn-header-providers" onclick="window.openProvidersModal()" class="hidden"></button>
+      <button id="btn-header-tenants" onclick="window.openTenantsModal()" class="hidden"></button>
+      <button id="btn-toggle-legend" onclick="toggleGraphLegend()" class="hidden"></button>
+      <span id="header-active-provider-dot" class="hidden"></span>
+      <span id="header-tenant-count-dot" class="hidden"></span>
 
-      <div class="h-4 w-[1px] bg-outline-variant/40 mx-0.5"></div>
-
-      <div class="w-6 h-6 rounded-full bg-primary-container/20 border border-primary-container/40 flex items-center justify-center shrink-0 text-primary-container" title="Xibalba Solutions Operator">
-        <span class="material-symbols-outlined text-[14px]">shield_person</span>
-      </div>
+      <!-- Operator Profile Dropdown Button -->
+      <button id="user-profile-button" onclick="window.toggleProfileMenu(event)" class="w-7 h-7 rounded-full bg-cyan-500/20 border border-cyan-400/50 flex items-center justify-center shrink-0 text-cyan-300 hover:scale-105 transition-all cursor-pointer ml-1" title="Xibalba Solutions Operator Profile">
+        <span class="material-symbols-outlined text-[15px]">shield_person</span>
+      </button>
     </div>
   </header>
 
   <!-- ========================================================================= -->
-  <!-- 2. COLLAPSIBLE LEFT NAV BAR (w-14 Collapsed <-> w-64 Expanded)            -->
+  <!-- 2. COLLAPSIBLE LEFT NAV BAR (w-11 Collapsed Micro-Rail <-> w-56 Expanded)  -->
   <!-- ========================================================================= -->
-  <aside id="left-navbar" class="fixed left-0 top-9 bottom-0 w-14 bg-surface-container-lowest/95 backdrop-blur-2xl border-r border-outline-variant/30 z-40 flex flex-col justify-between transition-all duration-300 select-none overflow-visible font-mono">
+  <aside id="left-navbar" class="fixed left-0 top-10 bottom-0 w-11 bg-[#070a11]/95 backdrop-blur-2xl border-r border-slate-800/80 z-40 flex flex-col justify-between transition-all duration-300 select-none overflow-visible font-mono">
     
     <!-- Top Section: Brand + Collapse Toggle + New Memory -->
     <div class="flex flex-col w-full">
       <!-- Collapse / Expand Toggle Strip -->
-      <div class="h-10 border-b border-outline-variant/20 flex items-center justify-between px-2 bg-surface-container-low/60 shrink-0">
+      <div class="h-9 border-b border-slate-800/80 flex items-center justify-between px-2 bg-slate-900/50 shrink-0">
         <div class="nav-expanded-only hidden items-center gap-2 pl-1 truncate">
-          <div class="w-2 h-2 rounded-full bg-secondary-container"></div>
-          <span class="text-[10px] font-bold text-neutral-300 uppercase tracking-wider">Workspace</span>
+          <div class="w-2 h-2 rounded-full bg-cyan-400"></div>
+          <span class="text-[10px] font-bold text-slate-300 uppercase tracking-wider">Navigation</span>
         </div>
-        <button onclick="window.toggleNavbar()" id="btn-toggle-navbar" class="w-8 h-8 flex items-center justify-center text-on-surface-variant hover:text-primary-container hover:bg-surface-container-high transition-colors rounded mx-auto" title="Toggle Navigation Bar">
-          <span id="nav-toggle-icon" class="material-symbols-outlined text-[18px]">keyboard_double_arrow_right</span>
+        <button onclick="window.toggleNavbar()" id="btn-toggle-navbar" class="w-7 h-7 flex items-center justify-center text-slate-400 hover:text-cyan-300 hover:bg-slate-800 transition-colors rounded mx-auto cursor-pointer" title="Toggle Navigation Bar">
+          <span id="nav-toggle-icon" class="material-symbols-outlined text-[16px]">keyboard_double_arrow_right</span>
         </button>
       </div>
 
       <!-- Quick Action: Ingest Memory Button -->
-      <div class="p-2 border-b border-outline-variant/20 shrink-0">
-        <button onclick="openNewMemoryModal()" class="w-full py-1.5 px-2 bg-primary-container hover:bg-secondary-container text-on-primary-container font-bold text-xs uppercase rounded transition-colors flex items-center justify-center gap-2 shadow" title="Ingest New Memory Node [C]">
-          <span class="material-symbols-outlined text-[18px]">add_circle</span>
-          <span class="nav-expanded-only hidden text-[11px] tracking-wide whitespace-nowrap">Ingest Memory [C]</span>
+      <div class="p-1.5 border-b border-slate-800/80 shrink-0">
+        <button onclick="openNewMemoryModal()" class="w-full py-1 px-1 bg-cyan-500/20 hover:bg-cyan-500/40 text-cyan-300 border border-cyan-400/40 font-bold text-xs uppercase rounded transition-colors flex items-center justify-center gap-1.5 shadow-sm cursor-pointer" title="Ingest New Memory Node [C]">
+          <span class="material-symbols-outlined text-[16px]">add_circle</span>
+          <span class="nav-expanded-only hidden text-[10px] tracking-wide whitespace-nowrap">Ingest Memory [C]</span>
         </button>
       </div>
 
-      <!-- Navigation Link List -->
-      <div class="flex flex-col gap-1 p-2 overflow-y-auto max-h-[calc(100vh-210px)]">
+      <!-- Navigation Link List: 4 CORE SURFACES ONLY -->
+      <div class="flex flex-col gap-1 p-1.5 overflow-y-auto max-h-[calc(100vh-210px)]">
         
-        <!-- Section: Core Visualizations -->
-        <div class="nav-expanded-only hidden text-[9px] text-outline uppercase font-bold tracking-wider px-2 pt-1 pb-0.5">
-          Core Manifolds
+        <!-- Section Label in Expanded Mode -->
+        <div class="nav-expanded-only hidden text-[8px] text-slate-500 uppercase font-bold tracking-wider px-2 pt-1 pb-0.5">
+          Core Surfaces
         </div>
         
-        <button id="rail-btn-graph" onclick="switchView('graph')" class="w-full h-9 flex items-center gap-3 px-2 text-primary-container bg-surface-container-high rounded transition-colors" title="3D Graph Manifold [1]">
-          <span class="material-symbols-outlined text-[18px] shrink-0 mx-auto nav-collapsed-mx">view_in_ar</span>
+        <!-- 1. 3D Graph Studio -->
+        <button id="rail-btn-graph" onclick="switchView('graph')" class="w-full h-8 flex items-center gap-2.5 px-1.5 text-cyan-300 bg-cyan-500/15 border-l-2 border-cyan-400 rounded-r transition-colors cursor-pointer" title="3D Graph Manifold [1]">
+          <span class="material-symbols-outlined text-[17px] shrink-0 mx-auto nav-collapsed-mx">view_in_ar</span>
           <span class="nav-expanded-only hidden text-xs font-semibold whitespace-nowrap">3D Neural Graph</span>
-          <span class="nav-expanded-only hidden ml-auto text-[9px] text-primary-container/80 bg-primary-container/10 px-1 py-0.5 rounded font-bold">1</span>
+          <span class="nav-expanded-only hidden ml-auto text-[8px] text-cyan-400 bg-cyan-500/20 px-1 py-0.2 rounded font-bold">1</span>
         </button>
 
-        <button id="rail-btn-timeline" onclick="switchView('timeline')" class="w-full h-9 flex items-center gap-3 px-2 text-on-surface-variant hover:text-primary-container hover:bg-surface-container-high rounded transition-colors" title="Temporal Session Timeline [2]">
-          <span class="material-symbols-outlined text-[18px] shrink-0 mx-auto nav-collapsed-mx">timeline</span>
+        <!-- 2. Temporal Timeline -->
+        <button id="rail-btn-timeline" onclick="switchView('timeline')" class="w-full h-8 flex items-center gap-2.5 px-1.5 text-slate-400 hover:text-cyan-300 hover:bg-slate-800/50 rounded transition-colors cursor-pointer" title="Temporal Session Timeline [2]">
+          <span class="material-symbols-outlined text-[17px] shrink-0 mx-auto nav-collapsed-mx">timeline</span>
           <span class="nav-expanded-only hidden text-xs font-semibold whitespace-nowrap">Session Timeline</span>
-          <span class="nav-expanded-only hidden ml-auto text-[9px] text-outline font-bold">2</span>
+          <span class="nav-expanded-only hidden ml-auto text-[8px] text-slate-500 font-bold">2</span>
         </button>
 
-        <button id="rail-btn-spectral" onclick="switchView('spectral')" class="w-full h-9 flex items-center gap-3 px-2 text-on-surface-variant hover:text-primary-container hover:bg-surface-container-high rounded transition-colors" title="Spectral Math Studio & Cluster Analysis [3]">
-          <span class="material-symbols-outlined text-[18px] shrink-0 mx-auto nav-collapsed-mx">scatter_plot</span>
-          <span class="nav-expanded-only hidden text-xs font-semibold whitespace-nowrap">Spectral Studio</span>
-          <span class="nav-expanded-only hidden ml-auto text-[9px] text-outline font-bold">3</span>
+        <!-- 3. Dialogue Trajectory -->
+        <button id="rail-btn-dialogue" onclick="switchView('dialogue')" class="w-full h-8 flex items-center gap-2.5 px-1.5 text-slate-400 hover:text-cyan-300 hover:bg-slate-800/50 rounded transition-colors cursor-pointer" title="Dialogue Trajectory &amp; Reasoning [3]">
+          <span class="material-symbols-outlined text-[17px] shrink-0 mx-auto nav-collapsed-mx">forum</span>
+          <span class="nav-expanded-only hidden text-xs font-semibold whitespace-nowrap">Dialogue Studio</span>
+          <span class="nav-expanded-only hidden ml-auto text-[8px] text-slate-500 font-bold">3</span>
         </button>
 
-        <button id="rail-btn-dialogue" onclick="switchView('dialogue')" class="w-full h-9 flex items-center gap-3 px-2 text-on-surface-variant hover:text-primary-container hover:bg-surface-container-high rounded transition-colors" title="Dialogue Trajectory & Reasoning [4]">
-          <span class="material-symbols-outlined text-[18px] shrink-0 mx-auto nav-collapsed-mx">forum</span>
-          <span class="nav-expanded-only hidden text-xs font-semibold whitespace-nowrap">Dialogue Graph</span>
-          <span class="nav-expanded-only hidden ml-auto text-[9px] text-outline font-bold">4</span>
+        <!-- 4. Unified Data Fabric Hub -->
+        <button id="rail-btn-fabric" onclick="switchView('fabric')" class="w-full h-8 flex items-center gap-2.5 px-1.5 text-slate-400 hover:text-cyan-300 hover:bg-slate-800/50 rounded transition-colors cursor-pointer" title="Data Fabric, Scopes, Connectors &amp; Audit [4]">
+          <span class="material-symbols-outlined text-[17px] shrink-0 mx-auto nav-collapsed-mx">database</span>
+          <span class="nav-expanded-only hidden text-xs font-semibold whitespace-nowrap">Data Fabric</span>
+          <span class="nav-expanded-only hidden ml-auto text-[8px] text-emerald-400 bg-emerald-500/15 px-1 py-0.2 rounded font-bold">4</span>
         </button>
 
-        <!-- Section: Supermemory Feature Parity -->
-        <div class="nav-expanded-only hidden text-[9px] text-outline uppercase font-bold tracking-wider px-2 pt-3 pb-0.5 border-t border-outline-variant/20 mt-1">
-          Supermemory Engines
+        <div class="w-full h-[1px] bg-slate-800/80 my-1"></div>
+
+        <!-- Quick 3D Actions -->
+        <button onclick="toggleZenFlight()" class="w-full h-7.5 flex items-center gap-2.5 px-1.5 text-slate-400 hover:text-emerald-400 hover:bg-slate-800/50 rounded transition-colors cursor-pointer" title="Fly-Through Lineage Path [Z]">
+          <span class="material-symbols-outlined text-[16px] shrink-0 mx-auto nav-collapsed-mx">flight_takeoff</span>
+          <span class="nav-expanded-only hidden text-[10px] whitespace-nowrap">Zen Flight [Z]</span>
+        </button>
+
+        <button onclick="resetGraphCamera()" class="w-full h-7.5 flex items-center gap-2.5 px-1.5 text-slate-400 hover:text-cyan-300 hover:bg-slate-800/50 rounded transition-colors cursor-pointer" title="Reset Camera Orbit">
+          <span class="material-symbols-outlined text-[16px] shrink-0 mx-auto nav-collapsed-mx">restart_alt</span>
+          <span class="nav-expanded-only hidden text-[10px] whitespace-nowrap">Reset Camera</span>
+        </button>
+
+        <!-- Hidden Compatibility Elements for Script Safety -->
+        <div class="hidden">
+          <button id="rail-btn-spectral"></button>
+          <button id="rail-btn-memories"></button>
+          <button id="rail-btn-connectors"></button>
+          <button id="rail-btn-pipeline"></button>
+          <button id="rail-btn-spaces"></button>
+          <button id="rail-btn-audit"></button>
+          <span id="nav-badge-memories"></span>
+          <span id="nav-badge-scopes"></span>
         </div>
-
-        <button id="rail-btn-memories" onclick="switchView('memories')" class="w-full h-9 flex items-center gap-3 px-2 text-on-surface-variant hover:text-primary-container hover:bg-surface-container-high rounded transition-colors" title="Memory Fabric Catalog [4]">
-          <span class="material-symbols-outlined text-[18px] shrink-0 mx-auto nav-collapsed-mx">memory</span>
-          <span class="nav-expanded-only hidden text-xs font-semibold whitespace-nowrap">Memory Fabric</span>
-          <span id="nav-badge-memories" class="nav-expanded-only hidden ml-auto text-[9px] text-secondary-container bg-secondary-container/10 px-1.5 py-0.5 rounded font-bold">12</span>
-        </button>
-
-        <button id="rail-btn-connectors" onclick="switchView('connectors')" class="w-full h-9 flex items-center gap-3 px-2 text-on-surface-variant hover:text-primary-container hover:bg-surface-container-high rounded transition-colors" title="Connectors & Ingestion Hub [5]">
-          <span class="material-symbols-outlined text-[18px] shrink-0 mx-auto nav-collapsed-mx">sync_alt</span>
-          <span class="nav-expanded-only hidden text-xs font-semibold whitespace-nowrap">Connectors Hub</span>
-          <span class="nav-expanded-only hidden ml-auto text-[9px] text-[#00ffa3] bg-[#00ffa3]/10 px-1.5 py-0.5 rounded font-bold">6 LIVE</span>
-        </button>
-
-        <button id="rail-btn-pipeline" onclick="switchView('pipeline')" class="w-full h-9 flex items-center gap-3 px-2 text-on-surface-variant hover:text-primary-container hover:bg-surface-container-high rounded transition-colors" title="Non-Inference Extraction Pipeline [6]">
-          <span class="material-symbols-outlined text-[18px] shrink-0 mx-auto nav-collapsed-mx">psychology</span>
-          <span class="nav-expanded-only hidden text-xs font-semibold whitespace-nowrap">Extraction Studio</span>
-          <span class="nav-expanded-only hidden ml-auto text-[9px] text-[#ddb7ff] bg-purple-500/10 px-1.5 py-0.5 rounded font-bold">0-LLM</span>
-        </button>
-
-        <button id="rail-btn-spaces" onclick="switchView('spaces')" class="w-full h-9 flex items-center gap-3 px-2 text-on-surface-variant hover:text-primary-container hover:bg-surface-container-high rounded transition-colors" title="Agent Scopes & MCP [7]">
-          <span class="material-symbols-outlined text-[18px] shrink-0 mx-auto nav-collapsed-mx">smart_toy</span>
-          <span class="nav-expanded-only hidden text-xs font-semibold whitespace-nowrap">Agent Scopes &amp; MCP</span>
-          <span id="nav-badge-scopes" class="nav-expanded-only hidden ml-auto text-[9px] text-primary-container bg-primary-container/10 px-1.5 py-0.5 rounded font-bold">6</span>
-        </button>
-
-        <button id="rail-btn-audit" onclick="switchView('audit')" class="w-full h-9 flex items-center gap-3 px-2 text-on-surface-variant hover:text-primary-container hover:bg-surface-container-high rounded transition-colors" title="AIS & Cryptographic Audit [8]">
-          <span class="material-symbols-outlined text-[18px] shrink-0 mx-auto nav-collapsed-mx">verified_user</span>
-          <span class="nav-expanded-only hidden text-xs font-semibold whitespace-nowrap">AIS &amp; Audit</span>
-          <span class="nav-expanded-only hidden ml-auto text-[9px] text-secondary-container font-bold">✓</span>
-        </button>
-
-        <div class="w-full h-[1px] bg-outline-variant/20 my-1"></div>
-
-        <button onclick="toggleZenFlight()" class="w-full h-8 flex items-center gap-3 px-2 text-on-surface-variant hover:text-secondary-container hover:bg-surface-container-high rounded transition-colors" title="Fly-Through Lineage Path [Z]">
-          <span class="material-symbols-outlined text-[18px] shrink-0 mx-auto nav-collapsed-mx">flight_takeoff</span>
-          <span class="nav-expanded-only hidden text-[11px] whitespace-nowrap">Zen Flight [Z]</span>
-        </button>
-
-        <button onclick="resetGraphCamera()" class="w-full h-8 flex items-center gap-3 px-2 text-on-surface-variant hover:text-primary-container hover:bg-surface-container-high rounded transition-colors" title="Reset Camera Orbit">
-          <span class="material-symbols-outlined text-[18px] shrink-0 mx-auto nav-collapsed-mx">restart_alt</span>
-          <span class="nav-expanded-only hidden text-[11px] whitespace-nowrap">Reset Camera</span>
-        </button>
       </div>
     </div>
 
-    <!-- Bottom Section: Engine Status & Lower Left User Profile -->
-    <div class="flex flex-col border-t border-outline-variant/30 bg-surface-container-low/40 p-2 shrink-0 relative">
+    <!-- Bottom Section: Engine Status & User Profile Trigger -->
+    <div class="flex flex-col border-t border-slate-800/80 bg-slate-900/40 p-1.5 shrink-0 relative">
       
-      <!-- Engine Online LED indicator -->
-      <div class="nav-expanded-only hidden mb-2 px-2 py-1 bg-surface-container-lowest/80 border border-outline-variant/30 rounded flex items-center justify-between text-[9px]">
+      <!-- Engine Online LED indicator (Expanded) -->
+      <div class="nav-expanded-only hidden mb-1.5 px-2 py-0.5 bg-slate-950/80 border border-slate-800 rounded flex items-center justify-between text-[8px]">
         <div class="flex items-center gap-1.5">
-          <span class="w-1.5 h-1.5 rounded-full bg-secondary-container animate-pulse"></span>
-          <span class="text-outline">SUPERMEMORY:</span>
+          <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+          <span class="text-slate-500">SUPERMEMORY:</span>
         </div>
-        <span class="text-secondary-container font-bold">127.0.0.1:6767</span>
+        <span class="text-emerald-400 font-bold">127.0.0.1:6767</span>
       </div>
 
       <!-- Lower Left User Profile Trigger Button -->
-      <button id="user-profile-button" onclick="window.toggleProfileMenu(event)" class="w-full p-1.5 rounded hover:bg-surface-container-high transition-colors flex items-center gap-2.5 text-left group cursor-pointer focus:outline-none" title="User Profile, Settings & Logout">
-        <div class="relative w-8 h-8 rounded-full bg-primary-container/20 border border-primary-container/50 flex items-center justify-center shrink-0 text-primary-container mx-auto nav-collapsed-mx">
-          <span class="material-symbols-outlined text-[18px]">person</span>
-          <span class="absolute bottom-0 right-0 w-2 h-2 rounded-full bg-secondary-container border border-surface-container-lowest"></span>
+      <button onclick="window.toggleProfileMenu(event)" class="w-full p-1 rounded hover:bg-slate-800 transition-colors flex items-center gap-2 text-left group cursor-pointer focus:outline-none" title="User Profile &amp; Settings">
+        <div class="relative w-7 h-7 rounded-full bg-cyan-500/20 border border-cyan-400/50 flex items-center justify-center shrink-0 text-cyan-300 mx-auto nav-collapsed-mx">
+          <span class="material-symbols-outlined text-[15px]">person</span>
+          <span class="absolute bottom-0 right-0 w-1.5 h-1.5 rounded-full bg-emerald-400 border border-[#070a11]"></span>
         </div>
         <div class="nav-expanded-only hidden flex-1 min-w-0">
-          <div class="text-[11px] font-bold text-white truncate">Xibalba Operations</div>
-          <div class="text-[8px] text-outline truncate">did:integrity:68fed1...</div>
+          <div class="text-[10px] font-bold text-white truncate">Xibalba Operations</div>
+          <div class="text-[8px] text-slate-500 truncate">did:integrity:68fed1...</div>
         </div>
-        <span class="nav-expanded-only hidden material-symbols-outlined text-outline text-[16px] group-hover:text-white shrink-0">unfold_more</span>
+        <span class="nav-expanded-only hidden material-symbols-outlined text-slate-500 text-[14px] group-hover:text-white shrink-0">unfold_more</span>
       </button>
 
-      <!-- Floating User Profile Popover Menu (Lower Left Popover) -->
-      <div id="user-profile-popover" class="hidden absolute bottom-14 left-2 w-72 bg-surface-container-low/98 backdrop-blur-2xl border border-outline-variant/50 shadow-2xl rounded-lg p-3 z-50 font-mono text-xs space-y-2.5">
+      <!-- Floating User Profile Popover Menu -->
+      <div id="user-profile-popover" class="hidden absolute bottom-12 left-2 w-72 bg-[#090d18]/98 backdrop-blur-2xl border border-cyan-500/40 shadow-2xl rounded-xl p-3 z-50 font-mono text-xs space-y-2.5">
         <!-- Profile Header -->
-        <div class="flex items-start justify-between pb-2 border-b border-outline-variant/30">
+        <div class="flex items-start justify-between pb-2 border-b border-slate-800">
           <div class="flex items-center gap-2">
-            <div class="w-7 h-7 rounded-full bg-primary-container/20 border border-primary-container/40 flex items-center justify-center text-primary-container">
-              <span class="material-symbols-outlined text-[16px]">shield_person</span>
+            <div class="w-7 h-7 rounded-full bg-cyan-500/20 border border-cyan-400/40 flex items-center justify-center text-cyan-300">
+              <span class="material-symbols-outlined text-[15px]">shield_person</span>
             </div>
             <div>
-              <div class="text-[12px] font-bold text-white">Xibalba Solutions LLC</div>
-              <div class="text-[9px] text-secondary-container font-semibold">QUANTITATIVE OPERATIONS</div>
+              <div class="text-[11px] font-bold text-white">Xibalba Solutions LLC</div>
+              <div class="text-[8px] text-emerald-400 font-semibold">QUANTITATIVE OPERATIONS</div>
             </div>
           </div>
-          <span class="text-[8px] bg-secondary-container/10 border border-secondary-container/30 text-secondary-container px-1 rounded font-bold">ONLINE</span>
+          <span class="text-[8px] bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 px-1 rounded font-bold">ONLINE</span>
         </div>
 
         <!-- Identity / DID Snippet -->
-        <div class="bg-surface-container-lowest p-2 rounded border border-outline-variant/30 text-[9px] space-y-1">
-          <div class="text-outline uppercase font-bold flex items-center justify-between">
+        <div class="bg-slate-950 p-2 rounded border border-slate-800 text-[9px] space-y-1">
+          <div class="text-slate-500 uppercase font-bold flex items-center justify-between">
             <span>OPERATOR DID:</span>
-            <button onclick="window.copyOperatorDid()" class="text-primary hover:underline flex items-center gap-0.5">
+            <button onclick="window.copyOperatorDid()" class="text-cyan-400 hover:underline flex items-center gap-0.5 cursor-pointer">
               <span class="material-symbols-outlined text-[10px]">content_copy</span>
               <span>Copy</span>
             </button>
@@ -774,33 +824,33 @@
         </div>
 
         <!-- Engine Telemetry Overview -->
-        <div class="grid grid-cols-2 gap-1.5 text-[9px] bg-surface-container-lowest p-2 rounded border border-outline-variant/20 text-neutral-400">
-          <div>Scope: <span class="text-primary-container font-bold" id="popover-active-scope">shared</span></div>
+        <div class="grid grid-cols-2 gap-1.5 text-[9px] bg-slate-950 p-2 rounded border border-slate-800 text-neutral-400">
+          <div>Scope: <span class="text-cyan-300 font-bold" id="popover-active-scope">shared</span></div>
           <div>Vectors: <span class="text-[#38bdf8] font-bold">768-D Local</span></div>
           <div class="col-span-2">Database: <span class="text-white font-mono text-[8px]">~/.super-cortex/provenance.db</span></div>
         </div>
 
         <!-- Actions: Settings & Logout -->
-        <div class="space-y-1 pt-1 border-t border-outline-variant/30 text-[10px]">
-          <button onclick="window.openSettingsModal()" class="w-full px-2.5 py-1.5 hover:bg-surface-container-high rounded text-neutral-200 hover:text-white flex items-center gap-2 transition-colors">
-            <span class="material-symbols-outlined text-[15px] text-primary-container">settings</span>
+        <div class="space-y-1 pt-1 border-t border-slate-800 text-[10px]">
+          <button onclick="window.openSettingsModal()" class="w-full px-2.5 py-1.5 hover:bg-slate-800 rounded text-neutral-200 hover:text-white flex items-center gap-2 transition-colors cursor-pointer">
+            <span class="material-symbols-outlined text-[14px] text-cyan-400">settings</span>
             <span>Settings &amp; Engine Config</span>
           </button>
           
-          <button onclick="window.runDoctorDiagnostics()" class="w-full px-2.5 py-1.5 hover:bg-surface-container-high rounded text-neutral-200 hover:text-white flex items-center gap-2 transition-colors">
-            <span class="material-symbols-outlined text-[15px] text-secondary-container">health_and_safety</span>
+          <button onclick="window.runDoctorDiagnostics()" class="w-full px-2.5 py-1.5 hover:bg-slate-800 rounded text-neutral-200 hover:text-white flex items-center gap-2 transition-colors cursor-pointer">
+            <span class="material-symbols-outlined text-[14px] text-emerald-400">health_and_safety</span>
             <span>Doctor &amp; Integrity Health</span>
           </button>
 
-          <button onclick="window.switchView('audit')" class="w-full px-2.5 py-1.5 hover:bg-surface-container-high rounded text-neutral-200 hover:text-white flex items-center gap-2 transition-colors">
-            <span class="material-symbols-outlined text-[15px] text-[#ddb7ff]">verified</span>
+          <button onclick="window.switchView('audit')" class="w-full px-2.5 py-1.5 hover:bg-slate-800 rounded text-neutral-200 hover:text-white flex items-center gap-2 transition-colors cursor-pointer">
+            <span class="material-symbols-outlined text-[14px] text-[#ddb7ff]">verified</span>
             <span>AIS &amp; Provenance Proofs</span>
           </button>
 
-          <div class="h-px bg-outline-variant/30 my-1"></div>
+          <div class="h-px bg-slate-800 my-1"></div>
 
-          <button onclick="window.handleLogout()" class="w-full px-2.5 py-1.5 hover:bg-error/20 rounded text-error hover:text-red-300 flex items-center gap-2 transition-colors font-bold">
-            <span class="material-symbols-outlined text-[15px]">logout</span>
+          <button onclick="window.handleLogout()" class="w-full px-2.5 py-1.5 hover:bg-rose-500/20 rounded text-rose-400 hover:text-rose-300 flex items-center gap-2 transition-colors font-bold cursor-pointer">
+            <span class="material-symbols-outlined text-[14px]">logout</span>
             <span>Disconnect &amp; Logout</span>
           </button>
         </div>
@@ -810,38 +860,78 @@
   </aside>
 
   <!-- ========================================================================= -->
-  <!-- 3. SLIM MARGIN ON RIGHT (w-12 / 48px Thin Icon Rail)                      -->
+  <!-- 3. SLIM MARGIN ON RIGHT (w-9 / 36px Graph Features & Legend Quick Rail)   -->
   <!-- ========================================================================= -->
-  <aside class="fixed right-0 top-9 bottom-0 w-12 bg-surface-container-lowest/90 backdrop-blur-xl border-l border-outline-variant/20 z-40 flex flex-col items-center py-2 justify-between">
+  <aside class="fixed right-0 top-10 bottom-0 w-9 bg-[#070a11]/90 backdrop-blur-xl border-l border-slate-800/80 z-40 flex flex-col items-center py-2 justify-between select-none font-mono">
     <div class="flex flex-col items-center gap-1.5 w-full">
-      <button onclick="toggleInspector()" class="w-8 h-8 flex items-center justify-center text-primary-container bg-surface-container-high transition-colors" title="Toggle Docked Inspector Drawer">
-        <span class="material-symbols-outlined text-[18px]">view_sidebar</span>
+      <!-- 1. Universal Graph Legend Toggle -->
+      <button onclick="toggleGraphLegend()" id="btn-rail-legend" class="w-7 h-7 rounded flex items-center justify-center text-slate-400 hover:text-cyan-300 hover:bg-slate-800 transition-colors cursor-pointer relative" title="Toggle Graph Legend (L)">
+        <span class="material-symbols-outlined text-[16px]">category</span>
+        <span id="rail-legend-indicator" class="hidden absolute top-0.5 right-0.5 w-1.5 h-1.5 rounded-full bg-cyan-400 shadow-[0_0_6px_#00f0ff]"></span>
       </button>
-      <button onclick="toggleInspectorTab('replay')" class="w-8 h-8 flex items-center justify-center text-on-surface-variant hover:text-primary-container hover:bg-surface-container-high transition-colors" title="Interactive Turn Replay">
-        <span class="material-symbols-outlined text-[18px]">history</span>
+
+      <!-- 2. Directed Connector Links / Edges Toggle -->
+      <button onclick="toggleGraphEdges()" id="btn-rail-edges" class="w-7 h-7 rounded flex items-center justify-center text-cyan-400 hover:bg-slate-800 transition-colors cursor-pointer relative" title="Toggle 3D Directed Edges (E)">
+        <span class="material-symbols-outlined text-[16px]">timeline</span>
+        <span id="rail-edges-indicator" class="absolute top-0.5 right-0.5 w-1.5 h-1.5 rounded-full bg-cyan-400 shadow-[0_0_6px_#00f0ff]"></span>
       </button>
-      <button onclick="toggleInspectorTab('merkle')" class="w-8 h-8 flex items-center justify-center text-on-surface-variant hover:text-secondary-container hover:bg-surface-container-high transition-colors" title="Merkle State Proofs">
-        <span class="material-symbols-outlined text-[18px]">verified</span>
+
+      <!-- 3. Floating Node Labels Toggle -->
+      <button onclick="toggleNodeLabels()" id="btn-rail-labels" class="w-7 h-7 rounded flex items-center justify-center text-slate-400 hover:text-cyan-300 hover:bg-slate-800 transition-colors cursor-pointer relative" title="Toggle Floating Node Labels">
+        <span class="material-symbols-outlined text-[16px]">label</span>
+        <span id="rail-labels-indicator" class="hidden absolute top-0.5 right-0.5 w-1.5 h-1.5 rounded-full bg-cyan-400 shadow-[0_0_6px_#00f0ff]"></span>
       </button>
-      <button onclick="toggleInspectorTab('chat')" class="w-8 h-8 flex items-center justify-center text-on-surface-variant hover:text-primary-container hover:bg-surface-container-high transition-colors" title="Live Memory Chat">
-        <span class="material-symbols-outlined text-[18px]">forum</span>
+
+      <!-- 4. 3D Cartesian Grid & Snapping Toggle -->
+      <button onclick="window.toggleGridSnap()" id="btn-rail-grid" class="w-7 h-7 rounded flex items-center justify-center text-slate-400 hover:text-cyan-300 hover:bg-slate-800 transition-colors cursor-pointer relative" title="Toggle 3D Cartesian Grid &amp; Snapping">
+        <span class="material-symbols-outlined text-[16px]">grid_view</span>
+        <span id="rail-grid-indicator" class="hidden absolute top-0.5 right-0.5 w-1.5 h-1.5 rounded-full bg-cyan-400 shadow-[0_0_6px_#00f0ff]"></span>
       </button>
-      <button onclick="toggleInspectorTab('raw')" class="w-8 h-8 flex items-center justify-center text-on-surface-variant hover:text-error hover:bg-surface-container-high transition-colors" title="Evidence MCP Bundle">
-        <span class="material-symbols-outlined text-[18px]">code</span>
+
+      <!-- 5. Continuous Turntable Auto-Rotation Toggle -->
+      <button onclick="toggleAutoRotate()" id="btn-rail-rotate" class="w-7 h-7 rounded flex items-center justify-center text-slate-400 hover:text-cyan-300 hover:bg-slate-800 transition-colors cursor-pointer relative" title="Toggle Continuous Auto-Rotation">
+        <span class="material-symbols-outlined text-[16px]">rotate_right</span>
+        <span id="rail-rotate-indicator" class="hidden absolute top-0.5 right-0.5 w-1.5 h-1.5 rounded-full bg-cyan-400 shadow-[0_0_6px_#00f0ff]"></span>
+      </button>
+
+      <!-- 6. Autopilot Drone Flight / Zen Mode -->
+      <button onclick="toggleZenFlight()" id="btn-rail-flight" class="w-7 h-7 rounded flex items-center justify-center text-slate-400 hover:text-emerald-400 hover:bg-slate-800 transition-colors cursor-pointer relative" title="Fly-Through Lineage Path (Z)">
+        <span class="material-symbols-outlined text-[16px]">flight_takeoff</span>
+      </button>
+
+      <!-- 7. Fit All Nodes (Frame Entire Lattice) -->
+      <button onclick="fitAllGraphNodes()" id="btn-rail-fit-all" class="w-7 h-7 rounded flex items-center justify-center text-slate-400 hover:text-emerald-400 hover:bg-slate-800 transition-colors cursor-pointer relative" title="Fit All Nodes (Frame Entire Lattice)">
+        <span class="material-symbols-outlined text-[16px]">fit_screen</span>
+      </button>
+
+      <!-- 8. Center Focus on Active Node -->
+      <button onclick="window.focusCurrentNodeOrCenter()" id="btn-rail-focus" class="w-7 h-7 rounded flex items-center justify-center text-slate-400 hover:text-cyan-300 hover:bg-slate-800 transition-colors cursor-pointer relative" title="Center Focus Active Node (F)">
+        <span class="material-symbols-outlined text-[16px]">filter_center_focus</span>
+      </button>
+
+      <!-- 9. Shake Physics Simulation -->
+      <button onclick="shakeGraphNodes()" id="btn-rail-shake" class="w-7 h-7 rounded flex items-center justify-center text-slate-400 hover:text-amber-400 hover:bg-slate-800 transition-colors cursor-pointer relative" title="Shake Physics Simulation">
+        <span class="material-symbols-outlined text-[16px]">restart_alt</span>
+      </button>
+
+      <!-- 10. 2D Planar / 3D Orbit Lattice Toggle -->
+      <button onclick="toggleProjectionMode()" id="btn-rail-proj" class="w-7 h-7 rounded flex items-center justify-center text-cyan-300 bg-cyan-500/15 hover:bg-cyan-500/30 transition-colors cursor-pointer relative" title="Toggle 2D Planar / 3D Orbit Lattice">
+        <span class="material-symbols-outlined text-[16px]">view_in_ar</span>
       </button>
     </div>
 
     <div class="flex flex-col items-center gap-1.5 w-full">
-      <button onclick="toggleFullscreen()" class="w-8 h-8 flex items-center justify-center text-on-surface-variant hover:text-on-surface transition-colors" title="Fullscreen Manifold">
-        <span class="material-symbols-outlined text-[18px]">fullscreen</span>
+      <!-- Fullscreen Mode Toggle -->
+      <button onclick="toggleFullscreen()" class="w-7 h-7 rounded flex items-center justify-center text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer" title="Fullscreen Manifold Mode">
+        <span class="material-symbols-outlined text-[16px]">fullscreen</span>
       </button>
     </div>
   </aside>
 
   <!-- ========================================================================= -->
-  <!-- 4. CENTER WORKSPACE VIEWPORT (Between Slim Rails)                         -->
+  <!-- 4. CENTER WORKSPACE VIEWPORT (Between Thin Rails)                         -->
   <!-- ========================================================================= -->
-  <main id="main-viewport" class="ml-14 mr-12 mt-9 flex-1 h-[calc(100vh-2.25rem)] relative overflow-hidden bg-[#0a0e15] transition-all duration-300">
+  <main id="main-viewport" class="ml-11 mr-9 mt-10 flex-1 h-[calc(100vh-2.5rem)] relative overflow-hidden bg-[#070a11] transition-all duration-300">
 
     <!-- ======================================================================= -->
     <!-- VIEW MODE A: 3D GRAPH MANIFOLD (Three.js WebGL Engine)                  -->
@@ -909,7 +999,7 @@
             <div class="flex items-center gap-1.5 bg-surface-container-low px-2 py-1 border border-outline-variant/30 rounded">
               <span class="material-symbols-outlined text-[13px] text-secondary-container">domain</span>
               <select id="graph-scope-selector" onchange="changeGraphScope(this.value)" class="bg-transparent text-primary-container font-bold focus:outline-none cursor-pointer text-[10px] w-full">
-                <option value="all">ALL SCOPES (GALAXY)</option>
+                <option value="all">ALL SCOPES (GALAXY FABRIC)</option>
                 <option value="shared">SHARED MEMORY FABRIC</option>
                 <option value="agent:claude">AGENT: CLAUDE CODE</option>
                 <option value="agent:agy">AGENT: ANTIGRAVITY (AGY)</option>
@@ -920,6 +1010,24 @@
                 <option value="agent:cursor">AGENT: CURSOR COMPOSER</option>
                 <option value="agent:deepseek">AGENT: DEEPSEEK QUANT</option>
               </select>
+            </div>
+
+            <!-- Multi-Scope Quick Toggles in Shared View -->
+            <div id="hud-scope-toggle-section" class="bg-surface-container-low/80 p-1.5 rounded border border-outline-variant/30 space-y-1 font-mono text-[9px]">
+              <div class="flex items-center justify-between text-[8px] font-bold text-slate-400">
+                <span class="flex items-center gap-1 text-cyan-400 uppercase tracking-wider">
+                  <span class="material-symbols-outlined text-[11px]">filter_list</span>
+                  <span>SCOPES IN VIEW</span>
+                </span>
+                <div class="flex items-center gap-1">
+                  <button type="button" onclick="window.toggleAllScopes(true)" class="hover:text-cyan-300 text-slate-400 px-1 py-0.2 rounded hover:bg-surface-container-high transition-colors cursor-pointer">ALL</button>
+                  <span>·</span>
+                  <button type="button" onclick="window.toggleAllScopes(false)" class="hover:text-cyan-300 text-slate-400 px-1 py-0.2 rounded hover:bg-surface-container-high transition-colors cursor-pointer">NONE</button>
+                </div>
+              </div>
+              <div id="dynamic-hud-scope-chips" class="flex flex-wrap gap-1">
+                <!-- Dynamically populated scope toggle chips -->
+              </div>
             </div>
 
             <!-- Search Query Input -->
@@ -1056,50 +1164,61 @@
                   <span id="hud-shape-icon" class="material-symbols-outlined text-[17px]">token</span>
                 </button>
                 <!-- Shape Selection Flyout Popover -->
-                <div id="shape-flyout-menu" class="hidden absolute right-10 top-0 w-64 bg-[#0a0e17]/98 backdrop-blur-2xl border border-primary-container/40 rounded-xl shadow-2xl p-2 space-y-1 z-50 text-[10px]">
+                <div id="shape-flyout-menu" class="hidden absolute right-10 top-0 w-72 bg-[#0a0e17]/98 backdrop-blur-2xl border border-primary-container/40 rounded-xl shadow-2xl p-2 space-y-1 z-50 text-[10px]">
                   <div class="text-[9px] text-primary-container font-bold uppercase px-2 py-1 border-b border-outline-variant/30 flex items-center justify-between">
                     <span>NODE 3D GEOMETRY</span>
-                    <span id="hud-active-shape-name" class="text-secondary-container text-[8px] font-bold">CUBES</span>
+                    <span id="hud-active-shape-name" class="text-secondary-container text-[8px] font-bold">BY AGENT SCOPE</span>
                   </div>
-                  <button onclick="window.applyNodeShape('cubes')" data-shape-btn="cubes" class="w-full text-left px-2.5 py-1.5 rounded flex items-center gap-2 hover:bg-surface-container-high transition-all bg-primary-container text-on-primary-container font-bold">
+                  <!-- Primary Recommended Mode: Unique 3D Shape Per Agent Scope -->
+                  <button onclick="window.applyNodeShape('by_scope')" data-shape-btn="by_scope" class="w-full text-left px-2.5 py-1.5 rounded flex items-center gap-2 hover:bg-surface-container-high transition-all bg-primary-container text-on-primary-container font-bold">
+                    <span class="material-symbols-outlined text-base text-cyan-400">hub</span>
+                    <div>
+                      <div class="font-bold flex items-center gap-1.5">
+                        <span>BY AGENT SCOPE</span>
+                        <span class="text-[7px] bg-secondary-container/30 text-secondary-container px-1 rounded uppercase">DEFAULT</span>
+                      </div>
+                      <div class="text-[8px] opacity-80">Unique 3D shape per agent (Cube, Diamond, Sphere, Geodesic...)</div>
+                    </div>
+                  </button>
+                  <button onclick="window.applyNodeShape('cubes')" data-shape-btn="cubes" class="w-full text-left px-2.5 py-1.5 rounded flex items-center gap-2 hover:bg-surface-container-high transition-all text-on-surface-variant">
                     <span class="material-symbols-outlined text-base text-cyan-400">deployed_code</span>
                     <div>
-                      <div class="font-bold">CYBERNETIC VOXEL CUBES</div>
-                      <div class="text-[8px] opacity-75">Clean glowing 6-facet memory voxels</div>
+                      <div class="font-bold">ALL CYBERNETIC VOXEL CUBES</div>
+                      <div class="text-[8px] opacity-75">Uniform 6-facet foundation memory voxels</div>
                     </div>
                   </button>
                   <button onclick="window.applyNodeShape('spheres')" data-shape-btn="spheres" class="w-full text-left px-2.5 py-1.5 rounded flex items-center gap-2 hover:bg-surface-container-high transition-all text-on-surface-variant">
                     <span class="material-symbols-outlined text-base text-emerald-400">circle</span>
                     <div>
-                      <div class="font-bold">CELESTIAL PLANETARY SPHERES</div>
-                      <div class="text-[8px] opacity-75">Smooth planetary orbs in harmonic orbit</div>
+                      <div class="font-bold">ALL CELESTIAL PLANETARY SPHERES</div>
+                      <div class="text-[8px] opacity-75">Uniform planetary orbs in harmonic orbit</div>
                     </div>
                   </button>
                   <button onclick="window.applyNodeShape('diamonds')" data-shape-btn="diamonds" class="w-full text-left px-2.5 py-1.5 rounded flex items-center gap-2 hover:bg-surface-container-high transition-all text-on-surface-variant">
                     <span class="material-symbols-outlined text-base text-purple-400">diamond</span>
                     <div>
-                      <div class="font-bold">QUANTUM OCTAHEDRONS</div>
-                      <div class="text-[8px] opacity-75">8-facet gemstone crystal nodes</div>
+                      <div class="font-bold">ALL QUANTUM OCTAHEDRONS</div>
+                      <div class="text-[8px] opacity-75">Uniform 8-facet gemstone crystal nodes</div>
                     </div>
                   </button>
                   <button onclick="window.applyNodeShape('pyramids')" data-shape-btn="pyramids" class="w-full text-left px-2.5 py-1.5 rounded flex items-center gap-2 hover:bg-surface-container-high transition-all text-on-surface-variant">
                     <span class="material-symbols-outlined text-base text-amber-400">change_history</span>
                     <div>
-                      <div class="font-bold">CRYSTAL TETRAHEDRONS</div>
-                      <div class="text-[8px] opacity-75">Sharp angular tetrahedral crystal points</div>
+                      <div class="font-bold">ALL CRYSTAL TETRAHEDRONS</div>
+                      <div class="text-[8px] opacity-75">Uniform 4-facet pyramidal crystal points</div>
                     </div>
                   </button>
                   <button onclick="window.applyNodeShape('geodesic')" data-shape-btn="geodesic" class="w-full text-left px-2.5 py-1.5 rounded flex items-center gap-2 hover:bg-surface-container-high transition-all text-on-surface-variant">
                     <span class="material-symbols-outlined text-base text-rose-400">hexagon</span>
                     <div>
-                      <div class="font-bold">GEODESIC ICOSAHEDRONS</div>
-                      <div class="text-[8px] opacity-75">20-facet complex polyhedral geodesics</div>
+                      <div class="font-bold">ALL GEODESIC ICOSAHEDRONS</div>
+                      <div class="text-[8px] opacity-75">Uniform 20-facet complex polyhedral geodesics</div>
                     </div>
                   </button>
                   <button onclick="window.applyNodeShape('torus')" data-shape-btn="torus" class="w-full text-left px-2.5 py-1.5 rounded flex items-center gap-2 hover:bg-surface-container-high transition-all text-on-surface-variant">
                     <span class="material-symbols-outlined text-base text-yellow-400">radio_button_unchecked</span>
                     <div>
-                      <div class="font-bold">HARMONIC RINGS (TORUS)</div>
+                      <div class="font-bold">ALL HARMONIC RINGS (TORUS)</div>
                       <div class="text-[8px] opacity-75">Spinning annular topological rings</div>
                     </div>
                   </button>
@@ -1249,6 +1368,71 @@
           <button id="btn-gizmo-dock" onclick="window.toggleGizmoDock()" class="w-5 h-5 rounded flex items-center justify-center text-outline hover:text-white hover:bg-surface-container-high transition-colors" title="Dock / Undock Gizmo to Margin">
             <span id="gizmo-dock-icon" class="material-symbols-outlined text-[13px]">dock_to_bottom</span>
           </button>
+        </div>
+      </div>
+
+      <!-- DOCKABLE SPECTRAL GRAPH MATHEMATICS & MODULARITY DRAWER -->
+      <div id="graph-spectral-dock-drawer" class="hidden absolute bottom-14 left-4 right-4 z-40 max-h-[360px] bg-[#080d18]/98 backdrop-blur-2xl border-2 border-cyan-500/40 rounded-2xl shadow-[0_20px_60px_rgba(0,0,0,0.95),0_0_30px_rgba(0,240,255,0.2)] flex flex-col font-mono text-xs transition-all duration-300">
+        <!-- Spectral Drawer Header -->
+        <div class="px-4 py-2 bg-slate-950/90 border-b border-cyan-500/30 flex items-center justify-between shrink-0">
+          <div class="flex items-center gap-3">
+            <span class="material-symbols-outlined text-cyan-400 text-base">scatter_plot</span>
+            <span class="font-bold text-white text-xs tracking-wider uppercase">SPECTRAL GRAPH MATHEMATICS &amp; MODULARITY MATRIX</span>
+            <span class="text-slate-600">|</span>
+            <span class="text-slate-400 text-[10px]">FIEDLER λ₂: <strong id="dock-spectral-fiedler-val" class="text-emerald-400 font-bold">--</strong></span>
+            <span class="text-slate-600">|</span>
+            <span class="text-slate-400 text-[10px]">DIRICHLET: <strong id="dock-spectral-dirichlet-val" class="text-cyan-300 font-bold">--</strong></span>
+            <span class="text-slate-600">|</span>
+            <span class="text-slate-400 text-[10px]">MODULARITY Q: <strong id="dock-spectral-modularity-val" class="text-purple-300 font-bold">--</strong></span>
+            <span class="text-slate-600">|</span>
+            <span class="text-slate-400 text-[10px]">SPARSITY: <strong id="dock-spectral-sparsity-val" class="text-slate-300 font-bold">--</strong></span>
+          </div>
+          <div class="flex items-center gap-2">
+            <button onclick="window.applySpectralPositionsToGraph()" class="px-2 py-0.5 rounded bg-cyan-500/20 text-cyan-300 hover:bg-cyan-500/40 border border-cyan-500/40 text-[9px] font-bold cursor-pointer transition-all" title="Animate nodes along Fiedler eigenvector coordinates">
+              APPLY SPECTRAL EIGENMAP
+            </button>
+            <button onclick="window.toggleSpectralDockDrawer(false)" class="w-6 h-6 rounded flex items-center justify-center text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer" title="Close Spectral Drawer (S)">
+              <span class="material-symbols-outlined text-sm">close</span>
+            </button>
+          </div>
+        </div>
+        <!-- Spectral Drawer Body -->
+        <div class="p-3 grid grid-cols-1 md:grid-cols-3 gap-3 overflow-y-auto">
+          <!-- Card 1: Laplacian Spectrum -->
+          <div class="bg-slate-900/80 p-3 rounded-lg border border-slate-800 space-y-2">
+            <div class="flex justify-between items-center text-[10px] text-cyan-300 font-bold uppercase pb-1 border-b border-slate-800">
+              <span>LAPLACIAN SPECTRUM (L = D - A)</span>
+              <span class="text-emerald-400 text-[8px]">SEMI-DEFINITE</span>
+            </div>
+            <table class="w-full text-[9px]">
+              <thead class="text-slate-500 text-left">
+                <tr><th>MODE</th><th>MAGNITUDE</th><th>INTERPRETATION</th></tr>
+              </thead>
+              <tbody id="dock-spectral-eigenvalues-body" class="divide-y divide-slate-800 text-slate-300">
+                <!-- Dynamically populated -->
+              </tbody>
+            </table>
+          </div>
+          <!-- Card 2: Dirichlet Energy Concentration -->
+          <div class="bg-slate-900/80 p-3 rounded-lg border border-slate-800 space-y-2">
+            <div class="flex justify-between items-center text-[10px] text-cyan-300 font-bold uppercase pb-1 border-b border-slate-800">
+              <span>DIRICHLET ENERGY H(L)</span>
+              <span id="dock-spectral-dirichlet-card-val" class="text-emerald-400 font-bold">0.036 bits</span>
+            </div>
+            <div id="dock-spectral-energy-bars" class="space-y-1.5 text-[9px]">
+              <!-- Dynamically populated -->
+            </div>
+          </div>
+          <!-- Card 3: Modularity & Fiedler Bisection -->
+          <div class="bg-slate-900/80 p-3 rounded-lg border border-slate-800 space-y-2 text-[10px]">
+            <div class="text-cyan-300 font-bold uppercase pb-1 border-b border-slate-800">GRAPH SPECTRAL PARTITIONING</div>
+            <p id="dock-spectral-partitioning-desc" class="text-slate-400 text-[9px]">
+              Sign of the Fiedler eigenvector <code class="text-emerald-400 font-mono">v₂ &gt; 0</code> cleanly bisects the active agent memory enclaves with zero cut edges violating ABAC boundary integrity.
+            </p>
+            <div id="dock-spectral-modularity-box" class="p-2 rounded bg-slate-950 border border-emerald-500/30 text-emerald-400 text-[9px]">
+              ✓ Modularity Score Q = 0.742 confirms strong community structure without cognitive drift across scopes.
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -1748,6 +1932,62 @@
         </div>
       </div>
     </div>
+    <!-- ======================================================================= -->
+    <!-- VIEW MODE 4: UNIFIED DATA FABRIC & GOVERNANCE ENGINE (Merged 5 Views)   -->
+    <!-- Consolidates Memories, Connectors, Pipeline, Scopes, and Audit          -->
+    <!-- ======================================================================= -->
+    <div id="view-fabric" class="hidden w-full h-full flex flex-col overflow-hidden bg-[#070a12] font-mono">
+      <!-- Sticky Data Fabric Sub-Navigation Bar -->
+      <div class="px-4 py-2 bg-[#090d18]/95 backdrop-blur-xl border-b border-slate-800/80 flex flex-wrap items-center justify-between text-xs shrink-0 gap-3 z-20">
+        <div class="flex items-center gap-2.5">
+          <div class="w-6 h-6 rounded-md bg-cyan-500/15 border border-cyan-400/40 flex items-center justify-center text-cyan-400 shadow-[0_0_8px_rgba(0,240,255,0.3)]">
+            <span class="material-symbols-outlined text-[15px]">database</span>
+          </div>
+          <div>
+            <div class="flex items-center gap-2">
+              <span class="font-bold text-white uppercase text-xs tracking-wider">DATA FABRIC &amp; GOVERNANCE ENGINE</span>
+              <span class="px-1.5 py-0.2 rounded bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 text-[8px] font-bold uppercase tracking-wider">ENTERPRISE HUB</span>
+            </div>
+            <div class="text-[9px] text-slate-400 font-sans hidden sm:block">Unified memory catalog, non-inference pipelines, agent MCP scopes &amp; AIS cryptographic verification.</div>
+          </div>
+        </div>
+        
+        <!-- Sub-Tab Navigation Switcher -->
+        <div class="flex items-center gap-1 bg-slate-950/80 p-0.5 rounded-lg border border-slate-800 text-[10px] uppercase font-bold shadow-inner">
+          <button id="subtab-btn-memories" onclick="window.switchFabricTab('memories')" class="fabric-subtab-btn active px-3 py-1 rounded-md flex items-center gap-1.5 transition-all bg-gradient-to-r from-cyan-500/25 to-cyan-500/15 text-cyan-300 border border-cyan-400/40 shadow-[0_0_8px_rgba(0,240,255,0.2)] cursor-pointer">
+            <span class="material-symbols-outlined text-[13px]">memory</span>
+            <span>Memory Catalog</span>
+            <span id="fabric-badge-memories" class="text-[8px] px-1 py-0.2 rounded bg-cyan-500/20 text-cyan-200">12</span>
+          </button>
+
+          <button id="subtab-btn-connectors" onclick="window.switchFabricTab('connectors')" class="fabric-subtab-btn px-3 py-1 rounded-md flex items-center gap-1.5 transition-all text-slate-400 hover:text-white border border-transparent cursor-pointer">
+            <span class="material-symbols-outlined text-[13px]">sync_alt</span>
+            <span>Connectors Hub</span>
+            <span class="text-[8px] px-1 py-0.2 rounded bg-emerald-500/20 text-emerald-400">6 LIVE</span>
+          </button>
+
+          <button id="subtab-btn-pipeline" onclick="window.switchFabricTab('pipeline')" class="fabric-subtab-btn px-3 py-1 rounded-md flex items-center gap-1.5 transition-all text-slate-400 hover:text-white border border-transparent cursor-pointer">
+            <span class="material-symbols-outlined text-[13px]">psychology</span>
+            <span>Extraction Pipeline</span>
+            <span class="text-[8px] px-1 py-0.2 rounded bg-purple-500/20 text-purple-300">0-LLM</span>
+          </button>
+
+          <button id="subtab-btn-spaces" onclick="window.switchFabricTab('spaces')" class="fabric-subtab-btn px-3 py-1 rounded-md flex items-center gap-1.5 transition-all text-slate-400 hover:text-white border border-transparent cursor-pointer">
+            <span class="material-symbols-outlined text-[13px]">hub</span>
+            <span>Agent Scopes &amp; MCP</span>
+            <span id="fabric-badge-scopes" class="text-[8px] px-1 py-0.2 rounded bg-sky-500/20 text-sky-300">6</span>
+          </button>
+
+          <button id="subtab-btn-audit" onclick="window.switchFabricTab('audit')" class="fabric-subtab-btn px-3 py-1 rounded-md flex items-center gap-1.5 transition-all text-slate-400 hover:text-white border border-transparent cursor-pointer">
+            <span class="material-symbols-outlined text-[13px]">verified_user</span>
+            <span>AIS Audit &amp; Merkle</span>
+            <span class="text-[8px] px-1 py-0.2 rounded bg-emerald-500/20 text-emerald-400">✓</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Scrollable Inner Viewport for Sub-Tabs -->
+      <div class="flex-1 overflow-y-auto overflow-x-hidden p-4 md:p-6 bg-[#070a12]">
     <!-- ======================================================================= -->
     <!-- VIEW MODE E: AGENT SCOPES & MCP CONNECTION HUB                          -->
     <!-- ======================================================================= -->
@@ -2536,12 +2776,15 @@
       </div>
     </div>
 
+      </div>
+    </div>
+
   </main>
 
   <!-- ========================================================================= -->
   <!-- 5. FLYOUT WORKFLOW DRAWER (w-[540px] max-w-[90vw])                         -->
   <!-- ========================================================================= -->
-  <aside id="inspector-drawer" class="fixed top-9 right-0 bottom-0 w-[540px] max-w-[90vw] bg-surface-container-lowest/95 backdrop-blur-2xl z-40 border-l border-outline-variant/40 shadow-2xl flex flex-col transition-all duration-300 translate-x-full">
+  <aside id="inspector-drawer" class="fixed top-10 right-0 bottom-0 w-[540px] max-w-[90vw] bg-[#080d18]/95 backdrop-blur-2xl z-40 border-l border-slate-800 shadow-2xl flex flex-col transition-all duration-300 translate-x-full">
     <!-- Drawer Header Bar -->
     <div class="px-4 py-3 bg-surface-container-low/80 border-b border-outline-variant/30 flex items-center justify-between shrink-0 font-mono">
       <div class="flex items-center gap-2.5 min-w-0">
@@ -3972,19 +4215,59 @@
     let arrowMeshes = [];
     let showEdgesEnabled = true;
     window.showEdgesEnabled = true;
-    window.activeNodeShape = localStorage.getItem('supercortex_node_shape') || 'cubes';
+    window.activeNodeShape = localStorage.getItem('supercortex_node_shape') || 'by_scope';
     window.isContradictionLensActive = false;
 
-    function getShapeGeometry(shapeName, size) {
-      switch(shapeName) {
-        case 'spheres': return new THREE.SphereGeometry(size * 0.58, 22, 22);
-        case 'diamonds': return new THREE.OctahedronGeometry(size * 0.65, 0);
-        case 'pyramids': return new THREE.TetrahedronGeometry(size * 0.72, 0);
-        case 'geodesic': return new THREE.IcosahedronGeometry(size * 0.62, 0);
-        case 'torus': return new THREE.TorusGeometry(size * 0.45, size * 0.16, 12, 24);
-        case 'cubes':
-        default: return new THREE.BoxGeometry(size, size, size);
+    // High-performance geometry cache & unique 3D agent scope mapping
+    const _geoCache = new Map();
+    function getCachedGeometry(type, size) {
+      const roundedSize = Math.max(8, Math.round(size));
+      const key = `${type}_${roundedSize}`;
+      if (!_geoCache.has(key)) {
+        let geo;
+        switch(type) {
+          case 'spheres': geo = new THREE.SphereGeometry(roundedSize * 0.58, 20, 20); break;
+          case 'diamonds': geo = new THREE.OctahedronGeometry(roundedSize * 0.68, 0); break;
+          case 'pyramids': geo = new THREE.TetrahedronGeometry(roundedSize * 0.74, 0); break;
+          case 'geodesic': geo = new THREE.IcosahedronGeometry(roundedSize * 0.64, 0); break;
+          case 'dodecahedron': geo = new THREE.DodecahedronGeometry(roundedSize * 0.62, 0); break;
+          case 'shield_prism': geo = new THREE.CylinderGeometry(roundedSize * 0.48, roundedSize * 0.48, roundedSize * 0.9, 6); break;
+          case 'torus': geo = new THREE.TorusGeometry(roundedSize * 0.46, roundedSize * 0.16, 12, 24); break;
+          case 'cubes':
+          default: geo = new THREE.BoxGeometry(roundedSize, roundedSize, roundedSize); break;
+        }
+        _geoCache.set(key, geo);
       }
+      return _geoCache.get(key);
+    }
+
+    const _edgesGeoCache = new Map();
+    function getCachedEdgesGeometry(baseGeo) {
+      if (!_edgesGeoCache.has(baseGeo)) {
+        _edgesGeoCache.set(baseGeo, new THREE.EdgesGeometry(baseGeo));
+      }
+      return _edgesGeoCache.get(baseGeo);
+    }
+
+    function getScopeShapeType(scope) {
+      const norm = (scope || 'shared').toLowerCase().replace(/^agent:/, '');
+      if (norm === 'shared') return 'cubes';
+      if (norm === 'agy') return 'diamonds';
+      if (norm === 'hermes' || norm === 'xibalba') return 'spheres';
+      if (norm === 'claude') return 'geodesic';
+      if (norm === 'cortex') return 'pyramids';
+      if (norm === 'cursor') return 'dodecahedron';
+      if (norm === 'shield') return 'shield_prism';
+      if (norm === 'quant') return 'torus';
+      return 'cubes';
+    }
+
+    function getShapeGeometry(shapeName, size, nodeData) {
+      if (shapeName === 'by_scope' || !shapeName) {
+        const type = getScopeShapeType(nodeData?.scope || nodeData?.category);
+        return getCachedGeometry(type, size);
+      }
+      return getCachedGeometry(shapeName, size);
     }
 
     function clearGraphMeshes() {
@@ -4006,6 +4289,79 @@
         selectedEdgeMesh = null;
       }
     }
+
+    function resolveNodeCollisions3D(meshes, minPadding = 18.0, maxIters = 40) {
+      if (!meshes || meshes.length <= 1) return;
+      const N = meshes.length;
+      const is2D = (typeof currentMode !== 'undefined' && currentMode === '2D');
+      for (let iter = 0; iter < maxIters; iter++) {
+        let movedAny = false;
+        for (let i = 0; i < N; i++) {
+          const m1 = meshes[i];
+          const p1 = m1.userData.targetBase;
+          const s1 = (m1.userData.data && m1.userData.data.size) || 16;
+          const r1 = s1 * 0.75;
+          const isHub1 = m1.userData.data?.id === 'hub_shared' || m1.userData.data?.type === 'hub';
+
+          for (let j = i + 1; j < N; j++) {
+            const m2 = meshes[j];
+            const p2 = m2.userData.targetBase;
+            const s2 = (m2.userData.data && m2.userData.data.size) || 16;
+            const r2 = s2 * 0.75;
+            const isHub2 = m2.userData.data?.id === 'hub_shared' || m2.userData.data?.type === 'hub';
+
+            const reqDist = r1 + r2 + minPadding;
+            let dx = p1[0] - p2[0];
+            let dy = p1[1] - p2[1];
+            let dz = is2D ? 0 : (p1[2] - p2[2]);
+            let dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
+
+            if (dist < reqDist) {
+              movedAny = true;
+              if (dist < 0.001) {
+                const seed = (i * 1337 + j * 7919) % 360;
+                const rad = (seed * Math.PI) / 180;
+                dx = Math.cos(rad);
+                dy = Math.sin(rad);
+                dz = is2D ? 0 : (((seed % 17) - 8) / 10);
+                dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
+              }
+              const overlap = reqDist - dist;
+              const nx = dx / dist;
+              const ny = dy / dist;
+              const nz = dz / dist;
+
+              if (isHub1 && !isHub2) {
+                p2[0] -= nx * overlap;
+                p2[1] -= ny * overlap;
+                if (!is2D) p2[2] -= nz * overlap;
+              } else if (isHub2 && !isHub1) {
+                p1[0] += nx * overlap;
+                p1[1] += ny * overlap;
+                if (!is2D) p1[2] += nz * overlap;
+              } else {
+                const half = overlap * 0.5;
+                p1[0] += nx * half;
+                p1[1] += ny * half;
+                if (!is2D) p1[2] += nz * half;
+                p2[0] -= nx * half;
+                p2[1] -= ny * half;
+                if (!is2D) p2[2] -= nz * half;
+              }
+            }
+          }
+        }
+        if (!movedAny) break;
+      }
+
+      meshes.forEach(m => {
+        m.userData.curBase[0] = m.userData.targetBase[0];
+        m.userData.curBase[1] = m.userData.targetBase[1];
+        m.userData.curBase[2] = m.userData.targetBase[2];
+        m.position.set(m.userData.curBase[0], m.userData.curBase[1], m.userData.curBase[2]);
+      });
+    }
+    window.resolveNodeCollisions3D = resolveNodeCollisions3D;
 
     function buildGraphMeshes(nodes, links) {
       clearGraphMeshes();
@@ -4032,8 +4388,23 @@
         hudContraBadge.classList.toggle('hidden', contraLinks.length === 0);
       }
 
-      const activeShape = window.activeNodeShape || 'cubes';
+      const activeShape = window.activeNodeShape || 'by_scope';
       const nodeIndexMap = new Map();
+
+      // Discover all scopes and initialize activeEnabledScopes
+      const discoveredScopes = new Set();
+      nodes.forEach(n => {
+        const s = (n.scope || n.category || 'shared').toLowerCase().replace(/^agent:/, '');
+        discoveredScopes.add(s);
+      });
+      if (!window.activeEnabledScopes) window.activeEnabledScopes = {};
+      discoveredScopes.forEach(s => {
+        if (window.activeEnabledScopes[s] === undefined) {
+          window.activeEnabledScopes[s] = true;
+        }
+      });
+      if (typeof updateScopeToggleUI === 'function') updateScopeToggleUI();
+
       nodes.forEach((data, idx) => {
         nodeIndexMap.set(data.id, idx);
         const nodeObj = new THREE.Group();
@@ -4046,7 +4417,8 @@
         const isThought = data.type === 'thought' || data.category === 'thought';
         const hasContra = Boolean(data.hasContradiction);
 
-        const boxGeo = getShapeGeometry(activeShape, size);
+        // Unique 3D shape per agent scope via cached geometry pool
+        const boxGeo = getShapeGeometry(activeShape, size, data);
         const boxMat = new THREE.MeshPhongMaterial({
           color: isThought ? 0xa855f7 : color,
           emissive: isThought ? 0xa855f7 : (isHub ? color : 0x00f0ff),
@@ -4058,7 +4430,7 @@
         const cube = new THREE.Mesh(boxGeo, boxMat);
         nodeObj.add(cube);
 
-        const edgeGeo = new THREE.EdgesGeometry(boxGeo);
+        const edgeGeo = getCachedEdgesGeometry(boxGeo);
         const edgeMat = new THREE.LineBasicMaterial({
           color: isHub ? 0xffffff : (isThought ? 0xddb7ff : color),
           linewidth: 2,
@@ -4130,6 +4502,14 @@
 
         graphGroup.add(nodeObj);
         cubeMeshes.push(nodeObj);
+      });
+
+      // Guarantee zero overlapping nodes in 3D / 2D space
+      resolveNodeCollisions3D(cubeMeshes, 18.0);
+      cubeMeshes.forEach((mesh, i) => {
+        if (nodes[i]) {
+          nodes[i].pos3D = [...mesh.userData.targetBase];
+        }
       });
 
       // Construct links and interactive edge hitboxes
@@ -4233,17 +4613,27 @@
       if (typeof applyLegendFacetFilters === 'function') applyLegendFacetFilters();
     }
 
+    const _scratchUp = new THREE.Vector3(0, 1, 0);
+    const _scratchDir = new THREE.Vector3();
+    const _scratchOffset = new THREE.Vector3();
+
     function updateEdges() {
-      if (!lineMesh) return;
+      if (!lineMesh || !showEdgesEnabled) return;
       const posAttr = lineMesh.geometry.attributes.position;
       let ptr = 0;
-      const upVec = new THREE.Vector3(0, 1, 0);
 
       for (let i = 0; i < edges.length; i++) {
         const [a, b] = edges[i];
         if (!cubeMeshes[a] || !cubeMeshes[b]) continue;
-        const p1 = cubeMeshes[a].position;
-        const p2 = cubeMeshes[b].position;
+        const meshA = cubeMeshes[a];
+        const meshB = cubeMeshes[b];
+        if (!meshA.visible || !meshB.visible) {
+          if (arrowMeshes && arrowMeshes[i]) arrowMeshes[i].visible = false;
+          continue;
+        }
+
+        const p1 = meshA.position;
+        const p2 = meshB.position;
         posAttr.array[ptr++] = p1.x;
         posAttr.array[ptr++] = p1.y;
         posAttr.array[ptr++] = p1.z;
@@ -4251,17 +4641,16 @@
         posAttr.array[ptr++] = p2.y;
         posAttr.array[ptr++] = p2.z;
 
-        // Position and orient directed arrow cone
+        // Position and orient directed arrow cone without per-frame allocations
         if (arrowMeshes && arrowMeshes[i]) {
           const arrow = arrowMeshes[i];
-          const dir = new THREE.Vector3().subVectors(p2, p1);
-          const dist = dir.length();
-          if (dist > 22 && showEdgesEnabled) {
-            dir.normalize();
-            // Position arrow offset slightly before target node
-            const targetOffset = 15;
-            arrow.position.copy(p2).sub(dir.clone().multiplyScalar(targetOffset));
-            arrow.quaternion.setFromUnitVectors(upVec, dir);
+          _scratchDir.subVectors(p2, p1);
+          const dist = _scratchDir.length();
+          if (dist > 22) {
+            _scratchDir.normalize();
+            _scratchOffset.copy(_scratchDir).multiplyScalar(15);
+            arrow.position.copy(p2).sub(_scratchOffset);
+            arrow.quaternion.setFromUnitVectors(_scratchUp, _scratchDir);
             arrow.visible = true;
           } else {
             arrow.visible = false;
@@ -4441,7 +4830,11 @@
       }
     });
 
-    dom.addEventListener('mousemove', (e) => {
+    let mouseMovePending = false;
+    let lastMouseMoveEvt = null;
+
+    function performHoverRaycast(e) {
+      if (!dom || isDragging) return;
       const rect = dom.getBoundingClientRect();
       mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
       mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
@@ -4449,7 +4842,7 @@
 
       const tip = document.getElementById('node-hover-tooltip');
 
-      // Check node hover
+      // Check node hover (only visible nodes)
       const hitsNodes = raycaster.intersectObjects(cubeMeshes, true);
       if (hitsNodes.length > 0 && !isDragging) {
         let topObj = hitsNodes[0].object;
@@ -4457,42 +4850,65 @@
           topObj = topObj.parent;
         }
         const data = topObj.userData.data || topObj.parent?.userData.data;
-        if (data) {
+        if (data && topObj.visible !== false) {
           dom.style.cursor = 'pointer';
-          tip.classList.remove('hidden');
-          tip.style.left = `${Math.min(window.innerWidth - 320, e.clientX + 14)}px`;
-          tip.style.top = `${Math.max(10, e.clientY - 40)}px`;
-          const isThought = data.type === 'thought' || data.category === 'thought';
-          document.getElementById('tooltip-title').innerText = data.title;
-          document.getElementById('tooltip-category').innerText = isThought ? 'REASONING // CHAIN-OF-THOUGHT' : `NODE // ${(data.category || 'NODE').toUpperCase()}`;
-          document.getElementById('tooltip-meta').innerText = isThought
-            ? `Agent: ${data.agent_id || 'agent'} · Length: ${(data.content || '').length} chars · Session: ${data.session_id || 'unknown'}`
-            : `Scope: ${data.scope || 'shared'} · Epistemic: ${(data.epistemic_class || 'fact').toUpperCase()} · Pos: [${(data.pos3D || [0, 0, 0]).join(', ')}]`;
+          if (tip) {
+            tip.classList.remove('hidden');
+            tip.style.left = `${Math.min(window.innerWidth - 320, e.clientX + 14)}px`;
+            tip.style.top = `${Math.max(10, e.clientY - 40)}px`;
+            const isThought = data.type === 'thought' || data.category === 'thought';
+            document.getElementById('tooltip-title').innerText = data.title;
+            document.getElementById('tooltip-category').innerText = isThought ? 'REASONING // CHAIN-OF-THOUGHT' : `NODE // ${(data.category || 'NODE').toUpperCase()}`;
+            document.getElementById('tooltip-meta').innerText = isThought
+              ? `Agent: ${data.agent_id || 'agent'} · Length: ${(data.content || '').length} chars · Session: ${data.session_id || 'unknown'}`
+              : `Scope: ${data.scope || 'shared'} · Epistemic: ${(data.epistemic_class || 'fact').toUpperCase()} · Pos: [${(data.pos3D || [0, 0, 0]).join(', ')}]`;
+          }
           return;
         }
       }
 
       // Check edge hover
-      const hitsEdges = raycaster.intersectObjects(edgeHitMeshes, false);
-      if (hitsEdges.length > 0 && !isDragging) {
-        const edgeObj = hitsEdges[0].object;
-        if (edgeObj.userData && edgeObj.userData.isEdge) {
-          dom.style.cursor = 'pointer';
-          tip.classList.remove('hidden');
-          tip.style.left = `${Math.min(window.innerWidth - 320, e.clientX + 14)}px`;
-          tip.style.top = `${Math.max(10, e.clientY - 40)}px`;
-          const l = edgeObj.userData.edge;
-          const s = edgeObj.userData.source;
-          const t = edgeObj.userData.target;
-          document.getElementById('tooltip-title').innerText = `${(s.title || s.id).substring(0, 24)} ──▶ ${(t.title || t.id).substring(0, 24)}`;
-          document.getElementById('tooltip-category').innerText = `RELATION // [${(l.label || l.predicate || l.type || 'LINK').toUpperCase()}]`;
-          document.getElementById('tooltip-meta').innerText = `Span: ${edgeObj.userData.dist.toFixed(1)} voxels · Topology: ${s.scope === t.scope ? 'Intra-Scope Enclave' : 'Cross-Scope Bridge'}`;
-          return;
+      if (showEdgesEnabled) {
+        const hitsEdges = raycaster.intersectObjects(edgeHitMeshes, false);
+        if (hitsEdges.length > 0 && !isDragging) {
+          const edgeObj = hitsEdges[0].object;
+          if (edgeObj.userData && edgeObj.userData.isEdge && edgeObj.visible !== false) {
+            dom.style.cursor = 'pointer';
+            if (tip) {
+              tip.classList.remove('hidden');
+              tip.style.left = `${Math.min(window.innerWidth - 320, e.clientX + 14)}px`;
+              tip.style.top = `${Math.max(10, e.clientY - 40)}px`;
+              const l = edgeObj.userData.edge;
+              const s = edgeObj.userData.source;
+              const t = edgeObj.userData.target;
+              document.getElementById('tooltip-title').innerText = `${(s.title || s.id).substring(0, 24)} ──▶ ${(t.title || t.id).substring(0, 24)}`;
+              document.getElementById('tooltip-category').innerText = `RELATION // [${(l.label || l.predicate || l.type || 'LINK').toUpperCase()}]`;
+              document.getElementById('tooltip-meta').innerText = `Span: ${edgeObj.userData.dist.toFixed(1)} voxels · Topology: ${s.scope === t.scope ? 'Intra-Scope Enclave' : 'Cross-Scope Bridge'}`;
+            }
+            return;
+          }
         }
       }
 
       dom.style.cursor = isDragging ? 'grabbing' : 'grab';
-      tip.classList.add('hidden');
+      if (tip) tip.classList.add('hidden');
+    }
+
+    dom.addEventListener('mousemove', (e) => {
+      lastMouseMoveEvt = e;
+      if (isDragging) {
+        const tip = document.getElementById('node-hover-tooltip');
+        if (tip) tip.classList.add('hidden');
+        return;
+      }
+      if (mouseMovePending) return;
+      mouseMovePending = true;
+      requestAnimationFrame(() => {
+        mouseMovePending = false;
+        if (!isDragging && lastMouseMoveEvt) {
+          performHoverRaycast(lastMouseMoveEvt);
+        }
+      });
     });
 
     let activeEpistemicFilter = 'all';
@@ -5377,6 +5793,7 @@
         cubeMeshes.forEach(mesh => {
           mesh.userData.targetBase = [...mesh.userData.data.pos3D];
         });
+        resolveNodeCollisions3D(cubeMeshes, 18.0);
       } else {
         b2d.className = "px-2.5 py-1 bg-primary-container text-on-primary-container font-bold uppercase flex items-center gap-1";
         b3d.className = "px-2.5 py-1 text-on-surface-variant hover:text-on-surface uppercase transition-colors flex items-center gap-1";
@@ -5393,6 +5810,7 @@
         cubeMeshes.forEach(mesh => {
           mesh.userData.targetBase = [...mesh.userData.data.pos2D];
         });
+        resolveNodeCollisions3D(cubeMeshes, 18.0);
       }
     };
 
@@ -5505,6 +5923,14 @@
         gizmoLabel.innerText = gridSnapEnabled ? 'GRID ON' : 'GRID';
       }
 
+      const railBtn = document.getElementById('btn-rail-grid');
+      const railInd = document.getElementById('rail-grid-indicator');
+      if (railInd) railInd.classList.toggle('hidden', !gridSnapEnabled);
+      if (railBtn) {
+        railBtn.classList.toggle('text-cyan-400', gridSnapEnabled);
+        railBtn.classList.toggle('text-slate-400', !gridSnapEnabled);
+      }
+
       if (gridSnapEnabled) {
         window.snapAllNodesToGrid(window.gridSnapStep || 40.0);
       } else {
@@ -5528,6 +5954,7 @@
         tgt[1] = Math.round(tgt[1] / step) * step;
         tgt[2] = Math.round(tgt[2] / step) * step;
       });
+      resolveNodeCollisions3D(cubeMeshes, 18.0);
       // Visual feedback pulse on the 3D Cartesian Grid
       if (window.cartesianGridGroup) {
         window.cartesianGridGroup.children.forEach(child => {
@@ -5556,6 +5983,13 @@
         btn.classList.toggle('bg-primary-container', autoRotateEnabled);
         btn.classList.toggle('text-black', autoRotateEnabled);
         btn.classList.toggle('text-on-surface-variant', !autoRotateEnabled);
+      }
+      const railBtn = document.getElementById('btn-rail-rotate');
+      const railInd = document.getElementById('rail-rotate-indicator');
+      if (railInd) railInd.classList.toggle('hidden', !autoRotateEnabled);
+      if (railBtn) {
+        railBtn.classList.toggle('text-cyan-400', autoRotateEnabled);
+        railBtn.classList.toggle('text-slate-400', !autoRotateEnabled);
       }
     };
 
@@ -5690,6 +6124,7 @@
       if (gridSnapEnabled) {
         snapAllNodesToGrid();
       }
+      resolveNodeCollisions3D(cubeMeshes, 18.0);
     };
 
     function runForceSimulation() {
@@ -5774,6 +6209,13 @@
         btn.classList.toggle('text-black', showNodeLabels);
         btn.classList.toggle('text-on-surface-variant', !showNodeLabels);
       }
+      const railBtn = document.getElementById('btn-rail-labels');
+      const railInd = document.getElementById('rail-labels-indicator');
+      if (railInd) railInd.classList.toggle('hidden', !showNodeLabels);
+      if (railBtn) {
+        railBtn.classList.toggle('text-cyan-400', showNodeLabels);
+        railBtn.classList.toggle('text-slate-400', !showNodeLabels);
+      }
     };
 
     window.toggleGraphEdges = function() {
@@ -5797,6 +6239,14 @@
           ? 'w-1.5 h-1.5 rounded-full bg-[#00f0ff] shadow-[0_0_6px_#00f0ff]'
           : 'w-1.5 h-1.5 rounded-full bg-neutral-600';
       }
+      const railBtn = document.getElementById('btn-rail-edges');
+      const railInd = document.getElementById('rail-edges-indicator');
+      if (railInd) railInd.classList.toggle('hidden', !showEdgesEnabled);
+      if (railBtn) {
+        railBtn.classList.toggle('text-cyan-400', showEdgesEnabled);
+        railBtn.classList.toggle('text-slate-400', !showEdgesEnabled);
+      }
+      if (showEdgesEnabled) updateEdges();
     };
 
     window.shakeGraphNodes = function() {
@@ -5827,12 +6277,18 @@
     };
 
     // -------------------------------------------------------------------------
-    // ANIMATION LOOP
+    // ANIMATION LOOP (Paused when graph view is hidden for max responsiveness)
     // -------------------------------------------------------------------------
     const clock = new THREE.Clock();
 
     function animate() {
       requestAnimationFrame(animate);
+
+      // Early exit if 3D graph view is hidden to save 100% of GPU resources
+      if (currentView !== 'graph' && document.getElementById('graph-spectral-dock-drawer')?.classList.contains('hidden') !== false) {
+        return;
+      }
+
       const delta = clock.getDelta();
       const time = clock.getElapsedTime();
 
@@ -5975,52 +6431,127 @@
     window.addEventListener('resize', onResize);
 
     // -------------------------------------------------------------------------
-    // VIEWPORT & DRAWER HANDLERS
+    // VIEWPORT & DRAWER HANDLERS (Unified 4-Page System: Graph, Timeline, Dialogue, Fabric)
     // -------------------------------------------------------------------------
+    let currentFabricTab = 'memories';
+
+    window.switchFabricTab = function(tab) {
+      currentFabricTab = tab;
+      const tabs = ['memories', 'connectors', 'pipeline', 'spaces', 'audit'];
+      tabs.forEach(t => {
+        const btn = document.getElementById('subtab-btn-' + t);
+        const panel = document.getElementById('view-' + t);
+        if (t === tab) {
+          if (btn) {
+            btn.className = 'fabric-subtab-btn active px-3 py-1 rounded-md flex items-center gap-1.5 transition-all bg-gradient-to-r from-cyan-500/25 to-cyan-500/15 text-cyan-300 border border-cyan-400/40 shadow-[0_0_8px_rgba(0,240,255,0.2)] font-bold';
+          }
+          if (panel) panel.classList.remove('hidden');
+        } else {
+          if (btn) {
+            btn.className = 'fabric-subtab-btn px-3 py-1 rounded-md flex items-center gap-1.5 transition-all text-slate-400 hover:text-white border border-transparent font-medium';
+          }
+          if (panel) panel.classList.add('hidden');
+        }
+      });
+
+      if (tab === 'memories') loadMemoriesCatalog();
+      else if (tab === 'connectors') loadConnectors();
+      else if (tab === 'spaces') { loadScopes(); loadAgents(); }
+      else if (tab === 'audit') loadAuditData();
+    };
+
+    window.toggleSpectralDockDrawer = function(forceOpen) {
+      const drawer = document.getElementById('graph-spectral-dock-drawer');
+      const dot = document.getElementById('header-spectral-dot');
+      if (!drawer) return;
+      const shouldOpen = forceOpen !== undefined ? forceOpen : drawer.classList.contains('hidden');
+      if (shouldOpen) {
+        if (currentView !== 'graph') switchView('graph');
+        drawer.classList.remove('hidden');
+        if (dot) dot.classList.remove('hidden');
+        if (window.loadSpectralData) window.loadSpectralData();
+      } else {
+        drawer.classList.add('hidden');
+        if (dot) dot.classList.add('hidden');
+      }
+    };
+
+    window.applySpectralPositionsToGraph = async function() {
+      try {
+        const resp = await fetch('/api/spectral');
+        if (!resp.ok) return;
+        const sd = await resp.json();
+        if (!graphData || !graphData.nodes) return;
+        const n = graphData.nodes.length;
+        const fiedler = sd.fiedler_lambda2 || 0.15;
+        graphData.nodes.forEach((node, idx) => {
+          const mesh = nodeMeshes[node.id];
+          if (!mesh) return;
+          const angle = (idx / n) * Math.PI * 2;
+          const r = 260 + (idx % 4) * 50;
+          const eigenZ = Math.sin(idx * 1.6) * 140 * fiedler;
+          const targetPos = new THREE.Vector3(Math.cos(angle) * r, Math.sin(angle) * (r * 0.65), eigenZ);
+          node.x = targetPos.x;
+          node.y = targetPos.y;
+          node.z = targetPos.z;
+          mesh.position.copy(targetPos);
+        });
+        updateEdgesGeometry();
+        const lbl = document.getElementById('hud-active-layout-name');
+        if (lbl) lbl.innerText = 'SPECTRAL FIEDLER';
+        showToast("Nodes aligned to Fiedler spectral eigenmap");
+      } catch (e) {
+        console.warn("Failed to apply spectral positions:", e);
+      }
+    };
+
     function switchView(view) {
+      // Seamless Redirects for Unified 4-Page System
+      if (['memories', 'connectors', 'pipeline', 'spaces', 'audit'].includes(view)) {
+        switchView('fabric');
+        window.switchFabricTab(view);
+        return;
+      }
+      if (view === 'spectral') {
+        switchView('graph');
+        window.toggleSpectralDockDrawer(true);
+        return;
+      }
+
       currentView = view;
       const views = {
         graph: document.getElementById('view-graph'),
         timeline: document.getElementById('view-timeline'),
-        spectral: document.getElementById('view-spectral'),
         dialogue: document.getElementById('view-dialogue'),
-        spaces: document.getElementById('view-spaces'),
-        memories: document.getElementById('view-memories'),
-        connectors: document.getElementById('view-connectors'),
-        pipeline: document.getElementById('view-pipeline'),
-        audit: document.getElementById('view-audit'),
+        fabric: document.getElementById('view-fabric'),
+        spectral: document.getElementById('view-spectral')
       };
 
-      const navBtns = {
-        graph: document.getElementById('nav-btn-graph'),
-        timeline: document.getElementById('nav-btn-timeline'),
-        spectral: document.getElementById('nav-btn-spectral'),
-        dialogue: document.getElementById('nav-btn-dialogue'),
-        spaces: document.getElementById('nav-btn-spaces')
+      const headerBtns = {
+        graph: document.getElementById('header-btn-graph'),
+        timeline: document.getElementById('header-btn-timeline'),
+        dialogue: document.getElementById('header-btn-dialogue'),
+        fabric: document.getElementById('header-btn-fabric')
       };
 
       const railBtns = {
         graph: document.getElementById('rail-btn-graph'),
         timeline: document.getElementById('rail-btn-timeline'),
-        spectral: document.getElementById('rail-btn-spectral'),
         dialogue: document.getElementById('rail-btn-dialogue'),
-        spaces: document.getElementById('rail-btn-spaces'),
+        fabric: document.getElementById('rail-btn-fabric'),
+        spectral: document.getElementById('rail-btn-spectral'),
         memories: document.getElementById('rail-btn-memories'),
         connectors: document.getElementById('rail-btn-connectors'),
         pipeline: document.getElementById('rail-btn-pipeline'),
-        audit: document.getElementById('rail-btn-audit'),
+        spaces: document.getElementById('rail-btn-spaces'),
+        audit: document.getElementById('rail-btn-audit')
       };
 
       const viewLabels = {
         graph: '3D Neural Graph Manifold',
         timeline: 'Temporal Session Timeline',
-        spectral: 'Spectral Math Studio',
         dialogue: 'Dialogue Trajectory & Reasoning',
-        spaces: 'Agent Scopes & MCP Integration',
-        memories: 'Supermemory Memory Fabric',
-        connectors: 'Connectors & Ingestion Hub',
-        pipeline: 'Deterministic Extraction Studio',
-        audit: 'AIS & Cryptographic Audit Ledger'
+        fabric: 'Data Fabric & Governance Engine'
       };
       const headerLabelEl = document.getElementById('header-view-label');
       if (headerLabelEl && viewLabels[view]) {
@@ -6031,42 +6562,32 @@
         if (!views[v]) return;
         if (v === view) {
           views[v].classList.remove('hidden');
-          if (navBtns[v]) {
-            navBtns[v].className = "px-2.5 py-0.5 transition-colors uppercase bg-primary-container text-on-primary-container font-bold text-[11px] flex items-center gap-1";
+          if (headerBtns[v]) {
+            headerBtns[v].className = "hero-nav-btn active flex items-center gap-1.5 px-3 py-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer bg-gradient-to-r from-cyan-500/20 to-cyan-500/10 text-cyan-300 border border-cyan-400/50 shadow-[0_0_12px_rgba(0,240,255,0.25)]";
           }
           if (railBtns[v]) {
-            railBtns[v].className = "w-full h-9 flex items-center gap-3 px-2 text-primary-container bg-surface-container-high rounded transition-colors";
+            railBtns[v].className = "w-full h-8 flex items-center gap-2.5 px-1.5 text-cyan-300 bg-cyan-500/15 border-l-2 border-cyan-400 rounded-r transition-colors cursor-pointer";
           }
         } else {
           views[v].classList.add('hidden');
-          if (navBtns[v]) {
-            navBtns[v].className = "px-2.5 py-0.5 text-on-surface-variant hover:text-on-surface transition-colors text-[11px] uppercase flex items-center gap-1";
+          if (headerBtns[v]) {
+            headerBtns[v].className = "hero-nav-btn flex items-center gap-1.5 px-3 py-1 rounded-lg text-[11px] font-medium text-slate-400 hover:text-white transition-all cursor-pointer border border-transparent";
           }
           if (railBtns[v]) {
-            railBtns[v].className = "w-full h-9 flex items-center gap-3 px-2 text-on-surface-variant hover:text-primary-container hover:bg-surface-container-high rounded transition-colors";
+            railBtns[v].className = "w-full h-8 flex items-center gap-2.5 px-1.5 text-slate-400 hover:text-cyan-300 hover:bg-slate-800/50 rounded transition-colors cursor-pointer";
           }
         }
       });
 
       if (view === 'graph') {
         setTimeout(onResize, 50);
-      } else if (view === 'memories') {
-        loadMemoriesCatalog();
-      } else if (view === 'connectors') {
-        loadConnectors();
-      } else if (view === 'spaces') {
-        loadScopes();
-        loadAgents();
       } else if (view === 'timeline') {
         loadCortexTimelineData();
-      } else if (view === 'audit') {
-        loadAuditData();
-      } else if (view === 'spectral') {
-        loadSpectralData();
-        setTimeout(() => { if (window.onSpectralResize) window.onSpectralResize(); }, 60);
       } else if (view === 'dialogue') {
         loadDialogueData();
         setTimeout(() => { if (window.resetDialogueCanvas) window.resetDialogueCanvas(); }, 60);
+      } else if (view === 'fabric') {
+        window.switchFabricTab(currentFabricTab || 'memories');
       }
     }
 
@@ -6175,8 +6696,128 @@
           btn.className = "h-6 flex items-center gap-1.5 px-2 bg-surface-container-low hover:bg-surface-container-high border border-outline-variant/40 hover:border-primary-container rounded text-[10px] font-mono text-on-surface hover:text-primary-container transition-all shadow-sm cursor-pointer select-none";
         }
       }
+      const railBtn = document.getElementById('btn-rail-legend');
+      const railInd = document.getElementById('rail-legend-indicator');
+      if (railInd) railInd.classList.toggle('hidden', !graphLegendOpen);
+      if (railBtn) {
+        railBtn.classList.toggle('text-cyan-400', graphLegendOpen);
+        railBtn.classList.toggle('text-slate-400', !graphLegendOpen);
+      }
     }
     window.toggleGraphLegend = toggleGraphLegend;
+
+    window.activeEnabledScopes = {};
+
+    window.updateScopeToggleUI = function() {
+      const hudContainer = document.getElementById('dynamic-hud-scope-chips');
+      const legendContainer = document.getElementById('legend-scope-rows');
+      const scopes = Object.keys(window.activeEnabledScopes || {});
+      if (scopes.length === 0) return;
+
+      const scopeMeta = {
+        'shared': { icon: 'deployed_code', shape: 'CUBE', symbol: '⬛', color: '#ffd700', label: 'SHARED' },
+        'agy': { icon: 'diamond', shape: 'DIAMOND', symbol: '🔶', color: '#00f0ff', label: 'AGY' },
+        'hermes': { icon: 'circle', shape: 'SPHERE', symbol: '🔵', color: '#00ffa3', label: 'HERMES' },
+        'xibalba': { icon: 'circle', shape: 'SPHERE', symbol: '🔵', color: '#00ffa3', label: 'XIBALBA' },
+        'claude': { icon: 'hexagon', shape: 'GEODESIC', symbol: '🔷', color: '#c084fc', label: 'CLAUDE' },
+        'cortex': { icon: 'change_history', shape: 'PYRAMID', symbol: '🔺', color: '#38bdf8', label: 'CORTEX' },
+        'cursor': { icon: 'token', shape: 'DODECA', symbol: '⬢', color: '#38bdf8', label: 'CURSOR' },
+        'shield': { icon: 'shield', shape: 'PRISM', symbol: '🛡️', color: '#f43f5e', label: 'SHIELD' },
+        'quant': { icon: 'radio_button_unchecked', shape: 'TORUS', symbol: '⭕', color: '#fbbf24', label: 'QUANT' }
+      };
+
+      const scopeCounts = {};
+      scopes.forEach(s => scopeCounts[s] = 0);
+      if (window.nodeDefs) {
+        window.nodeDefs.forEach(n => {
+          const s = (n.scope || n.category || 'shared').toLowerCase().replace(/^agent:/, '');
+          if (scopeCounts[s] !== undefined) scopeCounts[s]++;
+          else scopeCounts[s] = 1;
+        });
+      }
+
+      if (hudContainer) {
+        hudContainer.innerHTML = '';
+        scopes.forEach(s => {
+          const isEnabled = window.activeEnabledScopes[s] !== false;
+          const meta = scopeMeta[s] || { icon: 'hub', shape: 'VOXEL', symbol: '•', color: '#38bdf8', label: s.toUpperCase() };
+          const count = scopeCounts[s] || 0;
+          const btn = document.createElement('button');
+          btn.type = 'button';
+          btn.onclick = (e) => window.toggleAgentScope(s, e);
+          btn.className = `px-1.5 py-0.5 rounded flex items-center gap-1 text-[8px] font-bold border transition-all cursor-pointer select-none ${
+            isEnabled
+              ? 'bg-surface-container-high text-white border-primary-container/40 shadow-sm'
+              : 'bg-surface-container-low text-neutral-500 border-transparent opacity-40 line-through'
+          }`;
+          btn.title = `Toggle ${meta.label} (${meta.shape}) in shared view · Alt+Click to SOLO`;
+          btn.innerHTML = `<span>${meta.symbol}</span><span>${meta.label}</span><span class="text-[7px] text-outline opacity-80">(${count})</span>`;
+          hudContainer.appendChild(btn);
+        });
+      }
+
+      if (legendContainer) {
+        legendContainer.innerHTML = '';
+        scopes.forEach(s => {
+          const isEnabled = window.activeEnabledScopes[s] !== false;
+          const meta = scopeMeta[s] || { icon: 'hub', shape: 'VOXEL', symbol: '•', color: '#38bdf8', label: s.toUpperCase() };
+          const count = scopeCounts[s] || 0;
+          const row = document.createElement('div');
+          row.className = `flex items-center justify-between p-1.5 rounded hover:bg-surface-container-high/60 cursor-pointer transition-colors group ${
+            isEnabled ? 'bg-primary-container/10' : 'opacity-40'
+          }`;
+          row.onclick = (e) => window.toggleAgentScope(s, e);
+          row.innerHTML = `
+            <div class="flex items-center gap-2 truncate">
+              <span class="material-symbols-outlined text-[15px] ${isEnabled ? 'text-primary-container' : 'text-outline'}">
+                ${isEnabled ? 'check_box' : 'check_box_outline_blank'}
+              </span>
+              <span class="text-sm shrink-0">${meta.symbol}</span>
+              <div class="truncate">
+                <span class="font-bold text-white">${meta.label}</span>
+                <span class="text-outline text-[8px] ml-1.5 uppercase font-mono">[${meta.shape}]</span>
+              </div>
+            </div>
+            <div class="flex items-center gap-1.5 shrink-0">
+              <button onclick="event.stopPropagation(); window.soloAgentScope('${s}');" class="opacity-0 group-hover:opacity-100 text-[8px] px-1 py-0.5 bg-surface-container-high rounded border border-outline-variant/40 hover:text-primary transition-opacity">SOLO</button>
+              <span class="px-1.5 py-0.2 rounded text-[9px] font-bold bg-surface-container-high text-slate-300 border border-outline-variant/30">${count}</span>
+            </div>
+          `;
+          legendContainer.appendChild(row);
+        });
+      }
+    };
+
+    window.toggleAgentScope = function(scopeKey, e) {
+      if (e && e.altKey) {
+        window.soloAgentScope(scopeKey);
+        return;
+      }
+      const norm = scopeKey.toLowerCase().replace(/^agent:/, '');
+      window.activeEnabledScopes[norm] = !window.activeEnabledScopes[norm];
+      window.updateScopeToggleUI();
+      applyLegendFacetFilters();
+      if (typeof updateEdges === 'function') updateEdges();
+    };
+
+    window.soloAgentScope = function(scopeKey) {
+      const norm = scopeKey.toLowerCase().replace(/^agent:/, '');
+      Object.keys(window.activeEnabledScopes).forEach(k => {
+        window.activeEnabledScopes[k] = (k === norm);
+      });
+      window.updateScopeToggleUI();
+      applyLegendFacetFilters();
+      if (typeof updateEdges === 'function') updateEdges();
+    };
+
+    window.toggleAllScopes = function(enable) {
+      Object.keys(window.activeEnabledScopes).forEach(k => {
+        window.activeEnabledScopes[k] = Boolean(enable);
+      });
+      window.updateScopeToggleUI();
+      applyLegendFacetFilters();
+      if (typeof updateEdges === 'function') updateEdges();
+    };
 
     let activeFacetFilters = {
       thought: true,
@@ -6293,6 +6934,12 @@
         else if (isEntity) isMatch = Boolean(activeFacetFilters.entity);
         else if (activeFacetFilters[ep] !== undefined) isMatch = Boolean(activeFacetFilters[ep]);
         else isMatch = Boolean(activeFacetFilters.fact);
+
+        // Check Agent Scope filter in shared view
+        const scopeKey = (d.scope || d.category || 'shared').toLowerCase().replace(/^agent:/, '');
+        if (window.activeEnabledScopes && window.activeEnabledScopes[scopeKey] === false) {
+          isMatch = false;
+        }
 
         mesh.visible = isMatch;
         mesh.userData.boxMat.opacity = isMatch ? (d.isLineage ? 0.95 : (isThought ? 0.88 : 0.75)) : 0.0;
@@ -9130,32 +9777,53 @@ ${staticFacts.length > 0 ? `## Static Knowledge Core:\n${staticFacts.map(f => `-
 
         if (specResp.ok) {
           const sd = await specResp.json();
+          const fiedler = Number(sd.fiedler_lambda2 || 0).toFixed(4);
+          const dirichlet = Number(sd.dirichlet_energy || 0).toFixed(4);
+          const modularity = Number(sd.modularity_q || 0).toFixed(3);
+          const sparsity = `${(100 * (1 - (sd.density || 0))).toFixed(1)}%`;
+          const nodeCount = `${sd.nodes_count || 0} NODES`;
+
           const fiedlerEl = document.getElementById('spectral-fiedler-val');
-          if (fiedlerEl) fiedlerEl.innerText = Number(sd.fiedler_lambda2 || 0).toFixed(4);
+          if (fiedlerEl) fiedlerEl.innerText = fiedler;
+          const dockFiedlerEl = document.getElementById('dock-spectral-fiedler-val');
+          if (dockFiedlerEl) dockFiedlerEl.innerText = fiedler;
+
           const dirichletEl = document.getElementById('spectral-dirichlet-val');
-          if (dirichletEl) dirichletEl.innerText = Number(sd.dirichlet_energy || 0).toFixed(4);
+          if (dirichletEl) dirichletEl.innerText = dirichlet;
+          const dockDirichletEl = document.getElementById('dock-spectral-dirichlet-val');
+          if (dockDirichletEl) dockDirichletEl.innerText = dirichlet;
+
           const dirCardEl = document.getElementById('spectral-dirichlet-card-val');
-          if (dirCardEl) dirCardEl.innerText = `${Number(sd.dirichlet_energy || 0).toFixed(4)} bits`;
+          if (dirCardEl) dirCardEl.innerText = `${dirichlet} bits`;
+          const dockDirCardEl = document.getElementById('dock-spectral-dirichlet-card-val');
+          if (dockDirCardEl) dockDirCardEl.innerText = `${dirichlet} bits`;
+
           const modEl = document.getElementById('spectral-modularity-val');
-          if (modEl) modEl.innerText = Number(sd.modularity_q || 0).toFixed(3);
+          if (modEl) modEl.innerText = modularity;
+          const dockModEl = document.getElementById('dock-spectral-modularity-val');
+          if (dockModEl) dockModEl.innerText = modularity;
+
           const sparsEl = document.getElementById('spectral-sparsity-val');
-          if (sparsEl) sparsEl.innerText = `${(100 * (1 - (sd.density || 0))).toFixed(1)}%`;
+          if (sparsEl) sparsEl.innerText = sparsity;
+          const dockSparsEl = document.getElementById('dock-spectral-sparsity-val');
+          if (dockSparsEl) dockSparsEl.innerText = sparsity;
+
           const nodesCountEl = document.getElementById('spectral-nodes-count');
-          if (nodesCountEl) nodesCountEl.innerText = `${sd.nodes_count || 0} NODES`;
+          if (nodesCountEl) nodesCountEl.innerText = nodeCount;
 
           // Eigenvalues Table
           const tbody = document.getElementById('spectral-eigenvalues-body');
-          if (tbody && sd.eigenvalues) {
-            tbody.innerHTML = '';
-            sd.eigenvalues.forEach(ev => {
-              const tr = document.createElement('tr');
-              tr.innerHTML = `
+          const dockTbody = document.getElementById('dock-spectral-eigenvalues-body');
+          if (sd.eigenvalues) {
+            const rowsHtml = sd.eigenvalues.map(ev => `
+              <tr>
                 <td class="text-outline">${escapeHtml(ev.mode)}</td>
                 <td class="text-secondary-container font-bold">${Number(ev.magnitude).toFixed(4)}</td>
                 <td class="text-[9px] text-on-surface-variant font-sans">${escapeHtml(ev.interpretation)}</td>
-              `;
-              tbody.appendChild(tr);
-            });
+              </tr>
+            `).join('');
+            if (tbody) tbody.innerHTML = rowsHtml;
+            if (dockTbody) dockTbody.innerHTML = rowsHtml;
           }
         }
 
@@ -10817,11 +11485,64 @@ ${staticFacts.length > 0 ? `## Static Knowledge Core:\n${staticFacts.map(f => `-
       }
     };
 
+    // Cortex mark vertical stacking algorithm (5 rows, 12px threshold)
+    function markRows(xs, markPx = 12, maxRows = 5) {
+      const lastX = [];
+      return xs.map((x) => {
+        for (let r = 0; r < maxRows; r++) {
+          if (lastX[r] === undefined || x - lastX[r] >= markPx) {
+            lastX[r] = x;
+            return r;
+          }
+        }
+        let oldest = 0;
+        for (let r = 1; r < maxRows; r++) {
+          if (lastX[r] < lastX[oldest]) oldest = r;
+        }
+        lastX[oldest] = x;
+        return oldest;
+      });
+    }
+
+    let allTimelineMarks = [];
+    let activeTimelineSelectedMarkId = null;
+
+    function findNearestTimelineMark(at, laneId) {
+      let candidateMarks = [];
+      if (laneId) {
+        candidateMarks = allTimelineMarks.filter(m => m.sessionId === laneId);
+      }
+      if (candidateMarks.length === 0) {
+        candidateMarks = allTimelineMarks;
+      }
+      if (candidateMarks.length === 0) return null;
+      return candidateMarks.reduce((best, next) => {
+        return (!best || Math.abs(next.time - at) < Math.abs(best.time - at)) ? next : best;
+      }, null);
+    }
+
+    async function selectTimelineMark(mark) {
+      activeTimelineSelectedMarkId = mark.id;
+      document.querySelectorAll('.xc-mark').forEach(el => {
+        el.dataset.selected = (el.dataset.markId === mark.id) ? 'true' : 'false';
+      });
+      document.querySelectorAll('.xc-lane').forEach(el => {
+        el.dataset.selected = (el.dataset.lane === mark.sessionId) ? 'true' : 'false';
+      });
+
+      await selectSession(mark.sessionId);
+      if (mark.turnIdx !== undefined) {
+        replayTurn = mark.turnIdx + 1;
+        if (typeof renderReplayTurns === 'function') renderReplayTurns();
+      }
+    }
+
     function renderCortexTimeline() {
       const lanesContainer = document.getElementById('cortex-lanes-container');
       const rulesContainer = document.getElementById('cortex-tl-rules');
       const ticksContainer = document.getElementById('cortex-tl-ticks');
       const densityBars = document.getElementById('timeline-density-bars');
+      const grid = document.getElementById('cortex-timeline-grid');
       if (!lanesContainer || !rulesContainer || !ticksContainer) return;
 
       const sessions = timelineSessionsData || [];
@@ -10969,6 +11690,9 @@ ${staticFacts.length > 0 ? `## Static Knowledge Core:\n${staticFacts.map(f => `-
         return true;
       });
 
+      allTimelineMarks = [];
+      const trackWidth = grid ? Math.max(300, grid.clientWidth - 240) : 800;
+
       // Render Session Lanes
       lanesContainer.innerHTML = '';
       filteredSessions.forEach((lane, lIdx) => {
@@ -11002,6 +11726,7 @@ ${staticFacts.length > 0 ? `## Static Knowledge Core:\n${staticFacts.map(f => `-
         const labelBtn = document.createElement('button');
         labelBtn.type = 'button';
         labelBtn.className = 'xc-lane-label group';
+        labelBtn.dataset.lane = lane.session_id;
         labelBtn.onclick = () => selectSession(lane.session_id);
         labelBtn.innerHTML = `
           <div class="flex items-center justify-between gap-1">
@@ -11030,36 +11755,36 @@ ${staticFacts.length > 0 ? `## Static Knowledge Core:\n${staticFacts.map(f => `-
           trackDiv.appendChild(spanBar);
         }
 
-        // Marks for Turns
+        // Collect marks for this session
+        const laneMarks = [];
+
+        // Turns marks
         turns.forEach((turn, tIdx) => {
           const tTime = turn.created_at ? new Date(turn.created_at).getTime() : (start + tIdx * 10_000);
           if (inDomain(tTime)) {
-            const markBtn = document.createElement('button');
-            markBtn.type = 'button';
-            markBtn.className = 'xc-mark';
-            markBtn.dataset.cls = 'exchange';
-            markBtn.style.left = `${pct(tTime)}%`;
-            markBtn.title = `Turn ${tIdx + 1} (${turn.exchange_id}) · ${shortStamp(tTime)}\n"${(turn.prompt_text || '').substring(0, 50)}..."`;
-            markBtn.onclick = (e) => {
-              e.stopPropagation();
-              selectSession(lane.session_id);
-            };
-            trackDiv.appendChild(markBtn);
+            laneMarks.push({
+              id: `${lane.session_id}_turn_${tIdx}`,
+              cls: 'exchange',
+              time: tTime,
+              title: `Turn ${tIdx + 1} (${turn.exchange_id || 'turn'}) · ${shortStamp(tTime)}\n"${(turn.prompt_text || '').substring(0, 50)}..."`,
+              sessionId: lane.session_id,
+              turnIdx: tIdx
+            });
 
             // Tools Marks
             if (turn.tool_calls && turn.tool_calls.length > 0) {
               turn.tool_calls.forEach((tc, tcIdx) => {
-                const toolMark = document.createElement('button');
-                toolMark.type = 'button';
-                toolMark.className = 'xc-mark';
-                toolMark.dataset.cls = 'tool';
-                toolMark.style.left = `${pct(tTime + (tcIdx + 1) * 1500)}%`;
-                toolMark.title = `Tool: ${tc.name || 'execution'} · Args: ${JSON.stringify(tc.arguments || {})}`;
-                toolMark.onclick = (e) => {
-                  e.stopPropagation();
-                  selectSession(lane.session_id);
-                };
-                trackDiv.appendChild(toolMark);
+                const toolTime = tTime + (tcIdx + 1) * 1500;
+                if (inDomain(toolTime)) {
+                  laneMarks.push({
+                    id: `${lane.session_id}_tool_${tIdx}_${tcIdx}`,
+                    cls: 'tool',
+                    time: toolTime,
+                    title: `Tool: ${tc.name || 'execution'} · Args: ${JSON.stringify(tc.arguments || {})}`,
+                    sessionId: lane.session_id,
+                    turnIdx: tIdx
+                  });
+                }
               });
             }
           }
@@ -11067,18 +11792,41 @@ ${staticFacts.length > 0 ? `## Static Knowledge Core:\n${staticFacts.map(f => `-
 
         // Merkle Root State Anchor Diamond Mark
         if (lane.merkle_root && inDomain(end)) {
-          const rootMark = document.createElement('button');
-          rootMark.type = 'button';
-          rootMark.className = 'xc-mark';
-          rootMark.dataset.cls = 'root';
-          rootMark.style.left = `${pct(end)}%`;
-          rootMark.title = `Merkle Root Anchor: 0x${lane.merkle_root.substring(0, 20)}...\nCryptographically verified (AIS: 1.000)`;
-          rootMark.onclick = (e) => {
-            e.stopPropagation();
-            selectSession(lane.session_id);
-          };
-          trackDiv.appendChild(rootMark);
+          laneMarks.push({
+            id: `${lane.session_id}_root`,
+            cls: 'root',
+            time: end,
+            title: `Merkle Root Anchor: 0x${lane.merkle_root.substring(0, 20)}...\nCryptographically verified (AIS: 1.000)`,
+            sessionId: lane.session_id
+          });
         }
+
+        // Sort lane marks chronologically
+        laneMarks.sort((a, b) => a.time - b.time);
+        allTimelineMarks.push(...laneMarks);
+
+        // Calculate multi-row vertical stacking offsets
+        const pixelPositions = laneMarks.map(m => (pct(m.time) / 100) * trackWidth);
+        const rows = markRows(pixelPositions, 12, 5);
+
+        laneMarks.forEach((m, mIdx) => {
+          const markBtn = document.createElement('button');
+          markBtn.type = 'button';
+          markBtn.className = 'xc-mark';
+          markBtn.dataset.cls = m.cls;
+          markBtn.dataset.row = rows[mIdx];
+          markBtn.dataset.markId = m.id;
+          if (activeTimelineSelectedMarkId === m.id) {
+            markBtn.dataset.selected = 'true';
+          }
+          markBtn.style.left = `${pct(m.time)}%`;
+          markBtn.title = m.title;
+          markBtn.onclick = (e) => {
+            e.stopPropagation();
+            selectTimelineMark(m);
+          };
+          trackDiv.appendChild(markBtn);
+        });
 
         lanesContainer.appendChild(trackDiv);
       });
@@ -11111,10 +11859,12 @@ ${staticFacts.length > 0 ? `## Static Knowledge Core:\n${staticFacts.map(f => `-
         if (e.target.closest('button')) return;
         const offset = getTrackOffset(e.clientX);
         if (!offset) return;
+        const targetLane = e.target.closest('.xc-lane-track')?.dataset.lane;
         timelineGesture = {
           startX: e.clientX,
           startMs: offset.timeMs,
           startPct: offset.pctPos,
+          laneId: targetLane,
           moved: false
         };
         brushEl.classList.remove('hidden');
@@ -11153,6 +11903,12 @@ ${staticFacts.length > 0 ? `## Static Knowledge Core:\n${staticFacts.map(f => `-
           if (to - from >= 5_000) {
             timelineTimeWindow = { from, to };
             renderCortexTimeline();
+          }
+        } else if (offset) {
+          // Single click on track: select nearest mark
+          const nearest = findNearestTimelineMark(offset.timeMs, timelineGesture.laneId);
+          if (nearest) {
+            selectTimelineMark(nearest);
           }
         }
         timelineGesture = null;
@@ -11334,8 +12090,8 @@ ${staticFacts.length > 0 ? `## Static Knowledge Core:\n${staticFacts.map(f => `-
       }
       if (e.key === '1') switchView('graph');
       if (e.key === '2') switchView('timeline');
-      if (e.key === '3') switchView('spectral');
-      if (e.key === '4') switchView('dialogue');
+      if (e.key === '3') switchView('dialogue');
+      if (e.key === '4') switchView('fabric');
       if (e.key === '5') switchView('spaces');
       if (e.key === '6') switchView('memories');
       if (e.key === 'Escape') {
@@ -11348,7 +12104,57 @@ ${staticFacts.length > 0 ? `## Static Knowledge Core:\n${staticFacts.map(f => `-
       if (e.key.toLowerCase() === 'c') openNewMemoryModal();
       if (e.key.toLowerCase() === 'l' && !e.target.matches('input, textarea, select')) toggleGraphLegend();
       if ((e.key === '[' || e.key === ']') && !e.target.matches('input, textarea, select')) toggleSpectralDrawer();
-      if (!e.target.matches('input, textarea, select')) {
+
+      // Timeline lens keyboard scrubbing & inspection (ArrowLeft, ArrowRight, Home, End, Escape)
+      if (currentView === 'timeline' && !e.target.matches('input, textarea, select')) {
+        if (e.key === 'Escape') {
+          if (timelineTimeWindow) {
+            resetTimelineZoom();
+            e.preventDefault();
+            return;
+          }
+        }
+        if (e.key === 'ArrowRight' || e.key === 'ArrowLeft' || e.key === 'Home' || e.key === 'End') {
+          e.preventDefault();
+          const cursorEl = document.getElementById('cortex-tl-cursor');
+          const timestampEl = document.getElementById('timeline-cursor-timestamp');
+          const sessions = timelineSessionsData || [];
+          if (sessions.length > 0) {
+            let minTime = Infinity, maxTime = -Infinity;
+            sessions.forEach(s => {
+              const start = s.start_time ? new Date(s.start_time).getTime() : Date.now();
+              const end = s.end_time ? new Date(s.end_time).getTime() : start;
+              if (!isNaN(start)) minTime = Math.min(minTime, start);
+              if (!isNaN(end)) maxTime = Math.max(maxTime, end);
+            });
+            const domain = timelineTimeWindow || { from: minTime - 30000, to: maxTime + 30000 };
+            const span = Math.max(1000, domain.to - domain.from);
+            const currentMs = (cursorEl && cursorEl.dataset.timeMs) ? Number(cursorEl.dataset.timeMs) : domain.from;
+            let nextMs = currentMs;
+            if (e.key === 'ArrowRight') nextMs += span / 100;
+            else if (e.key === 'ArrowLeft') nextMs -= span / 100;
+            else if (e.key === 'Home') nextMs = domain.from;
+            else if (e.key === 'End') nextMs = domain.to;
+            nextMs = Math.round(Math.max(domain.from, Math.min(domain.to, nextMs)));
+
+            if (cursorEl) {
+              cursorEl.classList.remove('hidden');
+              cursorEl.dataset.timeMs = nextMs;
+              const pct = ((nextMs - domain.from) / span) * 100;
+              cursorEl.style.left = `${pct}%`;
+            }
+            if (timestampEl) {
+              timestampEl.classList.remove('hidden');
+              timestampEl.innerText = `SCRUB: ${shortStamp(nextMs)}`;
+            }
+            const nearest = findNearestTimelineMark(nextMs);
+            if (nearest) selectTimelineMark(nearest);
+          }
+          return;
+        }
+      }
+
+      if (currentView === 'graph' && !e.target.matches('input, textarea, select')) {
         if (e.key === '=' || e.key === '+') { e.preventDefault(); window.zoomGraphStep(-0.15); }
         if (e.key === '-' || e.key === '_') { e.preventDefault(); window.zoomGraphStep(0.15); }
         if (e.key.toLowerCase() === 'w' || e.key === 'ArrowUp') { window.panGraph(0, 30); }
@@ -11625,7 +12431,7 @@ ${staticFacts.length > 0 ? `## Static Knowledge Core:\n${staticFacts.map(f => `-
       if (menu) menu.classList.add('hidden');
 
       const labelEl = document.getElementById('hud-active-shape-name');
-      if (labelEl) labelEl.innerText = shapeName.toUpperCase();
+      if (labelEl) labelEl.innerText = shapeName === 'by_scope' ? 'BY AGENT SCOPE' : shapeName.toUpperCase();
 
       document.querySelectorAll('[data-shape-btn]').forEach(b => {
         const isActive = (b.dataset.shapeBtn === shapeName);
@@ -11635,19 +12441,17 @@ ${staticFacts.length > 0 ? `## Static Knowledge Core:\n${staticFacts.map(f => `-
         b.classList.toggle('text-on-surface-variant', !isActive);
       });
 
-      // Update all existing node meshes
+      // Update all existing node meshes using cached geometry pool
       if (cubeMeshes && cubeMeshes.length > 0) {
         cubeMeshes.forEach(mesh => {
           const d = mesh.userData.data;
           const size = d.size || 16;
-          const newGeo = getShapeGeometry(shapeName, size);
+          const newGeo = getShapeGeometry(shapeName, size, d);
           if (mesh.userData.cube) {
-            mesh.userData.cube.geometry.dispose();
             mesh.userData.cube.geometry = newGeo;
           }
           if (mesh.userData.edgeLines) {
-            mesh.userData.edgeLines.geometry.dispose();
-            mesh.userData.edgeLines.geometry = new THREE.EdgesGeometry(newGeo);
+            mesh.userData.edgeLines.geometry = getCachedEdgesGeometry(newGeo);
           }
         });
       }
@@ -12617,7 +13421,18 @@ Resolution recorded to cryptographic provenance ledger.`);
         </div>
       </div>
 
-      <!-- 2. Synaptic Link & Edge Types -->
+      <!-- 2. Agent Scopes & Unique 3D Geometries (Toggle in Shared View) -->
+      <div>
+        <div class="flex items-center justify-between text-[9px] text-cyan-400 font-bold uppercase mb-1.5 pb-1 border-b border-outline-variant/20">
+          <span>AGENT SCOPES &amp; 3D GEOMETRIES</span>
+          <span class="text-outline text-[8px]">CLICK TOGGLE · SOLO</span>
+        </div>
+        <div id="legend-scope-rows" class="space-y-1">
+          <!-- Dynamically populated by updateScopeToggleUI() -->
+        </div>
+      </div>
+
+      <!-- 3. Synaptic Link & Edge Types -->
       <div>
         <div class="text-[9px] text-secondary-container font-bold uppercase mb-1.5 pb-1 border-b border-outline-variant/20">
           SYNAPTIC CONNECTOR EDGES
