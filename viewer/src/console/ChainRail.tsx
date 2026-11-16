@@ -382,25 +382,26 @@ export function ChainRail() {
     >
       {/* --- Row 1: Temporal Session Timeline & Provenance Lens Header ------------------------------- */}
       <div className="xc-spectrum-header">
-        <svg viewBox="0 0 24 24" fill="none" stroke="#00f0ff" strokeWidth="2" style={{ width: 16, height: 16, flex: 'none' }} aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" style={{ width: 16, height: 16, flex: 'none', color: 'var(--accent)' }} aria-hidden="true">
           <circle cx="12" cy="12" r="9" />
           <polyline points="12 7 12 12 15 15" />
         </svg>
         <span className="xc-spectrum-title">TEMPORAL SESSION TIMELINE & PROVENANCE LENS</span>
         <span className="xc-spectrum-sep">|</span>
-        <span className="xc-spectrum-stat">SESSIONS: <b className="xc-stat-cyan">{sessionsCount} ACTIVE</b></span>
+        <span className="xc-spectrum-stat">SESSIONS: <b className="xc-stat-accent">{sessionsCount} ACTIVE</b></span>
         <span className="xc-spectrum-sep">|</span>
-        <span className="xc-spectrum-stat">EXCHANGES: <b className="xc-stat-green">{exchangesCount} REIFIED</b></span>
+        <span className="xc-spectrum-stat">EXCHANGES: <b>{exchangesCount} REIFIED</b></span>
         <span className="xc-spectrum-sep">|</span>
-        <span className="xc-spectrum-stat">ANCHORS: <b className="xc-stat-purple">{anchorsCount} ROOTED</b></span>
+        <span className="xc-spectrum-stat">ANCHORS: <b className="xc-stat-accent">{anchorsCount} ROOTED</b></span>
         <span className="xc-spectrum-sep">|</span>
-        <span className="xc-spectrum-stat">AVG AIS: <b className="xc-stat-green">1.000 (AUDITED)</b></span>
+        <span className="xc-spectrum-stat">AVG AIS: <b>1.000 (AUDITED)</b></span>
 
         <div className="xc-spectrum-filters" role="group" aria-label="Session filters">
           <button
             type="button"
             className="xc-spectrum-filter-btn"
             data-active={filterMode === 'all'}
+            aria-pressed={filterMode === 'all'}
             onClick={() => onSelectFilter('all')}
           >
             ALL SESSIONS
@@ -409,6 +410,7 @@ export function ChainRail() {
             type="button"
             className="xc-spectrum-filter-btn"
             data-active={filterMode === 'anchored'}
+            aria-pressed={filterMode === 'anchored'}
             onClick={() => onSelectFilter('anchored')}
           >
             MERKLE ANCHORED
@@ -417,6 +419,7 @@ export function ChainRail() {
             type="button"
             className="xc-spectrum-filter-btn"
             data-active={filterMode === 'tools'}
+            aria-pressed={filterMode === 'tools'}
             onClick={() => onSelectFilter('tools')}
           >
             WITH TOOLS
@@ -452,16 +455,16 @@ export function ChainRail() {
       {/* --- Row 2: Synaptic Activity Spectrum Header ---------------------------------------------- */}
       <div className="xc-spectrum-subhead">
         <div className="xc-spectrum-subhead-left">
-          <svg viewBox="0 0 24 24" fill="none" stroke="#00f0ff" strokeWidth="2" style={{ width: 14, height: 14, flex: 'none' }} aria-hidden="true">
-            <rect x="3" y="12" width="4" height="8" rx="1" fill="#00f0ff" stroke="none" />
-            <rect x="10" y="6" width="4" height="14" rx="1" fill="#00f0ff" stroke="none" />
-            <rect x="17" y="2" width="4" height="18" rx="1" fill="#00f0ff" stroke="none" />
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" style={{ width: 14, height: 14, flex: 'none', color: 'var(--accent)' }} aria-hidden="true">
+            <rect x="3" y="12" width="4" height="8" fill="var(--accent)" stroke="none" />
+            <rect x="10" y="6" width="4" height="14" fill="var(--accent)" stroke="none" />
+            <rect x="17" y="2" width="4" height="18" fill="var(--accent)" stroke="none" />
           </svg>
           <span className="xc-spectrum-subtitle">SYNAPTIC ACTIVITY SPECTRUM & TIME SCRUBBER</span>
           <div className="xc-spectrum-legend">
-            <span className="xc-legend-pill"><i className="xc-dot-purple" />Turn Exchanges</span>
-            <span className="xc-legend-pill"><i className="xc-dot-cyan" />Tool Executions</span>
-            <span className="xc-legend-pill"><i className="xc-dot-green" />Merkle Anchors</span>
+            <span className="xc-legend-pill"><i className="xc-dot-exchange" />Turn Exchanges</span>
+            <span className="xc-legend-pill"><i className="xc-dot-tool" />Tool Executions</span>
+            <span className="xc-legend-pill"><i className="xc-dot-anchor" />Merkle Anchors</span>
           </div>
         </div>
         <span className="xc-spectrum-timerange">
@@ -568,7 +571,7 @@ export function ChainRail() {
           title="Rewind to start"
           aria-label="Rewind"
         >
-          <svg viewBox="0 0 24 24" fill="currentColor" style={{ width: 14, height: 14 }} aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="currentColor" strokeWidth="1.5" style={{ width: 14, height: 14 }} aria-hidden="true">
             <path d="M11 19V5l-9 7 9 7zm8 0V5l-9 7 9 7z" />
           </svg>
         </button>
@@ -581,7 +584,7 @@ export function ChainRail() {
           title="Step forward"
           aria-label="Step forward"
         >
-          <svg viewBox="0 0 24 24" fill="currentColor" style={{ width: 14, height: 14 }} aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="currentColor" strokeWidth="1.5" style={{ width: 14, height: 14 }} aria-hidden="true">
             <path d="M4 5v14l9-7-9-7zm8 0v14l9-7-9-7z" />
           </svg>
         </button>
