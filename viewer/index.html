@@ -7434,6 +7434,14 @@ ${staticFacts.length > 0 ? `## Static Knowledge Core:\n${staticFacts.map(f => `-
     }
     window.zoomDialogueCanvas = zoomDialogueCanvas;
 
+    function setDialoguePanZoom(panX, panY, zoom) {
+      if (panX !== undefined) dialoguePan.x = panX;
+      if (panY !== undefined) dialoguePan.y = panY;
+      if (zoom !== undefined) dialogueZoom = zoom;
+      updateDialogueTransform();
+    }
+    window.setDialoguePanZoom = setDialoguePanZoom;
+
     function zoomToFitDialogue() {
       const viewport = document.getElementById('dialogue-canvas-viewport');
       if (!viewport) return;
@@ -8588,31 +8596,6 @@ ${staticFacts.length > 0 ? `## Static Knowledge Core:\n${staticFacts.map(f => `-
         closeDialogueNodeModal();
       }
     });
-
-    function drawSvgBezier(svgGroup, x1, y1, x2, y2, startCol, endCol) {
-      const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-      const dx = Math.max(30, (x2 - x1) * 0.5);
-      const d = `M ${x1} ${y1} C ${x1 + dx} ${y1}, ${x2 - dx} ${y2}, ${x2} ${y2}`;
-      path.setAttribute('d', d);
-      path.setAttribute('fill', 'none');
-      path.setAttribute('stroke', 'url(#dialogueCausalGrad)');
-      path.setAttribute('stroke-width', '2');
-      path.setAttribute('stroke-opacity', '0.7');
-      svgGroup.appendChild(path);
-    }
-
-    function drawSvgTransitBezier(svgGroup, x1, y1, x2, y2) {
-      const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-      const dx = Math.max(60, (x2 - x1) * 0.5);
-      const d = `M ${x1} ${y1} C ${x1 + dx} ${y1}, ${x2 - dx} ${y2}, ${x2} ${y2}`;
-      path.setAttribute('d', d);
-      path.setAttribute('fill', 'none');
-      path.setAttribute('stroke', 'url(#dialogueTransitGrad)');
-      path.setAttribute('stroke-width', '2.5');
-      path.setAttribute('stroke-dasharray', '6 4');
-      path.setAttribute('stroke-opacity', '0.65');
-      svgGroup.appendChild(path);
-    }
 
     function filterDialogueSteps(stepType) {
       currentDialogueFilter = stepType;
