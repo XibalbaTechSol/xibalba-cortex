@@ -272,10 +272,10 @@ test.describe('tools open over the lens they were opened from', () => {
     await expect(page).toHaveURL(/#timeline$/)
   })
 
-  test('Sessions: pick one and read exchanges, replay, telemetry, trace and kernel intents', async ({ page }) => {
+  test('Sessions: pick one and read exchanges, replay, telemetry and trace', async ({ page }) => {
     await openConsole(page, { hash: 'sessions' })
     await page.locator('.xc-sessions-list li').first().click()
-    for (const tab of ['Exchanges', 'Memories', 'Replay', 'Telemetry', 'Decision trace', 'Kernel intents']) {
+    for (const tab of ['Exchanges', 'Memories', 'Replay', 'Telemetry', 'Decision trace']) {
       await page.getByRole('tab', { name: tab }).click()
       await expect(page.getByRole('tab', { name: tab })).toHaveAttribute('aria-selected', 'true')
     }
@@ -333,7 +333,7 @@ test.describe('tools open over the lens they were opened from', () => {
     await page.getByRole('tab', { name: 'Account' }).click()
     await expect(page.getByText(/connected with a token/)).toBeVisible()
     await page.getByRole('tab', { name: 'Developer' }).click()
-    await page.getByRole('button', { name: 'Run self-test' }).click()
+    await expect(page.getByRole('form', { name: 'Trust vault lookup' })).toBeVisible()
   })
 })
 
@@ -539,7 +539,7 @@ test.describe('wiring: every request the console makes is answered by the backen
     for (const tab of ['Inference', 'Embeddings', 'Account', 'Developer']) { await page.getByRole('tab', { name: tab }).click(); await page.waitForTimeout(700) }
     // sessions detail
     await page.goto('/#sessions'); await page.locator('.xc-sessions-list li').first().click()
-    for (const tab of ['Exchanges', 'Memories', 'Replay', 'Telemetry', 'Decision trace', 'Kernel intents', 'Invocations']) { await page.getByRole('tab', { name: tab }).click(); await page.waitForTimeout(600) }
+    for (const tab of ['Exchanges', 'Memories', 'Replay', 'Telemetry', 'Decision trace', 'Invocations']) { await page.getByRole('tab', { name: tab }).click(); await page.waitForTimeout(600) }
     // recall in each mode, then an inspector over a pinned memory
     await page.goto('/#graph')
     await pinMemory(page, 'relay retries', 'three times')

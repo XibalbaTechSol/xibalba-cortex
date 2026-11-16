@@ -202,7 +202,7 @@ drawer_body('integrity-links', 'planned-link-verify',
 # --- 8: vault lookup (Settings > Developer) ---------------------------------------------------------------
 def dev_card(base_name, name, card, h=None):
     d = load(base_name)
-    marker = '<section class="xc-win xc-opscard xc-form" aria-label="Kernel bridge self-test">'
+    marker = '<form class="xc-win xc-opscard xc-form" aria-label="Trust vault lookup"'
     assert marker in d['html']
     out[name] = {'name': name, 'w': d['w'], 'h': h or d['h'], 'html': d['html'].replace(marker, card + marker, 1), 'canvases': d.get('canvases', []), 'base': base_name}
 

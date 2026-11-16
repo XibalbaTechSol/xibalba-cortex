@@ -75,8 +75,6 @@ def test_agent_scenario_records_runtime_telemetry_the_sessions_page_reads(seed, 
     store = GraphStore(home)
     try:
         assert len(store.session_otel_events("sess-w1")) == 4
-        intents = store.kernel_bridge_intents("sess-w1")
-        assert {i["invocation_id"] for i in intents} == {"inv-1", "inv-2"}
         invocations = {i["invocation_id"]: i["runtime_status"] for i in store.invocation_correlations(limit=10)}
         assert invocations == {"inv-1": "complete", "inv-2": "awaiting_outcome"}
     finally:

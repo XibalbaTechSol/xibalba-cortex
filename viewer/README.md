@@ -107,7 +107,7 @@ Tools, each a drawer over the lens: Memories (browse, search, add, import a docu
 (exchanges, replay, telemetry, end a session), Operations (health, readiness, agent runtimes, workers,
 connectors, backup) and Agents. Settings has Layout (browser-only), and Inference, Embeddings, Account,
 Access (API tokens, accounts waiting for approval), Profile (read-only configuration) and Developer
-(kernel-bridge self-test, trust vault lookup), which read and change the Cortex profile through the local API. Inspector actions beyond the four writes: ask the server to verify a memory's history, export
+(trust vault lookup), which read and change the Cortex profile through the local API. Inspector actions beyond the four writes: ask the server to verify a memory's history, export
 its provenance, request an extraction (or run the rule-based one now), and download attachments; Recall has
 a Context mode, and the Integrity drawer shows the server's exchange-chain recomputation beside the
 browser's. Results the server recomputed are worded as such and never as anchoring.

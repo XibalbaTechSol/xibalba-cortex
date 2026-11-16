@@ -219,8 +219,8 @@ def seed_agent(store: GraphStore) -> None:
     # one integrity-link record (the memory cites no DAG node, so its state is "unlinked") so Integrity → Links has a row to verify
     store.verify_integrity_link(a["id"])
 
-    # runtime telemetry through the real batch path: one complete tool invocation with a kernel
-    # decision (so kernel intents and the invocations list have a correlated triple), one that is
+    # runtime telemetry through the real batch path: one complete tool invocation with a policy
+    # decision (so the invocations list has a correlated triple), one that is
     # still awaiting its outcome, and one metric
     def tool_event(invocation: str, call: str, hook: str, **attrs: object) -> dict[str, object]:
         base = {"invocation_id": invocation, "runtime": "dev-seed", "tool_name": "write_file", "agent_id": AGENT,

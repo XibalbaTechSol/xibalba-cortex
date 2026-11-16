@@ -49,7 +49,7 @@ The local API exposes read and operator-oriented surfaces over the canonical `Gr
 
 The console has two destinations, **Graph** (3D by default, 2D optional, a faint grid, snap to grid) and **Timeline** (one lane per session). Everything else opens over the lens it was opened from and returns to it on Escape:
 
-- **Memories** (`GET /api/memories`, paged, status-filterable), **Entities**, **Sessions** (exchanges, replay, telemetry, decision trace, kernel intents, invocations), **Operations**, **Agents**, **Settings** — drawers, with deep links such as `#settings` and `#timeline/sessions`.
+- **Memories** (`GET /api/memories`, paged, status-filterable), **Entities**, **Sessions** (exchanges, replay, telemetry, decision trace, invocations), **Operations**, **Agents**, **Settings** — drawers, with deep links such as `#settings` and `#timeline/sessions`.
 - **Recall** (hybrid, lexical, context), **Review** (extraction proposals, PARA, tasks) and **Integrity** (session proofs, projection checkpoints, link verification) — dialogs.
 - **Inspector** (beside the lens): one selected memory, session, entity or edge, with its chain, provenance, neighbours, contradictions, telemetry and files, and the write actions in a writable workspace only.
 - Agents are exact canonical agent/device workspaces. `GET /api/agents` lists namespaces and returns `oracle_reachable` and a per-agent `identity_verified` flag — see "On-chain identity honesty" below.

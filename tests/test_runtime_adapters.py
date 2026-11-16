@@ -277,63 +277,6 @@ def test_claude_adapter_derives_matching_uuid5_from_session_and_tool_call(contro
     assert {event["attributes"]["invocation_id"] for event in events} == {expected}
 
 
-def test_kernel_bridge_intents_prefers_invocation_id_and_labels_legacy_fallback(controller):
-    ctl, store = controller
-    session_id = "session-kernel-correlation"
-    ctl.open_session("claude", session_id=session_id)
-
-    def ingest(*, hook, invocation_id=None, tool_call_id, outcome, kernel=False, result=None):
-        metadata = {"hook": hook, "tool_call_id": tool_call_id, "result": result}
-        if kernel:
-            metadata["kernel_decision"] = {"success": True}
-        ctl.ingest_event(RuntimeEvent(
-            runtime="claude",
-            session_id=session_id,
-            invocation_id=invocation_id,
-            tool_name="memory_recall",
-            tool_outcome=outcome,
-            intent_rationale="Inspect context.",
-            tool_input_hash="sha256:123",
-            metadata=metadata,
-        ))
-
-    invocation_id = "1236e53f-c982-40bd-b252-5b140aa38af5"
-    ingest(
-        hook="pre_tool_call", invocation_id=invocation_id,
-        tool_call_id="reused-tool-id", outcome="success", kernel=True,
-    )
-    # A reused legacy tool-call ID must not correlate when its invocation UUID differs.
-    ingest(
-        hook="post_tool_call", invocation_id="7ebbed12-44ad-4018-a66b-e4c6946bff41",
-        tool_call_id="reused-tool-id", outcome="error", result={"wrong": True},
-    )
-    ingest(
-        hook="post_tool_call", invocation_id=invocation_id,
-        tool_call_id="different-tool-id", outcome="success", result={"matched": True},
-    )
-    ingest(
-        hook="pre_tool_call", tool_call_id="legacy-tool-id",
-        outcome="success", kernel=True,
-    )
-    ingest(
-        hook="post_tool_call", tool_call_id="legacy-tool-id",
-        outcome="success", result={"legacy": True},
-    )
-
-    intents = store.kernel_bridge_intents(session_id)
-    by_mode = {intent["correlation_mode"]: intent for intent in intents}
-
-    current = by_mode["invocation_id"]
-    assert current["invocation_id"] == invocation_id
-    assert current["tool_call_id"] == "reused-tool-id"
-    assert current["actual_outcome"]["result"] == {"matched": True}
-
-    legacy = by_mode["legacy_tool_call_id"]
-    assert legacy["invocation_id"] is None
-    assert legacy["tool_call_id"] == "legacy-tool-id"
-    assert legacy["actual_outcome"]["result"] == {"legacy": True}
-
-
 def test_invocation_correlations_exposes_complete_and_missing_runtime_stages(controller):
     ctl, store = controller
     adapter = ClaudeAdapter(ctl)

@@ -70,7 +70,6 @@ describe('the self-hosted wire contract', () => {
     await api.entityPath('Alice', 'Bob', 3, {})
     await api.sessionReplay('s1', {})
     await api.sessionOtel('s1', {})
-    await api.kernelIntents('s1', {})
     await api.decisionTrace('s1', 't1', {})
     await api.invocations(500)
     await api.sessionExchanges('s1', {})
@@ -128,7 +127,6 @@ describe('the self-hosted wire contract', () => {
       `GET ${BASE}/api/entity/path?from=Alice&to=Bob&max_depth=3`,
       `GET ${BASE}/api/session/s1/replay?`,
       `GET ${BASE}/api/session/s1/otel?`,
-      `GET ${BASE}/api/session/s1/kernel-intents?`,
       `GET ${BASE}/api/session/s1/decision-trace?trace_id=t1`,
       `GET ${BASE}/api/invocations?limit=500`,
       `GET ${BASE}/api/session/s1/exchanges?`,
@@ -193,7 +191,6 @@ describe('the self-hosted wire contract', () => {
     await api.issueAuthToken({ label: 'l', role: 'operator', ttl_hours: 1 })
     await api.revokeAuthToken('t1')
     await api.approveAccount('a@example.com')
-    await api.kernelBridgeSelfTest('s1')
     await api.updateInferenceSettings({} as never)
 
     expect(seen).toEqual([
@@ -230,7 +227,6 @@ describe('the self-hosted wire contract', () => {
       `POST ${BASE}/api/auth/tokens`,
       `POST ${BASE}/api/auth/tokens/revoke`,
       `POST ${BASE}/api/auth/admin/approve`,
-      `POST ${BASE}/api/kernel-bridge/self-test`,
       `POST ${BASE}/api/settings/inference`,
     ])
   })
