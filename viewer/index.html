@@ -1535,23 +1535,20 @@
       <!-- SUB-HEADER HUD STRIP -->
       <section class="px-4 py-2 bg-surface-container-lowest/90 border-b border-outline-variant/30 flex flex-wrap items-center justify-between text-[10px] font-mono shrink-0 gap-2">
         <div class="flex items-center gap-3">
-          <span class="text-primary-container font-bold flex items-center gap-1">
-            <span class="material-symbols-outlined text-[13px]">forum</span>
-            <span>CUMULATIVE DIALOGUE TRAJECTORY & REASONING REFLECTION</span>
+          <span class="text-primary-container font-bold flex items-center gap-1.5">
+            <span class="material-symbols-outlined text-[14px]">forum</span>
+            <span class="tracking-wide">DIALOGUE TRAJECTORY</span>
           </span>
           <span class="text-outline">|</span>
-          <div class="flex items-center gap-1">
-            <span class="text-outline">SESSION:</span>
-            <select id="dialogue-session-select" onchange="onDialogueSessionChange(this.value)" class="bg-[#0e1526] border border-outline-variant/40 text-primary text-[10px] rounded px-1.5 py-0.5 outline-none font-mono">
+          <div class="flex items-center gap-1.5">
+            <span class="text-outline text-[9px]">SESSION:</span>
+            <select id="dialogue-session-select" onchange="onDialogueSessionChange(this.value)" class="bg-[#0e1526] border border-outline-variant/40 text-primary text-[10px] rounded px-2 py-0.5 outline-none font-mono">
               <!-- Dynamically populated from /api/sessions -->
             </select>
           </div>
-          <span class="text-outline">|</span>
-          <span id="dialogue-turns-badge" class="text-secondary-container font-semibold">0 TURNS</span>
-          <span class="text-outline">|</span>
-          <span id="dialogue-tools-badge" class="text-primary-container font-semibold">0 TOOLS</span>
-          <span class="text-outline">|</span>
-          <span class="text-outline">MERKLE: <strong id="dialogue-merkle-badge" class="text-[#ddb7ff] font-mono">0x000...</strong></span>
+          <span id="dialogue-turns-badge" class="hidden">0 TURNS</span>
+          <span id="dialogue-tools-badge" class="hidden">0 TOOLS</span>
+          <span id="dialogue-merkle-badge" class="hidden">0x000...</span>
           <span class="text-outline">|</span>
           <button id="btn-rebuild-session" onclick="window.openSessionRebuilderModal(currentDialogueSessionId)" class="px-2.5 py-0.5 bg-gradient-to-r from-cyan-500/20 to-purple-600/30 hover:from-cyan-500/40 hover:to-purple-600/50 border border-primary-container/40 text-primary hover:text-white rounded font-mono font-bold text-[9px] flex items-center gap-1 shadow-sm transition-all" title="Reconstruct and rebuild entire interaction stream between agent and user">
             <span class="material-symbols-outlined text-[12px]">history_edu</span>
@@ -1616,16 +1613,11 @@
           <div class="flex items-center gap-2">
             <span class="flex items-center gap-1.5 text-primary-container font-bold">
               <span class="material-symbols-outlined text-[13px] text-[#00f0ff] animate-pulse">timeline</span>
-              <span>CHRONOLOGICAL ACTION RUNWAY</span>
+              <span>ACTION RUNWAY</span>
             </span>
-            <span class="text-outline">|</span>
-            <span id="chrono-loom-stats" class="text-secondary-container font-semibold">0 ACTIONS TRACKED</span>
-            <span class="text-outline">|</span>
-            <!-- Live Ticker: What agents are doing -->
-            <div id="chrono-live-ticker" class="hidden md:flex items-center gap-1.5 text-neutral-300 font-mono text-[9px] bg-surface-container/60 px-2 py-0.5 rounded border border-outline-variant/30">
-              <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping"></span>
-              <span class="text-outline">AGENT PULSE:</span>
-              <span id="chrono-ticker-text" class="text-white truncate max-w-sm">Monitoring agent activity stream...</span>
+            <span id="chrono-loom-stats" class="hidden">0 ACTIONS TRACKED</span>
+            <div id="chrono-live-ticker" class="hidden">
+              <span id="chrono-ticker-text"></span>
             </div>
           </div>
 
@@ -1721,7 +1713,7 @@
 
         <!-- Bottom Guidance Strip -->
         <div class="absolute bottom-3 left-3 z-20 pointer-events-none font-mono text-[9px] text-outline bg-surface-container-lowest/80 backdrop-blur px-2.5 py-1 border border-outline-variant/30 rounded">
-          CLICK + DRAG CANVAS: Pan Trajectory · WHEEL: Zoom Trajectory · CLICK NODE: Inspect Proof & Turn Telemetry
+          DRAG: Pan Canvas · WHEEL: Zoom · CLICK NODE: View Details
         </div>
       </div>
     </div>
@@ -2914,11 +2906,11 @@
               <span id="modal-cube-turn" class="text-[9px] px-1.5 py-0.5 rounded bg-surface-container-high text-outline">TURN 1</span>
               <span id="modal-cube-agent-badge" class="text-[8px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wider bg-secondary-container/15 text-secondary-container">HERMES</span>
             </div>
-            <span id="modal-cube-id" class="text-[10px] text-outline font-mono">exch_0123456789abcdef</span>
+            <span id="modal-cube-id" class="hidden"></span>
           </div>
         </div>
         <div class="flex items-center gap-2">
-          <span id="modal-cube-timestamp" class="text-[10px] text-secondary-container bg-secondary-container/10 px-2 py-0.5 rounded border border-secondary-container/30">2026-11-15 10:14:22 UTC</span>
+          <span id="modal-cube-timestamp" class="text-[10px] text-outline"></span>
           <button onclick="closeDialogueNodeModal()" class="w-7 h-7 rounded bg-surface-container-high hover:bg-surface-container-highest text-on-surface hover:text-white flex items-center justify-center text-sm font-bold transition-colors">✕</button>
         </div>
       </div>
@@ -2930,20 +2922,13 @@
           <div class="flex items-center justify-between text-[10px] text-primary-container font-bold">
             <span class="flex items-center gap-1.5">
               <span class="material-symbols-outlined text-sm text-[#00ffa3]">terminal</span>
-              <span>BASH / RUNTIME COMMAND EXECUTION</span>
+              <span>COMMAND EXECUTION</span>
             </span>
             <button onclick="copyModalField('modal-command-raw')" class="px-2 py-0.5 rounded bg-surface-container-high hover:bg-surface-container-highest text-[9px] text-primary-container font-mono transition-colors">COPY COMMAND</button>
           </div>
 
-          <!-- Dark Terminal CRT Screen Box -->
+          <!-- Dark Terminal Screen Box -->
           <div class="rounded-lg border border-[#00f0ff]/40 bg-[#040812] p-3.5 text-[#00f0ff] font-mono text-xs shadow-inner space-y-2.5">
-            <div class="flex items-center justify-between text-[10px] text-outline border-b border-[#00f0ff]/20 pb-1.5">
-              <span class="flex items-center gap-1.5">
-                <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-                <span class="text-white font-bold">HOST EXECUTION DAEMON</span>
-              </span>
-              <span class="text-emerald-400 font-bold bg-emerald-950/60 px-1.5 py-0.5 rounded border border-emerald-500/30">STATUS: EXIT 0 (SUCCESS)</span>
-            </div>
             <div class="flex items-start gap-2 pt-1 font-mono text-sm leading-relaxed">
               <span class="text-emerald-400 font-bold select-none">$</span>
               <span id="modal-command-raw" class="text-cyan-100 font-bold break-all select-all"></span>
@@ -2959,8 +2944,8 @@
 
           <!-- Command Arguments & Parameters -->
           <div class="space-y-1">
-            <span class="text-[10px] text-outline font-bold">INVOCATION PARAMETERS:</span>
-            <pre id="modal-command-args" class="p-2.5 rounded bg-surface-container-lowest border border-outline-variant/30 text-neutral-300 font-mono text-[10px] overflow-x-auto max-h-36"></pre>
+            <span class="text-[10px] text-outline font-bold">PARAMETERS:</span>
+            <pre id="modal-command-args" class="p-2.5 rounded bg-surface-container-lowest border border-outline-variant/30 text-neutral-300 font-mono text-[10px] overflow-x-auto max-h-48"></pre>
           </div>
         </div>
 
@@ -2981,79 +2966,60 @@
             </div>
             <div id="modal-file-diff-box" class="space-y-1 pt-1 border-t border-outline-variant/20">
               <span class="text-[9px] text-outline block">TARGET / REPLACEMENT PAYLOAD:</span>
-              <pre id="modal-file-payload" class="p-2 bg-black/50 rounded border border-outline-variant/20 font-mono text-[10px] text-neutral-200 max-h-44 overflow-y-auto whitespace-pre-wrap"></pre>
+              <pre id="modal-file-payload" class="p-2 bg-black/50 rounded border border-outline-variant/20 font-mono text-[10px] text-neutral-200 max-h-56 overflow-y-auto whitespace-pre-wrap"></pre>
             </div>
           </div>
         </div>
 
         <!-- SPECIAL CARD 2b: Agent Inner Monologue & Chain-of-Thought (COT) -->
-        <div id="modal-section-thought" class="space-y-2 hidden">
-          <div class="flex items-center justify-between text-[10px] text-purple-300 font-bold">
+        <div id="modal-section-thought" class="space-y-2 flex-1 flex flex-col min-h-0 hidden">
+          <div class="flex items-center justify-between text-[10px] text-purple-300 font-bold shrink-0">
             <span class="flex items-center gap-1.5">
               <span class="material-symbols-outlined text-sm text-purple-400">psychology</span>
-              <span>AGENT INTERNAL CHAIN-OF-THOUGHT (COT) &amp; DELIBERATION</span>
+              <span>AGENT INTERNAL CHAIN-OF-THOUGHT (COT)</span>
             </span>
-            <div class="flex items-center gap-2">
-              <span class="px-1.5 py-0.2 rounded bg-purple-500/20 text-purple-300 border border-purple-500/40 text-[8px] font-mono">ALIGNMENT CHECK: PASS</span>
-              <button onclick="copyModalField('modal-thought-content')" class="text-[9px] text-outline hover:text-white">COPY</button>
-            </div>
+            <button onclick="copyModalField('modal-thought-content')" class="text-[9px] text-outline hover:text-white px-2 py-0.5 bg-surface-container-high rounded transition-colors">COPY</button>
           </div>
-          <div class="p-3.5 rounded-lg bg-surface-container-lowest border border-purple-500/30 text-purple-100 font-mono text-xs whitespace-pre-wrap leading-relaxed max-h-64 overflow-y-auto select-all shadow-inner" id="modal-thought-content"></div>
+          <div class="p-4 rounded-lg bg-surface-container-lowest border border-purple-500/30 text-purple-100 font-mono text-xs whitespace-pre-wrap leading-relaxed max-h-[65vh] overflow-y-auto select-all shadow-inner" id="modal-thought-content"></div>
         </div>
 
         <!-- SPECIAL CARD 3: Prompt Instruction -->
-        <div id="modal-section-prompt" class="space-y-1.5">
-          <div class="flex items-center justify-between text-[10px] text-[#f59e0b] font-bold">
+        <div id="modal-section-prompt" class="space-y-2 flex-1 flex flex-col min-h-0">
+          <div class="flex items-center justify-between text-[10px] text-[#f59e0b] font-bold shrink-0">
             <span class="flex items-center gap-1"><span class="material-symbols-outlined text-xs">person</span>PROMPT INSTRUCTION</span>
-            <button onclick="copyModalField('modal-prompt-content')" class="text-[9px] text-outline hover:text-white">COPY</button>
+            <button onclick="copyModalField('modal-prompt-content')" class="text-[9px] text-outline hover:text-white px-2 py-0.5 bg-surface-container-high rounded transition-colors">COPY</button>
           </div>
-          <div id="modal-prompt-content" class="p-3 rounded-lg bg-surface-container-lowest border border-outline-variant/30 text-white font-sans text-xs whitespace-pre-wrap leading-relaxed max-h-48 overflow-y-auto"></div>
+          <div id="modal-prompt-content" class="p-4 rounded-lg bg-surface-container-lowest border border-outline-variant/30 text-white font-sans text-xs whitespace-pre-wrap leading-relaxed max-h-[65vh] overflow-y-auto select-all"></div>
         </div>
 
         <!-- SPECIAL CARD 4: Tool Execution (Generic) -->
-        <div id="modal-section-tools" class="space-y-1.5 hidden">
+        <div id="modal-section-tools" class="space-y-2 hidden">
           <div class="flex items-center justify-between text-[10px] text-primary-container font-bold">
             <span class="flex items-center gap-1"><span class="material-symbols-outlined text-xs">build</span>TOOL INVOCATION &amp; ARGS</span>
-            <span class="text-secondary-container text-[9px]">EXIT CODE 0</span>
           </div>
-          <pre id="modal-tools-content" class="p-3 rounded-lg bg-surface-container-lowest border border-outline-variant/30 text-primary-container font-mono text-[11px] overflow-x-auto max-h-48 leading-relaxed"></pre>
+          <pre id="modal-tools-content" class="p-3 rounded-lg bg-surface-container-lowest border border-outline-variant/30 text-primary-container font-mono text-[11px] overflow-x-auto max-h-56 leading-relaxed"></pre>
         </div>
 
         <!-- SPECIAL CARD 5: Model Response & Synthesis -->
-        <div id="modal-section-response" class="space-y-1.5">
-          <div class="flex items-center justify-between text-[10px] text-[#c084fc] font-bold">
+        <div id="modal-section-response" class="space-y-2 flex-1 flex flex-col min-h-0">
+          <div class="flex items-center justify-between text-[10px] text-[#c084fc] font-bold shrink-0">
             <span class="flex items-center gap-1"><span class="material-symbols-outlined text-xs">psychology</span>AGENT REASONING &amp; SYNTHESIS</span>
-            <button onclick="copyModalField('modal-response-content')" class="text-[9px] text-outline hover:text-white">COPY</button>
+            <button onclick="copyModalField('modal-response-content')" class="text-[9px] text-outline hover:text-white px-2 py-0.5 bg-surface-container-high rounded transition-colors">COPY</button>
           </div>
-          <div id="modal-response-content" class="p-3 rounded-lg bg-surface-container-lowest border border-outline-variant/30 text-neutral-200 font-sans text-xs whitespace-pre-wrap leading-relaxed max-h-56 overflow-y-auto"></div>
+          <div id="modal-response-content" class="p-4 rounded-lg bg-surface-container-lowest border border-outline-variant/30 text-neutral-100 font-sans text-xs whitespace-pre-wrap leading-relaxed max-h-[65vh] overflow-y-auto select-all"></div>
         </div>
 
-        <!-- Section: Cryptographic Provenance & Proof -->
-        <div class="p-3 rounded-lg bg-black/60 border border-outline-variant/30 space-y-1.5 text-[10px]">
-          <div class="flex items-center justify-between text-secondary-container font-bold">
-            <span class="flex items-center gap-1"><span class="material-symbols-outlined text-xs">verified</span>CRYPTOGRAPHIC PROVENANCE LINK</span>
-            <span>AIS: 1.000 (AUDITED)</span>
-          </div>
-          <div class="grid grid-cols-2 gap-2 text-[9px] font-mono">
-            <div>
-              <span class="text-outline block">TURN HASH:</span>
-              <span id="modal-turn-hash" class="text-white truncate block">0x000...</span>
-            </div>
-            <div>
-              <span class="text-outline block">PARENT HASH:</span>
-              <span id="modal-parent-hash" class="text-white truncate block">0x000...</span>
-            </div>
-            <div class="col-span-2">
-              <span class="text-outline block">MERKLE ROOT:</span>
-              <span id="modal-merkle-root" class="text-[#ddb7ff] truncate block">0x000...</span>
-            </div>
-          </div>
+        <!-- Preserved DOM Hooks for Provenance Ledger without Clutter -->
+        <div class="hidden">
+          <span id="modal-turn-hash"></span>
+          <span id="modal-parent-hash"></span>
+          <span id="modal-merkle-root"></span>
         </div>
       </div>
 
       <!-- Modal Footer -->
       <div class="pt-3 border-t border-outline-variant/30 flex items-center justify-between text-[10px] shrink-0">
-        <span class="text-outline">Click outside or press <kbd class="px-1.5 py-0.5 bg-surface-container-high rounded text-white">ESC</kbd> to close</span>
+        <span class="text-outline">Press <kbd class="px-1.5 py-0.5 bg-surface-container-high rounded text-white">ESC</kbd> to close</span>
         <button onclick="closeDialogueNodeModal()" class="px-4 py-1.5 bg-primary-container text-on-primary-container font-bold rounded hover:opacity-90 transition-opacity">CLOSE</button>
       </div>
     </div>
@@ -3350,15 +3316,27 @@
               <span id="rebuild-agent-pill" class="text-[9px] px-2 py-0.5 rounded bg-purple-500/15 border border-purple-500/40 text-[#ddb7ff] font-bold">AGENT // CLAUDE</span>
               <span id="rebuild-duration-pill" class="text-[9px] px-2 py-0.5 rounded bg-surface-container-high border border-outline-variant/40 text-secondary-container font-bold">0m 00s</span>
             </div>
-            <div class="flex items-center gap-2 text-[10px] text-outline mt-0.5">
+            <div class="flex items-center gap-2 text-[10px] text-outline mt-0.5 flex-wrap">
               <span>SESSION:</span>
               <span id="rebuild-session-id" class="text-white font-bold select-all">sess_...</span>
               <button onclick="navigator.clipboard.writeText(document.getElementById('rebuild-session-id').innerText); alert('Session ID copied!');" class="hover:text-primary" title="Copy Session ID">
                 <span class="material-symbols-outlined text-[12px]">content_copy</span>
               </button>
               <span class="text-outline">|</span>
-              <span>MERKLE ROOT:</span>
-              <span id="rebuild-merkle-root" class="text-[#00ffa3] font-mono font-bold truncate max-w-xs">0x...</span>
+              <span>ROOT:</span>
+              <span id="rebuild-merkle-root" class="text-[#00ffa3] font-mono font-bold truncate max-w-[120px]">0x...</span>
+              <span class="text-outline">|</span>
+              <span class="text-neutral-400">TURNS: <b id="rebuild-stat-turns" class="text-cyan-400">0</b></span>
+              <span class="text-outline">·</span>
+              <span class="text-neutral-400">STEPS: <b id="rebuild-stat-steps" class="text-white">0</b></span>
+              <span class="text-outline">·</span>
+              <span class="text-neutral-400">PROMPTS: <b id="rebuild-stat-prompts" class="text-amber-400">0</b></span>
+              <span class="text-outline">·</span>
+              <span class="text-neutral-400">COT: <b id="rebuild-stat-thoughts" class="text-[#c084fc]">0</b></span>
+              <span class="text-outline">·</span>
+              <span class="text-neutral-400">TOOLS: <b id="rebuild-stat-tools" class="text-[#00f0ff]">0</b></span>
+              <span class="text-outline">·</span>
+              <span class="text-neutral-400">ANCHORS: <b id="rebuild-stat-anchors" class="text-[#00ffa3]">0</b></span>
             </div>
           </div>
         </div>
@@ -3373,34 +3351,6 @@
             <span>MARKDOWN</span>
           </button>
           <button onclick="window.closeSessionRebuilderModal()" class="w-8 h-8 rounded bg-surface-container-high hover:bg-surface-container-highest text-neutral-400 hover:text-white flex items-center justify-center text-sm font-bold transition-colors">✕</button>
-        </div>
-      </div>
-
-      <!-- Telemetry KPI Strip -->
-      <div class="grid grid-cols-2 md:grid-cols-6 gap-2 shrink-0 text-center">
-        <div class="p-2 bg-surface-container-low border border-outline-variant/30 rounded">
-          <span class="text-outline text-[8px] uppercase block">TOTAL TURNS</span>
-          <span id="rebuild-stat-turns" class="text-primary-container text-sm font-bold">0</span>
-        </div>
-        <div class="p-2 bg-surface-container-low border border-outline-variant/30 rounded">
-          <span class="text-outline text-[8px] uppercase block">ATOMIC STEPS</span>
-          <span id="rebuild-stat-steps" class="text-white text-sm font-bold">0</span>
-        </div>
-        <div class="p-2 bg-surface-container-low border border-amber-500/30 rounded">
-          <span class="text-outline text-[8px] uppercase block">USER PROMPTS</span>
-          <span id="rebuild-stat-prompts" class="text-amber-400 text-sm font-bold">0</span>
-        </div>
-        <div class="p-2 bg-surface-container-low border border-purple-500/30 rounded">
-          <span class="text-outline text-[8px] uppercase block">COT REASONING</span>
-          <span id="rebuild-stat-thoughts" class="text-[#c084fc] text-sm font-bold">0</span>
-        </div>
-        <div class="p-2 bg-surface-container-low border border-cyan-500/30 rounded">
-          <span class="text-outline text-[8px] uppercase block">TOOL ACTIONS</span>
-          <span id="rebuild-stat-tools" class="text-[#00f0ff] text-sm font-bold">0</span>
-        </div>
-        <div class="p-2 bg-surface-container-low border border-emerald-500/30 rounded">
-          <span class="text-outline text-[8px] uppercase block">INTEGRITY ANCHORS</span>
-          <span id="rebuild-stat-anchors" class="text-[#00ffa3] text-sm font-bold">0</span>
         </div>
       </div>
 
@@ -9588,7 +9538,7 @@ ${staticFacts.length > 0 ? `## Static Knowledge Core:\n${staticFacts.map(f => `-
           if (numCols > 0) {
             turnWidth = 124 + (numCols * colWidth) + 130;
           }
-          const turnHeight = Math.max(195, Math.min(toolCalls.length || 1, maxRows) * 52 + 65);
+          const turnHeight = Math.max(160, Math.min(toolCalls.length || 1, maxRows) * 52 + 48);
           
           const turnStartX = currentX;
           const turnStartY = dialogueLayout === 'stacked' ? (80 + (turnIdx % 2) * (turnHeight + 25)) : 100;
@@ -9660,22 +9610,8 @@ ${staticFacts.length > 0 ? `## Static Knowledge Core:\n${staticFacts.map(f => `-
                 <span class="font-bold text-primary-container">TURN ${turnIdx + 1}</span>
                 <span class="text-outline text-[8px]">· ${escapeHtml(turnTimeStr)}</span>
               </div>
-              <div class="flex items-center gap-1.5 text-[8px]">
-                <span class="px-1 py-0.2 rounded bg-surface-container text-secondary-container font-semibold border border-secondary-container/20">
-                  ${toolCalls.length} ACT
-                </span>
-                <span class="text-outline">ROOT:</span>
-                <span class="text-emerald-400 font-mono">0x${(turn.turn_hash || '').substring(0, 5)}</span>
-              </div>
             </div>
             ${chronoStripHtml}
-            <div class="flex items-center justify-between text-[7px] font-mono text-outline/50 px-0.5 pt-0.5 select-none pointer-events-none">
-              <span>INTENT</span>
-              <span>COT</span>
-              ${toolCalls.length > 0 ? `<span>COMMAND TRAJECTORY (${toolCalls.length})</span>` : ''}
-              <span>SYNTHESIS</span>
-              <span>STATE ANCHOR</span>
-            </div>
           `;
           nodesLayer.appendChild(enclaveEl);
 
