@@ -2206,6 +2206,9 @@
 
       <!-- Real-Time Extraction Results Card -->
       <div id="pipeline-results-card" class="hidden bg-surface-container-lowest border border-primary-container/30 p-5 rounded space-y-4 shadow-lg">
+        <!-- Ingestion Success & Graph Weave Banner -->
+        <div id="pipeline-commit-banner" class="hidden"></div>
+
         <div class="flex items-center justify-between pb-2 border-b border-outline-variant/30 text-xs font-bold">
           <div class="flex items-center gap-2">
             <span class="w-2 h-2 rounded-full bg-secondary-container animate-pulse"></span>
@@ -7799,12 +7802,44 @@ ${staticFacts.length > 0 ? `## Static Knowledge Core:\n${staticFacts.map(f => `-
         });
         const res = await resp.json();
         if (resp.ok) {
-          alert(`Memory successfully committed into scope "${scope}"!\nMemory ID: ${res.memory_id}`);
-          loadGraphData('all');
+          const banner = document.getElementById('pipeline-commit-banner');
+          const triplesCount = (lastExtractedResult.triples || []).length;
+          if (banner) {
+            banner.classList.remove('hidden');
+            banner.innerHTML = `
+              <div class="p-3 bg-secondary-container/10 border border-secondary-container/40 rounded flex items-center justify-between font-mono text-xs mb-3">
+                <div class="space-y-0.5">
+                  <div class="text-secondary-container font-bold flex items-center gap-1.5">
+                    <span class="material-symbols-outlined text-sm">check_circle</span>
+                    <span>INGESTED DETERMINISTICALLY INTO SCOPE [${scope.toUpperCase()}]</span>
+                  </div>
+                  <div class="text-[10px] text-neutral-300">Memory ID: <strong class="text-white">${res.memory_id}</strong> · Weaved <strong class="text-[#ffd166]">${triplesCount} SOP Triples</strong> into 3D Graph</div>
+                </div>
+                <button onclick="window.viewMemoryInGraph('${res.memory_id}')" class="px-3.5 py-1.5 bg-secondary-container text-black font-bold text-[10px] uppercase rounded flex items-center gap-1 hover:bg-white transition-all shadow">
+                  <span>🪐 Explore in 3D Galaxy</span>
+                  <span class="material-symbols-outlined text-xs">arrow_forward</span>
+                </button>
+              </div>
+            `;
+          } else {
+            alert(`Memory successfully committed into scope "${scope}"!\nMemory ID: ${res.memory_id}`);
+          }
+          if (window.loadGraphData) window.loadGraphData('all');
         }
       } catch (e) {
         alert("Failed to commit memory: " + e.message);
       }
+    };
+
+    window.viewMemoryInGraph = function(memId) {
+      if (window.switchView) window.switchView('graph');
+      setTimeout(() => {
+        const node = (currentNodes || []).find(n => n.id === memId);
+        if (node) {
+          if (window.flyToNode) window.flyToNode(node);
+          if (window.selectNode) window.selectNode(node);
+        }
+      }, 450);
     };
 
     window.triggerBackfillSOP = async function() {
