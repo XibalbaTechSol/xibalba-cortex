@@ -1597,151 +1597,7 @@
     </div>
 
   
-    <!-- ======================================================================= -->
-    <!-- VIEW MODE C: SPECTRAL MATH STUDIO & CLUSTER ANALYSIS                   -->
-    <!-- ======================================================================= -->
-    <div id="view-spectral" class="hidden w-full h-full flex flex-col overflow-hidden bg-[#090c12]">
-      <!-- SUB-HEADER TELEMETRY & MATH METRICS BAR -->
-      <section class="px-4 py-2 bg-surface-container-lowest/90 border-b border-outline-variant/30 flex flex-wrap items-center justify-between text-[10px] font-mono shrink-0 gap-2">
-        <div class="flex items-center gap-3">
-          <span class="text-primary-container font-bold flex items-center gap-1">
-            <span class="material-symbols-outlined text-[13px]">scatter_plot</span>
-            <span>SPECTRAL GRAPH MATHEMATICS & MODULARITY STUDIO</span>
-          </span>
-          <span class="text-outline">|</span>
-          <span class="text-outline">NODES: <strong id="spectral-nodes-count" class="text-primary font-bold">--</strong></span>
-          <span class="text-outline">|</span>
-          <span class="text-outline">FIEDLER λ₂: <strong id="spectral-fiedler-val" class="text-secondary-container font-bold">--</strong></span>
-          <span class="text-outline">|</span>
-          <span class="text-outline">DIRICHLET H(L): <strong id="spectral-dirichlet-val" class="text-primary-container font-bold">--</strong></span>
-          <span class="text-outline">|</span>
-          <span class="text-outline">MODULARITY Q: <strong id="spectral-modularity-val" class="text-[#ddb7ff] font-bold">--</strong></span>
-          <span class="text-outline">|</span>
-          <span class="text-outline">SPARSITY: <strong id="spectral-sparsity-val" class="text-on-surface font-semibold">--</strong></span>
-        </div>
 
-        <!-- Epistemic Class Filter Pills -->
-        <div id="spectral-filter-pills" class="flex items-center gap-1 bg-surface-container-low p-0.5 border border-outline-variant/30 text-[9px] uppercase font-bold">
-          <button onclick="filterSpectralNodes('all')" class="px-2 py-0.5 bg-primary-container text-on-primary-container rounded-sm" data-sfilter="all">ALL</button>
-          <button onclick="filterSpectralNodes('fact')" class="px-2 py-0.5 text-on-surface-variant hover:text-primary-container" data-sfilter="fact">FACTS</button>
-          <button onclick="filterSpectralNodes('rule')" class="px-2 py-0.5 text-on-surface-variant hover:text-secondary-container" data-sfilter="rule">RULES</button>
-          <button onclick="filterSpectralNodes('decision')" class="px-2 py-0.5 text-on-surface-variant hover:text-[#ddb7ff]" data-sfilter="decision">DECISIONS</button>
-          <button onclick="filterSpectralNodes('hub')" class="px-2 py-0.5 text-on-surface-variant hover:text-[#ffd700]" data-sfilter="hub">SCOPES</button>
-          <button onclick="filterSpectralNodes('entity')" class="px-2 py-0.5 text-on-surface-variant hover:text-[#38bdf8]" data-sfilter="entity">ENTITIES</button>
-        </div>
-      </section>
-
-      <!-- MAIN SPECTRAL STUDIO WORKSPACE (Interactive 3D/2D WebGL Canvas + Math Inspector) -->
-      <div class="flex-1 flex flex-col xl:flex-row overflow-hidden relative">
-        <!-- Interactive 3D WebGL Graph Viewport -->
-        <div class="flex-1 relative overflow-hidden bg-[#080b11] border-r border-outline-variant/20 grid-matrix select-none" id="spectral-canvas-viewport">
-          <!-- WebGL Three.js Mount Target -->
-          <div id="spectral-threejs-container" class="absolute inset-0 w-full h-full cursor-grab active:cursor-grabbing"></div>
-
-          <!-- Top-Left Projection & Coloring Controls HUD -->
-          <div class="absolute top-3 left-3 z-20 flex flex-wrap items-center gap-2 font-mono text-[10px]">
-            <div class="bg-surface-container-lowest/90 backdrop-blur border border-outline-variant/40 rounded p-1 flex items-center gap-1 shadow-lg">
-              <span class="text-outline text-[9px] px-1 font-bold">PROJECTION:</span>
-              <button id="btn-spectral-mode-3d" onclick="setSpectralProjectionMode('3D')" class="px-2 py-0.5 bg-primary-container text-on-primary-container font-bold rounded-sm text-[9px]">3D SPECTRAL LATTICE</button>
-              <button id="btn-spectral-mode-2d" onclick="setSpectralProjectionMode('2D')" class="px-2 py-0.5 text-on-surface-variant hover:text-on-surface font-semibold rounded-sm text-[9px]">2D FIEDLER AXIS</button>
-            </div>
-
-            <div class="bg-surface-container-lowest/90 backdrop-blur border border-outline-variant/40 rounded p-1 flex items-center gap-1 shadow-lg">
-              <span class="text-outline text-[9px] px-1 font-bold">COLORING:</span>
-              <button id="btn-spectral-col-class" onclick="setSpectralColorMode('class')" class="px-2 py-0.5 bg-secondary-container text-on-secondary-container font-bold rounded-sm text-[9px]">EPISTEMIC CLASS</button>
-              <button id="btn-spectral-col-fiedler" onclick="setSpectralColorMode('fiedler')" class="px-2 py-0.5 text-on-surface-variant hover:text-on-surface font-semibold rounded-sm text-[9px]">FIEDLER BISECTION</button>
-            </div>
-          </div>
-
-          <!-- Top-Right Utility HUD -->
-          <div class="absolute top-3 right-3 z-20 flex items-center gap-2 font-mono text-[10px]">
-            <button onclick="toggleSpectralAutoRotate()" id="btn-spectral-autorotate" class="px-2.5 py-1 bg-surface-container-lowest/90 backdrop-blur border border-outline-variant/40 hover:border-primary-container text-on-surface text-[10px] font-bold rounded flex items-center gap-1 shadow-lg transition-colors">
-              <span class="material-symbols-outlined text-xs text-primary-container">sync</span>
-              <span id="spectral-autorotate-label">AUTO-ORBIT: ON</span>
-            </button>
-            <button onclick="resetSpectralCamera()" class="px-2.5 py-1 bg-surface-container-lowest/90 backdrop-blur border border-outline-variant/40 hover:border-primary-container text-on-surface text-[10px] font-bold rounded flex items-center gap-1 shadow-lg transition-colors">
-              <span class="material-symbols-outlined text-xs text-secondary-container">center_focus_strong</span>
-              <span>RESET VIEW</span>
-            </button>
-            <button onclick="toggleSpectralDrawer()" id="btn-spectral-drawer-hud-toggle" class="px-2.5 py-1 bg-surface-container-lowest/90 backdrop-blur border border-outline-variant/40 hover:border-primary-container text-on-surface text-[10px] font-bold rounded flex items-center gap-1 shadow-lg transition-colors" title="Toggle right spectral metrics drawer ([ or ])">
-              <span class="material-symbols-outlined text-xs text-primary-container">side_navigation</span>
-              <span id="spectral-drawer-hud-label">METRICS: OPEN</span>
-            </button>
-          </div>
-
-          <!-- Collapsed Right Margin Expand Tab -->
-          <button id="btn-expand-spectral-drawer" onclick="toggleSpectralDrawer()" class="hidden absolute top-1/2 right-0 -translate-y-1/2 z-30 bg-[#0c121d]/95 hover:bg-surface-container-high backdrop-blur border-y border-l border-primary-container/60 hover:border-primary-container px-2 py-3.5 text-primary-container rounded-l-md font-mono text-[10px] font-bold flex flex-col items-center gap-2 shadow-2xl cursor-pointer transition-all group" title="Expand Spectral Metrics Drawer ([ or ])">
-            <span class="material-symbols-outlined text-sm group-hover:-translate-x-0.5 transition-transform">chevron_left</span>
-            <span style="writing-mode: vertical-rl; transform: rotate(180deg);" class="uppercase tracking-widest text-[9px] text-outline group-hover:text-primary-container">SPECTRAL METRICS</span>
-          </button>
-
-          <!-- Bottom Status & Hover Tooltip HUD -->
-          <div class="absolute bottom-3 left-3 right-3 z-20 pointer-events-none flex items-end justify-between font-mono text-[10px]">
-            <div id="spectral-hover-card" class="bg-surface-container-lowest/95 backdrop-blur border border-primary-container/40 p-2.5 rounded shadow-xl text-left hidden max-w-sm pointer-events-auto">
-              <!-- Dynamically populated on node hover -->
-            </div>
-            <div class="bg-surface-container-lowest/80 backdrop-blur border border-outline-variant/30 px-3 py-1 rounded text-outline text-[9px]">
-              DRAG: Orbit / Pan · WHEEL: Zoom · CLICK: Inspect Node
-            </div>
-          </div>
-        </div>
-
-        <!-- Right Side: Spectral Mathematics & Matrix Decomposition Dashboard -->
-        <div id="spectral-math-drawer" class="w-full xl:w-96 p-4 bg-surface-container-lowest border-l border-outline-variant/30 flex flex-col gap-4 font-mono text-xs overflow-y-auto transition-all duration-300 ease-in-out shrink-0 relative">
-          <!-- Drawer Header with Title & Collapse Button -->
-          <div class="flex items-center justify-between pb-2 border-b border-outline-variant/30">
-            <div class="flex items-center gap-1.5 font-bold text-primary-container text-xs">
-              <span class="material-symbols-outlined text-sm">tune</span>
-              <span>SPECTRAL METRICS</span>
-            </div>
-            <button id="btn-collapse-spectral-drawer" onclick="toggleSpectralDrawer()" class="px-2 py-0.5 bg-surface-container hover:bg-surface-container-high border border-outline-variant/30 hover:border-primary-container/60 rounded text-[10px] text-on-surface-variant hover:text-on-surface flex items-center gap-1 transition-colors cursor-pointer" title="Collapse to right margin ([ or ])">
-              <span class="material-symbols-outlined text-xs">chevron_right</span>
-              <span>COLLAPSE</span>
-            </button>
-          </div>
-
-          <div id="spectral-drawer-inner" class="flex flex-col gap-4 w-full">
-            <!-- Card: Normalized Laplacian Spectrum -->
-            <div class="bg-surface-container-low p-3 border border-outline-variant/30">
-              <div class="flex items-center justify-between pb-1.5 border-b border-outline-variant/20 mb-2">
-                <span class="text-[10px] text-primary-container font-bold uppercase">LAPLACIAN SPECTRUM (L = D - A)</span>
-                <span class="text-[9px] text-secondary-container">SYMMETRIC POSITIVE SEMI-DEFINITE</span>
-              </div>
-              <table class="w-full text-[10px]">
-                <thead class="text-outline text-left">
-                  <tr><th>MODE</th><th>MAGNITUDE</th><th>INTERPRETATION</th></tr>
-                </thead>
-                <tbody id="spectral-eigenvalues-body" class="divide-y divide-outline-variant/20 text-on-surface">
-                  <!-- Dynamically populated from /api/spectral -->
-                </tbody>
-              </table>
-            </div>
-
-            <!-- Card: Dirichlet Energy Concentration -->
-            <div class="bg-surface-container-low p-3 border border-outline-variant/30">
-              <div class="flex items-center justify-between pb-1.5 border-b border-outline-variant/20 mb-2">
-                <span class="text-[10px] text-primary-container font-bold uppercase">DIRICHLET ENERGY H(L)</span>
-                <span id="spectral-dirichlet-card-val" class="text-[9px] text-primary font-bold">0.036 bits</span>
-              </div>
-              <div id="spectral-energy-bars" class="space-y-1.5 text-[10px]">
-                <!-- Dynamically populated from real nodes distribution -->
-              </div>
-            </div>
-
-            <!-- Card: Modularity & Graph Bisection -->
-            <div class="bg-surface-container-low p-3 border border-outline-variant/30 space-y-2">
-              <div class="text-[10px] text-primary-container font-bold uppercase">GRAPH SPECTRAL PARTITIONING</div>
-              <p id="spectral-partitioning-desc" class="text-[10px] text-on-surface-variant font-sans">
-                Sign of the Fiedler eigenvector <code class="text-secondary-container">v₂ &gt; 0</code> cleanly bisects the active agent memory enclaves with zero cut edges violating ABAC boundary integrity.
-              </p>
-              <div id="spectral-modularity-box" class="p-2 bg-surface-container-lowest border border-secondary-container/30 text-[9px] text-secondary-container">
-                ✓ Modularity Score Q = 0.742 confirms strong community structure without cognitive drift across scopes.
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
 
     <!-- ======================================================================= -->
     <!-- VIEW MODE D: CUMULATIVE DIALOGUE KNOWLEDGE GRAPH                        -->
@@ -1933,8 +1789,8 @@
       </div>
     </div>
     <!-- ======================================================================= -->
-    <!-- VIEW MODE 4: UNIFIED DATA FABRIC & GOVERNANCE ENGINE (Merged 5 Views)   -->
-    <!-- Consolidates Memories, Connectors, Pipeline, Scopes, and Audit          -->
+    <!-- VIEW MODE 4: UNIFIED DATA FABRIC & GOVERNANCE ENGINE (Consolidated Hub) -->
+    <!-- Sub-Tabs: Memories, Connectors, Pipeline, Scopes, and AIS Audit         -->
     <!-- ======================================================================= -->
     <div id="view-fabric" class="hidden w-full h-full flex flex-col overflow-hidden bg-[#070a12] font-mono">
       <!-- Sticky Data Fabric Sub-Navigation Bar -->
@@ -1988,10 +1844,8 @@
 
       <!-- Scrollable Inner Viewport for Sub-Tabs -->
       <div class="flex-1 overflow-y-auto overflow-x-hidden p-4 md:p-6 bg-[#070a12]">
-    <!-- ======================================================================= -->
-    <!-- VIEW MODE E: AGENT SCOPES & MCP CONNECTION HUB                          -->
-    <!-- ======================================================================= -->
-    <div id="view-spaces" class="hidden w-full h-full flex flex-col overflow-y-auto overflow-x-hidden bg-[#090b10] p-6 space-y-6">
+    <!-- SUB-TAB A: AGENT SCOPES & MCP CONNECTION HUB -->
+    <div id="fabric-panel-spaces" class="hidden w-full h-full flex flex-col overflow-y-auto overflow-x-hidden bg-[#090b10] p-6 space-y-6">
       <!-- HEADER METRICS STRIP -->
       <div class="flex flex-wrap items-center justify-between pb-3 border-b border-outline-variant/30 gap-4 font-mono text-xs">
         <div>
@@ -2173,10 +2027,8 @@
       </div>
     </div>
 
-    <!-- ======================================================================= -->
-    <!-- VIEW MODE F: MEMORY AUDIT & GOVERNANCE STUDIO (Agent Memory Audit Hub)  -->
-    <!-- ======================================================================= -->
-    <div id="view-memories" class="hidden w-full h-full flex flex-col overflow-y-auto overflow-x-hidden bg-[#070a12] p-6 space-y-5 font-mono">
+    <!-- SUB-TAB B: MEMORY CATALOG & AUDIT -->
+    <div id="fabric-panel-memories" class="hidden w-full h-full flex flex-col overflow-y-auto overflow-x-hidden bg-[#070a12] p-6 space-y-5 font-mono">
       <!-- 1. Executive Governance Header Strip -->
       <div class="flex flex-wrap items-center justify-between pb-3.5 border-b border-outline-variant/30 gap-4 text-xs shrink-0">
         <div>
@@ -2419,10 +2271,8 @@
       </div>
     </div>
 
-    <!-- ======================================================================= -->
-    <!-- VIEW MODE G: CONNECTORS HUB (Supermemory Managed Parity)                -->
-    <!-- ======================================================================= -->
-    <div id="view-connectors" class="hidden w-full h-full flex flex-col overflow-y-auto overflow-x-hidden bg-[#090b10] p-6 space-y-6 font-mono">
+    <!-- SUB-TAB C: CONNECTORS HUB -->
+    <div id="fabric-panel-connectors" class="hidden w-full h-full flex flex-col overflow-y-auto overflow-x-hidden bg-[#090b10] p-6 space-y-6 font-mono">
       <!-- Header Metrics Strip -->
       <div class="flex flex-wrap items-center justify-between pb-3 border-b border-outline-variant/30 gap-4 text-xs">
         <div>
@@ -2520,10 +2370,8 @@
       </div>
     </div>
 
-    <!-- ======================================================================= -->
-    <!-- VIEW MODE H: NON-INFERENCE EXTRACTION PIPELINE STUDIO                   -->
-    <!-- ======================================================================= -->
-    <div id="view-pipeline" class="hidden w-full h-full flex flex-col overflow-y-auto overflow-x-hidden bg-[#090b10] p-6 space-y-6 font-mono">
+    <!-- SUB-TAB D: EXTRACTION PIPELINE -->
+    <div id="fabric-panel-pipeline" class="hidden w-full h-full flex flex-col overflow-y-auto overflow-x-hidden bg-[#090b10] p-6 space-y-6 font-mono">
       <!-- Header Metrics Strip -->
       <div class="flex flex-wrap items-center justify-between pb-3 border-b border-outline-variant/30 gap-4 text-xs">
         <div>
@@ -2654,10 +2502,8 @@
       </div>
     </div>
 
-    <!-- ======================================================================= -->
-    <!-- VIEW MODE I: AIS & PROVENANCE AUDIT                                     -->
-    <!-- ======================================================================= -->
-    <div id="view-audit" class="hidden w-full h-full flex flex-col overflow-y-auto overflow-x-hidden bg-[#090b10] p-6 space-y-6 font-mono">
+    <!-- SUB-TAB E: AIS & PROVENANCE AUDIT -->
+    <div id="fabric-panel-audit" class="hidden w-full h-full flex flex-col overflow-y-auto overflow-x-hidden bg-[#090b10] p-6 space-y-6 font-mono">
       <div class="flex flex-wrap items-center justify-between pb-3 border-b border-outline-variant/30 gap-4 text-xs">
         <div>
           <div class="flex items-center gap-2">
@@ -6440,7 +6286,7 @@
       const tabs = ['memories', 'connectors', 'pipeline', 'spaces', 'audit'];
       tabs.forEach(t => {
         const btn = document.getElementById('subtab-btn-' + t);
-        const panel = document.getElementById('view-' + t);
+        const panel = document.getElementById('fabric-panel-' + t) || document.getElementById('view-' + t);
         if (t === tab) {
           if (btn) {
             btn.className = 'fabric-subtab-btn active px-3 py-1 rounded-md flex items-center gap-1.5 transition-all bg-gradient-to-r from-cyan-500/25 to-cyan-500/15 text-cyan-300 border border-cyan-400/40 shadow-[0_0_8px_rgba(0,240,255,0.2)] font-bold';
@@ -6523,8 +6369,7 @@
         graph: document.getElementById('view-graph'),
         timeline: document.getElementById('view-timeline'),
         dialogue: document.getElementById('view-dialogue'),
-        fabric: document.getElementById('view-fabric'),
-        spectral: document.getElementById('view-spectral')
+        fabric: document.getElementById('view-fabric')
       };
 
       const headerBtns = {
