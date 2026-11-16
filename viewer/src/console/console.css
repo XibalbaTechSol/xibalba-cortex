@@ -920,6 +920,7 @@ select.xc-input {
   padding: 14px var(--window-padding);
   display: grid;
   gap: 10px;
+  min-width: 0;
 }
 .xc-chain-top {
   display: flex;
@@ -929,6 +930,291 @@ select.xc-input {
 }
 .xc-chain-top .xc-spacer {
   flex: 1;
+}
+
+/* ---------- synaptic activity spectrum & timeline scrubber HUD ------------------- */
+.xc-spectrum-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  min-width: 0;
+}
+.xc-spectrum-title {
+  color: var(--accent);
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.xc-spectrum-sep {
+  color: var(--hairline-strong);
+}
+.xc-spectrum-stat {
+  color: var(--ink-dim);
+  letter-spacing: 0.04em;
+}
+.xc-stat-accent {
+  color: var(--accent);
+  font-weight: 700;
+}
+.xc-spectrum-filters {
+  display: inline-flex;
+  gap: 6px;
+  margin-left: auto;
+}
+.xc-spectrum-filter-btn {
+  background: transparent;
+  border: 1px solid var(--hairline);
+  color: var(--ink-muted);
+  font: 700 10px var(--font-mono);
+  padding: 4px 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  cursor: pointer;
+  border-radius: 0;
+  transition: all 0.15s ease;
+}
+.xc-spectrum-filter-btn:hover {
+  border-color: var(--hairline-strong);
+  color: var(--ink);
+}
+.xc-spectrum-filter-btn[data-active='true'],
+.xc-spectrum-filter-btn[aria-pressed='true'] {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  color: var(--ink);
+}
+
+.xc-spectrum-subhead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px 12px;
+  margin-top: 4px;
+  margin-bottom: 2px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  min-width: 0;
+}
+.xc-spectrum-subhead-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.xc-spectrum-subtitle {
+  color: var(--accent);
+  font-weight: 700;
+  letter-spacing: 0.06em;
+}
+.xc-spectrum-legend {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.xc-legend-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  color: var(--ink-dim);
+}
+.xc-dot-exchange {
+  width: 8px;
+  height: 8px;
+  background: var(--accent-800);
+  border: 1px solid var(--accent-600);
+  border-radius: 0;
+  display: inline-block;
+}
+.xc-dot-tool {
+  width: 8px;
+  height: 8px;
+  background: var(--accent-600);
+  border-radius: 0;
+  display: inline-block;
+}
+.xc-dot-anchor {
+  width: 8px;
+  height: 8px;
+  background: var(--accent);
+  border-radius: 0;
+  display: inline-block;
+}
+.xc-spectrum-timerange {
+  color: var(--ink-dim);
+  font-size: 11px;
+  letter-spacing: 0.05em;
+}
+
+/* Multi-colored spectrum bars */
+.xc-spectrum-bar-stack {
+  flex: 1 1 0;
+  min-width: 0;
+  height: 100%;
+  display: flex;
+  flex-direction: column-reverse;
+  justify-content: flex-start;
+  gap: 1px;
+  pointer-events: none;
+}
+.xc-bar-segment {
+  width: 100%;
+  border-radius: 0;
+}
+.xc-bar-segment--anchor {
+  background: var(--accent);
+}
+.xc-bar-segment--tool {
+  background: var(--accent-600);
+}
+.xc-bar-segment--exchange {
+  background: var(--accent-800);
+}
+
+/* Player controls row */
+.xc-spectrum-player {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  margin-top: 4px;
+  font-family: var(--font-mono);
+  min-width: 0;
+}
+.xc-spectrum-play-btn {
+  background: var(--accent);
+  color: var(--ink-on-accent);
+  border: 1px solid var(--accent);
+  border-radius: 0;
+  font: 700 11px var(--font-mono);
+  padding: 6px 14px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  letter-spacing: 0.05em;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+.xc-spectrum-play-btn:hover:not(:disabled) {
+  background: var(--accent-hover);
+  border-color: var(--accent-hover);
+}
+.xc-spectrum-ctrl-btn {
+  background: transparent;
+  border: 1px solid var(--hairline);
+  border-radius: 0;
+  color: var(--ink-muted);
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  flex: none;
+}
+.xc-spectrum-ctrl-btn:hover:not(:disabled) {
+  border-color: var(--hairline-strong);
+  color: var(--ink);
+}
+.xc-time-label {
+  color: var(--ink-dim);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  flex: none;
+}
+.xc-scrubber-container {
+  flex: 1 1 140px;
+  min-width: 100px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  position: relative;
+}
+.xc-scrubber-track {
+  flex: 1;
+  height: 4px;
+  background: var(--hairline);
+  position: relative;
+  cursor: pointer;
+  border-radius: 0;
+}
+.xc-scrubber-fill {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  background: var(--accent);
+  border-radius: 0;
+}
+.xc-scrubber-thumb {
+  position: absolute;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 14px;
+  height: 14px;
+  background: var(--accent);
+  border-radius: 50%;
+  cursor: grab;
+  transition: transform 0.1s ease;
+}
+.xc-scrubber-thumb:hover {
+  transform: translate(-50%, -50%) scale(1.2);
+}
+.xc-scrubber-readout {
+  color: var(--accent);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  white-space: nowrap;
+}
+.xc-speed-control {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.xc-speed-label {
+  color: var(--ink-dim);
+  font-size: 11px;
+  margin-right: 4px;
+}
+.xc-speed-btn {
+  background: transparent;
+  border: 1px solid var(--hairline);
+  border-radius: 0;
+  color: var(--ink-dim);
+  font: 400 11px var(--font-mono);
+  padding: 3px 8px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.xc-speed-btn:hover {
+  color: var(--ink);
+  border-color: var(--hairline-strong);
+}
+.xc-speed-btn[data-active='true'] {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  color: var(--ink);
+}
+
+.xc-pulse-dot {
+  width: 6px;
+  height: 6px;
+  background: var(--accent);
+  border-radius: 50%;
+  box-shadow: 0 0 6px var(--accent);
+  display: inline-block;
+  animation: xc-pulse 2s infinite ease-in-out;
+}
+@keyframes xc-pulse {
+  0%, 100% { opacity: 0.4; transform: scale(0.9); }
+  50% { opacity: 1; transform: scale(1.2); }
 }
 .xc-ranges {
   display: flex;
@@ -3189,9 +3475,16 @@ select.xc-input {
      read every hash and JSON fragment in a ~30-character column. 42vw is 672px there: one
      tab row, and still under half the workspace at every width the dock opens at. */
   --dock-right: clamp(460px, 42vw, 820px);
+  --dock-bottom: 280px;
 }
 .xc-workspace[data-detail='closed'] {
   --dock-right: 0px;
+}
+.xc-workspace:has(> .xc-chain-handle) {
+  --dock-bottom: 48px;
+}
+.xc-workspace:has(> .xc-chain[data-floating='true']) {
+  --dock-bottom: 48px;
 }
 .xc-workspace > .xc-rail {
   top: 0;
@@ -3259,6 +3552,7 @@ select.xc-input {
   padding-right: 16px;
 }
 .xc-workspace > .xc-chain {
+  margin: 0;
   left: calc(var(--dock-left) + 16px);
   right: calc(var(--dock-right) + 16px);
   bottom: 16px;
@@ -3471,10 +3765,15 @@ body,
    height of the plotting field, so the lanes sit on a chart that extends to the frame and the
    space below the last lane reads as time nobody has used yet. Lanes keep their natural size
    and still scroll when there are more of them than fit. */
+.xc-canvas-win[aria-label="Timeline lens"] .xc-scroll,
+.xc-scroll:has(> .xc-tl-grid) {
+  scroll-padding-bottom: var(--dock-bottom, 280px);
+}
 .xc-tl-grid {
   position: relative;
   min-height: 100%;
   align-content: start;
+  padding-bottom: var(--dock-bottom, 280px);
 }
 .xc-tl-rules {
   position: absolute;
