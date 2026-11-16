@@ -854,34 +854,50 @@
       <span id="hud-camera-coords" class="hidden"></span>
       <span id="hud-flight-state" class="hidden"></span>
 
-      <!-- FLOATING HUD GRAPH CONTROL STACK (Draggable, Dockable & Foldable into One Icon) -->
-      <div id="graph-floating-hud-toolbar" class="absolute top-16 right-4 z-30 select-none font-mono transition-transform duration-150">
+      <!-- FLOATING HUD GRAPH CONTROL STACK (Reimagined Draggable Right-Margin Icon & Foldable Studio) -->
+      <div id="graph-floating-hud-toolbar" class="fixed top-20 right-5 z-50 select-none font-mono transition-transform duration-150">
         
-        <!-- 1. FOLDED STATE: A Single Sleek Floating Master Icon Button -->
-        <button id="hud-folded-btn" onclick="window.toggleHudCollapse(false)" class="hidden w-10 h-10 rounded-xl bg-[#090d16]/95 hover:bg-surface-container-high backdrop-blur-2xl border border-primary-container/60 shadow-[0_12px_40px_rgba(0,0,0,0.85)] flex items-center justify-center text-primary-container hover:text-white transition-all group cursor-pointer" title="Expand Graph Controls Studio (⌘G)">
-          <span class="material-symbols-outlined text-[20px] group-hover:rotate-90 transition-transform duration-300">hub</span>
-          <span class="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-primary-container animate-ping"></span>
-          <span class="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-primary-container"></span>
-        </button>
+        <!-- 1. FOLDED STATE: Reimagined Draggable Right-Margin Control Pill -->
+        <div id="hud-folded-btn" onclick="window.handleFoldedBtnClick(event)" class="flex items-center gap-2 px-3 py-2 bg-[#090d16]/95 hover:bg-[#0f172a] backdrop-blur-2xl border-2 border-primary-container/80 rounded-full shadow-[0_0_25px_rgba(0,240,255,0.4),0_12px_40px_rgba(0,0,0,0.9)] text-primary-container hover:text-white transition-all group cursor-grab active:cursor-grabbing ring-1 ring-cyan-400/40 hover:ring-cyan-300 hover:scale-105" title="Click to expand Graph Controls · Drag anywhere (⌘G)">
+          <!-- Drag Grip Handle -->
+          <span class="material-symbols-outlined text-[16px] text-primary-container/70 group-hover:text-cyan-300">drag_indicator</span>
+          
+          <!-- Glowing Animated Core Icon -->
+          <div class="relative flex items-center justify-center">
+            <span class="material-symbols-outlined text-[19px] text-cyan-300 group-hover:rotate-90 transition-transform duration-300 drop-shadow-[0_0_8px_rgba(0,240,255,0.8)]">hub</span>
+            <span class="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-cyan-400 animate-ping"></span>
+            <span class="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-cyan-300"></span>
+          </div>
+
+          <!-- Unmistakable Typography & Mode Pill -->
+          <div class="flex items-center gap-1.5 pl-0.5">
+            <span class="font-bold text-[11px] tracking-wider text-white group-hover:text-cyan-200">CONTROLS</span>
+            <span id="hud-folded-badge" class="px-1.5 py-0.2 rounded bg-cyan-500/20 text-cyan-300 text-[8px] font-bold border border-cyan-500/40 uppercase">3D</span>
+          </div>
+
+          <!-- Expand Chevron -->
+          <span class="material-symbols-outlined text-[16px] text-cyan-400/80 group-hover:text-white ml-0.5 transition-transform group-hover:translate-x-0.5">chevron_left</span>
+        </div>
 
         <!-- 2. EXPANDED STATE: Full Multi-Tool Graph HUD Studio -->
-        <div id="hud-expanded-panel" class="flex flex-col bg-[#090d16]/95 backdrop-blur-2xl border border-primary-container/40 rounded-xl p-2.5 shadow-[0_16px_50px_rgba(0,0,0,0.9)] space-y-2 w-72 text-[10px]">
+        <div id="hud-expanded-panel" class="hidden flex flex-col bg-[#090d16]/98 backdrop-blur-3xl border-2 border-primary-container/60 rounded-2xl p-3 shadow-[0_20px_60px_rgba(0,0,0,0.95),0_0_30px_rgba(0,240,255,0.25)] space-y-2.5 w-80 text-[10px]">
           
           <!-- Top Drag, Header & Action Bar -->
-          <div class="flex items-center justify-between border-b border-outline-variant/30 pb-1.5">
-            <div id="hud-drag-handle" class="flex items-center gap-1.5 cursor-grab active:cursor-grabbing text-outline hover:text-white px-1 py-0.5 rounded hover:bg-surface-container-high transition-colors" title="Drag to move HUD anywhere (Double-click to reset)">
-              <span class="material-symbols-outlined text-[15px]">drag_indicator</span>
-              <span class="text-[9px] font-bold uppercase tracking-wider text-primary-container">GRAPH STUDIO</span>
+          <div class="flex items-center justify-between border-b border-outline-variant/40 pb-2">
+            <div id="hud-drag-handle" class="flex items-center gap-1.5 cursor-grab active:cursor-grabbing text-outline hover:text-white px-1.5 py-0.5 rounded hover:bg-surface-container-high transition-colors" title="Drag to move HUD anywhere (Double-click to reset position)">
+              <span class="material-symbols-outlined text-[16px] text-primary-container">drag_indicator</span>
+              <span class="text-[10px] font-bold uppercase tracking-wider text-primary-container">GRAPH STUDIO</span>
             </div>
             
-            <div class="flex items-center gap-1">
-              <!-- Fold Up into One Icon Button -->
-              <button onclick="window.toggleHudCollapse(true)" class="w-6 h-6 rounded flex items-center justify-center text-outline hover:text-white hover:bg-surface-container-high transition-colors" title="Fold up all icons into one icon (⌘G)">
-                <span class="material-symbols-outlined text-[15px]">unfold_less</span>
+            <div class="flex items-center gap-1.5">
+              <!-- Fold Up into One Icon Button (Unmistakable & Prominent) -->
+              <button onclick="window.toggleHudCollapse(true)" class="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-primary-container/20 border border-primary-container/50 text-primary-container hover:bg-primary-container hover:text-black font-bold text-[9px] uppercase transition-all shadow-sm" title="Fold up into one draggable icon (⌘G)">
+                <span class="material-symbols-outlined text-[14px]">unfold_less</span>
+                <span>FOLD</span>
               </button>
               
               <!-- Dock to Right Margin Button -->
-              <button id="btn-hud-dock" onclick="window.toggleHudDock()" class="w-6 h-6 rounded flex items-center justify-center text-outline hover:text-secondary-container hover:bg-surface-container-high transition-colors" title="Dock / Undock HUD to Right Margin">
+              <button id="btn-hud-dock" onclick="window.toggleHudDock()" class="w-7 h-7 rounded-lg flex items-center justify-center text-outline hover:text-secondary-container hover:bg-surface-container-high border border-outline-variant/30 transition-colors" title="Dock / Undock HUD to Right Margin">
                 <span id="hud-dock-icon" class="material-symbols-outlined text-[15px]">dock_to_right</span>
               </button>
             </div>
@@ -1158,55 +1174,80 @@
         <span id="footer-cam-zoom" class="text-neutral-400">Dist 480</span>
       </div>
 
-      <!-- Granular Viewport Navigation Dock (Zoom & Pan Gizmo) -->
-      <div id="viewport-nav-gizmo" class="absolute bottom-3 right-4 z-20 flex items-center gap-2 bg-[#090d16]/95 backdrop-blur-xl px-3 py-2 rounded-xl border border-primary-container/30 font-mono text-[10px] shadow-[0_8px_32px_rgba(0,0,0,0.85)] select-none ring-1 ring-white/5">
-        <!-- Pan D-Pad -->
-        <div class="flex flex-col items-center gap-0.5 pr-2.5 border-r border-outline-variant/30">
-          <button onclick="window.panGraph(0, 35)" class="w-5 h-5 rounded flex items-center justify-center bg-surface-container-high hover:bg-surface-container-highest text-cyan-300 hover:text-white transition-colors" title="Pan Up (W / ↑)">
-            <span class="material-symbols-outlined text-[13px]">arrow_upward</span>
+      <!-- Granular Viewport Navigation Dock (Smaller, Draggable & Dockable Fine-Grain Control) -->
+      <div id="viewport-nav-gizmo" class="fixed bottom-3 right-4 z-40 flex items-center bg-[#090d16]/95 backdrop-blur-2xl px-2 py-1.5 rounded-xl border border-primary-container/40 font-mono text-[9px] shadow-[0_12px_40px_rgba(0,0,0,0.9),0_0_20px_rgba(0,240,255,0.2)] select-none ring-1 ring-white/10 transition-transform duration-150">
+        
+        <!-- Drag Handle -->
+        <div id="gizmo-drag-handle" class="flex items-center gap-1 cursor-grab active:cursor-grabbing text-outline hover:text-white pr-1.5 border-r border-outline-variant/30" title="Drag to move Fine-Grain Controls anywhere (Double-click to reset)">
+          <span class="material-symbols-outlined text-[14px] text-cyan-400">drag_indicator</span>
+          <span class="text-[8px] font-bold text-cyan-300 uppercase tracking-tighter hidden sm:inline">FINE</span>
+        </div>
+
+        <!-- Compact Pan Controls (Inline Micro Cluster) -->
+        <div class="flex items-center gap-0.5 px-1.5 border-r border-outline-variant/30">
+          <button onclick="window.panGraph(-30, 0)" class="w-5 h-5 rounded flex items-center justify-center bg-surface-container-high hover:bg-surface-container-highest text-cyan-300 hover:text-white transition-colors" title="Pan Left (A / ←)">
+            <span class="material-symbols-outlined text-[12px]">arrow_back</span>
           </button>
-          <div class="flex items-center gap-0.5">
-            <button onclick="window.panGraph(-35, 0)" class="w-5 h-5 rounded flex items-center justify-center bg-surface-container-high hover:bg-surface-container-highest text-cyan-300 hover:text-white transition-colors" title="Pan Left (A / ←)">
-              <span class="material-symbols-outlined text-[13px]">arrow_back</span>
+          <div class="flex flex-col gap-0.5">
+            <button onclick="window.panGraph(0, 30)" class="w-5 h-2.5 rounded-t flex items-center justify-center bg-surface-container-high hover:bg-surface-container-highest text-cyan-300 hover:text-white transition-colors" title="Pan Up (W / ↑)">
+              <span class="material-symbols-outlined text-[10px]">arrow_drop_up</span>
             </button>
-            <button onclick="window.resetGraphPan()" class="w-5 h-5 rounded flex items-center justify-center bg-cyan-500/20 hover:bg-cyan-500/40 text-cyan-400 hover:text-white transition-colors font-bold text-[9px]" title="Reset Pan (Center Origin)">
-              ⌖
-            </button>
-            <button onclick="window.panGraph(35, 0)" class="w-5 h-5 rounded flex items-center justify-center bg-surface-container-high hover:bg-surface-container-highest text-cyan-300 hover:text-white transition-colors" title="Pan Right (D / →)">
-              <span class="material-symbols-outlined text-[13px]">arrow_forward</span>
+            <button onclick="window.panGraph(0, -30)" class="w-5 h-2.5 rounded-b flex items-center justify-center bg-surface-container-high hover:bg-surface-container-highest text-cyan-300 hover:text-white transition-colors" title="Pan Down (S / ↓)">
+              <span class="material-symbols-outlined text-[10px]">arrow_drop_down</span>
             </button>
           </div>
-          <button onclick="window.panGraph(0, -35)" class="w-5 h-5 rounded flex items-center justify-center bg-surface-container-high hover:bg-surface-container-highest text-cyan-300 hover:text-white transition-colors" title="Pan Down (S / ↓)">
-            <span class="material-symbols-outlined text-[13px]">arrow_downward</span>
+          <button onclick="window.panGraph(30, 0)" class="w-5 h-5 rounded flex items-center justify-center bg-surface-container-high hover:bg-surface-container-highest text-cyan-300 hover:text-white transition-colors" title="Pan Right (D / →)">
+            <span class="material-symbols-outlined text-[12px]">arrow_forward</span>
+          </button>
+          <button onclick="window.resetGraphPan()" class="w-5 h-5 rounded flex items-center justify-center bg-cyan-500/20 hover:bg-cyan-500/40 text-cyan-400 hover:text-white transition-colors font-bold text-[8px]" title="Reset Pan (Center Origin)">
+            ⌖
           </button>
         </div>
 
-        <!-- Granular Zoom Controls & Slider -->
-        <div class="flex items-center gap-2 pl-0.5">
-          <button onclick="window.zoomGraphStep(-0.15)" class="w-6 h-6 rounded flex items-center justify-center bg-surface-container-high hover:bg-surface-container-highest text-neutral-200 hover:text-white transition-colors font-bold text-sm shadow-sm" title="Zoom In (+)">
-            +
-          </button>
-          <div class="flex flex-col gap-1 w-24">
+        <!-- Compact Zoom Slider & Readouts -->
+        <div class="flex items-center gap-1.5 px-1.5 border-r border-outline-variant/30">
+          <button onclick="window.zoomGraphStep(-0.15)" class="w-5 h-5 rounded flex items-center justify-center bg-surface-container-high hover:bg-surface-container-highest text-white font-bold text-xs" title="Zoom In (+)">+</button>
+          <div class="flex flex-col gap-0.5 w-16">
             <input type="range" id="granular-zoom-slider" min="30" max="2200" step="10" value="480" oninput="window.setGraphZoom(Number(this.value))" class="w-full accent-cyan-400 h-1 bg-surface-container-highest rounded cursor-pointer" />
-            <div class="flex justify-between text-[8px] text-outline font-mono">
+            <div class="flex justify-between text-[7px] text-outline font-mono">
               <span id="nav-zoom-readout">Z: 480</span>
-              <span id="nav-pan-readout">P: 0, 0</span>
+              <span id="nav-pan-readout">0, 0</span>
             </div>
           </div>
-          <button onclick="window.zoomGraphStep(0.15)" class="w-6 h-6 rounded flex items-center justify-center bg-surface-container-high hover:bg-surface-container-highest text-neutral-200 hover:text-white transition-colors font-bold text-sm shadow-sm" title="Zoom Out (-)">
-            -
+          <button onclick="window.zoomGraphStep(0.15)" class="w-5 h-5 rounded flex items-center justify-center bg-surface-container-high hover:bg-surface-container-highest text-white font-bold text-xs" title="Zoom Out (-)">-</button>
+        </div>
+
+        <!-- 3D Cartesian Grid & Snap Hub -->
+        <div class="flex items-center gap-1 px-1.5 border-r border-outline-variant/30">
+          <!-- Toggle 3D Cartesian Grid -->
+          <button id="btn-gizmo-grid" onclick="window.toggleGridSnap()" class="px-1.5 py-0.5 rounded flex items-center gap-1 bg-surface-container-high hover:bg-cyan-500/20 text-neutral-300 hover:text-cyan-300 border border-outline-variant/30 transition-all text-[8px] font-bold" title="Toggle 3D Cartesian Coordinate Grid &amp; Snapping">
+            <span class="material-symbols-outlined text-[12px]">grid_view</span>
+            <span id="gizmo-grid-label">GRID</span>
           </button>
+          <!-- Snap Action & Step Menu -->
+          <button onclick="window.snapAllNodesToGrid(window.gridSnapStep || 40.0)" class="px-1.5 py-0.5 rounded flex items-center gap-0.5 bg-primary-container/20 hover:bg-primary-container/40 text-primary-container hover:text-white border border-primary-container/40 transition-all text-[8px] font-bold" title="Snap all nodes to nearest 3D Cartesian grid intersection">
+            <span class="material-symbols-outlined text-[11px]">filter_center_focus</span>
+            <span id="grid-snap-step-label">40u</span>
+          </button>
+          <!-- Snap Step Select (20u / 40u / 80u) -->
+          <select onchange="window.setGridSnapStep(this.value)" class="bg-surface-container-high text-cyan-300 text-[8px] font-bold rounded px-1 py-0.5 focus:outline-none cursor-pointer border border-outline-variant/30" title="Cartesian Snap Resolution Step">
+            <option value="40">40u</option>
+            <option value="20">20u</option>
+            <option value="80">80u</option>
+          </select>
         </div>
 
         <!-- Presets & Focus Actions -->
-        <div class="h-6 w-[1px] bg-outline-variant/30 mx-1"></div>
-        <div class="flex items-center gap-1">
-          <button onclick="window.setGraphZoom(90)" class="px-1.5 py-1 rounded bg-surface-container-high hover:bg-surface-container-highest text-neutral-300 hover:text-white text-[8px] font-bold" title="Macro Inspection (90)">MACRO</button>
-          <button onclick="window.setGraphZoom(480)" class="px-1.5 py-1 rounded bg-surface-container-high hover:bg-surface-container-highest text-neutral-300 hover:text-white text-[8px] font-bold" title="Default Cluster (480)">DEFAULT</button>
-          <button onclick="window.setGraphZoom(1200)" class="px-1.5 py-1 rounded bg-surface-container-high hover:bg-surface-container-highest text-neutral-300 hover:text-white text-[8px] font-bold" title="Galaxy Overview (1200)">GALAXY</button>
-          <button onclick="window.focusCurrentNodeOrCenter()" class="px-2 py-1 rounded bg-primary-container/20 hover:bg-primary-container/40 text-primary-container hover:text-white text-[8px] font-bold border border-primary-container/40 flex items-center gap-0.5 shadow-sm" title="Center Focus on Active Node (F)">
-            <span class="material-symbols-outlined text-[11px]">filter_center_focus</span>
-            <span>FOCUS</span>
+        <div class="flex items-center gap-1 pl-1">
+          <button onclick="window.setGraphZoom(90)" class="px-1 py-0.5 rounded bg-surface-container-high hover:bg-surface-container-highest text-neutral-300 hover:text-white text-[8px] font-bold" title="Macro Inspection (90)">M</button>
+          <button onclick="window.setGraphZoom(480)" class="px-1 py-0.5 rounded bg-surface-container-high hover:bg-surface-container-highest text-neutral-300 hover:text-white text-[8px] font-bold" title="Default Cluster (480)">D</button>
+          <button onclick="window.setGraphZoom(1200)" class="px-1 py-0.5 rounded bg-surface-container-high hover:bg-surface-container-highest text-neutral-300 hover:text-white text-[8px] font-bold" title="Galaxy Overview (1200)">G</button>
+          <button onclick="window.focusCurrentNodeOrCenter()" class="px-1.5 py-0.5 rounded bg-cyan-500/20 hover:bg-cyan-500/40 text-cyan-300 hover:text-white text-[8px] font-bold border border-cyan-500/40 flex items-center gap-0.5 shadow-sm" title="Center Focus on Active Node (F)">
+            <span class="material-symbols-outlined text-[11px]">center_focus_strong</span>
+          </button>
+          <!-- Dock Toggle Button -->
+          <button id="btn-gizmo-dock" onclick="window.toggleGizmoDock()" class="w-5 h-5 rounded flex items-center justify-center text-outline hover:text-white hover:bg-surface-container-high transition-colors" title="Dock / Undock Gizmo to Margin">
+            <span id="gizmo-dock-icon" class="material-symbols-outlined text-[13px]">dock_to_bottom</span>
           </button>
         </div>
       </div>
@@ -3788,33 +3829,59 @@
     dirLight3.position.set(300, -200, 150);
     scene.add(dirLight3);
 
-    // Spatial Coordinate Grid
-    const gridHelper = new THREE.GridHelper(900, 45, 0x1e293b, 0x0f172a);
-    gridHelper.position.y = -180;
-    scene.add(gridHelper);
-
-    // Ambient Particle Dust
-    const dustCount = 800;
-    const dustGeo = new THREE.BufferGeometry();
-    const dustPos = new Float32Array(dustCount * 3);
-    for (let i = 0; i < dustCount * 3; i += 3) {
-      dustPos[i] = (Math.random() - 0.5) * 1400;
-      dustPos[i + 1] = (Math.random() - 0.5) * 900;
-      dustPos[i + 2] = (Math.random() - 0.5) * 1200;
-    }
-    dustGeo.setAttribute('position', new THREE.BufferAttribute(dustPos, 3));
-    const dustMat = new THREE.PointsMaterial({
-      size: 2.2,
-      color: 0x00f0ff,
-      transparent: true,
-      opacity: 0.35,
-      blending: THREE.AdditiveBlending
-    });
-    const dustField = new THREE.Points(dustGeo, dustMat);
-    scene.add(dustField);
-
     const graphGroup = new THREE.Group();
     scene.add(graphGroup);
+
+    // -------------------------------------------------------------------------
+    // 3D HOLOGRAPHIC CARTESIAN COORDINATE SYSTEM & SNAP LATTICE
+    // -------------------------------------------------------------------------
+    const cartesianGridGroup = new THREE.Group();
+    graphGroup.add(cartesianGridGroup);
+
+    // Primary XZ Ground Plane Grid (1200x1200 with 40-unit cells)
+    const cartesianXZ = new THREE.GridHelper(1200, 30, 0x00f0ff, 0x1e293b);
+    cartesianXZ.material.transparent = true;
+    cartesianXZ.material.opacity = 0.35;
+    cartesianGridGroup.add(cartesianXZ);
+
+    // Elevated 3D Reference Grids at Y = -80 and Y = +80
+    const cartesianYNeg = new THREE.GridHelper(1200, 15, 0x38bdf8, 0x0f172a);
+    cartesianYNeg.position.y = -80;
+    cartesianYNeg.material.transparent = true;
+    cartesianYNeg.material.opacity = 0.12;
+    cartesianGridGroup.add(cartesianYNeg);
+
+    const cartesianYPos = new THREE.GridHelper(1200, 15, 0x38bdf8, 0x0f172a);
+    cartesianYPos.position.y = 80;
+    cartesianYPos.material.transparent = true;
+    cartesianYPos.material.opacity = 0.12;
+    cartesianGridGroup.add(cartesianYPos);
+
+    // 3D Principal Axis Rays (X = Red/Cyan, Y = Emerald Green, Z = Blue)
+    const axisGroup = new THREE.Group();
+    // X-Axis (-600 to +600)
+    const xGeo = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(-600, 0, 0), new THREE.Vector3(600, 0, 0)]);
+    const xMat = new THREE.LineBasicMaterial({ color: 0xef4444, transparent: true, opacity: 0.85, linewidth: 2 });
+    axisGroup.add(new THREE.Line(xGeo, xMat));
+
+    // Y-Axis (-400 to +400)
+    const yGeo = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0, -400, 0), new THREE.Vector3(0, 400, 0)]);
+    const yMat = new THREE.LineBasicMaterial({ color: 0x10b981, transparent: true, opacity: 0.85, linewidth: 2 });
+    axisGroup.add(new THREE.Line(yGeo, yMat));
+
+    // Z-Axis (-600 to +600)
+    const zGeo = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0, 0, -600), new THREE.Vector3(0, 0, 600)]);
+    const zMat = new THREE.LineBasicMaterial({ color: 0x3b82f6, transparent: true, opacity: 0.85, linewidth: 2 });
+    axisGroup.add(new THREE.Line(zGeo, zMat));
+
+    // Cartesian Origin Marker Beacon (Sphere & Crosshair)
+    const originGeo = new THREE.SphereGeometry(3.5, 16, 16);
+    const originMat = new THREE.MeshBasicMaterial({ color: 0x00f0ff, wireframe: true });
+    axisGroup.add(new THREE.Mesh(originGeo, originMat));
+
+    cartesianGridGroup.add(axisGroup);
+    cartesianGridGroup.visible = false; // Toggled by grid snap button
+    window.cartesianGridGroup = cartesianGridGroup;
 
     // -------------------------------------------------------------------------
     // CELESTIAL ORBITAL GUIDE RINGS & SUN CORONA (Galaxy Organization)
@@ -5387,30 +5454,80 @@
       }
     };
 
-    window.toggleGridSnap = function() {
-      gridSnapEnabled = !gridSnapEnabled;
-      const btn = document.getElementById('btn-hud-grid');
-      if (btn) {
-        btn.classList.toggle('bg-primary-container', gridSnapEnabled);
-        btn.classList.toggle('text-black', gridSnapEnabled);
-        btn.classList.toggle('text-on-surface-variant', !gridSnapEnabled);
+    window.gridSnapStep = 40.0;
+    window.cartesianGridVisible = false;
+
+    window.toggleGridSnap = function(enable) {
+      if (enable === undefined) {
+        gridSnapEnabled = !gridSnapEnabled;
+      } else {
+        gridSnapEnabled = Boolean(enable);
       }
+      window.cartesianGridVisible = gridSnapEnabled;
+      if (window.cartesianGridGroup) {
+        window.cartesianGridGroup.visible = gridSnapEnabled;
+      }
+
+      const btnHud = document.getElementById('btn-hud-grid');
+      if (btnHud) {
+        btnHud.classList.toggle('bg-primary-container', gridSnapEnabled);
+        btnHud.classList.toggle('text-black', gridSnapEnabled);
+        btnHud.classList.toggle('text-on-surface-variant', !gridSnapEnabled);
+      }
+      const btnGizmo = document.getElementById('btn-gizmo-grid');
+      const gizmoLabel = document.getElementById('gizmo-grid-label');
+      if (btnGizmo) {
+        btnGizmo.classList.toggle('bg-cyan-500/20', gridSnapEnabled);
+        btnGizmo.classList.toggle('text-cyan-300', gridSnapEnabled);
+        btnGizmo.classList.toggle('border-cyan-400', gridSnapEnabled);
+      }
+      if (gizmoLabel) {
+        gizmoLabel.innerText = gridSnapEnabled ? 'GRID ON' : 'GRID';
+      }
+
       if (gridSnapEnabled) {
-        snapAllNodesToGrid();
+        window.snapAllNodesToGrid(window.gridSnapStep || 40.0);
       } else {
         window.applyGraphLayout(currentLayout);
       }
     };
 
-    function snapAllNodesToGrid() {
-      const step = 40.0;
+    window.setGridSnapStep = function(step) {
+      window.gridSnapStep = Number(step) || 40.0;
+      const stepLabel = document.getElementById('grid-snap-step-label');
+      if (stepLabel) stepLabel.innerText = `${window.gridSnapStep}u`;
+      if (gridSnapEnabled) {
+        window.snapAllNodesToGrid(window.gridSnapStep);
+      }
+    };
+
+    window.snapAllNodesToGrid = function(step = 40.0) {
       cubeMeshes.forEach(mesh => {
         const tgt = mesh.userData.targetBase;
         tgt[0] = Math.round(tgt[0] / step) * step;
         tgt[1] = Math.round(tgt[1] / step) * step;
         tgt[2] = Math.round(tgt[2] / step) * step;
       });
-    }
+      // Visual feedback pulse on the 3D Cartesian Grid
+      if (window.cartesianGridGroup) {
+        window.cartesianGridGroup.children.forEach(child => {
+          if (child.material) child.material.opacity = Math.min(1.0, child.material.opacity * 2.5);
+        });
+        setTimeout(() => {
+          if (window.cartesianGridGroup) {
+            window.cartesianGridGroup.children.forEach(child => {
+              if (child.material) child.material.opacity = 0.35;
+            });
+          }
+        }, 320);
+      }
+    };
+
+    window.snapNodesToGroundPlane = function() {
+      cubeMeshes.forEach(mesh => {
+        mesh.userData.targetBase[1] = 0.0;
+      });
+    };
 
     window.toggleAutoRotate = function() {
       autoRotateEnabled = !autoRotateEnabled;
@@ -11292,7 +11409,8 @@ ${staticFacts.length > 0 ? `## Static Knowledge Core:\n${staticFacts.map(f => `-
     // HUD DRAG, DOCK, SHAPES & CONTRADICTION ENGINE CONTROLLERS
     // -------------------------------------------------------------------------
     window.isHudDocked = localStorage.getItem('supercortex_hud_docked') === 'true';
-    window.isHudCollapsed = localStorage.getItem('supercortex_hud_collapsed') === 'true';
+    window.isHudCollapsed = localStorage.getItem('supercortex_hud_collapsed') !== 'false'; // Default to collapsed single icon
+    window.hudMovedDistance = 0;
 
     window.toggleHudCollapse = function(collapse) {
       if (collapse === undefined) {
@@ -11303,6 +11421,7 @@ ${staticFacts.length > 0 ? `## Static Knowledge Core:\n${staticFacts.map(f => `-
       localStorage.setItem('supercortex_hud_collapsed', window.isHudCollapsed ? 'true' : 'false');
       const foldedBtn = document.getElementById('hud-folded-btn');
       const panel = document.getElementById('hud-expanded-panel');
+      const hud = document.getElementById('graph-floating-hud-toolbar');
       if (foldedBtn && panel) {
         if (window.isHudCollapsed) {
           panel.classList.add('hidden');
@@ -11312,6 +11431,21 @@ ${staticFacts.length > 0 ? `## Static Knowledge Core:\n${staticFacts.map(f => `-
           foldedBtn.classList.add('hidden');
         }
       }
+      // Re-verify bounds so it never overflows off-screen
+      if (hud) {
+        const rect = hud.getBoundingClientRect();
+        if (rect.right > window.innerWidth || rect.left < 0) {
+          hud.style.left = 'auto';
+          hud.style.right = '20px';
+        }
+      }
+    };
+
+    window.handleFoldedBtnClick = function(e) {
+      if (window.hudMovedDistance > 6) {
+        return; // Suppress expand if user was dragging
+      }
+      window.toggleHudCollapse(false);
     };
 
     window.initDraggableHud = function() {
@@ -11320,10 +11454,10 @@ ${staticFacts.length > 0 ? `## Static Knowledge Core:\n${staticFacts.map(f => `-
       const foldedBtn = document.getElementById('hud-folded-btn');
       if (!hud) return;
 
-      // Restore collapsed state
+      // Restore collapsed state (defaults to single sleek icon)
       window.toggleHudCollapse(window.isHudCollapsed);
 
-      // Restore saved position or docked state
+      // Restore saved position or docked state with strict viewport bounds safety
       if (window.isHudDocked) {
         window.dockHudToRight(true);
       } else {
@@ -11331,21 +11465,35 @@ ${staticFacts.length > 0 ? `## Static Knowledge Core:\n${staticFacts.map(f => `-
         if (savedPos) {
           try {
             const { x, y } = JSON.parse(savedPos);
-            hud.style.left = `${x}px`;
-            hud.style.top = `${y}px`;
-            hud.style.right = 'auto';
-          } catch(e) {}
+            const maxLeft = window.innerWidth - 120;
+            if (x >= 10 && x <= maxLeft && y >= 45 && y <= window.innerHeight - 50) {
+              hud.style.left = `${x}px`;
+              hud.style.top = `${y}px`;
+              hud.style.right = 'auto';
+            } else {
+              hud.style.left = 'auto';
+              hud.style.right = '20px';
+              hud.style.top = '76px';
+            }
+          } catch(e) {
+            hud.style.left = 'auto';
+            hud.style.right = '20px';
+            hud.style.top = '76px';
+          }
+        } else {
+          hud.style.left = 'auto';
+          hud.style.right = '20px';
+          hud.style.top = '76px';
         }
       }
 
       let isDragging = false;
       let startX, startY, origLeft, origTop;
-      let movedDistance = 0;
 
       function onDragStart(e) {
         if (e.button !== 0) return;
         isDragging = true;
-        movedDistance = 0;
+        window.hudMovedDistance = 0;
         startX = e.clientX;
         startY = e.clientY;
         const rect = hud.getBoundingClientRect();
@@ -11358,21 +11506,13 @@ ${staticFacts.length > 0 ? `## Static Knowledge Core:\n${staticFacts.map(f => `-
       }
 
       if (handle) handle.addEventListener('mousedown', onDragStart);
-      if (foldedBtn) {
-        foldedBtn.addEventListener('mousedown', onDragStart);
-        foldedBtn.addEventListener('click', (e) => {
-          if (movedDistance > 5) {
-            e.stopPropagation();
-            return;
-          }
-        });
-      }
+      if (foldedBtn) foldedBtn.addEventListener('mousedown', onDragStart);
 
       document.addEventListener('mousemove', (e) => {
         if (!isDragging) return;
         const dx = e.clientX - startX;
         const dy = e.clientY - startY;
-        movedDistance += Math.abs(dx) + Math.abs(dy);
+        window.hudMovedDistance += Math.abs(dx) + Math.abs(dy);
         const newLeft = Math.max(10, Math.min(window.innerWidth - hud.offsetWidth - 10, origLeft + dx));
         const newTop = Math.max(45, Math.min(window.innerHeight - hud.offsetHeight - 10, origTop + dy));
         hud.style.left = `${newLeft}px`;
@@ -11389,12 +11529,23 @@ ${staticFacts.length > 0 ? `## Static Knowledge Core:\n${staticFacts.map(f => `-
         localStorage.setItem('supercortex_hud_pos', JSON.stringify({ x: rect.left, y: rect.top }));
       });
 
+      // Window resize guard: ensure HUD never gets hidden off-screen
+      window.addEventListener('resize', () => {
+        const rect = hud.getBoundingClientRect();
+        if (rect.right > window.innerWidth || rect.left < 0 || rect.bottom > window.innerHeight) {
+          hud.style.left = 'auto';
+          hud.style.right = '20px';
+          hud.style.top = '76px';
+          localStorage.removeItem('supercortex_hud_pos');
+        }
+      });
+
       // Double-click handle to reset to top-right
       if (handle) {
         handle.addEventListener('dblclick', () => {
           hud.style.left = 'auto';
-          hud.style.right = '16px';
-          hud.style.top = '64px';
+          hud.style.right = '20px';
+          hud.style.top = '76px';
           window.isHudDocked = false;
           localStorage.removeItem('supercortex_hud_pos');
           localStorage.setItem('supercortex_hud_docked', 'false');
@@ -12185,9 +12336,111 @@ Resolution recorded to cryptographic provenance ledger.`);
       }
     };
 
-    // Initialize Draggable HUD on load
+    // -------------------------------------------------------------------------
+    // GRANULAR VIEWPORT GIZMO (DRAGGABLE & DOCKABLE FINE-GRAIN CONTROL)
+    // -------------------------------------------------------------------------
+    window.isGizmoDocked = localStorage.getItem('supercortex_gizmo_docked') !== 'false';
+
+    window.initDraggableGizmo = function() {
+      const gizmo = document.getElementById('viewport-nav-gizmo');
+      const handle = document.getElementById('gizmo-drag-handle');
+      if (!gizmo || !handle) return;
+
+      if (window.isGizmoDocked) {
+        window.dockGizmo(true);
+      } else {
+        const savedPos = localStorage.getItem('supercortex_gizmo_pos');
+        if (savedPos) {
+          try {
+            const { x, y } = JSON.parse(savedPos);
+            const maxLeft = window.innerWidth - (gizmo.offsetWidth || 320) - 10;
+            const maxTop = window.innerHeight - 35;
+            if (x >= 10 && x <= maxLeft && y >= 40 && y <= maxTop) {
+              gizmo.style.left = `${x}px`;
+              gizmo.style.top = `${y}px`;
+              gizmo.style.right = 'auto';
+              gizmo.style.bottom = 'auto';
+            }
+          } catch(e) {}
+        }
+      }
+
+      let isDragging = false;
+      let startX, startY, origLeft, origTop;
+
+      handle.addEventListener('mousedown', (e) => {
+        if (e.button !== 0) return;
+        isDragging = true;
+        startX = e.clientX;
+        startY = e.clientY;
+        const rect = gizmo.getBoundingClientRect();
+        origLeft = rect.left;
+        origTop = rect.top;
+        gizmo.style.right = 'auto';
+        gizmo.style.bottom = 'auto';
+        gizmo.style.left = `${origLeft}px`;
+        gizmo.style.top = `${origTop}px`;
+        document.body.style.userSelect = 'none';
+        e.preventDefault();
+      });
+
+      document.addEventListener('mousemove', (e) => {
+        if (!isDragging) return;
+        const dx = e.clientX - startX;
+        const dy = e.clientY - startY;
+        const newLeft = Math.max(10, Math.min(window.innerWidth - gizmo.offsetWidth - 10, origLeft + dx));
+        const newTop = Math.max(45, Math.min(window.innerHeight - gizmo.offsetHeight - 10, origTop + dy));
+        gizmo.style.left = `${newLeft}px`;
+        gizmo.style.top = `${newTop}px`;
+      });
+
+      document.addEventListener('mouseup', () => {
+        if (!isDragging) return;
+        isDragging = false;
+        document.body.style.userSelect = '';
+        window.isGizmoDocked = false;
+        localStorage.setItem('supercortex_gizmo_docked', 'false');
+        const rect = gizmo.getBoundingClientRect();
+        if (window.innerHeight - rect.bottom < 40 && window.innerWidth - rect.right < 40) {
+          window.dockGizmo(true);
+        } else {
+          localStorage.setItem('supercortex_gizmo_pos', JSON.stringify({ x: rect.left, y: rect.top }));
+        }
+      });
+
+      handle.addEventListener('dblclick', () => {
+        window.dockGizmo(true);
+      });
+    };
+
+    window.toggleGizmoDock = function() {
+      window.isGizmoDocked = !window.isGizmoDocked;
+      window.dockGizmo(window.isGizmoDocked);
+    };
+
+    window.dockGizmo = function(docked) {
+      const gizmo = document.getElementById('viewport-nav-gizmo');
+      const icon = document.getElementById('gizmo-dock-icon');
+      if (!gizmo) return;
+      if (docked) {
+        gizmo.style.left = 'auto';
+        gizmo.style.top = 'auto';
+        gizmo.style.right = '16px';
+        gizmo.style.bottom = '12px';
+        if (icon) icon.innerText = 'dock_to_bottom';
+        localStorage.setItem('supercortex_gizmo_docked', 'true');
+        localStorage.removeItem('supercortex_gizmo_pos');
+      } else {
+        gizmo.style.bottom = '45px';
+        if (icon) icon.innerText = 'dock_to_right';
+        localStorage.setItem('supercortex_gizmo_docked', 'false');
+      }
+    };
+
+    // Initialize Draggable HUD & Fine-Grain Gizmo on load
     window.addEventListener('DOMContentLoaded', () => {
       window.initDraggableHud();
+      window.initDraggableGizmo();
       if (window.activeNodeShape) {
         window.applyNodeShape(window.activeNodeShape);
       }
