@@ -930,6 +930,284 @@ select.xc-input {
 .xc-chain-top .xc-spacer {
   flex: 1;
 }
+
+/* ---------- synaptic activity spectrum & timeline scrubber HUD ------------------- */
+.xc-spectrum-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+.xc-spectrum-title {
+  color: #00f0ff;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.xc-spectrum-sep {
+  color: rgba(255, 255, 255, 0.2);
+}
+.xc-spectrum-stat {
+  color: var(--ink-dim);
+  letter-spacing: 0.04em;
+}
+.xc-stat-cyan {
+  color: #00f0ff;
+  font-weight: 700;
+}
+.xc-stat-green {
+  color: #10b981;
+  font-weight: 700;
+}
+.xc-stat-purple {
+  color: #c084fc;
+  font-weight: 700;
+}
+.xc-spectrum-filters {
+  display: inline-flex;
+  gap: 6px;
+  margin-left: auto;
+}
+.xc-spectrum-filter-btn {
+  background: rgba(15, 23, 42, 0.6);
+  border: 1px solid rgba(0, 240, 255, 0.3);
+  color: var(--ink-muted);
+  font: 700 10px var(--font-mono);
+  padding: 4px 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.xc-spectrum-filter-btn:hover {
+  border-color: #00f0ff;
+  color: var(--ink);
+}
+.xc-spectrum-filter-btn[data-active='true'] {
+  background: #00f0ff;
+  border-color: #00f0ff;
+  color: #071018;
+  box-shadow: 0 0 10px rgba(0, 240, 255, 0.35);
+}
+
+.xc-spectrum-subhead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 4px;
+  margin-bottom: 2px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+.xc-spectrum-subhead-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.xc-spectrum-subtitle {
+  color: #00f0ff;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+}
+.xc-spectrum-legend {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.xc-legend-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  color: var(--ink-dim);
+}
+.xc-dot-purple {
+  width: 8px;
+  height: 8px;
+  background: #c084fc;
+  border-radius: 1px;
+  display: inline-block;
+}
+.xc-dot-cyan {
+  width: 8px;
+  height: 8px;
+  background: #22d3ee;
+  border-radius: 1px;
+  display: inline-block;
+}
+.xc-dot-green {
+  width: 8px;
+  height: 8px;
+  background: #34d399;
+  border-radius: 1px;
+  display: inline-block;
+}
+.xc-spectrum-timerange {
+  color: var(--ink-dim);
+  font-size: 11px;
+  letter-spacing: 0.05em;
+}
+
+/* Multi-colored spectrum bars */
+.xc-spectrum-bar-stack {
+  flex: 1 1 0;
+  min-width: 0;
+  height: 100%;
+  display: flex;
+  flex-direction: column-reverse;
+  justify-content: flex-start;
+  gap: 1px;
+  pointer-events: none;
+}
+.xc-bar-segment {
+  width: 100%;
+  border-radius: 0;
+}
+.xc-bar-segment--anchor {
+  background: #10b981;
+}
+.xc-bar-segment--tool {
+  background: #06b6d4;
+}
+.xc-bar-segment--exchange {
+  background: #a855f7;
+}
+
+/* Player controls row */
+.xc-spectrum-player {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 4px;
+  font-family: var(--font-mono);
+}
+.xc-spectrum-play-btn {
+  background: #00f0ff;
+  color: #071018;
+  border: none;
+  font: 700 11px var(--font-mono);
+  padding: 6px 14px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  letter-spacing: 0.05em;
+  box-shadow: 0 0 12px rgba(0, 240, 255, 0.4);
+  transition: all 0.15s ease;
+}
+.xc-spectrum-play-btn:hover {
+  background: #38f4ff;
+  box-shadow: 0 0 16px rgba(0, 240, 255, 0.6);
+}
+.xc-spectrum-ctrl-btn {
+  background: rgba(15, 23, 42, 0.8);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  color: var(--ink-muted);
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.xc-spectrum-ctrl-btn:hover {
+  border-color: #00f0ff;
+  color: var(--ink);
+}
+.xc-time-label {
+  color: var(--ink-dim);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+}
+.xc-scrubber-container {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  position: relative;
+}
+.xc-scrubber-track {
+  flex: 1;
+  height: 4px;
+  background: rgba(255, 255, 255, 0.12);
+  position: relative;
+  cursor: pointer;
+}
+.xc-scrubber-fill {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  background: linear-gradient(90deg, #06b6d4, #00f59b);
+}
+.xc-scrubber-thumb {
+  position: absolute;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 14px;
+  height: 14px;
+  background: #00f59b;
+  border-radius: 50%;
+  box-shadow: 0 0 10px #00f59b, 0 0 4px #fff;
+  cursor: grab;
+  transition: transform 0.1s ease;
+}
+.xc-scrubber-thumb:hover {
+  transform: translate(-50%, -50%) scale(1.2);
+}
+.xc-scrubber-readout {
+  color: #00f59b;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  white-space: nowrap;
+}
+.xc-speed-control {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.xc-speed-label {
+  color: var(--ink-dim);
+  font-size: 11px;
+  margin-right: 4px;
+}
+.xc-speed-btn {
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  color: var(--ink-dim);
+  font: 400 11px var(--font-mono);
+  padding: 3px 8px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.xc-speed-btn:hover {
+  color: var(--ink);
+  border-color: rgba(255, 255, 255, 0.3);
+}
+.xc-speed-btn[data-active='true'] {
+  background: rgba(0, 240, 255, 0.18);
+  border-color: #00f0ff;
+  color: #00f0ff;
+}
+
+.xc-pulse-dot {
+  width: 6px;
+  height: 6px;
+  background: #00f0ff;
+  border-radius: 50%;
+  box-shadow: 0 0 6px #00f0ff;
+  display: inline-block;
+  animation: xc-pulse 2s infinite ease-in-out;
+}
+@keyframes xc-pulse {
+  0%, 100% { opacity: 0.4; transform: scale(0.9); }
+  50% { opacity: 1; transform: scale(1.2); }
+}
 .xc-ranges {
   display: flex;
   gap: 4px;
