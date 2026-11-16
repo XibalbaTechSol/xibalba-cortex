@@ -620,6 +620,12 @@
 
     <!-- Right Section: Sleek Dockable Actions & Telemetry -->
     <div class="flex items-center gap-1.5 shrink-0">
+      <!-- Canvas & Grid Customizer Studio Trigger -->
+      <button onclick="window.toggleCanvasCustomizer()" id="btn-header-canvas-customizer" class="h-7 px-2 rounded-lg flex items-center gap-1.5 bg-gradient-to-r from-cyan-500/15 to-emerald-500/15 hover:from-cyan-500/30 hover:to-emerald-500/30 border border-cyan-400/40 text-cyan-300 transition-all cursor-pointer shadow-[0_0_10px_rgba(0,240,255,0.15)]" title="Customize 3D Canvas, Spatial Grid & Lighting [C]">
+        <span class="material-symbols-outlined text-[15px] text-cyan-400">palette</span>
+        <span class="text-[10px] font-bold tracking-wider hidden xl:inline">CANVAS</span>
+      </button>
+
       <!-- Spectral Math Drawer Toggle -->
       <button onclick="window.toggleSpectralDockDrawer()" id="btn-header-spectral" class="w-7 h-7 rounded-lg flex items-center justify-center bg-slate-900/90 hover:bg-slate-800 border border-cyan-500/30 hover:border-cyan-400 text-cyan-300 transition-all cursor-pointer relative" title="Toggle Spectral Math & Eigenmap Drawer (S)">
         <span class="material-symbols-outlined text-[15px]">scatter_plot</span>
@@ -864,6 +870,12 @@
   <!-- ========================================================================= -->
   <aside class="fixed right-0 top-10 bottom-0 w-9 bg-[#070a11]/90 backdrop-blur-xl border-l border-slate-800/80 z-40 flex flex-col items-center py-2 justify-between select-none font-mono">
     <div class="flex flex-col items-center gap-1.5 w-full">
+      <!-- 0. Canvas Customizer Studio Trigger -->
+      <button onclick="window.toggleCanvasCustomizer()" id="btn-rail-canvas" class="w-7 h-7 rounded flex items-center justify-center text-slate-400 hover:text-cyan-300 hover:bg-slate-800 transition-colors cursor-pointer relative" title="Customize 3D Canvas, Grid & Atmosphere [C]">
+        <span class="material-symbols-outlined text-[16px]">palette</span>
+        <span id="rail-canvas-indicator" class="hidden absolute top-0.5 right-0.5 w-1.5 h-1.5 rounded-full bg-cyan-400 shadow-[0_0_6px_#00f0ff]"></span>
+      </button>
+
       <!-- 1. Universal Graph Legend Toggle -->
       <button onclick="toggleGraphLegend()" id="btn-rail-legend" class="w-7 h-7 rounded flex items-center justify-center text-slate-400 hover:text-cyan-300 hover:bg-slate-800 transition-colors cursor-pointer relative" title="Toggle Graph Legend (L)">
         <span class="material-symbols-outlined text-[16px]">category</span>
@@ -2831,6 +2843,217 @@
   </aside>
 
   <!-- ========================================================================= -->
+  <!-- 6. CANVAS & ENVIRONMENT CUSTOMIZER STUDIO (w-[380px] max-w-[95vw])          -->
+  <!-- ========================================================================= -->
+  <aside id="canvas-customizer-drawer" class="fixed top-10 right-0 bottom-0 w-[380px] max-w-[95vw] bg-[#070b14]/98 backdrop-blur-2xl z-50 border-l border-cyan-500/40 shadow-2xl flex flex-col transition-all duration-300 font-mono text-xs translate-x-full">
+    <!-- Header -->
+    <div class="px-4 py-3 bg-surface-container-low/90 border-b border-outline-variant/30 flex items-center justify-between shrink-0">
+      <div class="flex items-center gap-2">
+        <span class="material-symbols-outlined text-cyan-400 text-base">palette</span>
+        <div>
+          <div class="font-bold text-white text-[11px] tracking-wider uppercase">CANVAS &amp; ENVIRONMENT</div>
+          <div class="text-[8px] text-cyan-400">PHOTOMETRICS &amp; 3D LATTICE CONTROLS</div>
+        </div>
+      </div>
+      <div class="flex items-center gap-1.5">
+        <button onclick="resetCanvasDefaults()" class="px-2 py-0.5 rounded bg-surface-container-high hover:bg-cyan-500/20 text-slate-300 hover:text-cyan-300 border border-outline-variant/30 text-[9px] font-bold transition-all cursor-pointer" title="Reset all canvas settings to factory defaults">RESET</button>
+        <button onclick="toggleCanvasCustomizer(false)" class="w-6 h-6 rounded flex items-center justify-center text-slate-400 hover:text-white hover:bg-surface-container-high transition-colors cursor-pointer" title="Close Canvas Studio [C]">
+          <span class="material-symbols-outlined text-sm">close</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Scrollable Controls Body -->
+    <div class="p-3.5 space-y-4 overflow-y-auto flex-1 text-[10px]">
+      <!-- 1. Atmospheric Presets (One-Click) -->
+      <div class="space-y-1.5">
+        <div class="text-[9px] text-cyan-300 font-bold uppercase tracking-wider flex items-center justify-between">
+          <span>ATMOSPHERIC PRESETS</span>
+          <span class="text-[8px] text-slate-500">ONE-CLICK</span>
+        </div>
+        <div class="grid grid-cols-2 gap-1.5">
+          <button onclick="applyCanvasPreset('deep_void')" class="p-2 rounded-lg bg-surface-container-high hover:bg-cyan-500/20 border border-cyan-500/30 text-left transition-all cursor-pointer group">
+            <div class="font-bold text-white text-[9px] group-hover:text-cyan-300">🛰️ DEEP VOID</div>
+            <div class="text-[8px] text-slate-400">Aerospace void, cyan grid</div>
+          </button>
+          <button onclick="applyCanvasPreset('obsidian_cyber')" class="p-2 rounded-lg bg-surface-container-high hover:bg-emerald-500/20 border border-emerald-500/30 text-left transition-all cursor-pointer group">
+            <div class="font-bold text-white text-[9px] group-hover:text-emerald-300">⚡ OBSIDIAN</div>
+            <div class="text-[8px] text-slate-400">Carbon black, neon green</div>
+          </button>
+          <button onclick="applyCanvasPreset('cosmic_nebula')" class="p-2 rounded-lg bg-surface-container-high hover:bg-purple-500/20 border border-purple-500/30 text-left transition-all cursor-pointer group">
+            <div class="font-bold text-white text-[9px] group-hover:text-purple-300">🌌 NEBULA</div>
+            <div class="text-[8px] text-slate-400">Cosmic violet, pink aura</div>
+          </button>
+          <button onclick="applyCanvasPreset('paper_blueprint')" class="p-2 rounded-lg bg-surface-container-high hover:bg-sky-500/20 border border-sky-500/30 text-left transition-all cursor-pointer group">
+            <div class="font-bold text-white text-[9px] group-hover:text-sky-300">📐 BLUEPRINT</div>
+            <div class="text-[8px] text-slate-400">Navy slate, white grid</div>
+          </button>
+          <button onclick="applyCanvasPreset('solaris_core')" class="col-span-2 p-2 rounded-lg bg-surface-container-high hover:bg-amber-500/20 border border-amber-500/30 text-left transition-all cursor-pointer group flex items-center justify-between">
+            <div>
+              <div class="font-bold text-white text-[9px] group-hover:text-amber-300">☀️ SOLARIS CORE</div>
+              <div class="text-[8px] text-slate-400">Warm obsidian void with solar gold coordinate grid</div>
+            </div>
+            <span class="text-xs">🔥</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- 2. Canvas Background & Fog -->
+      <div class="space-y-2 p-2.5 bg-surface-container-low/70 rounded-xl border border-outline-variant/30">
+        <div class="text-[9px] text-primary-container font-bold uppercase tracking-wider">CANVAS BACKGROUND &amp; ATMOSPHERE</div>
+        
+        <div class="flex items-center justify-between">
+          <span class="text-slate-300">Background Color</span>
+          <div class="flex items-center gap-1.5">
+            <input type="color" id="cfg-bg-color" onchange="updateCanvasSetting('bgColor', this.value)" class="w-6 h-6 rounded border border-outline-variant/40 bg-transparent cursor-pointer">
+            <span id="cfg-bg-color-val" class="font-mono text-[9px] text-slate-400">#040711</span>
+          </div>
+        </div>
+
+        <div class="flex items-center justify-between">
+          <span class="text-slate-300">Atmospheric Fog</span>
+          <input type="checkbox" id="cfg-fog-enabled" onchange="updateCanvasSetting('fogEnabled', this.checked)" class="toggle-checkbox cursor-pointer" checked>
+        </div>
+
+        <div class="space-y-1">
+          <div class="flex items-center justify-between text-[8px] text-slate-400">
+            <span>Fog Density</span>
+            <span id="cfg-fog-density-val" class="font-mono">0.0022</span>
+          </div>
+          <input type="range" id="cfg-fog-density" min="0.0002" max="0.0060" step="0.0002" value="0.0022" oninput="updateCanvasSetting('fogDensity', parseFloat(this.value))" class="w-full accent-cyan-400 h-1 bg-surface-container-high rounded cursor-pointer">
+        </div>
+
+        <div class="flex items-center justify-between pt-1">
+          <span class="text-slate-300">Cosmic Stardust</span>
+          <input type="checkbox" id="cfg-stardust-enabled" onchange="updateCanvasSetting('stardustEnabled', this.checked)" class="toggle-checkbox cursor-pointer" checked>
+        </div>
+      </div>
+
+      <!-- 3. Spatial Coordinate Grid System (3D/2D) -->
+      <div class="space-y-2.5 p-2.5 bg-surface-container-low/70 rounded-xl border border-outline-variant/30">
+        <div class="text-[9px] text-cyan-300 font-bold uppercase tracking-wider">SPATIAL COORDINATE GRID (3D &amp; 2D)</div>
+        
+        <div class="flex items-center justify-between">
+          <span class="text-slate-300">Grid Visibility</span>
+          <div class="flex items-center gap-1">
+            <button onclick="updateCanvasSetting('gridVisible', true); updateCanvasSetting('gridMode', '3d');" id="cfg-gridmode-3d" class="px-1.5 py-0.5 rounded text-[8px] border border-outline-variant/40 cursor-pointer">3D</button>
+            <button onclick="updateCanvasSetting('gridVisible', true); updateCanvasSetting('gridMode', '2d');" id="cfg-gridmode-2d" class="px-1.5 py-0.5 rounded text-[8px] border border-outline-variant/40 cursor-pointer">2D</button>
+            <button onclick="updateCanvasSetting('gridVisible', true); updateCanvasSetting('gridMode', 'both');" id="cfg-gridmode-both" class="px-1.5 py-0.5 rounded text-[8px] border border-cyan-400/50 bg-cyan-500/20 text-cyan-300 font-bold cursor-pointer">BOTH</button>
+            <button onclick="updateCanvasSetting('gridVisible', false);" id="cfg-gridmode-off" class="px-1.5 py-0.5 rounded text-[8px] border border-outline-variant/40 text-slate-500 cursor-pointer">OFF</button>
+          </div>
+        </div>
+
+        <div class="flex items-center justify-between">
+          <span class="text-slate-300">Grid Line Weight</span>
+          <div class="flex items-center gap-1">
+            <button onclick="updateCanvasSetting('gridThickness', 'hairline')" id="cfg-thickness-hairline" class="px-2 py-0.5 rounded text-[8px] font-bold bg-cyan-500/20 text-cyan-300 border border-cyan-400/40 cursor-pointer">1px</button>
+            <button onclick="updateCanvasSetting('gridThickness', 'crisp')" id="cfg-thickness-crisp" class="px-2 py-0.5 rounded text-[8px] border border-outline-variant/40 text-slate-400 cursor-pointer">2px</button>
+            <button onclick="updateCanvasSetting('gridThickness', 'bold')" id="cfg-thickness-bold" class="px-2 py-0.5 rounded text-[8px] border border-outline-variant/40 text-slate-400 cursor-pointer">3px</button>
+          </div>
+        </div>
+
+        <div class="flex items-center justify-between">
+          <span class="text-slate-300">Primary Grid Color</span>
+          <div class="flex items-center gap-1.5">
+            <input type="color" id="cfg-grid-pcolor" onchange="updateCanvasSetting('gridPrimaryColor', this.value)" class="w-6 h-6 rounded border border-outline-variant/40 bg-transparent cursor-pointer">
+            <span id="cfg-grid-pcolor-val" class="font-mono text-[9px] text-slate-400">#00f0ff</span>
+          </div>
+        </div>
+
+        <div class="space-y-1">
+          <div class="flex items-center justify-between text-[8px] text-slate-400">
+            <span>Primary Grid Opacity</span>
+            <span id="cfg-grid-popacity-val" class="font-mono">35%</span>
+          </div>
+          <input type="range" id="cfg-grid-popacity" min="0.05" max="0.9" step="0.05" value="0.35" oninput="updateCanvasSetting('gridPrimaryOpacity', parseFloat(this.value))" class="w-full accent-cyan-400 h-1 bg-surface-container-high rounded cursor-pointer">
+        </div>
+
+        <div class="flex items-center justify-between">
+          <span class="text-slate-300">Division Line Color</span>
+          <div class="flex items-center gap-1.5">
+            <input type="color" id="cfg-grid-scolor" onchange="updateCanvasSetting('gridDivisionColor', this.value)" class="w-6 h-6 rounded border border-outline-variant/40 bg-transparent cursor-pointer">
+            <span id="cfg-grid-scolor-val" class="font-mono text-[9px] text-slate-400">#1e293b</span>
+          </div>
+        </div>
+
+        <div class="space-y-1">
+          <div class="flex items-center justify-between text-[8px] text-slate-400">
+            <span>Ground Plane Y-Offset</span>
+            <span id="cfg-grid-yoffset-val" class="font-mono">0u</span>
+          </div>
+          <input type="range" id="cfg-grid-yoffset" min="-180" max="180" step="10" value="0" oninput="updateCanvasSetting('gridYOffset', parseInt(this.value))" class="w-full accent-cyan-400 h-1 bg-surface-container-high rounded cursor-pointer">
+        </div>
+
+        <div class="flex items-center justify-between pt-1">
+          <span class="text-slate-300">3D RGB Axis Guide Rays</span>
+          <input type="checkbox" id="cfg-axis-guides" onchange="updateCanvasSetting('axisGuidesVisible', this.checked)" class="toggle-checkbox cursor-pointer" checked>
+        </div>
+      </div>
+
+      <!-- 4. Lighting & Photometrics -->
+      <div class="space-y-2 p-2.5 bg-surface-container-low/70 rounded-xl border border-outline-variant/30">
+        <div class="text-[9px] text-amber-300 font-bold uppercase tracking-wider">ILLUMINATION &amp; PHOTOMETRICS</div>
+
+        <div class="space-y-1">
+          <div class="flex items-center justify-between text-[8px] text-slate-400">
+            <span>Ambient Light Intensity</span>
+            <span id="cfg-ambient-val" class="font-mono">0.75</span>
+          </div>
+          <input type="range" id="cfg-ambient-intensity" min="0.1" max="2.0" step="0.05" value="0.75" oninput="updateCanvasSetting('ambientIntensity', parseFloat(this.value))" class="w-full accent-amber-400 h-1 bg-surface-container-high rounded cursor-pointer">
+        </div>
+
+        <div class="space-y-1">
+          <div class="flex items-center justify-between text-[8px] text-slate-400">
+            <span>Directional Solar Light</span>
+            <span id="cfg-dirlight-val" class="font-mono">2.2</span>
+          </div>
+          <input type="range" id="cfg-dirlight-intensity" min="0.5" max="3.5" step="0.1" value="2.2" oninput="updateCanvasSetting('dirLightIntensity', parseFloat(this.value))" class="w-full accent-amber-400 h-1 bg-surface-container-high rounded cursor-pointer">
+        </div>
+
+        <div class="flex items-center justify-between pt-1">
+          <span class="text-slate-300">Central Solar Corona Sun</span>
+          <input type="checkbox" id="cfg-corona-enabled" onchange="updateCanvasSetting('sunCoronaEnabled', this.checked)" class="toggle-checkbox cursor-pointer" checked>
+        </div>
+      </div>
+
+      <!-- 5. Node Physics & 60FPS Performance Engine -->
+      <div class="space-y-2.5 p-2.5 bg-surface-container-low/70 rounded-xl border border-outline-variant/30">
+        <div class="text-[9px] text-emerald-400 font-bold uppercase tracking-wider flex items-center justify-between">
+          <span>NODE PHYSICS &amp; SPEED</span>
+          <span class="px-1 py-0.2 rounded bg-emerald-500/20 text-emerald-300 text-[7px] font-bold">60 FPS MODE</span>
+        </div>
+
+        <div class="space-y-1">
+          <div class="flex items-center justify-between text-[8px] text-slate-400">
+            <span>Levitation Amplitude</span>
+            <span id="cfg-levitation-val" class="font-mono font-bold text-emerald-400">0.0px (Fast)</span>
+          </div>
+          <input type="range" id="cfg-levitation" min="0" max="6.0" step="0.5" value="0" oninput="updateCanvasSetting('levitationAmplitude', parseFloat(this.value))" class="w-full accent-emerald-400 h-1 bg-surface-container-high rounded cursor-pointer">
+          <p class="text-[7.5px] text-slate-400">Setting to 0px enables ultra-fast 60FPS mode by caching static node positions.</p>
+        </div>
+
+        <div class="space-y-1">
+          <div class="flex items-center justify-between text-[8px] text-slate-400">
+            <span>Voxel Scale Factor</span>
+            <span id="cfg-voxel-scale-val" class="font-mono">1.0x</span>
+          </div>
+          <input type="range" id="cfg-voxel-scale" min="0.6" max="2.0" step="0.1" value="1.0" oninput="updateCanvasSetting('voxelScale', parseFloat(this.value))" class="w-full accent-emerald-400 h-1 bg-surface-container-high rounded cursor-pointer">
+        </div>
+
+        <div class="flex items-center justify-between pt-1">
+          <span class="text-slate-300">Inner Core Spinning</span>
+          <div class="flex items-center gap-1">
+            <button onclick="updateCanvasSetting('innerCoreSpin', 'hubs_only')" id="cfg-spin-hubs" class="px-1.5 py-0.5 rounded text-[8px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-400/40 cursor-pointer">HUBS</button>
+            <button onclick="updateCanvasSetting('innerCoreSpin', 'all')" id="cfg-spin-all" class="px-1.5 py-0.5 rounded text-[8px] border border-outline-variant/40 text-slate-400 cursor-pointer">ALL</button>
+            <button onclick="updateCanvasSetting('innerCoreSpin', 'off')" id="cfg-spin-off" class="px-1.5 py-0.5 rounded text-[8px] border border-outline-variant/40 text-slate-400 cursor-pointer">OFF</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </aside>
+
+
+  <!-- ========================================================================= -->
   <!-- 6. COMMIT NEW MEMORY MODAL                                                -->
   <!-- ========================================================================= -->
   <div id="new-memory-modal" class="hidden fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 font-mono">
@@ -4394,6 +4617,7 @@
                 target: tNode,
                 dist: dist
               };
+              hitCyl.layers.set(1);
               graphGroup.add(hitCyl);
               edgeHitMeshes.push(hitCyl);
             }
@@ -4414,17 +4638,15 @@
         arrowMeshes = [];
         const coneGeo = new THREE.ConeGeometry(2.4, 7.5, 8);
 
+        const sharedArrowMats = {
+          cyan: new THREE.MeshPhongMaterial({ color: 0x00f0ff, emissive: 0x00f0ff, emissiveIntensity: 0.4, shininess: 90 }),
+          red: new THREE.MeshPhongMaterial({ color: 0xef4444, emissive: 0xef4444, emissiveIntensity: 0.9, shininess: 90 })
+        };
+
         edges.forEach(([sIdx, tIdx], eIdx) => {
           const l = currentLinks[eIdx];
           const isContra = l && (l.type === 'contradiction' || l.isContradiction);
-          const edgeColor = isContra ? 0xef4444 : (l && l.color ? l.color : 0x00f0ff);
-
-          const arrowMat = new THREE.MeshPhongMaterial({
-            color: edgeColor,
-            emissive: edgeColor,
-            emissiveIntensity: isContra ? 0.9 : 0.4,
-            shininess: 90
-          });
+          const arrowMat = isContra ? sharedArrowMats.red : sharedArrowMats.cyan;
           const arrowCone = new THREE.Mesh(coneGeo, arrowMat);
           arrowCone.userData = { edgeIndex: eIdx, link: l, isContra: isContra };
           arrowGroup.add(arrowCone);
@@ -4456,6 +4678,7 @@
       window.cubeMeshes = cubeMeshes;
       window.edgeHitMeshes = edgeHitMeshes;
       if (typeof updateLegendCounts === 'function') updateLegendCounts(nodes);
+      if (typeof window.applyCanvasConfig === 'function') window.applyCanvasConfig(window.canvasConfig);
       if (typeof applyLegendFacetFilters === 'function') applyLegendFacetFilters();
     }
 
@@ -4665,8 +4888,10 @@
         }
       }
 
-      // 2. Raycast edges (interactive hit cylinders)
+      // 2. Raycast edges (interactive hit cylinders on layer 1)
+      raycaster.layers.set(1);
       const hitsEdges = raycaster.intersectObjects(edgeHitMeshes, false);
+      raycaster.layers.set(0);
       if (hitsEdges.length > 0) {
         const edgeObj = hitsEdges[0].object;
         if (edgeObj.userData && edgeObj.userData.isEdge) {
@@ -4700,8 +4925,10 @@
           dom.style.cursor = 'pointer';
           if (tip) {
             tip.classList.remove('hidden');
-            tip.style.left = `${Math.min(window.innerWidth - 320, e.clientX + 14)}px`;
-            tip.style.top = `${Math.max(10, e.clientY - 40)}px`;
+            tip.style.left = `${Math.min(window.innerWidth - 320, Math.max(10, e.clientX + 14))}px`;
+            const tipH = tip.offsetHeight || 100;
+            const clampedY = Math.max(10, Math.min(window.innerHeight - tipH - 12, e.clientY - 40));
+            tip.style.top = `${clampedY}px`;
             const isThought = data.type === 'thought' || data.category === 'thought';
             document.getElementById('tooltip-title').innerText = data.title;
             document.getElementById('tooltip-category').innerText = isThought ? 'REASONING // CHAIN-OF-THOUGHT' : `NODE // ${(data.category || 'NODE').toUpperCase()}`;
@@ -4713,9 +4940,11 @@
         }
       }
 
-      // Check edge hover
+      // Check edge hover (layer 1)
       if (showEdgesEnabled) {
+        raycaster.layers.set(1);
         const hitsEdges = raycaster.intersectObjects(edgeHitMeshes, false);
+        raycaster.layers.set(0);
         if (hitsEdges.length > 0 && !isDragging) {
           const edgeObj = hitsEdges[0].object;
           if (edgeObj.userData && edgeObj.userData.isEdge && edgeObj.visible !== false) {
@@ -6198,42 +6427,72 @@
           `X: ${camera.position.x >= 0 ? '+' : ''}${camera.position.x.toFixed(1)}   Y: ${camera.position.y >= 0 ? '+' : ''}${camera.position.y.toFixed(1)}   Z: ${camera.position.z >= 0 ? '+' : ''}${camera.position.z.toFixed(1)}`;
       }
 
-      // Voxel Levitation & Rotation
+      // Voxel Levitation & Rotation with 60FPS Performance Engine
+      const levAmp = (window.canvasConfig && typeof window.canvasConfig.levitationAmplitude === 'number')
+        ? window.canvasConfig.levitationAmplitude
+        : 0.0;
+      let anyNodeMoving = false;
+
       cubeMeshes.forEach((mesh, idx) => {
         const cur = mesh.userData.curBase;
         const tgt = mesh.userData.targetBase;
-        cur[0] += (tgt[0] - cur[0]) * 0.08;
-        cur[1] += (tgt[1] - cur[1]) * 0.08;
-        cur[2] += (tgt[2] - cur[2]) * 0.08;
+        const dx = tgt[0] - cur[0];
+        const dy = tgt[1] - cur[1];
+        const dz = tgt[2] - cur[2];
+        const isLerping = (Math.abs(dx) > 0.03 || Math.abs(dy) > 0.03 || Math.abs(dz) > 0.03);
+
+        if (isLerping) {
+          cur[0] += dx * 0.08;
+          cur[1] += dy * 0.08;
+          cur[2] += dz * 0.08;
+          anyNodeMoving = true;
+        }
 
         if (currentMode === '3D') {
-          mesh.rotation.x += mesh.userData.rotSpeed.x;
-          mesh.rotation.y += mesh.userData.rotSpeed.y;
-          mesh.rotation.z += mesh.userData.rotSpeed.z;
-
-          mesh.position.y = cur[1] + Math.sin(time * 1.5 + idx * 0.8) * 4.5;
-          mesh.position.x = cur[0] + Math.cos(time * 1.1 + idx * 0.5) * 2.0;
-          mesh.position.z = cur[2];
+          if (levAmp > 0) {
+            mesh.rotation.x += mesh.userData.rotSpeed.x;
+            mesh.rotation.y += mesh.userData.rotSpeed.y;
+            mesh.rotation.z += mesh.userData.rotSpeed.z;
+            mesh.position.y = cur[1] + Math.sin(time * 1.5 + idx * 0.8) * levAmp;
+            mesh.position.x = cur[0] + Math.cos(time * 1.1 + idx * 0.5) * (levAmp * 0.4);
+            mesh.position.z = cur[2];
+            anyNodeMoving = true;
+          } else {
+            if (isLerping) {
+              mesh.position.set(cur[0], cur[1], cur[2]);
+            }
+          }
         } else {
           mesh.rotation.x += (0 - mesh.rotation.x) * 0.1;
           mesh.rotation.y += (0 - mesh.rotation.y) * 0.1;
           mesh.rotation.z += (0 - mesh.rotation.z) * 0.1;
-
-          mesh.position.x = cur[0];
-          mesh.position.y = cur[1] + Math.sin(time * 1.2 + idx * 0.6) * 1.5;
-          mesh.position.z = cur[2];
+          if (levAmp > 0) {
+            mesh.position.x = cur[0];
+            mesh.position.y = cur[1] + Math.sin(time * 1.2 + idx * 0.6) * (levAmp * 0.3);
+            mesh.position.z = cur[2];
+            anyNodeMoving = true;
+          } else {
+            if (isLerping) {
+              mesh.position.set(cur[0], cur[1], cur[2]);
+            }
+          }
         }
 
-        if (mesh.userData.core) {
-          mesh.userData.core.rotation.y -= 0.025;
-          mesh.userData.core.rotation.x += 0.012;
-        }
-        if (mesh.userData.beaconRing) {
-          mesh.userData.beaconRing.rotation.z += 0.015;
+        const spinMode = window.canvasConfig ? window.canvasConfig.innerCoreSpin : 'hubs_only';
+        if (spinMode !== 'off') {
+          if (mesh.userData.core && (spinMode === 'all' || mesh.userData.isHub || mesh.userData.isAgentHub)) {
+            mesh.userData.core.rotation.y -= 0.025;
+            mesh.userData.core.rotation.x += 0.012;
+          }
+          if (mesh.userData.beaconRing) {
+            mesh.userData.beaconRing.rotation.z += 0.015;
+          }
         }
       });
 
-      updateEdges();
+      if (anyNodeMoving || (showEdgesEnabled && isFlying)) {
+        updateEdges();
+      }
 
       if (sunCoronaMesh) {
         sunCoronaMesh.rotation.y += 0.005;
@@ -6533,6 +6792,11 @@
       const btn = document.getElementById('btn-toggle-legend');
       if (legend) {
         legend.classList.toggle('hidden', !graphLegendOpen);
+        if (typeof inspectorOpen !== 'undefined' && inspectorOpen) {
+          legend.style.right = '560px';
+        } else {
+          legend.style.right = '48px';
+        }
       }
       if (btn) {
         if (graphLegendOpen) {
@@ -6550,6 +6814,407 @@
       }
     }
     window.toggleGraphLegend = toggleGraphLegend;
+
+    // -------------------------------------------------------------------------
+    // COMPACT LEGEND CONTROLLER
+    // -------------------------------------------------------------------------
+    window.switchLegendSubTab = function(tab) {
+      const tabs = ['classes', 'scopes', 'guide'];
+      tabs.forEach(t => {
+        const btn = document.getElementById(`legend-subtab-btn-${t}`);
+        const panel = document.getElementById(`legend-panel-${t}`);
+        if (t === tab) {
+          if (btn) {
+            btn.className = "flex-1 py-1 rounded flex items-center justify-center gap-1 font-bold bg-primary-container/20 text-primary-container border border-primary-container/30 transition-all cursor-pointer";
+          }
+          if (panel) panel.classList.remove('hidden');
+        } else {
+          if (btn) {
+            btn.className = "flex-1 py-1 rounded flex items-center justify-center gap-1 font-bold text-neutral-400 hover:text-white border border-transparent transition-all cursor-pointer";
+          }
+          if (panel) panel.classList.add('hidden');
+        }
+      });
+      if (tab === 'scopes' && typeof window.updateScopeToggleUI === 'function') {
+        window.updateScopeToggleUI();
+      }
+    };
+
+    // -------------------------------------------------------------------------
+    // CANVAS & ENVIRONMENT STUDIO CONTROLLER
+    // -------------------------------------------------------------------------
+    const DEFAULT_CANVAS_CONFIG = {
+      preset: 'deep_void',
+      bgColor: '#040711',
+      fogEnabled: true,
+      fogColor: '#040711',
+      fogDensity: 0.0022,
+      stardustEnabled: true,
+      stardustColor: '#00f0ff',
+      stardustOpacity: 0.35,
+      gridVisible: true,
+      gridMode: 'both',
+      gridThickness: 'hairline',
+      gridPrimaryColor: '#00f0ff',
+      gridPrimaryOpacity: 0.35,
+      gridDivisionColor: '#1e293b',
+      gridDivisionOpacity: 0.15,
+      gridYOffset: 0,
+      axisGuidesVisible: true,
+      ambientIntensity: 0.75,
+      dirLightIntensity: 2.2,
+      sunCoronaEnabled: true,
+      sunCoronaColor: '#ffd700',
+      levitationAmplitude: 0.0,
+      voxelScale: 1.0,
+      innerCoreSpin: 'hubs_only'
+    };
+
+    const CANVAS_PRESETS = {
+      deep_void: {
+        preset: 'deep_void',
+        bgColor: '#040711',
+        fogEnabled: true,
+        fogColor: '#040711',
+        fogDensity: 0.0022,
+        stardustEnabled: true,
+        stardustColor: '#00f0ff',
+        stardustOpacity: 0.35,
+        gridVisible: true,
+        gridMode: 'both',
+        gridThickness: 'hairline',
+        gridPrimaryColor: '#00f0ff',
+        gridPrimaryOpacity: 0.35,
+        gridDivisionColor: '#1e293b',
+        gridDivisionOpacity: 0.15,
+        gridYOffset: 0,
+        axisGuidesVisible: true,
+        ambientIntensity: 0.75,
+        dirLightIntensity: 2.2,
+        sunCoronaEnabled: true,
+        sunCoronaColor: '#ffd700',
+        levitationAmplitude: 0.0,
+        voxelScale: 1.0,
+        innerCoreSpin: 'hubs_only'
+      },
+      obsidian_cyber: {
+        preset: 'obsidian_cyber',
+        bgColor: '#07080b',
+        fogEnabled: true,
+        fogColor: '#07080b',
+        fogDensity: 0.0025,
+        stardustEnabled: true,
+        stardustColor: '#00ffa3',
+        stardustOpacity: 0.40,
+        gridVisible: true,
+        gridMode: 'both',
+        gridThickness: 'crisp',
+        gridPrimaryColor: '#00ffa3',
+        gridPrimaryOpacity: 0.40,
+        gridDivisionColor: '#111827',
+        gridDivisionOpacity: 0.20,
+        gridYOffset: 0,
+        axisGuidesVisible: true,
+        ambientIntensity: 0.70,
+        dirLightIntensity: 2.5,
+        sunCoronaEnabled: true,
+        sunCoronaColor: '#00ffa3',
+        levitationAmplitude: 0.0,
+        voxelScale: 1.0,
+        innerCoreSpin: 'hubs_only'
+      },
+      cosmic_nebula: {
+        preset: 'cosmic_nebula',
+        bgColor: '#0c0717',
+        fogEnabled: true,
+        fogColor: '#0c0717',
+        fogDensity: 0.0024,
+        stardustEnabled: true,
+        stardustColor: '#e879f9',
+        stardustOpacity: 0.45,
+        gridVisible: true,
+        gridMode: 'both',
+        gridThickness: 'hairline',
+        gridPrimaryColor: '#c084fc',
+        gridPrimaryOpacity: 0.35,
+        gridDivisionColor: '#2e1065',
+        gridDivisionOpacity: 0.20,
+        gridYOffset: 0,
+        axisGuidesVisible: true,
+        ambientIntensity: 0.80,
+        dirLightIntensity: 2.4,
+        sunCoronaEnabled: true,
+        sunCoronaColor: '#ec4899',
+        levitationAmplitude: 0.0,
+        voxelScale: 1.0,
+        innerCoreSpin: 'hubs_only'
+      },
+      paper_blueprint: {
+        preset: 'paper_blueprint',
+        bgColor: '#0a1728',
+        fogEnabled: true,
+        fogColor: '#0a1728',
+        fogDensity: 0.0018,
+        stardustEnabled: true,
+        stardustColor: '#38bdf8',
+        stardustOpacity: 0.25,
+        gridVisible: true,
+        gridMode: 'both',
+        gridThickness: 'hairline',
+        gridPrimaryColor: '#ffffff',
+        gridPrimaryOpacity: 0.40,
+        gridDivisionColor: '#38bdf8',
+        gridDivisionOpacity: 0.25,
+        gridYOffset: 0,
+        axisGuidesVisible: true,
+        ambientIntensity: 0.90,
+        dirLightIntensity: 2.0,
+        sunCoronaEnabled: true,
+        sunCoronaColor: '#38bdf8',
+        levitationAmplitude: 0.0,
+        voxelScale: 1.0,
+        innerCoreSpin: 'hubs_only'
+      },
+      solaris_core: {
+        preset: 'solaris_core',
+        bgColor: '#0d0905',
+        fogEnabled: true,
+        fogColor: '#0d0905',
+        fogDensity: 0.0022,
+        stardustEnabled: true,
+        stardustColor: '#fde047',
+        stardustOpacity: 0.35,
+        gridVisible: true,
+        gridMode: 'both',
+        gridThickness: 'crisp',
+        gridPrimaryColor: '#fbbf24',
+        gridPrimaryOpacity: 0.38,
+        gridDivisionColor: '#78350f',
+        gridDivisionOpacity: 0.20,
+        gridYOffset: 0,
+        axisGuidesVisible: true,
+        ambientIntensity: 0.85,
+        dirLightIntensity: 2.4,
+        sunCoronaEnabled: true,
+        sunCoronaColor: '#f59e0b',
+        levitationAmplitude: 0.0,
+        voxelScale: 1.0,
+        innerCoreSpin: 'hubs_only'
+      }
+    };
+
+    window.canvasConfig = Object.assign({}, DEFAULT_CANVAS_CONFIG);
+    try {
+      const saved = localStorage.getItem('cortex_canvas_config_v1');
+      if (saved) Object.assign(window.canvasConfig, JSON.parse(saved));
+    } catch (e) {}
+
+    window.canvasCustomizerOpen = false;
+
+    window.toggleCanvasCustomizer = function(force) {
+      const drawer = document.getElementById('canvas-customizer-drawer');
+      const railInd = document.getElementById('rail-canvas-indicator');
+      const railBtn = document.getElementById('btn-rail-canvas');
+      window.canvasCustomizerOpen = (force !== undefined) ? force : !window.canvasCustomizerOpen;
+      
+      if (!drawer) return;
+      if (window.canvasCustomizerOpen) {
+        if (currentView !== 'graph') switchView('graph');
+        drawer.classList.remove('translate-x-full');
+        drawer.style.transform = 'none';
+        if (typeof closeInspector === 'function') closeInspector();
+        syncCustomizerUI(window.canvasConfig);
+      } else {
+        drawer.style.transform = 'translateX(100%)';
+        setTimeout(() => drawer.classList.add('translate-x-full'), 300);
+      }
+      if (railInd) railInd.classList.toggle('hidden', !window.canvasCustomizerOpen);
+      if (railBtn) railBtn.classList.toggle('text-cyan-400', window.canvasCustomizerOpen);
+    };
+
+    window.applyCanvasPreset = function(presetName) {
+      const p = CANVAS_PRESETS[presetName];
+      if (!p) return;
+      window.canvasConfig = Object.assign({}, window.canvasConfig, p);
+      applyCanvasConfig(window.canvasConfig);
+    };
+
+    window.updateCanvasSetting = function(key, val) {
+      window.canvasConfig[key] = val;
+      applyCanvasConfig(window.canvasConfig);
+    };
+
+    window.resetCanvasDefaults = function() {
+      window.canvasConfig = Object.assign({}, DEFAULT_CANVAS_CONFIG);
+      applyCanvasConfig(window.canvasConfig);
+    };
+
+    function applyCanvasConfig(cfg) {
+      if (!cfg) return;
+      try {
+        localStorage.setItem('cortex_canvas_config_v1', JSON.stringify(cfg));
+      } catch (e) {}
+
+      // 1. Clear Color & Background
+      if (typeof renderer !== 'undefined' && renderer) {
+        renderer.setClearColor(cfg.bgColor, 1);
+      }
+      if (typeof container !== 'undefined' && container) {
+        container.style.backgroundColor = cfg.bgColor;
+      }
+      if (typeof scene !== 'undefined' && scene && scene.fog) {
+        scene.fog.color.set(cfg.fogColor || cfg.bgColor);
+        scene.fog.density = cfg.fogEnabled ? (cfg.fogDensity || 0.0022) : 0.0;
+      }
+
+      // 2. Stardust Particles
+      if (typeof dustField !== 'undefined' && dustField) {
+        dustField.visible = Boolean(cfg.stardustEnabled) && (currentMode === '3D');
+      }
+      if (typeof dustMat !== 'undefined' && dustMat) {
+        dustMat.color.set(cfg.stardustColor || '#00f0ff');
+        dustMat.opacity = cfg.stardustOpacity || 0.35;
+      }
+
+      // 3. Coordinate Grid
+      if (typeof cartesianGridGroup !== 'undefined' && cartesianGridGroup) {
+        const isGridActive = Boolean(cfg.gridVisible) && (
+          cfg.gridMode === 'both' ||
+          (cfg.gridMode === '3d' && currentMode === '3D') ||
+          (cfg.gridMode === '2d' && currentMode === '2D')
+        );
+        cartesianGridGroup.visible = isGridActive;
+      }
+      if (typeof cartesianXZ !== 'undefined' && cartesianXZ) {
+        cartesianXZ.material.color.set(cfg.gridPrimaryColor || '#00f0ff');
+        cartesianXZ.material.opacity = cfg.gridPrimaryOpacity || 0.35;
+        if (cfg.gridThickness === 'bold') cartesianXZ.material.linewidth = 3;
+        else if (cfg.gridThickness === 'crisp') cartesianXZ.material.linewidth = 2;
+        else cartesianXZ.material.linewidth = 1;
+      }
+      if (typeof cartesianYNeg !== 'undefined' && cartesianYNeg) {
+        cartesianYNeg.position.y = -80 + (cfg.gridYOffset || 0);
+        cartesianYNeg.material.color.set(cfg.gridDivisionColor || '#1e293b');
+        cartesianYNeg.material.opacity = cfg.gridDivisionOpacity || 0.15;
+      }
+      if (typeof cartesianYPos !== 'undefined' && cartesianYPos) {
+        cartesianYPos.position.y = 80 + (cfg.gridYOffset || 0);
+        cartesianYPos.material.color.set(cfg.gridDivisionColor || '#1e293b');
+        cartesianYPos.material.opacity = cfg.gridDivisionOpacity || 0.15;
+      }
+      if (typeof axisGroup !== 'undefined' && axisGroup) {
+        axisGroup.visible = Boolean(cfg.axisGuidesVisible !== false);
+      }
+
+      // 4. Photometrics & Lighting
+      if (typeof ambientLight !== 'undefined' && ambientLight) {
+        ambientLight.intensity = cfg.ambientIntensity || 0.75;
+      }
+      if (typeof dirLight1 !== 'undefined' && dirLight1) {
+        dirLight1.intensity = cfg.dirLightIntensity || 2.2;
+      }
+      if (typeof dirLight2 !== 'undefined' && dirLight2) {
+        dirLight2.intensity = (cfg.dirLightIntensity || 2.2) * 0.72;
+      }
+      if (typeof dirLight3 !== 'undefined' && dirLight3) {
+        dirLight3.intensity = (cfg.dirLightIntensity || 2.2) * 0.64;
+      }
+
+      // 5. Sun Corona
+      if (typeof sunCoronaMesh !== 'undefined' && sunCoronaMesh) {
+        sunCoronaMesh.visible = Boolean(cfg.sunCoronaEnabled !== false);
+        if (cfg.sunCoronaColor) sunCoronaMesh.material.color.set(cfg.sunCoronaColor);
+      }
+
+      // 6. Voxel Scaling
+      if (typeof cubeMeshes !== 'undefined' && cubeMeshes.length > 0 && typeof cfg.voxelScale === 'number') {
+        cubeMeshes.forEach(mesh => {
+          mesh.scale.setScalar(cfg.voxelScale);
+        });
+      }
+
+      syncCustomizerUI(cfg);
+    }
+    window.applyCanvasConfig = applyCanvasConfig;
+
+    function syncCustomizerUI(cfg) {
+      if (!cfg) return;
+      const el = (id) => document.getElementById(id);
+      
+      if (el('cfg-bg-color')) el('cfg-bg-color').value = cfg.bgColor;
+      if (el('cfg-bg-color-val')) el('cfg-bg-color-val').innerText = cfg.bgColor;
+      if (el('cfg-fog-enabled')) el('cfg-fog-enabled').checked = Boolean(cfg.fogEnabled);
+      if (el('cfg-fog-density')) el('cfg-fog-density').value = cfg.fogDensity;
+      if (el('cfg-fog-density-val')) el('cfg-fog-density-val').innerText = cfg.fogDensity.toFixed(4);
+      if (el('cfg-stardust-enabled')) el('cfg-stardust-enabled').checked = Boolean(cfg.stardustEnabled);
+      
+      // Grid Mode
+      const modes = ['3d', '2d', 'both'];
+      modes.forEach(m => {
+        const btn = el(`cfg-gridmode-${m}`);
+        if (btn) {
+          const isActive = cfg.gridVisible && cfg.gridMode === m;
+          btn.className = `px-1.5 py-0.5 rounded text-[8px] cursor-pointer ${
+            isActive ? 'border border-cyan-400/50 bg-cyan-500/20 text-cyan-300 font-bold' : 'border border-outline-variant/40 text-slate-400'
+          }`;
+        }
+      });
+      const offBtn = el('cfg-gridmode-off');
+      if (offBtn) {
+        offBtn.className = `px-1.5 py-0.5 rounded text-[8px] cursor-pointer ${
+          !cfg.gridVisible ? 'border border-rose-500/50 bg-rose-500/20 text-rose-300 font-bold' : 'border border-outline-variant/40 text-slate-500'
+        }`;
+      }
+
+      // Grid Thickness
+      const weights = ['hairline', 'crisp', 'bold'];
+      weights.forEach(w => {
+        const btn = el(`cfg-thickness-${w}`);
+        if (btn) {
+          const isActive = cfg.gridThickness === w;
+          btn.className = `px-2 py-0.5 rounded text-[8px] cursor-pointer ${
+            isActive ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-400/40 font-bold' : 'border border-outline-variant/40 text-slate-400'
+          }`;
+        }
+      });
+
+      if (el('cfg-grid-pcolor')) el('cfg-grid-pcolor').value = cfg.gridPrimaryColor;
+      if (el('cfg-grid-pcolor-val')) el('cfg-grid-pcolor-val').innerText = cfg.gridPrimaryColor;
+      if (el('cfg-grid-popacity')) el('cfg-grid-popacity').value = cfg.gridPrimaryOpacity;
+      if (el('cfg-grid-popacity-val')) el('cfg-grid-popacity-val').innerText = `${Math.round(cfg.gridPrimaryOpacity * 100)}%`;
+      if (el('cfg-grid-scolor')) el('cfg-grid-scolor').value = cfg.gridDivisionColor;
+      if (el('cfg-grid-scolor-val')) el('cfg-grid-scolor-val').innerText = cfg.gridDivisionColor;
+      if (el('cfg-grid-yoffset')) el('cfg-grid-yoffset').value = cfg.gridYOffset || 0;
+      if (el('cfg-grid-yoffset-val')) el('cfg-grid-yoffset-val').innerText = `${cfg.gridYOffset || 0}u`;
+      if (el('cfg-axis-guides')) el('cfg-axis-guides').checked = Boolean(cfg.axisGuidesVisible !== false);
+
+      if (el('cfg-ambient-intensity')) el('cfg-ambient-intensity').value = cfg.ambientIntensity;
+      if (el('cfg-ambient-val')) el('cfg-ambient-val').innerText = cfg.ambientIntensity.toFixed(2);
+      if (el('cfg-dirlight-intensity')) el('cfg-dirlight-intensity').value = cfg.dirLightIntensity;
+      if (el('cfg-dirlight-val')) el('cfg-dirlight-val').innerText = cfg.dirLightIntensity.toFixed(1);
+      if (el('cfg-corona-enabled')) el('cfg-corona-enabled').checked = Boolean(cfg.sunCoronaEnabled !== false);
+
+      if (el('cfg-levitation')) el('cfg-levitation').value = cfg.levitationAmplitude;
+      if (el('cfg-levitation-val')) {
+        el('cfg-levitation-val').innerText = cfg.levitationAmplitude === 0 
+          ? '0.0px (Fast 60FPS)' 
+          : `${cfg.levitationAmplitude.toFixed(1)}px (Floating)`;
+      }
+      if (el('cfg-voxel-scale')) el('cfg-voxel-scale').value = cfg.voxelScale;
+      if (el('cfg-voxel-scale-val')) el('cfg-voxel-scale-val').innerText = `${cfg.voxelScale.toFixed(1)}x`;
+
+      const spins = ['hubs_only', 'all', 'off'];
+      spins.forEach(s => {
+        const btn = el(`cfg-spin-${s === 'hubs_only' ? 'hubs' : s}`);
+        if (btn) {
+          const isActive = cfg.innerCoreSpin === s;
+          btn.className = `px-1.5 py-0.5 rounded text-[8px] cursor-pointer ${
+            isActive ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-400/40 font-bold' : 'border border-outline-variant/40 text-slate-400'
+          }`;
+        }
+      });
+    }
+
 
     window.activeEnabledScopes = {};
 
@@ -6607,28 +7272,25 @@
           const isEnabled = window.activeEnabledScopes[s] !== false;
           const meta = scopeMeta[s] || { icon: 'hub', shape: 'VOXEL', symbol: '•', color: '#38bdf8', label: s.toUpperCase() };
           const count = scopeCounts[s] || 0;
-          const row = document.createElement('div');
-          row.className = `flex items-center justify-between p-1.5 rounded hover:bg-surface-container-high/60 cursor-pointer transition-colors group ${
-            isEnabled ? 'bg-primary-container/10' : 'opacity-40'
+          const chip = document.createElement('div');
+          chip.className = `flex items-center justify-between p-1.5 rounded-lg border transition-all cursor-pointer select-none group ${
+            isEnabled 
+              ? 'bg-surface-container-high/90 text-white border-primary-container/40 shadow-sm' 
+              : 'bg-surface-container-lowest/60 text-neutral-500 border-outline-variant/20 opacity-40 line-through'
           }`;
-          row.onclick = (e) => window.toggleAgentScope(s, e);
-          row.innerHTML = `
-            <div class="flex items-center gap-2 truncate">
-              <span class="material-symbols-outlined text-[15px] ${isEnabled ? 'text-primary-container' : 'text-outline'}">
-                ${isEnabled ? 'check_box' : 'check_box_outline_blank'}
-              </span>
-              <span class="text-sm shrink-0">${meta.symbol}</span>
-              <div class="truncate">
-                <span class="font-bold text-white">${meta.label}</span>
-                <span class="text-outline text-[8px] ml-1.5 uppercase font-mono">[${meta.shape}]</span>
-              </div>
+          chip.onclick = (e) => window.toggleAgentScope(s, e);
+          chip.title = `${meta.label} (${meta.shape}) · Click to toggle · Alt+Click to SOLO`;
+          chip.innerHTML = `
+            <div class="flex items-center gap-1.5 min-w-0">
+              <span class="text-xs shrink-0">${meta.symbol}</span>
+              <span class="font-bold text-[9px] truncate">${meta.label}</span>
             </div>
-            <div class="flex items-center gap-1.5 shrink-0">
-              <button onclick="event.stopPropagation(); window.soloAgentScope('${s}');" class="opacity-0 group-hover:opacity-100 text-[8px] px-1 py-0.5 bg-surface-container-high rounded border border-outline-variant/40 hover:text-primary transition-opacity">SOLO</button>
-              <span class="px-1.5 py-0.2 rounded text-[9px] font-bold bg-surface-container-high text-slate-300 border border-outline-variant/30">${count}</span>
+            <div class="flex items-center gap-1 shrink-0 ml-1">
+              <button type="button" onclick="event.stopPropagation(); window.soloAgentScope('${s}');" class="opacity-0 group-hover:opacity-100 text-[7px] px-1 py-0.2 bg-cyan-500/20 text-cyan-300 rounded border border-cyan-500/40 hover:bg-cyan-500 hover:text-black transition-opacity">SOLO</button>
+              <span class="px-1 py-0.2 rounded text-[8px] font-mono font-bold bg-black/40 text-slate-300 border border-outline-variant/30">${count}</span>
             </div>
           `;
-          legendContainer.appendChild(row);
+          legendContainer.appendChild(chip);
         });
       }
     };
@@ -7006,12 +7668,15 @@
     function toggleInspector() {
       const drawer = document.getElementById('inspector-drawer');
       inspectorOpen = !inspectorOpen;
+      const legend = document.getElementById('universal-graph-legend');
       if (inspectorOpen) {
         drawer.classList.remove('translate-x-full');
         drawer.style.transform = 'translateX(0)';
+        if (legend) legend.style.right = '560px';
       } else {
         drawer.style.transform = 'translateX(100%)';
         setTimeout(() => drawer.classList.add('translate-x-full'), 300);
+        if (legend) legend.style.right = '48px';
       }
     }
 
@@ -7020,6 +7685,8 @@
       inspectorOpen = false;
       drawer.style.transform = 'translateX(100%)';
       setTimeout(() => drawer.classList.add('translate-x-full'), 300);
+      const legend = document.getElementById('universal-graph-legend');
+      if (legend) legend.style.right = '48px';
     }
 
     function switchTab(tab) {
@@ -13120,200 +13787,154 @@ Resolution recorded to cryptographic provenance ledger.`);
   </script>
 
   <!-- ========================================================================= -->
-  <!-- UNIVERSAL GRAPH LEGEND & FACET SWITCHBOARD (Toggleable across all views)  -->
+  <!-- UNIVERSAL GRAPH LEGEND & FACET SWITCHBOARD (Ultra-Compact 3-Tab Controller)-->
   <!-- ========================================================================= -->
-  <div id="universal-graph-legend" class="fixed bottom-4 right-14 w-88 bg-[#090d16]/98 backdrop-blur-2xl border border-primary-container/40 rounded-xl shadow-[0_16px_48px_rgba(0,0,0,0.85)] z-40 font-mono text-xs overflow-hidden transition-all duration-300 transform translate-y-0 hidden">
+  <div id="universal-graph-legend" style="right: 48px;" class="fixed bottom-12 w-80 bg-[#070b14]/98 backdrop-blur-2xl border border-primary-container/40 rounded-xl shadow-[0_16px_48px_rgba(0,0,0,0.85)] z-40 font-mono text-xs overflow-hidden transition-all duration-300 transform translate-y-0 hidden">
     <!-- Header -->
-    <div class="px-3.5 py-2.5 bg-surface-container-low border-b border-outline-variant/30 flex items-center justify-between">
-      <div class="flex items-center gap-2">
-        <span class="material-symbols-outlined text-primary-container text-base">category</span>
+    <div class="px-3 py-2 bg-surface-container-low/90 border-b border-outline-variant/30 flex items-center justify-between">
+      <div class="flex items-center gap-1.5">
+        <span class="material-symbols-outlined text-primary-container text-sm">category</span>
         <div>
-          <div class="font-bold text-white uppercase text-[11px] tracking-wider">GRAPH ONTOLOGY &amp; FILTERS</div>
-          <div id="legend-visible-count" class="text-[9px] text-primary-container font-mono">Loading nodes...</div>
+          <div class="font-bold text-white uppercase text-[10px] tracking-wider">ONTOLOGY &amp; FACETS</div>
+          <div id="legend-visible-count" class="text-[8px] text-primary-container font-mono">Loading nodes...</div>
         </div>
       </div>
-      <div class="flex items-center gap-1.5">
-        <button onclick="enableAllLegendFacets()" class="px-1.5 py-0.5 rounded bg-surface-container-high hover:bg-primary-container hover:text-black text-[8px] font-bold transition-colors" title="Enable all node classes">ALL</button>
-        <button onclick="invertLegendFacets()" class="px-1.5 py-0.5 rounded bg-surface-container-high hover:bg-secondary-container hover:text-black text-[8px] font-bold transition-colors" title="Invert facet selection">INVERT</button>
-        <button onclick="isolateCOTFacet()" class="px-1.5 py-0.5 rounded bg-purple-500/20 text-[#ddb7ff] border border-purple-500/40 hover:bg-purple-500 hover:text-black text-[8px] font-bold transition-colors" title="Show only COT thoughts">COT ONLY</button>
-        <span class="text-[9px] text-outline bg-black/40 px-1 py-0.5 rounded font-mono">L</span>
-        <button onclick="toggleGraphLegend()" class="w-5 h-5 flex items-center justify-center text-outline hover:text-white rounded hover:bg-surface-container-high transition-colors ml-1" title="Close Legend">
-          <span class="material-symbols-outlined text-sm">close</span>
+      <div class="flex items-center gap-1">
+        <button onclick="enableAllLegendFacets()" class="px-1.5 py-0.5 rounded bg-surface-container-high hover:bg-primary-container hover:text-black text-[8px] font-bold transition-colors cursor-pointer" title="Enable all node classes">ALL</button>
+        <button onclick="invertLegendFacets()" class="px-1.5 py-0.5 rounded bg-surface-container-high hover:bg-secondary-container hover:text-black text-[8px] font-bold transition-colors cursor-pointer" title="Invert facet selection">INV</button>
+        <button onclick="isolateCOTFacet()" class="px-1.5 py-0.5 rounded bg-purple-500/20 text-[#ddb7ff] border border-purple-500/40 hover:bg-purple-500 hover:text-black text-[8px] font-bold transition-colors cursor-pointer" title="Show only COT thoughts">COT</button>
+        <span class="text-[8px] text-outline bg-black/40 px-1 py-0.5 rounded font-mono">L</span>
+        <button onclick="toggleGraphLegend()" class="w-5 h-5 flex items-center justify-center text-outline hover:text-white rounded hover:bg-surface-container-high transition-colors ml-0.5 cursor-pointer" title="Close Legend">
+          <span class="material-symbols-outlined text-xs">close</span>
         </button>
       </div>
     </div>
 
-    <!-- Body Sections -->
-    <div class="p-3 space-y-3 max-h-[70vh] overflow-y-auto text-[10px]">
-      <!-- 1. Epistemic & Cognitive Classes -->
-      <div>
-        <div class="flex items-center justify-between text-[9px] text-primary-container font-bold uppercase mb-1.5 pb-1 border-b border-outline-variant/20">
-          <span>COGNITIVE &amp; EPISTEMIC CLASSES</span>
-          <span class="text-outline text-[8px]">CLICK TO TOGGLE · HOVER SOLO</span>
+    <!-- Segmented Tab Selector -->
+    <div class="px-2 py-1.5 bg-surface-container-lowest/90 border-b border-outline-variant/30 flex items-center gap-1 text-[9px]">
+      <button id="legend-subtab-btn-classes" onclick="switchLegendSubTab('classes')" class="flex-1 py-1 rounded flex items-center justify-center gap-1 font-bold bg-primary-container/20 text-primary-container border border-primary-container/30 transition-all cursor-pointer">
+        <span>🏷️</span><span>CLASSES (7)</span>
+      </button>
+      <button id="legend-subtab-btn-scopes" onclick="switchLegendSubTab('scopes')" class="flex-1 py-1 rounded flex items-center justify-center gap-1 font-bold text-neutral-400 hover:text-white border border-transparent transition-all cursor-pointer">
+        <span>🛡️</span><span>SCOPES (9)</span>
+      </button>
+      <button id="legend-subtab-btn-guide" onclick="switchLegendSubTab('guide')" class="flex-1 py-1 rounded flex items-center justify-center gap-1 font-bold text-neutral-400 hover:text-white border border-transparent transition-all cursor-pointer">
+        <span>ℹ️</span><span>GUIDE</span>
+      </button>
+    </div>
+
+    <!-- Body Panels -->
+    <div class="p-2 max-h-[340px] overflow-y-auto text-[9px]">
+      <!-- Tab 1: Epistemic & Cognitive Classes (2-Column Grid) -->
+      <div id="legend-panel-classes" class="grid grid-cols-2 gap-1.5">
+        <!-- Thought -->
+        <div id="legend-row-thought" onclick="toggleLegendFacet('thought')" role="switch" aria-pressed="true" class="flex items-center justify-between p-1.5 rounded-lg border border-purple-500/30 bg-purple-500/10 hover:bg-purple-500/20 cursor-pointer transition-colors group select-none" title="Internal agent deliberations and reasoning steps (COT)">
+          <div class="flex items-center gap-1.5 truncate">
+            <span id="legend-check-thought" class="material-symbols-outlined text-[13px] text-purple-400">check_box</span>
+            <span class="w-2.5 h-2.5 rounded-sm bg-[#a855f7] shadow-[0_0_6px_#a855f7] shrink-0"></span>
+            <span class="text-[#ddb7ff] font-bold text-[9px] truncate">COT REASON</span>
+          </div>
+          <span id="legend-count-thought" class="px-1 py-0.2 rounded text-[8px] font-mono font-bold bg-purple-500/25 text-[#ddb7ff] border border-purple-500/40 shrink-0">--</span>
         </div>
-        <div class="space-y-1">
-          <!-- Thought (COT) -->
-          <div id="legend-row-thought" onclick="toggleLegendFacet('thought')" role="switch" aria-pressed="true" class="flex items-center justify-between p-1.5 rounded hover:bg-surface-container-high/60 cursor-pointer transition-colors group bg-primary-container/10">
-            <div class="flex items-center gap-2">
-              <span id="legend-check-thought" class="material-symbols-outlined text-[15px] text-primary-container">check_box</span>
-              <span class="w-3 h-3 rounded-sm bg-[#a855f7] shadow-[0_0_8px_#a855f7] shrink-0"></span>
-              <div>
-                <span class="text-[#ddb7ff] font-bold">REASONING // COT</span>
-                <span class="text-outline text-[8px] ml-1">Internal agent deliberations</span>
-              </div>
-            </div>
-            <div class="flex items-center gap-1.5">
-              <button onclick="soloLegendFacet('thought', event)" class="opacity-0 group-hover:opacity-100 text-[8px] px-1 py-0.5 bg-surface-container-high rounded border border-outline-variant/40 hover:text-primary transition-opacity">SOLO</button>
-              <span id="legend-count-thought" class="px-1.5 py-0.2 rounded text-[9px] font-bold bg-purple-500/20 text-[#ddb7ff] border border-purple-500/30">--</span>
-            </div>
-          </div>
 
-          <!-- Fact -->
-          <div id="legend-row-fact" onclick="toggleLegendFacet('fact')" role="switch" aria-pressed="true" class="flex items-center justify-between p-1.5 rounded hover:bg-surface-container-high/60 cursor-pointer transition-colors group bg-primary-container/10">
-            <div class="flex items-center gap-2">
-              <span id="legend-check-fact" class="material-symbols-outlined text-[15px] text-primary-container">check_box</span>
-              <span class="w-3 h-3 rounded-sm bg-[#00f0ff] shadow-[0_0_8px_#00f0ff] shrink-0"></span>
-              <div>
-                <span class="text-[#00f0ff] font-bold">FACT (AIS: 1.0)</span>
-                <span class="text-outline text-[8px] ml-1">Verified grounded assertions</span>
-              </div>
-            </div>
-            <div class="flex items-center gap-1.5">
-              <button onclick="soloLegendFacet('fact', event)" class="opacity-0 group-hover:opacity-100 text-[8px] px-1 py-0.5 bg-surface-container-high rounded border border-outline-variant/40 hover:text-primary transition-opacity">SOLO</button>
-              <span id="legend-count-fact" class="px-1.5 py-0.2 rounded text-[9px] font-bold bg-[#00f0ff]/20 text-[#00f0ff] border border-[#00f0ff]/30">--</span>
-            </div>
+        <!-- Fact -->
+        <div id="legend-row-fact" onclick="toggleLegendFacet('fact')" role="switch" aria-pressed="true" class="flex items-center justify-between p-1.5 rounded-lg border border-cyan-500/30 bg-cyan-500/10 hover:bg-cyan-500/20 cursor-pointer transition-colors group select-none" title="Verified grounded assertions (AIS: 1.0)">
+          <div class="flex items-center gap-1.5 truncate">
+            <span id="legend-check-fact" class="material-symbols-outlined text-[13px] text-cyan-400">check_box</span>
+            <span class="w-2.5 h-2.5 rounded-sm bg-[#00f0ff] shadow-[0_0_6px_#00f0ff] shrink-0"></span>
+            <span class="text-[#00f0ff] font-bold text-[9px] truncate">FACT (AIS:1)</span>
           </div>
+          <span id="legend-count-fact" class="px-1 py-0.2 rounded text-[8px] font-mono font-bold bg-cyan-500/25 text-[#00f0ff] border border-cyan-500/40 shrink-0">--</span>
+        </div>
 
-          <!-- Rule -->
-          <div id="legend-row-rule" onclick="toggleLegendFacet('rule')" role="switch" aria-pressed="true" class="flex items-center justify-between p-1.5 rounded hover:bg-surface-container-high/60 cursor-pointer transition-colors group bg-primary-container/10">
-            <div class="flex items-center gap-2">
-              <span id="legend-check-rule" class="material-symbols-outlined text-[15px] text-primary-container">check_box</span>
-              <span class="w-3 h-3 rounded-sm bg-[#00ffa3] shadow-[0_0_8px_#00ffa3] shrink-0"></span>
-              <div>
-                <span class="text-[#00ffa3] font-bold">RULE / INVARIANT</span>
-                <span class="text-outline text-[8px] ml-1">ABAC policies &amp; bounds</span>
-              </div>
-            </div>
-            <div class="flex items-center gap-1.5">
-              <button onclick="soloLegendFacet('rule', event)" class="opacity-0 group-hover:opacity-100 text-[8px] px-1 py-0.5 bg-surface-container-high rounded border border-outline-variant/40 hover:text-primary transition-opacity">SOLO</button>
-              <span id="legend-count-rule" class="px-1.5 py-0.2 rounded text-[9px] font-bold bg-[#00ffa3]/20 text-[#00ffa3] border border-[#00ffa3]/30">--</span>
-            </div>
+        <!-- Rule -->
+        <div id="legend-row-rule" onclick="toggleLegendFacet('rule')" role="switch" aria-pressed="true" class="flex items-center justify-between p-1.5 rounded-lg border border-emerald-500/30 bg-emerald-500/10 hover:bg-emerald-500/20 cursor-pointer transition-colors group select-none" title="ABAC policies, constraints and system invariants">
+          <div class="flex items-center gap-1.5 truncate">
+            <span id="legend-check-rule" class="material-symbols-outlined text-[13px] text-emerald-400">check_box</span>
+            <span class="w-2.5 h-2.5 rounded-sm bg-[#00ffa3] shadow-[0_0_6px_#00ffa3] shrink-0"></span>
+            <span class="text-[#00ffa3] font-bold text-[9px] truncate">RULE POLICY</span>
           </div>
+          <span id="legend-count-rule" class="px-1 py-0.2 rounded text-[8px] font-mono font-bold bg-emerald-500/25 text-[#00ffa3] border border-emerald-500/40 shrink-0">--</span>
+        </div>
 
-          <!-- Decision -->
-          <div id="legend-row-decision" onclick="toggleLegendFacet('decision')" role="switch" aria-pressed="true" class="flex items-center justify-between p-1.5 rounded hover:bg-surface-container-high/60 cursor-pointer transition-colors group bg-primary-container/10">
-            <div class="flex items-center gap-2">
-              <span id="legend-check-decision" class="material-symbols-outlined text-[15px] text-primary-container">check_box</span>
-              <span class="w-3 h-3 rounded-sm bg-[#34d399] shadow-[0_0_8px_#34d399] shrink-0"></span>
-              <div>
-                <span class="text-[#34d399] font-bold">DECISION / INFERENCE</span>
-                <span class="text-outline text-[8px] ml-1">Multi-turn syntheses</span>
-              </div>
-            </div>
-            <div class="flex items-center gap-1.5">
-              <button onclick="soloLegendFacet('decision', event)" class="opacity-0 group-hover:opacity-100 text-[8px] px-1 py-0.5 bg-surface-container-high rounded border border-outline-variant/40 hover:text-primary transition-opacity">SOLO</button>
-              <span id="legend-count-decision" class="px-1.5 py-0.2 rounded text-[9px] font-bold bg-[#34d399]/20 text-[#34d399] border border-[#34d399]/30">--</span>
-            </div>
+        <!-- Decision -->
+        <div id="legend-row-decision" onclick="toggleLegendFacet('decision')" role="switch" aria-pressed="true" class="flex items-center justify-between p-1.5 rounded-lg border border-teal-500/30 bg-teal-500/10 hover:bg-teal-500/20 cursor-pointer transition-colors group select-none" title="Multi-turn syntheses and decision inferences">
+          <div class="flex items-center gap-1.5 truncate">
+            <span id="legend-check-decision" class="material-symbols-outlined text-[13px] text-teal-400">check_box</span>
+            <span class="w-2.5 h-2.5 rounded-sm bg-[#34d399] shadow-[0_0_6px_#34d399] shrink-0"></span>
+            <span class="text-[#34d399] font-bold text-[9px] truncate">DECISION</span>
           </div>
+          <span id="legend-count-decision" class="px-1 py-0.2 rounded text-[8px] font-mono font-bold bg-teal-500/25 text-[#34d399] border border-teal-500/40 shrink-0">--</span>
+        </div>
 
-          <!-- Scope Root Hub -->
-          <div id="legend-row-hub" onclick="toggleLegendFacet('hub')" role="switch" aria-pressed="true" class="flex items-center justify-between p-1.5 rounded hover:bg-surface-container-high/60 cursor-pointer transition-colors group bg-primary-container/10">
-            <div class="flex items-center gap-2">
-              <span id="legend-check-hub" class="material-symbols-outlined text-[15px] text-primary-container">check_box</span>
-              <span class="w-3 h-3 rounded-sm bg-[#ffd700] shadow-[0_0_8px_#ffd700] shrink-0"></span>
-              <div>
-                <span class="text-[#ffd700] font-bold">SCOPE HUB (SHARED)</span>
-                <span class="text-outline text-[8px] ml-1">Celestial core sun origin</span>
-              </div>
-            </div>
-            <div class="flex items-center gap-1.5">
-              <button onclick="soloLegendFacet('hub', event)" class="opacity-0 group-hover:opacity-100 text-[8px] px-1 py-0.5 bg-surface-container-high rounded border border-outline-variant/40 hover:text-primary transition-opacity">SOLO</button>
-              <span id="legend-count-hub" class="px-1.5 py-0.2 rounded text-[9px] font-bold bg-[#ffd700]/20 text-[#ffd700] border border-[#ffd700]/30">--</span>
-            </div>
+        <!-- Scope Root Hub -->
+        <div id="legend-row-hub" onclick="toggleLegendFacet('hub')" role="switch" aria-pressed="true" class="flex items-center justify-between p-1.5 rounded-lg border border-amber-500/30 bg-amber-500/10 hover:bg-amber-500/20 cursor-pointer transition-colors group select-none" title="Celestial core origin hub (Shared Fabric)">
+          <div class="flex items-center gap-1.5 truncate">
+            <span id="legend-check-hub" class="material-symbols-outlined text-[13px] text-amber-400">check_box</span>
+            <span class="w-2.5 h-2.5 rounded-sm bg-[#ffd700] shadow-[0_0_6px_#ffd700] shrink-0"></span>
+            <span class="text-[#ffd700] font-bold text-[9px] truncate">CORE SUN</span>
           </div>
+          <span id="legend-count-hub" class="px-1 py-0.2 rounded text-[8px] font-mono font-bold bg-amber-500/25 text-[#ffd700] border border-amber-500/40 shrink-0">--</span>
+        </div>
 
-          <!-- Agent Hubs -->
-          <div id="legend-row-agent_hub" onclick="toggleLegendFacet('agent_hub')" role="switch" aria-pressed="true" class="flex items-center justify-between p-1.5 rounded hover:bg-surface-container-high/60 cursor-pointer transition-colors group bg-primary-container/10">
-            <div class="flex items-center gap-2">
-              <span id="legend-check-agent_hub" class="material-symbols-outlined text-[15px] text-primary-container">check_box</span>
-              <span class="w-3 h-3 rounded-sm bg-[#00ffa3] shadow-[0_0_8px_#00ffa3] shrink-0"></span>
-              <div>
-                <span class="text-[#00ffa3] font-bold">AGENT ENCLAVE HUBS</span>
-                <span class="text-outline text-[8px] ml-1">Equatorial scope planets</span>
-              </div>
-            </div>
-            <div class="flex items-center gap-1.5">
-              <button onclick="soloLegendFacet('agent_hub', event)" class="opacity-0 group-hover:opacity-100 text-[8px] px-1 py-0.5 bg-surface-container-high rounded border border-outline-variant/40 hover:text-primary transition-opacity">SOLO</button>
-              <span id="legend-count-agent_hub" class="px-1.5 py-0.2 rounded text-[9px] font-bold bg-[#00ffa3]/20 text-[#00ffa3] border border-[#00ffa3]/30">--</span>
-            </div>
+        <!-- Agent Hubs -->
+        <div id="legend-row-agent_hub" onclick="toggleLegendFacet('agent_hub')" role="switch" aria-pressed="true" class="flex items-center justify-between p-1.5 rounded-lg border border-cyan-500/30 bg-cyan-500/10 hover:bg-cyan-500/20 cursor-pointer transition-colors group select-none" title="Equatorial agent scope hubs and planetary centers">
+          <div class="flex items-center gap-1.5 truncate">
+            <span id="legend-check-agent_hub" class="material-symbols-outlined text-[13px] text-cyan-400">check_box</span>
+            <span class="w-2.5 h-2.5 rounded-sm bg-[#00ffa3] shadow-[0_0_6px_#00ffa3] shrink-0"></span>
+            <span class="text-[#00ffa3] font-bold text-[9px] truncate">AGENT HUBS</span>
           </div>
+          <span id="legend-count-agent_hub" class="px-1 py-0.2 rounded text-[8px] font-mono font-bold bg-cyan-500/25 text-[#00ffa3] border border-cyan-500/40 shrink-0">--</span>
+        </div>
 
-          <!-- Knowledge Entity -->
-          <div id="legend-row-entity" onclick="toggleLegendFacet('entity')" role="switch" aria-pressed="true" class="flex items-center justify-between p-1.5 rounded hover:bg-surface-container-high/60 cursor-pointer transition-colors group bg-primary-container/10">
-            <div class="flex items-center gap-2">
-              <span id="legend-check-entity" class="material-symbols-outlined text-[15px] text-primary-container">check_box</span>
-              <span class="w-3 h-3 rounded-sm bg-[#ffd166] shadow-[0_0_8px_#ffd166] shrink-0"></span>
-              <div>
-                <span class="text-[#ffd166] font-bold">KNOWLEDGE ENTITY</span>
-                <span class="text-outline text-[8px] ml-1">RDF subject/object nodes</span>
-              </div>
-            </div>
-            <div class="flex items-center gap-1.5">
-              <button onclick="soloLegendFacet('entity', event)" class="opacity-0 group-hover:opacity-100 text-[8px] px-1 py-0.5 bg-surface-container-high rounded border border-outline-variant/40 hover:text-primary transition-opacity">SOLO</button>
-              <span id="legend-count-entity" class="px-1.5 py-0.2 rounded text-[9px] font-bold bg-[#ffd166]/20 text-[#ffd166] border border-[#ffd166]/30">--</span>
-            </div>
+        <!-- Knowledge Entity -->
+        <div id="legend-row-entity" onclick="toggleLegendFacet('entity')" role="switch" aria-pressed="true" class="col-span-2 flex items-center justify-between p-1.5 rounded-lg border border-amber-400/30 bg-amber-400/10 hover:bg-amber-400/20 cursor-pointer transition-colors group select-none" title="RDF Subject-Object-Predicate relational entities">
+          <div class="flex items-center gap-1.5 truncate">
+            <span id="legend-check-entity" class="material-symbols-outlined text-[13px] text-amber-300">check_box</span>
+            <span class="w-2.5 h-2.5 rounded-sm bg-[#ffd166] shadow-[0_0_6px_#ffd166] shrink-0"></span>
+            <span class="text-[#ffd166] font-bold text-[9px] truncate">KNOWLEDGE ENTITY (SOP)</span>
           </div>
+          <span id="legend-count-entity" class="px-1 py-0.2 rounded text-[8px] font-mono font-bold bg-amber-400/25 text-[#ffd166] border border-amber-400/40 shrink-0">--</span>
         </div>
       </div>
 
-      <!-- 2. Agent Scopes & Unique 3D Geometries (Toggle in Shared View) -->
-      <div>
-        <div class="flex items-center justify-between text-[9px] text-cyan-400 font-bold uppercase mb-1.5 pb-1 border-b border-outline-variant/20">
-          <span>AGENT SCOPES &amp; 3D GEOMETRIES</span>
-          <span class="text-outline text-[8px]">CLICK TOGGLE · SOLO</span>
-        </div>
-        <div id="legend-scope-rows" class="space-y-1">
+      <!-- Tab 2: Agent Scopes & Geometries (2-Column Dense Grid) -->
+      <div id="legend-panel-scopes" class="hidden">
+        <div id="legend-scope-rows" class="grid grid-cols-2 gap-1.5">
           <!-- Dynamically populated by updateScopeToggleUI() -->
         </div>
       </div>
 
-      <!-- 3. Synaptic Link & Edge Types -->
-      <div>
-        <div class="text-[9px] text-secondary-container font-bold uppercase mb-1.5 pb-1 border-b border-outline-variant/20">
-          SYNAPTIC CONNECTOR EDGES
-        </div>
-        <div class="space-y-1.5">
-          <div class="flex items-center gap-2 p-1 bg-surface-container-high/30 rounded">
-            <div class="w-6 h-0.5 bg-[#a855f7] shrink-0"></div>
-            <div class="text-neutral-300"><strong class="text-[#ddb7ff]">RELATION:</strong> Directed semantic triple (S ──▶ P ──▶ O).</div>
-          </div>
-          <div class="flex items-center gap-2 p-1 bg-surface-container-high/30 rounded">
-            <div class="w-6 h-0.5 border-t border-dashed border-[#00ffa3] shrink-0"></div>
-            <div class="text-neutral-300"><strong class="text-secondary-container">EVIDENCE:</strong> Cryptographic source grounding proof.</div>
-          </div>
-          <div class="flex items-center gap-2 p-1 bg-surface-container-high/30 rounded">
-            <div class="w-6 h-0.5 bg-gradient-to-r from-[#00f0ff] to-[#a855f7] shrink-0 animate-pulse"></div>
-            <div class="text-neutral-300"><strong class="text-primary-container">DELIBERATION:</strong> Agent to Chain-of-Thought link.</div>
-          </div>
-          <div class="flex items-center gap-2 p-1 bg-surface-container-high/30 rounded">
-            <div class="w-6 h-0.5 border-t border-dotted border-[#ffd700] shrink-0"></div>
-            <div class="text-neutral-300"><strong class="text-[#ffd700]">FEDERATION:</strong> Shared Fabric to Agent Hub bridge.</div>
+      <!-- Tab 3: Guide (Connectors & Hotkeys) -->
+      <div id="legend-panel-guide" class="hidden space-y-2.5">
+        <div>
+          <div class="text-[8px] text-cyan-400 font-bold uppercase mb-1 pb-0.5 border-b border-outline-variant/20">SYNAPTIC CONNECTOR EDGES</div>
+          <div class="space-y-1">
+            <div class="flex items-center gap-1.5 p-1 bg-surface-container-high/30 rounded text-[8px]">
+              <div class="w-4 h-0.5 bg-[#a855f7] shrink-0"></div>
+              <div><strong class="text-[#ddb7ff]">RELATION:</strong> S ──▶ P ──▶ O</div>
+            </div>
+            <div class="flex items-center gap-1.5 p-1 bg-surface-container-high/30 rounded text-[8px]">
+              <div class="w-4 h-0.5 border-t border-dashed border-[#00ffa3] shrink-0"></div>
+              <div><strong class="text-[#00ffa3]">EVIDENCE:</strong> Grounding source</div>
+            </div>
+            <div class="flex items-center gap-1.5 p-1 bg-surface-container-high/30 rounded text-[8px]">
+              <div class="w-4 h-0.5 bg-gradient-to-r from-[#00f0ff] to-[#a855f7] shrink-0"></div>
+              <div><strong class="text-primary-container">DELIBERATION:</strong> Agent to COT</div>
+            </div>
           </div>
         </div>
-      </div>
 
-      <!-- 3. Navigation & Hotkeys -->
-      <div>
-        <div class="text-[9px] text-[#ddb7ff] font-bold uppercase mb-1 pb-1 border-b border-outline-variant/20">
-          3D GRAPH HOTKEYS &amp; GESTURES
-        </div>
-        <div class="grid grid-cols-2 gap-1.5 text-[9px] text-outline">
-          <div><strong class="text-white">[L]:</strong> Toggle Legend</div>
-          <div><strong class="text-white">[Z]:</strong> Flight Tour</div>
-          <div><strong class="text-white">[DRAG]:</strong> 3D Orbit Rotate</div>
-          <div><strong class="text-white">[SCROLL]:</strong> 3D Zoom</div>
-          <div><strong class="text-white">[CLICK]:</strong> Inspect Node</div>
-          <div><strong class="text-white">[SHIFT+DRAG]:</strong> Pan Camera</div>
+        <div>
+          <div class="text-[8px] text-[#ddb7ff] font-bold uppercase mb-1 pb-0.5 border-b border-outline-variant/20">3D NAVIGATION HOTKEYS</div>
+          <div class="grid grid-cols-2 gap-1 text-[8px] text-outline">
+            <div><strong class="text-white">[L]:</strong> Legend</div>
+            <div><strong class="text-white">[C]:</strong> Canvas Studio</div>
+            <div><strong class="text-white">[E]:</strong> Toggle Edges</div>
+            <div><strong class="text-white">[Z]:</strong> Flight Tour</div>
+            <div><strong class="text-white">[DRAG]:</strong> 3D Orbit</div>
+            <div><strong class="text-white">[SCROLL]:</strong> Zoom</div>
+          </div>
         </div>
       </div>
     </div>
