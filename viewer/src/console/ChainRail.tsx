@@ -646,7 +646,7 @@ export function ChainRail() {
           disabled={!model}
           onClick={() => { setExporting((v) => !v); setExportNote(null) }}
         >
-          Export
+          Export this window
         </button>
       </div>
     </section>
