@@ -3467,9 +3467,16 @@ select.xc-input {
      read every hash and JSON fragment in a ~30-character column. 42vw is 672px there: one
      tab row, and still under half the workspace at every width the dock opens at. */
   --dock-right: clamp(460px, 42vw, 820px);
+  --dock-bottom: 280px;
 }
 .xc-workspace[data-detail='closed'] {
   --dock-right: 0px;
+}
+.xc-workspace:has(> .xc-chain-handle) {
+  --dock-bottom: 48px;
+}
+.xc-workspace:has(> .xc-chain[data-floating='true']) {
+  --dock-bottom: 48px;
 }
 .xc-workspace > .xc-rail {
   top: 0;
@@ -3537,6 +3544,7 @@ select.xc-input {
   padding-right: 16px;
 }
 .xc-workspace > .xc-chain {
+  margin: 0;
   left: calc(var(--dock-left) + 16px);
   right: calc(var(--dock-right) + 16px);
   bottom: 16px;
@@ -3749,10 +3757,15 @@ body,
    height of the plotting field, so the lanes sit on a chart that extends to the frame and the
    space below the last lane reads as time nobody has used yet. Lanes keep their natural size
    and still scroll when there are more of them than fit. */
+.xc-canvas-win[aria-label="Timeline lens"] .xc-scroll,
+.xc-scroll:has(> .xc-tl-grid) {
+  scroll-padding-bottom: var(--dock-bottom, 280px);
+}
 .xc-tl-grid {
   position: relative;
   min-height: 100%;
   align-content: start;
+  padding-bottom: var(--dock-bottom, 280px);
 }
 .xc-tl-rules {
   position: absolute;
