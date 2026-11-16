@@ -1085,6 +1085,42 @@ def create_app(config: SuperCortexConfig | None = None) -> Starlette:
             "status": "consistent" if not contradictions else "dialectic_conflict",
         })
 
+    async def api_contradictions_resolve(request: Request) -> JSONResponse:
+        """Resolves an active dialectic contradiction by superseding, archiving, or synthesizing a reconciled invariant."""
+        from .models import LifecycleStatus
+        body = await request.json()
+        action = body.get("action", "supersede")
+        winner_id = body.get("winner_id")
+        loser_id = body.get("loser_id")
+        reconciled_text = body.get("reconciled_text", "").strip()
+
+        if action == "supersede" and winner_id and loser_id:
+            cortex.store.update_memory_status(loser_id, LifecycleStatus.SUPERSEDED)
+            cortex.record_event(
+                event_type="contradiction_resolved_supersede",
+                source_did=cortex.config.actor_did,
+                data={"winner_id": winner_id, "loser_id": loser_id, "resolution": "superseded"},
+            )
+            await broadcast_event("contradiction_resolved", {"winner_id": winner_id, "loser_id": loser_id})
+            return JSONResponse({"status": "resolved", "action": "superseded", "winner_id": winner_id, "loser_id": loser_id})
+
+        elif action == "reconcile" and reconciled_text:
+            if loser_id:
+                cortex.store.update_memory_status(loser_id, LifecycleStatus.SUPERSEDED)
+            if winner_id:
+                cortex.store.update_memory_status(winner_id, LifecycleStatus.SUPERSEDED)
+            res = await cortex.remember(
+                text=reconciled_text,
+                epistemic_class="rule",
+                namespace="reconciled",
+                scope="shared",
+                metadata={"reconciled_from": [winner_id, loser_id]},
+            )
+            await broadcast_event("contradiction_resolved", {"action": "reconciled", "new_memory": res})
+            return JSONResponse({"status": "resolved", "action": "reconciled", "new_memory": res})
+
+        return JSONResponse({"error": "Invalid resolution action or missing parameters"}, status_code=400)
+
     async def api_triples_extract(request: Request) -> JSONResponse:
         """Extracts Subject-Predicate-Object (SOP) triples in real-time from input text."""
         body = await request.json()
@@ -1220,6 +1256,7 @@ def create_app(config: SuperCortexConfig | None = None) -> Starlette:
         Route("/api/settings", api_settings, methods=["GET", "POST"]),
         Route("/api/context/inject", api_context_inject, methods=["GET", "POST"]),
         Route("/api/contradictions", api_contradictions, methods=["GET"]),
+        Route("/api/contradictions/resolve", api_contradictions_resolve, methods=["POST"]),
         Route("/api/triples/extract", api_triples_extract, methods=["POST"]),
         Route("/api/triples/backfill", api_triples_backfill, methods=["POST"]),
         Route("/api/audit", api_audit, methods=["GET"]),

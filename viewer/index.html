@@ -899,15 +899,15 @@
         <div class="h-4 w-[1px] bg-outline-variant/50"></div>
 
         <!-- SOP Triples Badge & Context Inject -->
-        <button id="ribbon-sop-btn" onclick="filterEpistemic('entity')" class="px-2 py-1 rounded bg-[#ffd166]/10 text-[#ffd166] border border-[#ffd166]/30 hover:bg-[#ffd166] hover:text-black font-mono font-bold text-[9px] uppercase transition-all flex items-center gap-1" title="Filter to SOP Knowledge Entities">
+        <button id="ribbon-sop-btn" onclick="filterEpistemic('entity')" class="px-2.5 py-1 rounded bg-[#ffd166]/10 text-[#ffd166] border border-[#ffd166]/30 hover:bg-[#ffd166] hover:text-black font-mono font-bold text-[9px] uppercase transition-all flex items-center gap-1.5 whitespace-nowrap shrink-0 shadow-sm" title="Filter to SOP Knowledge Entities">
           <span class="w-1.5 h-1.5 rounded-full bg-[#ffd166]"></span>
-          SOP TRIPLES (<span id="ribbon-sop-count">21</span>)
+          <span>SOP TRIPLES (<span id="ribbon-sop-count">21</span>)</span>
         </button>
 
         <!-- Agent Thoughts (COT) Button -->
-        <button id="ribbon-thoughts-btn" onclick="filterEpistemic('thought')" class="px-2 py-1 rounded bg-purple-500/10 text-[#ddb7ff] border border-purple-500/30 hover:bg-purple-500 hover:text-black font-mono font-bold text-[9px] uppercase transition-all flex items-center gap-1" title="Filter to Agent Thoughts (Chain-of-Thought Reasoning)">
+        <button id="ribbon-thoughts-btn" onclick="filterEpistemic('thought')" class="px-2.5 py-1 rounded bg-purple-500/10 text-[#ddb7ff] border border-purple-500/30 hover:bg-purple-500 hover:text-black font-mono font-bold text-[9px] uppercase transition-all flex items-center gap-1.5 whitespace-nowrap shrink-0 shadow-sm" title="Filter to Agent Thoughts (Chain-of-Thought Reasoning)">
           <span class="w-1.5 h-1.5 rounded-full bg-[#c084fc] animate-pulse"></span>
-          THOUGHTS (COT) (<span id="ribbon-thoughts-count">0</span>)
+          <span>THOUGHTS (COT) (<span id="ribbon-thoughts-count">0</span>)</span>
         </button>
 
         <button onclick="window.openContextModal()" class="px-2 py-1 rounded bg-primary-container/20 text-primary-container border border-primary-container/40 hover:bg-primary-container hover:text-black font-mono font-bold text-[9px] uppercase transition-all flex items-center gap-1" title="Deterministic Context Injection (<5ms)">
@@ -2534,6 +2534,14 @@
               <span class="material-symbols-outlined text-[12px]">fingerprint</span>
               Hash
             </button>
+          </div>
+        </div>
+
+        <!-- Interactive Traversal History Breadcrumbs -->
+        <div id="node-traversal-breadcrumbs" class="flex items-center gap-1 overflow-x-auto py-1 px-1.5 bg-surface-container-lowest rounded border border-outline-variant/20 text-[9px] font-mono scrollbar-none">
+          <span class="text-outline uppercase text-[8px] mr-1 shrink-0">TRAIL:</span>
+          <div id="breadcrumbs-trail-container" class="flex items-center gap-1 shrink-0">
+            <span class="text-neutral-500">Root</span>
           </div>
         </div>
 
@@ -4964,11 +4972,11 @@
                   <span class="text-secondary-container font-bold">${((t.confidence || 0.95) * 100).toFixed(0)}% CONF</span>
                 </div>
                 <div class="flex items-center gap-1.5 flex-wrap">
-                  <span class="px-2 py-0.5 rounded bg-primary/10 border border-primary/30 text-primary font-bold">[S] ${t.subject}</span>
+                  <button onclick="window.filterByEntity('${escapeHtml(t.subject)}')" class="px-2 py-0.5 rounded bg-primary/15 hover:bg-primary/30 border border-primary/40 text-primary font-bold transition-all" title="Click to isolate and jump to this Subject Entity">[S] ${escapeHtml(t.subject)}</button>
                   <span class="text-[#ffd166] font-bold text-[9px]">──▶</span>
-                  <span class="px-2 py-0.5 rounded bg-[#ffd166]/10 border border-[#ffd166]/30 text-[#ffd166] font-bold">[P] ${t.predicate}</span>
+                  <button onclick="window.filterByPredicate('${escapeHtml(t.predicate)}')" class="px-2 py-0.5 rounded bg-[#ffd166]/15 hover:bg-[#ffd166]/30 border border-[#ffd166]/40 text-[#ffd166] font-bold transition-all" title="Click to filter all edges with this Predicate">[P] ${escapeHtml(t.predicate)}</button>
                   <span class="text-secondary-container font-bold text-[9px]">──▶</span>
-                  <span class="px-2 py-0.5 rounded bg-secondary-container/10 border border-secondary-container/30 text-secondary-container font-bold">[O] ${t.object}</span>
+                  <button onclick="window.filterByEntity('${escapeHtml(t.object)}')" class="px-2 py-0.5 rounded bg-secondary-container/15 hover:bg-secondary-container/30 border border-secondary-container/40 text-secondary-container font-bold transition-all" title="Click to isolate and jump to this Object Entity">[O] ${escapeHtml(t.object)}</button>
                 </div>
               </div>
             `).join('') : `
@@ -5019,25 +5027,73 @@
         `;
       }
 
-      // Contradiction Alert Card (if node has polar dialectic conflict)
+      // Update Traversal History Trail
+      window.updateNodeBreadcrumbs(node);
+
+      // Contradiction Alert & Dialectic Dispute War Room
       let contraBannerHtml = '';
       if (node.hasContradiction && node.contradictions && node.contradictions.length > 0) {
         const c = node.contradictions[0];
         const otherId = (c.source_id === node.id) ? c.target_id : c.source_id;
+        const otherNode = (window.nodeDefs || []).find(n => n.id === otherId) || { id: otherId, title: otherId, content: c.text_b || '' };
+        
         contraBannerHtml = `
-          <div class="p-3 rounded-lg bg-rose-500/15 border border-rose-500/40 text-rose-200 font-sans space-y-2 ring-1 ring-rose-500/30">
+          <div class="p-3 rounded-xl bg-gradient-to-br from-rose-950/40 via-surface-container-low to-black/60 border border-rose-500/50 text-rose-200 font-sans space-y-3 ring-1 ring-rose-500/30 shadow-lg">
             <div class="flex items-center justify-between text-[11px] font-bold text-rose-400 uppercase">
               <span class="flex items-center gap-1.5">
-                <span class="material-symbols-outlined text-base animate-pulse">crisis_alert</span>
-                <span>POLAR DIALECTIC CONFLICT</span>
+                <span class="material-symbols-outlined text-base animate-pulse text-rose-400">crisis_alert</span>
+                <span>POLAR DIALECTIC CONFLICT DETECTED</span>
               </span>
-              <span class="px-1.5 py-0.5 rounded bg-rose-500/30 text-rose-300 text-[8px] font-mono font-bold">${(c.severity || 'HIGH').toUpperCase()} SEVERITY</span>
+              <span class="px-2 py-0.5 rounded bg-rose-500/30 text-rose-200 text-[8px] font-mono font-bold border border-rose-500/40">${(c.severity || 'HIGH').toUpperCase()}</span>
             </div>
-            <p class="text-[11px] leading-relaxed text-rose-100 font-mono">${escapeHtml(c.reason || 'Mutually exclusive invariant assertion across scopes.')}</p>
-            <button onclick="window.jumpToContradictoryNode('${otherId}')" class="w-full py-1.5 bg-rose-600 hover:bg-rose-500 text-white font-bold text-[10px] uppercase rounded flex items-center justify-center gap-1.5 transition-all shadow">
-              <span class="material-symbols-outlined text-[13px]">compare_arrows</span>
-              <span>Inspect Opposing Memory Conflict (${otherId})</span>
-            </button>
+            <p class="text-xs leading-relaxed text-rose-100/90 font-mono bg-black/40 p-2 rounded border border-rose-500/20">${escapeHtml(c.reason || 'Direct polar opposition detected across directives.')}</p>
+            
+            <!-- Quick Click Interaction Buttons -->
+            <div class="grid grid-cols-2 gap-2 text-[10px] font-mono">
+              <button onclick="window.focusConflictAxis('${node.id}', '${otherId}')" class="py-1.5 px-2 bg-rose-500/20 hover:bg-rose-500/30 text-rose-200 hover:text-white border border-rose-500/40 rounded flex items-center justify-center gap-1.5 transition-all" title="Align 3D camera along the tension beam connecting both conflicting nodes">
+                <span class="material-symbols-outlined text-[13px] text-rose-400">filter_center_focus</span>
+                <span>Focus Axis in 3D</span>
+              </button>
+              <button onclick="window.toggleDisputeDiff('${node.id}', '${otherId}')" class="py-1.5 px-2 bg-surface-container-high hover:bg-surface-container-highest text-white border border-outline-variant/40 rounded flex items-center justify-center gap-1.5 transition-all" title="Open Side-by-Side Dialectic Dispute Comparison & Resolution Studio">
+                <span class="material-symbols-outlined text-[13px] text-amber-400">balance</span>
+                <span>Resolve Dispute</span>
+              </button>
+            </div>
+
+            <!-- Expandable Side-by-Side Diff Resolution Studio -->
+            <div id="dispute-diff-drawer" class="hidden p-3 rounded-lg bg-black/70 border border-outline-variant/30 space-y-3 font-mono text-[10px]">
+              <div class="text-[9px] uppercase font-bold text-outline border-b border-outline-variant/20 pb-1 flex justify-between">
+                <span>DIALECTIC DISPUTE RESOLUTION STUDIO</span>
+                <span class="text-amber-400">ZERO DRIFT CANON</span>
+              </div>
+              <div class="grid grid-cols-2 gap-2">
+                <div class="p-2 rounded bg-surface-container-lowest border border-rose-500/30 space-y-1">
+                  <div class="font-bold text-rose-300 truncate">DIRECTIVE A: ${node.id}</div>
+                  <div class="text-neutral-200 text-[10px] font-sans leading-relaxed select-text">${escapeHtml(node.content || '')}</div>
+                  <button onclick="window.resolveContradiction('supersede', '${node.id}', '${otherId}')" class="w-full mt-2 py-1 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-[9px] uppercase rounded transition-all shadow">
+                    ✓ Keep Rule A (Deprecate B)
+                  </button>
+                </div>
+                <div class="p-2 rounded bg-surface-container-lowest border border-rose-500/30 space-y-1">
+                  <div class="font-bold text-rose-300 truncate">DIRECTIVE B: ${otherId}</div>
+                  <div class="text-neutral-200 text-[10px] font-sans leading-relaxed select-text">${escapeHtml(otherNode.content || otherNode.title || '')}</div>
+                  <button onclick="window.resolveContradiction('supersede', '${otherId}', '${node.id}')" class="w-full mt-2 py-1 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-[9px] uppercase rounded transition-all shadow">
+                    ✓ Keep Rule B (Deprecate A)
+                  </button>
+                </div>
+              </div>
+
+              <!-- Synthesize Reconciled Invariant Form -->
+              <div class="pt-2 border-t border-outline-variant/20 space-y-1.5">
+                <label class="text-[9px] uppercase font-bold text-neutral-400 block">Synthesize Conditional Reconciled Policy</label>
+                <div class="flex items-center gap-1.5">
+                  <input type="text" id="reconciled-policy-input" value="Hermes quant live trading is strictly forbidden in simulation/backtest mode, and requires strict risk limits in live deployment." class="flex-1 bg-surface-container-low border border-outline-variant/40 rounded px-2.5 py-1 text-[10px] text-white focus:outline-none focus:border-cyan-400 font-mono" />
+                  <button onclick="window.resolveContradiction('reconcile', '${node.id}', '${otherId}')" class="px-3 py-1 bg-purple-600 hover:bg-purple-500 text-white font-bold uppercase rounded text-[9px] whitespace-nowrap shadow">
+                    ⚡ Reconcile
+                  </button>
+                </div>
+              </div>
+            </div>
           </div>
         `;
       }
@@ -11858,6 +11914,110 @@ ${staticFacts.length > 0 ? `## Static Knowledge Core:\n${staticFacts.map(f => `-
         window.toggleGraphEdges();
       }
     });
+
+
+    // -------------------------------------------------------------------------
+    // REIMAGINED INTERACTION CONTROLLERS (Breadcrumbs, Disputes, Tension Cam, SOP Filters)
+    // -------------------------------------------------------------------------
+    window.traversalTrail = [];
+
+    window.updateNodeBreadcrumbs = function(node) {
+      if (!node) return;
+      const trailContainer = document.getElementById('breadcrumbs-trail-container');
+      if (!trailContainer) return;
+
+      // Avoid immediate duplicate
+      if (window.traversalTrail.length === 0 || window.traversalTrail[window.traversalTrail.length - 1].id !== node.id) {
+        window.traversalTrail.push({ id: node.id, title: node.title || node.id, epistemic: node.epistemic_class || 'fact' });
+        if (window.traversalTrail.length > 7) window.traversalTrail.shift();
+      }
+
+      trailContainer.innerHTML = window.traversalTrail.map((item, idx) => {
+        const isCurrent = (idx === window.traversalTrail.length - 1);
+        const shortTitle = item.title.length > 14 ? item.title.substring(0, 14) + '...' : item.title;
+        return `
+          <button onclick="window.selectNodeById('${item.id}')" class="px-1.5 py-0.5 rounded ${isCurrent ? 'bg-primary-container text-on-primary-container font-bold' : 'text-neutral-400 hover:text-white bg-surface-container-high/60'} transition-all truncate max-w-[110px]" title="${escapeHtml(item.title)}">
+            ${escapeHtml(shortTitle)}
+          </button>
+          ${!isCurrent ? '<span class="text-outline text-[8px]">▶</span>' : ''}
+        `;
+      }).join('');
+    };
+
+    window.toggleDisputeDiff = function(nodeAId, nodeBId) {
+      const drawer = document.getElementById('dispute-diff-drawer');
+      if (drawer) drawer.classList.toggle('hidden');
+    };
+
+    window.focusConflictAxis = function(nodeAId, nodeBId) {
+      if (!nodeDefs || !cubeMeshes) return;
+      const idxA = nodeDefs.findIndex(n => n.id === nodeAId);
+      const idxB = nodeDefs.findIndex(n => n.id === nodeBId);
+      if (idxA === -1 || idxB === -1) return;
+
+      const pA = cubeMeshes[idxA].position;
+      const pB = cubeMeshes[idxB].position;
+      const mid = new THREE.Vector3().addVectors(pA, pB).multiplyScalar(0.5);
+      const dist = pA.distanceTo(pB);
+
+      // Smooth camera transition to frame both nodes perpendicular to tension axis
+      isFlying = false;
+      targetLookAt.copy(mid);
+      camera.lookAt(mid);
+      zoomTarget = Math.max(160, dist * 1.5);
+      azimuthTarget = Math.atan2(pB.z - pA.z, pB.x - pA.x) + Math.PI / 2;
+      polarTarget = 1.35;
+
+      // Pulse the contradiction arrow and rings
+      if (cubeMeshes[idxA].userData.contraRing) cubeMeshes[idxA].userData.contraRing.scale.set(1.6, 1.6, 1.6);
+      if (cubeMeshes[idxB].userData.contraRing) cubeMeshes[idxB].userData.contraRing.scale.set(1.6, 1.6, 1.6);
+    };
+
+    window.resolveContradiction = async function(action, winnerId, loserId) {
+      const reconciledInput = document.getElementById('reconciled-policy-input');
+      const text = reconciledInput ? reconciledInput.value.trim() : '';
+
+      try {
+        const resp = await fetch('/api/contradictions/resolve', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: action,
+            winner_id: winnerId,
+            loser_id: loserId,
+            reconciled_text: text
+          })
+        });
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        const data = await resp.json();
+        alert(`✓ Contradiction Resolved!
+Action: ${data.action.toUpperCase()}
+Resolution recorded to cryptographic provenance ledger.`);
+
+        // Reload fresh graph state without the contradiction edge
+        window.loadGraphData();
+      } catch(err) {
+        alert("Failed to resolve contradiction: " + err.message);
+      }
+    };
+
+    window.filterByEntity = function(entityName) {
+      if (!entityName) return;
+      const input = document.getElementById('search-input');
+      if (input) {
+        input.value = entityName;
+        handleSearch(entityName);
+      }
+    };
+
+    window.filterByPredicate = function(predicate) {
+      if (!predicate) return;
+      const input = document.getElementById('search-input');
+      if (input) {
+        input.value = predicate;
+        handleSearch(predicate);
+      }
+    };
 
     // Initialize Draggable HUD on load
     window.addEventListener('DOMContentLoaded', () => {
