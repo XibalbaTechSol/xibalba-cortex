@@ -3829,6 +3829,26 @@
     dirLight3.position.set(300, -200, 150);
     scene.add(dirLight3);
 
+    // Ambient Particle Dust
+    const dustCount = 800;
+    const dustGeo = new THREE.BufferGeometry();
+    const dustPos = new Float32Array(dustCount * 3);
+    for (let i = 0; i < dustCount * 3; i += 3) {
+      dustPos[i] = (Math.random() - 0.5) * 1400;
+      dustPos[i + 1] = (Math.random() - 0.5) * 900;
+      dustPos[i + 2] = (Math.random() - 0.5) * 1200;
+    }
+    dustGeo.setAttribute('position', new THREE.BufferAttribute(dustPos, 3));
+    const dustMat = new THREE.PointsMaterial({
+      size: 2.2,
+      color: 0x00f0ff,
+      transparent: true,
+      opacity: 0.35,
+      blending: THREE.AdditiveBlending
+    });
+    const dustField = new THREE.Points(dustGeo, dustMat);
+    scene.add(dustField);
+
     const graphGroup = new THREE.Group();
     scene.add(graphGroup);
 
@@ -5931,9 +5951,11 @@
         targetRotation.y += 0.003;
       }
 
-      dustField.visible = (currentMode === '3D');
-      if (dustField.visible) {
-        dustField.rotation.y = time * 0.015;
+      if (typeof dustField !== 'undefined' && dustField) {
+        dustField.visible = (currentMode === '3D');
+        if (dustField.visible) {
+          dustField.rotation.y = time * 0.015;
+        }
       }
 
       renderer.render(scene, camera);
