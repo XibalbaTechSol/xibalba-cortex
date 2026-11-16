@@ -875,10 +875,14 @@
           <select id="graph-scope-selector" onchange="changeGraphScope(this.value)" class="bg-transparent text-primary-container font-bold focus:outline-none cursor-pointer text-[10px]">
             <option value="all">ALL SCOPES (GALAXY)</option>
             <option value="shared">SHARED MEMORY FABRIC</option>
-            <option value="agent:xibalba">AGENT: XIBALBA</option>
-            <option value="agent:hermes">AGENT: HERMES</option>
-            <option value="agent:claude">AGENT: CLAUDE</option>
-            <option value="agent:shield">AGENT: SHIELD</option>
+            <option value="agent:claude">AGENT: CLAUDE CODE</option>
+            <option value="agent:agy">AGENT: ANTIGRAVITY (AGY)</option>
+            <option value="agent:hermes">AGENT: HERMES CORE</option>
+            <option value="agent:xibalba">AGENT: XIBALBA ORCHESTRATOR</option>
+            <option value="agent:shield">AGENT: XIBALBA SHIELD</option>
+            <option value="agent:cortex">AGENT: CORTEX</option>
+            <option value="agent:cursor">AGENT: CURSOR COMPOSER</option>
+            <option value="agent:deepseek">AGENT: DEEPSEEK QUANT</option>
           </select>
         </div>
 
@@ -5971,8 +5975,15 @@
         didEl.title = did;
       }
 
+      // Sync the ribbon selector if present
+      const ribbonSel = document.getElementById('graph-scope-selector');
+      if (ribbonSel) ribbonSel.value = scopeId;
+
       // Filter active views by selected agent scope
       applyScopeFilterAcrossViews(scopeId);
+      if (typeof loadGraphData === 'function') {
+        loadGraphData(scopeId);
+      }
     }
     window.selectHeaderScope = selectHeaderScope;
 
@@ -5988,6 +5999,8 @@
           if (scopeId === 'all') {
             mesh.visible = true;
           } else if (nodeScope === targetScope || nodeScope === scopeId.toLowerCase() || (targetScope === 'shared' && nodeScope === 'shared')) {
+            mesh.visible = true;
+          } else if (data.type === 'hub' || (data.type === 'agent_hub' && (data.agent_id === targetScope || data.id === `hub_agent_${targetScope}`))) {
             mesh.visible = true;
           } else {
             mesh.visible = false;

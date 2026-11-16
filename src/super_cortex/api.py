@@ -273,7 +273,7 @@ def create_app(config: SuperCortexConfig | None = None) -> Starlette:
                 meta = {}
 
             mem_scope = meta.get("scope") or "shared"
-            mem_agent_id = meta.get("agent_id")
+            mem_agent_id = meta.get("agent_id") or (mem_scope.split("agent:")[1] if mem_scope.startswith("agent:") else None)
             ep_class = row["epistemic_class"]
             para = meta.get("para", {})
             para_cat = para.get("category", "area") if isinstance(para, dict) else "area"
@@ -338,8 +338,9 @@ def create_app(config: SuperCortexConfig | None = None) -> Starlette:
                 SELECT exchange_id, session_id, prompt_text, response_text, thinking_text,
                        turn_hash, parent_hash, created_at, scope_id, agent_id
                 FROM exchanges
-                WHERE thinking_text IS NOT NULL AND trim(thinking_text) != ''
-                ORDER BY rowid DESC LIMIT 150
+                WHERE (thinking_text IS NOT NULL AND trim(thinking_text) != '')
+                   OR (response_text IS NOT NULL AND trim(response_text) != '' AND length(prompt_text) > 8)
+                ORDER BY rowid DESC LIMIT 200
                 """
             )
             thought_rows = thought_cursor.fetchall()
@@ -347,7 +348,8 @@ def create_app(config: SuperCortexConfig | None = None) -> Starlette:
         thought_count = 0
         agent_thought_counts: dict[str, int] = {}
         for trow in thought_rows:
-            th_text = (trow["thinking_text"] or "").strip()
+            th_raw_think = (trow["thinking_text"] or "").strip()
+            th_text = th_raw_think or (trow["prompt_text"] or "").strip()
             if not th_text:
                 continue
             th_aid = trow["agent_id"] or "agent"

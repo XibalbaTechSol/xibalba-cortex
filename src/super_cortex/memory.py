@@ -143,6 +143,8 @@ class SuperCortex:
                 "confidence": conf,
             })
 
+        if not agent_id and effective_scope.startswith("agent:"):
+            agent_id = effective_scope.split(":", 1)[1]
         meta["scope"] = effective_scope
         if agent_id:
             meta["agent_id"] = agent_id

@@ -1561,6 +1561,9 @@ class ProvenanceStore:
         with self._get_conn() as conn:
             query = "SELECT * FROM memories WHERE lifecycle_status != 'archived'"
             params: list[Any] = []
+            if scope and scope != "all":
+                query += " AND coalesce(json_extract(metadata_json, '$.scope'), 'shared') = ?"
+                params.append(scope)
             if epistemic_class and epistemic_class != "all":
                 query += " AND epistemic_class = ?"
                 params.append(epistemic_class)
@@ -1580,8 +1583,6 @@ class ProvenanceStore:
                 except Exception:
                     pass
                 m_scope = meta.get("scope", "shared")
-                if scope and scope != "all" and m_scope != scope:
-                    continue
                 valid_time = meta.get("valid_time") or {
                     "valid_from": r["created_at"],
                     "valid_until": None,

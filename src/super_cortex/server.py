@@ -22,7 +22,7 @@ def create_server(config: SuperCortexConfig | None = None) -> MCPServer:
     async def memory_remember(
         text: str,
         epistemic_class: str | None = None,
-        scope: str | None = "shared",
+        scope: str | None = None,
         agent_id: str | None = None,
         namespace: str | None = None,
         metadata: dict[str, Any] | None = None,
@@ -37,11 +37,19 @@ def create_server(config: SuperCortexConfig | None = None) -> MCPServer:
         - Entity triples extraction ((subject, predicate, object))
         - Scope isolation (e.g. 'shared' or 'agent:<id>')
         """
+        import os
+        eff_agent = agent_id or os.getenv("SUPER_CORTEX_AGENT_ID") or os.getenv("AGENT_ID")
+        eff_scope = scope
+        if not eff_scope:
+            eff_scope = f"agent:{eff_agent}" if eff_agent else "shared"
+        elif eff_scope.startswith("agent:") and not eff_agent:
+            eff_agent = eff_scope.split(":", 1)[1]
+
         res = await cortex.remember(
             text=text,
             epistemic_class=epistemic_class,
-            scope=scope,
-            agent_id=agent_id,
+            scope=eff_scope,
+            agent_id=eff_agent,
             namespace=namespace,
             metadata=metadata,
             session_id=session_id,
