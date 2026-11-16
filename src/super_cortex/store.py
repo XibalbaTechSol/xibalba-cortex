@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import secrets
 import sqlite3
 import uuid
 from datetime import datetime
@@ -20,6 +21,9 @@ from .models import (
     RelationRecord,
     ScopeRecord,
     ScopeType,
+    TenantKeyRecord,
+    TenantPlan,
+    TenantRecord,
     utc_now_iso,
 )
 
@@ -214,9 +218,40 @@ class ProvenanceStore:
                     updated_at TEXT NOT NULL
                 );
 
+                CREATE TABLE IF NOT EXISTS tenants (
+                    id TEXT PRIMARY KEY,
+                    name TEXT NOT NULL,
+                    plan TEXT NOT NULL DEFAULT 'starter',
+                    rate_limit_rpm INTEGER DEFAULT 60,
+                    daily_quota_requests INTEGER DEFAULT 10000,
+                    is_active INTEGER DEFAULT 1,
+                    metadata_json TEXT DEFAULT '{}',
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL
+                );
+
+                CREATE TABLE IF NOT EXISTS tenant_keys (
+                    key_id TEXT PRIMARY KEY,
+                    tenant_id TEXT NOT NULL,
+                    key_hash TEXT NOT NULL UNIQUE,
+                    key_prefix TEXT NOT NULL,
+                    label TEXT NOT NULL,
+                    scopes_json TEXT NOT NULL DEFAULT '["read:graph","read:memory","write:memory","exec:deterministic"]',
+                    rate_limit_rpm INTEGER DEFAULT 60,
+                    requests_count INTEGER DEFAULT 0,
+                    zero_inference_tokens_saved INTEGER DEFAULT 0,
+                    last_used_at TEXT,
+                    expires_at TEXT,
+                    is_revoked INTEGER DEFAULT 0,
+                    created_at TEXT NOT NULL,
+                    FOREIGN KEY(tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+                );
+
                 CREATE INDEX IF NOT EXISTS idx_scopes_type ON scopes(scope_type);
                 CREATE INDEX IF NOT EXISTS idx_scopes_agent ON scopes(agent_id);
                 CREATE INDEX IF NOT EXISTS idx_providers_active ON providers(is_active);
+                CREATE INDEX IF NOT EXISTS idx_tenant_keys_hash ON tenant_keys(key_hash);
+                CREATE INDEX IF NOT EXISTS idx_tenant_keys_tenant ON tenant_keys(tenant_id);
                 """
             )
             # Automatic column migration for existing databases
@@ -341,6 +376,78 @@ class ProvenanceStore:
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     default_providers,
+                )
+
+            # Seed default tenants if none exist
+            cursor = conn.execute("SELECT COUNT(*) as count FROM tenants")
+            if cursor.fetchone()["count"] == 0:
+                now = utc_now_iso()
+                default_tenants = [
+                    (
+                        "tenant_xibalba_core",
+                        "Xibalba Enterprise Cluster",
+                        TenantPlan.ENTERPRISE.value,
+                        1200,
+                        100000,
+                        1,
+                        json.dumps({"company": "Xibalba Solutions LLC", "tier": "Enterprise Multi-Agent Orchestration", "contact": "engineering@xibalba.io"}),
+                        now,
+                        now,
+                    ),
+                    (
+                        "tenant_agent_collective",
+                        "Autonomous Agent Swarm Network",
+                        TenantPlan.SCALE.value,
+                        300,
+                        25000,
+                        1,
+                        json.dumps({"description": "Distributed Agent Swarms & Consensus Engine"}),
+                        now,
+                        now,
+                    ),
+                    (
+                        "tenant_dev_sandbox",
+                        "Developer Pro Sandbox",
+                        TenantPlan.PRO.value,
+                        120,
+                        10000,
+                        1,
+                        json.dumps({"description": "Individual Developer & Researcher Tier"}),
+                        now,
+                        now,
+                    ),
+                ]
+                conn.executemany(
+                    """
+                    INSERT INTO tenants (id, name, plan, rate_limit_rpm, daily_quota_requests, is_active, metadata_json, created_at, updated_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    default_tenants,
+                )
+
+                # Seed master API key for Xibalba Enterprise
+                raw_master_key = f"sc_live_{secrets.token_urlsafe(24)}"
+                prefix = f"{raw_master_key[:8]}...{raw_master_key[-4:]}"
+                h_val = hashlib.sha256(raw_master_key.encode("utf-8")).hexdigest()
+                conn.execute(
+                    """
+                    INSERT INTO tenant_keys (key_id, tenant_id, key_hash, key_prefix, label, scopes_json, rate_limit_rpm, requests_count, zero_inference_tokens_saved, last_used_at, is_revoked, created_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        f"key_{uuid.uuid4().hex[:12]}",
+                        "tenant_xibalba_core",
+                        h_val,
+                        prefix,
+                        "Production Orchestrator Key",
+                        json.dumps(["read:graph", "read:memory", "write:memory", "exec:deterministic", "exec:inference", "admin:tenants"]),
+                        1200,
+                        42,
+                        184500,
+                        now,
+                        0,
+                        now,
+                    ),
                 )
             conn.commit()
 
@@ -1637,6 +1744,264 @@ class ProvenanceStore:
             )
             conn.commit()
             return cursor.rowcount > 0
+
+    # -------------------------------------------------------------------------
+    # Commercial Tenant & API Key Scoping
+    # -------------------------------------------------------------------------
+
+    def list_tenants(self) -> list[dict[str, Any]]:
+        with self._get_conn() as conn:
+            cursor = conn.execute(
+                """
+                SELECT 
+                    t.id, t.name, t.plan, t.rate_limit_rpm, t.daily_quota_requests, 
+                    t.is_active, t.metadata_json, t.created_at, t.updated_at,
+                    COUNT(k.key_id) as key_count,
+                    COALESCE(SUM(k.requests_count), 0) as total_requests,
+                    COALESCE(SUM(k.zero_inference_tokens_saved), 0) as total_tokens_saved
+                FROM tenants t
+                LEFT JOIN tenant_keys k ON t.id = k.tenant_id AND k.is_revoked = 0
+                GROUP BY t.id
+                ORDER BY t.created_at ASC
+                """
+            )
+            rows = cursor.fetchall()
+            result = []
+            for r in rows:
+                meta = {}
+                try:
+                    meta = json.loads(r["metadata_json"])
+                except Exception:
+                    pass
+                result.append({
+                    "id": r["id"],
+                    "name": r["name"],
+                    "plan": r["plan"],
+                    "rate_limit_rpm": r["rate_limit_rpm"],
+                    "daily_quota_requests": r["daily_quota_requests"],
+                    "is_active": bool(r["is_active"]),
+                    "metadata": meta,
+                    "created_at": r["created_at"],
+                    "updated_at": r["updated_at"],
+                    "key_count": r["key_count"],
+                    "total_requests": r["total_requests"],
+                    "total_tokens_saved": r["total_tokens_saved"],
+                    "estimated_dollar_savings": round(r["total_tokens_saved"] * 0.000003, 4),
+                })
+            return result
+
+    def get_tenant(self, tenant_id: str) -> dict[str, Any] | None:
+        with self._get_conn() as conn:
+            cursor = conn.execute(
+                "SELECT id, name, plan, rate_limit_rpm, daily_quota_requests, is_active, metadata_json, created_at, updated_at FROM tenants WHERE id = ?",
+                (tenant_id,),
+            )
+            r = cursor.fetchone()
+            if not r:
+                return None
+            meta = {}
+            try:
+                meta = json.loads(r["metadata_json"])
+            except Exception:
+                pass
+            return {
+                "id": r["id"],
+                "name": r["name"],
+                "plan": r["plan"],
+                "rate_limit_rpm": r["rate_limit_rpm"],
+                "daily_quota_requests": r["daily_quota_requests"],
+                "is_active": bool(r["is_active"]),
+                "metadata": meta,
+                "created_at": r["created_at"],
+                "updated_at": r["updated_at"],
+            }
+
+    def save_tenant(self, tenant: TenantRecord) -> TenantRecord:
+        now = utc_now_iso()
+        with self._get_conn() as conn:
+            conn.execute(
+                """
+                INSERT INTO tenants (id, name, plan, rate_limit_rpm, daily_quota_requests, is_active, metadata_json, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(id) DO UPDATE SET
+                    name = excluded.name,
+                    plan = excluded.plan,
+                    rate_limit_rpm = excluded.rate_limit_rpm,
+                    daily_quota_requests = excluded.daily_quota_requests,
+                    is_active = excluded.is_active,
+                    metadata_json = excluded.metadata_json,
+                    updated_at = excluded.updated_at
+                """,
+                (
+                    tenant.id,
+                    tenant.name,
+                    tenant.plan,
+                    tenant.rate_limit_rpm,
+                    tenant.daily_quota_requests,
+                    1 if tenant.is_active else 0,
+                    json.dumps(tenant.metadata),
+                    tenant.created_at or now,
+                    now,
+                ),
+            )
+            conn.commit()
+        return tenant
+
+    def delete_tenant(self, tenant_id: str) -> bool:
+        with self._get_conn() as conn:
+            cursor = conn.execute("DELETE FROM tenants WHERE id = ?", (tenant_id,))
+            conn.commit()
+            return cursor.rowcount > 0
+
+    def create_tenant_key(
+        self,
+        tenant_id: str,
+        label: str,
+        scopes: list[str] | None = None,
+        rate_limit_rpm: int = 60,
+        expires_at: str | None = None,
+    ) -> tuple[dict[str, Any], str]:
+        """Issues a new scoped cryptographic API key for a tenant."""
+        now = utc_now_iso()
+        key_id = f"key_{uuid.uuid4().hex[:12]}"
+        raw_key = f"sc_live_{secrets.token_urlsafe(24)}"
+        key_prefix = f"{raw_key[:8]}...{raw_key[-4:]}"
+        key_hash = hashlib.sha256(raw_key.encode("utf-8")).hexdigest()
+        scopes = scopes or ["read:graph", "read:memory", "write:memory", "exec:deterministic"]
+
+        with self._get_conn() as conn:
+            conn.execute(
+                """
+                INSERT INTO tenant_keys (key_id, tenant_id, key_hash, key_prefix, label, scopes_json, rate_limit_rpm, requests_count, zero_inference_tokens_saved, last_used_at, expires_at, is_revoked, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, 0, 0, NULL, ?, 0, ?)
+                """,
+                (
+                    key_id,
+                    tenant_id,
+                    key_hash,
+                    key_prefix,
+                    label,
+                    json.dumps(scopes),
+                    rate_limit_rpm,
+                    expires_at,
+                    now,
+                ),
+            )
+            conn.commit()
+
+        record = {
+            "key_id": key_id,
+            "tenant_id": tenant_id,
+            "key_prefix": key_prefix,
+            "label": label,
+            "scopes": scopes,
+            "rate_limit_rpm": rate_limit_rpm,
+            "requests_count": 0,
+            "zero_inference_tokens_saved": 0,
+            "last_used_at": None,
+            "expires_at": expires_at,
+            "is_revoked": False,
+            "created_at": now,
+        }
+        return record, raw_key
+
+    def list_tenant_keys(self, tenant_id: str | None = None) -> list[dict[str, Any]]:
+        query = """
+            SELECT k.key_id, k.tenant_id, k.key_prefix, k.label, k.scopes_json, 
+                   k.rate_limit_rpm, k.requests_count, k.zero_inference_tokens_saved,
+                   k.last_used_at, k.expires_at, k.is_revoked, k.created_at,
+                   t.name as tenant_name, t.plan as tenant_plan
+            FROM tenant_keys k
+            JOIN tenants t ON k.tenant_id = t.id
+        """
+        params = []
+        if tenant_id:
+            query += " WHERE k.tenant_id = ?"
+            params.append(tenant_id)
+        query += " ORDER BY k.created_at DESC"
+
+        with self._get_conn() as conn:
+            cursor = conn.execute(query, params)
+            rows = cursor.fetchall()
+            results = []
+            for r in rows:
+                scopes = []
+                try:
+                    scopes = json.loads(r["scopes_json"])
+                except Exception:
+                    pass
+                results.append({
+                    "key_id": r["key_id"],
+                    "tenant_id": r["tenant_id"],
+                    "tenant_name": r["tenant_name"],
+                    "tenant_plan": r["tenant_plan"],
+                    "key_prefix": r["key_prefix"],
+                    "label": r["label"],
+                    "scopes": scopes,
+                    "rate_limit_rpm": r["rate_limit_rpm"],
+                    "requests_count": r["requests_count"],
+                    "zero_inference_tokens_saved": r["zero_inference_tokens_saved"],
+                    "estimated_savings_dollars": round(r["zero_inference_tokens_saved"] * 0.000003, 4),
+                    "last_used_at": r["last_used_at"],
+                    "expires_at": r["expires_at"],
+                    "is_revoked": bool(r["is_revoked"]),
+                    "created_at": r["created_at"],
+                })
+            return results
+
+    def revoke_tenant_key(self, key_id: str) -> bool:
+        with self._get_conn() as conn:
+            cursor = conn.execute("UPDATE tenant_keys SET is_revoked = 1 WHERE key_id = ?", (key_id,))
+            conn.commit()
+            return cursor.rowcount > 0
+
+    def verify_and_consume_key(self, raw_key: str, cost_tokens: int = 0) -> dict[str, Any] | None:
+        """Authenticates an incoming API key, checks revocation, and increments metrics."""
+        key_hash = hashlib.sha256(raw_key.encode("utf-8")).hexdigest()
+        now = utc_now_iso()
+        with self._get_conn() as conn:
+            cursor = conn.execute(
+                """
+                SELECT k.key_id, k.tenant_id, k.key_prefix, k.label, k.scopes_json,
+                       k.rate_limit_rpm, k.requests_count, k.zero_inference_tokens_saved,
+                       k.is_revoked, t.name as tenant_name, t.plan as tenant_plan, t.is_active as tenant_active
+                FROM tenant_keys k
+                JOIN tenants t ON k.tenant_id = t.id
+                WHERE k.key_hash = ?
+                """,
+                (key_hash,),
+            )
+            r = cursor.fetchone()
+            if not r or r["is_revoked"] or not r["tenant_active"]:
+                return None
+
+            conn.execute(
+                """
+                UPDATE tenant_keys 
+                SET requests_count = requests_count + 1,
+                    zero_inference_tokens_saved = zero_inference_tokens_saved + ?,
+                    last_used_at = ?
+                WHERE key_id = ?
+                """,
+                (cost_tokens, now, r["key_id"]),
+            )
+            conn.commit()
+
+            scopes = []
+            try:
+                scopes = json.loads(r["scopes_json"])
+            except Exception:
+                pass
+
+            return {
+                "key_id": r["key_id"],
+                "tenant_id": r["tenant_id"],
+                "tenant_name": r["tenant_name"],
+                "tenant_plan": r["tenant_plan"],
+                "label": r["label"],
+                "scopes": scopes,
+                "rate_limit_rpm": r["rate_limit_rpm"],
+            }
 
 
 # Convenient alias

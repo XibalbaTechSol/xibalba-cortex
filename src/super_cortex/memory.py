@@ -616,3 +616,50 @@ class SuperCortex:
             payload={"memory_id": memory_id, "content_hash": rec.content_hash},
         )
         return True
+
+    # Tenant & Commercial API Key methods
+    def list_tenants(self) -> list[dict[str, Any]]:
+        return self.store.list_tenants()
+
+    def create_tenant(
+        self,
+        tenant_id: str,
+        name: str,
+        plan: str = "starter",
+        rate_limit_rpm: int = 60,
+        daily_quota: int = 10000,
+        metadata: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        from .models import TenantRecord
+        rec = TenantRecord(
+            id=tenant_id,
+            name=name,
+            plan=plan,
+            rate_limit_rpm=rate_limit_rpm,
+            daily_quota_requests=daily_quota,
+            metadata=metadata or {},
+        )
+        saved = self.store.save_tenant(rec)
+        return saved.model_dump()
+
+    def create_tenant_key(
+        self,
+        tenant_id: str,
+        label: str,
+        scopes: list[str] | None = None,
+        rate_limit_rpm: int = 60,
+        expires_at: str | None = None,
+    ) -> tuple[dict[str, Any], str]:
+        return self.store.create_tenant_key(
+            tenant_id=tenant_id,
+            label=label,
+            scopes=scopes,
+            rate_limit_rpm=rate_limit_rpm,
+            expires_at=expires_at,
+        )
+
+    def list_tenant_keys(self, tenant_id: str | None = None) -> list[dict[str, Any]]:
+        return self.store.list_tenant_keys(tenant_id=tenant_id)
+
+    def revoke_tenant_key(self, key_id: str) -> bool:
+        return self.store.revoke_tenant_key(key_id)

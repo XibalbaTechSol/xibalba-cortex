@@ -1072,7 +1072,7 @@ def create_app(config: SuperCortexConfig | None = None) -> Starlette:
     async def api_contradictions(request: Request) -> JSONResponse:
         """Scans memories and relations for dialectic conflicts and contradictory invariants across scopes."""
         with cortex.store._get_conn() as conn:
-            m_cursor = conn.execute("SELECT id, text, epistemic_class, lifecycle_status, metadata_json, created_at FROM memories WHERE lifecycle_status != 'archived'")
+            m_cursor = conn.execute("SELECT id, text, epistemic_class, lifecycle_status, metadata_json, created_at FROM memories WHERE lifecycle_status NOT IN ('archived', 'superseded', 'forgotten')")
             mem_rows = [dict(r) for r in m_cursor.fetchall()]
             r_cursor = conn.execute("SELECT relation_id, subject, predicate, object, confidence, created_at FROM relations")
             rel_rows = [dict(r) for r in r_cursor.fetchall()]
@@ -1096,10 +1096,10 @@ def create_app(config: SuperCortexConfig | None = None) -> Starlette:
 
         if action == "supersede" and winner_id and loser_id:
             cortex.store.update_memory_status(loser_id, LifecycleStatus.SUPERSEDED)
-            cortex.record_event(
-                event_type="contradiction_resolved_supersede",
-                source_did=cortex.config.actor_did,
-                data={"winner_id": winner_id, "loser_id": loser_id, "resolution": "superseded"},
+            cortex.store.append_event(
+                actor=cortex.config.actor_did,
+                transition="contradiction_resolved_supersede",
+                payload={"winner_id": winner_id, "loser_id": loser_id, "resolution": "superseded"},
             )
             await broadcast_event("contradiction_resolved", {"winner_id": winner_id, "loser_id": loser_id})
             return JSONResponse({"status": "resolved", "action": "superseded", "winner_id": winner_id, "loser_id": loser_id})
@@ -1232,6 +1232,85 @@ def create_app(config: SuperCortexConfig | None = None) -> Starlette:
                 "daemon_url": cfg.supermemory_url,
             })
 
+    async def api_tenants_list(request: Request) -> JSONResponse:
+        """Lists all commercial tenants and metrics or provisions a new tenant."""
+        if request.method == "GET":
+            tenants = cortex.store.list_tenants()
+            return JSONResponse({"tenants": tenants, "count": len(tenants)})
+        elif request.method == "POST":
+            from .models import TenantRecord
+            body = await request.json()
+            t_id = body.get("id", "").strip() or f"tenant_{uuid.uuid4().hex[:8]}"
+            t_name = body.get("name", "").strip() or "New Commercial Tenant"
+            t_plan = body.get("plan", "starter")
+            rpm = int(body.get("rate_limit_rpm", 60))
+            quota = int(body.get("daily_quota_requests", 10000))
+            rec = TenantRecord(
+                id=t_id,
+                name=t_name,
+                plan=t_plan,
+                rate_limit_rpm=rpm,
+                daily_quota_requests=quota,
+                metadata=body.get("metadata", {}),
+            )
+            saved = cortex.store.save_tenant(rec)
+            return JSONResponse({"status": "created", "tenant": saved.model_dump()})
+
+    async def api_tenant_keys_list(request: Request) -> JSONResponse:
+        """Lists scoped tenant API keys or issues a new commercial API key."""
+        tenant_id = request.path_params.get("tenant_id") if "tenant_id" in request.path_params else None
+        if request.method == "GET":
+            keys = cortex.store.list_tenant_keys(tenant_id=tenant_id)
+            return JSONResponse({"keys": keys, "count": len(keys)})
+        elif request.method == "POST":
+            body = await request.json()
+            t_id = tenant_id or body.get("tenant_id", "tenant_xibalba_core")
+            label = body.get("label", "Agent Swarm Key")
+            scopes = body.get("scopes", ["read:graph", "read:memory", "write:memory", "exec:deterministic"])
+            rpm = int(body.get("rate_limit_rpm", 60))
+            expires_at = body.get("expires_at")
+            key_rec, raw_key = cortex.store.create_tenant_key(
+                tenant_id=t_id,
+                label=label,
+                scopes=scopes,
+                rate_limit_rpm=rpm,
+                expires_at=expires_at,
+            )
+            return JSONResponse({
+                "status": "created",
+                "key": key_rec,
+                "raw_key": raw_key,
+                "warning": "Store this key securely. It will never be shown in plaintext again.",
+            })
+
+    async def api_tenant_key_revoke(request: Request) -> JSONResponse:
+        """Revokes an active tenant API key."""
+        key_id = request.path_params.get("key_id", "")
+        success = cortex.store.revoke_tenant_key(key_id)
+        return JSONResponse({"status": "revoked" if success else "not_found", "key_id": key_id})
+
+    async def api_tenant_usage(request: Request) -> JSONResponse:
+        """Telemetry breakdown of request volume, zero-inference cache savings, and tier quota."""
+        tenant_id = request.path_params.get("tenant_id", "")
+        tenant = cortex.store.get_tenant(tenant_id)
+        if not tenant:
+            return JSONResponse({"error": "Tenant not found"}, status_code=404)
+        keys = cortex.store.list_tenant_keys(tenant_id=tenant_id)
+        total_requests = sum(k["requests_count"] for k in keys)
+        total_tokens_saved = sum(k["zero_inference_tokens_saved"] for k in keys)
+        return JSONResponse({
+            "tenant": tenant,
+            "keys_count": len(keys),
+            "total_requests": total_requests,
+            "zero_inference_tokens_saved": total_tokens_saved,
+            "estimated_dollar_savings": round(total_tokens_saved * 0.000003, 4),
+            "pricing_model": {
+                "token_value_baseline": "$3.00 per 1M tokens",
+                "plan": tenant["plan"],
+                "rpm_limit": tenant["rate_limit_rpm"],
+            }
+        })
+
     routes = [
         Route("/api/status", api_status, methods=["GET"]),
         Route("/api/graph", api_graph, methods=["GET"]),
@@ -1240,10 +1319,17 @@ def create_app(config: SuperCortexConfig | None = None) -> Starlette:
         Route("/api/mcp-config", api_mcp_config, methods=["GET"]),
         Route("/api/sessions", api_sessions, methods=["GET"]),
         Route("/api/actions", api_actions, methods=["GET"]),
+        Route("/api/sessions/import", api_import_local_sessions, methods=["GET", "POST"]),
         Route("/api/sessions/import-local", api_import_local_sessions, methods=["GET", "POST"]),
         Route("/api/sessions/{session_id}", api_session_detail, methods=["GET"]),
         Route("/api/sessions/{session_id}/proof", api_session_proof, methods=["GET"]),
         Route("/api/sessions/{session_id}/rebuild", api_session_rebuild, methods=["GET"]),
+        Route("/api/tenants", api_tenants_list, methods=["GET", "POST"]),
+        Route("/api/tenants/keys", api_tenant_keys_list, methods=["GET", "POST"]),
+        Route("/api/tenants/keys/{key_id}", api_tenant_key_revoke, methods=["DELETE"]),
+        Route("/api/tenants/{tenant_id}/keys", api_tenant_keys_list, methods=["GET", "POST"]),
+        Route("/api/tenants/{tenant_id}/keys/{key_id}", api_tenant_key_revoke, methods=["DELETE"]),
+        Route("/api/tenants/{tenant_id}/usage", api_tenant_usage, methods=["GET"]),
         Route("/api/remember", api_remember, methods=["POST"]),
         Route("/api/chat", api_chat, methods=["POST"]),
         Route("/api/events/live", api_live_events, methods=["GET"]),

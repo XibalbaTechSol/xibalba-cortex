@@ -562,11 +562,24 @@
         <span id="header-edges-indicator" class="w-1.5 h-1.5 rounded-full bg-[#00f0ff] shadow-[0_0_6px_#00f0ff]"></span>
       </button>
 
+      <!-- Live Local Agent Sync Trigger -->
+      <button onclick="window.syncLiveAgentSessions()" id="btn-header-sync" class="h-6 flex items-center gap-1.5 px-2.5 bg-cyan-500/15 hover:bg-cyan-500/25 border border-cyan-500/40 rounded text-[10px] font-mono text-cyan-300 transition-all shadow-sm cursor-pointer select-none" title="Sync live turns and COT thoughts from local Antigravity, Claude Code, and Hermes agents">
+        <span id="header-sync-icon" class="material-symbols-outlined text-[14px] text-cyan-400">sync</span>
+        <span class="font-bold uppercase tracking-wider">SYNC AGENTS</span>
+      </button>
+
       <!-- AI Inference Providers Manager -->
       <button onclick="window.openProvidersModal()" id="btn-header-providers" class="h-6 flex items-center gap-1.5 px-2.5 bg-purple-500/15 hover:bg-purple-500/25 border border-purple-500/40 rounded text-[10px] font-mono text-[#ddb7ff] transition-all shadow-sm cursor-pointer select-none" title="Configure AI Inference Providers (Claude, Gemini, OpenAI, Groq, Ollama)">
         <span class="material-symbols-outlined text-[14px] text-purple-400">smart_toy</span>
         <span class="font-bold uppercase tracking-wider">AI PROVIDERS</span>
         <span id="header-active-provider-dot" class="w-1.5 h-1.5 rounded-full bg-emerald-400 shadow-[0_0_6px_#00ffa3]"></span>
+      </button>
+
+      <!-- Commercial Tenant & Monetization Manager -->
+      <button onclick="window.openTenantsModal()" id="btn-header-tenants" class="h-6 flex items-center gap-1.5 px-2.5 bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/40 rounded text-[10px] font-mono text-amber-300 transition-all shadow-sm cursor-pointer select-none" title="Commercial Tenant Management & Scoped API Keys ($ ROI)">
+        <span class="material-symbols-outlined text-[14px] text-amber-400">vpn_key</span>
+        <span class="font-bold uppercase tracking-wider">TENANTS &amp; KEYS</span>
+        <span id="header-tenant-count-dot" class="w-1.5 h-1.5 rounded-full bg-amber-400 shadow-[0_0_6px_#f59e0b]"></span>
       </button>
 
       <!-- Contradiction Dialectic Scanner -->
@@ -3375,122 +3388,85 @@
 
   <!-- ========================================================================= -->
   <!-- FORENSIC SESSION REBUILD & INTERACTION STREAM MODAL                       -->
+    <!-- ========================================================================= -->
+  <!-- COMMERCIAL TENANT & MONETIZATION MANAGEMENT STUDIO MODAL                -->
   <!-- ========================================================================= -->
-  <div id="session-rebuilder-modal" class="hidden fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-3 md:p-6 font-mono select-text" onclick="if(event.target === this) window.closeSessionRebuilderModal()">
-    <div class="bg-[#070b13] border border-cyan-500/40 rounded-xl p-5 shadow-[0_20px_70px_rgba(0,0,0,0.95)] max-w-5xl w-full h-[90vh] flex flex-col gap-3.5 overflow-hidden animate-in fade-in zoom-in-95 duration-150 ring-1 ring-cyan-500/20">
+  <div id="tenants-modal" class="hidden fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-3 md:p-6 font-mono select-text" onclick="if(event.target === this) window.closeTenantsModal()">
+    <div class="bg-[#090d16] border border-amber-500/40 rounded-xl p-5 shadow-[0_20px_70px_rgba(0,0,0,0.95)] max-w-5xl w-full h-[90vh] flex flex-col gap-3.5 overflow-hidden animate-in fade-in zoom-in-95 duration-150 ring-1 ring-amber-500/20">
       <!-- Modal Header Bar -->
       <div class="flex items-center justify-between pb-3 border-b border-outline-variant/30 shrink-0">
         <div class="flex items-center gap-3">
-          <span class="w-9 h-9 rounded-lg flex items-center justify-center bg-gradient-to-br from-cyan-500/20 to-purple-500/30 text-[#00f0ff] border border-cyan-500/40 shadow-sm">
-            <span class="material-symbols-outlined text-xl">history_edu</span>
+          <span class="w-9 h-9 rounded-lg flex items-center justify-center bg-gradient-to-br from-amber-500/20 to-orange-500/30 text-amber-400 border border-amber-500/40 shadow-sm">
+            <span class="material-symbols-outlined text-xl">vpn_key</span>
           </span>
           <div>
             <div class="flex items-center gap-2 flex-wrap">
-              <span class="text-xs md:text-sm font-bold uppercase tracking-wider text-cyan-400">AGENT SESSION REBUILD &amp; INTERACTION STREAM</span>
-              <span id="rebuild-agent-pill" class="text-[9px] px-2 py-0.5 rounded bg-purple-500/15 border border-purple-500/40 text-[#ddb7ff] font-bold">AGENT // CLAUDE</span>
-              <span id="rebuild-duration-pill" class="text-[9px] px-2 py-0.5 rounded bg-surface-container-high border border-outline-variant/40 text-secondary-container font-bold">0m 00s</span>
+              <span class="text-xs md:text-sm font-bold uppercase tracking-wider text-amber-400">COMMERCIAL TENANT &amp; MONETIZATION STUDIO</span>
+              <span id="tenants-tier-badge" class="text-[9px] px-2 py-0.5 rounded bg-amber-500/15 border border-amber-500/40 text-amber-300 font-bold">MULTI-TENANT ABAC ACTIVE</span>
             </div>
-            <div class="flex items-center gap-2 text-[10px] text-outline mt-0.5">
-              <span>SESSION:</span>
-              <span id="rebuild-session-id" class="text-white font-bold select-all">sess_...</span>
-              <button onclick="navigator.clipboard.writeText(document.getElementById('rebuild-session-id').innerText); alert('Session ID copied!');" class="hover:text-primary" title="Copy Session ID">
-                <span class="material-symbols-outlined text-[12px]">content_copy</span>
-              </button>
-              <span class="text-outline">|</span>
-              <span>MERKLE ROOT:</span>
-              <span id="rebuild-merkle-root" class="text-[#00ffa3] font-mono font-bold truncate max-w-xs">0x...</span>
+            <div class="text-[10px] text-outline mt-0.5">
+              <span>Isolated Profile Homes · Scoped Ed25519/HMAC API Keys · Zero-Inference Token ROI</span>
             </div>
           </div>
         </div>
 
         <div class="flex items-center gap-2">
-          <button onclick="window.copyRebuildJson()" class="px-2.5 py-1.5 bg-surface-container-high hover:bg-surface-container-highest text-neutral-200 hover:text-white rounded text-[10px] font-bold flex items-center gap-1 border border-outline-variant/30 transition-colors" title="Copy full raw audit JSON to clipboard">
-            <span class="material-symbols-outlined text-[13px]">data_object</span>
-            <span>JSON</span>
+          <button onclick="window.openProvisionTenantModal()" class="px-2.5 py-1.5 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 rounded text-[10px] font-bold flex items-center gap-1 border border-amber-500/40 transition-colors">
+            <span class="material-symbols-outlined text-[13px]">add_business</span>
+            <span>+ TENANT</span>
           </button>
-          <button onclick="window.exportRebuildMarkdown()" class="px-2.5 py-1.5 bg-purple-600/20 hover:bg-purple-600/40 text-[#ddb7ff] hover:text-white rounded text-[10px] font-bold flex items-center gap-1 border border-purple-500/40 transition-colors" title="Export / copy full formatted Markdown audit report">
-            <span class="material-symbols-outlined text-[13px]">description</span>
-            <span>MARKDOWN</span>
+          <button onclick="window.openIssueKeyModal()" class="px-2.5 py-1.5 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 rounded text-[10px] font-bold flex items-center gap-1 border border-emerald-500/40 transition-colors">
+            <span class="material-symbols-outlined text-[13px]">key</span>
+            <span>+ ISSUE KEY</span>
           </button>
-          <button onclick="window.closeSessionRebuilderModal()" class="w-8 h-8 rounded bg-surface-container-high hover:bg-surface-container-highest text-neutral-400 hover:text-white flex items-center justify-center text-sm font-bold transition-colors">✕</button>
+          <button onclick="window.closeTenantsModal()" class="w-8 h-8 rounded bg-surface-container-high hover:bg-surface-container-highest text-neutral-400 hover:text-white flex items-center justify-center text-sm font-bold transition-colors">✕</button>
         </div>
       </div>
 
-      <!-- Telemetry KPI Strip -->
-      <div class="grid grid-cols-2 md:grid-cols-6 gap-2 shrink-0 text-center">
-        <div class="p-2 bg-surface-container-low border border-outline-variant/30 rounded">
-          <span class="text-outline text-[8px] uppercase block">TOTAL TURNS</span>
-          <span id="rebuild-stat-turns" class="text-primary-container text-sm font-bold">0</span>
+      <!-- Commercial Telemetry KPI Strip -->
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-2.5 shrink-0 text-center">
+        <div class="p-2.5 bg-surface-container-low border border-amber-500/30 rounded">
+          <span class="text-outline text-[8px] uppercase block">ACTIVE TENANTS</span>
+          <span id="tenant-kpi-count" class="text-amber-400 text-lg font-bold">0</span>
+          <span class="text-[8px] text-neutral-400 block mt-0.5">Physical profile homes</span>
         </div>
-        <div class="p-2 bg-surface-container-low border border-outline-variant/30 rounded">
-          <span class="text-outline text-[8px] uppercase block">ATOMIC STEPS</span>
-          <span id="rebuild-stat-steps" class="text-white text-sm font-bold">0</span>
+        <div class="p-2.5 bg-surface-container-low border border-cyan-500/30 rounded">
+          <span class="text-outline text-[8px] uppercase block">LIVE SCOPED KEYS</span>
+          <span id="tenant-kpi-keys" class="text-cyan-400 text-lg font-bold">0</span>
+          <span class="text-[8px] text-neutral-400 block mt-0.5">SHA-256 hashed credentials</span>
         </div>
-        <div class="p-2 bg-surface-container-low border border-amber-500/30 rounded">
-          <span class="text-outline text-[8px] uppercase block">USER PROMPTS</span>
-          <span id="rebuild-stat-prompts" class="text-amber-400 text-sm font-bold">0</span>
+        <div class="p-2.5 bg-surface-container-low border border-purple-500/30 rounded">
+          <span class="text-outline text-[8px] uppercase block">ZERO-INFERENCE TOKENS SAVED</span>
+          <span id="tenant-kpi-tokens" class="text-[#c084fc] text-lg font-bold">0</span>
+          <span class="text-[8px] text-purple-300/80 block mt-0.5">PageRank + SOP + Contradictions</span>
         </div>
-        <div class="p-2 bg-surface-container-low border border-purple-500/30 rounded">
-          <span class="text-outline text-[8px] uppercase block">COT REASONING</span>
-          <span id="rebuild-stat-thoughts" class="text-[#c084fc] text-sm font-bold">0</span>
-        </div>
-        <div class="p-2 bg-surface-container-low border border-cyan-500/30 rounded">
-          <span class="text-outline text-[8px] uppercase block">TOOL ACTIONS</span>
-          <span id="rebuild-stat-tools" class="text-[#00f0ff] text-sm font-bold">0</span>
-        </div>
-        <div class="p-2 bg-surface-container-low border border-emerald-500/30 rounded">
-          <span class="text-outline text-[8px] uppercase block">INTEGRITY ANCHORS</span>
-          <span id="rebuild-stat-anchors" class="text-[#00ffa3] text-sm font-bold">0</span>
+        <div class="p-2.5 bg-surface-container-low border border-emerald-500/30 rounded">
+          <span class="text-outline text-[8px] uppercase block">TOTAL ROI SAVINGS ($)</span>
+          <span id="tenant-kpi-dollars" class="text-[#00ffa3] text-lg font-bold">$0.0000</span>
+          <span class="text-[8px] text-emerald-300/80 block mt-0.5">At $3.00 / 1M LLM tokens</span>
         </div>
       </div>
 
-      <!-- Filter & Search Controls Strip -->
-      <div class="flex flex-wrap items-center justify-between gap-2 bg-surface-container-low/70 p-2 rounded border border-outline-variant/30 shrink-0 text-[10px]">
-        <!-- View Mode Switcher: OpenAI Chat View vs Forensic Step Ledger -->
-        <div class="flex items-center bg-surface-container-lowest p-0.5 rounded border border-outline-variant/40 text-[9px] font-mono gap-1">
-          <button id="btn-rebuild-mode-chat" onclick="window.setRebuildViewMode('chat')" class="px-2.5 py-1 rounded bg-cyan-500/20 text-[#00f0ff] border border-cyan-500/40 font-bold flex items-center gap-1 transition-all" title="View as OpenAI-style Chat Session with Timestamps and Collapsible Thoughts">
-            <span class="material-symbols-outlined text-[12px]">chat</span>
-            <span>OpenAI Chat View</span>
-          </button>
-          <button id="btn-rebuild-mode-forensic" onclick="window.setRebuildViewMode('forensic')" class="px-2.5 py-1 rounded text-neutral-400 hover:text-white transition-all flex items-center gap-1" title="View Raw Forensic Step-by-Step Ledger">
-            <span class="material-symbols-outlined text-[12px]">list</span>
-            <span>Forensic Ledger</span>
-          </button>
-        </div>
-
-        <div class="flex items-center gap-1 flex-wrap" id="rebuild-filter-pills">
-          <button onclick="window.filterRebuildTimeline('all')" class="px-2 py-0.5 rounded bg-primary-container text-on-primary-container font-bold" data-rfilter="all">ALL STEPS</button>
-          <button onclick="window.filterRebuildTimeline('prompt')" class="px-2 py-0.5 rounded text-neutral-400 hover:text-white" data-rfilter="prompt">PROMPTS</button>
-          <button onclick="window.filterRebuildTimeline('thought')" class="px-2 py-0.5 rounded text-neutral-400 hover:text-purple-300" data-rfilter="thought">THOUGHTS (COT)</button>
-          <button onclick="window.filterRebuildTimeline('command')" class="px-2 py-0.5 rounded text-neutral-400 hover:text-cyan-300" data-rfilter="command">CLI ($)</button>
-          <button onclick="window.filterRebuildTimeline('file')" class="px-2 py-0.5 rounded text-neutral-400 hover:text-amber-300" data-rfilter="file">FILES</button>
-          <button onclick="window.filterRebuildTimeline('response')" class="px-2 py-0.5 rounded text-neutral-400 hover:text-violet-300" data-rfilter="response">RESPONSES</button>
-        </div>
-
-        <div class="relative flex-1 max-w-xs">
-          <span class="material-symbols-outlined text-[13px] absolute left-2 top-1.5 text-outline">search</span>
-          <input id="rebuild-search-input" oninput="window.searchRebuildTimeline(this.value)" class="w-full bg-surface-container-lowest border border-outline-variant/40 rounded pl-6 pr-2 py-1 text-[10px] text-white placeholder:text-outline focus:outline-none focus:border-cyan-400" placeholder="Search commands, thoughts, files..." type="text"/>
-        </div>
+      <!-- Navigation Tabs -->
+      <div class="flex items-center gap-1.5 border-b border-outline-variant/30 pb-2 text-[10px] shrink-0">
+        <button id="tenant-tab-btn-keys" onclick="window.switchTenantTab('keys')" class="px-3 py-1 rounded bg-amber-500/20 text-amber-300 font-bold border border-amber-500/40">API KEYS &amp; RBAC</button>
+        <button id="tenant-tab-btn-tenants" onclick="window.switchTenantTab('tenants')" class="px-3 py-1 rounded text-neutral-400 hover:text-white border border-transparent">TENANTS &amp; TEAMS</button>
+        <button id="tenant-tab-btn-pricing" onclick="window.switchTenantTab('pricing')" class="px-3 py-1 rounded text-neutral-400 hover:text-white border border-transparent">TIER ARCHITECTURE</button>
+        <button id="tenant-tab-btn-sdk" onclick="window.switchTenantTab('sdk')" class="px-3 py-1 rounded text-neutral-400 hover:text-white border border-transparent">AGENT SDK DROP-IN</button>
       </div>
 
-      <!-- Reconstructed Timeline Stream Container -->
-      <div id="rebuild-timeline-container" class="flex-1 overflow-y-auto space-y-2.5 pr-1.5 scrollbar-thin">
-        <!-- Dynamically rendered timeline step cards -->
+      <!-- Tab Content Area -->
+      <div id="tenant-tab-content" class="flex-1 overflow-y-auto space-y-3 pr-1 scrollbar-thin">
+        <!-- Rendered dynamically by JS -->
       </div>
 
       <!-- Footer Bar -->
       <div class="pt-2 border-t border-outline-variant/30 flex items-center justify-between text-[10px] text-outline shrink-0">
         <div class="flex items-center gap-2">
-          <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping"></span>
-          <span>Cryptographic Provenance Verified · SHA-256 Rolling Chain Active</span>
+          <span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+          <span>Zero-Inference SaaS Monetization Engine Active · Scoped ABAC Authorization</span>
         </div>
-        <div class="flex items-center gap-3">
-          <button onclick="window.openSessionInDialogue(currentRebuildData ? currentRebuildData.session_id : '')" class="hover:text-primary flex items-center gap-1 font-bold">
-            <span class="material-symbols-outlined text-[12px]">forum</span>
-            <span>VIEW IN DIALOGUE DAG</span>
-          </button>
-          <button onclick="window.closeSessionRebuilderModal()" class="px-3.5 py-1 bg-surface-container-high hover:bg-surface-container-highest text-white rounded font-bold">CLOSE</button>
-        </div>
+        <button onclick="window.closeTenantsModal()" class="px-3.5 py-1 bg-surface-container-high hover:bg-surface-container-highest text-white rounded font-bold">CLOSE</button>
       </div>
     </div>
   </div>
@@ -12217,5 +12193,361 @@ Resolution recorded to cryptographic provenance ledger.`);
       </div>
     </div>
   </div>
+<script>
+    // -------------------------------------------------------------------------
+    // COMMERCIAL TENANT & MONETIZATION STUDIO CONTROLLER
+    // -------------------------------------------------------------------------
+    window.cachedTenants = [];
+    window.cachedTenantKeys = [];
+    window.activeTenantTab = 'keys';
+
+    window.openTenantsModal = function() {
+      const modal = document.getElementById('tenants-modal');
+      if (modal) {
+        modal.classList.remove('hidden');
+        window.loadTenantsStudioData();
+      }
+    };
+
+    window.closeTenantsModal = function() {
+      const modal = document.getElementById('tenants-modal');
+      if (modal) modal.classList.add('hidden');
+    };
+
+    window.switchTenantTab = function(tabName) {
+      window.activeTenantTab = tabName;
+      ['keys', 'tenants', 'pricing', 'sdk'].forEach(t => {
+        const btn = document.getElementById(`tenant-tab-btn-${t}`);
+        if (btn) {
+          if (t === tabName) {
+            btn.className = 'px-3 py-1 rounded bg-amber-500/20 text-amber-300 font-bold border border-amber-500/40';
+          } else {
+            btn.className = 'px-3 py-1 rounded text-neutral-400 hover:text-white border border-transparent';
+          }
+        }
+      });
+      window.renderTenantTabContent();
+    };
+
+    window.loadTenantsStudioData = async function() {
+      try {
+        const [tResp, kResp] = await Promise.all([
+          fetch('/api/tenants'),
+          fetch('/api/tenants/keys')
+        ]);
+        const tData = await tResp.json();
+        const kData = await kResp.json();
+
+        window.cachedTenants = tData.tenants || [];
+        window.cachedTenantKeys = kData.keys || [];
+
+        // Update KPIs
+        const countEl = document.getElementById('tenant-kpi-count');
+        const keysEl = document.getElementById('tenant-kpi-keys');
+        const tokensEl = document.getElementById('tenant-kpi-tokens');
+        const dollarsEl = document.getElementById('tenant-kpi-dollars');
+
+        const totalTokens = window.cachedTenantKeys.reduce((acc, k) => acc + (k.zero_inference_tokens_saved || 0), 0);
+        const totalDollars = (totalTokens * 0.000003).toFixed(4);
+
+        if (countEl) countEl.innerText = window.cachedTenants.length;
+        if (keysEl) keysEl.innerText = window.cachedTenantKeys.length;
+        if (tokensEl) tokensEl.innerText = totalTokens.toLocaleString();
+        if (dollarsEl) dollarsEl.innerText = `$${totalDollars}`;
+
+        window.renderTenantTabContent();
+      } catch (err) {
+        console.error('Failed to load tenant studio data:', err);
+      }
+    };
+
+    window.renderTenantTabContent = function() {
+      const container = document.getElementById('tenant-tab-content');
+      if (!container) return;
+
+      if (window.activeTenantTab === 'keys') {
+        if (!window.cachedTenantKeys.length) {
+          container.innerHTML = `
+            <div class="p-8 text-center text-outline">
+              <span class="material-symbols-outlined text-4xl text-amber-400 mb-2">vpn_key</span>
+              <p>No active API keys issued yet.</p>
+              <button onclick="window.openIssueKeyModal()" class="mt-3 px-3 py-1 bg-amber-500/20 text-amber-300 border border-amber-500/40 rounded font-bold uppercase text-[10px]">
+                + Issue First Live Key
+              </button>
+            </div>
+          `;
+          return;
+        }
+
+        container.innerHTML = `
+          <div class="space-y-2">
+            <div class="flex items-center justify-between text-[10px] text-outline uppercase font-bold border-b border-outline-variant/20 pb-1">
+              <span>ISSUED API CREDENTIALS (${window.cachedTenantKeys.length})</span>
+              <span class="text-neutral-400">SHA-256 HASH STORED ONLY</span>
+            </div>
+            ${window.cachedTenantKeys.map(k => {
+              const isRevoked = k.is_revoked;
+              const scopes = k.scopes || [];
+              return `
+                <div class="p-3 rounded-lg border ${isRevoked ? 'border-rose-500/30 bg-rose-950/10 opacity-60' : 'border-outline-variant/30 bg-surface-container-low'} flex flex-col md:flex-row md:items-center justify-between gap-2">
+                  <div class="space-y-1 min-w-0">
+                    <div class="flex items-center gap-2 flex-wrap">
+                      <span class="w-2 h-2 rounded-full ${isRevoked ? 'bg-rose-500' : 'bg-emerald-400 shadow-[0_0_6px_#00ffa3]'}"></span>
+                      <strong class="text-white text-xs">${escapeHtml(k.label || 'API Key')}</strong>
+                      <span class="px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30 text-[8px] font-bold uppercase">${escapeHtml(k.tenant_name || k.tenant_id)}</span>
+                      <span class="px-1.5 py-0.2 rounded bg-surface-container-high text-cyan-300 text-[8px] font-mono">${k.rate_limit_rpm} RPM</span>
+                      ${isRevoked ? '<span class="px-1.5 py-0.2 rounded bg-rose-500/20 text-rose-300 text-[8px] font-bold">REVOKED</span>' : ''}
+                    </div>
+                    <div class="text-[9px] font-mono text-outline flex items-center gap-2 flex-wrap">
+                      <span>KEY: <strong class="text-neutral-200 select-all">${k.key_prefix}</strong></span>
+                      <span>·</span>
+                      <span>REQUESTS: <strong class="text-white">${k.requests_count}</strong></span>
+                      <span>·</span>
+                      <span>TOKENS SAVED: <strong class="text-purple-300">${(k.zero_inference_tokens_saved || 0).toLocaleString()}</strong> ($${(k.estimated_savings_dollars || 0).toFixed(4)})</span>
+                    </div>
+                    <div class="flex items-center gap-1 flex-wrap pt-1">
+                      ${scopes.map(s => `<span class="px-1.5 py-0.2 rounded bg-surface-container-lowest border border-outline-variant/20 text-[8px] text-neutral-300">${escapeHtml(s)}</span>`).join('')}
+                    </div>
+                  </div>
+                  <div class="flex items-center gap-1.5 shrink-0 self-end md:self-center">
+                    <button onclick="navigator.clipboard.writeText('${k.key_prefix}'); alert('Key prefix copied!');" class="px-2 py-1 bg-surface-container-high hover:bg-surface-container-highest text-white rounded text-[9px] font-bold">COPY PREFIX</button>
+                    ${!isRevoked ? `<button onclick="window.revokeTenantKey('${k.key_id}')" class="px-2 py-1 bg-rose-600/20 hover:bg-rose-600/40 text-rose-300 rounded text-[9px] font-bold border border-rose-500/40">REVOKE</button>` : ''}
+                  </div>
+                </div>
+              `;
+            }).join('')}
+          </div>
+        `;
+      } else if (window.activeTenantTab === 'tenants') {
+        container.innerHTML = `
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+            ${window.cachedTenants.map(t => {
+              const plan = (t.plan || 'starter').toUpperCase();
+              const badgeClass = plan === 'ENTERPRISE' ? 'bg-amber-500/20 text-amber-300 border-amber-500/40' :
+                                 plan === 'SCALE' ? 'bg-purple-500/20 text-purple-300 border-purple-500/40' :
+                                 plan === 'PRO' ? 'bg-cyan-500/20 text-cyan-300 border-cyan-500/40' :
+                                 'bg-neutral-500/20 text-neutral-300 border-neutral-500/40';
+              return `
+                <div class="p-3.5 rounded-lg border border-outline-variant/30 bg-surface-container-low space-y-2">
+                  <div class="flex items-center justify-between">
+                    <strong class="text-white text-xs">${escapeHtml(t.name)}</strong>
+                    <span class="px-2 py-0.5 rounded border text-[8px] font-bold ${badgeClass}">${plan}</span>
+                  </div>
+                  <div class="text-[9px] text-outline font-mono space-y-1">
+                    <div>TENANT ID: <span class="text-neutral-300 select-all">${t.id}</span></div>
+                    <div>RATE LIMIT: <span class="text-neutral-300">${t.rate_limit_rpm} RPM</span> · DAILY QUOTA: <span class="text-neutral-300">${(t.daily_quota_requests || 0).toLocaleString()} req</span></div>
+                    <div>KEYS ISSUED: <span class="text-cyan-300 font-bold">${t.key_count || 0}</span> · LIFETIME REQS: <span class="text-white">${(t.total_requests || 0).toLocaleString()}</span></div>
+                    <div>ZERO-INFERENCE SAVINGS: <span class="text-[#00ffa3] font-bold">$${(t.estimated_dollar_savings || 0).toFixed(4)}</span> (${(t.total_tokens_saved || 0).toLocaleString()} tokens)</div>
+                  </div>
+                  <div class="pt-2 border-t border-outline-variant/20 flex items-center justify-between">
+                    <button onclick="window.issueKeyForTenant('${t.id}', '${escapeHtml(t.name)}')" class="px-2.5 py-1 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 rounded text-[9px] font-bold border border-amber-500/40">
+                      + Issue Key
+                    </button>
+                    <span class="text-[8px] text-outline">Created ${new Date(t.created_at).toLocaleDateString()}</span>
+                  </div>
+                </div>
+              `;
+            }).join('')}
+          </div>
+        `;
+      } else if (window.activeTenantTab === 'pricing') {
+        container.innerHTML = `
+          <div class="space-y-3 font-mono">
+            <div class="text-[10px] text-outline uppercase font-bold border-b border-outline-variant/20 pb-1">
+              COMMERCIAL AGENT MEMORY TIER ARCHITECTURE
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-2.5">
+              <div class="p-3 rounded-lg border border-outline-variant/30 bg-surface-container-low space-y-2">
+                <div class="text-xs font-bold text-neutral-300">DEVELOPER</div>
+                <div class="text-xl font-bold text-white">$0 <span class="text-[10px] text-outline font-normal">/ mo</span></div>
+                <ul class="text-[9px] text-neutral-400 space-y-1">
+                  <li>✓ 60 RPM Rate Limit</li>
+                  <li>✓ 10,000 req / day</li>
+                  <li>✓ 3 Agent Profiles</li>
+                  <li>✓ Real-Time SOP Triples</li>
+                  <li>✓ Tarjan Cycle Detection</li>
+                </ul>
+              </div>
+              <div class="p-3 rounded-lg border border-cyan-500/40 bg-cyan-950/20 space-y-2 ring-1 ring-cyan-500/20">
+                <div class="text-xs font-bold text-cyan-300">PRO STARTUP</div>
+                <div class="text-xl font-bold text-white">$49 <span class="text-[10px] text-outline font-normal">/ mo</span></div>
+                <ul class="text-[9px] text-neutral-300 space-y-1">
+                  <li>✓ 180 RPM Rate Limit</li>
+                  <li>✓ 50,000 req / day</li>
+                  <li>✓ 10 Agent Swarms</li>
+                  <li>✓ Topological PageRank</li>
+                  <li>✓ Shannon Entropy Scoring</li>
+                </ul>
+              </div>
+              <div class="p-3 rounded-lg border border-purple-500/40 bg-purple-950/20 space-y-2 ring-1 ring-purple-500/20">
+                <div class="text-xs font-bold text-[#c084fc]">SCALE CLUSTER</div>
+                <div class="text-xl font-bold text-white">$249 <span class="text-[10px] text-outline font-normal">/ mo</span></div>
+                <ul class="text-[9px] text-neutral-300 space-y-1">
+                  <li>✓ 600 RPM Rate Limit</li>
+                  <li>✓ 250,000 req / day</li>
+                  <li>✓ 50 Agent Swarms</li>
+                  <li>✓ Dialectic Contradiction Engine</li>
+                  <li>✓ Merkle Invariant Proofs</li>
+                </ul>
+              </div>
+              <div class="p-3 rounded-lg border border-amber-500/50 bg-amber-950/20 space-y-2 ring-1 ring-amber-500/30">
+                <div class="text-xs font-bold text-amber-300">ENTERPRISE</div>
+                <div class="text-xl font-bold text-white">$999 <span class="text-[10px] text-outline font-normal">/ mo</span></div>
+                <ul class="text-[9px] text-neutral-200 space-y-1">
+                  <li>✓ 2,500+ RPM Dedicated</li>
+                  <li>✓ Unlimited Agent Swarms</li>
+                  <li>✓ Physical Profile Isolation (0o700)</li>
+                  <li>✓ Custom BYOK AI Reasoning</li>
+                  <li>✓ 24/7 SLA & Air-Gapped Vault</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        `;
+      } else if (window.activeTenantTab === 'sdk') {
+        container.innerHTML = `
+          <div class="space-y-3 font-mono text-[10px]">
+            <div class="text-[10px] text-outline uppercase font-bold border-b border-outline-variant/20 pb-1">
+              DROP-IN AGENT MEMORY PROVIDER INTEGRATION
+            </div>
+            <div class="p-3 rounded bg-black/60 border border-outline-variant/30 space-y-1">
+              <span class="text-amber-400 font-bold block">1. PYTHON SDK (LangChain / CrewAI / AutoGen / Antigravity)</span>
+              <pre class="text-neutral-200 select-all overflow-x-auto p-2 bg-surface-container-lowest rounded"><code>import httpx
+
+API_KEY = "sc_live_YOUR_KEY_HERE"
+SUPER_CORTEX_URL = "http://127.0.0.1:4174"
+
+client = httpx.Client(
+    base_url=SUPER_CORTEX_URL,
+    headers={"Authorization": "Bearer " + API_KEY}
+)
+
+# Zero-Inference Memory Ingestion with Automated SOP Triples & PageRank
+resp = client.post("/api/remember", json={
+    "text": "Production daemons must adhere strictly to risk limits and pause on 3% drawdown.",
+    "epistemic_class": "rule",
+    "scope": "agent:quant"
+})
+print("Memory ID:", resp.json()["memory_id"])</code></pre>
+            </div>
+
+            <div class="p-3 rounded bg-black/60 border border-outline-variant/30 space-y-1">
+              <span class="text-cyan-400 font-bold block">2. TYPESCRIPT / NODE.JS (Vercel AI SDK / LangGraph)</span>
+              <pre class="text-neutral-200 select-all overflow-x-auto p-2 bg-surface-container-lowest rounded"><code>const API_KEY = "sc_live_YOUR_KEY_HERE";
+const res = await fetch("http://127.0.0.1:4174/api/graph", {
+  headers: { "Authorization": "Bearer " + API_KEY }
+});
+const { nodes, links, stats } = await res.json();
+console.log("Loaded " + nodes.length + " memory invariants.");</code></pre>
+            </div>
+          </div>
+        `;
+      }
+    };
+
+    window.openIssueKeyModal = function() {
+      const tenantOptions = window.cachedTenants.map(t => `<option value="${t.id}">${escapeHtml(t.name)} (${t.plan.toUpperCase()})</option>`).join('');
+      const label = prompt("Enter a label for this API key:", "Production Agent Swarm");
+      if (!label) return;
+
+      const tenantId = window.cachedTenants.length ? window.cachedTenants[0].id : "tenant_xibalba_core";
+      window.issueTenantKeyDirect(tenantId, label);
+    };
+
+    window.issueKeyForTenant = function(tenantId, tenantName) {
+      const label = prompt(`Enter a label for API key under ${tenantName}:`, "Production Agent");
+      if (!label) return;
+      window.issueTenantKeyDirect(tenantId, label);
+    };
+
+    window.issueTenantKeyDirect = async function(tenantId, label) {
+      try {
+        const resp = await fetch('/api/tenants/keys', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            tenant_id: tenantId,
+            label: label,
+            scopes: ["read:graph", "read:memory", "write:memory", "exec:deterministic"],
+            rate_limit_rpm: 120
+          })
+        });
+        const data = await resp.json();
+        if (data.raw_key) {
+          alert(`API Key Generated Successfully!\n\nRAW KEY (Shown Once):\n${data.raw_key}\n\nPrefix: ${data.key.key_prefix}\n\nPlease copy and save this key securely.`);
+          window.loadTenantsStudioData();
+        } else {
+          alert(`Failed: ${data.error || 'Unknown error'}`);
+        }
+      } catch (err) {
+        alert(`Error issuing key: ${err.message}`);
+      }
+    };
+
+    window.openProvisionTenantModal = async function() {
+      const name = prompt("Enter organization / tenant name:", "Autonomous Quant Labs");
+      if (!name) return;
+      const plan = prompt("Select plan tier (starter, pro, scale, enterprise):", "pro") || "pro";
+
+      try {
+        const resp = await fetch('/api/tenants', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name: name,
+            plan: plan.toLowerCase(),
+            rate_limit_rpm: plan.toLowerCase() === 'enterprise' ? 1200 : plan.toLowerCase() === 'scale' ? 300 : 120,
+            daily_quota_requests: plan.toLowerCase() === 'enterprise' ? 100000 : 25000
+          })
+        });
+        const data = await resp.json();
+        if (data.tenant) {
+          alert(`Tenant "${data.tenant.name}" provisioned successfully!\nID: ${data.tenant.id}`);
+          window.loadTenantsStudioData();
+        }
+      } catch (err) {
+        alert(`Error provisioning tenant: ${err.message}`);
+      }
+    };
+
+    window.revokeTenantKey = async function(keyId) {
+      if (!confirm(`Are you sure you want to revoke key ${keyId}? This action cannot be undone.`)) return;
+      try {
+        const resp = await fetch(`/api/tenants/keys/${keyId}`, { method: 'DELETE' });
+        const data = await resp.json();
+        if (data.status === 'revoked') {
+          alert('API Key revoked successfully.');
+          window.loadTenantsStudioData();
+        }
+      } catch (err) {
+        alert(`Failed to revoke key: ${err.message}`);
+      }
+    };
+
+    // -------------------------------------------------------------------------
+    // LIVE AGENT SESSION SYNCHRONIZATION CONTROLLER
+    // -------------------------------------------------------------------------
+    window.syncLiveAgentSessions = async function() {
+      const icon = document.getElementById('header-sync-icon');
+      const btn = document.getElementById('btn-header-sync');
+      if (icon) icon.classList.add('animate-spin');
+      if (btn) btn.classList.add('opacity-75');
+
+      try {
+        const resp = await fetch('/api/sessions/import', { method: 'POST' });
+        const data = await resp.json();
+        if (data.total_turns !== undefined) {
+          alert(`Sync Complete!\n\nSessions Ingested: ${data.total_sessions}\nTotal Turns: ${data.total_turns}\n\nClaude: ${data.claude.turns} turns\nAntigravity: ${data.antigravity.turns} turns\nHermes: ${data.hermes.turns} turns`);
+          // Reload graph and sessions
+          if (typeof loadGraphData === 'function') loadGraphData();
+        }
+      } catch (err) {
+        alert(`Sync error: ${err.message}`);
+      } finally {
+        if (icon) icon.classList.remove('animate-spin');
+        if (btn) btn.classList.remove('opacity-75');
+      }
+    };
+</script>
 </body>
 </html>

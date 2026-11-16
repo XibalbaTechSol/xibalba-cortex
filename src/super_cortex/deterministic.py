@@ -64,7 +64,7 @@ def detect_contradictions(
 
     # 1. Memory Text Polar Contradiction Detection
     # Compare rule, fact, and decision memories with shared entity/subject vocabulary
-    active_mems = [m for m in memories if m.get("lifecycle_status") != "archived"]
+    active_mems = [m for m in memories if m.get("lifecycle_status") not in {"archived", "superseded", "forgotten"}]
 
     for i, m1 in enumerate(active_mems):
         t1 = m1.get("text", "") or m1.get("content", "")

@@ -139,3 +139,37 @@ class ProviderRecord(BaseModel):
         if len(self.api_key) <= 8:
             return "••••••••"
         return f"{self.api_key[:4]}••••{self.api_key[-4:]}"
+
+
+class TenantPlan(str, Enum):
+    STARTER = "starter"       # Free / Developer ($0)
+    PRO = "pro"               # Growth ($49/mo)
+    SCALE = "scale"           # Scale-up ($249/mo)
+    ENTERPRISE = "enterprise" # Mission Critical ($999/mo)
+
+
+class TenantRecord(BaseModel):
+    id: str
+    name: str
+    plan: str = TenantPlan.STARTER.value
+    rate_limit_rpm: int = 60
+    daily_quota_requests: int = 10000
+    is_active: bool = True
+    metadata: dict[str, Any] = Field(default_factory=dict)
+    created_at: str = Field(default_factory=utc_now_iso)
+    updated_at: str = Field(default_factory=utc_now_iso)
+
+
+class TenantKeyRecord(BaseModel):
+    key_id: str
+    tenant_id: str
+    key_prefix: str
+    label: str
+    scopes: list[str] = Field(default_factory=lambda: ["read:graph", "read:memory", "write:memory", "exec:deterministic"])
+    rate_limit_rpm: int = 60
+    requests_count: int = 0
+    zero_inference_tokens_saved: int = 0
+    last_used_at: str | None = None
+    expires_at: str | None = None
+    is_revoked: bool = False
+    created_at: str = Field(default_factory=utc_now_iso)
