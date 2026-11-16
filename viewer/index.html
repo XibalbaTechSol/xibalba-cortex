@@ -553,61 +553,50 @@
       </div>
     </div>
 
-    <!-- Right Section: Projection, Universal Legend & Telemetry -->
-    <div class="flex items-center gap-2.5 shrink-0">
-      <!-- Synaptic Edges Toggle -->
-      <button onclick="toggleGraphEdges()" id="btn-header-edges" class="h-6 flex items-center gap-1.5 px-2.5 bg-primary-container/20 hover:bg-primary-container/30 border border-primary-container/40 rounded text-[10px] font-mono text-primary transition-all shadow-sm cursor-pointer select-none" title="Toggle 3D Directed Edges & Synapses (E)">
-        <span class="material-symbols-outlined text-[14px]">timeline</span>
-        <span class="font-bold uppercase tracking-wider">EDGES</span>
-        <span id="header-edges-indicator" class="w-1.5 h-1.5 rounded-full bg-[#00f0ff] shadow-[0_0_6px_#00f0ff]"></span>
+    <!-- Right Section: Sleek Icon Actions & Telemetry -->
+    <div class="flex items-center gap-1.5 shrink-0">
+      <!-- Synaptic Edges Toggle Icon -->
+      <button onclick="toggleGraphEdges()" id="btn-header-edges" class="w-7 h-7 rounded flex items-center justify-center bg-primary-container/10 hover:bg-primary-container/25 border border-primary-container/30 text-primary transition-all relative cursor-pointer" title="Toggle 3D Directed Edges (E)">
+        <span class="material-symbols-outlined text-[15px]">timeline</span>
+        <span id="header-edges-indicator" class="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-[#00f0ff] shadow-[0_0_6px_#00f0ff]"></span>
       </button>
 
-      <!-- Live Local Agent Sync Trigger -->
-      <button onclick="window.syncLiveAgentSessions()" id="btn-header-sync" class="h-6 flex items-center gap-1.5 px-2.5 bg-cyan-500/15 hover:bg-cyan-500/25 border border-cyan-500/40 rounded text-[10px] font-mono text-cyan-300 transition-all shadow-sm cursor-pointer select-none" title="Sync live turns and COT thoughts from local Antigravity, Claude Code, and Hermes agents">
-        <span id="header-sync-icon" class="material-symbols-outlined text-[14px] text-cyan-400">sync</span>
-        <span class="font-bold uppercase tracking-wider">SYNC AGENTS</span>
+      <!-- Live Agent Sync Trigger Icon -->
+      <button onclick="window.syncLiveAgentSessions()" id="btn-header-sync" class="w-7 h-7 rounded flex items-center justify-center bg-cyan-500/10 hover:bg-cyan-500/25 border border-cyan-500/30 text-cyan-300 transition-all cursor-pointer" title="Sync Live Agent Sessions & Turns">
+        <span id="header-sync-icon" class="material-symbols-outlined text-[15px] text-cyan-400">sync</span>
       </button>
 
-      <!-- AI Inference Providers Manager -->
-      <button onclick="window.openProvidersModal()" id="btn-header-providers" class="h-6 flex items-center gap-1.5 px-2.5 bg-purple-500/15 hover:bg-purple-500/25 border border-purple-500/40 rounded text-[10px] font-mono text-[#ddb7ff] transition-all shadow-sm cursor-pointer select-none" title="Configure AI Inference Providers (Claude, Gemini, OpenAI, Groq, Ollama)">
-        <span class="material-symbols-outlined text-[14px] text-purple-400">smart_toy</span>
-        <span class="font-bold uppercase tracking-wider">AI PROVIDERS</span>
-        <span id="header-active-provider-dot" class="w-1.5 h-1.5 rounded-full bg-emerald-400 shadow-[0_0_6px_#00ffa3]"></span>
+      <!-- AI Inference Providers Icon -->
+      <button onclick="window.openProvidersModal()" id="btn-header-providers" class="w-7 h-7 rounded flex items-center justify-center bg-purple-500/10 hover:bg-purple-500/25 border border-purple-500/30 text-[#ddb7ff] transition-all relative cursor-pointer" title="AI Inference Engine (Claude, Gemini, OpenAI)">
+        <span class="material-symbols-outlined text-[15px] text-purple-400">smart_toy</span>
+        <span id="header-active-provider-dot" class="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-emerald-400 shadow-[0_0_6px_#00ffa3]"></span>
       </button>
 
-      <!-- Commercial Tenant & Monetization Manager -->
-      <button onclick="window.openTenantsModal()" id="btn-header-tenants" class="h-6 flex items-center gap-1.5 px-2.5 bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/40 rounded text-[10px] font-mono text-amber-300 transition-all shadow-sm cursor-pointer select-none" title="Commercial Tenant Management & Scoped API Keys ($ ROI)">
-        <span class="material-symbols-outlined text-[14px] text-amber-400">vpn_key</span>
-        <span class="font-bold uppercase tracking-wider">TENANTS &amp; KEYS</span>
-        <span id="header-tenant-count-dot" class="w-1.5 h-1.5 rounded-full bg-amber-400 shadow-[0_0_6px_#f59e0b]"></span>
+      <!-- Commercial Tenants & Scoped Keys Icon -->
+      <button onclick="window.openTenantsModal()" id="btn-header-tenants" class="w-7 h-7 rounded flex items-center justify-center bg-amber-500/10 hover:bg-amber-500/25 border border-amber-500/30 text-amber-300 transition-all relative cursor-pointer" title="Tenants & Scoped API Keys">
+        <span class="material-symbols-outlined text-[15px] text-amber-400">vpn_key</span>
+        <span id="header-tenant-count-dot" class="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-amber-400 shadow-[0_0_6px_#f59e0b]"></span>
       </button>
 
-      <!-- Contradiction Dialectic Scanner -->
-      <button onclick="window.runContradictionScan()" id="btn-header-contradictions" class="h-6 flex items-center gap-1.5 px-2 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 rounded text-[10px] font-mono text-rose-300 transition-all shadow-sm cursor-pointer select-none" title="Run Epistemic Contradiction & Dialectic Conflict Scanner">
-        <span class="material-symbols-outlined text-[14px] text-rose-400">crisis_alert</span>
-        <span class="font-bold uppercase tracking-wider">CONTRADICTIONS</span>
-        <span id="header-contra-badge" class="px-1 py-0.2 rounded text-[8px] font-bold bg-rose-500/20 text-rose-300 border border-rose-500/40">SCAN</span>
+      <!-- Contradiction Dialectic Scanner Icon -->
+      <button onclick="window.runContradictionScan()" id="btn-header-contradictions" class="w-7 h-7 rounded flex items-center justify-center bg-rose-500/10 hover:bg-rose-500/25 border border-rose-500/30 text-rose-300 transition-all relative cursor-pointer" title="Scan Contradictions & Dialectic Conflicts">
+        <span class="material-symbols-outlined text-[15px] text-rose-400">crisis_alert</span>
+        <span id="header-contra-badge" class="hidden">SCAN</span>
       </button>
 
-      <!-- Universal Graph Legend Toggle Button -->
-      <button id="btn-toggle-legend" onclick="toggleGraphLegend()" class="h-6 flex items-center gap-1.5 px-2 bg-surface-container-low hover:bg-surface-container-high border border-outline-variant/40 hover:border-primary-container rounded text-[10px] font-mono text-on-surface hover:text-primary-container transition-all shadow-sm cursor-pointer select-none" title="Toggle Graph Legend (L)">
-        <span class="material-symbols-outlined text-[13px] text-primary-container">category</span>
-        <span class="font-bold">LEGEND</span>
-        <span class="text-[8px] text-outline bg-surface-container-high px-1 rounded font-bold">L</span>
+      <!-- Universal Graph Legend Icon -->
+      <button id="btn-toggle-legend" onclick="toggleGraphLegend()" class="w-7 h-7 rounded flex items-center justify-center bg-surface-container-low hover:bg-surface-container-high border border-outline-variant/40 text-on-surface hover:text-primary-container transition-all cursor-pointer" title="Toggle Graph Legend (L)">
+        <span class="material-symbols-outlined text-[15px] text-primary-container">category</span>
       </button>
 
-      <div class="h-3 w-[1px] bg-outline-variant/50 hidden md:block"></div>
+      <div class="h-4 w-[1px] bg-outline-variant/40 mx-1 hidden md:block"></div>
 
-      <!-- Merkle & Node Counter Pill -->
-      <div class="hidden md:flex items-center gap-2 text-[10px]">
-        <div class="px-2 py-0.5 rounded bg-surface-container-low border border-outline-variant/30 flex items-center gap-1.5">
-          <span class="w-1.5 h-1.5 rounded-full bg-secondary-container animate-pulse"></span>
-          <span id="header-nodes-count" class="text-secondary-container font-bold">-- Nodes</span>
-        </div>
-        <div class="px-2 py-0.5 rounded bg-surface-container-low border border-outline-variant/30 text-outline hidden lg:flex items-center gap-1">
-          <span>ROOT:</span>
-          <span id="header-merkle-root" class="text-primary-container font-mono">0x7f2a...</span>
-        </div>
+      <!-- Compact Telemetry Pill -->
+      <div class="hidden md:flex items-center gap-1.5 px-2 py-0.5 rounded bg-surface-container-low/90 border border-outline-variant/30 text-[10px] font-mono">
+        <span class="w-1.5 h-1.5 rounded-full bg-secondary-container animate-pulse"></span>
+        <span id="header-nodes-count" class="text-secondary-container font-bold">-- Nodes</span>
+        <span class="text-outline">·</span>
+        <span id="header-merkle-root" class="text-primary-container font-mono">0x7f2a...</span>
       </div>
 
       <!-- Retained hidden elements for script reference safety -->
@@ -616,7 +605,7 @@
       <button id="btn-projection-3d" class="hidden"></button>
       <button id="btn-projection-2d" class="hidden"></button>
 
-      <div class="h-3 w-[1px] bg-outline-variant/50"></div>
+      <div class="h-4 w-[1px] bg-outline-variant/40 mx-0.5"></div>
 
       <div class="w-6 h-6 rounded-full bg-primary-container/20 border border-primary-container/40 flex items-center justify-center shrink-0 text-primary-container" title="Xibalba Solutions Operator">
         <span class="material-symbols-outlined text-[14px]">shield_person</span>
@@ -865,285 +854,286 @@
       <span id="hud-camera-coords" class="hidden"></span>
       <span id="hud-flight-state" class="hidden"></span>
 
-      <!-- Floating Top Instrument Ribbon -->
-      <div class="absolute top-4 left-1/2 -translate-x-1/2 z-20 flex items-center gap-2 bg-surface-container-lowest/90 backdrop-blur-xl px-2 py-1.5 shadow-2xl border border-outline-variant/30">
-        <!-- Agent Memory Scope Selector -->
-        <div class="flex items-center gap-1.5 bg-surface-container-low px-2 py-1 border border-outline-variant/30 text-[10px] font-mono">
-          <span class="text-outline uppercase text-[9px] flex items-center gap-0.5">
-            <span class="material-symbols-outlined text-[13px] text-secondary-container">domain</span>SCOPE:
-          </span>
-          <select id="graph-scope-selector" onchange="changeGraphScope(this.value)" class="bg-transparent text-primary-container font-bold focus:outline-none cursor-pointer text-[10px]">
-            <option value="all">ALL SCOPES (GALAXY)</option>
-            <option value="shared">SHARED MEMORY FABRIC</option>
-            <option value="agent:claude">AGENT: CLAUDE CODE</option>
-            <option value="agent:agy">AGENT: ANTIGRAVITY (AGY)</option>
-            <option value="agent:hermes">AGENT: HERMES CORE</option>
-            <option value="agent:xibalba">AGENT: XIBALBA ORCHESTRATOR</option>
-            <option value="agent:shield">AGENT: XIBALBA SHIELD</option>
-            <option value="agent:cortex">AGENT: CORTEX</option>
-            <option value="agent:cursor">AGENT: CURSOR COMPOSER</option>
-            <option value="agent:deepseek">AGENT: DEEPSEEK QUANT</option>
+      <!-- FLOATING HUD GRAPH CONTROL STACK (Draggable, Dockable & Foldable into One Icon) -->
+      <div id="graph-floating-hud-toolbar" class="absolute top-16 right-4 z-30 select-none font-mono transition-transform duration-150">
+        
+        <!-- 1. FOLDED STATE: A Single Sleek Floating Master Icon Button -->
+        <button id="hud-folded-btn" onclick="window.toggleHudCollapse(false)" class="hidden w-10 h-10 rounded-xl bg-[#090d16]/95 hover:bg-surface-container-high backdrop-blur-2xl border border-primary-container/60 shadow-[0_12px_40px_rgba(0,0,0,0.85)] flex items-center justify-center text-primary-container hover:text-white transition-all group cursor-pointer" title="Expand Graph Controls Studio (⌘G)">
+          <span class="material-symbols-outlined text-[20px] group-hover:rotate-90 transition-transform duration-300">hub</span>
+          <span class="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-primary-container animate-ping"></span>
+          <span class="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-primary-container"></span>
+        </button>
+
+        <!-- 2. EXPANDED STATE: Full Multi-Tool Graph HUD Studio -->
+        <div id="hud-expanded-panel" class="flex flex-col bg-[#090d16]/95 backdrop-blur-2xl border border-primary-container/40 rounded-xl p-2.5 shadow-[0_16px_50px_rgba(0,0,0,0.9)] space-y-2 w-72 text-[10px]">
+          
+          <!-- Top Drag, Header & Action Bar -->
+          <div class="flex items-center justify-between border-b border-outline-variant/30 pb-1.5">
+            <div id="hud-drag-handle" class="flex items-center gap-1.5 cursor-grab active:cursor-grabbing text-outline hover:text-white px-1 py-0.5 rounded hover:bg-surface-container-high transition-colors" title="Drag to move HUD anywhere (Double-click to reset)">
+              <span class="material-symbols-outlined text-[15px]">drag_indicator</span>
+              <span class="text-[9px] font-bold uppercase tracking-wider text-primary-container">GRAPH STUDIO</span>
+            </div>
+            
+            <div class="flex items-center gap-1">
+              <!-- Fold Up into One Icon Button -->
+              <button onclick="window.toggleHudCollapse(true)" class="w-6 h-6 rounded flex items-center justify-center text-outline hover:text-white hover:bg-surface-container-high transition-colors" title="Fold up all icons into one icon (⌘G)">
+                <span class="material-symbols-outlined text-[15px]">unfold_less</span>
+              </button>
+              
+              <!-- Dock to Right Margin Button -->
+              <button id="btn-hud-dock" onclick="window.toggleHudDock()" class="w-6 h-6 rounded flex items-center justify-center text-outline hover:text-secondary-container hover:bg-surface-container-high transition-colors" title="Dock / Undock HUD to Right Margin">
+                <span id="hud-dock-icon" class="material-symbols-outlined text-[15px]">dock_to_right</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Scope & Search Row -->
+          <div class="space-y-1.5">
+            <!-- Scope Selector -->
+            <div class="flex items-center gap-1.5 bg-surface-container-low px-2 py-1 border border-outline-variant/30 rounded">
+              <span class="material-symbols-outlined text-[13px] text-secondary-container">domain</span>
+              <select id="graph-scope-selector" onchange="changeGraphScope(this.value)" class="bg-transparent text-primary-container font-bold focus:outline-none cursor-pointer text-[10px] w-full">
+                <option value="all">ALL SCOPES (GALAXY)</option>
+                <option value="shared">SHARED MEMORY FABRIC</option>
+                <option value="agent:claude">AGENT: CLAUDE CODE</option>
+                <option value="agent:agy">AGENT: ANTIGRAVITY (AGY)</option>
+                <option value="agent:hermes">AGENT: HERMES CORE</option>
+                <option value="agent:xibalba">AGENT: XIBALBA ORCHESTRATOR</option>
+                <option value="agent:shield">AGENT: XIBALBA SHIELD</option>
+                <option value="agent:cortex">AGENT: CORTEX</option>
+                <option value="agent:cursor">AGENT: CURSOR COMPOSER</option>
+                <option value="agent:deepseek">AGENT: DEEPSEEK QUANT</option>
+              </select>
+            </div>
+
+            <!-- Search Query Input -->
+            <div class="relative flex items-center bg-surface-container-low px-2 py-1 border border-outline-variant/30 rounded focus-within:border-primary-container transition-colors">
+              <span class="material-symbols-outlined text-outline text-[13px] mr-1.5">filter_alt</span>
+              <input id="search-input" oninput="handleSearch(this.value)" class="bg-transparent text-on-surface placeholder:text-outline/70 font-mono text-[10px] focus:outline-none w-full" placeholder="Filter 3D nodes (⌘K)..." type="text"/>
+            </div>
+          </div>
+
+          <!-- Epistemic Spectrum Chips -->
+          <div class="space-y-1">
+            <div class="text-[8px] text-outline uppercase font-bold flex justify-between">
+              <span>EPISTEMIC CLASS</span>
+              <span id="hud-filter-label" class="text-primary font-bold">ALL</span>
+            </div>
+            <div class="flex flex-wrap gap-1">
+              <button onclick="filterEpistemic('all')" class="filter-chip px-1.5 py-0.5 rounded bg-primary/20 text-primary border border-primary/50 font-bold uppercase transition-all text-[8px]" data-filter="all">ALL</button>
+              <button onclick="filterEpistemic('rule')" class="filter-chip px-1.5 py-0.5 rounded text-on-surface-variant hover:text-secondary-container transition-all uppercase text-[8px] border border-outline-variant/30" data-filter="rule">RULES</button>
+              <button onclick="filterEpistemic('fact')" class="filter-chip px-1.5 py-0.5 rounded text-on-surface-variant hover:text-[#38bdf8] transition-all uppercase text-[8px] border border-outline-variant/30" data-filter="fact">FACTS</button>
+              <button onclick="filterEpistemic('decision')" class="filter-chip px-1.5 py-0.5 rounded text-on-surface-variant hover:text-[#34d399] transition-all uppercase text-[8px] border border-outline-variant/30" data-filter="decision">DECISIONS</button>
+              <button onclick="filterEpistemic('inference')" class="filter-chip px-1.5 py-0.5 rounded text-on-surface-variant hover:text-[#ddb7ff] transition-all uppercase text-[8px] border border-outline-variant/30" data-filter="inference">INFERENCES</button>
+              <button onclick="filterEpistemic('belief')" class="filter-chip px-1.5 py-0.5 rounded text-on-surface-variant hover:text-amber-400 transition-all uppercase text-[8px] border border-outline-variant/30" data-filter="belief">BELIEFS</button>
+              <button onclick="filterEpistemic('goal')" class="filter-chip px-1.5 py-0.5 rounded text-on-surface-variant hover:text-rose-400 transition-all uppercase text-[8px] border border-outline-variant/30" data-filter="goal">GOALS</button>
+            </div>
+          </div>
+
+          <!-- SOP Triples & COT Reasoning Badges -->
+          <div class="grid grid-cols-2 gap-1.5">
+            <button id="ribbon-sop-btn" onclick="filterEpistemic('entity')" class="px-2 py-1 rounded bg-[#ffd166]/10 text-[#ffd166] border border-[#ffd166]/30 hover:bg-[#ffd166] hover:text-black font-mono font-bold text-[8px] uppercase transition-all flex items-center justify-center gap-1 truncate" title="Filter to SOP Knowledge Entities">
+              <span class="w-1.5 h-1.5 rounded-full bg-[#ffd166]"></span>
+              <span>SOP TRIPLES (<span id="ribbon-sop-count">21</span>)</span>
+            </button>
+            <button id="ribbon-thoughts-btn" onclick="filterEpistemic('thought')" class="px-2 py-1 rounded bg-purple-500/10 text-[#ddb7ff] border border-purple-500/30 hover:bg-purple-500 hover:text-black font-mono font-bold text-[8px] uppercase transition-all flex items-center justify-center gap-1 truncate" title="Filter to Agent Thoughts (Chain-of-Thought Reasoning)">
+              <span class="w-1.5 h-1.5 rounded-full bg-[#c084fc] animate-pulse"></span>
+              <span>THOUGHTS (<span id="ribbon-thoughts-count">0</span>)</span>
+            </button>
+          </div>
+
+          <!-- Edge / Relation Selector -->
+          <select id="edge-quick-selector" onchange="window.selectEdgeByIndex(this.value)" class="w-full bg-surface-container-low font-mono text-[9px] text-[#ffd166] border border-[#ffd166]/30 px-2 py-1 rounded focus:outline-none cursor-pointer truncate">
+            <option value="">EDGES &amp; RELATIONS...</option>
           </select>
-        </div>
 
-        <div class="h-4 w-[1px] bg-outline-variant/50"></div>
-
-        <!-- Projection Mode Selector -->
-        <div class="flex items-center bg-surface-container-low p-0.5 text-[11px] font-mono">
-          <button id="ribbon-btn-3d" onclick="setProjectionMode('3D')" class="px-2.5 py-1 bg-primary-container text-on-primary-container font-bold uppercase flex items-center gap-1">
-            <span class="material-symbols-outlined text-[13px]">view_in_ar</span>
-            3D Lattice
-          </button>
-          <button id="ribbon-btn-2d" onclick="setProjectionMode('2D')" class="px-2.5 py-1 text-on-surface-variant hover:text-on-surface uppercase transition-colors flex items-center gap-1">
-            <span class="material-symbols-outlined text-[13px]">crop_square</span>
-            2D Planar
-          </button>
-        </div>
-
-        <div class="h-4 w-[1px] bg-outline-variant/50"></div>
-
-        <!-- Epistemic Spectral Filter Chips -->
-        <div class="flex items-center gap-1 bg-surface-container-low p-0.5 border border-outline-variant/30 text-[9px] font-mono">
-          <button onclick="filterEpistemic('all')" class="filter-chip px-2 py-0.5 bg-primary/20 text-primary border border-primary/50 font-bold uppercase transition-all" data-filter="all">ALL</button>
-          <button onclick="filterEpistemic('rule')" class="filter-chip px-2 py-0.5 text-on-surface-variant hover:text-secondary-container transition-all uppercase" data-filter="rule">RULES</button>
-          <button onclick="filterEpistemic('fact')" class="filter-chip px-2 py-0.5 text-on-surface-variant hover:text-[#38bdf8] transition-all uppercase" data-filter="fact">FACTS</button>
-          <button onclick="filterEpistemic('decision')" class="filter-chip px-2 py-0.5 text-on-surface-variant hover:text-[#34d399] transition-all uppercase" data-filter="decision">DECISIONS</button>
-          <button onclick="filterEpistemic('inference')" class="filter-chip px-2 py-0.5 text-on-surface-variant hover:text-[#ddb7ff] transition-all uppercase" data-filter="inference">INFERENCES</button>
-          <button onclick="filterEpistemic('belief')" class="filter-chip px-2 py-0.5 text-on-surface-variant hover:text-amber-400 transition-all uppercase" data-filter="belief">BELIEFS</button>
-          <button onclick="filterEpistemic('goal')" class="filter-chip px-2 py-0.5 text-on-surface-variant hover:text-rose-400 transition-all uppercase" data-filter="goal">GOALS</button>
-        </div>
-
-        <div class="h-4 w-[1px] bg-outline-variant/50"></div>
-
-        <!-- SOP Triples Badge & Context Inject -->
-        <button id="ribbon-sop-btn" onclick="filterEpistemic('entity')" class="px-2.5 py-1 rounded bg-[#ffd166]/10 text-[#ffd166] border border-[#ffd166]/30 hover:bg-[#ffd166] hover:text-black font-mono font-bold text-[9px] uppercase transition-all flex items-center gap-1.5 whitespace-nowrap shrink-0 shadow-sm" title="Filter to SOP Knowledge Entities">
-          <span class="w-1.5 h-1.5 rounded-full bg-[#ffd166]"></span>
-          <span>SOP TRIPLES (<span id="ribbon-sop-count">21</span>)</span>
-        </button>
-
-        <!-- Agent Thoughts (COT) Button -->
-        <button id="ribbon-thoughts-btn" onclick="filterEpistemic('thought')" class="px-2.5 py-1 rounded bg-purple-500/10 text-[#ddb7ff] border border-purple-500/30 hover:bg-purple-500 hover:text-black font-mono font-bold text-[9px] uppercase transition-all flex items-center gap-1.5 whitespace-nowrap shrink-0 shadow-sm" title="Filter to Agent Thoughts (Chain-of-Thought Reasoning)">
-          <span class="w-1.5 h-1.5 rounded-full bg-[#c084fc] animate-pulse"></span>
-          <span>THOUGHTS (COT) (<span id="ribbon-thoughts-count">0</span>)</span>
-        </button>
-
-        <button onclick="window.openContextModal()" class="px-2 py-1 rounded bg-primary-container/20 text-primary-container border border-primary-container/40 hover:bg-primary-container hover:text-black font-mono font-bold text-[9px] uppercase transition-all flex items-center gap-1" title="Deterministic Context Injection (<5ms)">
-          <span class="material-symbols-outlined text-[12px]">bolt</span>
-          INJECT CONTEXT
-        </button>
-
-        <button onclick="window.openAiOpsModal()" class="px-2.5 py-1 rounded bg-gradient-to-r from-purple-600/30 to-cyan-500/20 text-[#ddb7ff] hover:text-white border border-purple-500/50 hover:border-purple-400 font-mono font-bold text-[9px] uppercase transition-all flex items-center gap-1 shadow-[0_0_12px_rgba(168,85,247,0.2)]" title="AI Graph Operations Studio (Whole-Graph Synthesis, Latent Link Discovery, Grounded Q&A)">
-          <span class="material-symbols-outlined text-[13px] text-purple-400">psychology</span>
-          <span>🧠 AI GRAPH OPS</span>
-        </button>
-
-        <div class="h-4 w-[1px] bg-outline-variant/50"></div>
-
-        <!-- Filter Query Input -->
-        <div class="relative flex items-center bg-surface-container-low px-2 py-1 w-64 border border-outline-variant/30 focus-within:border-primary-container transition-colors">
-          <span class="material-symbols-outlined text-outline text-[14px] mr-1.5">filter_alt</span>
-          <input id="search-input" oninput="handleSearch(this.value)" class="bg-transparent text-on-surface placeholder:text-outline/70 font-mono text-[11px] focus:outline-none w-full" placeholder="Filter 3D nodes (⌘K)..." type="text"/>
-        </div>
-
-        <div class="h-4 w-[1px] bg-outline-variant/50"></div>
-
-        <!-- Flythrough Play/Pause Button -->
-        <button onclick="toggleZenFlight()" id="btn-drone-play" class="px-2.5 py-1 bg-surface-container-low hover:bg-surface-container-high text-secondary-container font-mono text-[10px] uppercase flex items-center gap-1 border border-secondary-container/30">
-          <span id="drone-icon" class="material-symbols-outlined text-[13px]">flight_takeoff</span>
-          <span id="drone-label">Flythrough</span>
-        </button>
-
-        <!-- Quick Edge / Relation Selector Dropdown -->
-        <select id="edge-quick-selector" onchange="window.selectEdgeByIndex(this.value)" class="bg-surface-container-low font-mono text-[10px] text-[#ffd166] border border-[#ffd166]/30 px-2 py-1 focus:outline-none cursor-pointer">
-          <option value="">EDGES &amp; RELATIONS...</option>
-        </select>
-      </div>
-
-      <!-- FLOATING HUD GRAPH CONTROL STACK (Draggable & Dockable) -->
-      <div id="graph-floating-hud-toolbar" class="absolute top-16 right-4 z-30 flex flex-col items-center bg-[#090d16]/95 backdrop-blur-2xl border border-primary-container/40 rounded-lg p-1.5 shadow-[0_12px_40px_rgba(0,0,0,0.85)] space-y-1 select-none font-mono transition-transform duration-150">
-        <!-- Drag Handle -->
-        <div id="hud-drag-handle" class="w-8 h-4 flex items-center justify-center text-outline hover:text-white cursor-grab active:cursor-grabbing rounded mb-0.5" title="Drag to move HUD anywhere (Double-click to reset)">
-          <span class="material-symbols-outlined text-[15px]">drag_indicator</span>
-        </div>
-
-        <!-- Dock to Right Margin Button -->
-        <button id="btn-hud-dock" onclick="window.toggleHudDock()" class="w-8 h-7 rounded flex items-center justify-center text-outline hover:text-secondary-container hover:bg-surface-container-high transition-all" title="Dock / Undock HUD to Right Margin">
-          <span id="hud-dock-icon" class="material-symbols-outlined text-[15px]">dock_to_right</span>
-        </button>
-
-        <div class="w-5 h-[1px] bg-outline-variant/40 my-0.5"></div>
-
-        <!-- Zoom In -->
-        <button id="btn-hud-zoom-in" onclick="zoomGraphBy(1.3)" class="w-8 h-8 rounded flex items-center justify-center text-on-surface-variant hover:text-primary-container hover:bg-surface-container-high transition-all" title="Zoom In (+)">
-          <span class="material-symbols-outlined text-[17px]">add</span>
-        </button>
-        <!-- Zoom Out -->
-        <button id="btn-hud-zoom-out" onclick="zoomGraphBy(1 / 1.3)" class="w-8 h-8 rounded flex items-center justify-center text-on-surface-variant hover:text-primary-container hover:bg-surface-container-high transition-all" title="Zoom Out (−)">
-          <span class="material-symbols-outlined text-[17px]">remove</span>
-        </button>
-        <!-- Fit All Nodes -->
-        <button id="btn-hud-fit-all" onclick="fitAllGraphNodes()" class="w-8 h-8 rounded flex items-center justify-center text-on-surface-variant hover:text-secondary-container hover:bg-surface-container-high transition-all" title="Fit All Nodes (Frame Entire Lattice)">
-          <span class="material-symbols-outlined text-[17px]">fit_screen</span>
-        </button>
-        <!-- Fit Selection -->
-        <button id="btn-hud-fit-sel" onclick="fitSelectedGraphNode()" class="w-8 h-8 rounded flex items-center justify-center text-on-surface-variant hover:text-[#ffd166] hover:bg-surface-container-high transition-all" title="Fit Selection (Focus Current Node)">
-          <span class="material-symbols-outlined text-[17px]">filter_center_focus</span>
-        </button>
-
-        <div class="w-5 h-[1px] bg-outline-variant/40 my-0.5"></div>
-
-        <!-- Toggle 2D/3D Mode -->
-        <button id="btn-hud-proj" onclick="toggleProjectionMode()" class="w-8 h-8 rounded flex items-center justify-center text-primary-container bg-surface-container-high font-bold text-[11px] transition-all" title="Toggle 2D Planar / 3D Orbit Lattice">
-          <span class="material-symbols-outlined text-[17px]">view_in_ar</span>
-        </button>
-
-        <!-- Snap to Grid -->
-        <button id="btn-hud-grid" onclick="toggleGridSnap()" class="w-8 h-8 rounded flex items-center justify-center text-on-surface-variant hover:text-primary-container hover:bg-surface-container-high transition-all" title="Snap Nodes to Spatial Lattice Grid">
-          <span class="material-symbols-outlined text-[17px]">grid_view</span>
-        </button>
-
-        <!-- Auto-Rotate Turntable -->
-        <button id="btn-hud-auto-rotate" onclick="toggleAutoRotate()" class="w-8 h-8 rounded flex items-center justify-center text-on-surface-variant hover:text-primary-container hover:bg-surface-container-high transition-all" title="Toggle Continuous Turntable Auto-Rotation">
-          <span class="material-symbols-outlined text-[17px]">rotate_right</span>
-        </button>
-
-        <!-- Layout Organization Menu Button -->
-        <div class="relative">
-          <button id="btn-hud-layout" onclick="toggleLayoutMenu(event)" class="w-8 h-8 rounded flex items-center justify-center text-secondary-container hover:bg-surface-container-high transition-all" title="Change Graph Organization (Layout Modes)">
-            <span class="material-symbols-outlined text-[17px]">schema</span>
-          </button>
-          <!-- Layout Selection Flyout Popover -->
-          <div id="layout-flyout-menu" class="hidden absolute right-10 top-0 w-64 bg-[#0a0e17]/98 backdrop-blur-2xl border border-secondary-container/40 rounded-xl shadow-2xl p-2 space-y-1 z-50 text-[10px]">
-            <div class="text-[9px] text-secondary-container font-bold uppercase px-2 py-1 border-b border-outline-variant/30 flex items-center justify-between">
-              <span>ORGANIZATION LAYOUTS</span>
-              <span id="hud-active-layout-name" class="text-primary text-[8px] font-bold">GALAXY</span>
+          <!-- Primary Camera & View Controls Row -->
+          <div class="border-t border-outline-variant/20 pt-1.5 space-y-1">
+            <div class="text-[8px] text-outline uppercase font-bold">VIEW &amp; CAMERA</div>
+            <div class="grid grid-cols-6 gap-1">
+              <!-- Zoom In -->
+              <button id="btn-hud-zoom-in" onclick="zoomGraphBy(1.3)" class="w-8 h-8 rounded flex items-center justify-center text-on-surface-variant hover:text-primary-container hover:bg-surface-container-high transition-all" title="Zoom In (+)">
+                <span class="material-symbols-outlined text-[17px]">add</span>
+              </button>
+              <!-- Zoom Out -->
+              <button id="btn-hud-zoom-out" onclick="zoomGraphBy(1 / 1.3)" class="w-8 h-8 rounded flex items-center justify-center text-on-surface-variant hover:text-primary-container hover:bg-surface-container-high transition-all" title="Zoom Out (−)">
+                <span class="material-symbols-outlined text-[17px]">remove</span>
+              </button>
+              <!-- Fit All Nodes -->
+              <button id="btn-hud-fit-all" onclick="fitAllGraphNodes()" class="w-8 h-8 rounded flex items-center justify-center text-on-surface-variant hover:text-secondary-container hover:bg-surface-container-high transition-all" title="Fit All Nodes (Frame Entire Lattice)">
+                <span class="material-symbols-outlined text-[17px]">fit_screen</span>
+              </button>
+              <!-- Fit Selection / Focus -->
+              <button id="btn-hud-fit-sel" onclick="fitSelectedGraphNode()" class="w-8 h-8 rounded flex items-center justify-center text-on-surface-variant hover:text-[#ffd166] hover:bg-surface-container-high transition-all" title="Fit Selection (Focus Active Object)">
+                <span class="material-symbols-outlined text-[17px]">filter_center_focus</span>
+              </button>
+              <!-- Flythrough Play/Pause -->
+              <button onclick="toggleZenFlight()" id="btn-drone-play" class="w-8 h-8 rounded flex items-center justify-center text-secondary-container hover:bg-surface-container-high transition-all" title="Autopilot Drone Flythrough">
+                <span id="drone-icon" class="material-symbols-outlined text-[17px]">flight_takeoff</span>
+              </button>
+              <!-- Toggle 2D/3D Mode -->
+              <button id="btn-hud-proj" onclick="toggleProjectionMode()" class="w-8 h-8 rounded flex items-center justify-center text-primary-container bg-surface-container-high font-bold text-[11px] transition-all" title="Toggle 2D Planar / 3D Orbit Lattice">
+                <span class="material-symbols-outlined text-[17px]">view_in_ar</span>
+              </button>
             </div>
-            <button onclick="applyGraphLayout('galaxy')" data-layout-btn="galaxy" class="w-full text-left px-2.5 py-1.5 rounded flex items-center gap-2 hover:bg-surface-container-high transition-all bg-primary-container text-on-primary-container font-bold">
-              <span class="material-symbols-outlined text-base text-yellow-400">brightness_5</span>
-              <div>
-                <div class="font-bold">CELESTIAL GALAXY (DEFAULT)</div>
-                <div class="text-[8px] opacity-75">Sun root, equatorial scopes, harmonic disks &amp; Keplerian COT rings</div>
+
+            <div class="grid grid-cols-6 gap-1">
+              <!-- Snap to Grid -->
+              <button id="btn-hud-grid" onclick="toggleGridSnap()" class="w-8 h-8 rounded flex items-center justify-center text-on-surface-variant hover:text-primary-container hover:bg-surface-container-high transition-all" title="Snap Nodes to Spatial Lattice Grid">
+                <span class="material-symbols-outlined text-[17px]">grid_view</span>
+              </button>
+              <!-- Auto-Rotate Turntable -->
+              <button id="btn-hud-auto-rotate" onclick="toggleAutoRotate()" class="w-8 h-8 rounded flex items-center justify-center text-on-surface-variant hover:text-primary-container hover:bg-surface-container-high transition-all" title="Toggle Continuous Turntable Auto-Rotation">
+                <span class="material-symbols-outlined text-[17px]">rotate_right</span>
+              </button>
+              <!-- Layout Menu Button -->
+              <div class="relative">
+                <button id="btn-hud-layout" onclick="toggleLayoutMenu(event)" class="w-8 h-8 rounded flex items-center justify-center text-secondary-container hover:bg-surface-container-high transition-all" title="Change Graph Organization (Layout Modes)">
+                  <span class="material-symbols-outlined text-[17px]">schema</span>
+                </button>
+                <!-- Layout Selection Flyout Popover -->
+                <div id="layout-flyout-menu" class="hidden absolute right-10 top-0 w-64 bg-[#0a0e17]/98 backdrop-blur-2xl border border-secondary-container/40 rounded-xl shadow-2xl p-2 space-y-1 z-50 text-[10px]">
+                  <div class="text-[9px] text-secondary-container font-bold uppercase px-2 py-1 border-b border-outline-variant/30 flex items-center justify-between">
+                    <span>ORGANIZATION LAYOUTS</span>
+                    <span id="hud-active-layout-name" class="text-primary text-[8px] font-bold">GALAXY</span>
+                  </div>
+                  <button onclick="applyGraphLayout('galaxy')" data-layout-btn="galaxy" class="w-full text-left px-2.5 py-1.5 rounded flex items-center gap-2 hover:bg-surface-container-high transition-all bg-primary-container text-on-primary-container font-bold">
+                    <span class="material-symbols-outlined text-base text-yellow-400">brightness_5</span>
+                    <div>
+                      <div class="font-bold">CELESTIAL GALAXY (DEFAULT)</div>
+                      <div class="text-[8px] opacity-75">Sun root, equatorial scopes, harmonic disks &amp; Keplerian COT rings</div>
+                    </div>
+                  </button>
+                  <button onclick="applyGraphLayout('concentric')" data-layout-btn="concentric" class="w-full text-left px-2.5 py-1.5 rounded flex items-center gap-2 hover:bg-surface-container-high transition-all text-on-surface-variant">
+                    <span class="material-symbols-outlined text-base text-primary-container">adjust</span>
+                    <div>
+                      <div class="font-bold">CONCENTRIC HIERARCHY</div>
+                      <div class="text-[8px] opacity-75">Nested radial shells: Root ──▶ Scopes ──▶ Knowledge ──▶ COT</div>
+                    </div>
+                  </button>
+                  <button onclick="applyGraphLayout('force')" data-layout-btn="force" class="w-full text-left px-2.5 py-1.5 rounded flex items-center gap-2 hover:bg-surface-container-high transition-all text-on-surface-variant">
+                    <span class="material-symbols-outlined text-base text-emerald-400">bubble_chart</span>
+                    <div>
+                      <div class="font-bold">FORCE-DIRECTED CLUSTERS</div>
+                      <div class="text-[8px] opacity-75">Coulomb repulsion &amp; spring link semantic relaxation</div>
+                    </div>
+                  </button>
+                  <button onclick="applyGraphLayout('decks')" data-layout-btn="decks" class="w-full text-left px-2.5 py-1.5 rounded flex items-center gap-2 hover:bg-surface-container-high transition-all text-on-surface-variant">
+                    <span class="material-symbols-outlined text-base text-purple-400">layers</span>
+                    <div>
+                      <div class="font-bold">2.5D MULTI-DECK MATRIX</div>
+                      <div class="text-[8px] opacity-75">Elevated tiers: Rules (top), Decisions, Facts, COT (base)</div>
+                    </div>
+                  </button>
+                  <button onclick="applyGraphLayout('helix')" data-layout-btn="helix" class="w-full text-left px-2.5 py-1.5 rounded flex items-center gap-2 hover:bg-surface-container-high transition-all text-on-surface-variant">
+                    <span class="material-symbols-outlined text-base text-cyan-400">cyclone</span>
+                    <div>
+                      <div class="font-bold">CHRONO-HELIX SPIRAL</div>
+                      <div class="text-[8px] opacity-75">Ascending double helix ordered by temporal timestamp</div>
+                    </div>
+                  </button>
+                </div>
               </div>
+              <!-- Shape Menu Button -->
+              <div class="relative">
+                <button id="btn-hud-shape" onclick="window.toggleShapeMenu(event)" class="w-8 h-8 rounded flex items-center justify-center text-primary-container hover:bg-surface-container-high transition-all" title="Change Node Geometry Shape">
+                  <span id="hud-shape-icon" class="material-symbols-outlined text-[17px]">token</span>
+                </button>
+                <!-- Shape Selection Flyout Popover -->
+                <div id="shape-flyout-menu" class="hidden absolute right-10 top-0 w-64 bg-[#0a0e17]/98 backdrop-blur-2xl border border-primary-container/40 rounded-xl shadow-2xl p-2 space-y-1 z-50 text-[10px]">
+                  <div class="text-[9px] text-primary-container font-bold uppercase px-2 py-1 border-b border-outline-variant/30 flex items-center justify-between">
+                    <span>NODE 3D GEOMETRY</span>
+                    <span id="hud-active-shape-name" class="text-secondary-container text-[8px] font-bold">CUBES</span>
+                  </div>
+                  <button onclick="window.applyNodeShape('cubes')" data-shape-btn="cubes" class="w-full text-left px-2.5 py-1.5 rounded flex items-center gap-2 hover:bg-surface-container-high transition-all bg-primary-container text-on-primary-container font-bold">
+                    <span class="material-symbols-outlined text-base text-cyan-400">deployed_code</span>
+                    <div>
+                      <div class="font-bold">CYBERNETIC VOXEL CUBES</div>
+                      <div class="text-[8px] opacity-75">Clean glowing 6-facet memory voxels</div>
+                    </div>
+                  </button>
+                  <button onclick="window.applyNodeShape('spheres')" data-shape-btn="spheres" class="w-full text-left px-2.5 py-1.5 rounded flex items-center gap-2 hover:bg-surface-container-high transition-all text-on-surface-variant">
+                    <span class="material-symbols-outlined text-base text-emerald-400">circle</span>
+                    <div>
+                      <div class="font-bold">CELESTIAL PLANETARY SPHERES</div>
+                      <div class="text-[8px] opacity-75">Smooth planetary orbs in harmonic orbit</div>
+                    </div>
+                  </button>
+                  <button onclick="window.applyNodeShape('diamonds')" data-shape-btn="diamonds" class="w-full text-left px-2.5 py-1.5 rounded flex items-center gap-2 hover:bg-surface-container-high transition-all text-on-surface-variant">
+                    <span class="material-symbols-outlined text-base text-purple-400">diamond</span>
+                    <div>
+                      <div class="font-bold">QUANTUM OCTAHEDRONS</div>
+                      <div class="text-[8px] opacity-75">8-facet gemstone crystal nodes</div>
+                    </div>
+                  </button>
+                  <button onclick="window.applyNodeShape('pyramids')" data-shape-btn="pyramids" class="w-full text-left px-2.5 py-1.5 rounded flex items-center gap-2 hover:bg-surface-container-high transition-all text-on-surface-variant">
+                    <span class="material-symbols-outlined text-base text-amber-400">change_history</span>
+                    <div>
+                      <div class="font-bold">CRYSTAL TETRAHEDRONS</div>
+                      <div class="text-[8px] opacity-75">Sharp angular tetrahedral crystal points</div>
+                    </div>
+                  </button>
+                  <button onclick="window.applyNodeShape('geodesic')" data-shape-btn="geodesic" class="w-full text-left px-2.5 py-1.5 rounded flex items-center gap-2 hover:bg-surface-container-high transition-all text-on-surface-variant">
+                    <span class="material-symbols-outlined text-base text-rose-400">hexagon</span>
+                    <div>
+                      <div class="font-bold">GEODESIC ICOSAHEDRONS</div>
+                      <div class="text-[8px] opacity-75">20-facet complex polyhedral geodesics</div>
+                    </div>
+                  </button>
+                  <button onclick="window.applyNodeShape('torus')" data-shape-btn="torus" class="w-full text-left px-2.5 py-1.5 rounded flex items-center gap-2 hover:bg-surface-container-high transition-all text-on-surface-variant">
+                    <span class="material-symbols-outlined text-base text-yellow-400">radio_button_unchecked</span>
+                    <div>
+                      <div class="font-bold">HARMONIC RINGS (TORUS)</div>
+                      <div class="text-[8px] opacity-75">Spinning annular topological rings</div>
+                    </div>
+                  </button>
+                </div>
+              </div>
+              <!-- Dialectic Contradiction Lens -->
+              <button id="btn-hud-contradictions" onclick="window.toggleContradictionLens()" class="w-8 h-8 rounded flex items-center justify-center text-rose-400 hover:text-white hover:bg-rose-500/20 transition-all relative" title="Toggle Dialectic Contradiction Lens (Highlight Conflicts)">
+                <span class="material-symbols-outlined text-[17px]">crisis_alert</span>
+                <span id="hud-contra-badge" class="hidden absolute -top-1 -right-1 w-3.5 h-3.5 rounded-full bg-rose-500 text-white font-bold text-[8px] flex items-center justify-center shadow">!</span>
+              </button>
+              <!-- Fullscreen Canvas -->
+              <button id="btn-hud-fullscreen" onclick="toggleGraphFullscreen()" class="w-8 h-8 rounded flex items-center justify-center text-on-surface-variant hover:text-primary-container hover:bg-surface-container-high transition-all" title="Toggle Fullscreen Canvas">
+                <span class="material-symbols-outlined text-[17px]">fullscreen</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Secondary Toggles (Labels, Edges, Shake, Legend) -->
+          <div class="grid grid-cols-4 gap-1 border-t border-outline-variant/20 pt-1.5">
+            <button id="btn-hud-labels" onclick="toggleNodeLabels()" class="h-7 rounded flex items-center justify-center gap-1 text-[8px] text-on-surface-variant hover:text-primary-container hover:bg-surface-container-high transition-all border border-outline-variant/30" title="Toggle 3D Floating Node Labels">
+              <span class="material-symbols-outlined text-[13px]">label</span>
+              <span>LABELS</span>
             </button>
-            <button onclick="applyGraphLayout('concentric')" data-layout-btn="concentric" class="w-full text-left px-2.5 py-1.5 rounded flex items-center gap-2 hover:bg-surface-container-high transition-all text-on-surface-variant">
-              <span class="material-symbols-outlined text-base text-primary-container">adjust</span>
-              <div>
-                <div class="font-bold">CONCENTRIC HIERARCHY</div>
-                <div class="text-[8px] opacity-75">Nested radial shells: Root ──▶ Scopes ──▶ Knowledge ──▶ COT</div>
-              </div>
+            <button id="btn-hud-edges" onclick="toggleGraphEdges()" class="h-7 rounded flex items-center justify-center gap-1 text-[8px] text-primary-container bg-surface-container-high transition-all border border-outline-variant/30" title="Toggle Connector Links">
+              <span class="material-symbols-outlined text-[13px]">timeline</span>
+              <span>EDGES</span>
             </button>
-            <button onclick="applyGraphLayout('force')" data-layout-btn="force" class="w-full text-left px-2.5 py-1.5 rounded flex items-center gap-2 hover:bg-surface-container-high transition-all text-on-surface-variant">
-              <span class="material-symbols-outlined text-base text-emerald-400">bubble_chart</span>
-              <div>
-                <div class="font-bold">FORCE-DIRECTED CLUSTERS</div>
-                <div class="text-[8px] opacity-75">Coulomb repulsion &amp; spring link semantic relaxation</div>
-              </div>
+            <button id="btn-hud-shake" onclick="shakeGraphNodes()" class="h-7 rounded flex items-center justify-center gap-1 text-[8px] text-on-surface-variant hover:text-amber-400 hover:bg-surface-container-high transition-all border border-outline-variant/30" title="Shake Simulation">
+              <span class="material-symbols-outlined text-[13px]">restart_alt</span>
+              <span>SHAKE</span>
             </button>
-            <button onclick="applyGraphLayout('decks')" data-layout-btn="decks" class="w-full text-left px-2.5 py-1.5 rounded flex items-center gap-2 hover:bg-surface-container-high transition-all text-on-surface-variant">
-              <span class="material-symbols-outlined text-base text-purple-400">layers</span>
-              <div>
-                <div class="font-bold">2.5D MULTI-DECK MATRIX</div>
-                <div class="text-[8px] opacity-75">Elevated tiers: Rules (top), Decisions, Facts, COT (base)</div>
-              </div>
-            </button>
-            <button onclick="applyGraphLayout('helix')" data-layout-btn="helix" class="w-full text-left px-2.5 py-1.5 rounded flex items-center gap-2 hover:bg-surface-container-high transition-all text-on-surface-variant">
-              <span class="material-symbols-outlined text-base text-cyan-400">cyclone</span>
-              <div>
-                <div class="font-bold">CHRONO-HELIX SPIRAL</div>
-                <div class="text-[8px] opacity-75">Ascending double helix ordered by temporal timestamp</div>
-              </div>
+            <button id="btn-hud-legend" onclick="toggleGraphLegend()" class="h-7 rounded flex items-center justify-center gap-1 text-[8px] text-on-surface-variant hover:text-primary-container hover:bg-surface-container-high transition-all border border-outline-variant/30" title="Toggle Legend">
+              <span class="material-symbols-outlined text-[13px]">category</span>
+              <span>LEGEND</span>
             </button>
           </div>
-        </div>
 
-        <!-- Node Shape Selector Menu Button -->
-        <div class="relative">
-          <button id="btn-hud-shape" onclick="window.toggleShapeMenu(event)" class="w-8 h-8 rounded flex items-center justify-center text-primary-container hover:bg-surface-container-high transition-all" title="Change Node Geometry Shape (Spheres, Cubes, Diamonds...)">
-            <span id="hud-shape-icon" class="material-symbols-outlined text-[17px]">token</span>
-          </button>
-          <!-- Shape Selection Flyout Popover -->
-          <div id="shape-flyout-menu" class="hidden absolute right-10 top-0 w-64 bg-[#0a0e17]/98 backdrop-blur-2xl border border-primary-container/40 rounded-xl shadow-2xl p-2 space-y-1 z-50 text-[10px]">
-            <div class="text-[9px] text-primary-container font-bold uppercase px-2 py-1 border-b border-outline-variant/30 flex items-center justify-between">
-              <span>NODE 3D GEOMETRY</span>
-              <span id="hud-active-shape-name" class="text-secondary-container text-[8px] font-bold">CUBES</span>
-            </div>
-            <button onclick="window.applyNodeShape('cubes')" data-shape-btn="cubes" class="w-full text-left px-2.5 py-1.5 rounded flex items-center gap-2 hover:bg-surface-container-high transition-all bg-primary-container text-on-primary-container font-bold">
-              <span class="material-symbols-outlined text-base text-cyan-400">deployed_code</span>
-              <div>
-                <div class="font-bold">CYBERNETIC VOXEL CUBES</div>
-                <div class="text-[8px] opacity-75">Clean glowing 6-facet memory voxels</div>
-              </div>
+          <!-- AI Studio & Context Inject Actions -->
+          <div class="grid grid-cols-2 gap-1.5 border-t border-outline-variant/20 pt-1.5">
+            <button onclick="window.openContextModal()" class="px-2 py-1 rounded bg-primary-container/20 text-primary-container border border-primary-container/40 hover:bg-primary-container hover:text-black font-mono font-bold text-[8px] uppercase transition-all flex items-center justify-center gap-1 truncate" title="Deterministic Context Injection (<5ms)">
+              <span class="material-symbols-outlined text-[12px]">bolt</span>
+              <span>INJECT CONTEXT</span>
             </button>
-            <button onclick="window.applyNodeShape('spheres')" data-shape-btn="spheres" class="w-full text-left px-2.5 py-1.5 rounded flex items-center gap-2 hover:bg-surface-container-high transition-all text-on-surface-variant">
-              <span class="material-symbols-outlined text-base text-emerald-400">circle</span>
-              <div>
-                <div class="font-bold">CELESTIAL PLANETARY SPHERES</div>
-                <div class="text-[8px] opacity-75">Smooth planetary orbs in harmonic orbit</div>
-              </div>
-            </button>
-            <button onclick="window.applyNodeShape('diamonds')" data-shape-btn="diamonds" class="w-full text-left px-2.5 py-1.5 rounded flex items-center gap-2 hover:bg-surface-container-high transition-all text-on-surface-variant">
-              <span class="material-symbols-outlined text-base text-purple-400">diamond</span>
-              <div>
-                <div class="font-bold">QUANTUM OCTAHEDRONS</div>
-                <div class="text-[8px] opacity-75">8-facet gemstone crystal nodes</div>
-              </div>
-            </button>
-            <button onclick="window.applyNodeShape('pyramids')" data-shape-btn="pyramids" class="w-full text-left px-2.5 py-1.5 rounded flex items-center gap-2 hover:bg-surface-container-high transition-all text-on-surface-variant">
-              <span class="material-symbols-outlined text-base text-amber-400">change_history</span>
-              <div>
-                <div class="font-bold">CRYSTAL TETRAHEDRONS</div>
-                <div class="text-[8px] opacity-75">Sharp angular tetrahedral crystal points</div>
-              </div>
-            </button>
-            <button onclick="window.applyNodeShape('geodesic')" data-shape-btn="geodesic" class="w-full text-left px-2.5 py-1.5 rounded flex items-center gap-2 hover:bg-surface-container-high transition-all text-on-surface-variant">
-              <span class="material-symbols-outlined text-base text-rose-400">hexagon</span>
-              <div>
-                <div class="font-bold">GEODESIC ICOSAHEDRONS</div>
-                <div class="text-[8px] opacity-75">20-facet complex polyhedral geodesics</div>
-              </div>
-            </button>
-            <button onclick="window.applyNodeShape('torus')" data-shape-btn="torus" class="w-full text-left px-2.5 py-1.5 rounded flex items-center gap-2 hover:bg-surface-container-high transition-all text-on-surface-variant">
-              <span class="material-symbols-outlined text-base text-yellow-400">radio_button_unchecked</span>
-              <div>
-                <div class="font-bold">HARMONIC RINGS (TORUS)</div>
-                <div class="text-[8px] opacity-75">Spinning annular topological rings</div>
-              </div>
+            <button onclick="window.openAiOpsModal()" class="px-2 py-1 rounded bg-gradient-to-r from-purple-600/30 to-cyan-500/20 text-[#ddb7ff] hover:text-white border border-purple-500/50 hover:border-purple-400 font-mono font-bold text-[8px] uppercase transition-all flex items-center justify-center gap-1 shadow-[0_0_12px_rgba(168,85,247,0.2)] truncate" title="AI Graph Operations Studio">
+              <span class="material-symbols-outlined text-[12px] text-purple-400">psychology</span>
+              <span>AI GRAPH OPS</span>
             </button>
           </div>
+
         </div>
-
-        <!-- Contradiction Dialectic Lens Button -->
-        <button id="btn-hud-contradictions" onclick="window.toggleContradictionLens()" class="w-8 h-8 rounded flex items-center justify-center text-rose-400 hover:text-white hover:bg-rose-500/20 transition-all relative" title="Toggle Dialectic Contradiction Lens (Highlight Conflicts)">
-          <span class="material-symbols-outlined text-[17px]">crisis_alert</span>
-          <span id="hud-contra-badge" class="hidden absolute -top-1 -right-1 w-3.5 h-3.5 rounded-full bg-rose-500 text-white font-bold text-[8px] flex items-center justify-center shadow">!</span>
-        </button>
-
-        <div class="w-5 h-[1px] bg-outline-variant/40 my-0.5"></div>
-
-        <!-- Toggle Node Labels -->
-        <button id="btn-hud-labels" onclick="toggleNodeLabels()" class="w-8 h-8 rounded flex items-center justify-center text-on-surface-variant hover:text-primary-container hover:bg-surface-container-high transition-all" title="Toggle 3D Floating Node Labels">
-          <span class="material-symbols-outlined text-[17px]">label</span>
-        </button>
-
-        <!-- Toggle Connector Edges -->
-        <button id="btn-hud-edges" onclick="toggleGraphEdges()" class="w-8 h-8 rounded flex items-center justify-center text-primary-container bg-surface-container-high transition-all" title="Toggle Connector Links &amp; Beams">
-          <span class="material-symbols-outlined text-[17px]">timeline</span>
-        </button>
-
-        <!-- Shake / Dynamic Re-heat -->
-        <button id="btn-hud-shake" onclick="shakeGraphNodes()" class="w-8 h-8 rounded flex items-center justify-center text-on-surface-variant hover:text-amber-400 hover:bg-surface-container-high transition-all" title="Shake &amp; Re-disperse Simulation Velocity">
-          <span class="material-symbols-outlined text-[17px]">restart_alt</span>
-        </button>
-
-        <!-- Toggle Universal Legend -->
-        <button id="btn-hud-legend" onclick="toggleGraphLegend()" class="w-8 h-8 rounded flex items-center justify-center text-on-surface-variant hover:text-primary-container hover:bg-surface-container-high transition-all" title="Toggle Interactive Graph Legend &amp; Node Filters (L)">
-          <span class="material-symbols-outlined text-[17px]">category</span>
-        </button>
-
-        <!-- Fullscreen Canvas -->
-        <button id="btn-hud-fullscreen" onclick="toggleGraphFullscreen()" class="w-8 h-8 rounded flex items-center justify-center text-on-surface-variant hover:text-primary-container hover:bg-surface-container-high transition-all" title="Toggle Fullscreen Canvas">
-          <span class="material-symbols-outlined text-[17px]">fullscreen</span>
-        </button>
       </div>
 
       <!-- Quick 3D Node Tooltip / Inspection Hover Card -->
@@ -4454,29 +4444,48 @@
       });
     };
 
-    window.flyToNode = function(node) {
+    window.focusNode = function(node) {
       if (!node) return;
+      if (typeof switchView === 'function') switchView('graph');
       isFlying = false;
-      const nx = node.pos3D[0];
-      const ny = node.pos3D[1];
-      const nz = node.pos3D[2];
-      
-      nodeFlyTarget = {
-        cam: new THREE.Vector3(nx + 40, ny + 25, nz + 90),
-        look: new THREE.Vector3(nx, ny, nz)
-      };
-      isNodeFlyFocus = true;
+      isNodeFlyFocus = false;
+      nodeFlyTarget = null;
+      activeSelectedNode = node;
+      window.activeSelectedNode = node;
 
-      const mesh = cubeMeshes.find(m => m.userData.id === node.id);
+      // Locate 3D mesh: try id match on userData or userData.data
+      const mesh = cubeMeshes.find(m => m.userData && (m.userData.id === node.id || m.userData.data?.id === node.id));
+      let pLocal;
+      if (mesh && mesh.userData && mesh.userData.targetBase) {
+        pLocal = new THREE.Vector3(mesh.userData.targetBase[0], mesh.userData.targetBase[1], mesh.userData.targetBase[2]);
+      } else if (mesh) {
+        pLocal = mesh.position.clone();
+      } else {
+        const pos = node.pos3D || [0, 0, 0];
+        pLocal = new THREE.Vector3(pos[0], pos[1], pos[2]);
+      }
+
+      // Three.js order: graphGroup rotation is currentRotation.x/y.
+      // Child world pos: P_world = R * P_local + graphGroup.position
+      // To center child at (0, 0, 0) world coordinates: targetPan = -(R * P_local)
+      const euler = new THREE.Euler(targetRotation.x, targetRotation.y, 0, 'XYZ');
+      const pRot = pLocal.clone().applyEuler(euler);
+      targetPan.set(-pRot.x, -pRot.y, -pRot.z);
+      zoomTarget = Math.max(120, Math.min(zoomTarget, 240));
+
       if (mesh) {
         mesh.scale.set(1.45, 1.45, 1.45);
         setTimeout(() => mesh.scale.set(1.0, 1.0, 1.0), 380);
       }
+      if (typeof window.updateZoomHud === 'function') window.updateZoomHud();
     };
+    window.flyToNode = window.focusNode;
 
     function select3DEdge(edge, sourceNode, targetNode, dist) {
       if (!sourceNode || !targetNode) return;
       isFlying = false;
+      isNodeFlyFocus = false;
+      nodeFlyTarget = null;
 
       const p1 = new THREE.Vector3(...(sourceNode.pos3D || [0, 0, 0]));
       const p2 = new THREE.Vector3(...(targetNode.pos3D || [0, 0, 0]));
@@ -4498,30 +4507,35 @@
       graphGroup.add(selectedEdgeMesh);
 
       // Smoothly orient camera towards the selected edge midpoint
-      nodeFlyTarget = {
-        cam: new THREE.Vector3(mid.x + 35, mid.y + 40, mid.z + Math.max(140, span * 1.3)),
-        look: mid
-      };
-      isNodeFlyFocus = true;
+      const euler = new THREE.Euler(targetRotation.x, targetRotation.y, 0, 'XYZ');
+      const midRot = mid.clone().applyEuler(euler);
+      targetPan.set(-midRot.x, -midRot.y, -midRot.z);
+      zoomTarget = Math.max(160, span * 1.35);
 
       if (!inspectorOpen) toggleInspector();
       switchTab('replay');
 
       renderEdgeInspector(edge, sourceNode, targetNode, span);
+      if (typeof window.updateZoomHud === 'function') window.updateZoomHud();
     }
 
     let activeSelectedNode = null;
     let activeSelectedEdge = null;
+    window.activeSelectedNode = null;
+    window.activeSelectedEdge = null;
 
     window.focusCurrentTarget = function() {
-      if (activeSelectedNode) {
-        flyToNode(activeSelectedNode);
+      const node = activeSelectedNode || window.activeSelectedNode || (cubeMeshes.length > 0 ? cubeMeshes[0].userData.data : null);
+      if (node) {
+        window.focusNode(node);
       } else if (activeSelectedEdge && activeSelectedEdge.mid) {
-        nodeFlyTarget = {
-          cam: new THREE.Vector3(activeSelectedEdge.mid.x + 35, activeSelectedEdge.mid.y + 40, activeSelectedEdge.mid.z + 140),
-          look: activeSelectedEdge.mid
-        };
-        isNodeFlyFocus = true;
+        isFlying = false;
+        isNodeFlyFocus = false;
+        const euler = new THREE.Euler(targetRotation.x, targetRotation.y, 0, 'XYZ');
+        const midRot = activeSelectedEdge.mid.clone().applyEuler(euler);
+        targetPan.set(-midRot.x, -midRot.y, -midRot.z);
+        zoomTarget = Math.max(160, (activeSelectedEdge.dist || 100) * 1.35);
+        if (typeof window.updateZoomHud === 'function') window.updateZoomHud();
       }
     };
 
@@ -4742,7 +4756,7 @@
                 </div>
                 <div class="text-white font-bold text-xs truncate mt-0.5">${sourceNode.title}</div>
               </div>
-              <button onclick="window.selectNodeById('${sourceNode.id}')" class="px-2 py-1 bg-primary-container text-on-primary-container text-[9px] font-bold uppercase rounded hover:brightness-110 shrink-0">
+              <button onclick="window.selectNodeById(decodeURIComponent('${encodeURIComponent(sourceNode.id)}'))" class="px-2 py-1 bg-primary-container text-on-primary-container text-[9px] font-bold uppercase rounded hover:brightness-110 shrink-0">
                 Focus Subject
               </button>
             </div>
@@ -4767,7 +4781,7 @@
                 </div>
                 <div class="text-white font-bold text-xs truncate mt-0.5">${targetNode.title}</div>
               </div>
-              <button onclick="window.selectNodeById('${targetNode.id}')" class="px-2 py-1 bg-secondary-container text-on-secondary-container text-[9px] font-bold uppercase rounded hover:brightness-110 shrink-0">
+              <button onclick="window.selectNodeById(decodeURIComponent('${encodeURIComponent(targetNode.id)}'))" class="px-2 py-1 bg-secondary-container text-on-secondary-container text-[9px] font-bold uppercase rounded hover:brightness-110 shrink-0">
                 Focus Object
               </button>
             </div>
@@ -4808,7 +4822,9 @@
       switchTab('replay');
 
       activeSelectedNode = node;
+      window.activeSelectedNode = node;
       activeSelectedEdge = null;
+      window.activeSelectedEdge = null;
 
       const isEntity = node.type === 'entity';
       const isThought = node.type === 'thought' || node.category === 'thought';
@@ -5181,8 +5197,22 @@
     window.nodeDefs = nodeDefs;
     window.linkDefs = currentLinks;
     window.selectNodeById = function(id) {
-      const match = nodeDefs.find(n => n.id === id);
-      if (match) select3DNode(match);
+      if (typeof switchView === 'function') switchView('graph');
+      let match = (nodeDefs || []).find(n => n.id === id);
+      if (!match) {
+        const sel = document.getElementById('graph-scope-selector');
+        if (sel && sel.value !== 'all') {
+          sel.value = 'all';
+          loadGraphData('all').then(() => {
+            const found = (nodeDefs || []).find(n => n.id === id);
+            if (found) select3DNode(found);
+          });
+          return null;
+        }
+      }
+      if (match) {
+        select3DNode(match);
+      }
       return match;
     };
     window.selectEdgeByIndex = function(idx) {
@@ -5327,20 +5357,23 @@
 
       targetRotation.x = 0.15;
       targetRotation.y = -0.2;
+      const euler = new THREE.Euler(targetRotation.x, targetRotation.y, 0, 'XYZ');
+      const center = new THREE.Vector3(cx, cy, cz);
+      const centerRot = center.clone().applyEuler(euler);
+      targetPan.set(-centerRot.x, -centerRot.y, -centerRot.z);
       zoomTarget = Math.max(340, maxSpan * 1.35);
-
-      nodeFlyTarget = {
-        cam: new THREE.Vector3(cx, cy + 60, cz + zoomTarget),
-        look: new THREE.Vector3(cx, cy, cz)
-      };
-      isNodeFlyFocus = true;
+      isFlying = false;
+      isNodeFlyFocus = false;
+      nodeFlyTarget = null;
+      if (typeof window.updateZoomHud === 'function') window.updateZoomHud();
     };
 
     window.fitSelectedGraphNode = function() {
-      if (activeSelectedNode) {
-        flyToNode(activeSelectedNode);
-      } else if (cubeMeshes.length > 0) {
-        flyToNode(cubeMeshes[0].userData.data);
+      const node = activeSelectedNode || window.activeSelectedNode || (cubeMeshes.length > 0 ? cubeMeshes[0].userData.data : null);
+      if (node) {
+        window.focusNode(node);
+      } else {
+        window.fitAllGraphNodes();
       }
     };
 
@@ -9241,7 +9274,9 @@ ${staticFacts.length > 0 ? `## Static Knowledge Core:\n${staticFacts.map(f => `-
       switchTab('replay');
 
       activeSelectedNode = node;
+      window.activeSelectedNode = node;
       activeSelectedEdge = null;
+      window.activeSelectedEdge = null;
 
       document.getElementById('drawer-session-id').innerText = node.title || node.labelTag || node.id;
       const badge = document.getElementById('drawer-status-badge');
@@ -11154,6 +11189,10 @@ ${staticFacts.length > 0 ? `## Static Knowledge Core:\n${staticFacts.map(f => `-
         e.preventDefault();
         focusSearch();
       }
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'g') {
+        e.preventDefault();
+        if (window.toggleHudCollapse) window.toggleHudCollapse();
+      }
       if (e.key === '1') switchView('graph');
       if (e.key === '2') switchView('timeline');
       if (e.key === '3') switchView('spectral');
@@ -11221,15 +11260,12 @@ ${staticFacts.length > 0 ? `## Static Knowledge Core:\n${staticFacts.map(f => `-
     };
 
     window.focusCurrentNodeOrCenter = function() {
-      if (window.activeSelectedNode && window.activeSelectedNode.pos3D) {
-        const [nx, ny, nz] = window.activeSelectedNode.pos3D;
-        targetPan.set(-nx, -ny, -nz);
-        zoomTarget = 180;
+      const node = window.activeSelectedNode || activeSelectedNode || (cubeMeshes.length > 0 ? cubeMeshes[0].userData.data : null);
+      if (node && window.focusNode) {
+        window.focusNode(node);
       } else {
-        targetPan.set(0, 0, 0);
-        zoomTarget = 480;
+        window.resetGraphCamera();
       }
-      window.updateZoomHud();
     };
 
     window.updateZoomHud = function() {
@@ -11256,11 +11292,36 @@ ${staticFacts.length > 0 ? `## Static Knowledge Core:\n${staticFacts.map(f => `-
     // HUD DRAG, DOCK, SHAPES & CONTRADICTION ENGINE CONTROLLERS
     // -------------------------------------------------------------------------
     window.isHudDocked = localStorage.getItem('supercortex_hud_docked') === 'true';
+    window.isHudCollapsed = localStorage.getItem('supercortex_hud_collapsed') === 'true';
+
+    window.toggleHudCollapse = function(collapse) {
+      if (collapse === undefined) {
+        window.isHudCollapsed = !window.isHudCollapsed;
+      } else {
+        window.isHudCollapsed = Boolean(collapse);
+      }
+      localStorage.setItem('supercortex_hud_collapsed', window.isHudCollapsed ? 'true' : 'false');
+      const foldedBtn = document.getElementById('hud-folded-btn');
+      const panel = document.getElementById('hud-expanded-panel');
+      if (foldedBtn && panel) {
+        if (window.isHudCollapsed) {
+          panel.classList.add('hidden');
+          foldedBtn.classList.remove('hidden');
+        } else {
+          panel.classList.remove('hidden');
+          foldedBtn.classList.add('hidden');
+        }
+      }
+    };
 
     window.initDraggableHud = function() {
       const hud = document.getElementById('graph-floating-hud-toolbar');
       const handle = document.getElementById('hud-drag-handle');
-      if (!hud || !handle) return;
+      const foldedBtn = document.getElementById('hud-folded-btn');
+      if (!hud) return;
+
+      // Restore collapsed state
+      window.toggleHudCollapse(window.isHudCollapsed);
 
       // Restore saved position or docked state
       if (window.isHudDocked) {
@@ -11279,9 +11340,12 @@ ${staticFacts.length > 0 ? `## Static Knowledge Core:\n${staticFacts.map(f => `-
 
       let isDragging = false;
       let startX, startY, origLeft, origTop;
+      let movedDistance = 0;
 
-      handle.addEventListener('mousedown', (e) => {
+      function onDragStart(e) {
+        if (e.button !== 0) return;
         isDragging = true;
+        movedDistance = 0;
         startX = e.clientX;
         startY = e.clientY;
         const rect = hud.getBoundingClientRect();
@@ -11291,13 +11355,24 @@ ${staticFacts.length > 0 ? `## Static Knowledge Core:\n${staticFacts.map(f => `-
         hud.style.left = `${origLeft}px`;
         hud.style.top = `${origTop}px`;
         document.body.style.userSelect = 'none';
-        e.preventDefault();
-      });
+      }
+
+      if (handle) handle.addEventListener('mousedown', onDragStart);
+      if (foldedBtn) {
+        foldedBtn.addEventListener('mousedown', onDragStart);
+        foldedBtn.addEventListener('click', (e) => {
+          if (movedDistance > 5) {
+            e.stopPropagation();
+            return;
+          }
+        });
+      }
 
       document.addEventListener('mousemove', (e) => {
         if (!isDragging) return;
         const dx = e.clientX - startX;
         const dy = e.clientY - startY;
+        movedDistance += Math.abs(dx) + Math.abs(dy);
         const newLeft = Math.max(10, Math.min(window.innerWidth - hud.offsetWidth - 10, origLeft + dx));
         const newTop = Math.max(45, Math.min(window.innerHeight - hud.offsetHeight - 10, origTop + dy));
         hud.style.left = `${newLeft}px`;
@@ -11315,14 +11390,16 @@ ${staticFacts.length > 0 ? `## Static Knowledge Core:\n${staticFacts.map(f => `-
       });
 
       // Double-click handle to reset to top-right
-      handle.addEventListener('dblclick', () => {
-        hud.style.left = 'auto';
-        hud.style.right = '16px';
-        hud.style.top = '64px';
-        window.isHudDocked = false;
-        localStorage.removeItem('supercortex_hud_pos');
-        localStorage.setItem('supercortex_hud_docked', 'false');
-      });
+      if (handle) {
+        handle.addEventListener('dblclick', () => {
+          hud.style.left = 'auto';
+          hud.style.right = '16px';
+          hud.style.top = '64px';
+          window.isHudDocked = false;
+          localStorage.removeItem('supercortex_hud_pos');
+          localStorage.setItem('supercortex_hud_docked', 'false');
+        });
+      }
     };
 
     window.toggleHudDock = function() {
@@ -12037,26 +12114,29 @@ ${staticFacts.length > 0 ? `## Static Knowledge Core:\n${staticFacts.map(f => `-
 
     window.focusConflictAxis = function(nodeAId, nodeBId) {
       if (!nodeDefs || !cubeMeshes) return;
+      if (typeof switchView === 'function') switchView('graph');
       const idxA = nodeDefs.findIndex(n => n.id === nodeAId);
       const idxB = nodeDefs.findIndex(n => n.id === nodeBId);
       if (idxA === -1 || idxB === -1) return;
 
-      const pA = cubeMeshes[idxA].position;
-      const pB = cubeMeshes[idxB].position;
+      const pA = cubeMeshes[idxA] ? cubeMeshes[idxA].position : new THREE.Vector3(...(nodeDefs[idxA].pos3D || [0, 0, 0]));
+      const pB = cubeMeshes[idxB] ? cubeMeshes[idxB].position : new THREE.Vector3(...(nodeDefs[idxB].pos3D || [0, 0, 0]));
       const mid = new THREE.Vector3().addVectors(pA, pB).multiplyScalar(0.5);
       const dist = pA.distanceTo(pB);
 
-      // Smooth camera transition to frame both nodes perpendicular to tension axis
       isFlying = false;
-      targetLookAt.copy(mid);
-      camera.lookAt(mid);
+      isNodeFlyFocus = false;
+      nodeFlyTarget = null;
+
+      const euler = new THREE.Euler(targetRotation.x, targetRotation.y, 0, 'XYZ');
+      const midRot = mid.clone().applyEuler(euler);
+      targetPan.set(-midRot.x, -midRot.y, -midRot.z);
       zoomTarget = Math.max(160, dist * 1.5);
-      azimuthTarget = Math.atan2(pB.z - pA.z, pB.x - pA.x) + Math.PI / 2;
-      polarTarget = 1.35;
+      if (typeof window.updateZoomHud === 'function') window.updateZoomHud();
 
       // Pulse the contradiction arrow and rings
-      if (cubeMeshes[idxA].userData.contraRing) cubeMeshes[idxA].userData.contraRing.scale.set(1.6, 1.6, 1.6);
-      if (cubeMeshes[idxB].userData.contraRing) cubeMeshes[idxB].userData.contraRing.scale.set(1.6, 1.6, 1.6);
+      if (cubeMeshes[idxA] && cubeMeshes[idxA].userData.contraRing) cubeMeshes[idxA].userData.contraRing.scale.set(1.6, 1.6, 1.6);
+      if (cubeMeshes[idxB] && cubeMeshes[idxB].userData.contraRing) cubeMeshes[idxB].userData.contraRing.scale.set(1.6, 1.6, 1.6);
     };
 
     window.resolveContradiction = async function(action, winnerId, loserId) {
