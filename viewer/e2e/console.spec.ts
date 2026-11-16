@@ -333,7 +333,7 @@ test.describe('tools open over the lens they were opened from', () => {
     await page.getByRole('tab', { name: 'Account' }).click()
     await expect(page.getByText(/connected with a token/)).toBeVisible()
     await page.getByRole('tab', { name: 'Developer' }).click()
-    await page.getByRole('button', { name: 'Run self-test' }).click()
+    await expect(page.getByRole('form', { name: 'Trust vault lookup' })).toBeVisible()
   })
 })
 
