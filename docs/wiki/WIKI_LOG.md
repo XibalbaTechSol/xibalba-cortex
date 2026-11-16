@@ -1,5 +1,15 @@
 # Xibalba Cortex Wiki — Log
 
+## [2026-11-16] remove | Kernel-bridge testbed retired with the Phase I kernel
+
+- `IntegrityKernel`/`IntegrityAccount` were archived in integrity-core (tag `kernel-phase1-archive`), so the
+  opt-in kernel bridge they backed is gone: `kernel_bridge.py`, `XIBALBA_KERNEL_BRIDGE_ENABLED` in the Claude
+  adapter, `GET /api/session/{id}/kernel-intents`, `POST /api/kernel-bridge/self-test`,
+  `GraphStore.kernel_bridge_intents()`, the viewer's Sessions → Kernel intents tab and the Settings →
+  Developer self-test.
+- `pre_tool.kernel_decision` on invocations stays: it carries the generic pre-tool policy verdict
+  (allow / deny / ask), which the Invocations list now labels **Decision**.
+
 ## [2026-11-14] feat | Unified billing UI with cycle renewal, threshold gauges, and return banners
 
 - Refactored `viewer/src/console/pages/BillingPage.tsx` and `viewer/src/console/billing.ts` to share visual design grammar and billing structures with Xibalba Shield.

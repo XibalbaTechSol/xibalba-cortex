@@ -1,5 +1,5 @@
 // Sessions: every session in the workspace, and for the selected one its exchanges, replay,
-// telemetry, decision trace and kernel intents. Also the cross-session invocation list.
+// telemetry and decision trace. Also the cross-session invocation list.
 //
 // Everything here is read from the store. Recording an exchange and building exchanges from
 // telemetry are the two writes, offered only in a writable workspace. Chain verification lives in
@@ -21,8 +21,8 @@ import { Page } from './Page'
 import { DecisionTracePanel } from '../DecisionTracePanel'
 
 const PAGE_SIZE = 30
-type Tab = 'exchanges' | 'memories' | 'replay' | 'telemetry' | 'trace' | 'kernel'
-const TABS: Array<[Tab, string]> = [['exchanges', 'Exchanges'], ['memories', 'Memories'], ['replay', 'Replay'], ['telemetry', 'Telemetry'], ['trace', 'Decision trace'], ['kernel', 'Kernel intents']]
+type Tab = 'exchanges' | 'memories' | 'replay' | 'telemetry' | 'trace'
+const TABS: Array<[Tab, string]> = [['exchanges', 'Exchanges'], ['memories', 'Memories'], ['replay', 'Replay'], ['telemetry', 'Telemetry'], ['trace', 'Decision trace']]
 
 const stamp = (value: string | null | undefined): string => {
   const ms = parseServerTime(value)
@@ -178,7 +178,6 @@ function SessionDetail({ session, onVerify, onBack }: { session: Session; onVeri
         {tab === 'replay' && <ReplayTab id={id} />}
         {tab === 'telemetry' && <TelemetryTab id={id} />}
         {tab === 'trace' && <TraceTab id={id} />}
-        {tab === 'kernel' && <KernelTab id={id} />}
       </div></div>
     </>
   )
@@ -365,32 +364,6 @@ function TraceTab({ id }: { id: string }) {
   )
 }
 
-function KernelTab({ id }: { id: string }) {
-  const { workspace, revision } = useConsole()
-  const list = useAsync(() => api.kernelIntents(id, workspace.scope), [id, workspace.scope, revision])
-  return (
-    <>
-      <p className="xc-note">Each row pairs what an agent declared it would do, the kernel’s decision, and what happened. Correlation only; it does not prove causality or execution.</p>
-      <Loading state={list} empty={(l) => l.length === 0}>
-        {(items) => (
-          <ol className="xc-exchanges">
-            {items.map((k) => {
-              const d = describeKernelDecision(k.kernel_decision)
-              return (
-                <li key={`${k.invocation_id}-${k.tool_call_id}`} className="xc-exchange">
-                  <div className="xc-card-top"><b className="xc-card-title xc-mono">{k.tool_name ?? 'tool'}</b><span className={`xc-tag ${toneClass(d.tone)}`}><i />{d.verdict}{d.detail ? ` · ${d.detail}` : ''}</span></div>
-                  <p className="xc-turn"><span className="xc-meta">declared</span> {k.declared_intent.intent_rationale ?? '—'}</p>
-                  <p className="xc-meta">outcome: {typeof k.actual_outcome?.outcome === 'string' ? k.actual_outcome.outcome : 'not yet recorded'} · correlated by {k.correlation_mode.replace(/_/g, ' ')}</p>
-                </li>
-              )
-            })}
-          </ol>
-        )}
-      </Loading>
-    </>
-  )
-}
-
 // --- invocations ------------------------------------------------------------------------------------
 
 function Invocations() {
@@ -403,7 +376,7 @@ function Invocations() {
         <Loading state={list} empty={(l) => l.length === 0}>
           {() => (
             <table className="xc-table xc-memories-table">
-              <thead><tr><th>Last seen</th><th>Tool</th><th>Status</th><th>Kernel</th><th>Session</th></tr></thead>
+              <thead><tr><th>Last seen</th><th>Tool</th><th>Status</th><th>Decision</th><th>Session</th></tr></thead>
               <tbody>
                 {rows.map((i) => {
                   const st = INVOCATION_STATUS[i.runtime_status]

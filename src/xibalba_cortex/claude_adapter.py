@@ -5,7 +5,6 @@ hook callbacks into normalized controller events and canonical memory writes.
 """
 from __future__ import annotations
 
-import os
 import uuid
 from dataclasses import dataclass, field
 from typing import Any, Literal
@@ -15,13 +14,6 @@ from integrity_sdk import normalize_hook
 from .runtime_bridge_contract import RuntimeEvent
 from .runtime_controller import XibalbaRuntimeController
 
-# Opt-in only (~/.claude/plans/iridescent-stirring-kettle.md, Phase C): submitting a real
-# UserOp through the kernel-bridge testbed adds real on-chain latency and requires the local
-# anvil devnet to be up, so this must never fire on a normal tool call unless explicitly asked
-# for. Unset/false is the default and costs nothing beyond one os.environ.get.
-_KERNEL_BRIDGE_ENV = "XIBALBA_KERNEL_BRIDGE_ENABLED"
-_KERNEL_BRIDGE_TEST_VALUE_WEI = int(0.01 * 10**18)
-_KERNEL_BRIDGE_TEST_RECIPIENT = "0x" + "0" * 38 + "ff"
 _INVOCATION_NAMESPACE = uuid.UUID("9f7df4b9-8538-4c58-9044-b34d56454f13")
 
 
@@ -49,28 +41,6 @@ def _invocation_id(session_id: str, tool_call_id: str | None, supplied: str | No
     if tool_call_id:
         return str(uuid.uuid5(_INVOCATION_NAMESPACE, f"claude:{session_id}:{tool_call_id}"))
     return str(uuid.uuid4())
-
-
-def _kernel_bridge_enabled() -> bool:
-    return os.environ.get(_KERNEL_BRIDGE_ENV, "").strip().lower() in {"1", "true", "yes"}
-
-
-def _maybe_submit_kernel_intent(*, intent_rationale: str | None, tool_name: str | None) -> dict[str, Any] | None:
-    """Best-effort, opt-in only. Never raises -- a devnet that's down or misconfigured must not
-    break the real tool call this is annotating. Returns None whenever the bridge is disabled,
-    there's no intent_rationale to gate, or the submission itself failed."""
-    if not _kernel_bridge_enabled() or not intent_rationale:
-        return None
-    try:
-        from .kernel_bridge import submit_kernel_intent
-
-        decision = submit_kernel_intent(
-            recipient=_KERNEL_BRIDGE_TEST_RECIPIENT,
-            value_wei=_KERNEL_BRIDGE_TEST_VALUE_WEI,
-        )
-        return {"tool_name": tool_name, **decision.to_dict()}
-    except Exception as exc:  # noqa: BLE001 -- deliberately broad, see docstring
-        return {"tool_name": tool_name, "error": str(exc)}
 
 
 @dataclass(slots=True)
@@ -343,15 +313,12 @@ class ClaudeAdapter:
             tool_name=tool_name,
             tool_input_hash=tool_input_hash,
         )
-        kernel_decision = _maybe_submit_kernel_intent(intent_rationale=intent_rationale, tool_name=tool_name)
         metadata = {
             "hook": "pre_tool_call",
             "tool_call_id": normalized["tool_call_id"],
             "policy_reason": decision["reason"],
             "event_id": normalized["event_id"],
         }
-        if kernel_decision is not None:
-            metadata["kernel_decision"] = kernel_decision
         self.controller.ingest_event(
             RuntimeEvent(
                 runtime=self.runtime,
@@ -370,8 +337,6 @@ class ClaudeAdapter:
         )
         result = dict(decision)
         result["invocation_id"] = invocation_id
-        if kernel_decision is not None:
-            result["kernel_decision"] = kernel_decision
         return result
 
     def api_request_error(self, *, session_id: str | None = None, **kwargs: Any) -> dict[str, Any]:

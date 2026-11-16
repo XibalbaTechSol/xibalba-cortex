@@ -5,7 +5,7 @@ or documented route is not classified, so nothing becomes hidden by omission.
 
 ## Summary
 
-- **94 documented HTTP routes** and 23 more the handler serves but its docstring omits.
+- **92 documented HTTP routes** and 23 more the handler serves but its docstring omits.
 - **103 MCP tools**: 57 have a console surface, 46 are machine protocols (27 of them `runtime_*` harness hooks), 0 are deliberately withheld from a browser.
 
 Statuses: **console** = a surface covers it. **machine** = a protocol for workers or agent harnesses; a person should not be
@@ -74,9 +74,7 @@ route that does not exist yet.
 | `POST /api/projections/{id}/reconcile` | Integrity → Checkpoints → Reconcile |
 | `POST /api/projections/{id}/rebuild` | Integrity → Checkpoints → Rebuild (confirmed) |
 | `GET /api/graph` | Graph and Timeline lenses |
-| `GET /api/session/{id}/kernel-intents` | Sessions → Kernel intents |
 | `GET /api/invocations` | Sessions → Invocations |
-| `POST /api/kernel-bridge/self-test` | Settings → Developer → Kernel bridge self-test |
 | `POST /api/otel/batch` | NOT A CONSOLE FEATURE: machine telemetry ingest (agents and the OTLP receiver) |
 | `GET /api/profile/config` | Settings → Profile (read-only) |
 | `GET /api/auth/tokens` | Settings → Access → API tokens |

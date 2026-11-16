@@ -101,7 +101,6 @@ the *Top bar* layout option.
 | Review — a read-only workspace | `Review.tsx` | The queue can be inspected, not decided on; the drawer says why. |
 | Sessions — the memories a session wrote · drawer | `pages/SessionsPage.tsx` | GET /api/session/{id}/memories |
 | Sessions — decision trace lookup · drawer | `pages/SessionsPage.tsx` | GET /api/session/{id}/decision-trace; the trace id comes from the runtime that made the decision. |
-| Sessions — kernel intents · drawer | `pages/SessionsPage.tsx` | GET /api/session/{id}/kernel-intents |
 | Agents — pair a device · drawer | `pages/AgentsPage.tsx (PairForm)` | POST /api/agent-devices/associate |
 | Agents — a paired device, with rename, detach and revoke · drawer | `pages/AgentsPage.tsx` | Revoke is the danger-quiet button; detach keeps the pairing record. |
 | Settings — Account, signed in as an account · drawer | `pages/settings/AccountSection.tsx` | ILLUSTRATIVE DATA: the dev fixture signs in by token, which has no account, so /api/auth/me, /sessions and /events were stubbed with the real response shapes (accounts.py). |

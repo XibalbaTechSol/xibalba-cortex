@@ -679,17 +679,6 @@ export interface SessionMerkleProof {
   disclaimer: string
 }
 
-export interface KernelIntent {
-  invocation_id: string | null
-  tool_call_id: string | null
-  correlation_mode: 'invocation_id' | 'legacy_tool_call_id'
-  tool_name: string | null
-  declared_intent: { intent_rationale: string | null; tool_input_hash: string | null }
-  kernel_decision: Record<string, unknown>
-  actual_outcome: Record<string, unknown>
-  [key: string]: unknown
-}
-
 export interface Invocation {
   invocation_id: string
   session_id: string
@@ -901,19 +890,6 @@ export interface InferenceSettings {
   promotion_policy: 'confidence_gated' | 'review_required'
   contradictions_require_review: boolean
 }
-
-/** One on-chain verdict from IntegrityKernel for a self-test UserOperation (kernel_bridge.KernelDecision.to_dict). */
-export interface KernelBridgeDecision {
-  user_op_hash: string
-  success: boolean | null
-  actual_gas_cost: number | string | null
-  revert_reason_hex: string | null
-  adapter_note: string | null
-}
-
-export type KernelBridgeSelfTest =
-  | { ok: false; error: string }
-  | { ok: true; matched: KernelBridgeDecision; kernel_exceeding: KernelBridgeDecision; passed: boolean }
 
 /** GET /api/memory/{id}/verify-chain (GraphStore.verify_chain). */
 export interface ChainVerification {
@@ -1520,7 +1496,6 @@ export const api = {
     getJson<TraversalResult>(`/api/entity/path?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}&max_depth=${maxDepth}${scopeParams(scope)}`),
   sessionReplay: (id: string, scope: WorkspaceScope = {}) => getJson<SessionReplay>(`/api/session/${encodeURIComponent(id)}/replay?${scopeParams(scope).slice(1)}`),
   sessionOtel: (id: string, scope: WorkspaceScope = {}) => getJson<OtelEvent[]>(`/api/session/${encodeURIComponent(id)}/otel?${scopeParams(scope).slice(1)}`),
-  kernelIntents: (id: string, scope: WorkspaceScope = {}) => getJson<KernelIntent[]>(`/api/session/${encodeURIComponent(id)}/kernel-intents?${scopeParams(scope).slice(1)}`),
   decisionTrace: (id: string, traceId: string, scope: WorkspaceScope = {}) =>
     getJson<DecisionTrace>(`/api/session/${encodeURIComponent(id)}/decision-trace?trace_id=${encodeURIComponent(traceId)}${scopeParams(scope)}`),
   /** URL of the server-rendered audit view; opened in a new tab, so it carries the session cookie. */
@@ -1623,13 +1598,6 @@ export const api = {
   revokeAuthToken: (tokenId: string) => postJson<{ ok: boolean }>('/api/auth/tokens/revoke', { token_id: tokenId }),
   pendingAccounts: () => getJson<{ accounts: PendingAccount[] }>('/api/auth/admin/pending'),
   approveAccount: (email: string) => postJson<{ ok: boolean }>('/api/auth/admin/approve', { email }),
-  /**
-   * Guided System Test for the kernel bridge. Without a session id it only submits the two
-   * UserOperations and reports the decisions; with one it also records them as real
-   * pre/post_tool_call events in that session. A bridge that is not deployed answers 200 with
-   * `ok: false` and the reason in `error`, which callers must show, not swallow.
-   */
-  kernelBridgeSelfTest: (sessionId?: string) => postJson<KernelBridgeSelfTest>('/api/kernel-bridge/self-test', sessionId ? { session_id: sessionId } : {}),
   inferenceSettings: () => getJson<InferenceSettings>('/api/settings/inference'),
   updateInferenceSettings: (settings: InferenceSettings) => postJson<{ok: boolean; inference: InferenceSettings; message: string}>('/api/settings/inference', settings as unknown as Record<string, unknown>),
   ingestTriples: (payload: { triples: unknown[]; source_name?: string; agent_id?: string; shared?: boolean }) =>

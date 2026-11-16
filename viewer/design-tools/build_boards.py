@@ -125,7 +125,6 @@ board('ReviewTasks', 'review-tasks', 'Review — inference tasks by status', 'bu
 board('ReviewReadonly', 'review-readonly', 'Review — a read-only workspace', 'built', 'Review.tsx', 'The queue can be inspected, not decided on; the drawer says why.')
 board('SessionsMemories', 'sessions-memories', 'Sessions — the memories a session wrote', 'built', 'pages/SessionsPage.tsx', 'GET /api/session/{id}/memories')
 board('SessionsTrace', 'sessions-trace', 'Sessions — decision trace lookup', 'built', 'pages/SessionsPage.tsx', 'GET /api/session/{id}/decision-trace; the trace id comes from the runtime that made the decision.')
-board('SessionsKernel', 'sessions-kernel', 'Sessions — kernel intents', 'built', 'pages/SessionsPage.tsx', 'GET /api/session/{id}/kernel-intents')
 board('AgentsPair', 'agents-pair', 'Agents — pair a device', 'built', 'pages/AgentsPage.tsx (PairForm)', 'POST /api/agent-devices/associate')
 board('AgentsPaired', 'agents-paired', 'Agents — a paired device, with rename, detach and revoke', 'built', 'pages/AgentsPage.tsx', 'Revoke is the danger-quiet button; detach keeps the pairing record.')
 board('SettingsAccountSignedIn', 'settings-account-signed-in', 'Settings — Account, signed in as an account', 'built', 'pages/settings/AccountSection.tsx', 'ILLUSTRATIVE DATA: the dev fixture signs in by token, which has no account, so /api/auth/me, /sessions and /events were stubbed with the real response shapes (accounts.py).')
@@ -187,7 +186,7 @@ ROWS = [
     ('Inspector actions: link an entity, mark a contradiction', ['InspectorLink', 'InspectorContradict']),
     ('Review: PARA, tasks, and a read-only queue', ['ReviewPara', 'ReviewTasks']),
     ('Review (continued) and the Sessions tabs', ['ReviewReadonly', 'SessionsMemories']),
-    ('Sessions: decision trace and kernel intents', ['SessionsTrace', 'SessionsKernel']),
+    ('Sessions: decision trace', ['SessionsTrace']),
     ('Agents: pairing a device', ['AgentsPair', 'AgentsPaired']),
     ('Account: signed in, and the ways sign-in fails', ['SettingsAccountSignedIn', 'SignInError']),
     ('Sign-in: waiting for approval, and an expired session', ['SignInPending', 'SignInExpired']),
