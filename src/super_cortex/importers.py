@@ -40,8 +40,8 @@ def _parse_iso_or_millis(val: Any) -> str:
 
 def scan_and_import_local_sessions(
     cortex: SuperCortex | None = None,
-    limit_per_source: int = 10,
-    max_turns_per_session: int = 20,
+    limit_per_source: int = 50,
+    max_turns_per_session: int = 60,
 ) -> dict[str, Any]:
     """Discover and ingest local agent sessions into Super-Cortex provenance store."""
     cortex = cortex or SuperCortex()

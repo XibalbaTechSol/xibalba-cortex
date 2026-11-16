@@ -179,7 +179,7 @@ def create_app(config: SuperCortexConfig | None = None) -> Starlette:
             "document": 0x00f0ff,   # Cyan
         }
 
-        # Central Root Hub: Shared Memory Fabric
+        # Central Root Hub: Shared Memory Fabric (Celestial Core Sun)
         nodes.append({
             "id": "hub_shared",
             "title": "Shared Memory Fabric",
@@ -189,9 +189,9 @@ def create_app(config: SuperCortexConfig | None = None) -> Starlette:
             "status": "active",
             "epistemic_class": "rule",
             "color": 0x00f0ff,
-            "size": 34,
-            "pos3D": [0, 20, 0],
-            "pos2D": [0, 20, 0],
+            "size": 36,
+            "pos3D": [0, 0, 0],
+            "pos2D": [0, 0, 0],
             "isLineage": True,
             "confidence": 1.0,
             "hash": "0xSHARED_FABRIC",
@@ -199,7 +199,7 @@ def create_app(config: SuperCortexConfig | None = None) -> Starlette:
             "scope": "shared",
         })
 
-        # Satellite Agent Hubs
+        # Satellite Agent Hubs (Equatorial Planetary Orbit, R = 170)
         agent_positions: dict[str, list[float]] = {}
         active_agents = [a for a in agents if a["status"] == "active"]
         num_agents = max(len(active_agents), 1)
@@ -207,11 +207,11 @@ def create_app(config: SuperCortexConfig | None = None) -> Starlette:
         for i, agent in enumerate(active_agents):
             aid = agent["agent_id"]
             angle = (2 * math.pi / num_agents) * i
-            radius = 240.0
+            radius = 170.0
             ax = math.cos(angle) * radius
-            ay = math.sin(angle * 2) * 40.0 + 10.0
+            ay = 0.0
             az = math.sin(angle) * radius
-            agent_positions[aid] = [ax, ay, az]
+            agent_positions[aid] = [round(ax, 1), round(ay, 1), round(az, 1)]
 
             hub_id = f"hub_agent_{aid}"
             nodes.append({
@@ -225,7 +225,7 @@ def create_app(config: SuperCortexConfig | None = None) -> Starlette:
                 "color": 0x00ffa3,
                 "size": 26,
                 "pos3D": [round(ax, 1), round(ay, 1), round(az, 1)],
-                "pos2D": [round(ax, 1), round(ay, 1), 0],
+                "pos2D": [round(ax, 1), round(az, 1), 0],
                 "isLineage": True,
                 "confidence": 1.0,
                 "hash": f"0xAGENT_{aid.upper()}",
@@ -242,7 +242,14 @@ def create_app(config: SuperCortexConfig | None = None) -> Starlette:
                 "label": "Federated Scope Bridge",
             })
 
-        # Memory Voxel Nodes
+        # Memory Voxel Nodes (Organized by Harmonic Epistemic Sectors on Equatorial Disk, R = 230..310)
+        sector_counts: dict[str, int] = {"rule": 0, "fact": 0, "decision": 0}
+        sector_angles = {
+            "rule": 0.0,                   # Sector 0 rad (0° to 120°)
+            "fact": (2.0 * math.pi / 3.0), # Sector 2.09 rad (120° to 240°)
+            "decision": (4.0 * math.pi / 3.0), # Sector 4.18 rad (240° to 360°)
+        }
+
         for idx, row in enumerate(mem_rows):
             mem_id = row["id"]
             try:
@@ -261,26 +268,19 @@ def create_app(config: SuperCortexConfig | None = None) -> Starlette:
             if selected_scope and selected_scope != "all" and mem_scope != selected_scope:
                 continue
 
-            # Deterministic spatial positioning around respective hub
-            int_seed = int(row["content_hash"][:8], 16)
-            theta = (int_seed % 360) * (math.pi / 180.0)
-            phi = ((int_seed >> 8) % 180) * (math.pi / 180.0)
+            sec_key = ep_class if ep_class in sector_counts else ("fact" if ep_class not in ("rule", "decision") else ep_class)
+            k = sector_counts[sec_key]
+            sector_counts[sec_key] += 1
 
-            if mem_scope.startswith("agent:") and mem_agent_id in agent_positions:
-                center = agent_positions[mem_agent_id]
-                m_rad = 60.0 + (int_seed % 40)
-            elif mem_scope.startswith("agent:"):
-                # Agent scope without registered position
-                center = [120, 80, -120]
-                m_rad = 60.0
-            else:
-                # Shared scope clusters around center
-                center = [0, 20, 0]
-                m_rad = 120.0 + (int_seed % 70)
+            # Fermat spiral distribution within the 110-degree sector cone
+            base_angle = sector_angles[sec_key]
+            angle_offset = (k * 0.22) % (math.pi * 0.6)
+            current_angle = base_angle + angle_offset
+            m_rad = 230.0 + (k * 4.2) % 75.0
 
-            px = center[0] + m_rad * math.sin(phi) * math.cos(theta)
-            py = center[1] + m_rad * math.cos(phi) * 0.6
-            pz = center[2] + m_rad * math.sin(phi) * math.sin(theta)
+            px = m_rad * math.cos(current_angle)
+            py = math.sin(k * 1.2) * 16.0
+            pz = m_rad * math.sin(current_angle)
 
             color = epistemic_colors.get(ep_class, 0x38bdf8)
 
@@ -297,7 +297,7 @@ def create_app(config: SuperCortexConfig | None = None) -> Starlette:
                 "color": color,
                 "size": 15,
                 "pos3D": [round(px, 1), round(py, 1), round(pz, 1)],
-                "pos2D": [round(px, 1), round(py, 1), 0],
+                "pos2D": [round(px, 1), round(pz, 1), 0],
                 "confidence": 0.95,
                 "hash": row["content_hash"][:16],
                 "full_hash": row["content_hash"],
@@ -308,7 +308,7 @@ def create_app(config: SuperCortexConfig | None = None) -> Starlette:
             })
 
             # Link memory to its parent hub
-            target_hub = f"hub_agent_{mem_agent_id}" if mem_scope.startswith("agent:") and mem_agent_id else "hub_shared"
+            target_hub = f"hub_agent_{mem_agent_id}" if mem_scope.startswith("agent:") and mem_agent_id in agent_positions else "hub_shared"
             links.append({
                 "source": target_hub,
                 "target": mem_id,
@@ -324,12 +324,13 @@ def create_app(config: SuperCortexConfig | None = None) -> Starlette:
                        turn_hash, parent_hash, created_at, scope_id, agent_id
                 FROM exchanges
                 WHERE thinking_text IS NOT NULL AND trim(thinking_text) != ''
-                ORDER BY rowid DESC LIMIT 80
+                ORDER BY rowid DESC LIMIT 150
                 """
             )
             thought_rows = thought_cursor.fetchall()
 
         thought_count = 0
+        agent_thought_counts: dict[str, int] = {}
         for trow in thought_rows:
             th_text = (trow["thinking_text"] or "").strip()
             if not th_text:
@@ -342,23 +343,22 @@ def create_app(config: SuperCortexConfig | None = None) -> Starlette:
                 continue
 
             th_id = f"thought_{trow['exchange_id']}"
-            int_seed = int(trow["turn_hash"][:8], 16)
-            theta = (int_seed % 360) * (math.pi / 180.0)
-            phi = ((int_seed >> 8) % 180) * (math.pi / 180.0)
+            t_idx = agent_thought_counts.get(th_aid, 0)
+            agent_thought_counts[th_aid] = t_idx + 1
 
-            if th_aid in agent_positions:
-                center = agent_positions[th_aid]
-                th_rad = 50.0 + (int_seed % 35)
-            elif th_scope.startswith("agent:"):
-                center = [120, 80, -120]
-                th_rad = 50.0 + (int_seed % 30)
-            else:
-                center = [0, 60, 0]
-                th_rad = 80.0 + (int_seed % 40)
+            center = agent_positions.get(th_aid, [0, 40, 0])
+            # Elegant Keplerian satellite ring orbit around parent agent hub
+            orb_r = 54.0 + (t_idx % 5) * 6.5
+            orb_angle = (t_idx * 0.38) % (2.0 * math.pi)
+            tilt_angle = 0.55  # ~31.5 degree inclination
 
-            tx = center[0] + th_rad * math.sin(phi) * math.cos(theta)
-            ty = center[1] + th_rad * math.cos(phi) * 0.7
-            tz = center[2] + th_rad * math.sin(phi) * math.sin(theta)
+            dx = orb_r * math.cos(orb_angle)
+            dy = orb_r * math.sin(orb_angle) * math.sin(tilt_angle)
+            dz = orb_r * math.sin(orb_angle) * math.cos(tilt_angle)
+
+            tx = center[0] + dx
+            ty = center[1] + dy
+            tz = center[2] + dz
 
             th_title = th_text[:40] + ("..." if len(th_text) > 40 else "")
             nodes.append({
@@ -372,7 +372,7 @@ def create_app(config: SuperCortexConfig | None = None) -> Starlette:
                 "color": 0xa855f7,  # Vibrant Amethyst Purple for Chain-of-Thought Reasoning
                 "size": 17,
                 "pos3D": [round(tx, 1), round(ty, 1), round(tz, 1)],
-                "pos2D": [round(tx, 1), round(ty, 1), 0],
+                "pos2D": [round(tx, 1), round(tz, 1), 0],
                 "confidence": 0.99,
                 "hash": f"0xCOT_{trow['turn_hash'][:12]}",
                 "full_hash": trow["turn_hash"],
@@ -396,23 +396,26 @@ def create_app(config: SuperCortexConfig | None = None) -> Starlette:
                 "label": "deliberates (COT)",
             })
 
-        # Collect unique entity nodes from relational triples
+        # Collect unique entity nodes from relational triples (Inclined Golden Asteroid Belt, R = 360)
         entity_names = set()
         for r in rel_rows:
             entity_names.add(r["subject"])
             entity_names.add(r["object"])
 
         existing_node_ids = {n["id"] for n in nodes}
-        for ent in sorted(entity_names):
+        sorted_entities = sorted(entity_names)
+        num_entities = max(len(sorted_entities), 1)
+
+        for ent_idx, ent in enumerate(sorted_entities):
             if ent in existing_node_ids:
                 continue
-            int_seed = int(hashlib.sha256(ent.encode()).hexdigest()[:8], 16)
-            theta = (int_seed % 360) * (math.pi / 180.0)
-            phi = ((int_seed >> 8) % 180) * (math.pi / 180.0)
-            e_rad = 170.0 + (int_seed % 60)
-            ex = e_rad * math.sin(phi) * math.cos(theta)
-            ey = e_rad * math.cos(phi) * 0.5 + 20.0
-            ez = e_rad * math.sin(phi) * math.sin(theta)
+            alpha = (2.0 * math.pi / num_entities) * ent_idx
+            e_rad = 360.0 + (ent_idx % 4) * 12.0
+            tilt_e = 0.24  # ~14 degrees inclination
+
+            ex = e_rad * math.cos(alpha)
+            ey = e_rad * math.sin(alpha) * math.sin(tilt_e)
+            ez = e_rad * math.sin(alpha) * math.cos(tilt_e)
 
             nodes.append({
                 "id": ent,
@@ -425,7 +428,7 @@ def create_app(config: SuperCortexConfig | None = None) -> Starlette:
                 "color": 0xffd166,  # Vibrant amber / golden yellow for Knowledge Entities
                 "size": 18,
                 "pos3D": [round(ex, 1), round(ey, 1), round(ez, 1)],
-                "pos2D": [round(ex, 1), round(ey, 1), 0],
+                "pos2D": [round(ex, 1), round(ez, 1), 0],
                 "confidence": 0.98,
                 "hash": f"0xENT_{hashlib.sha256(ent.encode()).hexdigest()[:8].upper()}",
                 "content": f"Knowledge Graph Entity in Subject-Object-Predicate relational network.",

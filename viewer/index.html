@@ -952,6 +952,119 @@
         </select>
       </div>
 
+      <!-- FLOATING HUD GRAPH CONTROL STACK (Inspired by Cortex Graph Lens) -->
+      <div id="graph-floating-hud-toolbar" class="absolute top-16 right-4 z-30 flex flex-col items-center bg-[#090d16]/95 backdrop-blur-2xl border border-primary-container/40 rounded-lg p-1.5 shadow-[0_12px_40px_rgba(0,0,0,0.85)] space-y-1 select-none font-mono">
+        <!-- Zoom In -->
+        <button id="btn-hud-zoom-in" onclick="zoomGraphBy(1.3)" class="w-8 h-8 rounded flex items-center justify-center text-on-surface-variant hover:text-primary-container hover:bg-surface-container-high transition-all" title="Zoom In (+)">
+          <span class="material-symbols-outlined text-[17px]">add</span>
+        </button>
+        <!-- Zoom Out -->
+        <button id="btn-hud-zoom-out" onclick="zoomGraphBy(1 / 1.3)" class="w-8 h-8 rounded flex items-center justify-center text-on-surface-variant hover:text-primary-container hover:bg-surface-container-high transition-all" title="Zoom Out (−)">
+          <span class="material-symbols-outlined text-[17px]">remove</span>
+        </button>
+        <!-- Fit All Nodes -->
+        <button id="btn-hud-fit-all" onclick="fitAllGraphNodes()" class="w-8 h-8 rounded flex items-center justify-center text-on-surface-variant hover:text-secondary-container hover:bg-surface-container-high transition-all" title="Fit All Nodes (Frame Entire Lattice)">
+          <span class="material-symbols-outlined text-[17px]">fit_screen</span>
+        </button>
+        <!-- Fit Selection -->
+        <button id="btn-hud-fit-sel" onclick="fitSelectedGraphNode()" class="w-8 h-8 rounded flex items-center justify-center text-on-surface-variant hover:text-[#ffd166] hover:bg-surface-container-high transition-all" title="Fit Selection (Focus Current Node)">
+          <span class="material-symbols-outlined text-[17px]">filter_center_focus</span>
+        </button>
+
+        <div class="w-5 h-[1px] bg-outline-variant/40 my-0.5"></div>
+
+        <!-- Toggle 2D/3D Mode -->
+        <button id="btn-hud-proj" onclick="toggleProjectionMode()" class="w-8 h-8 rounded flex items-center justify-center text-primary-container bg-surface-container-high font-bold text-[11px] transition-all" title="Toggle 2D Planar / 3D Orbit Lattice">
+          <span class="material-symbols-outlined text-[17px]">view_in_ar</span>
+        </button>
+
+        <!-- Snap to Grid -->
+        <button id="btn-hud-grid" onclick="toggleGridSnap()" class="w-8 h-8 rounded flex items-center justify-center text-on-surface-variant hover:text-primary-container hover:bg-surface-container-high transition-all" title="Snap Nodes to Spatial Lattice Grid">
+          <span class="material-symbols-outlined text-[17px]">grid_view</span>
+        </button>
+
+        <!-- Auto-Rotate Turntable -->
+        <button id="btn-hud-auto-rotate" onclick="toggleAutoRotate()" class="w-8 h-8 rounded flex items-center justify-center text-on-surface-variant hover:text-primary-container hover:bg-surface-container-high transition-all" title="Toggle Continuous Turntable Auto-Rotation">
+          <span class="material-symbols-outlined text-[17px]">rotate_right</span>
+        </button>
+
+        <!-- Layout Organization Menu Button -->
+        <div class="relative">
+          <button id="btn-hud-layout" onclick="toggleLayoutMenu(event)" class="w-8 h-8 rounded flex items-center justify-center text-secondary-container hover:bg-surface-container-high transition-all" title="Change Graph Organization (Layout Modes)">
+            <span class="material-symbols-outlined text-[17px]">schema</span>
+          </button>
+          <!-- Layout Selection Flyout Popover -->
+          <div id="layout-flyout-menu" class="hidden absolute right-10 top-0 w-64 bg-[#0a0e17]/98 backdrop-blur-2xl border border-secondary-container/40 rounded-xl shadow-2xl p-2 space-y-1 z-50 text-[10px]">
+            <div class="text-[9px] text-secondary-container font-bold uppercase px-2 py-1 border-b border-outline-variant/30 flex items-center justify-between">
+              <span>ORGANIZATION LAYOUTS</span>
+              <span id="hud-active-layout-name" class="text-primary text-[8px] font-bold">GALAXY</span>
+            </div>
+            <button onclick="applyGraphLayout('galaxy')" data-layout-btn="galaxy" class="w-full text-left px-2.5 py-1.5 rounded flex items-center gap-2 hover:bg-surface-container-high transition-all bg-primary-container text-on-primary-container font-bold">
+              <span class="material-symbols-outlined text-base text-yellow-400">brightness_5</span>
+              <div>
+                <div class="font-bold">CELESTIAL GALAXY (DEFAULT)</div>
+                <div class="text-[8px] opacity-75">Sun root, equatorial scopes, harmonic disks &amp; Keplerian COT rings</div>
+              </div>
+            </button>
+            <button onclick="applyGraphLayout('concentric')" data-layout-btn="concentric" class="w-full text-left px-2.5 py-1.5 rounded flex items-center gap-2 hover:bg-surface-container-high transition-all text-on-surface-variant">
+              <span class="material-symbols-outlined text-base text-primary-container">adjust</span>
+              <div>
+                <div class="font-bold">CONCENTRIC HIERARCHY</div>
+                <div class="text-[8px] opacity-75">Nested radial shells: Root ──▶ Scopes ──▶ Knowledge ──▶ COT</div>
+              </div>
+            </button>
+            <button onclick="applyGraphLayout('force')" data-layout-btn="force" class="w-full text-left px-2.5 py-1.5 rounded flex items-center gap-2 hover:bg-surface-container-high transition-all text-on-surface-variant">
+              <span class="material-symbols-outlined text-base text-emerald-400">bubble_chart</span>
+              <div>
+                <div class="font-bold">FORCE-DIRECTED CLUSTERS</div>
+                <div class="text-[8px] opacity-75">Coulomb repulsion &amp; spring link semantic relaxation</div>
+              </div>
+            </button>
+            <button onclick="applyGraphLayout('decks')" data-layout-btn="decks" class="w-full text-left px-2.5 py-1.5 rounded flex items-center gap-2 hover:bg-surface-container-high transition-all text-on-surface-variant">
+              <span class="material-symbols-outlined text-base text-purple-400">layers</span>
+              <div>
+                <div class="font-bold">2.5D MULTI-DECK MATRIX</div>
+                <div class="text-[8px] opacity-75">Elevated tiers: Rules (top), Decisions, Facts, COT (base)</div>
+              </div>
+            </button>
+            <button onclick="applyGraphLayout('helix')" data-layout-btn="helix" class="w-full text-left px-2.5 py-1.5 rounded flex items-center gap-2 hover:bg-surface-container-high transition-all text-on-surface-variant">
+              <span class="material-symbols-outlined text-base text-cyan-400">cyclone</span>
+              <div>
+                <div class="font-bold">CHRONO-HELIX SPIRAL</div>
+                <div class="text-[8px] opacity-75">Ascending double helix ordered by temporal timestamp</div>
+              </div>
+            </button>
+          </div>
+        </div>
+
+        <div class="w-5 h-[1px] bg-outline-variant/40 my-0.5"></div>
+
+        <!-- Toggle Node Labels -->
+        <button id="btn-hud-labels" onclick="toggleNodeLabels()" class="w-8 h-8 rounded flex items-center justify-center text-on-surface-variant hover:text-primary-container hover:bg-surface-container-high transition-all" title="Toggle 3D Floating Node Labels">
+          <span class="material-symbols-outlined text-[17px]">label</span>
+        </button>
+
+        <!-- Toggle Connector Edges -->
+        <button id="btn-hud-edges" onclick="toggleGraphEdges()" class="w-8 h-8 rounded flex items-center justify-center text-primary-container bg-surface-container-high transition-all" title="Toggle Connector Links &amp; Beams">
+          <span class="material-symbols-outlined text-[17px]">timeline</span>
+        </button>
+
+        <!-- Shake / Dynamic Re-heat -->
+        <button id="btn-hud-shake" onclick="shakeGraphNodes()" class="w-8 h-8 rounded flex items-center justify-center text-on-surface-variant hover:text-amber-400 hover:bg-surface-container-high transition-all" title="Shake &amp; Re-disperse Simulation Velocity">
+          <span class="material-symbols-outlined text-[17px]">restart_alt</span>
+        </button>
+
+        <!-- Toggle Universal Legend -->
+        <button id="btn-hud-legend" onclick="toggleGraphLegend()" class="w-8 h-8 rounded flex items-center justify-center text-on-surface-variant hover:text-primary-container hover:bg-surface-container-high transition-all" title="Toggle Interactive Graph Legend &amp; Node Filters (L)">
+          <span class="material-symbols-outlined text-[17px]">category</span>
+        </button>
+
+        <!-- Fullscreen Canvas -->
+        <button id="btn-hud-fullscreen" onclick="toggleGraphFullscreen()" class="w-8 h-8 rounded flex items-center justify-center text-on-surface-variant hover:text-primary-container hover:bg-surface-container-high transition-all" title="Toggle Fullscreen Canvas">
+          <span class="material-symbols-outlined text-[17px]">fullscreen</span>
+        </button>
+      </div>
+
       <!-- Quick 3D Node Tooltip / Inspection Hover Card -->
       <div id="node-hover-tooltip" class="hidden absolute z-30 pointer-events-none bg-surface-container-lowest/95 backdrop-blur-xl border border-primary-container/40 p-2.5 shadow-2xl rounded text-left font-mono">
         <div class="flex items-center gap-1.5 text-[9px] text-secondary-container font-bold uppercase mb-0.5">
@@ -970,7 +1083,7 @@
             <span class="font-mono text-[9px] text-outline uppercase tracking-wider">SPECTRAL 3D GRAPH METRICS:</span>
           </div>
           <div class="font-mono text-on-surface-variant flex items-center gap-3">
-            <span>Nodes: <strong class="text-primary-container">12 Voxel Cubes</strong></span>
+            <span>Nodes: <strong id="footer-node-count-display" class="text-primary-container">-- Voxel Cubes</strong></span>
             <span class="text-outline">|</span>
             <span>Edges: <strong id="footer-edge-count" class="text-[#ffd166]">17 Links</strong></span>
             <span class="text-outline">|</span>
@@ -3301,6 +3414,56 @@
     const graphGroup = new THREE.Group();
     scene.add(graphGroup);
 
+    // -------------------------------------------------------------------------
+    // CELESTIAL ORBITAL GUIDE RINGS & SUN CORONA (Galaxy Organization)
+    // -------------------------------------------------------------------------
+    const orbitalGroup = new THREE.Group();
+    graphGroup.add(orbitalGroup);
+
+    function createOrbitalRing(radius, color, tilt = 0, opacity = 0.28) {
+      const segments = 128;
+      const pts = [];
+      for (let i = 0; i <= segments; i++) {
+        const theta = (i / segments) * Math.PI * 2;
+        pts.push(new THREE.Vector3(Math.cos(theta) * radius, 0, Math.sin(theta) * radius));
+      }
+      const geo = new THREE.BufferGeometry().setFromPoints(pts);
+      const mat = new THREE.LineBasicMaterial({
+        color: color,
+        transparent: true,
+        opacity: opacity,
+        blending: THREE.AdditiveBlending
+      });
+      const ring = new THREE.LineLoop(geo, mat);
+      if (tilt !== 0) ring.rotation.x = tilt;
+      return ring;
+    }
+
+    // Agent Hub Orbit Ring (R = 170)
+    const agentOrbitRing = createOrbitalRing(170, 0x00ffa3, 0, 0.35);
+    orbitalGroup.add(agentOrbitRing);
+
+    // Epistemic Sector Orbit Ring (R = 270)
+    const epistemicOrbitRing = createOrbitalRing(270, 0x00f0ff, 0, 0.22);
+    orbitalGroup.add(epistemicOrbitRing);
+
+    // Knowledge Entity Inclined Belt (R = 360, tilt = 14 deg)
+    const entityOrbitRing = createOrbitalRing(360, 0xffd166, 0.24, 0.28);
+    orbitalGroup.add(entityOrbitRing);
+
+    // Central Sun Pulsing Corona (Outer Wireframe Icosahedron around hub_shared)
+    const sunCoronaGeo = new THREE.IcosahedronGeometry(46, 1);
+    const sunCoronaMat = new THREE.MeshBasicMaterial({
+      color: 0x00f0ff,
+      wireframe: true,
+      transparent: true,
+      opacity: 0.32,
+      blending: THREE.AdditiveBlending
+    });
+    const sunCoronaMesh = new THREE.Mesh(sunCoronaGeo, sunCoronaMat);
+    sunCoronaMesh.position.set(0, 0, 0);
+    orbitalGroup.add(sunCoronaMesh);
+
     let nodeDefs = [];
     let edges = [];
     let cubeMeshes = [];
@@ -3489,6 +3652,10 @@
       }
       const footerEdgeCount = document.getElementById('footer-edge-count');
       if (footerEdgeCount) footerEdgeCount.innerText = `${currentLinks.length} Links`;
+      window.cubeMeshes = cubeMeshes;
+      window.edgeHitMeshes = edgeHitMeshes;
+      if (typeof updateLegendCounts === 'function') updateLegendCounts(nodes);
+      if (typeof applyLegendFacetFilters === 'function') applyLegendFacetFilters();
     }
 
     function updateEdges() {
@@ -4463,6 +4630,364 @@
       }
     };
 
+    // -------------------------------------------------------------------------
+    // GRAPH NAVIGATION & FLOATING HUD TOOLBAR CONTROLLERS
+    // -------------------------------------------------------------------------
+    let currentLayout = 'galaxy'; // 'galaxy', 'concentric', 'force', 'decks', 'helix'
+    let gridSnapEnabled = false;
+    let autoRotateEnabled = false;
+    let showNodeLabels = false;
+    let showEdgesEnabled = true;
+
+    window.zoomGraphBy = function(factor) {
+      isFlying = false;
+      zoomTarget = Math.max(120, Math.min(1100, zoomTarget / factor));
+      const el = document.getElementById('footer-cam-zoom');
+      if (el) el.innerText = `Dist ${Math.round(zoomTarget)}`;
+    };
+
+    window.fitAllGraphNodes = function() {
+      isFlying = false;
+      isNodeFlyFocus = false;
+      let minX = Infinity, maxX = -Infinity;
+      let minY = Infinity, maxY = -Infinity;
+      let minZ = Infinity, maxZ = -Infinity;
+
+      let visibleCount = 0;
+      cubeMeshes.forEach(m => {
+        if (m.visible && m.userData.boxMat.opacity > 0.05) {
+          const p = m.position;
+          if (p.x < minX) minX = p.x;
+          if (p.x > maxX) maxX = p.x;
+          if (p.y < minY) minY = p.y;
+          if (p.y > maxY) maxY = p.y;
+          if (p.z < minZ) minZ = p.z;
+          if (p.z > maxZ) maxZ = p.z;
+          visibleCount++;
+        }
+      });
+
+      if (visibleCount === 0) {
+        window.resetGraphCamera();
+        return;
+      }
+
+      const cx = (minX + maxX) / 2;
+      const cy = (minY + maxY) / 2;
+      const cz = (minZ + maxZ) / 2;
+      const maxSpan = Math.max(maxX - minX, maxY - minY, maxZ - minZ, 220);
+
+      targetRotation.x = 0.15;
+      targetRotation.y = -0.2;
+      zoomTarget = Math.max(340, maxSpan * 1.35);
+
+      nodeFlyTarget = {
+        cam: new THREE.Vector3(cx, cy + 60, cz + zoomTarget),
+        look: new THREE.Vector3(cx, cy, cz)
+      };
+      isNodeFlyFocus = true;
+    };
+
+    window.fitSelectedGraphNode = function() {
+      if (activeSelectedNode) {
+        flyToNode(activeSelectedNode);
+      } else if (cubeMeshes.length > 0) {
+        flyToNode(cubeMeshes[0].userData.data);
+      }
+    };
+
+    window.toggleProjectionMode = function() {
+      const next = currentMode === '3D' ? '2D' : '3D';
+      window.setProjectionMode(next);
+      const btn = document.getElementById('btn-hud-proj');
+      if (btn) {
+        btn.innerHTML = `<span class="material-symbols-outlined text-[17px]">${next === '3D' ? 'view_in_ar' : 'crop_square'}</span>`;
+        btn.classList.toggle('text-primary-container', next === '3D');
+      }
+    };
+
+    window.toggleGridSnap = function() {
+      gridSnapEnabled = !gridSnapEnabled;
+      const btn = document.getElementById('btn-hud-grid');
+      if (btn) {
+        btn.classList.toggle('bg-primary-container', gridSnapEnabled);
+        btn.classList.toggle('text-black', gridSnapEnabled);
+        btn.classList.toggle('text-on-surface-variant', !gridSnapEnabled);
+      }
+      if (gridSnapEnabled) {
+        snapAllNodesToGrid();
+      } else {
+        window.applyGraphLayout(currentLayout);
+      }
+    };
+
+    function snapAllNodesToGrid() {
+      const step = 40.0;
+      cubeMeshes.forEach(mesh => {
+        const tgt = mesh.userData.targetBase;
+        tgt[0] = Math.round(tgt[0] / step) * step;
+        tgt[1] = Math.round(tgt[1] / step) * step;
+        tgt[2] = Math.round(tgt[2] / step) * step;
+      });
+    }
+
+    window.toggleAutoRotate = function() {
+      autoRotateEnabled = !autoRotateEnabled;
+      const btn = document.getElementById('btn-hud-auto-rotate');
+      if (btn) {
+        btn.classList.toggle('bg-primary-container', autoRotateEnabled);
+        btn.classList.toggle('text-black', autoRotateEnabled);
+        btn.classList.toggle('text-on-surface-variant', !autoRotateEnabled);
+      }
+    };
+
+    window.toggleLayoutMenu = function(e) {
+      if (e) e.stopPropagation();
+      const menu = document.getElementById('layout-flyout-menu');
+      if (menu) menu.classList.toggle('hidden');
+    };
+
+    document.addEventListener('click', (e) => {
+      const menu = document.getElementById('layout-flyout-menu');
+      const btn = document.getElementById('btn-hud-layout');
+      if (menu && !menu.classList.contains('hidden')) {
+        if (!btn || (!btn.contains(e.target) && !menu.contains(e.target))) {
+          menu.classList.add('hidden');
+        }
+      }
+    });
+
+    window.applyGraphLayout = function(layout) {
+      currentLayout = layout;
+      const menu = document.getElementById('layout-flyout-menu');
+      if (menu) menu.classList.add('hidden');
+
+      document.querySelectorAll('[data-layout-btn]').forEach(b => {
+        const isActive = (b.dataset.layoutBtn === layout);
+        b.classList.toggle('bg-primary-container', isActive);
+        b.classList.toggle('text-on-primary-container', isActive);
+        b.classList.toggle('font-bold', isActive);
+        b.classList.toggle('text-on-surface-variant', !isActive);
+      });
+
+      const labelEl = document.getElementById('hud-active-layout-name');
+      if (labelEl) labelEl.innerText = layout.toUpperCase();
+
+      const nodes = nodeDefs;
+      if (!nodes || nodes.length === 0) return;
+
+      if (layout === 'galaxy') {
+        orbitalGroup.visible = (currentMode === '3D');
+        cubeMeshes.forEach(mesh => {
+          const d = mesh.userData.data;
+          mesh.userData.targetBase = currentMode === '3D' ? [...(d.pos3D || [0, 0, 0])] : [...(d.pos2D || [0, 0, 0])];
+        });
+      } else if (layout === 'concentric') {
+        orbitalGroup.visible = false;
+        nodes.forEach((d, idx) => {
+          const mesh = cubeMeshes[idx];
+          if (!mesh) return;
+          const isHub = d.type === 'hub';
+          const isAgentHub = d.type === 'agent_hub';
+          const isRule = d.epistemic_class === 'rule';
+          const isDecision = d.epistemic_class === 'decision' || d.epistemic_class === 'inference';
+          const isFact = d.epistemic_class === 'fact';
+          const isEntity = d.type === 'entity';
+          const isThought = d.type === 'thought' || d.category === 'thought';
+
+          let r = 260;
+          if (isHub) r = 0;
+          else if (isAgentHub) r = 130;
+          else if (isRule) r = 210;
+          else if (isDecision) r = 280;
+          else if (isFact || isEntity) r = 350;
+          else if (isThought) r = 420;
+
+          if (r === 0) {
+            mesh.userData.targetBase = [0, 0, 0];
+          } else {
+            const phi = Math.acos(-1 + (2 * (idx % 36)) / 36);
+            const theta = Math.sqrt(36 * Math.PI) * (idx % 36);
+            const x = r * Math.cos(theta) * Math.sin(phi);
+            const y = currentMode === '3D' ? r * Math.sin(theta) * Math.sin(phi) * 0.75 : 0;
+            const z = r * Math.cos(phi);
+            mesh.userData.targetBase = currentMode === '3D' ? [x, y, z] : [x, z, 0];
+          }
+        });
+      } else if (layout === 'decks') {
+        orbitalGroup.visible = false;
+        const tierRules = [];
+        const tierDecisions = [];
+        const tierFacts = [];
+        const tierThoughts = [];
+        nodes.forEach((d, idx) => {
+          if (d.type === 'thought' || d.category === 'thought') tierThoughts.push({ d, idx });
+          else if (d.epistemic_class === 'rule') tierRules.push({ d, idx });
+          else if (d.epistemic_class === 'decision' || d.epistemic_class === 'inference' || d.type === 'hub' || d.type === 'agent_hub') tierDecisions.push({ d, idx });
+          else tierFacts.push({ d, idx });
+        });
+
+        const layoutDeck = (list, elevationY, radius) => {
+          const count = Math.max(list.length, 1);
+          list.forEach(({ d, idx }, j) => {
+            const mesh = cubeMeshes[idx];
+            if (!mesh) return;
+            const ang = (2 * Math.PI / count) * j;
+            const rVar = radius + (j % 4) * 18;
+            const x = Math.cos(ang) * rVar;
+            const z = Math.sin(ang) * rVar;
+            mesh.userData.targetBase = currentMode === '3D' ? [x, elevationY, z] : [x, z, 0];
+          });
+        };
+
+        layoutDeck(tierRules, 170, 180);
+        layoutDeck(tierDecisions, 60, 220);
+        layoutDeck(tierFacts, -50, 260);
+        layoutDeck(tierThoughts, -160, 310);
+      } else if (layout === 'helix') {
+        orbitalGroup.visible = false;
+        const sorted = nodes.map((d, idx) => ({ d, idx })).sort((a, b) => {
+          const tA = new Date(a.d.created_at || 0).getTime() || a.idx;
+          const tB = new Date(b.d.created_at || 0).getTime() || b.idx;
+          return tA - tB;
+        });
+        const total = Math.max(sorted.length, 1);
+        sorted.forEach(({ d, idx }, rank) => {
+          const mesh = cubeMeshes[idx];
+          if (!mesh) return;
+          const t = rank / total;
+          const y = -220 + t * 440;
+          const turns = 6.0;
+          const ang = t * Math.PI * 2 * turns;
+          const r = 210 + Math.sin(t * Math.PI) * 60;
+          const x = Math.cos(ang) * r;
+          const z = Math.sin(ang) * r;
+          mesh.userData.targetBase = currentMode === '3D' ? [x, y, z] : [x, y, 0];
+        });
+      } else if (layout === 'force') {
+        orbitalGroup.visible = false;
+        runForceSimulation();
+      }
+
+      if (gridSnapEnabled) {
+        snapAllNodesToGrid();
+      }
+    };
+
+    function runForceSimulation() {
+      const nodes = nodeDefs;
+      if (!nodes || nodes.length === 0) return;
+      const N = nodes.length;
+      const pos = cubeMeshes.map(m => [...m.userData.targetBase]);
+      const kRepulse = 36000;
+      const kSpring = 0.04;
+      const restLength = 85;
+
+      for (let iter = 0; iter < 45; iter++) {
+        const disp = pos.map(() => [0, 0, 0]);
+
+        for (let i = 0; i < N; i++) {
+          for (let j = i + 1; j < N; j++) {
+            const dx = pos[i][0] - pos[j][0];
+            const dy = pos[i][1] - pos[j][1];
+            const dz = pos[i][2] - pos[j][2];
+            let d = Math.sqrt(dx * dx + dy * dy + dz * dz) + 0.1;
+            if (d < 350) {
+              const force = kRepulse / (d * d);
+              const fx = (dx / d) * force;
+              const fy = (dy / d) * force;
+              const fz = (dz / d) * force;
+              disp[i][0] += fx;
+              disp[i][1] += fy;
+              disp[i][2] += fz;
+              disp[j][0] -= fx;
+              disp[j][1] -= fy;
+              disp[j][2] -= fz;
+            }
+          }
+        }
+
+        if (edges && edges.length > 0) {
+          edges.forEach(([sIdx, tIdx]) => {
+            if (!pos[sIdx] || !pos[tIdx]) return;
+            const dx = pos[sIdx][0] - pos[tIdx][0];
+            const dy = pos[sIdx][1] - pos[tIdx][1];
+            const dz = pos[sIdx][2] - pos[tIdx][2];
+            const d = Math.sqrt(dx * dx + dy * dy + dz * dz) + 0.1;
+            const force = kSpring * (d - restLength);
+            const fx = (dx / d) * force;
+            const fy = (dy / d) * force;
+            const fz = (dz / d) * force;
+            disp[sIdx][0] -= fx;
+            disp[sIdx][1] -= fy;
+            disp[sIdx][2] -= fz;
+            disp[tIdx][0] += fx;
+            disp[tIdx][1] += fy;
+            disp[tIdx][2] += fz;
+          });
+        }
+
+        for (let i = 0; i < N; i++) {
+          disp[i][0] -= pos[i][0] * 0.02;
+          disp[i][1] -= pos[i][1] * 0.02;
+          disp[i][2] -= pos[i][2] * 0.02;
+        }
+
+        const temp = 1.0 - (iter / 45);
+        for (let i = 0; i < N; i++) {
+          pos[i][0] += disp[i][0] * temp * 0.3;
+          pos[i][1] += disp[i][1] * temp * 0.3;
+          pos[i][2] += disp[i][2] * temp * 0.3;
+        }
+      }
+
+      pos.forEach((p, idx) => {
+        if (cubeMeshes[idx]) {
+          cubeMeshes[idx].userData.targetBase = currentMode === '3D' ? [p[0], p[1], p[2]] : [p[0], p[2], 0];
+        }
+      });
+    }
+
+    window.toggleNodeLabels = function() {
+      showNodeLabels = !showNodeLabels;
+      const btn = document.getElementById('btn-hud-labels');
+      if (btn) {
+        btn.classList.toggle('bg-primary-container', showNodeLabels);
+        btn.classList.toggle('text-black', showNodeLabels);
+        btn.classList.toggle('text-on-surface-variant', !showNodeLabels);
+      }
+    };
+
+    window.toggleGraphEdges = function() {
+      showEdgesEnabled = !showEdgesEnabled;
+      if (lineMesh) lineMesh.visible = showEdgesEnabled;
+      edgeHitMeshes.forEach(h => h.visible = showEdgesEnabled);
+      const btn = document.getElementById('btn-hud-edges');
+      if (btn) {
+        btn.classList.toggle('bg-primary-container', showEdgesEnabled);
+        btn.classList.toggle('text-black', showEdgesEnabled);
+        btn.classList.toggle('text-on-surface-variant', !showEdgesEnabled);
+      }
+    };
+
+    window.shakeGraphNodes = function() {
+      cubeMeshes.forEach(m => {
+        const burst = 50;
+        m.userData.curBase[0] += (Math.random() - 0.5) * burst * 2;
+        m.userData.curBase[1] += (Math.random() - 0.5) * burst * 2;
+        m.userData.curBase[2] += (Math.random() - 0.5) * burst * 2;
+      });
+    };
+
+    window.toggleGraphFullscreen = function() {
+      const el = document.getElementById('view-graph');
+      if (!document.fullscreenElement) {
+        el?.requestFullscreen().catch(err => console.warn(err));
+      } else {
+        document.exitFullscreen().catch(err => console.warn(err));
+      }
+    };
+
     window.resetGraphCamera = function() {
       isFlying = false;
       targetRotation.x = 0.15;
@@ -4563,6 +5088,24 @@
       });
 
       updateEdges();
+
+      if (sunCoronaMesh) {
+        sunCoronaMesh.rotation.y += 0.005;
+        sunCoronaMesh.rotation.x -= 0.003;
+        const pulse = Math.sin(time * 2.2) * 0.06 + 1.0;
+        sunCoronaMesh.scale.set(pulse, pulse, pulse);
+      }
+
+      if (orbitalGroup) {
+        orbitalGroup.visible = (currentMode === '3D' && currentLayout === 'galaxy');
+        if (orbitalGroup.visible) {
+          orbitalGroup.rotation.y = time * 0.008;
+        }
+      }
+
+      if (autoRotateEnabled && !isDragging && !isFlying && !isNodeFlyFocus) {
+        targetRotation.y += 0.003;
+      }
 
       dustField.visible = (currentMode === '3D');
       if (dustField.visible) {
@@ -4780,17 +5323,166 @@
     }
     window.toggleGraphLegend = toggleGraphLegend;
 
+    let activeFacetFilters = {
+      thought: true,
+      fact: true,
+      rule: true,
+      decision: true,
+      hub: true,
+      agent_hub: true,
+      entity: true,
+      belief: true,
+      goal: true,
+    };
+
+    function toggleLegendFacet(facetKey) {
+      if (activeFacetFilters[facetKey] !== undefined) {
+        activeFacetFilters[facetKey] = !activeFacetFilters[facetKey];
+      }
+      applyLegendFacetFilters();
+    }
+    window.toggleLegendFacet = toggleLegendFacet;
+
+    function soloLegendFacet(facetKey, e) {
+      if (e) e.stopPropagation();
+      Object.keys(activeFacetFilters).forEach(k => {
+        activeFacetFilters[k] = (k === facetKey);
+      });
+      applyLegendFacetFilters();
+    }
+    window.soloLegendFacet = soloLegendFacet;
+
+    function enableAllLegendFacets() {
+      Object.keys(activeFacetFilters).forEach(k => { activeFacetFilters[k] = true; });
+      applyLegendFacetFilters();
+    }
+    window.enableAllLegendFacets = enableAllLegendFacets;
+
+    function invertLegendFacets() {
+      Object.keys(activeFacetFilters).forEach(k => { activeFacetFilters[k] = !activeFacetFilters[k]; });
+      applyLegendFacetFilters();
+    }
+    window.invertLegendFacets = invertLegendFacets;
+
+    function isolateCOTFacet() {
+      soloLegendFacet('thought');
+    }
+    window.isolateCOTFacet = isolateCOTFacet;
+
+    function updateLegendCounts(nodes) {
+      if (!nodes) return;
+      const counts = {
+        thought: 0,
+        fact: 0,
+        rule: 0,
+        decision: 0,
+        hub: 0,
+        agent_hub: 0,
+        entity: 0,
+      };
+
+      nodes.forEach(n => {
+        if (n.type === 'thought' || n.category === 'thought') counts.thought++;
+        else if (n.type === 'agent_hub') counts.agent_hub++;
+        else if (n.type === 'hub') counts.hub++;
+        else if (n.type === 'entity') counts.entity++;
+        else {
+          const ep = (n.epistemic_class || 'fact').toLowerCase();
+          if (counts[ep] !== undefined) counts[ep]++;
+          else counts.fact++;
+        }
+      });
+
+      Object.keys(counts).forEach(k => {
+        const el = document.getElementById(`legend-count-${k}`);
+        if (el) el.innerText = counts[k];
+      });
+    }
+    window.updateLegendCounts = updateLegendCounts;
+
+    function applyLegendFacetFilters() {
+      // 1. Update legend rows UI states
+      Object.keys(activeFacetFilters).forEach(k => {
+        const row = document.getElementById(`legend-row-${k}`);
+        const check = document.getElementById(`legend-check-${k}`);
+        const isActive = activeFacetFilters[k];
+        if (row) {
+          row.setAttribute('aria-pressed', isActive ? 'true' : 'false');
+          row.classList.toggle('opacity-35', !isActive);
+          row.classList.toggle('bg-primary-container/10', isActive);
+        }
+        if (check) {
+          check.innerText = isActive ? 'check_box' : 'check_box_outline_blank';
+          check.classList.toggle('text-primary-container', isActive);
+          check.classList.toggle('text-outline', !isActive);
+        }
+      });
+
+      // 2. Filter 3D Meshes
+      let visibleCount = 0;
+      const visibleNodeIds = new Set();
+
+      cubeMeshes.forEach(mesh => {
+        const d = mesh.userData?.data;
+        if (!d) return;
+        const isThought = d.type === 'thought' || d.category === 'thought';
+        const isHub = d.type === 'hub';
+        const isAgentHub = d.type === 'agent_hub';
+        const isEntity = d.type === 'entity';
+        const ep = (d.epistemic_class || 'fact').toLowerCase();
+
+        let isMatch = true;
+        if (isThought) isMatch = Boolean(activeFacetFilters.thought);
+        else if (isHub) isMatch = Boolean(activeFacetFilters.hub);
+        else if (isAgentHub) isMatch = Boolean(activeFacetFilters.agent_hub);
+        else if (isEntity) isMatch = Boolean(activeFacetFilters.entity);
+        else if (activeFacetFilters[ep] !== undefined) isMatch = Boolean(activeFacetFilters[ep]);
+        else isMatch = Boolean(activeFacetFilters.fact);
+
+        mesh.visible = isMatch;
+        mesh.userData.boxMat.opacity = isMatch ? (d.isLineage ? 0.95 : (isThought ? 0.88 : 0.75)) : 0.0;
+        mesh.userData.edgeMat.opacity = isMatch ? 0.95 : 0.0;
+        mesh.scale.setScalar(isMatch ? 1.0 : 0.001);
+
+        if (isMatch) {
+          visibleCount++;
+          visibleNodeIds.add(d.id);
+        }
+      });
+
+      // 3. Filter Edges
+      if (edgeHitMeshes && edgeHitMeshes.length > 0) {
+        edgeHitMeshes.forEach(cyl => {
+          const sId = cyl.userData.source?.id;
+          const tId = cyl.userData.target?.id;
+          const isEdgeVisible = visibleNodeIds.has(sId) && visibleNodeIds.has(tId);
+          cyl.visible = isEdgeVisible && showEdgesEnabled;
+        });
+      }
+
+      // 4. Update dynamic counts
+      const visibleRatioEl = document.getElementById('legend-visible-count');
+      if (visibleRatioEl) {
+        visibleRatioEl.innerText = `${visibleCount} of ${cubeMeshes.length} Nodes Visible`;
+      }
+      const footerCount = document.getElementById('footer-node-count-display');
+      if (footerCount) {
+        footerCount.innerText = `${visibleCount} Voxel Cubes`;
+      }
+
+      if (typeof updateEdges === 'function') updateEdges();
+    }
+    window.applyLegendFacetFilters = applyLegendFacetFilters;
+
     function filterByLegendClass(epClass) {
       if (currentView === 'spectral') {
         filterSpectralNodes(epClass);
       } else if (currentView === 'graph') {
-        cubeMeshes.forEach(mesh => {
-          const data = mesh.userData?.data;
-          if (!data) return;
-          const cls = (data.epistemic_class || data.type || 'fact').toLowerCase();
-          mesh.visible = (cls === epClass || epClass === 'all');
-        });
-        if (typeof updateEdges === 'function') updateEdges();
+        if (epClass === 'all') {
+          enableAllLegendFacets();
+        } else {
+          soloLegendFacet(epClass);
+        }
       }
     }
     window.filterByLegendClass = filterByLegendClass;
@@ -9783,65 +10475,147 @@ ${staticFacts.length > 0 ? `## Static Knowledge Core:\n${staticFacts.map(f => `-
   </script>
 
   <!-- ========================================================================= -->
-  <!-- UNIVERSAL GRAPH LEGEND & ONTOLOGY PANEL (Toggleable across all views)     -->
+  <!-- UNIVERSAL GRAPH LEGEND & FACET SWITCHBOARD (Toggleable across all views)  -->
   <!-- ========================================================================= -->
-  <div id="universal-graph-legend" class="fixed bottom-4 right-14 w-80 bg-[#090d16]/98 backdrop-blur-2xl border border-primary-container/40 rounded-xl shadow-[0_16px_48px_rgba(0,0,0,0.85)] z-40 font-mono text-xs overflow-hidden transition-all duration-300 transform translate-y-0 hidden">
+  <div id="universal-graph-legend" class="fixed bottom-4 right-14 w-88 bg-[#090d16]/98 backdrop-blur-2xl border border-primary-container/40 rounded-xl shadow-[0_16px_48px_rgba(0,0,0,0.85)] z-40 font-mono text-xs overflow-hidden transition-all duration-300 transform translate-y-0 hidden">
     <!-- Header -->
     <div class="px-3.5 py-2.5 bg-surface-container-low border-b border-outline-variant/30 flex items-center justify-between">
       <div class="flex items-center gap-2">
         <span class="material-symbols-outlined text-primary-container text-base">category</span>
-        <span class="font-bold text-white uppercase text-[11px] tracking-wider">GRAPH ONTOLOGY LEGEND</span>
+        <div>
+          <div class="font-bold text-white uppercase text-[11px] tracking-wider">GRAPH ONTOLOGY &amp; FILTERS</div>
+          <div id="legend-visible-count" class="text-[9px] text-primary-container font-mono">Loading nodes...</div>
+        </div>
       </div>
       <div class="flex items-center gap-1.5">
-        <span class="text-[9px] text-outline bg-black/40 px-1.5 py-0.5 rounded font-mono">KEY: L</span>
-        <button onclick="toggleGraphLegend()" class="w-5 h-5 flex items-center justify-center text-outline hover:text-white rounded hover:bg-surface-container-high transition-colors" title="Close Legend">
+        <button onclick="enableAllLegendFacets()" class="px-1.5 py-0.5 rounded bg-surface-container-high hover:bg-primary-container hover:text-black text-[8px] font-bold transition-colors" title="Enable all node classes">ALL</button>
+        <button onclick="invertLegendFacets()" class="px-1.5 py-0.5 rounded bg-surface-container-high hover:bg-secondary-container hover:text-black text-[8px] font-bold transition-colors" title="Invert facet selection">INVERT</button>
+        <button onclick="isolateCOTFacet()" class="px-1.5 py-0.5 rounded bg-purple-500/20 text-[#ddb7ff] border border-purple-500/40 hover:bg-purple-500 hover:text-black text-[8px] font-bold transition-colors" title="Show only COT thoughts">COT ONLY</button>
+        <span class="text-[9px] text-outline bg-black/40 px-1 py-0.5 rounded font-mono">L</span>
+        <button onclick="toggleGraphLegend()" class="w-5 h-5 flex items-center justify-center text-outline hover:text-white rounded hover:bg-surface-container-high transition-colors ml-1" title="Close Legend">
           <span class="material-symbols-outlined text-sm">close</span>
         </button>
       </div>
     </div>
 
     <!-- Body Sections -->
-    <div class="p-3 space-y-3.5 max-h-[70vh] overflow-y-auto text-[10px]">
-      <!-- 1. Epistemic Node Classes -->
+    <div class="p-3 space-y-3 max-h-[70vh] overflow-y-auto text-[10px]">
+      <!-- 1. Epistemic & Cognitive Classes -->
       <div>
         <div class="flex items-center justify-between text-[9px] text-primary-container font-bold uppercase mb-1.5 pb-1 border-b border-outline-variant/20">
-          <span>EPISTEMIC NODE CLASSES</span>
-          <span class="text-outline text-[8px]">CLICK TO ISOLATE</span>
+          <span>COGNITIVE &amp; EPISTEMIC CLASSES</span>
+          <span class="text-outline text-[8px]">CLICK TO TOGGLE · HOVER SOLO</span>
         </div>
-        <div class="space-y-1.5">
-          <div onclick="filterByLegendClass('fact')" class="flex items-start gap-2 p-1.5 rounded hover:bg-surface-container-high/60 cursor-pointer transition-colors group">
-            <span class="w-3.5 h-3.5 rounded-sm bg-[#00f0ff] shadow-[0_0_8px_#00f0ff] shrink-0 mt-0.5"></span>
-            <div>
-              <div class="text-[#00f0ff] font-bold group-hover:underline">FACT (AIS: 1.0)</div>
-              <div class="text-outline text-[9px]">Verified immutable assertion grounded in deterministic evidence.</div>
+        <div class="space-y-1">
+          <!-- Thought (COT) -->
+          <div id="legend-row-thought" onclick="toggleLegendFacet('thought')" role="switch" aria-pressed="true" class="flex items-center justify-between p-1.5 rounded hover:bg-surface-container-high/60 cursor-pointer transition-colors group bg-primary-container/10">
+            <div class="flex items-center gap-2">
+              <span id="legend-check-thought" class="material-symbols-outlined text-[15px] text-primary-container">check_box</span>
+              <span class="w-3 h-3 rounded-sm bg-[#a855f7] shadow-[0_0_8px_#a855f7] shrink-0"></span>
+              <div>
+                <span class="text-[#ddb7ff] font-bold">REASONING // COT</span>
+                <span class="text-outline text-[8px] ml-1">Internal agent deliberations</span>
+              </div>
+            </div>
+            <div class="flex items-center gap-1.5">
+              <button onclick="soloLegendFacet('thought', event)" class="opacity-0 group-hover:opacity-100 text-[8px] px-1 py-0.5 bg-surface-container-high rounded border border-outline-variant/40 hover:text-primary transition-opacity">SOLO</button>
+              <span id="legend-count-thought" class="px-1.5 py-0.2 rounded text-[9px] font-bold bg-purple-500/20 text-[#ddb7ff] border border-purple-500/30">--</span>
             </div>
           </div>
-          <div onclick="filterByLegendClass('rule')" class="flex items-start gap-2 p-1.5 rounded hover:bg-surface-container-high/60 cursor-pointer transition-colors group">
-            <span class="w-3.5 h-3.5 rounded-sm bg-[#00ffa3] shadow-[0_0_8px_#00ffa3] shrink-0 mt-0.5"></span>
-            <div>
-              <div class="text-[#00ffa3] font-bold group-hover:underline">RULE / INVARIANT</div>
-              <div class="text-outline text-[9px]">ABAC boundary policy, Lyapunov/PID stability, security constraint.</div>
+
+          <!-- Fact -->
+          <div id="legend-row-fact" onclick="toggleLegendFacet('fact')" role="switch" aria-pressed="true" class="flex items-center justify-between p-1.5 rounded hover:bg-surface-container-high/60 cursor-pointer transition-colors group bg-primary-container/10">
+            <div class="flex items-center gap-2">
+              <span id="legend-check-fact" class="material-symbols-outlined text-[15px] text-primary-container">check_box</span>
+              <span class="w-3 h-3 rounded-sm bg-[#00f0ff] shadow-[0_0_8px_#00f0ff] shrink-0"></span>
+              <div>
+                <span class="text-[#00f0ff] font-bold">FACT (AIS: 1.0)</span>
+                <span class="text-outline text-[8px] ml-1">Verified grounded assertions</span>
+              </div>
+            </div>
+            <div class="flex items-center gap-1.5">
+              <button onclick="soloLegendFacet('fact', event)" class="opacity-0 group-hover:opacity-100 text-[8px] px-1 py-0.5 bg-surface-container-high rounded border border-outline-variant/40 hover:text-primary transition-opacity">SOLO</button>
+              <span id="legend-count-fact" class="px-1.5 py-0.2 rounded text-[9px] font-bold bg-[#00f0ff]/20 text-[#00f0ff] border border-[#00f0ff]/30">--</span>
             </div>
           </div>
-          <div onclick="filterByLegendClass('decision')" class="flex items-start gap-2 p-1.5 rounded hover:bg-surface-container-high/60 cursor-pointer transition-colors group">
-            <span class="w-3.5 h-3.5 rounded-sm bg-[#a855f7] shadow-[0_0_8px_#a855f7] shrink-0 mt-0.5"></span>
-            <div>
-              <div class="text-[#ddb7ff] font-bold group-hover:underline">DECISION / INFERENCE</div>
-              <div class="text-outline text-[9px]">Multi-turn cognitive synthesis, agent deductions &amp; action proposals.</div>
+
+          <!-- Rule -->
+          <div id="legend-row-rule" onclick="toggleLegendFacet('rule')" role="switch" aria-pressed="true" class="flex items-center justify-between p-1.5 rounded hover:bg-surface-container-high/60 cursor-pointer transition-colors group bg-primary-container/10">
+            <div class="flex items-center gap-2">
+              <span id="legend-check-rule" class="material-symbols-outlined text-[15px] text-primary-container">check_box</span>
+              <span class="w-3 h-3 rounded-sm bg-[#00ffa3] shadow-[0_0_8px_#00ffa3] shrink-0"></span>
+              <div>
+                <span class="text-[#00ffa3] font-bold">RULE / INVARIANT</span>
+                <span class="text-outline text-[8px] ml-1">ABAC policies &amp; bounds</span>
+              </div>
+            </div>
+            <div class="flex items-center gap-1.5">
+              <button onclick="soloLegendFacet('rule', event)" class="opacity-0 group-hover:opacity-100 text-[8px] px-1 py-0.5 bg-surface-container-high rounded border border-outline-variant/40 hover:text-primary transition-opacity">SOLO</button>
+              <span id="legend-count-rule" class="px-1.5 py-0.2 rounded text-[9px] font-bold bg-[#00ffa3]/20 text-[#00ffa3] border border-[#00ffa3]/30">--</span>
             </div>
           </div>
-          <div onclick="filterByLegendClass('hub')" class="flex items-start gap-2 p-1.5 rounded hover:bg-surface-container-high/60 cursor-pointer transition-colors group">
-            <span class="w-3.5 h-3.5 rounded-sm bg-[#ffd700] shadow-[0_0_8px_#ffd700] shrink-0 mt-0.5"></span>
-            <div>
-              <div class="text-[#ffd700] font-bold group-hover:underline">SCOPE ORIGIN (HUB)</div>
-              <div class="text-outline text-[9px]">Agent namespace enclave root &amp; Shared Memory Fabric anchor.</div>
+
+          <!-- Decision -->
+          <div id="legend-row-decision" onclick="toggleLegendFacet('decision')" role="switch" aria-pressed="true" class="flex items-center justify-between p-1.5 rounded hover:bg-surface-container-high/60 cursor-pointer transition-colors group bg-primary-container/10">
+            <div class="flex items-center gap-2">
+              <span id="legend-check-decision" class="material-symbols-outlined text-[15px] text-primary-container">check_box</span>
+              <span class="w-3 h-3 rounded-sm bg-[#34d399] shadow-[0_0_8px_#34d399] shrink-0"></span>
+              <div>
+                <span class="text-[#34d399] font-bold">DECISION / INFERENCE</span>
+                <span class="text-outline text-[8px] ml-1">Multi-turn syntheses</span>
+              </div>
+            </div>
+            <div class="flex items-center gap-1.5">
+              <button onclick="soloLegendFacet('decision', event)" class="opacity-0 group-hover:opacity-100 text-[8px] px-1 py-0.5 bg-surface-container-high rounded border border-outline-variant/40 hover:text-primary transition-opacity">SOLO</button>
+              <span id="legend-count-decision" class="px-1.5 py-0.2 rounded text-[9px] font-bold bg-[#34d399]/20 text-[#34d399] border border-[#34d399]/30">--</span>
             </div>
           </div>
-          <div onclick="filterByLegendClass('entity')" class="flex items-start gap-2 p-1.5 rounded hover:bg-surface-container-high/60 cursor-pointer transition-colors group">
-            <span class="w-3.5 h-3.5 rounded-sm bg-[#818cf8] shadow-[0_0_8px_#818cf8] shrink-0 mt-0.5"></span>
-            <div>
-              <div class="text-[#818cf8] font-bold group-hover:underline">KNOWLEDGE ENTITY</div>
-              <div class="text-outline text-[9px]">Extracted RDF subject or object vertex in the relational graph.</div>
+
+          <!-- Scope Root Hub -->
+          <div id="legend-row-hub" onclick="toggleLegendFacet('hub')" role="switch" aria-pressed="true" class="flex items-center justify-between p-1.5 rounded hover:bg-surface-container-high/60 cursor-pointer transition-colors group bg-primary-container/10">
+            <div class="flex items-center gap-2">
+              <span id="legend-check-hub" class="material-symbols-outlined text-[15px] text-primary-container">check_box</span>
+              <span class="w-3 h-3 rounded-sm bg-[#ffd700] shadow-[0_0_8px_#ffd700] shrink-0"></span>
+              <div>
+                <span class="text-[#ffd700] font-bold">SCOPE HUB (SHARED)</span>
+                <span class="text-outline text-[8px] ml-1">Celestial core sun origin</span>
+              </div>
+            </div>
+            <div class="flex items-center gap-1.5">
+              <button onclick="soloLegendFacet('hub', event)" class="opacity-0 group-hover:opacity-100 text-[8px] px-1 py-0.5 bg-surface-container-high rounded border border-outline-variant/40 hover:text-primary transition-opacity">SOLO</button>
+              <span id="legend-count-hub" class="px-1.5 py-0.2 rounded text-[9px] font-bold bg-[#ffd700]/20 text-[#ffd700] border border-[#ffd700]/30">--</span>
+            </div>
+          </div>
+
+          <!-- Agent Hubs -->
+          <div id="legend-row-agent_hub" onclick="toggleLegendFacet('agent_hub')" role="switch" aria-pressed="true" class="flex items-center justify-between p-1.5 rounded hover:bg-surface-container-high/60 cursor-pointer transition-colors group bg-primary-container/10">
+            <div class="flex items-center gap-2">
+              <span id="legend-check-agent_hub" class="material-symbols-outlined text-[15px] text-primary-container">check_box</span>
+              <span class="w-3 h-3 rounded-sm bg-[#00ffa3] shadow-[0_0_8px_#00ffa3] shrink-0"></span>
+              <div>
+                <span class="text-[#00ffa3] font-bold">AGENT ENCLAVE HUBS</span>
+                <span class="text-outline text-[8px] ml-1">Equatorial scope planets</span>
+              </div>
+            </div>
+            <div class="flex items-center gap-1.5">
+              <button onclick="soloLegendFacet('agent_hub', event)" class="opacity-0 group-hover:opacity-100 text-[8px] px-1 py-0.5 bg-surface-container-high rounded border border-outline-variant/40 hover:text-primary transition-opacity">SOLO</button>
+              <span id="legend-count-agent_hub" class="px-1.5 py-0.2 rounded text-[9px] font-bold bg-[#00ffa3]/20 text-[#00ffa3] border border-[#00ffa3]/30">--</span>
+            </div>
+          </div>
+
+          <!-- Knowledge Entity -->
+          <div id="legend-row-entity" onclick="toggleLegendFacet('entity')" role="switch" aria-pressed="true" class="flex items-center justify-between p-1.5 rounded hover:bg-surface-container-high/60 cursor-pointer transition-colors group bg-primary-container/10">
+            <div class="flex items-center gap-2">
+              <span id="legend-check-entity" class="material-symbols-outlined text-[15px] text-primary-container">check_box</span>
+              <span class="w-3 h-3 rounded-sm bg-[#ffd166] shadow-[0_0_8px_#ffd166] shrink-0"></span>
+              <div>
+                <span class="text-[#ffd166] font-bold">KNOWLEDGE ENTITY</span>
+                <span class="text-outline text-[8px] ml-1">RDF subject/object nodes</span>
+              </div>
+            </div>
+            <div class="flex items-center gap-1.5">
+              <button onclick="soloLegendFacet('entity', event)" class="opacity-0 group-hover:opacity-100 text-[8px] px-1 py-0.5 bg-surface-container-high rounded border border-outline-variant/40 hover:text-primary transition-opacity">SOLO</button>
+              <span id="legend-count-entity" class="px-1.5 py-0.2 rounded text-[9px] font-bold bg-[#ffd166]/20 text-[#ffd166] border border-[#ffd166]/30">--</span>
             </div>
           </div>
         </div>
@@ -9853,43 +10627,37 @@ ${staticFacts.length > 0 ? `## Static Knowledge Core:\n${staticFacts.map(f => `-
           SYNAPTIC CONNECTOR EDGES
         </div>
         <div class="space-y-1.5">
-          <div class="flex items-center gap-2 p-1">
+          <div class="flex items-center gap-2 p-1 bg-surface-container-high/30 rounded">
             <div class="w-6 h-0.5 bg-[#a855f7] shrink-0"></div>
-            <div class="text-neutral-300"><strong class="text-[#ddb7ff]">RELATION:</strong> Directed semantic triple link (S ──▶ P ──▶ O).</div>
+            <div class="text-neutral-300"><strong class="text-[#ddb7ff]">RELATION:</strong> Directed semantic triple (S ──▶ P ──▶ O).</div>
           </div>
-          <div class="flex items-center gap-2 p-1">
+          <div class="flex items-center gap-2 p-1 bg-surface-container-high/30 rounded">
             <div class="w-6 h-0.5 border-t border-dashed border-[#00ffa3] shrink-0"></div>
             <div class="text-neutral-300"><strong class="text-secondary-container">EVIDENCE:</strong> Cryptographic source grounding proof.</div>
           </div>
-          <div class="flex items-center gap-2 p-1">
+          <div class="flex items-center gap-2 p-1 bg-surface-container-high/30 rounded">
             <div class="w-6 h-0.5 bg-gradient-to-r from-[#00f0ff] to-[#a855f7] shrink-0 animate-pulse"></div>
-            <div class="text-neutral-300"><strong class="text-primary-container">SYNAPSE:</strong> Inter-agent dialogue turn progression.</div>
+            <div class="text-neutral-300"><strong class="text-primary-container">DELIBERATION:</strong> Agent to Chain-of-Thought link.</div>
+          </div>
+          <div class="flex items-center gap-2 p-1 bg-surface-container-high/30 rounded">
+            <div class="w-6 h-0.5 border-t border-dotted border-[#ffd700] shrink-0"></div>
+            <div class="text-neutral-300"><strong class="text-[#ffd700]">FEDERATION:</strong> Shared Fabric to Agent Hub bridge.</div>
           </div>
         </div>
       </div>
 
-      <!-- 3. Timeline & Provenance Marks -->
+      <!-- 3. Navigation & Hotkeys -->
       <div>
-        <div class="text-[9px] text-[#ddb7ff] font-bold uppercase mb-1.5 pb-1 border-b border-outline-variant/20">
-          TIMELINE &amp; PROVENANCE SYMBOLS
+        <div class="text-[9px] text-[#ddb7ff] font-bold uppercase mb-1 pb-1 border-b border-outline-variant/20">
+          3D GRAPH HOTKEYS &amp; GESTURES
         </div>
-        <div class="grid grid-cols-2 gap-2">
-          <div class="flex items-center gap-1.5 p-1 bg-surface-container-high/40 rounded">
-            <span class="w-2.5 h-2.5 rounded-sm bg-[#a855f7]"></span>
-            <span class="text-outline text-[9px]">Turn Exchange</span>
-          </div>
-          <div class="flex items-center gap-1.5 p-1 bg-surface-container-high/40 rounded">
-            <span class="w-2.5 h-2.5 rounded-sm bg-[#00f0ff]"></span>
-            <span class="text-outline text-[9px]">Tool Call (Exit 0)</span>
-          </div>
-          <div class="flex items-center gap-1.5 p-1 bg-surface-container-high/40 rounded">
-            <span class="w-2.5 h-2.5 rotate-45 border-2 border-secondary-container inline-block"></span>
-            <span class="text-outline text-[9px]">Merkle Root</span>
-          </div>
-          <div class="flex items-center gap-1.5 p-1 bg-surface-container-high/40 rounded">
-            <span class="w-1.5 h-3 bg-[#f43f5e] inline-block"></span>
-            <span class="text-outline text-[9px]">Policy Check</span>
-          </div>
+        <div class="grid grid-cols-2 gap-1.5 text-[9px] text-outline">
+          <div><strong class="text-white">[L]:</strong> Toggle Legend</div>
+          <div><strong class="text-white">[Z]:</strong> Flight Tour</div>
+          <div><strong class="text-white">[DRAG]:</strong> 3D Orbit Rotate</div>
+          <div><strong class="text-white">[SCROLL]:</strong> 3D Zoom</div>
+          <div><strong class="text-white">[CLICK]:</strong> Inspect Node</div>
+          <div><strong class="text-white">[SHIFT+DRAG]:</strong> Pan Camera</div>
         </div>
       </div>
     </div>

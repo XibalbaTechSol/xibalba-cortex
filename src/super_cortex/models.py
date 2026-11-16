@@ -107,3 +107,5 @@ class ExchangeRecord(BaseModel):
     turn_hash: str
     parent_hash: str = "0" * 64
     created_at: str = Field(default_factory=utc_now_iso)
+    scope_id: str = "shared"
+    agent_id: str = "xibalba"

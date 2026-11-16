@@ -201,6 +201,8 @@ def create_server(config: SuperCortexConfig | None = None) -> MCPServer:
         thinking_text: str = "",
         tool_calls: list[dict[str, Any]] | None = None,
         context_hashes: list[str] | None = None,
+        agent_id: str | None = None,
+        scope: str | None = None,
     ) -> str:
         """Record an interaction turn and update the session's Merkle root."""
         res = cortex.record_exchange(
@@ -210,7 +212,11 @@ def create_server(config: SuperCortexConfig | None = None) -> MCPServer:
             thinking_text=thinking_text,
             tool_calls=tool_calls,
             context_hashes=context_hashes,
+            agent_id=agent_id,
+            scope_id=scope,
         )
+        if thinking_text:
+            res["graph_thought_id"] = f"thought_{res.get('exchange_id', '')}"
         return json.dumps(res, indent=2)
 
     @server.tool()
@@ -219,21 +225,31 @@ def create_server(config: SuperCortexConfig | None = None) -> MCPServer:
         thought_text: str,
         step_phase: str = "planning",
         prompt_context: str | None = None,
+        agent_id: str | None = None,
+        scope: str | None = None,
     ) -> str:
-        """Record an agent's real-time internal chain-of-thought (COT), deliberation, or guardrail check into Super-Cortex."""
+        """Record an agent's real-time internal chain-of-thought (COT), deliberation, or guardrail check into Super-Cortex and dispatch it to the main graph."""
         res = cortex.record_exchange(
             session_id=session_id,
             prompt_text=prompt_context or "Internal cognitive deliberation",
             response_text="Thought anchored to cognitive ledger.",
             thinking_text=thought_text,
             tool_calls=[],
+            agent_id=agent_id,
+            scope_id=scope,
         )
+        exchange_id = res.get("exchange_id", "")
         return json.dumps({
             "status": "recorded",
             "session_id": session_id,
+            "exchange_id": exchange_id,
             "step_phase": step_phase,
             "turn_hash": res.get("turn_hash"),
             "session_merkle_root": res.get("session_merkle_root"),
+            "agent_id": res.get("agent_id"),
+            "scope_id": res.get("scope_id"),
+            "graph_node_id": f"thought_{exchange_id}",
+            "graph_dispatched": True,
         }, indent=2)
 
     @server.tool()

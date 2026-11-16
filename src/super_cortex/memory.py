@@ -448,6 +448,8 @@ class SuperCortex:
         context_hashes: list[str] | None = None,
         actor: str | None = None,
         created_at: str | None = None,
+        agent_id: str | None = None,
+        scope_id: str | None = None,
     ) -> dict[str, Any]:
         """Record an interaction turn and compute local Merkle root."""
         act = actor or self.config.actor_did
@@ -459,6 +461,8 @@ class SuperCortex:
             tool_calls=tool_calls,
             context_hashes=context_hashes,
             created_at=created_at,
+            agent_id=agent_id,
+            scope_id=scope_id,
         )
 
         merkle_root = self.store.session_merkle_root(session_id)
@@ -471,6 +475,7 @@ class SuperCortex:
                 "session_id": session_id,
                 "turn_hash": exchange.turn_hash,
                 "session_merkle_root": merkle_root,
+                "has_thinking": bool(thinking_text),
             },
             timestamp=created_at,
         )
@@ -481,6 +486,9 @@ class SuperCortex:
             "turn_hash": exchange.turn_hash,
             "session_merkle_root": merkle_root,
             "event_hash": event.event_hash,
+            "has_thinking": bool(thinking_text),
+            "agent_id": exchange.agent_id,
+            "scope_id": exchange.scope_id,
         }
 
     def verify_chain(self) -> dict[str, Any]:

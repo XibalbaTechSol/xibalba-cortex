@@ -108,6 +108,8 @@ async def test_server_record_thought_and_exchange(test_server):
     assert thought_data["status"] == "recorded"
     assert thought_data["session_id"] == "sess_test_cot_stream"
     assert "turn_hash" in thought_data
+    assert thought_data.get("graph_dispatched") is True
+    assert "graph_node_id" in thought_data
 
     # Test recording full exchange with thinking_text
     exch_res = await test_server.call_tool(
@@ -117,9 +119,20 @@ async def test_server_record_thought_and_exchange(test_server):
             "prompt_text": "Verify git status",
             "response_text": "Working tree is clean.",
             "thinking_text": "Inspecting branch tracking, checking uncommitted worktrees.",
-            "tool_calls": [{"name": "run_command", "args": {"CommandLine": "git status"}}]
+            "tool_calls": [{"name": "run_command", "args": {"CommandLine": "git status"}}],
+            "agent_id": "claude",
         }
     )
     exch_data = json.loads(exch_res.content[0].text)
     assert exch_data["session_id"] == "sess_test_cot_stream"
     assert "session_merkle_root" in exch_data
+    assert "graph_thought_id" in exch_data
+
+    # Test session rebuild via MCP
+    rebuild_res = await test_server.call_tool(
+        "memory_session_rebuild",
+        {"session_id": "sess_test_cot_stream", "format": "json"}
+    )
+    rebuild_data = json.loads(rebuild_res.content[0].text)
+    assert rebuild_data["found"] is True
+    assert rebuild_data["counts"]["agent_thoughts"] >= 2

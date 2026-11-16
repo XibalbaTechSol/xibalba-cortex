@@ -563,6 +563,8 @@ class ProvenanceStore:
             turn_hash=turn_hash,
             parent_hash=parent_hash,
             created_at=now,
+            scope_id=scope_id,
+            agent_id=agent_id,
         )
 
     def session_merkle_root(self, session_id: str) -> str:
@@ -620,6 +622,7 @@ class ProvenanceStore:
                     MAX(created_at) as end_time,
                     COUNT(*) as turn_count,
                     GROUP_CONCAT(tool_calls_json) as all_tools,
+                    SUM(CASE WHEN thinking_text IS NOT NULL AND trim(thinking_text) != '' THEN 1 ELSE 0 END) as thought_count,
                     MAX(scope_id) as scope_id,
                     MAX(agent_id) as agent_id
                 FROM exchanges
@@ -657,6 +660,7 @@ class ProvenanceStore:
                 "end_time": r["end_time"],
                 "turn_count": r["turn_count"],
                 "tool_execution_count": tool_count,
+                "thought_count": int(r["thought_count"] or 0),
                 "merkle_root": root,
             })
         return sessions
