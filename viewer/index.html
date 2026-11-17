@@ -1681,6 +1681,14 @@
             <input type="range" id="timeline-video-scrubber" min="0" max="100" value="100" oninput="onTimelineVideoScrub(this.value)" class="w-36 md:w-56 h-1 bg-surface-container-high rounded appearance-none cursor-pointer accent-[#00ffa3]">
             <span id="timeline-video-time-label" class="text-secondary-container font-mono font-bold text-[9px] w-32 truncate">PRESENT TIME</span>
           </div>
+
+          <!-- Targeted Session Selector -->
+          <div class="flex items-center gap-1.5 pl-2 border-l border-primary-container/20">
+            <span class="text-outline text-[9px]">SESSION:</span>
+            <select id="timeline-replay-session-select" onchange="onTimelineReplaySessionSelect(this.value)" class="bg-[#0e1526] border border-outline-variant/40 text-primary-container text-[10px] rounded px-2 py-0.5 outline-none font-mono max-w-[210px] truncate" title="Select a session to focus timeline replay">
+              <option value="all">⚡ ALL SESSIONS (GLOBAL)</option>
+            </select>
+          </div>
         </div>
 
         <div class="flex items-center gap-3">
@@ -7998,6 +8006,16 @@
         el.dataset.selected = (el.dataset.lane === id) ? 'true' : 'false';
       });
 
+      // Synchronize timeline replay session selector dropdown and readout
+      const sessSelect = document.getElementById('timeline-replay-session-select');
+      if (sessSelect && id && sessSelect.value !== id) {
+        sessSelect.value = id;
+      }
+      const liveText = document.getElementById('timeline-live-text');
+      if (liveText && id) {
+        liveText.innerText = `TARGETED: Session ${id.substring(0, 16)}...`;
+      }
+
       // User directive: right drawer should only pop out when user clicks on nodes.
       // Selecting a session updates inspector content if already open, but never forces it open.
       if (opts.openDrawer && !inspectorOpen) {
@@ -12803,6 +12821,25 @@ ${staticFacts.length > 0 ? `## Static Knowledge Core:\n${staticFacts.map(f => `-
       const aCountEl = document.getElementById('timeline-anchors-count');
       if (aCountEl) aCountEl.innerText = `${totalAnchors} ROOTED`;
 
+      // Populate targeted session selector options
+      const sessSelect = document.getElementById('timeline-replay-session-select');
+      if (sessSelect) {
+        const currentVal = sessSelect.value || (activeSessionId || 'all');
+        const opts = [`<option value="all">⚡ ALL SESSIONS (GLOBAL HORIZON)</option>`];
+        sessions.forEach(s => {
+          const agentId = (s.agent_id && s.agent_id !== 'unknown') ? s.agent_id.toUpperCase() : 'AGENT';
+          const shortId = s.session_id.replace(/^sess_/, '').substring(0, 12);
+          const turns = s.turn_count || 0;
+          opts.push(`<option value="${escapeHtml(s.session_id)}">[${escapeHtml(agentId)}] ${escapeHtml(shortId)}... (${turns} turns)</option>`);
+        });
+        sessSelect.innerHTML = opts.join('');
+        if (activeSessionId) {
+          sessSelect.value = activeSessionId;
+        } else if (currentVal) {
+          sessSelect.value = currentVal;
+        }
+      }
+
       // Determine Full Domain
       let minTime = Infinity;
       let maxTime = -Infinity;
@@ -13058,6 +13095,7 @@ ${staticFacts.length > 0 ? `## Static Knowledge Core:\n${staticFacts.map(f => `-
           markBtn.dataset.cls = m.cls;
           markBtn.dataset.row = rows[mIdx];
           markBtn.dataset.markId = m.id;
+          markBtn.dataset.sessionId = m.sessionId;
           if (activeTimelineSelectedMarkId === m.id) {
             markBtn.dataset.selected = 'true';
           }
@@ -13265,6 +13303,40 @@ ${staticFacts.length > 0 ? `## Static Knowledge Core:\n${staticFacts.map(f => `-
     }
     window.setTimelineReplaySpeed = setTimelineReplaySpeed;
 
+    function onTimelineReplaySessionSelect(sessionId) {
+      if (!sessionId || sessionId === 'all') {
+        activeSessionId = null;
+        timelineTimeWindow = null;
+        document.querySelectorAll('.xc-lane-label, .xc-lane-track').forEach(el => {
+          el.dataset.selected = 'false';
+        });
+        const liveText = document.getElementById('timeline-live-text');
+        if (liveText) liveText.innerText = "Replaying temporal stream...";
+        renderCortexTimeline();
+        rewindTimelineVideoReplay();
+        return;
+      }
+
+      // Select this session in state & lanes
+      selectSession(sessionId);
+
+      // Find session data to zoom timeline directly into this session's time window
+      const s = (timelineSessionsData || []).find(x => x.session_id === sessionId);
+      if (s) {
+        const start = s.start_time ? new Date(s.start_time).getTime() : Date.now();
+        const end = s.end_time ? new Date(s.end_time).getTime() : (start + 60_000);
+        const pad = Math.max(10_000, (end - start) * 0.08);
+        timelineTimeWindow = { from: start - pad, to: end + pad };
+        renderCortexTimeline();
+      }
+
+      // Reset playhead to start of this session and update readout
+      rewindTimelineVideoReplay();
+      const liveText = document.getElementById('timeline-live-text');
+      if (liveText) liveText.innerText = `TARGETED: Session ${sessionId.substring(0, 16)}...`;
+    }
+    window.onTimelineReplaySessionSelect = onTimelineReplaySessionSelect;
+
     function applyTimelineReplayPct(pct) {
       const scrubber = document.getElementById('timeline-video-scrubber');
       const timeLabel = document.getElementById('timeline-video-time-label');
@@ -13280,19 +13352,29 @@ ${staticFacts.length > 0 ? `## Static Knowledge Core:\n${staticFacts.map(f => `-
       }
 
       // Check marks passing under the playhead
-      let latestEvent = "Replaying temporal stream...";
+      let latestEvent = activeSessionId ? `Session ${activeSessionId.substring(0, 12)}... playback` : "Replaying temporal stream...";
+      let foundTargeted = false;
+
       document.querySelectorAll('.xc-mark').forEach(mark => {
+        const markSessionId = mark.dataset.sessionId;
+        const isTargetedSession = !activeSessionId || (markSessionId === activeSessionId);
         const markLeftPct = parseFloat(mark.style.left);
+
         if (markLeftPct <= pct) {
-          mark.style.opacity = '1';
-          if (Math.abs(markLeftPct - pct) < 2.5) {
-            mark.style.transform = 'scale(1.7)';
-            if (mark.title) latestEvent = mark.title.split('\n')[0];
+          mark.style.opacity = isTargetedSession ? '1' : '0.2';
+          if (Math.abs(markLeftPct - pct) < 3.0) {
+            mark.style.transform = isTargetedSession ? 'scale(1.8)' : 'scale(1.2)';
+            if (isTargetedSession && mark.title) {
+              latestEvent = mark.title.split('\n')[0];
+              foundTargeted = true;
+            } else if (!foundTargeted && mark.title) {
+              latestEvent = mark.title.split('\n')[0];
+            }
           } else {
             mark.style.transform = '';
           }
         } else {
-          mark.style.opacity = '0.15';
+          mark.style.opacity = isTargetedSession ? '0.25' : '0.08';
           mark.style.transform = '';
         }
       });
