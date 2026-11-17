@@ -346,6 +346,37 @@ def watch(
         console.print("[yellow]Watcher stopped.[/yellow]")
 
 
+@app.command("migrate-legacy")
+def migrate_legacy(
+    max_per_db: int = typer.Option(250, "--max-per-db", help="Maximum high-signal memories to migrate per legacy DB"),
+) -> None:
+    """Migrate memories, entities, and relations from legacy xibalba-cortex SQLite databases into Super-Cortex."""
+    from .legacy_migration import migrate_legacy_cortex_databases
+
+    cortex = SuperCortex()
+    res = migrate_legacy_cortex_databases(cortex.store, max_memories_per_db=max_per_db)
+    table = Table(title="Legacy Cortex -> Super-Cortex Migration Summary")
+    table.add_column("Agent / Profile", style="cyan")
+    table.add_column("Scope", style="magenta")
+    table.add_column("Memories", justify="right", style="green")
+    table.add_column("Entities", justify="right", style="blue")
+    table.add_column("Relations", justify="right", style="yellow")
+    for item in res.get("per_database", []):
+        table.add_row(
+            str(item["agent_id"]),
+            str(item["scope_id"]),
+            str(item["memories_migrated"]),
+            str(item["entities_migrated"]),
+            str(item["relations_migrated"]),
+        )
+    console.print(table)
+    console.print(
+        f"[bold green]✓ Migrated {res['memories_migrated']} memories, "
+        f"{res['entities_migrated']} entities, and {res['relations_migrated']} relations "
+        f"across {res['databases_scanned']} databases.[/bold green]"
+    )
+
+
 def main() -> None:
     app()
 

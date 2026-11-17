@@ -11,11 +11,18 @@ from typing import Any, AsyncGenerator
 from starlette.applications import Starlette
 from starlette.middleware.cors import CORSMiddleware
 from starlette.requests import Request
-from starlette.responses import JSONResponse
+from starlette.responses import JSONResponse, RedirectResponse
 from starlette.routing import Mount, Route
 from starlette.staticfiles import StaticFiles
 from sse_starlette.sse import EventSourceResponse
 
+from .ais_reward import (
+    TrajectoryStepInput,
+    build_dpo_preference_pair,
+    compute_grpo_advantages,
+    evaluate_trajectory_rewards,
+    multiplicative_reward,
+)
 from .classifier import classify_epistemic, classify_para, extract_triples
 from .config import SuperCortexConfig
 from .connectors import SuperCortexConnectors
@@ -33,6 +40,7 @@ from .inference import (
     run_link_discovery,
     test_provider_connection,
 )
+from .legacy_migration import migrate_legacy_cortex_databases
 from .managed import (
     LimitExceeded,
     ManagedConfig,
@@ -42,7 +50,16 @@ from .managed import (
 )
 from .memory import SuperCortex
 from .models import ProviderRecord, ProviderType
+from .oauth_and_storage import (
+    GitHubOAuthProvider,
+    GoogleOAuthProvider,
+    SupabaseSnapshotSync,
+    generate_pkce,
+    sign_oauth_state,
+    verify_oauth_state,
+)
 from .plans import PLANS
+from .redaction_and_otlp import ingest_otlp_logs, ingest_otlp_traces, redact_secrets
 from .stripe_gateway import BillingUnavailable
 
 logger = logging.getLogger(__name__)
@@ -1846,6 +1863,176 @@ def create_app(
         except PermissionError as exc:
             return JSONResponse({"error": str(exc)}, status_code=401)
 
+    snapshot_sync = SupabaseSnapshotSync()
+
+    def _build_oauth_provider(provider_name: str, redirect_uri: str) -> GoogleOAuthProvider | GitHubOAuthProvider:
+        p = provider_name.strip().lower()
+        if p == "google":
+            return GoogleOAuthProvider(
+                managed.config.google_client_id,
+                managed.config.google_client_secret,
+                redirect_uri,
+            )
+        if p == "github":
+            return GitHubOAuthProvider(
+                managed.config.github_client_id,
+                managed.config.github_client_secret,
+                redirect_uri,
+            )
+        raise ValueError(f"Unsupported OAuth provider: {provider_name}")
+
+    async def api_oauth_authorize(request: Request) -> JSONResponse | RedirectResponse:
+        provider_name = str(request.path_params.get("provider") or "").lower()
+        redirect_uri = f"{managed.config.public_url.rstrip('/')}/api/managed/oauth/{provider_name}/callback"
+        try:
+            provider = _build_oauth_provider(provider_name, redirect_uri)
+        except ValueError as exc:
+            return JSONResponse({"error": str(exc)}, status_code=400)
+        if not provider.configured:
+            return JSONResponse(
+                {"error": f"{provider_name.title()} OAuth is not configured on this deployment"},
+                status_code=503,
+            )
+        verifier, challenge = generate_pkce()
+        state = sign_oauth_state(
+            {"provider": provider_name, "pkce_verifier": verifier},
+            managed.config.stripe_webhook_secret or "super-cortex-oauth-secret",
+        )
+        url = provider.build_authorize_url(state=state, code_challenge=challenge)
+        if request.query_params.get("json") in {"1", "true"}:
+            return JSONResponse({"provider": provider_name, "authorize_url": url, "state": state})
+        return RedirectResponse(url, status_code=302)
+
+    async def api_oauth_callback(request: Request) -> JSONResponse | RedirectResponse:
+        provider_name = str(request.path_params.get("provider") or "").lower()
+        code = str(request.query_params.get("code") or "")
+        state = str(request.query_params.get("state") or "")
+        if not code or not state:
+            return JSONResponse({"error": "Missing OAuth code or state"}, status_code=400)
+        try:
+            state_payload = verify_oauth_state(
+                state,
+                managed.config.stripe_webhook_secret or "super-cortex-oauth-secret",
+            )
+            if state_payload.get("provider") != provider_name:
+                raise ValueError("OAuth provider mismatch in state token")
+            redirect_uri = f"{managed.config.public_url.rstrip('/')}/api/managed/oauth/{provider_name}/callback"
+            provider = _build_oauth_provider(provider_name, redirect_uri)
+            profile = provider.exchange_code_for_profile(
+                code=code,
+                code_verifier=state_payload.get("pkce_verifier"),
+            )
+            result = managed.oauth_login_or_register(
+                provider=profile.provider,
+                provider_user_id=profile.provider_user_id,
+                email=profile.email,
+                display_name=profile.display_name,
+            )
+            resp: JSONResponse | RedirectResponse
+            if request.query_params.get("json") in {"1", "true"}:
+                resp = JSONResponse(result)
+            else:
+                resp = RedirectResponse("/#graph", status_code=302)
+            _attach_session_cookie(resp, result["session"]["token"])
+            return resp
+        except Exception as exc:
+            return JSONResponse({"error": str(exc)}, status_code=400)
+
+    async def api_ais_reward_evaluate(request: Request) -> JSONResponse:
+        try:
+            body = await request.json()
+        except Exception:
+            return JSONResponse({"error": "Invalid JSON body"}, status_code=400)
+        steps_raw = body.get("steps") or []
+        steps = [
+            TrajectoryStepInput(
+                event_id=str(s.get("event_id") or f"evt_{idx}"),
+                receipt_hash=str(s.get("receipt_hash") or f"sha256:{idx:064x}"),
+                r_task=float(s.get("r_task", 1.0)),
+                ais_score_1000=float(s.get("ais_score_1000", 950.0)),
+                s_compliance=float(s.get("s_compliance", 1000.0 if s.get("bcc_passed", True) else 0.0)),
+                policy_denied=bool(s.get("policy_denied", s.get("policy_violated", False))),
+                cost_usd=float(s.get("cost_usd", 0.0)),
+            )
+            for idx, s in enumerate(steps_raw)
+        ]
+        summary = evaluate_trajectory_rewards(
+            session_id=str(body.get("session_id") or "session_default"),
+            agent_did=str(body.get("agent_did") or cfg.actor_did),
+            steps=steps,
+            reward_profile=str(body.get("reward_profile") or "ais-reward/v2-multiplicative-1"),
+            gamma=float(body.get("gamma", 0.99)),
+        )
+        out = summary.to_dict()
+        out["step_count"] = len(summary.steps)
+        out["zero_gated_steps"] = summary.compliance_violation_count
+        return JSONResponse(out)
+
+    async def api_ais_reward_step(request: Request) -> JSONResponse:
+        try:
+            body = await request.json()
+        except Exception:
+            return JSONResponse({"error": "Invalid JSON body"}, status_code=400)
+        gated = bool(
+            body.get("policy_denied", False)
+            or body.get("policy_violated", False)
+            or not body.get("bcc_passed", True)
+            or float(body.get("s_compliance", 1000.0)) <= 0.0
+        )
+        r_total = multiplicative_reward(
+            float(body.get("r_task", 1.0)),
+            float(body.get("ais_score_1000", 950.0)),
+            cost_penalty=float(body.get("cost_penalty", 0.0)),
+            gated=gated,
+        )
+        return JSONResponse(
+            {
+                "event_id": str(body.get("event_id") or "evt_0"),
+                "reward": round(r_total, 6),
+                "gated_by_compliance": gated,
+            }
+        )
+
+    async def api_otlp_traces(request: Request) -> JSONResponse:
+        try:
+            payload = await request.json()
+        except Exception:
+            return JSONResponse({"error": "Invalid OTLP JSON payload"}, status_code=400)
+        res = await ingest_otlp_traces(cortex, payload)
+        return JSONResponse(res)
+
+    async def api_otlp_logs(request: Request) -> JSONResponse:
+        try:
+            payload = await request.json()
+        except Exception:
+            return JSONResponse({"error": "Invalid OTLP JSON payload"}, status_code=400)
+        res = await ingest_otlp_logs(cortex, payload)
+        return JSONResponse(res)
+
+    async def api_migrate_legacy_cortex(request: Request) -> JSONResponse:
+        body: dict[str, Any] = {}
+        try:
+            body = await request.json()
+        except Exception:
+            pass
+        max_per_db = int(body.get("max_memories_per_db", 250))
+        res = migrate_legacy_cortex_databases(cortex.store, max_memories_per_db=max_per_db)
+        return JSONResponse(res)
+
+    async def api_storage_snapshot(request: Request) -> JSONResponse:
+        action = request.query_params.get("action", "backup")
+        if request.method == "POST":
+            try:
+                body = await request.json()
+                action = str(body.get("action") or action)
+            except Exception:
+                pass
+        if action == "restore":
+            res = snapshot_sync.restore_database(cortex.store.db_path, "provenance.db")
+        else:
+            res = snapshot_sync.backup_database(cortex.store.db_path, "provenance.db")
+        return JSONResponse(res)
+
     routes = [
         Route("/healthz", api_healthz, methods=["GET"]),
         Route("/readyz", api_readyz, methods=["GET"]),
@@ -1867,6 +2054,19 @@ def create_app(
         Route("/api/auth/events", api_managed_auth_events, methods=["GET"]),
         Route("/api/managed/oauth/providers", api_managed_oauth_providers, methods=["GET"]),
         Route("/api/auth/oauth/providers", api_managed_oauth_providers, methods=["GET"]),
+        Route("/api/managed/oauth/{provider}/authorize", api_oauth_authorize, methods=["GET"]),
+        Route("/api/auth/oauth/{provider}/authorize", api_oauth_authorize, methods=["GET"]),
+        Route("/api/managed/oauth/{provider}/callback", api_oauth_callback, methods=["GET"]),
+        Route("/api/auth/oauth/{provider}/callback", api_oauth_callback, methods=["GET"]),
+        Route("/api/managed/ais/reward/evaluate", api_ais_reward_evaluate, methods=["POST"]),
+        Route("/api/ais/reward/evaluate", api_ais_reward_evaluate, methods=["POST"]),
+        Route("/api/managed/discovery/reward-trajectory", api_ais_reward_evaluate, methods=["POST"]),
+        Route("/api/managed/discovery/reward-step", api_ais_reward_step, methods=["POST"]),
+        Route("/v1/traces", api_otlp_traces, methods=["POST"]),
+        Route("/v1/logs", api_otlp_logs, methods=["POST"]),
+        Route("/api/otel/ingest", api_otlp_traces, methods=["POST"]),
+        Route("/api/migrations/legacy-cortex", api_migrate_legacy_cortex, methods=["POST"]),
+        Route("/api/managed/storage/snapshot", api_storage_snapshot, methods=["GET", "POST"]),
         Route("/api/managed/recovery/{action}", api_managed_recovery, methods=["POST"]),
         Route("/api/auth/password/reset/{action}", api_managed_recovery, methods=["POST"]),
         Route("/api/managed/device/pair/request", api_device_pair_request, methods=["POST"]),

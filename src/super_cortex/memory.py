@@ -6,6 +6,7 @@ from typing import Any
 from .classifier import classify_epistemic, classify_para, extract_triples
 from .client import SupermemoryClient
 from .config import SuperCortexConfig
+from .redaction_and_otlp import redact_secrets
 from .models import (
     AgentRecord,
     EntityRecord,
@@ -110,6 +111,8 @@ class SuperCortex:
         if source_origin:
             meta["source_origin"] = source_origin
 
+        # Scrub secrets/PII before hashing or persisting
+        text = redact_secrets(text)
         content_hash = sha256_hex(text.strip())
         memory_id = f"mem_{content_hash[:16]}"
 

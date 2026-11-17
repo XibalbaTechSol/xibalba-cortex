@@ -1064,3 +1064,73 @@ class ManagedControl:
                 (inquiry_id, clean_name, clean_email, organization.strip()[:160], clean_message, _now_iso()),
             )
         return {"ok": True, "id": inquiry_id, "message": "Your inquiry has been received by Xibalba Solutions."}
+
+    def oauth_login_or_register(
+        self,
+        *,
+        provider: str,
+        provider_user_id: str,
+        email: str,
+        display_name: str = "",
+    ) -> dict[str, Any]:
+        """Find or create a managed account from a verified OAuth identity (Google / GitHub) and open a session."""
+        norm_email = _normalize_email(email)
+        if not norm_email or "@" not in norm_email:
+            raise ValueError("OAuth provider did not supply a valid email address")
+        clean_name = (display_name or norm_email.split("@")[0]).strip()[:120]
+
+        with self.db() as conn:
+            row = conn.execute("SELECT * FROM accounts WHERE email=?", (norm_email,)).fetchone()
+            if row:
+                account = dict(row)
+                conn.execute(
+                    "UPDATE accounts SET email_verified=1, approval_status='approved', updated_at=? WHERE id=?",
+                    (_now_iso(), account["id"]),
+                )
+                self._record_event(
+                    conn,
+                    account["profile_id"],
+                    norm_email,
+                    f"auth.oauth_{provider}_login",
+                    f"provider_uid={provider_user_id}",
+                )
+            else:
+                account_id = "acc_" + uuid.uuid4().hex[:20]
+                tenant_id = "t-" + uuid.uuid4().hex
+                salt, digest = _password_hash(secrets.token_urlsafe(24))
+                now_iso = _now_iso()
+                conn.execute(
+                    """INSERT INTO accounts (
+                        id, email, display_name, password_hash, password_salt,
+                        profile_id, status, role, email_verified, approval_status,
+                        agent_ids_json, created_at, updated_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, 'active', 'operator', 1, 'approved', '[]', ?, ?)""",
+                    (
+                        account_id,
+                        norm_email,
+                        clean_name,
+                        digest,
+                        salt,
+                        tenant_id,
+                        now_iso,
+                        now_iso,
+                    ),
+                )
+                conn.execute(
+                    """INSERT INTO managed_tenants (
+                        id, owner_account_id, plan, status, created_at
+                    ) VALUES (?, ?, 'free', 'free', ?)""",
+                    (tenant_id, account_id, int(time.time())),
+                )
+                self._record_event(
+                    conn,
+                    tenant_id,
+                    norm_email,
+                    f"auth.oauth_{provider}_signup",
+                    f"provider_uid={provider_user_id}",
+                )
+                account = dict(conn.execute("SELECT * FROM accounts WHERE id=?", (account_id,)).fetchone())
+
+        session = self.create_session(account)
+        return {"account": self._public_account(account), "session": session, "provider": provider}
+
