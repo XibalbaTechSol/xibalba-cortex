@@ -1,0 +1,30 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch: {}
+
+env:
+  PYTHON_VERSION: "3.12"
+  UV_VERSION: "0.11.x"
+
+jobs:
+  test:
+    name: xibalba-cortex (pytest)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout super-cortex
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@v3
+        with:
+          version: ${{ env.UV_VERSION }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - run: uv sync
+      - run: uv run pytest -q
