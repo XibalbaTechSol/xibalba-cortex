@@ -13,6 +13,11 @@ from .server import create_server
 app = typer.Typer(help="Super-Cortex: Cryptographic Memory Engine backed by Supermemory Local")
 console = Console()
 
+from .retrieval_eval.cli import engine_app, eval_app  # noqa: E402
+
+app.add_typer(eval_app, name="eval")
+app.add_typer(engine_app, name="engine")
+
 
 @app.command()
 def doctor() -> None:

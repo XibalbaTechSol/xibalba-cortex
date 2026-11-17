@@ -258,7 +258,11 @@ class SuperCortex:
 
         enriched_items = []
         for item in raw_results:
-            doc_id = item.get("id")
+            # Provenance is keyed by the source document (= the ledger memory id), not by the
+            # chunk or learned-memory id Supermemory returns as the hit's own `id`.
+            chunk_id = item.get("id")
+            included_doc = (item.get("included") or {}).get("document") or {}
+            doc_id = included_doc.get("id") or item.get("documentId") or chunk_id
             content = item.get("chunk") or item.get("memory") or ""
             similarity = item.get("similarity", 0.0)
 
@@ -273,6 +277,7 @@ class SuperCortex:
 
             enriched_items.append({
                 "id": doc_id,
+                "chunk_id": chunk_id,
                 "content": content,
                 "similarity": similarity,
                 "provenance": provenance,
