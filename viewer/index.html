@@ -16752,9 +16752,9 @@ console.log("Loaded " + nodes.length + " memory invariants.");</code></pre>
         <a href="#xc-contact" onclick="event.preventDefault(); document.getElementById('xc-contact')?.scrollIntoView({behavior:'smooth'})" class="hover:text-cyan-300 transition-colors">Contact</a>
       </nav>
       <div class="flex items-center gap-2 font-mono text-xs">
-        <button onclick="window.closeLandingOverlay()" class="px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 border border-cyan-500/40 text-cyan-300 font-bold transition-all cursor-pointer flex items-center gap-1.5">
+        <button onclick="window.enterConsoleFromLanding()" class="px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 border border-cyan-500/40 text-cyan-300 font-bold transition-all cursor-pointer flex items-center gap-1.5">
           <span class="material-symbols-outlined text-[15px]">view_in_ar</span>
-          <span>Explore 3D Manifold</span>
+          <span>Open 3D Console</span>
         </button>
         <button onclick="window.openAuthOverlay('login')" class="px-3.5 py-1.5 rounded-lg bg-cyan-400 hover:bg-cyan-300 text-black font-bold transition-all cursor-pointer">
           Sign in
@@ -16777,7 +16777,7 @@ console.log("Loaded " + nodes.length + " memory invariants.");</code></pre>
             An isolated workspace and local-first engine for recording agent memories, searching them through an authenticated MCP &amp; REST API, exploring a 60FPS 3D neural graph manifold, and retaining a cryptographically verifiable Merkle event history.
           </p>
           <div class="flex flex-wrap items-center gap-3 pt-2 font-mono text-xs">
-            <button onclick="window.closeLandingOverlay()" class="px-5 py-2.5 rounded-lg bg-cyan-400 hover:bg-cyan-300 text-black font-bold uppercase tracking-wider transition-all cursor-pointer flex items-center gap-2 shadow-[0_0_20px_rgba(0,240,255,0.3)]">
+            <button onclick="window.enterConsoleFromLanding()" class="px-5 py-2.5 rounded-lg bg-cyan-400 hover:bg-cyan-300 text-black font-bold uppercase tracking-wider transition-all cursor-pointer flex items-center gap-2 shadow-[0_0_20px_rgba(0,240,255,0.3)]">
               <span class="material-symbols-outlined text-base">view_in_ar</span>
               <span>Open 3D Graph Console</span>
             </button>
@@ -17265,6 +17265,7 @@ console.log("Loaded " + nodes.length + " memory invariants.");</code></pre>
     window.cortexPlansCatalog = null;
     window.currentAuthMode = 'login';
     window.currentPairCode = null;
+    window.isOperatorAuthenticated = false;
 
     window.consumeBillingReturnBanner = function() {
       try {
@@ -17280,25 +17281,43 @@ console.log("Loaded " + nodes.length + " memory invariants.");</code></pre>
       return null;
     };
 
-    window.refreshOperatorSessionState = async function() {
+    window.refreshOperatorSessionState = async function(strictCheck = false) {
       try {
+        const meUrl = strictCheck ? '/api/managed/me?strict_auth=1' : '/api/managed/me';
         const [meResp, plansResp] = await Promise.all([
-          fetch('/api/managed/me'),
+          fetch(meUrl),
           fetch('/api/managed/plans')
         ]);
         if (plansResp.ok) {
           window.cortexPlansCatalog = await plansResp.json();
         }
         if (meResp.ok) {
-          window.cortexMeState = await meResp.json();
-          const planName = (window.cortexMeState?.entitlement?.plan?.name || 'Free').toUpperCase();
-          const hBadge = document.getElementById('header-plan-tier-badge');
-          if (hBadge) hBadge.innerText = `${planName} TIER`;
-          const pPill = document.getElementById('popover-plan-pill');
-          if (pPill) pPill.innerText = planName;
+          const meData = await meResp.json();
+          if (meData && meData.authenticated !== false && meData.account) {
+            window.cortexMeState = meData;
+            window.isOperatorAuthenticated = true;
+            const planName = (window.cortexMeState?.entitlement?.plan?.name || 'Free').toUpperCase();
+            const hBadge = document.getElementById('header-plan-tier-badge');
+            if (hBadge) hBadge.innerText = `${planName} TIER`;
+            const pPill = document.getElementById('popover-plan-pill');
+            if (pPill) pPill.innerText = planName;
+            return true;
+          }
         }
+        window.isOperatorAuthenticated = false;
+        return false;
       } catch (err) {
         console.warn('Could not fetch managed session state:', err);
+        return false;
+      }
+    };
+
+    window.enterConsoleFromLanding = function() {
+      if (window.isOperatorAuthenticated || localStorage.getItem('supercortex_operator_signed_in') === 'true') {
+        window.closeLandingOverlay();
+        window.closeAuthOverlay();
+      } else {
+        window.openAuthOverlay('login');
       }
     };
 
@@ -17479,7 +17498,11 @@ console.log("Loaded " + nodes.length + " memory invariants.");</code></pre>
     };
 
     window.connectLocalOperatorQuick = async function() {
-      await window.refreshOperatorSessionState();
+      try {
+        await fetch('/api/managed/local-connect', { method: 'POST' });
+      } catch (e) {}
+      localStorage.setItem('supercortex_operator_signed_in', 'true');
+      await window.refreshOperatorSessionState(false);
       window.closeAuthOverlay();
       window.closeLandingOverlay();
       window.showToast('Connected as Xibalba Executive Operator');
@@ -17518,7 +17541,8 @@ console.log("Loaded " + nodes.length + " memory invariants.");</code></pre>
         if (!r.ok) {
           throw new Error(data.error || 'Authentication failed');
         }
-        await window.refreshOperatorSessionState();
+        localStorage.setItem('supercortex_operator_signed_in', 'true');
+        await window.refreshOperatorSessionState(false);
         window.closeAuthOverlay();
         window.closeLandingOverlay();
         window.showToast(`Signed in as ${data.account?.display_name || email}`);
@@ -17535,9 +17559,11 @@ console.log("Loaded " + nodes.length + " memory invariants.");</code></pre>
       try {
         await fetch('/api/managed/logout', { method: 'POST' });
       } catch (e) {}
+      localStorage.removeItem('supercortex_operator_signed_in');
+      window.isOperatorAuthenticated = false;
       const pop = document.getElementById('user-profile-popover');
       if (pop) pop.classList.add('hidden');
-      window.openAuthOverlay('login');
+      window.openLandingOverlay();
       window.showToast('Session signed out');
     };
 
@@ -17787,9 +17813,15 @@ console.log("Loaded " + nodes.length + " memory invariants.");</code></pre>
       }
     };
 
-    // Route URL hashes & query parameters on startup
-    window.addEventListener('DOMContentLoaded', () => {
-      window.refreshOperatorSessionState();
+    // Route URL hashes & query parameters on startup (Landing Page -> Sign In -> 3D Graph UI gate)
+    window.addEventListener('DOMContentLoaded', async () => {
+      const hasSessionCookie = await window.refreshOperatorSessionState(true);
+      const hasLocalFlag = localStorage.getItem('supercortex_operator_signed_in') === 'true';
+      const isSignedIn = hasSessionCookie || hasLocalFlag;
+      if (isSignedIn && !hasSessionCookie) {
+        await window.refreshOperatorSessionState(false);
+      }
+
       const billingResult = window.consumeBillingReturnBanner();
       if (billingResult) {
         window.openBillingStudio();
@@ -17803,7 +17835,9 @@ console.log("Loaded " + nodes.length + " memory invariants.");</code></pre>
             ? '✓ Checkout completed. Your subscription will update as soon as Stripe confirms payment.'
             : 'Checkout was canceled; your workspace plan was not changed.';
         }
+        return;
       }
+
       const params = new URLSearchParams(window.location.search);
       const pairCode = params.get('pair_code') || params.get('code');
       const h = window.location.hash;
@@ -17817,6 +17851,9 @@ console.log("Loaded " + nodes.length + " memory invariants.");</code></pre>
         window.openAuthOverlay('signup');
       } else if (h === '#billing') {
         window.openBillingStudio();
+      } else if (!isSignedIn && h !== '#console' && h !== '#graph') {
+        // Default unauthenticated entry: show the Public Product Landing Page
+        window.openLandingOverlay();
       }
     });
   </script>
