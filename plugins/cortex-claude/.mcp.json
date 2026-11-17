@@ -1,7 +1,0 @@
-{
-  "mcpServers": {
-    "cortex": {
-      "command": "xibalba-cortex"
-    }
-  }
-}

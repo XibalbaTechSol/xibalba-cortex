@@ -1,20 +1,19 @@
+FROM ghcr.io/astral-sh/uv:0.11 AS uv
 FROM python:3.12-slim
+COPY --from=uv /uv /bin/uv
+WORKDIR /app/super-cortex
 
-# Cortex depends on the sibling integrity-sdk checkout in pyproject.toml.
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends git \
-    && rm -rf /var/lib/apt/lists/*
+COPY pyproject.toml README.md ./
+COPY src ./src
+COPY viewer /app/viewer
 
-WORKDIR /app/xibalba-cortex
-COPY integrity-core/integrity-sdk /app/integrity-core/integrity-sdk
-COPY xibalba-cortex/pyproject.toml xibalba-cortex/uv.lock xibalba-cortex/README.md ./
-COPY xibalba-cortex/src ./src
-COPY xibalba-cortex/spec ./spec
-# The HTTP API does not import the optional embedding worker. Keep the API image lean; build/run embedding_worker.py separately when model inference is required.
-RUN pip install --no-cache-dir /app/integrity-core/integrity-sdk "mcp>=1.0.0" "eth-hash[pycryptodome]>=0.7.0" "sqlite-vec>=0.1.9" "pyyaml>=6.0" "uvicorn>=0.30"
-RUN pip install --no-cache-dir . --no-deps
+RUN uv pip install --system --no-cache . \
+    && useradd --system --uid 10001 --create-home cortex \
+    && install -d -o cortex -g cortex /data/super-cortex
 
-ENV XIBALBA_CORTEX_HOME=/data/cortex
-VOLUME ["/data/cortex"]
+ENV CORTEX_MANAGED_HOME=/data/super-cortex
+ENV SUPER_CORTEX_DB_PATH=/data/super-cortex/provenance.db
+USER cortex
 EXPOSE 8420
-CMD ["python", "-m", "xibalba_cortex.local_api", "--home", "/data/cortex", "--host", "0.0.0.0", "--port", "8420"]
+VOLUME ["/data/super-cortex"]
+CMD ["python", "-m", "super_cortex.api", "--host", "0.0.0.0", "--port", "8420", "--viewer-dist", "/app/viewer"]

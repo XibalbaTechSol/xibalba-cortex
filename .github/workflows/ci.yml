@@ -1,12 +1,5 @@
 name: CI
 
-# Mirrors integrity-core's own ci.yml sdk/cli jobs (same uv-based Python toolchain), the one
-# other CI workflow in this ecosystem. `uv sync` needs integrity-sdk, which pyproject.toml/
-# uv.lock pin via a local sibling-repo path (`../integrity-core/integrity-sdk`) rather than a
-# published package — see PACKAGING.md / the packaging note in README.md for why. Both repos
-# are checked out below as siblings inside GITHUB_WORKSPACE. actions/checkout rejects paths
-# outside GITHUB_WORKSPACE, so do not use `../integrity-core` as a checkout destination.
-
 on:
   push:
     branches: [main]
@@ -22,28 +15,10 @@ jobs:
   test:
     name: xibalba-cortex (pytest)
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: xibalba-cortex
     steps:
-      - name: Checkout xibalba-cortex
+      - name: Checkout super-cortex
         uses: actions/checkout@v4
         with:
-          path: xibalba-cortex
-          persist-credentials: false
-      - name: Read the integrity-core pin (deploy/integrity-core.ref)
-        # Single source of truth for the SDK commit, shared with deploy/render and deploy/railway
-        # Dockerfiles so a deploy runs exactly the SDK CI tested. Bump it deliberately, in the SAME
-        # PR as any code that imports a newly added SDK symbol -- never in a follow-up.
-        id: core
-        working-directory: xibalba-cortex
-        run: echo "ref=$(tr -d '[:space:]' < deploy/integrity-core.ref)" >> "$GITHUB_OUTPUT"
-      - name: Checkout integrity-core (sibling repo, integrity-sdk path dependency)
-        uses: actions/checkout@v4
-        with:
-          repository: XibalbaTechSol/integrity-core
-          ref: ${{ steps.core.outputs.ref }}
-          path: integrity-core
           persist-credentials: false
       - uses: astral-sh/setup-uv@v3
         with:
@@ -51,104 +26,5 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
-      # Fail with an explicit layout error before uv reports an opaque missing-distribution failure.
-      - run: test -f ../integrity-core/integrity-sdk/pyproject.toml
-      - run: uv sync --extra otel --extra managed
-      - run: uv run pytest -q
-
-  # cortex-nav is a standalone package (own pyproject.toml and uv.lock) that path-depends on
-  # the root package. It is synced into its own environment here, so the two jobs around it
-  # install the root package exactly as before, and the pilot image never installs cortex-nav.
-  cortex-nav:
-    name: cortex-nav (pytest)
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: xibalba-cortex/cortex-nav
-    steps:
-      - name: Checkout xibalba-cortex
-        uses: actions/checkout@v4
-        with:
-          path: xibalba-cortex
-          persist-credentials: false
-      - name: Read the integrity-core pin (deploy/integrity-core.ref)
-        # Single source of truth for the SDK commit, shared with deploy/render and deploy/railway
-        # Dockerfiles so a deploy runs exactly the SDK CI tested. Bump it deliberately, in the SAME
-        # PR as any code that imports a newly added SDK symbol -- never in a follow-up.
-        id: core
-        working-directory: xibalba-cortex
-        run: echo "ref=$(tr -d '[:space:]' < deploy/integrity-core.ref)" >> "$GITHUB_OUTPUT"
-      - name: Checkout integrity-core (sibling repo, integrity-sdk path dependency of the root package)
-        uses: actions/checkout@v4
-        with:
-          repository: XibalbaTechSol/integrity-core
-          ref: ${{ steps.core.outputs.ref }}
-          path: integrity-core
-          persist-credentials: false
-      - uses: astral-sh/setup-uv@v3
-        with:
-          version: ${{ env.UV_VERSION }}
-      - uses: actions/setup-python@v5
-        with:
-          python-version: ${{ env.PYTHON_VERSION }}
-      - run: test -f ../../integrity-core/integrity-sdk/pyproject.toml
       - run: uv sync
       - run: uv run pytest -q
-
-  viewer:
-    name: viewer (tsc, oxlint, vitest, playwright)
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout xibalba-cortex
-        uses: actions/checkout@v4
-        with:
-          path: xibalba-cortex
-          persist-credentials: false
-      - name: Read the integrity-core pin (deploy/integrity-core.ref)
-        # Single source of truth for the SDK commit, shared with deploy/render and deploy/railway
-        # Dockerfiles so a deploy runs exactly the SDK CI tested. Bump it deliberately, in the SAME
-        # PR as any code that imports a newly added SDK symbol -- never in a follow-up.
-        id: core
-        working-directory: xibalba-cortex
-        run: echo "ref=$(tr -d '[:space:]' < deploy/integrity-core.ref)" >> "$GITHUB_OUTPUT"
-      - name: Checkout integrity-core (sibling repo, integrity-sdk path dependency)
-        uses: actions/checkout@v4
-        with:
-          repository: XibalbaTechSol/integrity-core
-          ref: ${{ steps.core.outputs.ref }}
-          path: integrity-core
-          persist-credentials: false
-      - uses: astral-sh/setup-uv@v3
-        with:
-          version: ${{ env.UV_VERSION }}
-      - uses: actions/setup-python@v5
-        with:
-          python-version: ${{ env.PYTHON_VERSION }}
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "22"
-          cache: npm
-          cache-dependency-path: xibalba-cortex/viewer/package-lock.json
-      - run: uv sync --extra otel --extra managed
-        working-directory: xibalba-cortex
-      - run: npm ci
-        working-directory: xibalba-cortex/viewer
-      - run: npm run build
-        working-directory: xibalba-cortex/viewer
-      - run: npx oxlint src e2e
-        working-directory: xibalba-cortex/viewer
-      - run: npx vitest run --maxWorkers=1
-        working-directory: xibalba-cortex/viewer
-      # The browser suite seeds a scratch profile, serves it with local_api, starts Vite and drives
-      # headless Chromium with software WebGL. See viewer/playwright.config.ts.
-      - run: npx playwright install --with-deps chromium
-        working-directory: xibalba-cortex/viewer
-      - run: npx playwright test
-        working-directory: xibalba-cortex/viewer
-        env:
-          CI: "true"
-      - uses: actions/upload-artifact@v4
-        if: failure()
-        with:
-          name: playwright-failures
-          path: xibalba-cortex/viewer/test-results

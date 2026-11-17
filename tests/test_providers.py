@@ -1,141 +1,95 @@
+from __future__ import annotations
+
+from pathlib import Path
 import pytest
+from starlette.testclient import TestClient
 
-from xibalba_cortex.providers import (
-    EvidenceScope,
-    ExtractedEntity,
-    ExtractedRelation,
-    InferenceTaskContract,
-    NativeHarnessInferenceProvider,
-    validate_extraction_output,
-)
-from xibalba_cortex.store import GraphStore
+from super_cortex.api import create_app
+from super_cortex.config import SuperCortexConfig
+from super_cortex.models import ProviderRecord, ProviderType
+from super_cortex.store import SuperCortexStore
 
 
-def test_bounded_evidence_and_typed_extraction_contracts_validate():
-    scope = EvidenceScope(subject_ids=("memory:one",), max_items=4, max_bytes=2048, max_depth=1)
-    contract = InferenceTaskContract(evidence_limits=scope)
-    assert contract.as_dict()["evidence_limits"]["max_bytes"] == 2048
+@pytest.fixture
+def temp_store(tmp_path: Path) -> SuperCortexStore:
+    db_file = tmp_path / "test_providers.db"
+    return SuperCortexStore(db_file)
 
-    entity = ExtractedEntity("Hermes", "software", "Hermes worker", 0.9)
-    entity.validate()
-    relation = ExtractedRelation("Hermes", "executes", "task", "Hermes executes task", 0.8)
-    relation.validate()
-    result = validate_extraction_output(
-        {"schema_version": "xibalba.entities.v1", "input_snapshot_hash": "sha256:" + "c" * 64,
-         "entities": [{"name": "Hermes", "entity_type": "software", "evidence_quote": "Hermes worker", "confidence": 0.9}]},
-        kind="entities",
+
+def test_default_providers_seeded(temp_store: SuperCortexStore):
+    providers = temp_store.list_providers()
+    assert len(providers) >= 5
+    provider_ids = {p.id for p in providers}
+    assert "gemini" in provider_ids
+    assert "anthropic" in provider_ids
+    assert "openai" in provider_ids
+    assert "groq" in provider_ids
+    assert "ollama" in provider_ids
+
+
+def test_save_and_activate_provider(temp_store: SuperCortexStore):
+    claude = ProviderRecord(
+        id="anthropic",
+        name="Anthropic Claude",
+        provider_type=ProviderType.ANTHROPIC.value,
+        api_key="sk-ant-api03-testkey-1234567890abcdef",
+        base_url="https://api.anthropic.com/v1",
+        default_model="claude-3-7-sonnet-20250219",
+        is_active=True,
     )
-    assert result["entities"][0]["name"] == "Hermes"
+    saved = temp_store.save_provider(claude)
+    assert saved.id == "anthropic"
+    assert saved.masked_key().startswith("sk-a")
+    assert saved.masked_key().endswith("cdef")
+
+    active = temp_store.get_active_provider()
+    assert active is not None
+    assert active.id == "anthropic"
+    assert active.is_active is True
+
+    # Switching active to gemini
+    temp_store.set_active_provider("gemini")
+    active_now = temp_store.get_active_provider()
+    assert active_now is not None
+    assert active_now.id == "gemini"
 
 
-def test_typed_extraction_rejects_missing_evidence_quote():
-    with pytest.raises(ValueError, match="invalid entities item"):
-        validate_extraction_output(
-            {"schema_version": "xibalba.entities.v1", "input_snapshot_hash": "sha256:" + "c" * 64,
-             "entities": [{"name": "Hermes", "entity_type": "software", "evidence_quote": "", "confidence": 0.9}]},
-            kind="entities",
-        )
+def test_api_providers_endpoints(tmp_path: Path):
+    db_file = tmp_path / "api_test.db"
+    cfg = SuperCortexConfig(db_path=db_file)
+    app = create_app(cfg)
+    client = TestClient(app)
 
+    # 1. GET /api/providers
+    resp = client.get("/api/providers")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert "providers" in data
+    assert len(data["providers"]) >= 5
 
-def test_inference_task_contract_serializes_explicit_evidence_boundary():
-    contract = InferenceTaskContract(
-        evidence_scope=("memory:abc", "exchange:def"),
-        input_snapshot_hash="sha256:" + "a" * 64,
-        output_schema="xibalba.entities.v1",
-        promotion_policy="review_required",
-        worker_runtime="hermes",
-    )
-
-    assert contract.as_dict() == {
-        "schema_version": "xibalba.inference.task.v1",
-        "evidence_scope": ["memory:abc", "exchange:def"],
-        "input_snapshot_hash": "sha256:" + "a" * 64,
-        "output_schema": "xibalba.entities.v1",
-        "promotion_policy": "review_required",
-        "worker_runtime": "hermes",
+    # 2. POST /api/providers (save custom provider)
+    payload = {
+        "id": "my_claude",
+        "name": "My Custom Claude",
+        "provider_type": "anthropic",
+        "api_key": "sk-ant-test-secret-key-xyz",
+        "default_model": "claude-3-5-sonnet-20241022",
+        "is_active": True,
     }
+    resp = client.post("/api/providers", json=payload)
+    assert resp.status_code == 200
+    res = resp.json()
+    assert res["status"] == "success"
+    assert res["provider"]["id"] == "my_claude"
+    assert "sk-a" in res["provider"]["masked_key"]
 
+    # 3. Verify active
+    resp = client.get("/api/providers")
+    providers = resp.json()["providers"]
+    my_p = next(p for p in providers if p["id"] == "my_claude")
+    assert my_p["is_active"] is True
 
-def test_inference_task_contract_rejects_invalid_snapshot_hash():
-    with pytest.raises(ValueError, match="input_snapshot_hash"):
-        InferenceTaskContract(input_snapshot_hash="not-a-hash").validate()
-
-
-def test_inference_task_failure_metadata_is_exposed(tmp_path):
-    store = GraphStore(tmp_path / "graph")
-    task = store.request_inference_task(
-        "extract_entities", subject_type="memory", subject_id="m", input_payload={}
-    )
-    claimed = store.claim_inference_task(task["id"], claimed_by="worker")
-    completed = store.complete_inference_task(
-        task["id"], error="timeout", claimed_by="worker", claim_token=claimed["claim_token"]
-    )
-    assert completed["status"] == "failed"
-    assert completed["failure_class"] == "transient"
-    assert completed["dead_letter_reason"] is None
-    assert completed["retry_after"] is not None
-    store.close()
-
-
-def test_inference_task_exhaustion_records_dead_letter_reason(tmp_path):
-    store = GraphStore(tmp_path / "graph")
-    task = store.request_inference_task(
-        "extract_entities", subject_type="memory", subject_id="m", input_payload={}
-    )
-    with store._lock:
-        store._connection.execute(
-            "UPDATE memory_inference_tasks SET status='claimed', claim_owner='w', claim_token='t', lease_expires_at=datetime('now','-1 second'), attempt_count=3 WHERE id=?",
-            (task["id"],),
-        )
-    result = store.requeue_expired_inference_tasks(max_attempts=3)
-    assert result["dead_lettered"] == 1
-    final = store.get_inference_task(task["id"])
-    assert final["dead_letter_reason"]
-    store.close()
-def test_inference_task_contract_is_persisted_without_breaking_legacy_input(tmp_path):
-    store = GraphStore(tmp_path / "graph")
-    contract = InferenceTaskContract(
-        evidence_scope=("memory:source",),
-        input_snapshot_hash="sha256:" + "b" * 64,
-        output_schema="xibalba.entities.v1",
-        worker_runtime="hermes",
-    )
-    task = store.request_inference_task(
-        "extract_entities",
-        subject_type="memory",
-        subject_id="memory-1",
-        input_payload={"content": "untrusted"},
-        contract=contract,
-    )
-
-    assert task["input"]["content"] == "untrusted"
-    assert task["input"]["_contract"]["evidence_scope"] == ["memory:source"]
-    assert task["input"]["_contract"]["input_snapshot_hash"].startswith("sha256:")
-    store.close()
-
-
-def test_legacy_inference_task_gets_default_contract(tmp_path):
-    store = GraphStore(tmp_path / "graph")
-    task = store.request_inference_task(
-        "extract_memory_metadata",
-        subject_type="memory",
-        subject_id="memory-legacy",
-        input_payload={"fields": ["preference"]},
-    )
-
-    assert task["input"]["_contract"]["schema_version"] == "xibalba.inference.task.v1"
-    assert task["input"]["_contract"]["promotion_policy"] == "review_required"
-    store.close()
-
-
-def test_native_harness_provider_executes_through_injected_runner():
-    calls = []
-
-    def runner(command, *, prompt, timeout):
-        calls.append((command, prompt, timeout))
-        return '{"ok":true}'
-
-    provider = NativeHarnessInferenceProvider(harness="hermes", runner=runner)
-    assert provider.infer("extract entities") == '{"ok":true}'
-    assert calls[0][0] == ["hermes", "-z", "extract entities"]
-    assert calls[0][2] == 120
+    # 4. DELETE /api/providers/my_claude
+    del_resp = client.delete("/api/providers/my_claude")
+    assert del_resp.status_code == 200
+    assert del_resp.json()["status"] == "deleted"

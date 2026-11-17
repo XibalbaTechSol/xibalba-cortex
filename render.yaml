@@ -13,13 +13,14 @@ services:
         sync: false
       - key: CORTEX_MANAGED_HOME
         value: /data/cortex-managed
+      - key: SUPER_CORTEX_DB_PATH
+        value: /data/cortex-managed/provenance.db
       - key: CORTEX_MANAGED_STORAGE_BACKEND
         value: supabase
       - key: CORTEX_MANAGED_IDENTITY_BACKEND
         value: supabase_auth
       - key: SUPABASE_URL
         value: https://ftspunijfgcbkuybobhf.supabase.co
-      # Vite inlines these at image build time; they are public client settings.
       - key: VITE_SUPABASE_URL
         value: https://ftspunijfgcbkuybobhf.supabase.co
       - key: VITE_SUPABASE_PUBLISHABLE_KEY

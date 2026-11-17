@@ -1,0 +1,783 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Super-Cortex // Temporal Intelligence Timeline</title>
+<!-- Material Symbols Outlined -->
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<!-- Fonts: Inter & JetBrains Mono -->
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<!-- Tailwind CSS -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          "colors": {
+            "background": "#121314",
+            "on-background": "#e3e2e3",
+            "on-primary-fixed": "#001f26",
+            "on-secondary": "#003824",
+            "surface-dim": "#121314",
+            "on-surface-variant": "#bcc9cd",
+            "primary-container": "#06b6d4",
+            "outline": "#869397",
+            "on-secondary-fixed": "#002113",
+            "surface": "#121314",
+            "on-error": "#690005",
+            "tertiary-container": "#c78dff",
+            "surface-tint": "#4cd7f6",
+            "on-primary-fixed-variant": "#004e5c",
+            "surface-container-lowest": "#0d0e0f",
+            "on-secondary-fixed-variant": "#005236",
+            "tertiary": "#ddb7ff",
+            "error": "#ffb4ab",
+            "on-secondary-container": "#00311f",
+            "surface-container": "#1f2021",
+            "surface-container-low": "#1b1c1d",
+            "primary": "#4cd7f6",
+            "error-container": "#93000a",
+            "primary-fixed-dim": "#4cd7f6",
+            "secondary-fixed-dim": "#4edea3",
+            "surface-bright": "#39393a",
+            "tertiary-fixed": "#f0dbff",
+            "inverse-surface": "#e3e2e3",
+            "secondary": "#4edea3",
+            "on-tertiary": "#490080",
+            "on-surface": "#e3e2e3",
+            "surface-container-highest": "#343536",
+            "on-tertiary-fixed": "#2c0051",
+            "on-primary": "#003640",
+            "surface-variant": "#343536",
+            "on-tertiary-container": "#5a009b",
+            "on-primary-container": "#00424f",
+            "on-error-container": "#ffdad6",
+            "on-tertiary-fixed-variant": "#6900b3",
+            "tertiary-fixed-dim": "#ddb7ff",
+            "secondary-fixed": "#6ffbbe",
+            "secondary-container": "#00a572",
+            "outline-variant": "#3d494c",
+            "primary-fixed": "#acedff",
+            "inverse-primary": "#00687a",
+            "inverse-on-surface": "#303031",
+            "surface-container-high": "#292a2b"
+          },
+          "borderRadius": {
+            "DEFAULT": "0.125rem",
+            "lg": "0.25rem",
+            "xl": "0.5rem",
+            "full": "0.75rem"
+          },
+          "spacing": {
+            "gutter": "1rem",
+            "margin-desktop": "2rem",
+            "space-xs": "0.25rem",
+            "space-md": "0.75rem",
+            "space-xl": "2rem",
+            "gutter-desktop": "1.5rem",
+            "space-lg": "1.25rem",
+            "space-sm": "0.5rem",
+            "margin": "1rem"
+          },
+          "fontFamily": {
+            "headline-md": ["Inter"],
+            "body-md": ["Inter"],
+            "headline-lg": ["Inter"],
+            "display": ["Inter"],
+            "headline-lg-mobile": ["Inter"],
+            "label-md": ["JetBrains Mono"],
+            "label-lg": ["JetBrains Mono"],
+            "headline-sm": ["Inter"],
+            "body-sm": ["Inter"],
+            "body-lg": ["Inter"],
+            "display-mobile": ["Inter"],
+            "label-sm": ["JetBrains Mono"]
+          },
+          "fontSize": {
+            "headline-md": ["20px", { "lineHeight": "28px", "letterSpacing": "-0.01em", "fontWeight": "500" }],
+            "body-md": ["13px", { "lineHeight": "20px", "fontWeight": "400" }],
+            "headline-lg": ["30px", { "lineHeight": "38px", "letterSpacing": "-0.02em", "fontWeight": "600" }],
+            "display": ["40px", { "lineHeight": "48px", "letterSpacing": "-0.03em", "fontWeight": "600" }],
+            "headline-lg-mobile": ["22px", { "lineHeight": "28px", "letterSpacing": "-0.01em", "fontWeight": "600" }],
+            "label-md": ["11px", { "lineHeight": "16px", "letterSpacing": "0.04em", "fontWeight": "500" }],
+            "label-lg": ["13px", { "lineHeight": "18px", "letterSpacing": "0.02em", "fontWeight": "500" }],
+            "headline-sm": ["16px", { "lineHeight": "24px", "fontWeight": "500" }],
+            "body-sm": ["12px", { "lineHeight": "18px", "fontWeight": "400" }],
+            "body-lg": ["15px", { "lineHeight": "24px", "fontWeight": "400" }],
+            "display-mobile": ["28px", { "lineHeight": "36px", "letterSpacing": "-0.02em", "fontWeight": "600" }],
+            "label-sm": ["10px", { "lineHeight": "14px", "letterSpacing": "0.06em", "fontWeight": "400" }]
+          }
+        }
+      }
+    }
+  </script>
+<style>
+    .material-symbols-outlined {
+      font-variation-settings: 'FILL' 0, 'wght' 300, 'GRAD' 0, 'opsz' 20;
+      font-size: 16px;
+      line-height: 1;
+      display: inline-block;
+      vertical-align: middle;
+    }
+    .custom-scroll::-webkit-scrollbar {
+      width: 4px;
+      height: 4px;
+    }
+    .custom-scroll::-webkit-scrollbar-track {
+      background: #0d0e0f;
+    }
+    .custom-scroll::-webkit-scrollbar-thumb {
+      background: #3d494c;
+      border-radius: 2px;
+    }
+    .custom-scroll::-webkit-scrollbar-thumb:hover {
+      background: #06b6d4;
+    }
+    .grid-matrix {
+      background-size: 24px 24px;
+      background-image: 
+        radial-gradient(circle, rgba(255, 255, 255, 0.05) 1px, transparent 1px);
+    }
+    .glow-cyan-sm {
+      box-shadow: 0 0 12px -2px rgba(6, 182, 212, 0.35);
+    }
+    .glow-cyan-border {
+      box-shadow: 0 0 14px 1px rgba(76, 215, 246, 0.25), inset 0 0 8px 0 rgba(76, 215, 246, 0.1);
+    }
+    .glow-emerald-pulse {
+      box-shadow: 0 0 8px 1px rgba(78, 222, 163, 0.5);
+    }
+  </style>
+</head>
+<body class="bg-[#090a0b] text-on-surface antialiased overflow-hidden font-body-md select-none h-screen w-screen flex">
+<!-- ========================================================================= -->
+<!-- 1. LEFT PERSISTENT SIDEBAR (Shared Component: SideNavBar execution)       -->
+<!-- ========================================================================= -->
+<aside class="fixed top-0 left-0 h-screen w-64 flex flex-col justify-between p-4 z-40 bg-surface-container-lowest border-r border-outline-variant">
+<!-- Top Branding & CTA Node -->
+<div class="flex flex-col gap-4">
+<!-- Header Brand -->
+<div class="flex items-center gap-3 px-1 pt-1">
+<div class="w-8 h-8 rounded bg-surface-container-high border border-primary/30 flex items-center justify-center glow-cyan-sm relative overflow-hidden">
+<span class="material-symbols-outlined text-primary text-lg" style="font-variation-settings: 'FILL' 1;">hub</span>
+<div class="absolute inset-0 bg-primary/10 animate-pulse pointer-events-none"></div>
+</div>
+<div class="flex flex-col">
+<span class="text-headline-md font-headline-md font-semibold text-on-surface tracking-tight leading-tight">Super-Cortex</span>
+<span class="text-[10px] font-label-sm text-outline tracking-wider">v4.8.2 // Neural Fabric</span>
+</div>
+</div>
+<!-- CTA: New Memory Node -->
+<button class="w-full mt-2 h-9 px-3 bg-primary text-on-primary font-label-md text-label-md font-semibold rounded flex items-center justify-center gap-2 glow-cyan-sm hover:opacity-90 transition-opacity">
+<span class="material-symbols-outlined text-sm font-bold">add</span>
+<span>New Memory Node</span>
+</button>
+<!-- Main Navigation Menu -->
+<nav class="flex flex-col gap-1 mt-2">
+<div class="text-[9px] font-label-sm text-outline/60 px-3 uppercase tracking-widest mb-1">Cortex Fabric</div>
+<!-- Neural Graph -->
+<a class="flex items-center gap-3 px-3 py-2 text-on-surface-variant hover:text-on-surface rounded font-label-md text-label-md hover:bg-surface-container transition-colors" href="#">
+<span class="material-symbols-outlined text-sm">hub</span>
+<span>Neural Graph</span>
+</a>
+<!-- Memory Timeline (ACTIVE TARGET SELECTION) -->
+<a class="flex items-center gap-3 px-3 py-2 text-primary bg-surface-container-high rounded border-l-2 border-primary font-label-md text-label-md" href="#">
+<span class="material-symbols-outlined text-sm" style="font-variation-settings: 'FILL' 1;">timeline</span>
+<span class="font-medium tracking-wide">Memory Timeline</span>
+<span class="ml-auto w-1.5 h-1.5 rounded-full bg-primary glow-cyan-sm"></span>
+</a>
+<!-- Spaces & Repos -->
+<a class="flex items-center gap-3 px-3 py-2 text-on-surface-variant hover:text-on-surface rounded font-label-md text-label-md hover:bg-surface-container transition-colors" href="#">
+<span class="material-symbols-outlined text-sm">folder_data</span>
+<span>Spaces &amp; Repos</span>
+</a>
+<!-- Vector Search -->
+<a class="flex items-center gap-3 px-3 py-2 text-on-surface-variant hover:text-on-surface rounded font-label-md text-label-md hover:bg-surface-container transition-colors" href="#">
+<span class="material-symbols-outlined text-sm">manage_search</span>
+<span>Vector Search</span>
+</a>
+<!-- Model Settings -->
+<a class="flex items-center gap-3 px-3 py-2 text-on-surface-variant hover:text-on-surface rounded font-label-md text-label-md hover:bg-surface-container transition-colors" href="#">
+<span class="material-symbols-outlined text-sm">tune</span>
+<span>Model Settings</span>
+</a>
+</nav>
+</div>
+<!-- Sidebar Bottom Telemetry & Operator Badge -->
+<div class="flex flex-col gap-2 pt-3 border-t border-outline-variant/60">
+<!-- Diagnostics -->
+<a class="flex items-center justify-between px-3 py-1.5 text-on-surface-variant hover:text-on-surface rounded font-label-md text-label-md hover:bg-surface-container transition-colors" href="#">
+<div class="flex items-center gap-2.5">
+<span class="material-symbols-outlined text-sm text-secondary">monitoring</span>
+<span>Diagnostics</span>
+</div>
+<span class="text-[10px] font-label-sm text-secondary bg-secondary/10 px-1.5 py-0.5 rounded border border-secondary/20">OK: 14ms</span>
+</a>
+<!-- Terminal -->
+<a class="flex items-center justify-between px-3 py-1.5 text-on-surface-variant hover:text-on-surface rounded font-label-md text-label-md hover:bg-surface-container transition-colors" href="#">
+<div class="flex items-center gap-2.5">
+<span class="material-symbols-outlined text-sm">terminal</span>
+<span>Terminal</span>
+</div>
+<span class="text-[10px] font-label-sm text-outline">SH: 0x8A</span>
+</a>
+<!-- Operator System Badge -->
+<div class="mt-2 p-2 rounded bg-surface-container-low border border-outline-variant/50 flex items-center gap-2.5">
+<div class="relative w-7 h-7 rounded bg-surface-container-highest flex items-center justify-center border border-outline-variant">
+<span class="text-[11px] font-label-sm text-primary font-bold">SC</span>
+<span class="absolute -top-0.5 -right-0.5 w-2 h-2 bg-secondary rounded-full border border-background"></span>
+</div>
+<div class="flex flex-col overflow-hidden">
+<span class="text-body-sm font-body-sm font-medium text-on-surface truncate">cortex-sys</span>
+<span class="text-[9px] font-label-sm text-outline truncate tracking-wider">LEVEL-0 AUTH // KERNEL</span>
+</div>
+</div>
+</div>
+</aside>
+<!-- ========================================================================= -->
+<!-- 2. TOP NAVIGATION BAR (Shared Component: TopNavBar execution)            -->
+<!-- ========================================================================= -->
+<header class="fixed top-0 left-64 right-0 h-14 flex items-center justify-between px-6 z-30 bg-surface-container-low/80 backdrop-blur-md border-b border-outline-variant">
+<!-- Left Region: Space Filter & Search Trigger -->
+<div class="flex items-center gap-4">
+<!-- All Spaces Selector Pill -->
+<button class="h-8 px-3 rounded bg-surface-container border border-outline-variant/70 text-on-surface hover:border-primary/50 flex items-center gap-2 transition-colors font-label-md text-label-md">
+<span class="material-symbols-outlined text-sm text-primary">folder_special</span>
+<span class="font-medium">All Spaces</span>
+<span class="text-outline">|</span>
+<span class="text-secondary font-label-sm">48 Agent Sessions</span>
+<span class="material-symbols-outlined text-xs text-outline ml-1">expand_more</span>
+</button>
+<!-- Instant Search Filter -->
+<div class="relative flex items-center">
+<span class="material-symbols-outlined absolute left-2.5 text-xs text-outline">search</span>
+<input class="h-8 pl-8 pr-3 text-label-md font-label-md bg-surface-container-lowest/80 border border-outline-variant/60 rounded focus:border-primary focus:ring-1 focus:ring-primary w-64 text-on-surface placeholder-outline/60 outline-none transition-all" placeholder="Search memory timeline... (⌘K)" type="text"/>
+</div>
+</div>
+<!-- Center Navigation Links: View Switcher -->
+<div class="flex items-center gap-6">
+<a class="text-on-surface-variant hover:text-on-surface pb-1 font-label-md text-label-md transition-colors flex items-center gap-1.5" href="#">
+<span class="material-symbols-outlined text-xs">polyline</span>
+<span>Graph View</span>
+</a>
+<!-- ACTIVE LINK: Timeline View (Semantic Active) -->
+<a class="text-primary border-b-2 border-primary pb-1 font-label-md text-label-md flex items-center gap-1.5" href="#">
+<span class="material-symbols-outlined text-xs" style="font-variation-settings: 'FILL' 1;">timeline</span>
+<span>Timeline Matrix</span>
+</a>
+<a class="text-on-surface-variant hover:text-on-surface pb-1 font-label-md text-label-md transition-colors flex items-center gap-1.5" href="#">
+<span class="material-symbols-outlined text-xs">bubble_chart</span>
+<span>Cluster Analysis</span>
+</a>
+</div>
+<!-- Trailing Actions & Density Controls -->
+<div class="flex items-center gap-3">
+<!-- Temporal Granularity Selector -->
+<div class="flex items-center bg-surface-container-lowest p-0.5 rounded border border-outline-variant/70 text-[10px] font-label-sm">
+<button class="px-2 py-1 rounded text-outline hover:text-on-surface transition-colors">1H</button>
+<button class="px-2 py-1 rounded bg-surface-container-high text-primary font-semibold border border-primary/30">24H</button>
+<button class="px-2 py-1 rounded text-outline hover:text-on-surface transition-colors">7D</button>
+<button class="px-2 py-1 rounded text-outline hover:text-on-surface transition-colors">30D</button>
+<button class="px-2 py-1 rounded text-outline hover:text-on-surface transition-colors">All</button>
+</div>
+<!-- Date Range Badge -->
+<div class="flex items-center gap-1.5 px-2.5 h-8 bg-surface-container/60 border border-outline-variant/60 rounded text-[11px] font-label-md text-on-surface-variant">
+<span class="material-symbols-outlined text-xs text-outline">calendar_today</span>
+<span>Aug 24, 2025 – Nov 12, 2026</span>
+</div>
+<!-- Trailing Icon Actions -->
+<div class="flex items-center gap-1 pl-1 border-l border-outline-variant/60">
+<button class="w-8 h-8 rounded flex items-center justify-center text-outline hover:text-primary hover:bg-surface-container transition-colors" title="Settings">
+<span class="material-symbols-outlined text-sm">tune</span>
+</button>
+<button class="w-8 h-8 rounded relative flex items-center justify-center text-outline hover:text-primary hover:bg-surface-container transition-colors" title="Notifications">
+<span class="material-symbols-outlined text-sm">notifications</span>
+<span class="absolute top-2 right-2 w-1.5 h-1.5 bg-secondary rounded-full"></span>
+</button>
+<button class="h-8 px-2.5 rounded bg-surface-container-high border border-primary/30 text-primary hover:bg-primary/10 flex items-center gap-1.5 text-label-md font-label-md transition-colors" title="Workflow Drawer">
+<span class="material-symbols-outlined text-xs">vertical_split</span>
+<span>Workflow Drawer</span>
+</button>
+</div>
+</div>
+</header>
+<!-- ========================================================================= -->
+<!-- MAIN WORKSPACE CONTAINER (Center Canvas + Right Inspector)               -->
+<!-- ========================================================================= -->
+<div class="pl-64 pt-14 w-full h-screen flex overflow-hidden">
+<!-- 3. CENTER VIEWPORT: Temporal Histogram & Chronological Swimlanes -->
+<main class="flex-1 flex flex-col h-full bg-[#090a0b] overflow-hidden border-r border-outline-variant relative grid-matrix">
+<!-- SUB-HEADER TELEMETRY BAR -->
+<section class="h-10 px-6 bg-surface-container-lowest/90 backdrop-blur border-b border-outline-variant/60 flex items-center justify-between text-label-sm font-label-sm">
+<div class="flex items-center gap-4">
+<span class="flex items-center gap-2 text-primary">
+<span class="w-2 h-2 rounded-full bg-primary animate-ping"></span>
+            PEAK DENSITY: 38 TURNS/HR
+          </span>
+<span class="text-outline">|</span>
+<span class="text-secondary flex items-center gap-1">
+<span class="material-symbols-outlined text-xs text-secondary">bolt</span>
+            BURST DETECTED (UTC 08:00 - 09:30)
+          </span>
+<span class="text-outline">|</span>
+<span class="text-on-surface-variant">4 ACTIVE AGENT WORKSPACES</span>
+</div>
+<!-- Metric Mode Filters -->
+<div class="flex items-center gap-2">
+<span class="text-outline text-[10px]">DENSITY METRIC:</span>
+<div class="flex items-center gap-1 bg-surface-container p-0.5 rounded border border-outline-variant/50 text-[10px]">
+<button class="px-2 py-0.5 rounded bg-primary/20 text-primary border border-primary/30 font-semibold">Session Volume</button>
+<button class="px-2 py-0.5 rounded text-outline hover:text-on-surface">Exchange Turns</button>
+<button class="px-2 py-0.5 rounded text-outline hover:text-on-surface">Mutation Density</button>
+</div>
+</div>
+</section>
+<!-- UPPER SECTION: Temporal Frequency Histogram & Scrubber Window -->
+<section class="p-6 pb-4 bg-surface-container-lowest/60 border-b border-outline-variant/50 flex flex-col gap-2 relative">
+<div class="flex items-center justify-between text-label-md font-label-md">
+<div class="flex items-center gap-3">
+<span class="text-on-surface font-semibold flex items-center gap-1.5">
+<span class="material-symbols-outlined text-xs text-primary">equalizer</span>
+              SYNAPTIC LOAD SPECTRUM
+            </span>
+<div class="flex items-center gap-3 text-[10px] text-outline font-label-sm">
+<span class="flex items-center gap-1.5"><span class="w-2 h-2 rounded bg-primary"></span> Hermes / Core</span>
+<span class="flex items-center gap-1.5"><span class="w-2 h-2 rounded bg-tertiary"></span> Claude Code v3.7</span>
+<span class="flex items-center gap-1.5"><span class="w-2 h-2 rounded bg-secondary"></span> Antigravity / Codex</span>
+</div>
+</div>
+<span class="text-[10px] font-label-sm text-outline tracking-wider">WINDOW: OCT 14, 00:00:00Z — OCT 28, 23:59:59Z</span>
+</div>
+<!-- Histogram Canvas / Audio Analyzer Bar Container -->
+<div class="relative w-full h-24 bg-[#0c0d0e] rounded border border-outline-variant/60 p-2 flex items-end justify-between gap-1 overflow-hidden">
+<!-- Subtle Grid Ticks -->
+<div class="absolute inset-0 flex flex-col justify-between pointer-events-none p-2 opacity-15">
+<div class="w-full border-b border-dashed border-outline"></div>
+<div class="w-full border-b border-dashed border-outline"></div>
+<div class="w-full border-b border-dashed border-outline"></div>
+</div>
+<!-- Active Dual-Handle Scrubber Highlight Box -->
+<div class="absolute top-0 bottom-0 left-[28%] right-[32%] bg-primary/10 border-x-2 border-primary glow-cyan-sm pointer-events-none z-10 flex justify-between">
+<div class="w-1.5 bg-primary h-full"></div>
+<div class="w-1.5 bg-primary h-full"></div>
+</div>
+<!-- Stacked Bars: Audio-Analyzer Style Simulation -->
+<!-- Repeatable bar elements -->
+<div class="flex flex-col gap-0.5 w-full h-[35%] justify-end"><div class="w-full h-1/2 bg-primary/60 rounded-t-sm"></div><div class="w-full h-1/2 bg-secondary/70"></div></div>
+<div class="flex flex-col gap-0.5 w-full h-[50%] justify-end"><div class="w-full h-2/3 bg-tertiary/70 rounded-t-sm"></div><div class="w-full h-1/3 bg-primary/70"></div></div>
+<div class="flex flex-col gap-0.5 w-full h-[25%] justify-end"><div class="w-full h-full bg-secondary/50 rounded-t-sm"></div></div>
+<div class="flex flex-col gap-0.5 w-full h-[40%] justify-end"><div class="w-full h-1/2 bg-primary/60"></div><div class="w-full h-1/2 bg-tertiary/60 rounded-t-sm"></div></div>
+<div class="flex flex-col gap-0.5 w-full h-[65%] justify-end"><div class="w-full h-1/3 bg-secondary/80"></div><div class="w-full h-2/3 bg-primary/80 rounded-t-sm"></div></div>
+<div class="flex flex-col gap-0.5 w-full h-[45%] justify-end"><div class="w-full h-full bg-tertiary/60 rounded-t-sm"></div></div>
+<!-- Peak Area (Inside Brush Scrubber) -->
+<div class="flex flex-col gap-0.5 w-full h-[85%] justify-end"><div class="w-full h-1/4 bg-tertiary/90"></div><div class="w-full h-1/2 bg-primary"></div><div class="w-full h-1/4 bg-secondary"></div></div>
+<div class="flex flex-col gap-0.5 w-full h-[95%] justify-end"><div class="w-full h-2/5 bg-primary glow-cyan-sm"></div><div class="w-full h-2/5 bg-tertiary"></div><div class="w-full h-1/5 bg-secondary"></div></div>
+<div class="flex flex-col gap-0.5 w-full h-[78%] justify-end"><div class="w-full h-1/3 bg-secondary"></div><div class="w-full h-2/3 bg-primary"></div></div>
+<div class="flex flex-col gap-0.5 w-full h-[90%] justify-end"><div class="w-full h-1/2 bg-tertiary"></div><div class="w-full h-1/2 bg-primary"></div></div>
+<div class="flex flex-col gap-0.5 w-full h-[82%] justify-end"><div class="w-full h-1/4 bg-secondary"></div><div class="w-full h-3/4 bg-primary"></div></div>
+<div class="flex flex-col gap-0.5 w-full h-[60%] justify-end"><div class="w-full h-full bg-secondary/80"></div></div>
+<!-- Trailing Tail -->
+<div class="flex flex-col gap-0.5 w-full h-[40%] justify-end"><div class="w-full h-1/2 bg-tertiary/50"></div><div class="w-full h-1/2 bg-primary/60"></div></div>
+<div class="flex flex-col gap-0.5 w-full h-[30%] justify-end"><div class="w-full h-full bg-primary/40"></div></div>
+<div class="flex flex-col gap-0.5 w-full h-[55%] justify-end"><div class="w-full h-2/3 bg-secondary/60"></div><div class="w-full h-1/3 bg-tertiary/50"></div></div>
+<div class="flex flex-col gap-0.5 w-full h-[20%] justify-end"><div class="w-full h-full bg-primary/40"></div></div>
+<div class="flex flex-col gap-0.5 w-full h-[35%] justify-end"><div class="w-full h-1/2 bg-tertiary/50"></div><div class="w-full h-1/2 bg-secondary/40"></div></div>
+</div>
+<!-- Histogram Epoch Indices -->
+<div class="flex justify-between text-[9px] font-label-sm text-outline px-1">
+<span>00:00:00Z</span>
+<span>04:00:00Z</span>
+<span>08:00:00Z (BURST)</span>
+<span>12:00:00Z</span>
+<span>16:00:00Z</span>
+<span>20:00:00Z</span>
+<span>24:00:00Z</span>
+</div>
+</section>
+<!-- MIDDLE SECTION: Chronological Session Swimlanes (Multi-Track) -->
+<section class="flex-1 overflow-y-auto custom-scroll p-6 flex flex-col gap-6 relative">
+<!-- Background Synaptic Connector Canvas Layer (SVG) -->
+<svg class="absolute inset-0 w-full h-full pointer-events-none z-0">
+<!-- Flow #842 -> #843 -->
+<path d="M 330 110 C 390 110, 220 225, 270 225" fill="none" opacity="0.6" stroke="#06b6d4" stroke-dasharray="4 3" stroke-width="1.5"></path>
+<!-- Flow #843 -> #844 -->
+<path d="M 520 260 C 580 260, 480 375, 520 375" fill="none" opacity="0.6" stroke="#a855f7" stroke-dasharray="4 3" stroke-width="1.5"></path>
+</svg>
+<!-- SWIMLANE 1: Hermes / System Genesis -->
+<div class="flex flex-col gap-2 relative z-10">
+<div class="flex items-center gap-3">
+<span class="text-[10px] font-label-sm font-semibold tracking-wider text-primary px-2 py-0.5 rounded bg-primary/10 border border-primary/20 flex items-center gap-1.5">
+<span class="w-1.5 h-1.5 rounded-full bg-primary animate-pulse"></span>
+              LANE 01 // HERMES SYSTEM GENESIS
+            </span>
+<div class="h-px flex-1 bg-outline-variant/40"></div>
+<span class="text-[10px] font-label-sm text-outline">LATENCY: 1.2ms // COORD: 0x011A</span>
+</div>
+<!-- Cards Row for Lane 1 -->
+<div class="flex items-center gap-6 pl-4">
+<!-- Session Card #842 -->
+<div class="w-80 p-3.5 rounded bg-surface-container-low/90 backdrop-blur border border-outline-variant/80 hover:border-primary/50 transition-all cursor-pointer">
+<div class="flex items-center justify-between pb-2 border-b border-outline-variant/40 mb-2">
+<div class="flex items-center gap-2">
+<span class="text-label-md font-label-md text-primary font-semibold">#842</span>
+<span class="text-[9px] font-label-sm text-outline bg-surface-container px-1.5 py-0.5 rounded">PID_CALIB</span>
+</div>
+<span class="text-[9px] font-label-sm text-secondary flex items-center gap-1">
+<span class="material-symbols-outlined text-[11px] text-secondary">verified</span>
+                  Anchored
+                </span>
+</div>
+<div class="text-body-md font-body-md text-on-surface font-medium truncate mb-2">
+                Quant Controller PID Tuning
+              </div>
+<!-- Metadata Grid -->
+<div class="grid grid-cols-2 gap-1.5 text-label-sm font-label-sm text-outline">
+<span class="flex items-center gap-1">
+<span class="material-symbols-outlined text-xs">sync_alt</span> 18 Turns
+                </span>
+<span class="flex items-center gap-1">
+<span class="material-symbols-outlined text-xs">build</span> 4 Tools
+                </span>
+<span class="flex items-center gap-1">
+<span class="material-symbols-outlined text-xs">schedule</span> 24m
+                </span>
+<span class="text-primary truncate">Xibalba-Quant</span>
+</div>
+<div class="mt-2.5 pt-2 border-t border-outline-variant/40 flex items-center justify-between text-[10px] font-label-sm">
+<span class="text-outline font-mono">ROOT: 0x9b4e...71c0</span>
+<span class="text-primary hover:underline">Inspect Node</span>
+</div>
+</div>
+<!-- Inactive / Pending Lane Anchor -->
+<div class="h-20 w-32 border border-dashed border-outline-variant/50 rounded flex flex-col items-center justify-center text-outline/50 text-[10px] font-label-sm">
+<span class="material-symbols-outlined text-sm mb-1">hourglass_empty</span>
+<span>Lane Idle</span>
+</div>
+</div>
+</div>
+<!-- SWIMLANE 2: Claude Code / Protocols & Refactors -->
+<div class="flex flex-col gap-2 relative z-10">
+<div class="flex items-center gap-3">
+<span class="text-[10px] font-label-sm font-semibold tracking-wider text-tertiary px-2 py-0.5 rounded bg-tertiary/10 border border-tertiary/20 flex items-center gap-1.5">
+<span class="w-1.5 h-1.5 rounded-full bg-tertiary"></span>
+              LANE 02 // CLAUDE CODE PROTOCOLS &amp; REFACTORS
+            </span>
+<div class="h-px flex-1 bg-outline-variant/40"></div>
+<span class="text-[10px] font-label-sm text-outline">LATENCY: 0.8ms // COORD: 0x02BC</span>
+</div>
+<!-- Cards Row for Lane 2 -->
+<div class="flex items-center gap-6 pl-24">
+<!-- Session Card #843 (ACTIVE SELECTED CARD) -->
+<div class="w-96 p-4 rounded bg-[#14171a] border-2 border-primary glow-cyan-border relative cursor-pointer">
+<!-- Selected Badge Indicator -->
+<div class="absolute -top-2.5 right-4 bg-primary text-on-primary font-label-sm text-[9px] uppercase font-bold px-2 py-0.5 rounded shadow">
+                ACTIVE AUDIT TARGET
+              </div>
+<div class="flex items-center justify-between pb-2 border-b border-primary/20 mb-2">
+<div class="flex items-center gap-2">
+<span class="text-label-lg font-label-lg text-primary font-bold">#843</span>
+<span class="text-[9px] font-label-sm text-on-surface bg-surface-container-high px-1.5 py-0.5 rounded border border-outline-variant">DOMAIN_VERIFY</span>
+</div>
+<div class="flex items-center gap-1 text-[10px] font-label-sm text-secondary bg-secondary/10 px-2 py-0.5 rounded border border-secondary/30">
+<span class="material-symbols-outlined text-xs text-secondary" style="font-variation-settings: 'FILL' 1;">security</span>
+<span>Verified &amp; Anchored</span>
+</div>
+</div>
+<div class="text-body-lg font-body-lg text-on-surface font-semibold truncate mb-2">
+                Integrity Protocol Domain Verification
+              </div>
+<!-- Cybernetic Metadata Matrix -->
+<div class="grid grid-cols-4 gap-2 text-label-sm font-label-sm bg-surface-container-lowest p-2 rounded border border-outline-variant/40 mb-3">
+<div class="flex flex-col">
+<span class="text-outline text-[9px]">TURNS</span>
+<span class="text-on-surface font-semibold">42 turns</span>
+</div>
+<div class="flex flex-col">
+<span class="text-outline text-[9px]">MUTATIONS</span>
+<span class="text-tertiary font-semibold">12 edits</span>
+</div>
+<div class="flex flex-col">
+<span class="text-outline text-[9px]">TOOLS</span>
+<span class="text-secondary font-semibold">19 execs</span>
+</div>
+<div class="flex flex-col">
+<span class="text-outline text-[9px]">DURATION</span>
+<span class="text-primary font-semibold">1h 15m</span>
+</div>
+</div>
+<div class="flex items-center justify-between text-[10px] font-label-sm">
+<div class="flex items-center gap-1.5">
+<span class="text-outline">AGENT:</span>
+<span class="text-tertiary font-semibold">Hermes-Prime</span>
+</div>
+<span class="text-outline font-mono">HASH: #4aCa40m8...e332</span>
+</div>
+</div>
+<!-- Minor Ancillary Node -->
+<div class="w-64 p-3 rounded bg-surface-container-low/70 border border-outline-variant/50 hover:border-tertiary/40 transition-all opacity-80">
+<div class="flex items-center justify-between text-label-sm font-label-sm mb-1 text-outline">
+<span>#841</span>
+<span>4m ago</span>
+</div>
+<div class="text-body-sm font-body-sm text-on-surface truncate">AST Schema Rehydration</div>
+<div class="text-[10px] font-label-sm text-secondary mt-2">6 Turns // Clean Exit</div>
+</div>
+</div>
+</div>
+<!-- SWIMLANE 3: Antigravity / Memory Substrate -->
+<div class="flex flex-col gap-2 relative z-10">
+<div class="flex items-center gap-3">
+<span class="text-[10px] font-label-sm font-semibold tracking-wider text-secondary px-2 py-0.5 rounded bg-secondary/10 border border-secondary/20 flex items-center gap-1.5">
+<span class="w-1.5 h-1.5 rounded-full bg-secondary glow-emerald-pulse"></span>
+              LANE 03 // ANTIGRAVITY MEMORY SUBSTRATE
+            </span>
+<div class="h-px flex-1 bg-outline-variant/40"></div>
+<span class="text-[10px] font-label-sm text-outline">LATENCY: 0.4ms // COORD: 0x048F</span>
+</div>
+<!-- Cards Row for Lane 3 -->
+<div class="flex items-center gap-6 pl-72">
+<!-- Session Card #844 -->
+<div class="w-80 p-3.5 rounded bg-surface-container-low/90 backdrop-blur border border-outline-variant/80 hover:border-secondary/50 transition-all cursor-pointer">
+<div class="flex items-center justify-between pb-2 border-b border-outline-variant/40 mb-2">
+<div class="flex items-center gap-2">
+<span class="text-label-md font-label-md text-secondary font-semibold">#844</span>
+<span class="text-[9px] font-label-sm text-outline bg-surface-container px-1.5 py-0.5 rounded">SCAFFOLD</span>
+</div>
+<span class="text-[9px] font-label-sm text-secondary flex items-center gap-1">
+<span class="w-1.5 h-1.5 rounded-full bg-secondary animate-ping"></span>
+                  Active Stream
+                </span>
+</div>
+<div class="text-body-md font-body-md text-on-surface font-medium truncate mb-2">
+                Supermemory Local Substrate Scaffolding
+              </div>
+<!-- Metadata -->
+<div class="grid grid-cols-2 gap-1.5 text-label-sm font-label-sm text-outline">
+<span class="flex items-center gap-1">
+<span class="material-symbols-outlined text-xs">sync_alt</span> 29 Turns
+                </span>
+<span class="flex items-center gap-1">
+<span class="material-symbols-outlined text-xs">memory</span> +8 Memories
+                </span>
+<span class="flex items-center gap-1">
+<span class="material-symbols-outlined text-xs">schedule</span> 48m
+                </span>
+<span class="text-secondary truncate">Codex-Substrate</span>
+</div>
+<div class="mt-2.5 pt-2 border-t border-outline-variant/40 flex items-center justify-between text-[10px] font-label-sm">
+<span class="text-outline font-mono">TX: 0x82a9...5d41</span>
+<span class="text-secondary hover:underline">Streaming...</span>
+</div>
+</div>
+<!-- Session Card #845 -->
+<div class="w-72 p-3.5 rounded bg-surface-container-low/80 border border-outline-variant/70 hover:border-primary/40 transition-all cursor-pointer">
+<div class="flex items-center justify-between pb-2 border-b border-outline-variant/40 mb-2">
+<div class="flex items-center gap-2">
+<span class="text-label-md font-label-md text-primary font-semibold">#845</span>
+<span class="text-[9px] font-label-sm text-outline bg-surface-container px-1.5 py-0.5 rounded">QUANTIZE</span>
+</div>
+<span class="text-[9px] font-label-sm text-outline">Finalized</span>
+</div>
+<div class="text-body-md font-body-md text-on-surface font-medium truncate mb-2">
+                Latent Vector Tensor Quantization
+              </div>
+<div class="flex items-center justify-between text-label-sm font-label-sm text-outline">
+<span>9 Turns // 2 Tools</span>
+<span class="text-on-surface font-mono">0x12c4...70</span>
+</div>
+</div>
+</div>
+</div>
+</section>
+<!-- BOTTOM SCRUB BAR: Precision Micro Timeline Controls -->
+<footer class="h-12 px-6 bg-surface-container-lowest border-t border-outline-variant flex items-center justify-between text-label-sm font-label-sm z-20">
+<!-- Play / Scrub Navigation -->
+<div class="flex items-center gap-3">
+<button class="w-7 h-7 rounded bg-surface-container-high border border-outline-variant hover:border-primary flex items-center justify-center text-primary transition-colors">
+<span class="material-symbols-outlined text-xs">play_arrow</span>
+</button>
+<button class="w-7 h-7 rounded bg-surface-container-high border border-outline-variant hover:border-primary flex items-center justify-center text-outline transition-colors">
+<span class="material-symbols-outlined text-xs">skip_previous</span>
+</button>
+<button class="w-7 h-7 rounded bg-surface-container-high border border-outline-variant hover:border-primary flex items-center justify-center text-outline transition-colors">
+<span class="material-symbols-outlined text-xs">skip_next</span>
+</button>
+<span class="text-outline font-mono ml-2">EPOCH: 2025.10.24-08:42:01.884Z</span>
+</div>
+<!-- Timeline Epoch Markers -->
+<div class="flex items-center gap-6 text-[10px] text-outline font-label-sm">
+<span class="hover:text-primary cursor-pointer">00:00</span>
+<span class="hover:text-primary cursor-pointer">06:00</span>
+<span class="text-primary font-bold border-b border-primary">12:00 (ACTIVE)</span>
+<span class="hover:text-primary cursor-pointer">18:00</span>
+<span class="hover:text-primary cursor-pointer">24:00</span>
+</div>
+<!-- Zoom & Jump Actions -->
+<div class="flex items-center gap-3">
+<div class="flex items-center bg-surface-container rounded border border-outline-variant px-1 text-[10px]">
+<button class="px-2 py-0.5 hover:text-primary">-</button>
+<span class="px-1 text-on-surface font-semibold">100%</span>
+<button class="px-2 py-0.5 hover:text-primary">+</button>
+</div>
+<button class="px-2 py-1 bg-surface-container-high border border-outline-variant/70 rounded text-[10px] hover:text-primary transition-colors">[ Genesis ]</button>
+<button class="px-2 py-1 bg-primary/20 text-primary border border-primary/40 rounded text-[10px] font-semibold glow-cyan-sm">[ Today / Live ]</button>
+</div>
+</footer>
+</main>
+<!-- ========================================================================= -->
+<!-- 4. RIGHT-SIDE DOCKED WORKFLOW PANEL: Session Deep-Dive & Merkle Audit     -->
+<!-- ========================================================================= -->
+<aside class="w-96 h-full bg-[#0c0d0e] border-l border-outline-variant flex flex-col justify-between z-20 shrink-0 custom-scroll overflow-y-auto">
+<!-- Panel Header -->
+<div class="p-4 border-b border-outline-variant bg-surface-container-lowest/80">
+<div class="flex items-center justify-between mb-1.5">
+<span class="text-headline-sm font-headline-sm font-semibold text-on-surface">Session Inspector</span>
+<div class="flex items-center gap-1.5 px-2 py-0.5 rounded bg-secondary/10 border border-secondary/30 text-secondary text-[10px] font-label-sm glow-emerald-pulse">
+<span class="material-symbols-outlined text-[12px] text-secondary" style="font-variation-settings: 'FILL' 1;">gavel</span>
+<span>MERKLE ROOT ANCHORED</span>
+</div>
+</div>
+<div class="flex items-center justify-between text-label-sm font-label-sm text-outline">
+<span>TARGET: #843 // DOMAIN_VERIFY</span>
+<span class="text-primary font-mono">OCT 24 08:14 UTC</span>
+</div>
+</div>
+<!-- Scrollable Audit Body -->
+<div class="p-4 flex-1 flex flex-col gap-4 overflow-y-auto custom-scroll">
+<!-- Summary Metrics Grid (2x2) -->
+<div class="grid grid-cols-2 gap-2">
+<!-- Metric 1 -->
+<div class="p-2.5 rounded bg-surface-container-low border border-outline-variant/60 flex flex-col">
+<span class="text-[10px] font-label-sm text-outline uppercase tracking-wider">Total Turns</span>
+<span class="text-headline-md font-headline-md font-bold text-on-surface mt-0.5">42</span>
+<span class="text-[9px] font-label-sm text-primary">24 user / 18 agent</span>
+</div>
+<!-- Metric 2 -->
+<div class="p-2.5 rounded bg-surface-container-low border border-outline-variant/60 flex flex-col">
+<span class="text-[10px] font-label-sm text-outline uppercase tracking-wider">Memories Added</span>
+<span class="text-headline-md font-headline-md font-bold text-secondary mt-0.5">8</span>
+<span class="text-[9px] font-label-sm text-outline">5 Facts / 2 Rules / 1 Inf</span>
+</div>
+<!-- Metric 3 -->
+<div class="p-2.5 rounded bg-surface-container-low border border-outline-variant/60 flex flex-col">
+<span class="text-[10px] font-label-sm text-outline uppercase tracking-wider">Tool Executions</span>
+<span class="text-headline-md font-headline-md font-bold text-tertiary mt-0.5">19</span>
+<span class="text-[9px] font-label-sm text-outline">12 shell, 5 web, 2 crypto</span>
+</div>
+<!-- Metric 4 -->
+<div class="p-2.5 rounded bg-surface-container-low border border-outline-variant/60 flex flex-col">
+<span class="text-[10px] font-label-sm text-outline uppercase tracking-wider">Merkle Root</span>
+<div class="flex items-center justify-between mt-1">
+<span class="text-label-md font-label-md font-mono text-on-surface truncate">0x3f9e...88a1</span>
+<button class="text-outline hover:text-primary ml-1" title="Copy Hash">
+<span class="material-symbols-outlined text-xs">content_copy</span>
+</button>
+</div>
+<span class="text-[9px] font-label-sm text-secondary">Verified Valid</span>
+</div>
+</div>
+<!-- Cryptographic Provenance Spec -->
+<div class="p-3 rounded bg-surface-container-low border border-outline-variant/70 flex flex-col gap-2">
+<div class="flex items-center justify-between text-[11px] font-label-md text-on-surface border-b border-outline-variant/40 pb-1.5">
+<span class="font-semibold flex items-center gap-1.5 text-primary">
+<span class="material-symbols-outlined text-xs">fingerprint</span>
+              CRYPTOGRAPHIC PROVENANCE
+            </span>
+<span class="text-[9px] font-label-sm text-secondary">Ed25519 VERIFIED</span>
+</div>
+<div class="flex flex-col gap-1 text-[10px] font-label-sm">
+<div class="flex justify-between">
+<span class="text-outline">Actor DID:</span>
+<span class="font-mono text-on-surface truncate w-40 text-right">did:integrity:68fed1331...98223e8</span>
+</div>
+<div class="flex justify-between">
+<span class="text-outline">Prior Block:</span>
+<span class="font-mono text-on-surface truncate w-40 text-right">ee723b6525...1f4e1b</span>
+</div>
+<div class="flex justify-between">
+<span class="text-outline">Proof Depth:</span>
+<span class="font-mono text-secondary">Level 12 (Leaf 48)</span>
+</div>
+</div>
+<!-- Crypto-Validated Progress Bar -->
+<div class="mt-1 flex flex-col gap-1">
+<div class="flex justify-between text-[9px] font-label-sm text-outline">
+<span>Merkle Validation Confidence</span>
+<span class="text-secondary font-semibold">100% VALIDATED</span>
+</div>
+<div class="w-full h-1.5 rounded-full bg-surface-container-highest overflow-hidden">
+<div class="h-full bg-secondary glow-emerald-pulse w-full"></div>
+</div>
+</div>
+</div>
+<!-- Exchange Turn List (Accordion Timeline Stream) -->
+<div class="flex flex-col gap-2">
+<div class="flex items-center justify-between text-[11px] font-label-md text-on-surface px-1">
+<span class="font-semibold text-outline">EXCHANGE TURN CHRONOLOGY</span>
+<span class="text-[9px] font-label-sm text-outline">3 of 42 EXPANDED</span>
+</div>
+<!-- Turn 01 -->
+<div class="p-2.5 rounded bg-surface-container-lowest border border-outline-variant/60 flex flex-col gap-1.5">
+<div class="flex items-center justify-between text-[10px] font-label-sm">
+<span class="text-primary font-bold">TURN 01</span>
+<span class="text-outline font-mono">08:14:02 UTC</span>
+</div>
+<p class="text-body-sm font-body-sm text-on-surface">User Prompt &gt; Agent initialization &amp; PID calibration request.</p>
+<div class="flex items-center gap-1.5 mt-0.5">
+<span class="px-1.5 py-0.5 rounded bg-surface-container-high border border-outline-variant text-[9px] font-label-sm font-mono text-secondary">
+                quant_eval_step()
+              </span>
+<span class="text-[9px] font-label-sm text-outline">Exit Code 0</span>
+</div>
+</div>
+<!-- Turn 02 -->
+<div class="p-2.5 rounded bg-surface-container-lowest border border-outline-variant/60 flex flex-col gap-1.5">
+<div class="flex items-center justify-between text-[10px] font-label-sm">
+<span class="text-tertiary font-bold">TURN 02</span>
+<span class="text-outline font-mono">08:19:40 UTC</span>
+</div>
+<p class="text-body-sm font-body-sm text-on-surface">State Mutation &gt; Fact memory anchored to vector database substrate.</p>
+<div class="flex items-center gap-1.5 mt-0.5">
+<span class="px-1.5 py-0.5 rounded bg-tertiary/10 border border-tertiary/20 text-[9px] font-label-sm font-mono text-tertiary">
+                memory_persist(k=5, d=1536)
+              </span>
+</div>
+</div>
+<!-- Turn 03 -->
+<div class="p-2.5 rounded bg-surface-container-lowest border border-outline-variant/60 flex flex-col gap-1.5">
+<div class="flex items-center justify-between text-[10px] font-label-sm">
+<span class="text-secondary font-bold">TURN 03</span>
+<span class="text-outline font-mono">08:27:11 UTC</span>
+</div>
+<p class="text-body-sm font-body-sm text-on-surface">Proof Generation &gt; Merkle leaf node compiled, validated, and signed.</p>
+<div class="flex items-center gap-1.5 mt-0.5">
+<span class="px-1.5 py-0.5 rounded bg-secondary/10 border border-secondary/20 text-[9px] font-label-sm font-mono text-secondary">
+                merkle_leaf_commit()
+              </span>
+</div>
+</div>
+</div>
+</div>
+<!-- Action Footer -->
+<div class="p-4 border-t border-outline-variant bg-surface-container-lowest/90 flex flex-col gap-2">
+<button class="w-full h-9 bg-primary text-on-primary font-label-md text-label-md font-semibold rounded flex items-center justify-center gap-2 glow-cyan-sm hover:opacity-90 transition-opacity">
+<span class="material-symbols-outlined text-sm font-bold">replay</span>
+<span>Replay Session Turn-by-Turn</span>
+</button>
+<button class="w-full h-8 bg-surface-container border border-outline-variant text-on-surface hover:border-primary/50 font-label-md text-label-md rounded flex items-center justify-center gap-2 transition-colors">
+<span class="material-symbols-outlined text-sm text-primary">hub</span>
+<span>View in Neural Graph</span>
+</button>
+<button class="w-full text-center text-outline hover:text-on-surface font-label-sm text-[10px] flex items-center justify-center gap-1.5 mt-1 transition-colors">
+<span class="material-symbols-outlined text-xs">download</span>
+<span>Export Session Inclusion Proof (.cortex.proof)</span>
+</button>
+</div>
+</aside>
+</div>
+</body></html>
