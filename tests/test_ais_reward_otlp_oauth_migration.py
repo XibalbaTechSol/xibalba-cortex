@@ -286,3 +286,16 @@ def test_secret_redaction_and_otlp_and_legacy_migration(tmp_path: Path) -> None:
     # Hash chain must still verify cleanly after purge
     assert cortex.store.verify_chain()["valid"] is True
 
+    # Verify Console bridge endpoints (/cortex-api/api/*)
+    st_resp = client.get("/cortex-api/api/status")
+    assert st_resp.status_code == 200
+    assert st_resp.json()["status"] == "online"
+    assert "entities" in st_resp.json()
+    ag_resp = client.get("/cortex-api/api/agents")
+    assert ag_resp.status_code == 200
+    assert len(ag_resp.json()["agents"]) >= 1
+    sum_resp = client.get("/cortex-api/api/agent/hermes/summary")
+    assert sum_resp.status_code == 200
+    assert "recent_memories" in sum_resp.json()
+
+

@@ -92,9 +92,11 @@ def create_app(
         chain = cortex.verify_chain()
         scopes = cortex.list_scopes()
         agents = cortex.list_agents()
-        mems = cortex.store.list_memories(limit=5000)
         sessions = cortex.get_session_distribution()
-        graph = cortex.store.get_graph_data()
+        with cortex.store._get_conn() as conn:
+            m_cnt = conn.execute("SELECT COUNT(*) FROM memories WHERE lifecycle_status = 'active'").fetchone()[0]
+            e_cnt = conn.execute("SELECT COUNT(*) FROM entities").fetchone()[0]
+            r_cnt = conn.execute("SELECT COUNT(*) FROM relations").fetchone()[0]
         return JSONResponse({
             "status": "online",
             "supermemory_local_alive": alive,
@@ -106,10 +108,10 @@ def create_app(
             "scope_count": len(scopes),
             "agent_count": len(agents),
             "profile_id": "tenant_xibalba_core",
-            "memories": len(mems),
+            "memories": int(m_cnt),
             "sessions": len(sessions),
-            "entities": len(graph.get("nodes", [])),
-            "relations": len(graph.get("links", [])),
+            "entities": int(e_cnt),
+            "relations": int(r_cnt),
         })
 
     async def api_scopes(request: Request) -> JSONResponse:
