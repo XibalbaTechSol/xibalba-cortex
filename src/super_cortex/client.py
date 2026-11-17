@@ -105,8 +105,13 @@ class SupermemoryClient:
         filter_expr: dict[str, Any] | None = None,
         limit: int = 10,
     ) -> list[dict[str, Any]]:
-        """Semantic search against Supermemory Local."""
-        payload: dict[str, Any] = {"query": query}
+        """Semantic search against Supermemory Local.
+
+        `limit` is sent to the server (its default is 10, which used to cap every request), and
+        source documents are requested so a hit can be traced to the memory it came from: a
+        hit's own `id` names a chunk or learned memory, not the document.
+        """
+        payload: dict[str, Any] = {"query": query, "limit": limit, "include": {"documents": True}}
         if filter_expr:
             payload["filter"] = filter_expr
 
