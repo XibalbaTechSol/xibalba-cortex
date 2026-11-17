@@ -1983,7 +1983,7 @@
           <button id="subtab-btn-connectors" onclick="window.switchFabricTab('connectors')" class="fabric-subtab-btn px-3 py-1 rounded-md flex items-center gap-1.5 transition-all text-slate-400 hover:text-white border border-transparent cursor-pointer">
             <span class="material-symbols-outlined text-[13px]">sync_alt</span>
             <span>Connectors Hub</span>
-            <span class="text-[8px] px-1 py-0.2 rounded bg-emerald-500/20 text-emerald-400">6 LIVE</span>
+            <span id="fabric-badge-connectors" class="text-[8px] px-1 py-0.2 rounded bg-emerald-500/20 text-emerald-400">10 LIVE</span>
           </button>
 
           <button id="subtab-btn-pipeline" onclick="window.switchFabricTab('pipeline')" class="fabric-subtab-btn px-3 py-1 rounded-md flex items-center gap-1.5 transition-all text-slate-400 hover:text-white border border-transparent cursor-pointer">
@@ -2435,56 +2435,176 @@
       </div>
     </div>
 
-    <!-- SUB-TAB C: CONNECTORS HUB -->
+    <!-- SUB-TAB C: CONNECTORS HUB (10 Production Non-Inference Pipelines) -->
     <div id="fabric-panel-connectors" class="hidden w-full h-full flex flex-col overflow-y-auto overflow-x-hidden bg-[#090b10] p-6 space-y-6 font-mono">
-      <!-- Header Metrics Strip -->
+      <!-- Header Metrics & Global Actions Strip -->
       <div class="flex flex-wrap items-center justify-between pb-3 border-b border-outline-variant/30 gap-4 text-xs">
         <div>
           <div class="flex items-center gap-2">
             <span class="material-symbols-outlined text-[#00ffa3] text-lg">sync_alt</span>
             <span class="font-bold text-white uppercase text-sm tracking-wider">CONNECTORS &amp; INGESTION HUB</span>
+            <span class="px-2 py-0.5 rounded bg-emerald-500/15 border border-emerald-500/40 text-emerald-300 text-[9px] font-bold">10 ACTIVE PIPELINES</span>
           </div>
-          <p class="text-outline text-[11px] font-sans mt-0.5">Automated non-inference ingestion pipelines connecting external knowledge sources into Supermemory Local with deterministic cryptographic hashes.</p>
+          <p class="text-outline text-[11px] font-sans mt-0.5">Deterministic non-inference ingestion connecting Google Workspace, GitHub, Web URLs, Local Vaults, CSV/RDF Triples, ArXiv/PubMed, and HL7 FHIR R4 into Super-Cortex.</p>
         </div>
 
-        <div class="flex items-center gap-3 text-[10px]">
+        <div class="flex flex-wrap items-center gap-2 text-[10px]">
+          <button onclick="window.syncAllConnectors()" id="btn-sync-all-connectors" class="px-3 py-1.5 bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 border border-cyan-400/50 font-bold uppercase rounded flex items-center gap-1.5 cursor-pointer transition-all">
+            <span class="material-symbols-outlined text-[14px]">sync</span>
+            <span>Sync All Active</span>
+          </button>
           <a href="/clipper.html" target="_blank" class="px-3 py-1.5 bg-secondary-container text-black font-extrabold uppercase rounded hover:brightness-110 flex items-center gap-1.5 shadow">
             <span class="material-symbols-outlined text-[14px]">bolt</span>
-            <span>⚡ 1-Click Browser Bookmarklet</span>
+            <span>⚡ Browser Bookmarklet</span>
           </a>
-          <div class="bg-surface-container-low px-3 py-1.5 border border-outline-variant/30">
-            <span class="text-outline">PIPELINES:</span> <strong class="text-primary-container">6 CONFIGURED</strong>
-          </div>
-          <div class="bg-surface-container-low px-3 py-1.5 border border-outline-variant/30">
-            <span class="text-outline">MODE:</span> <strong class="text-secondary-container">100% NON-INFERENCE</strong>
+          <div class="bg-surface-container-low px-3 py-1.5 border border-outline-variant/30 rounded">
+            <span class="text-outline">INGESTED:</span> <strong id="connectors-total-ingested" class="text-emerald-400">0 ITEMS</strong>
           </div>
         </div>
       </div>
 
-      <!-- Live Interactive Ingestion Cards -->
-      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <!-- Web Clipper Connector Card -->
-        <div class="bg-surface-container-lowest border border-outline-variant/30 p-4 rounded flex flex-col justify-between space-y-3 shadow-md">
+      <!-- Category Filter Bar -->
+      <div class="flex items-center justify-between flex-wrap gap-2 text-[10px]">
+        <div class="flex items-center gap-1.5 flex-wrap">
+          <span class="text-slate-500 uppercase font-bold mr-1">FILTER:</span>
+          <button onclick="window.filterConnectorsByCategory('all')" id="conn-cat-all" class="px-2.5 py-1 rounded bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 font-bold uppercase cursor-pointer">ALL (10)</button>
+          <button onclick="window.filterConnectorsByCategory('cloud')" id="conn-cat-cloud" class="px-2.5 py-1 rounded bg-surface-container-low text-slate-400 hover:text-white border border-outline-variant/30 font-bold uppercase cursor-pointer">CLOUD &amp; WORKSPACE</button>
+          <button onclick="window.filterConnectorsByCategory('code')" id="conn-cat-code" class="px-2.5 py-1 rounded bg-surface-container-low text-slate-400 hover:text-white border border-outline-variant/30 font-bold uppercase cursor-pointer">GITHUB &amp; GIT</button>
+          <button onclick="window.filterConnectorsByCategory('data')" id="conn-cat-data" class="px-2.5 py-1 rounded bg-surface-container-low text-slate-400 hover:text-white border border-outline-variant/30 font-bold uppercase cursor-pointer">CSV &amp; TRIPLES</button>
+          <button onclick="window.filterConnectorsByCategory('science')" id="conn-cat-science" class="px-2.5 py-1 rounded bg-surface-container-low text-slate-400 hover:text-white border border-outline-variant/30 font-bold uppercase cursor-pointer">ARXIV, PUBMED &amp; FHIR</button>
+        </div>
+        <div class="text-slate-400">
+          Target Scope:
+          <select id="connectors-global-scope" class="bg-surface-container-low border border-outline-variant/40 rounded px-2 py-1 text-cyan-300 font-bold focus:outline-none">
+            <option value="shared">shared (Global Fabric)</option>
+            <option value="agent:xibalba">agent:xibalba</option>
+            <option value="agent:agy">agent:agy</option>
+            <option value="agent:claude">agent:claude</option>
+            <option value="agent:hermes">agent:hermes</option>
+            <option value="agent:shield">agent:shield</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- =================================================================== -->
+      <!-- 6 INTERACTIVE INGESTION WORKBENCH STUDIOS (2x3 GRID)                -->
+      <!-- =================================================================== -->
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+
+        <!-- WORKBENCH 1: GOOGLE WORKSPACE (Drive, Docs, Sheets, Gmail, Calendar) -->
+        <div class="bg-surface-container-lowest border border-cyan-500/30 p-4 rounded-xl flex flex-col justify-between space-y-3 shadow-lg">
+          <div class="space-y-1.5">
+            <div class="flex items-center justify-between">
+              <div class="flex items-center gap-2 text-cyan-300 font-bold text-xs uppercase">
+                <span class="material-symbols-outlined text-base text-cyan-400">cloud_sync</span>
+                <span>Google Workspace (Drive, Docs, Sheets, Gmail, Calendar)</span>
+              </div>
+              <div class="flex items-center gap-1.5">
+                <button onclick="document.getElementById('gworkspace-oauth-drawer').classList.toggle('hidden')" class="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-cyan-300 text-[9px] font-bold cursor-pointer">OAuth / Token</button>
+                <span class="text-[9px] px-1.5 py-0.5 rounded bg-emerald-500/15 border border-emerald-500/40 text-emerald-300 font-bold">CONNECTED</span>
+              </div>
+            </div>
+            <p class="text-[10px] text-neutral-400 font-sans">Ingest Google Docs, Sheets CSVs, Drive files, Gmail threads, Calendar events, or mirrored Workspace files.</p>
+          </div>
+
+          <!-- Optional OAuth / Access Token Configuration Drawer -->
+          <div id="gworkspace-oauth-drawer" class="hidden p-2.5 rounded-lg bg-slate-950 border border-cyan-500/30 space-y-2 text-[10px]">
+            <div class="flex items-center justify-between">
+              <span class="text-cyan-300 font-bold uppercase">Google OAuth 2.0 Credential</span>
+              <button onclick="window.openGoogleOAuthConsent()" class="px-2 py-0.5 rounded bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 font-bold cursor-pointer">Launch Google OAuth ↗</button>
+            </div>
+            <input id="gworkspace-access-token" type="password" placeholder="Optional: Paste Google OAuth Access Token (ya29....)" class="w-full bg-surface-container-low border border-slate-800 rounded px-2 py-1 text-white" />
+          </div>
+
+          <div class="space-y-2">
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <select id="gworkspace-mode" onchange="window.onGoogleWorkspaceModeChange(this.value)" class="bg-surface-container-low border border-outline-variant/40 rounded px-2 py-1.5 text-xs text-white focus:outline-none focus:border-cyan-400">
+                <option value="doc_url">Google Doc / Sheet URL or Mirror</option>
+                <option value="drive_sync">Batch Sync Workspace Docs</option>
+                <option value="gmail_sync">Gmail Important Threads</option>
+                <option value="calendar_sync">Google Calendar Upcoming</option>
+              </select>
+              <select id="gworkspace-file-select" onchange="if(this.value) document.getElementById('gworkspace-target-input').value = this.value" class="bg-surface-container-low border border-outline-variant/40 rounded px-2 py-1.5 text-xs text-cyan-300 truncate focus:outline-none">
+                <option value="">Select Workspace Document...</option>
+              </select>
+            </div>
+            <div class="flex items-center gap-2">
+              <input id="gworkspace-target-input" type="text" placeholder="Paste docs.google.com/document/d/... or select above" class="flex-1 bg-surface-container-low border border-outline-variant/40 rounded p-2 text-xs text-white placeholder:text-neutral-500 focus:outline-none focus:border-cyan-400" />
+              <button onclick="window.submitGoogleWorkspaceIngest()" class="px-3.5 py-2 bg-cyan-400 hover:bg-cyan-300 text-black font-bold text-xs uppercase rounded transition-colors flex items-center gap-1 shrink-0 cursor-pointer">
+                <span class="material-symbols-outlined text-sm">cloud_download</span>
+                <span>Ingest</span>
+              </button>
+            </div>
+            <div id="gworkspace-status" class="hidden text-[10px] p-2 rounded bg-surface-container-low border border-outline-variant/30"></div>
+          </div>
+        </div>
+
+        <!-- WORKBENCH 2: GITHUB INTELLIGENCE (Repos, PRs, Issues, Commits, READMEs) -->
+        <div class="bg-surface-container-lowest border border-purple-500/30 p-4 rounded-xl flex flex-col justify-between space-y-3 shadow-lg">
+          <div class="space-y-1.5">
+            <div class="flex items-center justify-between">
+              <div class="flex items-center gap-2 text-purple-300 font-bold text-xs uppercase">
+                <span class="material-symbols-outlined text-base text-purple-400">terminal</span>
+                <span>GitHub Intelligence (Repos, PRs, Issues &amp; Commits)</span>
+              </div>
+              <span id="github-auth-badge" class="text-[9px] px-1.5 py-0.5 rounded bg-emerald-500/15 border border-emerald-500/40 text-emerald-300 font-bold">GH CLI AUTHED</span>
+            </div>
+            <p class="text-[10px] text-neutral-400 font-sans">Syncs repository commits, Pull Requests (with SOP merge triples), Issues, and README specs directly from GitHub.</p>
+          </div>
+
+          <div class="space-y-2">
+            <div class="flex items-center gap-2">
+              <input id="github-owner-input" type="text" value="XibalbaTechSol" placeholder="GitHub Org/User" class="w-36 bg-surface-container-low border border-outline-variant/40 rounded px-2 py-1.5 text-xs text-white focus:outline-none focus:border-purple-400" />
+              <button onclick="window.loadGitHubReposDropdown()" class="px-2 py-1.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 text-[10px] font-bold cursor-pointer" title="Fetch repositories for owner">Load Repos</button>
+              <select id="github-repo-select" onchange="if(this.value) document.getElementById('github-repo-input').value = this.value" class="flex-1 bg-surface-container-low border border-outline-variant/40 rounded px-2 py-1.5 text-xs text-purple-300 font-bold truncate focus:outline-none">
+                <option value="XibalbaTechSol/super-cortex">XibalbaTechSol/super-cortex</option>
+                <option value="XibalbaTechSol/integrity-core">XibalbaTechSol/integrity-core</option>
+                <option value="XibalbaTechSol/xibalba-shield">XibalbaTechSol/xibalba-shield</option>
+                <option value="XibalbaTechSol/integrity-console">XibalbaTechSol/integrity-console</option>
+              </select>
+            </div>
+
+            <div class="flex items-center gap-3 text-[10px] text-slate-300 py-0.5">
+              <label class="flex items-center gap-1 cursor-pointer"><input id="gh-inc-commits" type="checkbox" checked class="accent-purple-400" /> Commits</label>
+              <label class="flex items-center gap-1 cursor-pointer"><input id="gh-inc-prs" type="checkbox" checked class="accent-purple-400" /> Pull Requests</label>
+              <label class="flex items-center gap-1 cursor-pointer"><input id="gh-inc-issues" type="checkbox" checked class="accent-purple-400" /> Issues</label>
+              <label class="flex items-center gap-1 cursor-pointer"><input id="gh-inc-readme" type="checkbox" checked class="accent-purple-400" /> Metadata</label>
+            </div>
+
+            <div class="flex items-center gap-2">
+              <input id="github-repo-input" type="text" value="XibalbaTechSol/super-cortex" placeholder="owner/repo or https://github.com/..." class="flex-1 bg-surface-container-low border border-outline-variant/40 rounded p-2 text-xs text-white focus:outline-none focus:border-purple-400" />
+              <button onclick="window.submitGitHubIngest()" class="px-3.5 py-2 bg-purple-500 hover:bg-purple-400 text-black font-bold text-xs uppercase rounded transition-colors flex items-center gap-1 shrink-0 cursor-pointer">
+                <span class="material-symbols-outlined text-sm">sync</span>
+                <span>Sync Repo</span>
+              </button>
+            </div>
+            <div id="github-status" class="hidden text-[10px] p-2 rounded bg-surface-container-low border border-outline-variant/30"></div>
+          </div>
+        </div>
+
+        <!-- WORKBENCH 3: WEB URL & DOCUMENTATION CLIPPER -->
+        <div class="bg-surface-container-lowest border border-outline-variant/30 p-4 rounded-xl flex flex-col justify-between space-y-3 shadow-md">
           <div class="space-y-1.5">
             <div class="flex items-center justify-between">
               <div class="flex items-center gap-2 text-primary font-bold text-xs uppercase">
                 <span class="material-symbols-outlined text-base">public</span>
-                <span>Web URL &amp; Article Clipper</span>
+                <span>Web URL &amp; Documentation Clipper</span>
               </div>
-              <span class="text-[9px] px-1.5 py-0.5 rounded bg-secondary-container/10 border border-secondary-container/30 text-secondary-container font-bold">READY</span>
+              <span class="text-[9px] px-1.5 py-0.5 rounded bg-secondary-container/10 border border-secondary-container/30 text-secondary-container font-bold">CONNECTED</span>
             </div>
-            <p class="text-[10px] text-neutral-400 font-sans">Scrapes documentation or web articles, strips boilerplate, extracts clean text and entity triples without external LLMs.</p>
+            <p class="text-[10px] text-neutral-400 font-sans">Scrapes documentation or web articles, strips HTML boilerplate, and extracts clean text &amp; entity triples.</p>
           </div>
 
           <div class="space-y-2">
-            <input id="connectors-url-input" class="w-full bg-surface-container-low border border-outline-variant/40 rounded p-2 text-xs text-white placeholder:text-neutral-500 focus:outline-none focus:border-primary-container" placeholder="https://docs.anthropic.com or any web URL..." type="url"/>
+            <input id="connectors-url-input" class="w-full bg-surface-container-low border border-outline-variant/40 rounded p-2 text-xs text-white placeholder:text-neutral-500 focus:outline-none focus:border-primary-container" placeholder="https://docs.stripe.com or any web URL..." type="url"/>
             <div class="flex items-center gap-2">
               <select id="connectors-url-scope" class="bg-surface-container-low border border-outline-variant/40 rounded px-2 py-1.5 text-xs text-primary-container font-bold flex-1 focus:outline-none">
                 <option value="shared">Scope: Shared Fabric</option>
                 <option value="agent:claude">Scope: Claude Code</option>
                 <option value="agent:xibalba">Scope: Xibalba</option>
+                <option value="agent:agy">Scope: Antigravity AGY</option>
               </select>
-              <button onclick="window.submitUrlIngest()" class="px-3 py-1.5 bg-primary-container text-on-primary-container hover:bg-secondary-container font-bold text-xs uppercase rounded transition-colors flex items-center gap-1 shrink-0">
+              <button onclick="window.submitUrlIngest()" class="px-3.5 py-1.5 bg-primary-container text-on-primary-container hover:bg-secondary-container font-bold text-xs uppercase rounded transition-colors flex items-center gap-1 shrink-0 cursor-pointer">
                 <span class="material-symbols-outlined text-sm">download</span>
                 <span>Clip &amp; Ingest</span>
               </button>
@@ -2493,43 +2613,124 @@
           </div>
         </div>
 
-        <!-- Local File / Notes Connector Card -->
-        <div class="bg-surface-container-lowest border border-outline-variant/30 p-4 rounded flex flex-col justify-between space-y-3 shadow-md">
+        <!-- WORKBENCH 4: LOCAL NOTES, OBSIDIAN VAULTS & DIRECTORY SCANNER -->
+        <div class="bg-surface-container-lowest border border-outline-variant/30 p-4 rounded-xl flex flex-col justify-between space-y-3 shadow-md">
           <div class="space-y-1.5">
             <div class="flex items-center justify-between">
               <div class="flex items-center gap-2 text-[#ddb7ff] font-bold text-xs uppercase">
-                <span class="material-symbols-outlined text-base">description</span>
-                <span>Local Notes &amp; Files Ingestion</span>
+                <span class="material-symbols-outlined text-base">folder_open</span>
+                <span>Local Notes, Vaults &amp; Directory Scanner</span>
               </div>
-              <span class="text-[9px] px-1.5 py-0.5 rounded bg-secondary-container/10 border border-secondary-container/30 text-secondary-container font-bold">READY</span>
+              <button onclick="window.scanLocalDirectoryPrompt()" class="px-2 py-0.5 rounded bg-purple-500/20 hover:bg-purple-500/30 border border-purple-500/40 text-purple-200 text-[9px] font-bold cursor-pointer">Scan ~/Documents</button>
             </div>
-            <p class="text-[10px] text-neutral-400 font-sans">Upload Markdown notes, specifications, or code files. Extracts PARA classification and entity triples automatically.</p>
+            <p class="text-[10px] text-neutral-400 font-sans">Ingest Markdown notes, Obsidian vaults, or scan local directories with automatic PARA &amp; triple extraction.</p>
           </div>
 
           <div class="space-y-2">
             <div class="flex items-center gap-2">
-              <input id="connectors-file-name" class="flex-1 bg-surface-container-low border border-outline-variant/40 rounded p-1.5 text-xs text-white placeholder:text-neutral-500 focus:outline-none" placeholder="e.g. spec_architecture.md" type="text"/>
+              <input id="connectors-file-name" class="flex-1 bg-surface-container-low border border-outline-variant/40 rounded p-1.5 text-xs text-white placeholder:text-neutral-500 focus:outline-none" placeholder="e.g. architecture_notes.md" type="text"/>
               <select id="connectors-file-scope" class="bg-surface-container-low border border-outline-variant/40 rounded px-2 py-1.5 text-xs text-primary-container font-bold focus:outline-none">
                 <option value="shared">Shared</option>
                 <option value="agent:claude">Claude</option>
                 <option value="agent:xibalba">Xibalba</option>
               </select>
             </div>
-            <textarea id="connectors-file-content" rows="2" class="w-full bg-surface-container-low border border-outline-variant/40 rounded p-2 text-xs text-white placeholder:text-neutral-500 focus:outline-none focus:border-primary-container" placeholder="Paste file content or drop text..."></textarea>
-            <button onclick="window.submitFileIngest()" class="w-full py-1.5 bg-surface-container-high hover:bg-primary-container hover:text-on-primary-container font-bold text-xs uppercase rounded transition-colors flex items-center justify-center gap-1">
+            <textarea id="connectors-file-content" rows="2" class="w-full bg-surface-container-low border border-outline-variant/40 rounded p-2 text-xs text-white placeholder:text-neutral-500 focus:outline-none focus:border-primary-container" placeholder="Paste Markdown, specification, or code content..."></textarea>
+            <button onclick="window.submitFileIngest()" class="w-full py-1.5 bg-surface-container-high hover:bg-primary-container hover:text-on-primary-container font-bold text-xs uppercase rounded transition-colors flex items-center justify-center gap-1 cursor-pointer">
               <span class="material-symbols-outlined text-sm">upload_file</span>
               <span>Ingest Document</span>
             </button>
             <div id="connectors-file-status" class="hidden text-[10px] p-2 rounded bg-surface-container-low border border-outline-variant/30"></div>
           </div>
         </div>
+
+        <!-- WORKBENCH 5: STRUCTURED CSV / TABULAR & RDF TRIPLES STUDIO -->
+        <div class="bg-surface-container-lowest border border-emerald-500/30 p-4 rounded-xl flex flex-col justify-between space-y-3 shadow-md">
+          <div class="space-y-1.5">
+            <div class="flex items-center justify-between">
+              <div class="flex items-center gap-2 text-emerald-300 font-bold text-xs uppercase">
+                <span class="material-symbols-outlined text-base text-emerald-400">table_chart</span>
+                <span>Structured CSV Tabular &amp; RDF Triples Studio</span>
+              </div>
+              <div class="flex items-center gap-1">
+                <button onclick="window.loadCsvSamplePreset('csv')" class="px-1.5 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-emerald-300 text-[8.5px] font-bold cursor-pointer">Sample CSV</button>
+                <button onclick="window.loadCsvSamplePreset('triples')" class="px-1.5 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-cyan-300 text-[8.5px] font-bold cursor-pointer">Sample Triples</button>
+              </div>
+            </div>
+            <p class="text-[10px] text-neutral-400 font-sans">Convert CSV/TSV tables or JSON Subject-Predicate-Object arrays directly into 3D entity nodes and synaptic edges.</p>
+          </div>
+
+          <div class="space-y-2">
+            <div class="flex items-center gap-2">
+              <select id="connectors-data-mode" class="bg-surface-container-low border border-outline-variant/40 rounded px-2 py-1 text-xs text-emerald-300 font-bold">
+                <option value="csv">CSV / Tabular Dataset</option>
+                <option value="triples">JSON RDF Triples Array</option>
+              </select>
+              <input id="connectors-data-source" type="text" value="quant_telemetry_table" placeholder="Dataset source name" class="flex-1 bg-surface-container-low border border-outline-variant/40 rounded px-2 py-1 text-xs text-white" />
+            </div>
+            <textarea id="connectors-csv-input" rows="2" class="w-full bg-surface-container-low border border-outline-variant/40 rounded p-2 text-xs text-white font-mono focus:outline-none focus:border-emerald-400" placeholder="subject,predicate,object&#10;Xibalba Shield,enforces,HIPAA Zero-Trust Enclave&#10;Super-Cortex,anchors_to,Integrity Protocol"></textarea>
+            <button onclick="window.submitCsvOrTriplesIngest()" class="w-full py-1.5 bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/40 text-emerald-300 font-bold text-xs uppercase rounded transition-colors flex items-center justify-center gap-1 cursor-pointer">
+              <span class="material-symbols-outlined text-sm">hub</span>
+              <span>Parse &amp; Anchor Graph Triples</span>
+            </button>
+            <div id="connectors-csv-status" class="hidden text-[10px] p-2 rounded bg-surface-container-low border border-outline-variant/30"></div>
+          </div>
+        </div>
+
+        <!-- WORKBENCH 6: SCIENTIFIC LITERATURE (ArXiv / PubMed) & HL7 FHIR R4 -->
+        <div class="bg-surface-container-lowest border border-amber-500/30 p-4 rounded-xl flex flex-col justify-between space-y-3 shadow-md">
+          <div class="space-y-1.5">
+            <div class="flex items-center justify-between">
+              <div class="flex items-center gap-2 text-amber-300 font-bold text-xs uppercase">
+                <span class="material-symbols-outlined text-base text-amber-400">science</span>
+                <span>Scientific Literature (ArXiv / PubMed) &amp; HL7 FHIR R4</span>
+              </div>
+              <button onclick="window.loadFhirSamplePreset()" class="px-1.5 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-amber-300 text-[8.5px] font-bold cursor-pointer">Sample FHIR R4</button>
+            </div>
+            <p class="text-[10px] text-neutral-400 font-sans">Fetch papers from ArXiv or NCBI PubMed by query/ID, or ingest HL7 FHIR R4 clinical resource bundles.</p>
+          </div>
+
+          <div class="space-y-2">
+            <div class="flex items-center gap-2">
+              <select id="connectors-sci-mode" class="bg-surface-container-low border border-outline-variant/40 rounded px-2 py-1.5 text-xs text-amber-300 font-bold">
+                <option value="arxiv">ArXiv Preprint Query / ID</option>
+                <option value="pubmed">NCBI PubMed Query / PMID</option>
+                <option value="fhir">HL7 FHIR R4 Bundle (JSON)</option>
+              </select>
+              <input id="connectors-sci-input" type="text" placeholder="e.g. spectral graph theory or 2310.06825 or PMID" class="flex-1 bg-surface-container-low border border-outline-variant/40 rounded p-1.5 text-xs text-white focus:outline-none focus:border-amber-400" />
+            </div>
+            <button onclick="window.submitSciOrFhirIngest()" class="w-full py-1.5 bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-amber-300 font-bold text-xs uppercase rounded transition-colors flex items-center justify-center gap-1 cursor-pointer">
+              <span class="material-symbols-outlined text-sm">biotech</span>
+              <span>Fetch &amp; Ingest into Knowledge Graph</span>
+            </button>
+            <div id="connectors-sci-status" class="hidden text-[10px] p-2 rounded bg-surface-container-low border border-outline-variant/30"></div>
+          </div>
+        </div>
+
       </div>
 
-      <!-- Automated Pipelines List -->
+      <!-- =================================================================== -->
+      <!-- CONFIGURED CONTINUOUS CONNECTORS CATALOG (10 PIPELINES)             -->
+      <!-- =================================================================== -->
       <div class="space-y-3">
-        <div class="text-[11px] text-outline uppercase font-bold tracking-wider">Configured Continuous Connectors</div>
-        <div id="connectors-list-container" class="grid grid-cols-1 md:grid-cols-3 gap-3">
-          <!-- Populated dynamically -->
+        <div class="flex items-center justify-between">
+          <div class="text-[11px] text-outline uppercase font-bold tracking-wider">Configured Continuous Connectors (10)</div>
+          <button onclick="window.loadConnectors()" class="text-[10px] text-cyan-400 hover:underline flex items-center gap-1 cursor-pointer">
+            <span class="material-symbols-outlined text-[12px]">refresh</span> Refresh Status
+          </button>
+        </div>
+        <div id="connectors-list-container" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+          <!-- Populated dynamically via renderConnectorsList() -->
+        </div>
+      </div>
+
+      <!-- =================================================================== -->
+      <!-- LIVE INGESTION & SYNC ACTIVITY LEDGER                               -->
+      <!-- =================================================================== -->
+      <div class="space-y-2.5 pb-6">
+        <div class="text-[11px] text-outline uppercase font-bold tracking-wider">Recent Connector Sync &amp; Ingestion Ledger</div>
+        <div id="connectors-history-container" class="space-y-1.5 text-xs">
+          <!-- Populated dynamically via renderConnectorsHistory() -->
         </div>
       </div>
     </div>
@@ -11025,8 +11226,19 @@ ${staticFacts.length > 0 ? `## Static Knowledge Core:\n${staticFacts.map(f => `-
     };
 
     // -------------------------------------------------------------------------
-    // CONNECTORS HUB (Supermemory Feature Parity)
+    // CONNECTORS HUB (10 Production Pipelines: Google Workspace, GitHub, Web, Local, Git, Agents, CSV, Triples, ArXiv/PubMed, FHIR)
     // -------------------------------------------------------------------------
+    window.allConnectorsList = [];
+    window.activeConnectorCategory = 'all';
+
+    window.getSelectedConnectorScope = function(localSelectId) {
+      if (localSelectId) {
+        const el = document.getElementById(localSelectId);
+        if (el && el.value) return el.value;
+      }
+      return document.getElementById('connectors-global-scope')?.value || 'shared';
+    };
+
     window.loadConnectors = async function() {
       const container = document.getElementById('connectors-list-container');
       if (!container) return;
@@ -11034,131 +11246,489 @@ ${staticFacts.length > 0 ? `## Static Knowledge Core:\n${staticFacts.map(f => `-
         const resp = await fetch('/api/connectors');
         if (resp.ok) {
           const data = await resp.json();
-          renderConnectorsList(data.connectors || []);
+          window.allConnectorsList = data.connectors || [];
+          renderConnectorsList(window.allConnectorsList);
+          renderConnectorsHistory(data.history || []);
+          const totalIngested = window.allConnectorsList.reduce((acc, c) => acc + (c.items_ingested || 0), 0);
+          const totEl = document.getElementById('connectors-total-ingested');
+          if (totEl) totEl.innerText = `${totalIngested} ITEMS`;
         }
+        window.loadGoogleWorkspaceFilesDropdown();
+        window.loadGitHubReposDropdown();
       } catch (e) {
         console.warn("Failed to load connectors:", e);
       }
     };
 
+    window.filterConnectorsByCategory = function(cat) {
+      window.activeConnectorCategory = cat;
+      ['all', 'cloud', 'code', 'data', 'science'].forEach(k => {
+        const btn = document.getElementById(`conn-cat-${k}`);
+        if (btn) {
+          btn.className = (k === cat)
+            ? 'px-2.5 py-1 rounded bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 font-bold uppercase cursor-pointer'
+            : 'px-2.5 py-1 rounded bg-surface-container-low text-slate-400 hover:text-white border border-outline-variant/30 font-bold uppercase cursor-pointer';
+        }
+      });
+      renderConnectorsList(window.allConnectorsList);
+    };
+
     function renderConnectorsList(connectors) {
       const container = document.getElementById('connectors-list-container');
       if (!container) return;
-      container.innerHTML = '';
+      const cat = window.activeConnectorCategory || 'all';
+      const filtered = connectors.filter(c => {
+        if (cat === 'all') return true;
+        if (cat === 'cloud') return ['cloud', 'web', 'storage'].includes(c.category);
+        if (cat === 'code') return ['code', 'agents'].includes(c.category);
+        if (cat === 'data') return ['data', 'graph'].includes(c.category);
+        if (cat === 'science') return ['science', 'enterprise'].includes(c.category);
+        return true;
+      });
 
-      connectors.forEach(c => {
-        const card = document.createElement('div');
-        card.className = "p-3.5 rounded bg-surface-container-lowest border border-outline-variant/30 flex flex-col justify-between space-y-3 shadow";
-        card.innerHTML = `
-          <div class="space-y-1.5">
-            <div class="flex items-center justify-between">
-              <div class="flex items-center gap-1.5 text-xs font-bold text-white uppercase">
-                <span class="material-symbols-outlined text-primary-container text-[16px]">${c.icon || 'sync'}</span>
-                <span>${c.name}</span>
+      container.innerHTML = filtered.map(c => {
+        const isConnected = c.status === 'connected' || c.status === 'active';
+        const lastSyncStr = c.last_sync ? new Date(c.last_sync).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : 'Ready';
+        return `
+          <div class="p-4 rounded-xl bg-surface-container-lowest border border-outline-variant/30 hover:border-cyan-500/40 transition-all flex flex-col justify-between space-y-3 shadow">
+            <div class="space-y-1.5">
+              <div class="flex items-center justify-between gap-2">
+                <div class="flex items-center gap-2 text-xs font-bold text-white uppercase truncate">
+                  <span class="material-symbols-outlined text-cyan-400 text-[17px]">${c.icon || 'sync'}</span>
+                  <span class="truncate">${escapeHtml(c.name)}</span>
+                </div>
+                <span class="px-1.5 py-0.5 rounded text-[8px] font-bold uppercase shrink-0 ${isConnected ? 'bg-emerald-500/15 border border-emerald-500/40 text-emerald-300' : 'bg-surface-container-high text-outline'}">${escapeHtml(c.status)}</span>
               </div>
-              <span class="px-1.5 py-0.5 rounded text-[8px] font-bold uppercase ${c.status === 'connected' || c.status === 'active' ? 'bg-secondary-container/10 border border-secondary-container/30 text-secondary-container' : 'bg-surface-container-high text-outline'}">${c.status}</span>
+              <p class="text-[10px] text-neutral-400 font-sans leading-relaxed">${escapeHtml(c.description)}</p>
+              <div class="flex items-center gap-1.5 flex-wrap pt-1">
+                ${(c.capabilities || []).map(cap => `<span class="px-1.5 py-0.2 rounded bg-slate-900 border border-slate-800 text-[8px] text-cyan-300">${escapeHtml(cap)}</span>`).join('')}
+              </div>
             </div>
-            <p class="text-[10px] text-neutral-400 font-sans">${c.description}</p>
-          </div>
 
-          <div class="pt-2 border-t border-outline-variant/20 flex items-center justify-between text-[9px]">
-            <span class="text-outline">Capabilities: ${(c.capabilities || []).slice(0, 3).join(', ')}</span>
-            <button onclick="window.runConnectorSync('${c.id}')" class="px-2 py-1 bg-surface-container-low hover:bg-primary-container hover:text-on-primary-container text-primary-container font-bold uppercase rounded border border-outline-variant/30 flex items-center gap-1">
-              <span class="material-symbols-outlined text-[11px]">refresh</span>
-              <span>Sync</span>
-            </button>
+            <div class="pt-2.5 border-t border-outline-variant/20 flex items-center justify-between text-[9px]">
+              <div class="text-slate-400 space-x-2">
+                <span>Syncs: <strong class="text-white">${c.sync_count || 0}</strong></span>
+                <span>·</span>
+                <span>Items: <strong class="text-emerald-400">${c.items_ingested || 0}</strong></span>
+                <span>·</span>
+                <span>${lastSyncStr}</span>
+              </div>
+              <button onclick="window.runConnectorSync('${c.id}')" class="px-2.5 py-1 bg-cyan-500/15 hover:bg-cyan-400 hover:text-black text-cyan-300 font-bold uppercase rounded border border-cyan-500/30 flex items-center gap-1 cursor-pointer transition-all">
+                <span class="material-symbols-outlined text-[11px]">refresh</span>
+                <span>Sync</span>
+              </button>
+            </div>
           </div>
         `;
-        container.appendChild(card);
-      });
+      }).join('');
     }
 
-    window.runConnectorSync = async function(cid) {
+    function renderConnectorsHistory(history) {
+      const container = document.getElementById('connectors-history-container');
+      if (!container) return;
+      if (!history || !history.length) {
+        container.innerHTML = `<div class="p-4 rounded-xl bg-surface-container-lowest border border-outline-variant/20 text-slate-500 text-xs italic">No connector sync operations recorded yet in this session.</div>`;
+        return;
+      }
+      container.innerHTML = history.slice(0, 12).map(h => {
+        const memId = (h.memory_ids && h.memory_ids[0]) ? h.memory_ids[0] : '';
+        const ts = h.timestamp ? new Date(h.timestamp).toLocaleTimeString() : '';
+        return `
+          <div class="p-2.5 rounded-lg bg-surface-container-lowest border border-outline-variant/30 flex items-center justify-between gap-3 text-[10px]">
+            <div class="flex items-center gap-2.5 min-w-0">
+              <span class="w-2 h-2 rounded-full bg-emerald-400 shrink-0"></span>
+              <span class="px-1.5 py-0.5 rounded bg-slate-900 border border-slate-800 text-cyan-300 font-bold uppercase text-[8.5px] shrink-0">${escapeHtml(h.connector_id)}</span>
+              <span class="text-white truncate font-bold">${escapeHtml(h.summary)}</span>
+              <span class="text-slate-500 shrink-0">→ ${escapeHtml(h.scope || 'shared')}</span>
+            </div>
+            <div class="flex items-center gap-2 shrink-0">
+              <span class="text-slate-500 text-[9px]">${ts}</span>
+              ${memId ? `<button onclick="window.jumpToMemory3D('${escapeHtml(memId)}')" class="px-2 py-0.5 rounded bg-cyan-500/20 hover:bg-cyan-500/40 text-cyan-300 font-bold text-[8.5px] cursor-pointer">View in 3D ↗</button>` : ''}
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    window.loadGoogleWorkspaceFilesDropdown = async function() {
+      const sel = document.getElementById('gworkspace-file-select');
+      if (!sel) return;
+      try {
+        const r = await fetch('/api/connectors/google-workspace/files');
+        if (!r.ok) return;
+        const data = await r.json();
+        const items = data.items || [];
+        sel.innerHTML = `<option value="">Select Workspace Document (${items.length} available)...</option>` +
+          items.map(it => `<option value="${escapeHtml(it.id)}">${escapeHtml(it.name)}</option>`).join('');
+      } catch (e) {}
+    };
+
+    window.onGoogleWorkspaceModeChange = function(mode) {
+      const inp = document.getElementById('gworkspace-target-input');
+      if (!inp) return;
+      if (mode === 'doc_url') inp.placeholder = 'Paste docs.google.com/document/d/... or select above';
+      else if (mode === 'gmail_sync') inp.placeholder = 'Gmail query (e.g. is:important or from:stripe.com)';
+      else if (mode === 'calendar_sync') inp.placeholder = 'Calendar ID (leave blank for primary)';
+      else inp.placeholder = 'Batch syncs top Workspace documents into target scope';
+    };
+
+    window.openGoogleOAuthConsent = async function() {
+      try {
+        const r = await fetch('/api/connectors/google-workspace/oauth-url');
+        const d = await r.json();
+        if (d.auth_url) {
+          window.open(d.auth_url, '_blank', 'noopener,noreferrer');
+        } else {
+          window.showToast(d.error || 'OAuth client not configured');
+        }
+      } catch (e) {
+        window.showToast(e.message);
+      }
+    };
+
+    window.submitGoogleWorkspaceIngest = async function() {
+      const mode = document.getElementById('gworkspace-mode')?.value || 'doc_url';
+      const target = document.getElementById('gworkspace-target-input')?.value?.trim() || '';
+      const token = document.getElementById('gworkspace-access-token')?.value?.trim() || '';
+      const scope = window.getSelectedConnectorScope();
+      const statusEl = document.getElementById('gworkspace-status');
+
+      if (statusEl) {
+        statusEl.classList.remove('hidden');
+        statusEl.innerHTML = `<span class="text-cyan-300 animate-pulse">Syncing with Google Workspace (${mode})...</span>`;
+      }
+      try {
+        const r = await fetch('/api/connectors/google-workspace', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ mode, target, scope, access_token: token || undefined })
+        });
+        const data = await r.json();
+        if (!r.ok) throw new Error(data.error || 'Google Workspace sync failed');
+        const memId = data.memory?.memory_id || (data.memories && data.memories[0]?.memory_id) || '';
+        if (statusEl) {
+          statusEl.innerHTML = `
+            <div class="flex items-center justify-between text-emerald-300">
+              <span>✓ Google Workspace ingested (${escapeHtml(data.title || data.service || mode)})</span>
+              ${memId ? `<button onclick="window.jumpToMemory3D('${memId}')" class="underline font-bold cursor-pointer">View in 3D ↗</button>` : ''}
+            </div>
+          `;
+        }
+        window.loadConnectors();
+        if (typeof loadGraphData === 'function') loadGraphData();
+      } catch (err) {
+        if (statusEl) statusEl.innerHTML = `<span class="text-rose-400">✗ ${escapeHtml(err.message)}</span>`;
+      }
+    };
+
+    window.loadGitHubReposDropdown = async function() {
+      const owner = document.getElementById('github-owner-input')?.value?.trim() || 'XibalbaTechSol';
+      const sel = document.getElementById('github-repo-select');
+      if (!sel) return;
+      try {
+        const r = await fetch(`/api/connectors/github/repos?owner=${encodeURIComponent(owner)}`);
+        if (!r.ok) return;
+        const data = await r.json();
+        const repos = data.repos || [];
+        if (repos.length > 0) {
+          sel.innerHTML = repos.map(rp => `<option value="${escapeHtml(rp.nameWithOwner || (owner + '/' + rp.name))}">${escapeHtml(rp.nameWithOwner || rp.name)}</option>`).join('');
+          document.getElementById('github-repo-input').value = repos[0].nameWithOwner || `${owner}/${repos[0].name}`;
+        }
+      } catch (e) {}
+    };
+
+    window.submitGitHubIngest = async function() {
+      const repo = document.getElementById('github-repo-input')?.value?.trim() || 'XibalbaTechSol/super-cortex';
+      const incCommits = document.getElementById('gh-inc-commits')?.checked !== false;
+      const incPrs = document.getElementById('gh-inc-prs')?.checked !== false;
+      const incIssues = document.getElementById('gh-inc-issues')?.checked === true;
+      const incReadme = document.getElementById('gh-inc-readme')?.checked !== false;
+      const scope = window.getSelectedConnectorScope();
+      const statusEl = document.getElementById('github-status');
+
+      if (statusEl) {
+        statusEl.classList.remove('hidden');
+        statusEl.innerHTML = `<span class="text-purple-300 animate-pulse">Fetching GitHub intelligence for ${escapeHtml(repo)}...</span>`;
+      }
+      try {
+        const r = await fetch('/api/connectors/github', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            repo,
+            scope,
+            include_commits: incCommits,
+            include_prs: incPrs,
+            include_issues: incIssues,
+            include_readme: incReadme
+          })
+        });
+        const data = await r.json();
+        if (!r.ok) throw new Error(data.error || 'GitHub sync failed');
+        const memId = data.memory?.memory_id || '';
+        if (statusEl) {
+          statusEl.innerHTML = `
+            <div class="flex items-center justify-between text-emerald-300">
+              <span>✓ Synced ${escapeHtml(data.repo)} (${data.bytes} bytes &amp; PR triples)</span>
+              ${memId ? `<button onclick="window.jumpToMemory3D('${memId}')" class="underline font-bold cursor-pointer">View in 3D ↗</button>` : ''}
+            </div>
+          `;
+        }
+        window.loadConnectors();
+        if (typeof loadGraphData === 'function') loadGraphData();
+      } catch (err) {
+        if (statusEl) statusEl.innerHTML = `<span class="text-rose-400">✗ ${escapeHtml(err.message)}</span>`;
+      }
+    };
+
+    window.scanLocalDirectoryPrompt = async function() {
+      const dir = prompt("Enter local directory path to scan and ingest:", "/home/xibalba/Documents");
+      if (!dir) return;
+      const statusEl = document.getElementById('connectors-file-status');
+      if (statusEl) {
+        statusEl.classList.remove('hidden');
+        statusEl.innerHTML = `<span class="text-purple-300 animate-pulse">Scanning directory ${escapeHtml(dir)}...</span>`;
+      }
+      try {
+        const r = await fetch('/api/connectors/directory', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ directory_path: dir, glob_pattern: '*.md', max_files: 6, scope: window.getSelectedConnectorScope('connectors-file-scope') })
+        });
+        const data = await r.json();
+        if (!r.ok) throw new Error(data.error || 'Directory scan failed');
+        if (statusEl) {
+          statusEl.innerHTML = `<span class="text-emerald-300">✓ Ingested ${data.files_ingested} documents from ${escapeHtml(data.directory)}</span>`;
+        }
+        window.loadConnectors();
+        if (typeof loadGraphData === 'function') loadGraphData();
+      } catch (err) {
+        if (statusEl) statusEl.innerHTML = `<span class="text-rose-400">✗ ${escapeHtml(err.message)}</span>`;
+      }
+    };
+
+    window.loadCsvSamplePreset = function(kind) {
+      const modeSel = document.getElementById('connectors-data-mode');
+      const inp = document.getElementById('connectors-csv-input');
+      if (!modeSel || !inp) return;
+      if (kind === 'triples') {
+        modeSel.value = 'triples';
+        inp.value = JSON.stringify([
+          { "subject": "Super-Cortex", "predicate": "replaces", "object": "Legacy Cortex on Render" },
+          { "subject": "StripeGateway", "predicate": "enforces", "object": "Monthly Resource Quotas" },
+          { "subject": "RFC 8628 Pairing", "predicate": "binds", "object": "Ed25519 Agent DID" }
+        ], null, 2);
+      } else {
+        modeSel.value = 'csv';
+        inp.value = "subject,predicate,object\nSuper-Cortex,powers,3D Neural Graph Manifold\nXibalba Shield,enforces,HIPAA Zero-Trust Enclave\nPID Controller,stabilizes,Automated Yield Execution";
+      }
+    };
+
+    window.submitCsvOrTriplesIngest = async function() {
+      const mode = document.getElementById('connectors-data-mode')?.value || 'csv';
+      const sourceName = document.getElementById('connectors-data-source')?.value?.trim() || 'tabular_ingest';
+      const raw = document.getElementById('connectors-csv-input')?.value?.trim() || '';
+      const scope = window.getSelectedConnectorScope();
+      const statusEl = document.getElementById('connectors-csv-status');
+      if (!raw) return;
+
+      if (statusEl) {
+        statusEl.classList.remove('hidden');
+        statusEl.innerHTML = `<span class="text-emerald-300 animate-pulse">Parsing relational triples...</span>`;
+      }
+      try {
+        let r;
+        if (mode === 'triples') {
+          const parsed = JSON.parse(raw);
+          r = await fetch('/api/connectors/triples', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ triples: parsed, source_name: sourceName, scope })
+          });
+        } else {
+          r = await fetch('/api/connectors/csv', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ csv_text: raw, source_name: sourceName, has_header: true, scope })
+          });
+        }
+        const data = await r.json();
+        if (!r.ok) throw new Error(data.error || 'Ingestion failed');
+        const memId = data.memory?.memory_id || '';
+        if (statusEl) {
+          statusEl.innerHTML = `
+            <div class="flex items-center justify-between text-emerald-300">
+              <span>✓ Anchored ${data.relations_created || data.triples_inserted || 0} graph relations</span>
+              ${memId ? `<button onclick="window.jumpToMemory3D('${memId}')" class="underline font-bold cursor-pointer">View in 3D ↗</button>` : ''}
+            </div>
+          `;
+        }
+        window.loadConnectors();
+        if (typeof loadGraphData === 'function') loadGraphData();
+      } catch (err) {
+        if (statusEl) statusEl.innerHTML = `<span class="text-rose-400">✗ ${escapeHtml(err.message)}</span>`;
+      }
+    };
+
+    window.loadFhirSamplePreset = function() {
+      const modeSel = document.getElementById('connectors-sci-mode');
+      const inp = document.getElementById('connectors-sci-input');
+      if (modeSel) modeSel.value = 'fhir';
+      if (inp) {
+        inp.value = JSON.stringify({
+          "resourceType": "Bundle",
+          "entry": [
+            { "resource": { "resourceType": "Patient", "id": "pt-xibalba-01", "name": [{ "given": ["Elena"], "family": "Rostova" }], "gender": "female", "birthDate": "1984-06-12" } },
+            { "resource": { "resourceType": "Condition", "id": "cond-01", "code": { "text": "Metabolic Homeostasis Verified" } } },
+            { "resource": { "resourceType": "Observation", "id": "obs-01", "code": { "text": "Left Ventricular Ejection Fraction 62%" } } }
+          ]
+        });
+      }
+    };
+
+    window.submitSciOrFhirIngest = async function() {
+      const mode = document.getElementById('connectors-sci-mode')?.value || 'arxiv';
+      const raw = document.getElementById('connectors-sci-input')?.value?.trim() || '';
+      const scope = window.getSelectedConnectorScope();
+      const statusEl = document.getElementById('connectors-sci-status');
+      if (!raw) return;
+
+      if (statusEl) {
+        statusEl.classList.remove('hidden');
+        statusEl.innerHTML = `<span class="text-amber-300 animate-pulse">Ingesting ${mode.toUpperCase()} payload...</span>`;
+      }
+      try {
+        let r;
+        if (mode === 'fhir') {
+          const bundle = JSON.parse(raw);
+          r = await fetch('/api/connectors/fhir', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ bundle, scope })
+          });
+        } else {
+          r = await fetch('/api/connectors/literature', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ query: raw, source: mode, max_results: 3, scope })
+          });
+        }
+        const data = await r.json();
+        if (!r.ok) throw new Error(data.error || 'Literature/FHIR ingestion failed');
+        const memId = data.memory?.memory_id || (data.memories && data.memories[0]?.memory_id) || '';
+        if (statusEl) {
+          statusEl.innerHTML = `
+            <div class="flex items-center justify-between text-emerald-300">
+              <span>✓ Ingested ${data.articles_ingested || data.resources_processed || 1} records into ${escapeHtml(scope)}</span>
+              ${memId ? `<button onclick="window.jumpToMemory3D('${memId}')" class="underline font-bold cursor-pointer">View in 3D ↗</button>` : ''}
+            </div>
+          `;
+        }
+        window.loadConnectors();
+        if (typeof loadGraphData === 'function') loadGraphData();
+      } catch (err) {
+        if (statusEl) statusEl.innerHTML = `<span class="text-rose-400">✗ ${escapeHtml(err.message)}</span>`;
+      }
+    };
+
+    window.runConnectorSync = async function(connectorId) {
+      const scope = window.getSelectedConnectorScope();
+      window.showToast(`Syncing ${connectorId}...`);
       try {
         const resp = await fetch('/api/connectors', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ connector_id: cid, scope: 'shared' })
+          body: JSON.stringify({ connector_id: connectorId, scope })
         });
-        const res = await resp.json();
-        alert(`Connector sync [${cid}]:\n${JSON.stringify(res, null, 2)}`);
-        loadConnectors();
-      } catch (e) {
-        alert("Connector sync failed: " + e.message);
+        const data = await resp.json();
+        if (resp.ok) {
+          window.showToast(`✓ Synced ${connectorId}`);
+          window.loadConnectors();
+          if (typeof loadGraphData === 'function') loadGraphData();
+        } else {
+          window.showToast(`Sync error: ${data.error || 'failed'}`);
+        }
+      } catch (err) {
+        window.showToast("Failed to sync connector: " + err.message);
       }
+    };
+
+    window.syncAllConnectors = async function() {
+      const scope = window.getSelectedConnectorScope();
+      window.showToast('Syncing GitHub, Google Workspace & Local Git...');
+      for (const cid of ['github', 'google_workspace', 'git_repos']) {
+        await fetch('/api/connectors', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ connector_id: cid, scope })
+        });
+      }
+      await window.loadConnectors();
+      if (typeof loadGraphData === 'function') loadGraphData();
+      window.showToast('✓ All active connectors synchronized!');
     };
 
     window.submitUrlIngest = async function() {
       const urlInput = document.getElementById('connectors-url-input');
-      const scopeSel = document.getElementById('connectors-url-scope');
-      const statusEl = document.getElementById('connectors-url-status');
-      const url = urlInput?.value.trim();
-      if (!url) return alert("Please enter a valid URL.");
+      const scopeSelect = document.getElementById('connectors-url-scope');
+      const statusBox = document.getElementById('connectors-url-status');
+      const url = urlInput.value.trim();
+      if (!url) return;
 
-      if (statusEl) {
-        statusEl.className = "text-[10px] p-2 rounded bg-surface-container-low border border-primary-container/30 text-primary-container";
-        statusEl.innerText = "Scraping & ingesting URL without LLM inference...";
-        statusEl.classList.remove('hidden');
-      }
+      statusBox.classList.remove('hidden');
+      statusBox.innerHTML = `<span class="text-primary animate-pulse">Scraping &amp; extracting deterministically...</span>`;
 
       try {
         const resp = await fetch('/api/connectors/url', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ url: url, scope: scopeSel?.value || 'shared' })
+          body: JSON.stringify({ url, scope: scopeSelect.value })
         });
         const data = await resp.json();
-        if (resp.ok) {
-          if (statusEl) {
-            statusEl.className = "text-[10px] p-2 rounded bg-emerald-500/10 border border-emerald-500/30 text-secondary-container font-bold";
-            statusEl.innerText = `✓ Successfully ingested "${data.title}" (${data.bytes_extracted} bytes). Anchored in provenance ledger!`;
-          }
+        if (resp.ok && data.status === 'ingested') {
+          statusBox.innerHTML = `<span class="text-secondary-container">✓ Ingested "${escapeHtml(data.title)}" (${data.bytes_extracted} chars) → Memory ${data.memory.memory_id}</span>`;
           urlInput.value = '';
-          loadGraphData('all');
+          window.loadConnectors();
+          if (typeof loadGraphData === 'function') loadGraphData();
         } else {
-          throw new Error(data.error || "Failed to ingest URL");
+          statusBox.innerHTML = `<span class="text-error">✗ Error: ${escapeHtml(data.error || 'Failed to ingest')}</span>`;
         }
-      } catch (e) {
-        if (statusEl) {
-          statusEl.className = "text-[10px] p-2 rounded bg-error/10 border border-error/30 text-error";
-          statusEl.innerText = "Error: " + e.message;
-        }
+      } catch (err) {
+        statusBox.innerHTML = `<span class="text-error">✗ Network error: ${escapeHtml(err.message)}</span>`;
       }
     };
 
     window.submitFileIngest = async function() {
       const nameInput = document.getElementById('connectors-file-name');
       const contentInput = document.getElementById('connectors-file-content');
-      const scopeSel = document.getElementById('connectors-file-scope');
-      const statusEl = document.getElementById('connectors-file-status');
-      const filename = nameInput?.value.trim() || 'document.md';
-      const content = contentInput?.value.trim();
-      if (!content) return alert("Please provide file content to ingest.");
+      const scopeSelect = document.getElementById('connectors-file-scope');
+      const statusBox = document.getElementById('connectors-file-status');
+
+      const filename = nameInput.value.trim() || 'note.md';
+      const contentText = contentInput.value.trim();
+      if (!contentText) return;
+
+      statusBox.classList.remove('hidden');
+      statusBox.innerHTML = `<span class="text-primary animate-pulse">Ingesting document...</span>`;
 
       try {
         const resp = await fetch('/api/connectors/file', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ filename: filename, content: content, scope: scopeSel?.value || 'shared' })
+          body: JSON.stringify({ filename, content: contentText, scope: scopeSelect.value })
         });
         const data = await resp.json();
-        if (resp.ok) {
-          if (statusEl) {
-            statusEl.className = "text-[10px] p-2 rounded bg-emerald-500/10 border border-emerald-500/30 text-secondary-container font-bold";
-            statusEl.innerText = `✓ Document "${filename}" ingested successfully!`;
-            statusEl.classList.remove('hidden');
-          }
+        if (resp.ok && data.status === 'ingested') {
+          statusBox.innerHTML = `<span class="text-secondary-container">✓ Ingested ${escapeHtml(filename)} (${data.bytes} bytes) → Memory ${data.memory.memory_id}</span>`;
+          nameInput.value = '';
           contentInput.value = '';
-          loadGraphData('all');
+          window.loadConnectors();
+          if (typeof loadGraphData === 'function') loadGraphData();
         } else {
-          throw new Error(data.error || "Failed to ingest file");
+          statusBox.innerHTML = `<span class="text-error">✗ Error: ${escapeHtml(data.error)}</span>`;
         }
-      } catch (e) {
-        if (statusEl) {
-          statusEl.className = "text-[10px] p-2 rounded bg-error/10 border border-error/30 text-error";
-          statusEl.innerText = "Error: " + e.message;
-          statusEl.classList.remove('hidden');
-        }
+      } catch (err) {
+        statusBox.innerHTML = `<span class="text-error">✗ Error: ${escapeHtml(err.message)}</span>`;
       }
     };
 

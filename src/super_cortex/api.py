@@ -981,13 +981,68 @@ def create_app(
     async def api_connectors(request: Request) -> JSONResponse:
         if request.method == "GET":
             stats = connectors.get_connectors_status()
-            return JSONResponse({"connectors": stats})
+            history = connectors.get_sync_history(limit=25)
+            return JSONResponse({"connectors": stats, "history": history, "count": len(stats)})
         body = await request.json()
         cid = body.get("connector_id")
         scope = body.get("scope", "shared")
-        res = await connectors.sync_connector(cid, scope=scope)
+        res = await connectors.sync_connector(cid, scope=scope, **body)
         await broadcast_event("connector_synced", res)
         return JSONResponse(res)
+
+    async def api_connectors_history(request: Request) -> JSONResponse:
+        return JSONResponse({"history": connectors.get_sync_history(limit=30)})
+
+    async def api_connectors_config(request: Request) -> JSONResponse:
+        body = await request.json()
+        cid = str(body.get("connector_id") or "").strip()
+        if not cid:
+            return JSONResponse({"error": "connector_id is required"}, status_code=400)
+        cfg_data = body.get("config") or {k: v for k, v in body.items() if k != "connector_id"}
+        res = connectors.save_connector_config(cid, cfg_data)
+        return JSONResponse(res)
+
+    async def api_connectors_google_files(request: Request) -> JSONResponse:
+        return JSONResponse(connectors.list_google_workspace_items())
+
+    async def api_connectors_google_oauth_url(request: Request) -> JSONResponse:
+        redirect_uri = request.query_params.get("redirect_uri") or f"{m_cfg.public_url.rstrip('/')}/api/connectors/google-workspace/oauth-callback"
+        return JSONResponse(connectors.get_google_oauth_url(redirect_uri))
+
+    async def api_connectors_google_workspace(request: Request) -> JSONResponse:
+        try:
+            body = await request.json()
+            res = await connectors.ingest_google_workspace(
+                mode=str(body.get("mode") or "doc_url"),
+                target=str(body.get("target") or body.get("url") or body.get("doc_id") or ""),
+                scope=str(body.get("scope") or "shared"),
+                access_token=body.get("access_token"),
+            )
+            await broadcast_event("connector_synced", res)
+            return JSONResponse(res)
+        except Exception as exc:
+            return JSONResponse({"error": str(exc)}, status_code=400)
+
+    async def api_connectors_github_repos(request: Request) -> JSONResponse:
+        owner = request.query_params.get("owner", "XibalbaTechSol").strip() or "XibalbaTechSol"
+        return JSONResponse(connectors.list_github_repos(owner=owner, limit=15))
+
+    async def api_connectors_github(request: Request) -> JSONResponse:
+        try:
+            body = await request.json()
+            res = await connectors.ingest_github(
+                repo=str(body.get("repo") or "XibalbaTechSol/super-cortex"),
+                scope=str(body.get("scope") or "shared"),
+                include_readme=bool(body.get("include_readme", True)),
+                include_commits=bool(body.get("include_commits", True)),
+                include_prs=bool(body.get("include_prs", True)),
+                include_issues=bool(body.get("include_issues", False)),
+                github_token=body.get("github_token"),
+            )
+            await broadcast_event("connector_synced", res)
+            return JSONResponse(res)
+        except Exception as exc:
+            return JSONResponse({"error": str(exc)}, status_code=400)
 
     async def api_connectors_url(request: Request) -> JSONResponse:
         body = await request.json()
@@ -1016,6 +1071,78 @@ def create_app(
         res = await connectors.ingest_file(filename=filename, content=content, scope=scope, agent_id=agent_id, tags=tags)
         await broadcast_event("file_ingested", res)
         return JSONResponse(res)
+
+    async def api_connectors_directory(request: Request) -> JSONResponse:
+        try:
+            body = await request.json()
+            res = await connectors.ingest_directory(
+                directory_path=str(body.get("directory_path") or body.get("path") or "~/Documents"),
+                glob_pattern=str(body.get("glob_pattern") or "*.md"),
+                max_files=int(body.get("max_files", 8)),
+                scope=str(body.get("scope") or "shared"),
+            )
+            await broadcast_event("connector_synced", res)
+            return JSONResponse(res)
+        except Exception as exc:
+            return JSONResponse({"error": str(exc)}, status_code=400)
+
+    async def api_connectors_csv(request: Request) -> JSONResponse:
+        try:
+            body = await request.json()
+            res = await connectors.ingest_csv(
+                csv_text=str(body.get("csv_text") or body.get("content") or ""),
+                delimiter=str(body.get("delimiter") or ","),
+                has_header=bool(body.get("has_header", True)),
+                source_name=str(body.get("source_name") or "csv_upload"),
+                scope=str(body.get("scope") or "shared"),
+            )
+            await broadcast_event("connector_synced", res)
+            return JSONResponse(res)
+        except Exception as exc:
+            return JSONResponse({"error": str(exc)}, status_code=400)
+
+    async def api_connectors_triples(request: Request) -> JSONResponse:
+        try:
+            body = await request.json()
+            res = await connectors.ingest_triples(
+                triples=body.get("triples") or [],
+                source_name=str(body.get("source_name") or "triples_ingest"),
+                scope=str(body.get("scope") or "shared"),
+            )
+            await broadcast_event("connector_synced", res)
+            return JSONResponse(res)
+        except Exception as exc:
+            return JSONResponse({"error": str(exc)}, status_code=400)
+
+    async def api_connectors_literature(request: Request) -> JSONResponse:
+        try:
+            body = await request.json()
+            res = await connectors.ingest_literature(
+                query=str(body.get("query") or ""),
+                source=str(body.get("source") or "arxiv"),
+                title=str(body.get("title") or ""),
+                abstract=str(body.get("abstract") or ""),
+                pmid=str(body.get("pmid") or ""),
+                max_results=int(body.get("max_results", 3)),
+                scope=str(body.get("scope") or "shared"),
+            )
+            await broadcast_event("connector_synced", res)
+            return JSONResponse(res)
+        except Exception as exc:
+            return JSONResponse({"error": str(exc)}, status_code=400)
+
+    async def api_connectors_fhir(request: Request) -> JSONResponse:
+        try:
+            body = await request.json()
+            bundle = body.get("bundle") or body
+            res = await connectors.ingest_fhir_bundle(
+                bundle=bundle,
+                scope=str(body.get("scope") or "shared"),
+            )
+            await broadcast_event("connector_synced", res)
+            return JSONResponse(res)
+        except Exception as exc:
+            return JSONResponse({"error": str(exc)}, status_code=400)
 
     async def api_memories(request: Request) -> JSONResponse:
         scope = request.query_params.get("scope")
@@ -1750,8 +1877,24 @@ def create_app(
         Route("/api/events/live", api_live_events, methods=["GET"]),
         Route("/api/extract", api_extract, methods=["POST"]),
         Route("/api/connectors", api_connectors, methods=["GET", "POST"]),
+        Route("/api/connectors/history", api_connectors_history, methods=["GET"]),
+        Route("/api/connectors/config", api_connectors_config, methods=["POST"]),
+        Route("/api/connectors/google-workspace/files", api_connectors_google_files, methods=["GET"]),
+        Route("/api/connectors/google-workspace/oauth-url", api_connectors_google_oauth_url, methods=["GET"]),
+        Route("/api/connectors/google-workspace", api_connectors_google_workspace, methods=["POST"]),
+        Route("/api/connectors/github/repos", api_connectors_github_repos, methods=["GET"]),
+        Route("/api/connectors/github", api_connectors_github, methods=["POST"]),
         Route("/api/connectors/url", api_connectors_url, methods=["POST"]),
         Route("/api/connectors/file", api_connectors_file, methods=["POST"]),
+        Route("/api/connectors/directory", api_connectors_directory, methods=["POST"]),
+        Route("/api/connectors/csv", api_connectors_csv, methods=["POST"]),
+        Route("/api/managed/connectors/csv", api_connectors_csv, methods=["POST"]),
+        Route("/api/connectors/triples", api_connectors_triples, methods=["POST"]),
+        Route("/api/managed/connectors/triples", api_connectors_triples, methods=["POST"]),
+        Route("/api/connectors/literature", api_connectors_literature, methods=["POST"]),
+        Route("/api/managed/connectors/biomedical", api_connectors_literature, methods=["POST"]),
+        Route("/api/connectors/fhir", api_connectors_fhir, methods=["POST"]),
+        Route("/api/managed/connectors/fhir", api_connectors_fhir, methods=["POST"]),
         Route("/api/memories", api_memories, methods=["GET"]),
         Route("/api/memories/{memory_id}", api_delete_memory, methods=["DELETE"]),
         Route("/api/settings", api_settings, methods=["GET", "POST"]),
