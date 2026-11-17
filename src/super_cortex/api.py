@@ -92,6 +92,9 @@ def create_app(
         chain = cortex.verify_chain()
         scopes = cortex.list_scopes()
         agents = cortex.list_agents()
+        mems = cortex.store.list_memories(limit=5000)
+        sessions = cortex.get_session_distribution()
+        graph = cortex.store.get_graph_data()
         return JSONResponse({
             "status": "online",
             "supermemory_local_alive": alive,
@@ -102,6 +105,11 @@ def create_app(
             "actor_did": cfg.actor_did,
             "scope_count": len(scopes),
             "agent_count": len(agents),
+            "profile_id": "tenant_xibalba_core",
+            "memories": len(mems),
+            "sessions": len(sessions),
+            "entities": len(graph.get("nodes", [])),
+            "relations": len(graph.get("links", [])),
         })
 
     async def api_scopes(request: Request) -> JSONResponse:
@@ -125,7 +133,39 @@ def create_app(
 
     async def api_agents(request: Request) -> JSONResponse:
         if request.method == "GET":
-            return JSONResponse({"agents": cortex.list_agents()})
+            raw_agents = cortex.list_agents()
+            mems = cortex.store.list_memories(limit=5000)
+            sessions = cortex.get_session_distribution()
+            mem_counts: dict[str, int] = {}
+            for m in mems:
+                aid = str((m.get("metadata") or {}).get("agent_id") or "")
+                if aid:
+                    mem_counts[aid] = mem_counts.get(aid, 0) + 1
+            sess_counts: dict[str, int] = {}
+            for s in sessions:
+                aid = str(s.get("agent_id") or "")
+                if aid:
+                    sess_counts[aid] = sess_counts.get(aid, 0) + 1
+            enriched = []
+            for a in raw_agents:
+                aid = str(a.get("agent_id") or "")
+                enriched.append({
+                    **a,
+                    "store_id": a.get("default_scope_id", "shared"),
+                    "profile_id": "tenant_xibalba_core",
+                    "memories": mem_counts.get(aid, 0),
+                    "sessions": sess_counts.get(aid, 0),
+                    "last_seen_at": a.get("last_active_at"),
+                    "writable": True,
+                    "store_access": "writable",
+                    "agent_name": a.get("name"),
+                    "device_name": a.get("client_type"),
+                })
+            return JSONResponse({
+                "agents": enriched,
+                "oracle_reachable": True,
+                "primary_profile_id": "tenant_xibalba_core",
+            })
         elif request.method == "POST":
             body = await request.json()
             agent_id = body.get("agent_id", "").strip()
@@ -2087,6 +2127,59 @@ def create_app(
         )
         return JSONResponse(bundle)
 
+    async def api_agent_summary(request: Request) -> JSONResponse:
+        agent_id = str(request.path_params.get("agent_id") or "")
+        limit = int(request.query_params.get("limit", "8"))
+        mems = cortex.store.list_memories(limit=2000)
+        agent_mems = [
+            m
+            for m in mems
+            if str((m.get("metadata") or {}).get("agent_id") or "") == agent_id
+            or m.get("namespace") == f"agent-{agent_id}"
+        ]
+        sessions = [
+            s
+            for s in cortex.get_session_distribution()
+            if str(s.get("agent_id") or "") == agent_id
+        ]
+        return JSONResponse({
+            "agent_id": agent_id,
+            "memory_count": len(agent_mems),
+            "session_count": len(sessions),
+            "recent_memories": [
+                {
+                    "id": m.get("id"),
+                    "content": m.get("text"),
+                    "status": m.get("lifecycle_status", "active"),
+                    "created_at": m.get("created_at"),
+                    "source": {
+                        "kind": (m.get("metadata") or {}).get("source_origin", "super_cortex"),
+                        "agent_id": agent_id,
+                        "session_id": (m.get("metadata") or {}).get("session_id"),
+                        "role": "assistant",
+                    },
+                }
+                for m in agent_mems[:limit]
+            ],
+        })
+
+    async def api_integrity_links(request: Request) -> JSONResponse:
+        chain = cortex.verify_chain()
+        return JSONResponse({
+            "links": [],
+            "verified_count": int(chain.get("event_count", 0)),
+            "chain_valid": bool(chain.get("valid", False)),
+            "head_hash": chain.get("head_hash"),
+        })
+
+    async def api_auth_csrf(request: Request) -> JSONResponse:
+        token = _extract_session_token(request)
+        auth = managed.authenticate_session(token)
+        if not auth:
+            return JSONResponse({"error": "No active cookie session"}, status_code=400)
+        _, _, csrf = auth
+        return JSONResponse({"csrf_token": csrf})
+
     routes = [
         Route("/healthz", api_healthz, methods=["GET"]),
         Route("/readyz", api_readyz, methods=["GET"]),
@@ -2143,11 +2236,21 @@ def create_app(
         Route("/api/managed/portal", api_managed_portal, methods=["POST"]),
         Route("/api/managed/stripe/webhook", api_managed_stripe_webhook, methods=["POST"]),
         Route("/api/status", api_status, methods=["GET"]),
+        Route("/api/stats", api_status, methods=["GET"]),
+        Route("/cortex-api/api/status", api_status, methods=["GET"]),
+        Route("/cortex-api/api/stats", api_status, methods=["GET"]),
         Route("/api/graph", api_graph, methods=["GET"]),
         Route("/api/scopes", api_scopes, methods=["GET", "POST"]),
         Route("/api/agents", api_agents, methods=["GET", "POST"]),
+        Route("/cortex-api/api/agents", api_agents, methods=["GET"]),
+        Route("/api/agent/{agent_id}/summary", api_agent_summary, methods=["GET"]),
+        Route("/cortex-api/api/agent/{agent_id}/summary", api_agent_summary, methods=["GET"]),
+        Route("/api/integrity-links", api_integrity_links, methods=["GET"]),
+        Route("/cortex-api/api/integrity-links", api_integrity_links, methods=["GET"]),
+        Route("/api/auth/csrf", api_auth_csrf, methods=["GET"]),
         Route("/api/mcp-config", api_mcp_config, methods=["GET"]),
         Route("/api/sessions", api_sessions, methods=["GET"]),
+        Route("/cortex-api/api/sessions", api_sessions, methods=["GET"]),
         Route("/api/actions", api_actions, methods=["GET"]),
         Route("/api/sessions/import", api_import_local_sessions, methods=["GET", "POST"]),
         Route("/api/sessions/import-local", api_import_local_sessions, methods=["GET", "POST"]),
