@@ -1,0 +1,61 @@
+services:
+  - type: web
+    name: cortex-managed-pilot
+    runtime: docker
+    dockerfilePath: ./deploy/render/Dockerfile
+    dockerContext: .
+    region: ohio
+    plan: free
+    healthCheckPath: /healthz
+    autoDeploy: true
+    envVars:
+      - key: CORTEX_MANAGED_PUBLIC_URL
+        sync: false
+      - key: CORTEX_MANAGED_HOME
+        value: /data/cortex-managed
+      - key: SUPER_CORTEX_DB_PATH
+        value: /data/cortex-managed/provenance.db
+      - key: CORTEX_MANAGED_STORAGE_BACKEND
+        value: supabase
+      - key: CORTEX_MANAGED_IDENTITY_BACKEND
+        value: supabase_auth
+      - key: SUPABASE_URL
+        value: https://ftspunijfgcbkuybobhf.supabase.co
+      - key: VITE_SUPABASE_URL
+        value: https://ftspunijfgcbkuybobhf.supabase.co
+      - key: VITE_SUPABASE_PUBLISHABLE_KEY
+        value: sb_publishable_ZZIA53qqwfRW-dMcH7Yrjg_0dInAgiq
+      - key: SUPABASE_JWT_AUDIENCE
+        value: authenticated
+      - key: CORTEX_MANAGED_DATABASE_URL
+        sync: false
+      - key: CORTEX_MANAGED_ALLOW_SIGNUP
+        value: "true"
+      - key: CORTEX_STRIPE_LIVE
+        value: "false"
+      - key: STRIPE_SECRET_KEY
+        sync: false
+      - key: STRIPE_WEBHOOK_SECRET
+        sync: false
+      - key: STRIPE_PRO_MONTHLY_PRICE_ID
+        sync: false
+      - key: STRIPE_TEAM_MONTHLY_PRICE_ID
+        sync: false
+      - key: CORTEX_SMTP_HOST
+        sync: false
+      - key: CORTEX_SMTP_PORT
+        value: "587"
+      - key: CORTEX_SMTP_FROM
+        sync: false
+      - key: CORTEX_SMTP_USERNAME
+        sync: false
+      - key: CORTEX_SMTP_PASSWORD
+        sync: false
+      - key: CORTEX_EMAIL_PROVIDER
+        value: "resend"
+      - key: CORTEX_EMAIL_FROM
+        sync: false
+      - key: RESEND_API_KEY
+        sync: false
+      - key: CORTEX_CONTACT_TO
+        sync: false

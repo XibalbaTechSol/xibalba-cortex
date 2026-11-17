@@ -265,7 +265,7 @@ class ProvenanceStore:
             if cursor.fetchone()["count"] == 0:
                 now = utc_now_iso()
                 default_scopes = [
-                    ("shared", "Shared Memory Fabric", ScopeType.SHARED.value, None, "Collective operational knowledge accessible across all authorized agent scopes", now),
+                    ("shared", "Xibalba Solutions", ScopeType.SHARED.value, None, "Company-wide memory shared by every Xibalba Solutions agent", now),
                     ("agent:xibalba", "Xibalba Executive Scope", ScopeType.SINGLE_AGENT.value, "xibalba", "Isolated operational memory enclave for Xibalba orchestrator", now),
                     ("agent:hermes", "Hermes Agent Scope", ScopeType.SINGLE_AGENT.value, "hermes", "Private operational memory for Hermes agent", now),
                     ("agent:agy", "Antigravity Agent Scope", ScopeType.SINGLE_AGENT.value, "agy", "Autonomous workspace orchestration and swarm execution memory", now),

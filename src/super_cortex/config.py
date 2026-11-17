@@ -37,6 +37,12 @@ class SuperCortexConfig(BaseModel):
     default_namespace: str = Field(
         default_factory=lambda: os.getenv("SUPER_CORTEX_DEFAULT_NAMESPACE", "xibalba")
     )
+    # The ONE namespace behind the "shared" scope ("Xibalba Solutions"). Deliberately NOT the
+    # client's default_namespace: each agent now has its own default, so mapping "shared"
+    # onto it made "shared" mean "mine" for every agent.
+    shared_namespace: str = Field(
+        default_factory=lambda: os.getenv("SUPER_CORTEX_SHARED_NAMESPACE", "xibalba-solutions")
+    )
     actor_did: str = Field(
         default_factory=lambda: os.getenv("SUPER_CORTEX_ACTOR_DID", DEFAULT_ACTOR_DID)
     )

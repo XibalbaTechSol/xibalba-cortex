@@ -33,15 +33,31 @@ from .inference import (
     run_link_discovery,
     test_provider_connection,
 )
+from .managed import (
+    LimitExceeded,
+    ManagedConfig,
+    ManagedControl,
+    SESSION_COOKIE_NAME,
+    SESSION_TTL_HOURS,
+)
 from .memory import SuperCortex
 from .models import ProviderRecord, ProviderType
+from .plans import PLANS
+from .stripe_gateway import BillingUnavailable
 
 logger = logging.getLogger(__name__)
 
 
-def create_app(config: SuperCortexConfig | None = None) -> Starlette:
+def create_app(
+    config: SuperCortexConfig | None = None,
+    managed_config: ManagedConfig | None = None,
+    viewer_dist: Path | str | None = None,
+    stripe_gateway: Any = None,
+) -> Starlette:
     cfg = config or SuperCortexConfig()
     cortex = SuperCortex(cfg)
+    m_cfg = managed_config or ManagedConfig.from_env(default_home=cfg.db_path.parent)
+    managed = ManagedControl(m_cfg, stripe=stripe_gateway, store=cortex.store)
     subscribers: list[asyncio.Queue] = []
 
     async def broadcast_event(event_type: str, data: dict[str, Any]) -> None:
@@ -1342,7 +1358,375 @@ def create_app(config: SuperCortexConfig | None = None) -> Starlette:
                 logger.error("Failed to save canvas profile: %s", e)
                 return JSONResponse({"status": "error", "message": str(e)}, status_code=500)
 
+    # -------------------------------------------------------------------------
+    # USER MANAGEMENT, AGENT PAIRING & STRIPE SUBSCRIPTION HANDLERS
+    # -------------------------------------------------------------------------
+    def _extract_session_token(request: Request) -> str | None:
+        cookie_tok = request.cookies.get(SESSION_COOKIE_NAME)
+        if cookie_tok:
+            return cookie_tok
+        auth_hdr = request.headers.get("authorization", "")
+        if auth_hdr.lower().startswith("bearer "):
+            return auth_hdr[7:].strip()
+        return None
+
+    def _resolve_auth_context(
+        request: Request, *, allow_default_operator: bool = True
+    ) -> tuple[dict[str, Any], dict[str, Any], str]:
+        raw_token = _extract_session_token(request)
+        if raw_token:
+            resolved = managed.authenticate_session(raw_token)
+            if resolved is not None:
+                return resolved
+        if allow_default_operator and request.query_params.get("strict_auth") != "1":
+            return managed.default_operator_context()
+        raise PermissionError("Authentication required")
+
+    async def api_healthz(request: Request) -> JSONResponse:
+        return JSONResponse({"ok": True, "edition": "managed", "engine": "super-cortex"})
+
+    async def api_readyz(request: Request) -> JSONResponse:
+        gates: list[str] = []
+        if not m_cfg.public_url.startswith("https://"):
+            gates.append("public_https_url")
+        if not m_cfg.billing_ready:
+            gates.append("stripe_billing")
+        status_code = 200 if not gates else 503
+        return JSONResponse({"ok": not gates, "open_gates": gates, "engine": "super-cortex"}, status_code=status_code)
+
+    async def api_managed_plans(request: Request) -> JSONResponse:
+        return JSONResponse({
+            "plans": [PLANS[k].public() for k in ("free", "pro", "team")],
+            "billing_configured": m_cfg.billing_ready,
+            "signup_enabled": m_cfg.allow_signup,
+        })
+
+    async def api_contact(request: Request) -> JSONResponse:
+        try:
+            body = await request.json()
+            if body.get("website"):
+                # Honeypot field triggered
+                return JSONResponse({"ok": True, "message": "Your inquiry has been received."})
+            res = managed.save_contact_inquiry(
+                name=str(body.get("name") or ""),
+                email=str(body.get("email") or ""),
+                organization=str(body.get("organization") or ""),
+                message=str(body.get("message") or ""),
+            )
+            return JSONResponse(res)
+        except ValueError as exc:
+            return JSONResponse({"error": str(exc)}, status_code=400)
+
+    async def api_managed_signup(request: Request) -> JSONResponse:
+        try:
+            body = await request.json()
+            res = managed.register(
+                email=str(body.get("email") or ""),
+                password=str(body.get("password") or ""),
+                display_name=str(body.get("display_name") or ""),
+            )
+            if res.get("verification_required"):
+                return JSONResponse({"ok": True, "verification_required": True}, status_code=202)
+            sess = res["session"]
+            response = JSONResponse({
+                "ok": True,
+                "account": res["account"],
+                "csrf_token": sess["csrf_token"],
+                "session_expires_at": sess["expires_at"],
+            })
+            response.set_cookie(
+                SESSION_COOKIE_NAME,
+                sess["token"],
+                max_age=SESSION_TTL_HOURS * 3600,
+                httponly=True,
+                secure=m_cfg.public_url.startswith("https:"),
+                samesite="lax",
+                path="/",
+            )
+            return response
+        except BillingUnavailable as exc:
+            return JSONResponse({"error": str(exc)}, status_code=503)
+        except LimitExceeded as exc:
+            return JSONResponse({"error": str(exc)}, status_code=429)
+        except ValueError as exc:
+            return JSONResponse({"error": str(exc)}, status_code=400)
+
+    async def api_managed_login(request: Request) -> JSONResponse:
+        try:
+            body = await request.json()
+            res = managed.login(
+                email=str(body.get("email") or ""),
+                password=str(body.get("password") or ""),
+            )
+            sess = res["session"]
+            response = JSONResponse({
+                "ok": True,
+                "account": res["account"],
+                "csrf_token": sess["csrf_token"],
+                "session_expires_at": sess["expires_at"],
+            })
+            response.set_cookie(
+                SESSION_COOKIE_NAME,
+                sess["token"],
+                max_age=SESSION_TTL_HOURS * 3600,
+                httponly=True,
+                secure=m_cfg.public_url.startswith("https:"),
+                samesite="lax",
+                path="/",
+            )
+            return response
+        except PermissionError as exc:
+            return JSONResponse({"error": str(exc)}, status_code=401)
+        except ValueError as exc:
+            return JSONResponse({"error": str(exc)}, status_code=400)
+
+    async def api_managed_logout(request: Request) -> JSONResponse:
+        raw_tok = _extract_session_token(request)
+        if raw_tok:
+            managed.revoke_session(raw_tok)
+        response = JSONResponse({"ok": True})
+        response.delete_cookie(
+            SESSION_COOKIE_NAME,
+            path="/",
+            secure=m_cfg.public_url.startswith("https:"),
+            httponly=True,
+            samesite="lax",
+        )
+        return response
+
+    async def api_managed_me(request: Request) -> JSONResponse:
+        try:
+            strict = request.query_params.get("strict_auth") == "1"
+            account, tenant, csrf_token = _resolve_auth_context(request, allow_default_operator=not strict)
+            entitlement = managed.entitlement(tenant)
+            usage = managed.usage(tenant)
+            pub_acc = managed._public_account(account)
+            return JSONResponse({
+                "account": pub_acc,
+                "tenant_id": tenant["id"],
+                "entitlement": entitlement,
+                "usage": usage,
+                "billing_configured": m_cfg.billing_ready,
+                "csrf_token": csrf_token,
+                "capabilities": ["graph", "timeline", "dialogue", "fabric", "billing", "agents", "settings"],
+            })
+        except PermissionError as exc:
+            return JSONResponse({"error": str(exc)}, status_code=401)
+
+    async def api_managed_account_update(request: Request) -> JSONResponse:
+        try:
+            account, _, _ = _resolve_auth_context(request)
+            body = await request.json()
+            updated = managed.update_account_profile(
+                account["id"],
+                display_name=body.get("display_name"),
+                agent_ids=body.get("agent_ids"),
+            )
+            return JSONResponse({"ok": True, "account": updated})
+        except PermissionError as exc:
+            return JSONResponse({"error": str(exc)}, status_code=401)
+        except ValueError as exc:
+            return JSONResponse({"error": str(exc)}, status_code=400)
+
+    async def api_managed_auth_events(request: Request) -> JSONResponse:
+        try:
+            account, tenant, _ = _resolve_auth_context(request)
+            events = managed.list_auth_events(profile_id=tenant["id"], limit=50)
+            return JSONResponse({"events": events, "account_id": account["id"]})
+        except PermissionError as exc:
+            return JSONResponse({"error": str(exc)}, status_code=401)
+
+    async def api_managed_oauth_providers(request: Request) -> JSONResponse:
+        return JSONResponse({"providers": managed.configured_oauth_providers()})
+
+    async def api_managed_recovery(request: Request) -> JSONResponse:
+        action = request.path_params.get("action", "request")
+        try:
+            body = await request.json()
+            if action in {"request", "resend"}:
+                email = str(body.get("email") or "")
+                managed.request_password_reset(email)
+                return JSONResponse({
+                    "ok": True,
+                    "message": "If this account needs this action, an email has been sent.",
+                })
+            elif action == "confirm":
+                token = str(body.get("token") or "")
+                password = str(body.get("password") or "")
+                managed.confirm_password_reset(token, password)
+                return JSONResponse({"ok": True, "message": "Password updated. Sign in with your new password."})
+            return JSONResponse({"error": "Unknown recovery action"}, status_code=400)
+        except ValueError as exc:
+            return JSONResponse({"error": str(exc)}, status_code=400)
+
+    async def api_device_pair_request(request: Request) -> JSONResponse:
+        try:
+            body = await request.json()
+            res = managed.create_pairing_request(
+                device_id=str(body.get("device_id") or "dev_host"),
+                device_name=str(body.get("device_name") or "Agent Host"),
+                agent_did=str(body.get("agent_did") or cfg.actor_did),
+                agent_name=str(body.get("agent_name") or "default"),
+                callback_url=body.get("callback_url"),
+            )
+            return JSONResponse(res)
+        except ValueError as exc:
+            return JSONResponse({"error": str(exc)}, status_code=400)
+
+    async def api_device_pair_info(request: Request) -> JSONResponse:
+        code = request.path_params.get("code", "")
+        info = managed.get_pairing_request(code)
+        if not info:
+            return JSONResponse({"error": "Pairing request not found"}, status_code=404)
+        return JSONResponse({
+            "user_code": info["user_code"],
+            "device_id": info["device_id"],
+            "device_name": info["device_name"],
+            "agent_did": info["agent_did"],
+            "agent_name": info["agent_name"],
+            "status": info["status"],
+            "expires_in": info["expires_in"],
+        })
+
+    async def api_device_pair_approve(request: Request) -> JSONResponse:
+        code = request.path_params.get("code", "")
+        try:
+            account, tenant, _ = _resolve_auth_context(request)
+            res = managed.approve_pairing_request(code, account=account, tenant=tenant)
+            await broadcast_event("agent_paired", {
+                "agent_name": res["agent_name"],
+                "agent_did": res["agent_did"],
+                "device_name": res["device_name"],
+            })
+            return JSONResponse(res)
+        except KeyError as exc:
+            return JSONResponse({"error": str(exc)}, status_code=404)
+        except (ValueError, PermissionError) as exc:
+            return JSONResponse({"error": str(exc)}, status_code=400)
+
+    async def api_device_pair_status(request: Request) -> JSONResponse:
+        code = request.path_params.get("code", "")
+        try:
+            res = managed.poll_pairing_status(code)
+            return JSONResponse(res)
+        except KeyError as exc:
+            return JSONResponse({"error": str(exc)}, status_code=404)
+
+    async def api_managed_checkout(request: Request) -> JSONResponse:
+        try:
+            account, _, _ = _resolve_auth_context(request)
+            body = await request.json()
+            plan_id = str(body.get("plan") or "")
+            res = managed.checkout(account, plan_id)
+            return JSONResponse(res)
+        except BillingUnavailable as exc:
+            return JSONResponse({"error": str(exc)}, status_code=503)
+        except PermissionError as exc:
+            return JSONResponse({"error": str(exc)}, status_code=401)
+        except ValueError as exc:
+            return JSONResponse({"error": str(exc)}, status_code=400)
+
+    async def api_managed_portal(request: Request) -> JSONResponse:
+        try:
+            account, _, _ = _resolve_auth_context(request)
+            res = managed.portal(account)
+            return JSONResponse(res)
+        except BillingUnavailable as exc:
+            return JSONResponse({"error": str(exc)}, status_code=503)
+        except PermissionError as exc:
+            return JSONResponse({"error": str(exc)}, status_code=401)
+        except ValueError as exc:
+            return JSONResponse({"error": str(exc)}, status_code=400)
+
+    async def api_managed_stripe_webhook(request: Request) -> JSONResponse:
+        try:
+            raw_body = await request.body()
+            sig = request.headers.get("stripe-signature", "")
+            event = managed.stripe.verify_event(raw_body, sig)
+            res = managed.apply_event(event)
+            return JSONResponse(res)
+        except BillingUnavailable as exc:
+            return JSONResponse({"error": str(exc)}, status_code=503)
+        except ValueError as exc:
+            return JSONResponse({"error": str(exc)}, status_code=400)
+
+    async def api_managed_keys(request: Request) -> JSONResponse:
+        try:
+            account, tenant, _ = _resolve_auth_context(request)
+            if request.method == "GET":
+                keys = cortex.store.list_tenant_keys(tenant_id=tenant["id"])
+                return JSONResponse({"keys": keys, "tenant_id": tenant["id"]})
+            body = await request.json()
+            label = str(body.get("label") or "Workspace Agent Key").strip()
+            scopes = body.get("scopes") or ["memory:read", "memory:write", "read:graph", "write:memory"]
+            agent_ids = body.get("agent_ids") or []
+            for did in agent_ids:
+                if not str(did).startswith("did:integrity:") or len(str(did)) > 160:
+                    return JSONResponse({"error": "Invalid agent DID"}, status_code=400)
+            from .models import TenantPlan, TenantRecord
+            if not cortex.store.get_tenant(tenant["id"]):
+                cortex.store.save_tenant(
+                    TenantRecord(
+                        id=tenant["id"],
+                        name=f"{account['display_name']} Workspace",
+                        plan=tenant.get("plan", TenantPlan.FREE.value),
+                    )
+                )
+            key_rec, raw_key = cortex.store.create_tenant_key(
+                tenant_id=tenant["id"],
+                label=label,
+                scopes=scopes,
+                rate_limit_rpm=180,
+            )
+            return JSONResponse({"key": key_rec, "token": raw_key, "raw_key": raw_key})
+        except PermissionError as exc:
+            return JSONResponse({"error": str(exc)}, status_code=401)
+
+    async def api_managed_keys_revoke(request: Request) -> JSONResponse:
+        try:
+            _resolve_auth_context(request)
+            body = await request.json()
+            key_id = str(body.get("id") or body.get("key_id") or "")
+            revoked = cortex.store.revoke_tenant_key(key_id)
+            return JSONResponse({"ok": revoked, "revoked": key_id})
+        except PermissionError as exc:
+            return JSONResponse({"error": str(exc)}, status_code=401)
+
     routes = [
+        Route("/healthz", api_healthz, methods=["GET"]),
+        Route("/readyz", api_readyz, methods=["GET"]),
+        Route("/api/managed/plans", api_managed_plans, methods=["GET"]),
+        Route("/api/plans", api_managed_plans, methods=["GET"]),
+        Route("/api/contact", api_contact, methods=["POST"]),
+        Route("/api/managed/signup", api_managed_signup, methods=["POST"]),
+        Route("/api/auth/signup", api_managed_signup, methods=["POST"]),
+        Route("/api/managed/login", api_managed_login, methods=["POST"]),
+        Route("/api/auth/login", api_managed_login, methods=["POST"]),
+        Route("/api/managed/logout", api_managed_logout, methods=["POST"]),
+        Route("/api/auth/logout", api_managed_logout, methods=["POST"]),
+        Route("/api/managed/me", api_managed_me, methods=["GET"]),
+        Route("/api/auth/me", api_managed_me, methods=["GET"]),
+        Route("/api/managed/profile", api_managed_account_update, methods=["POST", "PUT"]),
+        Route("/api/auth/account", api_managed_account_update, methods=["POST", "PUT"]),
+        Route("/api/managed/auth/events", api_managed_auth_events, methods=["GET"]),
+        Route("/api/auth/events", api_managed_auth_events, methods=["GET"]),
+        Route("/api/managed/oauth/providers", api_managed_oauth_providers, methods=["GET"]),
+        Route("/api/auth/oauth/providers", api_managed_oauth_providers, methods=["GET"]),
+        Route("/api/managed/recovery/{action}", api_managed_recovery, methods=["POST"]),
+        Route("/api/auth/password/reset/{action}", api_managed_recovery, methods=["POST"]),
+        Route("/api/managed/device/pair/request", api_device_pair_request, methods=["POST"]),
+        Route("/api/auth/device/pair/request", api_device_pair_request, methods=["POST"]),
+        Route("/api/managed/device/pair/{code}", api_device_pair_info, methods=["GET"]),
+        Route("/api/auth/device/pair/{code}", api_device_pair_info, methods=["GET"]),
+        Route("/api/managed/device/pair/{code}/approve", api_device_pair_approve, methods=["POST"]),
+        Route("/api/auth/device/pair/{code}/approve", api_device_pair_approve, methods=["POST"]),
+        Route("/api/managed/device/pair/{code}/status", api_device_pair_status, methods=["GET"]),
+        Route("/api/auth/device/pair/{code}/status", api_device_pair_status, methods=["GET"]),
+        Route("/api/managed/keys", api_managed_keys, methods=["GET", "POST"]),
+        Route("/api/managed/keys/revoke", api_managed_keys_revoke, methods=["POST"]),
+        Route("/api/managed/checkout", api_managed_checkout, methods=["POST"]),
+        Route("/api/managed/portal", api_managed_portal, methods=["POST"]),
+        Route("/api/managed/stripe/webhook", api_managed_stripe_webhook, methods=["POST"]),
         Route("/api/status", api_status, methods=["GET"]),
         Route("/api/graph", api_graph, methods=["GET"]),
         Route("/api/scopes", api_scopes, methods=["GET", "POST"]),
@@ -1392,10 +1776,14 @@ def create_app(config: SuperCortexConfig | None = None) -> Starlette:
         Route("/api/graph/operations/query", api_graph_query, methods=["POST"]),
     ]
 
-    # Mount static viewer if dist exists
-    dist_dir = Path(__file__).resolve().parent.parent.parent / "viewer" / "dist"
-    if dist_dir.exists() and (dist_dir / "index.html").exists():
-        routes.append(Mount("/", StaticFiles(directory=str(dist_dir), html=True), name="viewer"))
+    # Mount static viewer if dist or viewer dir exists
+    resolved_dist = Path(viewer_dist) if viewer_dist else (Path(__file__).resolve().parent.parent.parent / "viewer" / "dist")
+    if not (resolved_dist.exists() and (resolved_dist / "index.html").exists()):
+        fallback_viewer = Path(__file__).resolve().parent.parent.parent / "viewer"
+        if fallback_viewer.exists() and (fallback_viewer / "index.html").exists():
+            resolved_dist = fallback_viewer
+    if resolved_dist.exists() and (resolved_dist / "index.html").exists():
+        routes.append(Mount("/", StaticFiles(directory=str(resolved_dist), html=True), name="viewer"))
 
     app = Starlette(routes=routes)
     app.add_middleware(
@@ -1405,3 +1793,26 @@ def create_app(config: SuperCortexConfig | None = None) -> Starlette:
         allow_headers=["*"],
     )
     return app
+
+
+def main() -> None:
+    import argparse
+    import uvicorn
+
+    parser = argparse.ArgumentParser(description="Run the Super-Cortex Managed & Studio HTTP Server")
+    parser.add_argument("--host", default="0.0.0.0")
+    parser.add_argument("--port", type=int, default=10000)
+    parser.add_argument("--viewer-dist", default=None)
+    args = parser.parse_args()
+
+    uvicorn.run(
+        create_app(viewer_dist=args.viewer_dist),
+        host=args.host,
+        port=args.port,
+        workers=1,
+        access_log=False,
+    )
+
+
+if __name__ == "__main__":
+    main()

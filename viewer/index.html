@@ -827,6 +827,22 @@
       <span id="header-active-provider-dot" class="hidden"></span>
       <span id="header-tenant-count-dot" class="hidden"></span>
 
+      <!-- Cortex Landing, Agent Auth & Stripe Billing Quick Triggers -->
+      <div class="flex items-center gap-1">
+        <button id="btn-header-landing" onclick="window.openLandingOverlay()" class="h-7 px-2 rounded-lg flex items-center gap-1 bg-slate-900/90 hover:bg-slate-800 border border-slate-700/80 hover:border-cyan-400/50 text-slate-300 hover:text-cyan-300 font-mono text-[9px] font-bold uppercase transition-all cursor-pointer" title="Open Public Product Landing Page">
+          <span class="material-symbols-outlined text-[13px] text-cyan-400">rocket_launch</span>
+          <span class="hidden xl:inline">LANDING</span>
+        </button>
+        <button id="btn-header-pair-agent" onclick="window.openDevicePairModal()" class="h-7 px-2 rounded-lg flex items-center gap-1 bg-purple-500/15 hover:bg-purple-500/25 border border-purple-500/40 text-[#ddb7ff] font-mono text-[9px] font-bold uppercase transition-all cursor-pointer" title="Zero-Trust Agent Device Pairing & MCP Auth">
+          <span class="material-symbols-outlined text-[13px] text-purple-400">qr_code_2</span>
+          <span class="hidden xl:inline">AGENT AUTH</span>
+        </button>
+        <button id="btn-header-billing" onclick="window.openBillingStudio()" class="h-7 px-2 rounded-lg flex items-center gap-1 bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/40 text-emerald-300 font-mono text-[9px] font-bold uppercase transition-all cursor-pointer" title="Stripe Subscription & Resource Quotas">
+          <span class="material-symbols-outlined text-[13px] text-emerald-400">credit_card</span>
+          <span id="header-plan-tier-badge">FREE TIER</span>
+        </button>
+      </div>
+
       <!-- Operator Profile Dropdown Button -->
       <button id="user-profile-button" onclick="window.toggleProfileMenu(event)" class="w-7 h-7 rounded-full bg-cyan-500/20 border border-cyan-400/50 flex items-center justify-center shrink-0 text-cyan-300 hover:scale-105 transition-all cursor-pointer ml-1" title="Xibalba Solutions Operator Profile">
         <span class="material-symbols-outlined text-[15px]">shield_person</span>
@@ -983,8 +999,30 @@
           <div class="col-span-2">Database: <span class="text-white font-mono text-[8px]">~/.super-cortex/provenance.db</span></div>
         </div>
 
-        <!-- Actions: Settings & Logout -->
+        <!-- Actions: Billing, Agent Auth, Landing, Settings & Logout -->
         <div class="space-y-1 pt-1 border-t border-slate-800 text-[10px]">
+          <button onclick="window.openBillingStudio()" class="w-full px-2.5 py-1.5 hover:bg-slate-800 rounded text-emerald-300 hover:text-emerald-200 flex items-center justify-between transition-colors cursor-pointer font-bold">
+            <span class="flex items-center gap-2">
+              <span class="material-symbols-outlined text-[14px] text-emerald-400">credit_card</span>
+              <span>Subscription &amp; Stripe Billing</span>
+            </span>
+            <span id="popover-plan-pill" class="text-[8px] px-1.5 py-0.2 rounded bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 uppercase">FREE</span>
+          </button>
+
+          <button onclick="window.openDevicePairModal()" class="w-full px-2.5 py-1.5 hover:bg-slate-800 rounded text-[#ddb7ff] hover:text-white flex items-center gap-2 transition-colors cursor-pointer">
+            <span class="material-symbols-outlined text-[14px] text-purple-400">passkey</span>
+            <span>Agent Auth &amp; Device Pairing</span>
+          </button>
+
+          <button onclick="window.openLandingOverlay()" class="w-full px-2.5 py-1.5 hover:bg-slate-800 rounded text-neutral-200 hover:text-white flex items-center gap-2 transition-colors cursor-pointer">
+            <span class="material-symbols-outlined text-[14px] text-cyan-400">public</span>
+            <span>Product Landing &amp; Pricing</span>
+          </button>
+
+          <button onclick="window.openAuthOverlay('login')" class="w-full px-2.5 py-1.5 hover:bg-slate-800 rounded text-neutral-200 hover:text-white flex items-center gap-2 transition-colors cursor-pointer">
+            <span class="material-symbols-outlined text-[14px] text-amber-400">login</span>
+            <span>Sign In / Switch Account</span>
+          </button>
           <button onclick="window.openSettingsModal()" class="w-full px-2.5 py-1.5 hover:bg-slate-800 rounded text-neutral-200 hover:text-white flex items-center gap-2 transition-colors cursor-pointer">
             <span class="material-symbols-outlined text-[14px] text-cyan-400">settings</span>
             <span>Settings &amp; Engine Config</span>
@@ -9693,7 +9731,7 @@
           if (d.sessions && d.sessions.length > 0) {
             cachedDialogueSessions = d.sessions;
             document.getElementById('header-sess-count').innerText = d.sessions.length;
-            renderDynamicSessions(d.sessions);
+            if (typeof renderDynamicSessions === "function") renderDynamicSessions(d.sessions);
             if (typeof updateDialogueScopeFilter === 'function') {
               updateDialogueScopeFilter(activeAgentScopeFilter || 'all');
             }
@@ -9715,7 +9753,7 @@
           loadGraphData(document.getElementById('graph-scope-selector')?.value || 'all');
           fetch('/api/sessions')
             .then(r => r.json())
-            .then(d => { if (d.sessions) renderDynamicSessions(d.sessions); });
+            .then(d => { if (d.sessions) if (typeof renderDynamicSessions === "function") renderDynamicSessions(d.sessions); });
         });
       } catch (e) {}
 
@@ -16124,5 +16162,1094 @@ console.log("Loaded " + nodes.length + " memory invariants.");</code></pre>
       }
     };
 </script>
+
+  <!-- ========================================================================= -->
+  <!-- CORTEX PUBLIC PRODUCT LANDING PAGE OVERLAY (#cortex-landing-overlay)      -->
+  <!-- ========================================================================= -->
+  <div id="cortex-landing-overlay" class="hidden fixed inset-0 z-50 bg-[#050811] text-slate-100 overflow-y-auto font-sans selection:bg-cyan-500/30">
+    <!-- Top Sticky Bar -->
+    <header class="sticky top-0 z-30 bg-[#050811]/90 backdrop-blur-xl border-b border-slate-800/80 px-6 py-3 flex items-center justify-between max-w-7xl mx-auto">
+      <a href="#landing" onclick="event.preventDefault(); document.getElementById('cortex-landing-overlay').scrollTo({top:0,behavior:'smooth'})" class="flex items-center gap-3">
+        <img src="/cortex-rail-mark.png" alt="Super-Cortex" class="w-7 h-7 object-contain" />
+        <span class="font-mono font-bold text-sm tracking-wider uppercase text-white">Super-Cortex</span>
+        <span class="px-1.5 py-0.5 rounded text-[9px] font-mono font-bold bg-cyan-500/15 text-cyan-300 border border-cyan-500/30">MANAGED &amp; LOCAL</span>
+      </a>
+      <nav class="hidden md:flex items-center gap-6 text-xs font-mono text-slate-300">
+        <a href="#xc-what" onclick="event.preventDefault(); document.getElementById('xc-what')?.scrollIntoView({behavior:'smooth'})" class="hover:text-cyan-300 transition-colors">What it is</a>
+        <a href="#xc-how" onclick="event.preventDefault(); document.getElementById('xc-how')?.scrollIntoView({behavior:'smooth'})" class="hover:text-cyan-300 transition-colors">How it runs</a>
+        <a href="#xc-pricing" onclick="event.preventDefault(); document.getElementById('xc-pricing')?.scrollIntoView({behavior:'smooth'})" class="hover:text-cyan-300 transition-colors">Plans</a>
+        <a href="#xc-compare" onclick="event.preventDefault(); document.getElementById('xc-compare')?.scrollIntoView({behavior:'smooth'})" class="hover:text-cyan-300 transition-colors">Compare</a>
+        <a href="#xc-contact" onclick="event.preventDefault(); document.getElementById('xc-contact')?.scrollIntoView({behavior:'smooth'})" class="hover:text-cyan-300 transition-colors">Contact</a>
+      </nav>
+      <div class="flex items-center gap-2 font-mono text-xs">
+        <button onclick="window.closeLandingOverlay()" class="px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 border border-cyan-500/40 text-cyan-300 font-bold transition-all cursor-pointer flex items-center gap-1.5">
+          <span class="material-symbols-outlined text-[15px]">view_in_ar</span>
+          <span>Explore 3D Manifold</span>
+        </button>
+        <button onclick="window.openAuthOverlay('login')" class="px-3.5 py-1.5 rounded-lg bg-cyan-400 hover:bg-cyan-300 text-black font-bold transition-all cursor-pointer">
+          Sign in
+        </button>
+      </div>
+    </header>
+
+    <main class="max-w-6xl mx-auto px-6 py-12 space-y-20">
+      <!-- Hero Section -->
+      <section class="grid grid-cols-1 lg:grid-cols-12 gap-10 items-center pt-4">
+        <div class="lg:col-span-5 flex justify-center">
+          <img src="/cortex-lockup-hero.png" alt="Super-Cortex Lockup" class="w-72 md:w-80 object-contain drop-shadow-[0_0_35px_rgba(0,240,255,0.2)]" />
+        </div>
+        <div class="lg:col-span-7 space-y-5">
+          <p class="font-mono text-xs uppercase tracking-widest text-cyan-400 font-bold">Managed &amp; Local-First Graph Memory for Agents</p>
+          <h1 class="text-4xl md:text-5xl font-bold tracking-tight text-white leading-tight">
+            Your agents’ memory.<br /><span class="text-transparent bg-clip-text bg-gradient-to-r from-cyan-300 via-emerald-300 to-purple-300">Provably yours.</span>
+          </h1>
+          <p class="text-slate-300 text-base leading-relaxed max-w-2xl">
+            An isolated workspace and local-first engine for recording agent memories, searching them through an authenticated MCP &amp; REST API, exploring a 60FPS 3D neural graph manifold, and retaining a cryptographically verifiable Merkle event history.
+          </p>
+          <div class="flex flex-wrap items-center gap-3 pt-2 font-mono text-xs">
+            <button onclick="window.closeLandingOverlay()" class="px-5 py-2.5 rounded-lg bg-cyan-400 hover:bg-cyan-300 text-black font-bold uppercase tracking-wider transition-all cursor-pointer flex items-center gap-2 shadow-[0_0_20px_rgba(0,240,255,0.3)]">
+              <span class="material-symbols-outlined text-base">view_in_ar</span>
+              <span>Open 3D Graph Console</span>
+            </button>
+            <button onclick="window.openAuthOverlay('signup')" class="px-5 py-2.5 rounded-lg bg-purple-500/20 hover:bg-purple-500/30 border border-purple-400/50 text-purple-200 font-bold uppercase tracking-wider transition-all cursor-pointer">
+              Create Free Account
+            </button>
+            <button onclick="window.openDevicePairModal()" class="px-4 py-2.5 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-200 font-bold uppercase tracking-wider transition-all cursor-pointer flex items-center gap-1.5">
+              <span class="material-symbols-outlined text-sm text-emerald-400">passkey</span>
+              <span>Pair Agent Device</span>
+            </button>
+            <a href="https://github.com/XibalbaTechSol/super-cortex" target="_blank" rel="noreferrer noopener" class="px-4 py-2.5 rounded-lg bg-slate-950 hover:bg-slate-900 border border-slate-800 text-slate-400 hover:text-white transition-all">
+              Read the Source ↗
+            </a>
+          </div>
+        </div>
+      </section>
+
+      <!-- What It Is: 4 Core Primitives -->
+      <section id="xc-what" class="space-y-6">
+        <div>
+          <p class="font-mono text-xs uppercase tracking-widest text-cyan-400 font-bold">What it is</p>
+          <h2 class="text-2xl md:text-3xl font-bold text-white mt-1">Memory with a verifiable mathematical foundation</h2>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <article class="p-5 rounded-xl bg-[#090e1a] border border-slate-800/90 hover:border-cyan-500/40 transition-all space-y-3">
+            <span class="material-symbols-outlined text-cyan-400 text-2xl">verified_user</span>
+            <h3 class="font-bold text-white text-base">A verifiable history</h3>
+            <p class="text-xs text-slate-300 leading-relaxed">Every write is an append-only event linked to the one before it, and Merkle roots are computed per domain. Verify any subset without replaying the whole chain.</p>
+            <div class="pt-2 font-mono text-[10px] text-cyan-300">memory_verify_chain</div>
+          </article>
+          <article class="p-5 rounded-xl bg-[#090e1a] border border-slate-800/90 hover:border-emerald-500/40 transition-all space-y-3">
+            <span class="material-symbols-outlined text-emerald-400 text-2xl">manage_search</span>
+            <h3 class="font-bold text-white text-base">Four signals, one ranking</h3>
+            <p class="text-xs text-slate-300 leading-relaxed">Retrieval fuses lexical, 768-D vector, topological graph, and temporal signals via Reciprocal Rank Fusion — reporting exactly which signal surfaced each memory.</p>
+            <div class="pt-2 font-mono text-[10px] text-emerald-300">memory_hybrid_retrieve</div>
+          </article>
+          <article class="p-5 rounded-xl bg-[#090e1a] border border-slate-800/90 hover:border-purple-500/40 transition-all space-y-3">
+            <span class="material-symbols-outlined text-purple-400 text-2xl">lock</span>
+            <h3 class="font-bold text-white text-base">An isolated workspace</h3>
+            <p class="text-xs text-slate-300 leading-relaxed">Each workspace has isolated memory storage. Scoped API keys and RFC 8628 Ed25519 DID pairing connect Claude Code, Cursor, Antigravity, and Hermes safely.</p>
+            <div class="pt-2 font-mono text-[10px] text-purple-300">Zero-Trust DID &amp; ABAC</div>
+          </article>
+          <article class="p-5 rounded-xl bg-[#090e1a] border border-slate-800/90 hover:border-amber-500/40 transition-all space-y-3">
+            <span class="material-symbols-outlined text-amber-400 text-2xl">view_in_ar</span>
+            <h3 class="font-bold text-white text-base">3D Graph Manifold &amp; Studio</h3>
+            <p class="text-xs text-slate-300 leading-relaxed">Walk the 3D knowledge lattice with camera presets, spectral Fiedler eigenmaps, Dijkstra geodesic routing, 3D spotlight search, and playing-card dialogue stacks.</p>
+            <div class="pt-2 font-mono text-[10px] text-amber-300">3D Manifold · Spectral · Geodesics</div>
+          </article>
+        </div>
+      </section>
+
+      <!-- How It Runs -->
+      <section id="xc-how" class="space-y-6">
+        <div>
+          <p class="font-mono text-xs uppercase tracking-widest text-cyan-400 font-bold">How it runs</p>
+          <h2 class="text-2xl md:text-3xl font-bold text-white mt-1">Hosted workspace or local-first daemon, one contract</h2>
+        </div>
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+          <dl class="lg:col-span-5 space-y-4 p-5 rounded-xl bg-[#090e1a] border border-slate-800 font-mono text-xs">
+            <div class="pb-3 border-b border-slate-800/80">
+              <dt class="text-cyan-400 font-bold uppercase text-[10px]">Storage</dt>
+              <dd class="text-slate-200 mt-1">Isolated per-workspace provenance ledger + 768-D Supermemory index.</dd>
+            </div>
+            <div class="pb-3 border-b border-slate-800/80">
+              <dt class="text-emerald-400 font-bold uppercase text-[10px]">Access &amp; Harnesses</dt>
+              <dd class="text-slate-200 mt-1">Speaks MCP over stdio or HTTP; bridges Claude Code, Antigravity, Cursor, Codex, and Hermes.</dd>
+            </div>
+            <div>
+              <dt class="text-purple-400 font-bold uppercase text-[10px]">Billing &amp; Quotas</dt>
+              <dd class="text-slate-200 mt-1">Approved monthly USD catalog with Stripe Checkout &amp; Customer Portal; canceled subscriptions retain full read/export access.</dd>
+            </div>
+          </dl>
+          <div class="lg:col-span-7 p-5 rounded-xl bg-[#090e1a] border border-cyan-500/30 space-y-3 font-mono text-xs">
+            <div class="flex items-center justify-between">
+              <span class="text-cyan-300 font-bold uppercase text-[10px]">DROP-IN MCP SERVER CONFIGURATION</span>
+              <button onclick="navigator.clipboard.writeText(document.getElementById('landing-mcp-snippet').innerText); window.showToast('MCP config copied!')" class="px-2 py-0.5 rounded bg-cyan-500/20 text-cyan-300 hover:bg-cyan-500/40 text-[9px] font-bold cursor-pointer">COPY JSON</button>
+            </div>
+            <pre id="landing-mcp-snippet" class="p-3 rounded bg-black/70 border border-slate-800 text-[10px] text-emerald-300 overflow-x-auto select-all">{
+  "mcpServers": {
+    "super_cortex": {
+      "command": "/home/xibalba/.local/bin/super-cortex",
+      "args": ["run", "--transport", "stdio"],
+      "env": {
+        "SUPERMEMORY_URL": "http://127.0.0.1:6767",
+        "SUPER_CORTEX_DB_PATH": "/home/xibalba/.super-cortex/provenance.db",
+        "SUPER_CORTEX_DEFAULT_NAMESPACE": "xibalba",
+        "SUPER_CORTEX_ACTOR_DID": "did:integrity:68fed1331613937555a59398223e8e87520a87dd0305aac4fd7ecdc32a14a861"
+      }
+    }
+  }
+}</pre>
+          </div>
+        </div>
+      </section>
+
+      <!-- Managed Plans Section (Dynamic from /api/managed/plans) -->
+      <section id="xc-pricing" class="space-y-6">
+        <div>
+          <p class="font-mono text-xs uppercase tracking-widest text-emerald-400 font-bold">Managed Super-Cortex</p>
+          <h2 class="text-2xl md:text-3xl font-bold text-white mt-1">Choose the capacity you need</h2>
+          <p class="text-xs text-slate-400 mt-1">Start with a free workspace. Add capacity as your agent swarms grow. All prices in USD, billed monthly via Stripe.</p>
+        </div>
+        <div id="landing-plans-grid" class="grid grid-cols-1 md:grid-cols-3 gap-5">
+          <!-- Populated dynamically by window.loadLandingPlans() -->
+        </div>
+        <p id="landing-billing-note" class="text-[11px] font-mono text-slate-400"></p>
+      </section>
+
+      <!-- Comparison Section -->
+      <section id="xc-compare" class="space-y-4">
+        <p class="font-mono text-xs uppercase tracking-widest text-purple-400 font-bold">Architecture Comparison</p>
+        <h2 class="text-2xl font-bold text-white">How Super-Cortex compares</h2>
+        <div class="overflow-x-auto rounded-xl border border-slate-800 bg-[#090e1a]">
+          <table class="w-full text-left text-xs font-mono">
+            <thead class="bg-slate-900/90 text-slate-400 border-b border-slate-800 uppercase text-[10px]">
+              <tr>
+                <th class="p-3.5">Capability</th>
+                <th class="p-3.5 text-cyan-300">Super-Cortex (Managed + Local)</th>
+                <th class="p-3.5 text-slate-400">Conventional Vector Stores</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-800/70 text-slate-300">
+              <tr>
+                <td class="p-3.5 font-bold text-white">Primary Focus</td>
+                <td class="p-3.5">Cryptographic Merkle provenance, 3D WebGL manifold, spectral Fiedler analytics, and 768-D Supermemory hybrid recall.</td>
+                <td class="p-3.5 text-slate-400">Flat embedding similarity without cryptographic lineage or topological structure.</td>
+              </tr>
+              <tr>
+                <td class="p-3.5 font-bold text-white">Retrieval &amp; Inspection</td>
+                <td class="p-3.5">Reciprocal Rank Fusion + 3D geodesic shortest-path routing, connected neighborhood explorer, and playing-card session replay.</td>
+                <td class="p-3.5 text-slate-400">Top-K cosine similarity chunks only.</td>
+              </tr>
+              <tr>
+                <td class="p-3.5 font-bold text-white">Agent Identity &amp; Auth</td>
+                <td class="p-3.5">Ed25519 DID binding (<code>did:integrity:...</code>), RFC 8628 browser device pairing, and scoped workspace keys.</td>
+                <td class="p-3.5 text-slate-400">Shared static bearer key with no per-agent cryptographic attribution.</td>
+              </tr>
+              <tr>
+                <td class="p-3.5 font-bold text-white">Subscription Model</td>
+                <td class="p-3.5">Free ($0) / Pro ($29) / Team ($149) with enforced monthly meters; canceled workspaces keep read &amp; export access forever.</td>
+                <td class="p-3.5 text-slate-400">Opaque per-token / per-pod usage billing.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- Public Contact Form -->
+      <section id="xc-contact" class="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start pt-4 pb-12 border-t border-slate-800/80">
+        <div class="lg:col-span-5 space-y-3">
+          <p class="font-mono text-xs uppercase tracking-widest text-cyan-400 font-bold">Contact Xibalba Solutions</p>
+          <h2 class="text-2xl font-bold text-white">Questions, enterprise deployments, or dedicated clusters</h2>
+          <p class="text-xs text-slate-400 leading-relaxed">
+            Reach out for dedicated HIPAA-ready Xibalba Shield enclaves, high-throughput quantitative agent swarms, or custom on-premise deployments.
+          </p>
+          <div class="font-mono text-xs text-cyan-300 pt-2">contact@xibalba.dev</div>
+        </div>
+        <form onsubmit="window.submitLandingContact(event)" class="lg:col-span-7 p-6 rounded-xl bg-[#090e1a] border border-slate-800 space-y-4 font-mono text-xs">
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <label class="block space-y-1">
+              <span class="text-slate-400 text-[10px] uppercase font-bold">Your Name *</span>
+              <input name="name" required placeholder="Dr. Elena Rostova" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-cyan-400" />
+            </label>
+            <label class="block space-y-1">
+              <span class="text-slate-400 text-[10px] uppercase font-bold">Email Address *</span>
+              <input name="email" type="email" required placeholder="elena@organization.com" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-cyan-400" />
+            </label>
+          </div>
+          <label class="block space-y-1">
+            <span class="text-slate-400 text-[10px] uppercase font-bold">Organization</span>
+            <input name="organization" placeholder="Autonomous Systems Lab" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-cyan-400" />
+          </label>
+          <label class="block space-y-1">
+            <span class="text-slate-400 text-[10px] uppercase font-bold">Message *</span>
+            <textarea name="message" rows="3" required placeholder="Tell us about your agent workload and memory capacity requirements..." class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-cyan-400"></textarea>
+          </label>
+          <div id="landing-contact-feedback" class="hidden p-2.5 rounded text-xs"></div>
+          <button type="submit" class="px-5 py-2 rounded-lg bg-cyan-400 hover:bg-cyan-300 text-black font-bold uppercase tracking-wider cursor-pointer transition-all">
+            Send Inquiry
+          </button>
+        </form>
+      </section>
+    </main>
+  </div>
+
+  <!-- ========================================================================= -->
+  <!-- CORTEX OPERATOR SIGN IN / SIGN UP / RECOVERY OVERLAY (#cortex-auth-overlay)-->
+  <!-- ========================================================================= -->
+  <div id="cortex-auth-overlay" class="hidden fixed inset-0 z-50 bg-[#050811]/98 backdrop-blur-2xl flex items-center justify-center p-4 overflow-y-auto font-mono">
+    <div class="max-w-4xl w-full bg-[#090e1a] border border-cyan-500/40 rounded-2xl shadow-[0_24px_80px_rgba(0,0,0,0.95)] grid grid-cols-1 md:grid-cols-12 overflow-hidden">
+      <!-- Story Column -->
+      <section class="md:col-span-5 p-8 bg-gradient-to-b from-[#0b1326] to-[#070b16] border-b md:border-b-0 md:border-r border-slate-800 flex flex-col justify-between space-y-6">
+        <div>
+          <div class="flex items-center justify-between">
+            <img src="/cortex-lockup-hero.png" alt="Super-Cortex" class="w-40 object-contain" />
+            <button onclick="window.closeAuthOverlay()" class="md:hidden text-slate-400 hover:text-white">✕</button>
+          </div>
+          <p class="text-[10px] uppercase tracking-widest text-cyan-400 font-bold mt-6">Secure Operator Access</p>
+          <h2 class="text-2xl font-bold text-white mt-1 leading-snug font-sans">Your agents’ memory.<br />Provably yours.</h2>
+          <p class="text-xs text-slate-400 mt-3 leading-relaxed font-sans">
+            Sign in to explore the 3D knowledge graph and timeline, manage workspace API keys, and audit the cryptographic provenance behind every remembered fact.
+          </p>
+        </div>
+        <aside class="p-3 rounded-xl bg-slate-950/90 border border-slate-800/90 flex items-start gap-2.5 text-[10px]">
+          <span class="material-symbols-outlined text-emerald-400 text-base shrink-0 mt-0.5">verified_user</span>
+          <div>
+            <b class="text-white block">Local-first authentication</b>
+            <span class="text-slate-400">Your session is held in an HttpOnly cookie with scrypt key derivation.</span>
+          </div>
+        </aside>
+      </section>
+
+      <!-- Form Column -->
+      <section class="md:col-span-7 p-8 flex flex-col justify-between relative">
+        <button onclick="window.closeAuthOverlay()" class="hidden md:flex absolute top-4 right-4 w-7 h-7 rounded-lg items-center justify-center text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer" title="Return to 3D Console">
+          <span class="material-symbols-outlined text-sm">close</span>
+        </button>
+
+        <form id="cortex-auth-form" onsubmit="window.submitCortexAuthForm(event)" class="space-y-4">
+          <div class="flex items-center gap-2">
+            <span class="w-8 h-8 rounded-lg bg-cyan-500/15 border border-cyan-500/40 flex items-center justify-center text-cyan-300">
+              <span class="material-symbols-outlined text-base">lock</span>
+            </span>
+            <div>
+              <h3 id="cortex-auth-title" class="text-base font-bold text-white">Welcome back</h3>
+              <p id="cortex-auth-subtitle" class="text-[10px] text-slate-400">Enter your email and password to continue.</p>
+            </div>
+          </div>
+
+          <!-- Mode Tabs (Sign In / Create Account) -->
+          <div id="cortex-auth-tabs" class="grid grid-cols-2 gap-1 p-1 rounded-lg bg-slate-950 border border-slate-800 text-xs">
+            <button type="button" id="auth-tab-login" onclick="window.switchAuthMode('login')" class="py-1.5 rounded-md font-bold bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 cursor-pointer transition-all">
+              Sign in
+            </button>
+            <button type="button" id="auth-tab-signup" onclick="window.switchAuthMode('signup')" class="py-1.5 rounded-md font-bold text-slate-400 hover:text-white border border-transparent cursor-pointer transition-all">
+              Create account
+            </button>
+          </div>
+
+          <!-- Quick Local Operator Connect -->
+          <button type="button" onclick="window.connectLocalOperatorQuick()" class="w-full py-2 px-3 rounded-lg bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/40 text-emerald-300 font-bold text-xs flex items-center justify-center gap-2 transition-all cursor-pointer">
+            <span class="material-symbols-outlined text-sm">bolt</span>
+            <span>Connect to Local Super-Cortex Operator Profile</span>
+          </button>
+
+          <div class="relative flex py-1 items-center">
+            <div class="flex-grow border-t border-slate-800"></div>
+            <span class="flex-shrink mx-3 text-[9px] text-slate-500 uppercase">or continue with credentials</span>
+            <div class="flex-grow border-t border-slate-800"></div>
+          </div>
+
+          <div id="auth-field-email-wrap" class="space-y-1">
+            <label class="text-[10px] text-slate-300 uppercase font-bold block">Email</label>
+            <input id="auth-input-email" name="email" type="email" required placeholder="operator@xibalba.dev" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-cyan-400" />
+          </div>
+
+          <div id="auth-field-name-wrap" class="hidden space-y-1">
+            <label class="text-[10px] text-slate-300 uppercase font-bold block">Display Name</label>
+            <input id="auth-input-name" name="display_name" type="text" placeholder="Alice Vance" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-cyan-400" />
+          </div>
+
+          <div id="auth-field-password-wrap" class="space-y-1">
+            <div class="flex items-center justify-between">
+              <label class="text-[10px] text-slate-300 uppercase font-bold">Password (min 10 chars)</label>
+              <button type="button" id="auth-btn-forgot" onclick="window.switchAuthMode('forgot')" class="text-[9px] text-cyan-400 hover:underline cursor-pointer">Forgot password?</button>
+            </div>
+            <input id="auth-input-password" name="password" type="password" minlength="10" placeholder="••••••••••••" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-cyan-400" />
+          </div>
+
+          <div id="cortex-auth-notice" class="hidden p-2.5 rounded-lg border text-xs"></div>
+
+          <button type="submit" id="cortex-auth-submit-btn" class="w-full py-2.5 rounded-lg bg-cyan-400 hover:bg-cyan-300 text-black font-bold text-xs uppercase tracking-wider transition-all cursor-pointer flex items-center justify-center gap-1.5">
+            <span id="cortex-auth-submit-label">Sign in</span>
+            <span class="material-symbols-outlined text-sm">arrow_forward</span>
+          </button>
+
+          <div id="auth-back-to-login" class="hidden text-center">
+            <button type="button" onclick="window.switchAuthMode('login')" class="text-[10px] text-cyan-400 hover:underline cursor-pointer">← Back to sign in</button>
+          </div>
+        </form>
+
+        <div class="pt-4 border-t border-slate-800/80 flex items-center justify-between text-[9px] text-slate-500">
+          <span class="flex items-center gap-1"><span class="material-symbols-outlined text-[12px]">cookie</span> HttpOnly session cookie</span>
+          <button type="button" onclick="window.openLandingOverlay()" class="text-cyan-400 hover:underline cursor-pointer">View Plans &amp; Architecture →</button>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <!-- ========================================================================= -->
+  <!-- ZERO-TRUST AGENT DEVICE PAIRING & MCP AUTH OVERLAY (#cortex-pair-overlay) -->
+  <!-- ========================================================================= -->
+  <div id="cortex-pair-overlay" class="hidden fixed inset-0 z-50 bg-[#050811]/95 backdrop-blur-2xl flex items-center justify-center p-4 overflow-y-auto font-mono">
+    <div class="max-w-4xl w-full bg-[#090e1a] border border-purple-500/40 rounded-2xl shadow-[0_24px_80px_rgba(0,0,0,0.95)] grid grid-cols-1 md:grid-cols-12 overflow-hidden">
+      <!-- Left Story Column -->
+      <section class="md:col-span-5 p-7 bg-gradient-to-b from-[#130d26] to-[#080b14] border-b md:border-b-0 md:border-r border-slate-800 flex flex-col justify-between space-y-5">
+        <div>
+          <img src="/cortex-lockup-hero.png" alt="Super-Cortex" class="w-36 object-contain" />
+          <p class="text-[10px] uppercase tracking-widest text-purple-300 font-bold mt-5">Zero-Trust Agent Pairing</p>
+          <h2 class="text-2xl font-bold text-white mt-1 leading-snug font-sans">Connect your agent<br />to Super-Cortex</h2>
+          <p class="text-xs text-slate-300 mt-2.5 leading-relaxed font-sans">
+            Authorize an agent harness (Claude Code, Antigravity, Cursor, Codex, or Hermes) to read and write verifiable memories using RFC 8628 browser pairing and Ed25519 DID attribution.
+          </p>
+        </div>
+        <div class="space-y-2 text-[9.5px]">
+          <div class="p-2.5 rounded-lg bg-slate-950/90 border border-purple-500/30 text-slate-300">
+            <strong class="text-purple-300 block mb-0.5">Local Cryptographic Identity</strong>
+            Agents sign exchanges with their own Ed25519 keypair (<code>did:integrity:...</code>). Private keys never leave your workstation.
+          </div>
+        </div>
+      </section>
+
+      <!-- Right Pairing & Token Studio -->
+      <section class="md:col-span-7 p-7 space-y-4 relative">
+        <button onclick="window.closeDevicePairModal()" class="absolute top-4 right-4 w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer">
+          <span class="material-symbols-outlined text-sm">close</span>
+        </button>
+
+        <div class="flex items-center gap-2.5">
+          <span class="w-8 h-8 rounded-lg bg-purple-500/20 border border-purple-500/40 flex items-center justify-center text-purple-300">
+            <span class="material-symbols-outlined text-base">passkey</span>
+          </span>
+          <div>
+            <h3 class="text-base font-bold text-white">Authorize Agent Harness</h3>
+            <p class="text-[10px] text-slate-400">Approve a pending RFC 8628 device code or issue a DID-bound pairing session.</p>
+          </div>
+        </div>
+
+        <!-- Step 1: Lookup or Generate Pairing Code -->
+        <div class="p-3.5 rounded-xl bg-slate-950 border border-slate-800 space-y-3 text-xs">
+          <div class="flex items-center justify-between">
+            <span class="text-[10px] font-bold uppercase text-purple-300">1. DEVICE PAIRING CODE (RFC 8628)</span>
+            <button type="button" onclick="window.generateSimulatedPairingCode()" class="px-2 py-0.5 rounded bg-purple-500/20 hover:bg-purple-500/30 border border-purple-500/40 text-purple-200 text-[9px] font-bold cursor-pointer">
+              + Generate Code for Active DID
+            </button>
+          </div>
+          <div class="flex items-center gap-2">
+            <input id="pair-code-input" type="text" placeholder="XXXX-XXXX" class="flex-1 bg-[#090e1a] border border-slate-700 rounded-lg px-3 py-1.5 text-sm font-bold tracking-widest text-white uppercase focus:outline-none focus:border-purple-400" />
+            <button type="button" onclick="window.lookupDevicePairCode()" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold cursor-pointer">
+              Inspect
+            </button>
+          </div>
+        </div>
+
+        <!-- Step 2: Pairing Request Details & Approve Button -->
+        <div id="pair-request-details" class="p-3.5 rounded-xl bg-slate-950 border border-purple-500/30 space-y-2.5 text-xs">
+          <div class="grid grid-cols-2 gap-2 text-[10px]">
+            <div>
+              <span class="text-slate-500 block uppercase">Device</span>
+              <strong id="pair-detail-device" class="text-white">Xibalba Linux Workstation</strong>
+            </div>
+            <div>
+              <span class="text-slate-500 block uppercase">Agent Harness</span>
+              <strong id="pair-detail-agent" class="text-cyan-300">agy / super-cortex</strong>
+            </div>
+            <div class="col-span-2">
+              <span class="text-slate-500 block uppercase">Agent Cryptographic DID</span>
+              <code id="pair-detail-did" class="text-[9.5px] text-emerald-300 break-all">did:integrity:68fed1331613937555a59398223e8e87520a87dd0305aac4fd7ecdc32a14a861</code>
+            </div>
+            <div class="col-span-2">
+              <span class="text-slate-500 block uppercase">Granted Scopes</span>
+              <span class="text-purple-200">memory:read · memory:write · read:graph · exec:deterministic</span>
+            </div>
+          </div>
+
+          <div id="pair-approval-result" class="hidden p-2.5 rounded-lg bg-emerald-950/40 border border-emerald-500/40 text-emerald-200 text-[10px] space-y-1"></div>
+
+          <button type="button" id="btn-approve-device-pair" onclick="window.approveCurrentDevicePairing()" class="w-full py-2 rounded-lg bg-purple-500 hover:bg-purple-400 text-black font-bold text-xs uppercase tracking-wider transition-all cursor-pointer flex items-center justify-center gap-1.5">
+            <span class="material-symbols-outlined text-sm">check_circle</span>
+            <span>Authorize Agent &amp; Issue Scoped Token</span>
+          </button>
+        </div>
+
+        <!-- Step 3: Ready-to-Use MCP Server Config -->
+        <div class="p-3 rounded-xl bg-slate-950 border border-slate-800 space-y-1.5 text-[10px]">
+          <div class="flex items-center justify-between">
+            <span class="text-slate-400 font-bold uppercase">MCP HARNESS CONFIG (`mcpServers.super_cortex`)</span>
+            <button type="button" onclick="navigator.clipboard.writeText(document.getElementById('pair-mcp-config-box').innerText); window.showToast('MCP config copied!')" class="text-cyan-400 hover:underline font-bold cursor-pointer">Copy JSON</button>
+          </div>
+          <pre id="pair-mcp-config-box" class="p-2 rounded bg-black/80 text-[9px] text-cyan-300 overflow-x-auto max-h-32 select-all">{
+  "mcpServers": {
+    "super_cortex": {
+      "command": "/home/xibalba/.local/bin/super-cortex",
+      "args": ["run", "--transport", "stdio"],
+      "env": {
+        "SUPERMEMORY_URL": "http://127.0.0.1:6767",
+        "SUPER_CORTEX_DB_PATH": "/home/xibalba/.super-cortex/provenance.db",
+        "SUPER_CORTEX_DEFAULT_NAMESPACE": "xibalba",
+        "SUPER_CORTEX_ACTOR_DID": "did:integrity:68fed1331613937555a59398223e8e87520a87dd0305aac4fd7ecdc32a14a861"
+      }
+    }
+  }
+}</pre>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <!-- ========================================================================= -->
+  <!-- STRIPE SUBSCRIPTION & RESOURCE BILLING STUDIO (#cortex-billing-overlay)   -->
+  <!-- ========================================================================= -->
+  <div id="cortex-billing-overlay" class="hidden fixed inset-0 z-50 bg-black/85 backdrop-blur-xl flex items-center justify-center p-4 overflow-y-auto font-mono">
+    <div class="max-w-5xl w-full bg-[#090d16] border border-emerald-500/40 rounded-2xl p-6 shadow-[0_24px_80px_rgba(0,0,0,0.95)] space-y-5">
+      <!-- Header -->
+      <div class="flex items-center justify-between pb-3 border-b border-slate-800">
+        <div class="flex items-center gap-3">
+          <span class="w-9 h-9 rounded-xl bg-emerald-500/15 border border-emerald-500/40 flex items-center justify-center text-emerald-300">
+            <span class="material-symbols-outlined text-lg">credit_card</span>
+          </span>
+          <div>
+            <div class="flex items-center gap-2">
+              <h2 class="text-base font-bold text-white uppercase tracking-wider">Subscription, Usage &amp; Stripe Billing</h2>
+              <span id="billing-status-pill" class="px-2 py-0.5 rounded text-[9px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 uppercase">FREE TIER</span>
+            </div>
+            <p id="billing-account-summary" class="text-[10px] text-slate-400">Workspace capacity, monthly reset cycle, and Stripe Checkout / Customer Portal.</p>
+          </div>
+        </div>
+        <div class="flex items-center gap-2">
+          <button onclick="window.openTenantsModal()" class="px-2.5 py-1 rounded bg-slate-900 hover:bg-slate-800 border border-slate-700 text-amber-300 text-[10px] font-bold cursor-pointer">
+            API Keys &amp; Tenants
+          </button>
+          <button onclick="window.closeBillingStudio()" class="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-white hover:bg-slate-800 cursor-pointer">
+            <span class="material-symbols-outlined text-sm">close</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Stripe Return Banner (?billing=success or ?billing=canceled) -->
+      <div id="billing-return-banner" class="hidden p-3 rounded-xl border text-xs font-bold"></div>
+
+      <!-- Top Metrics & Resource Gauges Grid (Aligned with Cortex BillingPage.tsx) -->
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-4">
+        <div class="lg:col-span-3 p-4 rounded-xl bg-slate-950/90 border border-slate-800 flex flex-col justify-between">
+          <div>
+            <span class="text-[9px] text-slate-500 uppercase font-bold tracking-wider">CURRENT TIER</span>
+            <div id="billing-current-plan-name" class="text-2xl font-bold text-white mt-1">Free</div>
+            <span id="billing-current-plan-price" class="text-xs text-emerald-400 font-bold">$0 / month</span>
+          </div>
+          <div class="pt-3 border-t border-slate-800/80 text-[9px] text-slate-400" id="billing-writable-note">
+            Workspace is active and writable.
+          </div>
+        </div>
+
+        <div class="lg:col-span-3 p-4 rounded-xl bg-slate-950/90 border border-slate-800 flex flex-col justify-between">
+          <div>
+            <span class="text-[9px] text-slate-500 uppercase font-bold tracking-wider">BILLING CYCLE</span>
+            <div id="billing-cycle-date" class="text-lg font-bold text-cyan-300 mt-1">Monthly UTC</div>
+            <span id="billing-cycle-meta" class="text-[10px] text-slate-400">Monthly reset</span>
+          </div>
+          <div class="pt-3 border-t border-slate-800/80">
+            <button id="btn-stripe-portal" onclick="window.startStripeFlow('portal', '')" class="w-full py-1.5 px-3 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-200 hover:text-white text-[10px] font-bold uppercase cursor-pointer transition-all">
+              Manage in Stripe Portal
+            </button>
+          </div>
+        </div>
+
+        <div class="lg:col-span-6 p-4 rounded-xl bg-slate-950/90 border border-slate-800 space-y-2.5">
+          <div class="flex items-center justify-between">
+            <span class="text-[9px] text-slate-500 uppercase font-bold tracking-wider">RESOURCE ALLOCATION &amp; MONTHLY USAGE</span>
+            <span id="billing-usage-month" class="text-[9px] text-cyan-400 font-bold">UTC</span>
+          </div>
+          <div id="billing-usage-gauges" class="space-y-2.5 text-xs">
+            <!-- Populated dynamically by window.loadBillingStudioData() -->
+          </div>
+        </div>
+      </div>
+
+      <!-- Approved Plan Catalog Cards (Free $0, Pro $29, Team $149) -->
+      <div>
+        <div class="text-[10px] text-slate-400 uppercase font-bold mb-2.5">APPROVED MONTHLY USD CATALOG</div>
+        <div id="billing-catalog-cards" class="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <!-- Populated dynamically by window.loadBillingStudioData() -->
+        </div>
+        <p id="billing-config-refusal" class="text-[10px] text-amber-300/90 mt-2.5"></p>
+      </div>
+    </div>
+  </div>
+
+
+  <script>
+    // =========================================================================
+    // CORTEX LANDING, AUTH, ZERO-TRUST AGENT PAIRING & STRIPE BILLING CONTROLLER
+    // =========================================================================
+    window.cortexMeState = null;
+    window.cortexPlansCatalog = null;
+    window.currentAuthMode = 'login';
+    window.currentPairCode = null;
+
+    window.consumeBillingReturnBanner = function() {
+      try {
+        const url = new URL(window.location.href);
+        let val = url.searchParams.get('billing') || url.searchParams.get('checkout');
+        if (val === 'success' || val === 'canceled') {
+          url.searchParams.delete('billing');
+          url.searchParams.delete('checkout');
+          window.history.replaceState({}, '', url.pathname + (url.search || '') + url.hash);
+          return val;
+        }
+      } catch (e) {}
+      return null;
+    };
+
+    window.refreshOperatorSessionState = async function() {
+      try {
+        const [meResp, plansResp] = await Promise.all([
+          fetch('/api/managed/me'),
+          fetch('/api/managed/plans')
+        ]);
+        if (plansResp.ok) {
+          window.cortexPlansCatalog = await plansResp.json();
+        }
+        if (meResp.ok) {
+          window.cortexMeState = await meResp.json();
+          const planName = (window.cortexMeState?.entitlement?.plan?.name || 'Free').toUpperCase();
+          const hBadge = document.getElementById('header-plan-tier-badge');
+          if (hBadge) hBadge.innerText = `${planName} TIER`;
+          const pPill = document.getElementById('popover-plan-pill');
+          if (pPill) pPill.innerText = planName;
+        }
+      } catch (err) {
+        console.warn('Could not fetch managed session state:', err);
+      }
+    };
+
+    // 1. Public Product Landing Page
+    window.openLandingOverlay = function() {
+      const el = document.getElementById('cortex-landing-overlay');
+      const pop = document.getElementById('user-profile-popover');
+      if (pop) pop.classList.add('hidden');
+      if (el) {
+        el.classList.remove('hidden');
+        window.loadLandingPlans();
+      }
+    };
+
+    window.closeLandingOverlay = function() {
+      const el = document.getElementById('cortex-landing-overlay');
+      if (el) el.classList.add('hidden');
+      if (window.location.hash === '#landing') {
+        history.replaceState(null, '', window.location.pathname + window.location.search);
+      }
+    };
+
+    window.loadLandingPlans = async function() {
+      const grid = document.getElementById('landing-plans-grid');
+      const note = document.getElementById('landing-billing-note');
+      if (!grid) return;
+      try {
+        if (!window.cortexPlansCatalog) {
+          const r = await fetch('/api/managed/plans');
+          if (r.ok) window.cortexPlansCatalog = await r.json();
+        }
+        const cat = window.cortexPlansCatalog || {
+          plans: [
+            { id: 'free', name: 'Free', monthly_cents: 0, max_memories: 1000, writes_per_month: 250, retrievals_per_month: 1000 },
+            { id: 'pro', name: 'Pro', monthly_cents: 2900, max_memories: 25000, writes_per_month: 5000, retrievals_per_month: 25000 },
+            { id: 'team', name: 'Team', monthly_cents: 14900, max_memories: 250000, writes_per_month: 50000, retrievals_per_month: 250000 }
+          ],
+          billing_configured: false,
+          signup_enabled: true
+        };
+        grid.innerHTML = (cat.plans || []).map(p => {
+          const price = `$${(p.monthly_cents / 100).toFixed(0)} / month`;
+          const isPro = p.id === 'pro';
+          return `
+            <article class="p-6 rounded-xl bg-[#090e1a] border ${isPro ? 'border-cyan-400/60 ring-1 ring-cyan-400/20' : 'border-slate-800'} flex flex-col justify-between space-y-4">
+              <div class="space-y-2">
+                <div class="flex items-center justify-between">
+                  <span class="font-mono text-xs uppercase font-bold ${isPro ? 'text-cyan-300' : 'text-slate-400'}">${p.name}</span>
+                  ${isPro ? '<span class="px-2 py-0.5 rounded text-[9px] font-mono font-bold bg-cyan-500/20 text-cyan-300">POPULAR</span>' : ''}
+                </div>
+                <h3 class="text-3xl font-bold text-white font-mono">${price}</h3>
+                <p class="text-[11px] text-slate-400">USD · monthly subscription</p>
+                <dl class="pt-3 space-y-2 text-xs font-mono border-t border-slate-800/80">
+                  <div class="flex justify-between"><dt class="text-slate-400">Stored memories</dt><dd class="text-white font-bold">${p.max_memories.toLocaleString('en-US')}</dd></div>
+                  <div class="flex justify-between"><dt class="text-slate-400">Write requests / month</dt><dd class="text-white font-bold">${p.writes_per_month.toLocaleString('en-US')}</dd></div>
+                  <div class="flex justify-between"><dt class="text-slate-400">Retrieval requests / month</dt><dd class="text-white font-bold">${p.retrievals_per_month.toLocaleString('en-US')}</dd></div>
+                </dl>
+              </div>
+              <button onclick="window.closeLandingOverlay(); ${p.id === 'free' ? "window.openAuthOverlay('signup')" : "window.openBillingStudio()"}" class="w-full py-2.5 rounded-lg ${isPro ? 'bg-cyan-400 hover:bg-cyan-300 text-black' : 'bg-slate-800 hover:bg-slate-700 text-white'} font-mono font-bold text-xs uppercase tracking-wider transition-all cursor-pointer">
+                ${p.id === 'free' ? 'Start Free' : 'Choose ' + p.name}
+              </button>
+            </article>
+          `;
+        }).join('');
+        if (note) {
+          note.innerText = cat.billing_configured
+            ? 'Stripe Checkout is active. Limits reset monthly in UTC.'
+            : 'Paid subscriptions use Stripe Checkout (configure STRIPE_SECRET_KEY and Price IDs on Render to enable live checkout; Free workspaces are always available).';
+        }
+      } catch (e) {
+        console.error(e);
+      }
+    };
+
+    window.submitLandingContact = async function(e) {
+      e.preventDefault();
+      const form = e.currentTarget;
+      const fd = new FormData(form);
+      const fb = document.getElementById('landing-contact-feedback');
+      try {
+        const r = await fetch('/api/contact', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name: fd.get('name'),
+            email: fd.get('email'),
+            organization: fd.get('organization'),
+            message: fd.get('message')
+          })
+        });
+        const data = await r.json();
+        if (fb) {
+          fb.classList.remove('hidden');
+          if (r.ok) {
+            fb.className = 'p-2.5 rounded bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 text-xs';
+            fb.innerText = data.message || 'Your inquiry has been received.';
+            form.reset();
+          } else {
+            fb.className = 'p-2.5 rounded bg-rose-500/20 border border-rose-500/40 text-rose-300 text-xs';
+            fb.innerText = data.error || 'Submission failed.';
+          }
+        }
+      } catch (err) {
+        if (fb) {
+          fb.classList.remove('hidden');
+          fb.className = 'p-2.5 rounded bg-rose-500/20 border border-rose-500/40 text-rose-300 text-xs';
+          fb.innerText = err.message;
+        }
+      }
+    };
+
+    // 2. Operator Sign In / Create Account / Recovery
+    window.openAuthOverlay = function(mode) {
+      const el = document.getElementById('cortex-auth-overlay');
+      const pop = document.getElementById('user-profile-popover');
+      if (pop) pop.classList.add('hidden');
+      if (el) el.classList.remove('hidden');
+      window.switchAuthMode(mode || 'login');
+    };
+
+    window.closeAuthOverlay = function() {
+      const el = document.getElementById('cortex-auth-overlay');
+      if (el) el.classList.add('hidden');
+    };
+
+    window.switchAuthMode = function(mode) {
+      window.currentAuthMode = mode;
+      const title = document.getElementById('cortex-auth-title');
+      const sub = document.getElementById('cortex-auth-subtitle');
+      const nameWrap = document.getElementById('auth-field-name-wrap');
+      const passWrap = document.getElementById('auth-field-password-wrap');
+      const passInput = document.getElementById('auth-input-password');
+      const forgotBtn = document.getElementById('auth-btn-forgot');
+      const submitLbl = document.getElementById('cortex-auth-submit-label');
+      const backBtn = document.getElementById('auth-back-to-login');
+      const tabLogin = document.getElementById('auth-tab-login');
+      const tabSignup = document.getElementById('auth-tab-signup');
+      const notice = document.getElementById('cortex-auth-notice');
+      if (notice) notice.classList.add('hidden');
+
+      if (tabLogin && tabSignup) {
+        const isLogin = mode === 'login';
+        tabLogin.className = isLogin
+          ? 'py-1.5 rounded-md font-bold bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 cursor-pointer transition-all'
+          : 'py-1.5 rounded-md font-bold text-slate-400 hover:text-white border border-transparent cursor-pointer transition-all';
+        tabSignup.className = mode === 'signup'
+          ? 'py-1.5 rounded-md font-bold bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 cursor-pointer transition-all'
+          : 'py-1.5 rounded-md font-bold text-slate-400 hover:text-white border border-transparent cursor-pointer transition-all';
+      }
+
+      if (mode === 'signup') {
+        if (title) title.innerText = 'Create your Super-Cortex account';
+        if (sub) sub.innerText = 'Provision an isolated operator workspace and API key vault.';
+        if (nameWrap) nameWrap.classList.remove('hidden');
+        if (passWrap) passWrap.classList.remove('hidden');
+        if (passInput) passInput.required = true;
+        if (forgotBtn) forgotBtn.classList.add('hidden');
+        if (submitLbl) submitLbl.innerText = 'Create account';
+        if (backBtn) backBtn.classList.add('hidden');
+      } else if (mode === 'forgot') {
+        if (title) title.innerText = 'Reset your password';
+        if (sub) sub.innerText = 'Enter your account email to request a 30-minute recovery token.';
+        if (nameWrap) nameWrap.classList.add('hidden');
+        if (passWrap) passWrap.classList.add('hidden');
+        if (passInput) passInput.required = false;
+        if (submitLbl) submitLbl.innerText = 'Send reset link';
+        if (backBtn) backBtn.classList.remove('hidden');
+      } else {
+        if (title) title.innerText = 'Welcome back';
+        if (sub) sub.innerText = 'Enter your email and password to continue.';
+        if (nameWrap) nameWrap.classList.add('hidden');
+        if (passWrap) passWrap.classList.remove('hidden');
+        if (passInput) passInput.required = true;
+        if (forgotBtn) forgotBtn.classList.remove('hidden');
+        if (submitLbl) submitLbl.innerText = 'Sign in';
+        if (backBtn) backBtn.classList.add('hidden');
+      }
+    };
+
+    window.connectLocalOperatorQuick = async function() {
+      await window.refreshOperatorSessionState();
+      window.closeAuthOverlay();
+      window.closeLandingOverlay();
+      window.showToast('Connected as Xibalba Executive Operator');
+    };
+
+    window.submitCortexAuthForm = async function(e) {
+      e.preventDefault();
+      const notice = document.getElementById('cortex-auth-notice');
+      const email = document.getElementById('auth-input-email')?.value?.trim() || '';
+      const password = document.getElementById('auth-input-password')?.value || '';
+      const displayName = document.getElementById('auth-input-name')?.value?.trim() || '';
+
+      try {
+        if (window.currentAuthMode === 'forgot') {
+          const r = await fetch('/api/managed/recovery/request', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email })
+          });
+          const data = await r.json();
+          if (notice) {
+            notice.classList.remove('hidden');
+            notice.className = 'p-2.5 rounded-lg border border-emerald-500/40 bg-emerald-500/15 text-emerald-300 text-xs';
+            notice.innerText = data.message || 'Recovery instructions sent.';
+          }
+          return;
+        }
+
+        const endpoint = window.currentAuthMode === 'signup' ? '/api/managed/signup' : '/api/managed/login';
+        const r = await fetch(endpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, password, display_name: displayName })
+        });
+        const data = await r.json();
+        if (!r.ok) {
+          throw new Error(data.error || 'Authentication failed');
+        }
+        await window.refreshOperatorSessionState();
+        window.closeAuthOverlay();
+        window.closeLandingOverlay();
+        window.showToast(`Signed in as ${data.account?.display_name || email}`);
+      } catch (err) {
+        if (notice) {
+          notice.classList.remove('hidden');
+          notice.className = 'p-2.5 rounded-lg border border-rose-500/40 bg-rose-500/15 text-rose-300 text-xs';
+          notice.innerText = err.message;
+        }
+      }
+    };
+
+    window.handleLogout = async function() {
+      try {
+        await fetch('/api/managed/logout', { method: 'POST' });
+      } catch (e) {}
+      const pop = document.getElementById('user-profile-popover');
+      if (pop) pop.classList.add('hidden');
+      window.openAuthOverlay('login');
+      window.showToast('Session signed out');
+    };
+
+    // 3. Zero-Trust Agent Device Pairing & MCP Auth
+    window.openDevicePairModal = function(prefillCode) {
+      const el = document.getElementById('cortex-pair-overlay');
+      const pop = document.getElementById('user-profile-popover');
+      if (pop) pop.classList.add('hidden');
+      if (el) el.classList.remove('hidden');
+      if (prefillCode) {
+        const inp = document.getElementById('pair-code-input');
+        if (inp) inp.value = prefillCode;
+        window.lookupDevicePairCode();
+      }
+    };
+
+    window.closeDevicePairModal = function() {
+      const el = document.getElementById('cortex-pair-overlay');
+      if (el) el.classList.add('hidden');
+    };
+
+    window.generateSimulatedPairingCode = async function() {
+      try {
+        const r = await fetch('/api/managed/device/pair/request', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            device_id: 'workstation-linux',
+            device_name: 'Xibalba Linux Workstation',
+            agent_did: 'did:integrity:68fed1331613937555a59398223e8e87520a87dd0305aac4fd7ecdc32a14a861',
+            agent_name: 'super_cortex'
+          })
+        });
+        const data = await r.json();
+        if (data.user_code) {
+          const inp = document.getElementById('pair-code-input');
+          if (inp) inp.value = data.user_code;
+          await window.lookupDevicePairCode();
+          window.showToast(`Generated pairing code: ${data.user_code}`);
+        }
+      } catch (err) {
+        window.showToast('Error generating pairing code: ' + err.message);
+      }
+    };
+
+    window.lookupDevicePairCode = async function() {
+      const code = document.getElementById('pair-code-input')?.value?.trim();
+      if (!code) return;
+      try {
+        const r = await fetch(`/api/managed/device/pair/${encodeURIComponent(code)}`);
+        const data = await r.json();
+        if (!r.ok) throw new Error(data.error || 'Code not found');
+        document.getElementById('pair-detail-device').innerText = `${data.device_name} (${data.device_id})`;
+        document.getElementById('pair-detail-agent').innerText = data.agent_name;
+        document.getElementById('pair-detail-did').innerText = data.agent_did;
+      } catch (err) {
+        window.showToast(err.message);
+      }
+    };
+
+    window.approveCurrentDevicePairing = async function() {
+      let code = document.getElementById('pair-code-input')?.value?.trim();
+      if (!code) {
+        await window.generateSimulatedPairingCode();
+        code = document.getElementById('pair-code-input')?.value?.trim();
+      }
+      if (!code) return;
+      const resBox = document.getElementById('pair-approval-result');
+      try {
+        const r = await fetch(`/api/managed/device/pair/${encodeURIComponent(code)}/approve`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' }
+        });
+        const data = await r.json();
+        if (!r.ok) throw new Error(data.error || 'Approval failed');
+        if (resBox) {
+          resBox.classList.remove('hidden');
+          resBox.innerHTML = `
+            <div class="font-bold text-emerald-300">✓ Agent Authorized &amp; Bound to Workspace</div>
+            <div>Issued Scoped Token: <code class="text-white select-all font-bold">${data.token}</code></div>
+          `;
+        }
+        window.showToast('Agent device authorized!');
+      } catch (err) {
+        if (resBox) {
+          resBox.classList.remove('hidden');
+          resBox.innerHTML = `<div class="text-rose-400 font-bold">${err.message}</div>`;
+        }
+      }
+    };
+
+    // 4. Stripe Subscription & Billing Studio
+    window.openBillingStudio = function() {
+      const el = document.getElementById('cortex-billing-overlay');
+      const pop = document.getElementById('user-profile-popover');
+      if (pop) pop.classList.add('hidden');
+      if (el) {
+        el.classList.remove('hidden');
+        window.loadBillingStudioData();
+      }
+    };
+
+    window.closeBillingStudio = function() {
+      const el = document.getElementById('cortex-billing-overlay');
+      if (el) el.classList.add('hidden');
+    };
+
+    window.loadBillingStudioData = async function() {
+      await window.refreshOperatorSessionState();
+      const me = window.cortexMeState;
+      const cat = window.cortexPlansCatalog;
+      if (!me || !cat) return;
+
+      const ent = me.entitlement || { plan: { id: 'free', name: 'Free', monthly_cents: 0, max_memories: 1000, writes_per_month: 250, retrievals_per_month: 1000 }, status: 'free', writable: true };
+      const plan = ent.plan;
+      const used = me.usage?.used || { memories: 0, writes: 0, retrievals: 0 };
+
+      const statusPill = document.getElementById('billing-status-pill');
+      if (statusPill) statusPill.innerText = ent.status === 'free' ? 'FREE TIER' : ent.status.toUpperCase();
+
+      const summaryEl = document.getElementById('billing-account-summary');
+      if (summaryEl) summaryEl.innerText = `${me.account?.display_name || 'Operator'} (${me.account?.email || ''}) · Workspace ${me.tenant_id}`;
+
+      const nameEl = document.getElementById('billing-current-plan-name');
+      if (nameEl) nameEl.innerText = plan.name;
+
+      const priceEl = document.getElementById('billing-current-plan-price');
+      if (priceEl) priceEl.innerText = `$${(plan.monthly_cents / 100).toFixed(0)} / month`;
+
+      const writableEl = document.getElementById('billing-writable-note');
+      if (writableEl) {
+        writableEl.innerText = ent.writable
+          ? '✓ Workspace is active and writable.'
+          : '⚠ This workspace is read-only. Existing memories remain available to read and export.';
+      }
+
+      const cycleDateEl = document.getElementById('billing-cycle-date');
+      const cycleMetaEl = document.getElementById('billing-cycle-meta');
+      if (cycleDateEl) {
+        cycleDateEl.innerText = ent.period_end
+          ? new Date(ent.period_end * 1000).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+          : `${me.usage?.month || 'Current'} UTC`;
+      }
+      if (cycleMetaEl) {
+        cycleMetaEl.innerText = ent.cancel_at_period_end
+          ? 'Cancels at period end'
+          : ent.period_end
+          ? 'Automatic Stripe renewal'
+          : 'Monthly UTC reset';
+      }
+
+      const monthEl = document.getElementById('billing-usage-month');
+      if (monthEl) monthEl.innerText = `${me.usage?.month || ''} UTC`;
+
+      // Render Resource Allocation & Usage Gauges
+      const gaugesEl = document.getElementById('billing-usage-gauges');
+      if (gaugesEl) {
+        const meters = [
+          { label: 'Stored memories', used: used.memories || 0, limit: plan.max_memories || 1000 },
+          { label: 'Write requests / month', used: used.writes || 0, limit: plan.writes_per_month || 250 },
+          { label: 'Retrieval requests / month', used: used.retrievals || 0, limit: plan.retrievals_per_month || 1000 }
+        ];
+        gaugesEl.innerHTML = meters.map(m => {
+          const pct = Math.min(100, Math.round((m.used / Math.max(1, m.limit)) * 100));
+          const barColor = pct >= 100 ? 'bg-rose-500' : pct >= 80 ? 'bg-amber-400' : 'bg-emerald-400';
+          return `
+            <div class="space-y-1">
+              <div class="flex justify-between text-[10px]">
+                <span class="text-slate-300">${m.label}</span>
+                <span class="text-white font-bold">${m.used.toLocaleString('en-US')} / ${m.limit.toLocaleString('en-US')} (${pct}%)</span>
+              </div>
+              <div class="w-full h-2 rounded-full bg-slate-900 overflow-hidden border border-slate-800" role="progressbar" aria-valuenow="${pct}" aria-valuemin="0" aria-valuemax="100">
+                <div class="h-full ${barColor} transition-all duration-300" style="width: ${pct}%"></div>
+              </div>
+            </div>
+          `;
+        }).join('');
+      }
+
+      // Render Plan Cards
+      const cardsEl = document.getElementById('billing-catalog-cards');
+      if (cardsEl) {
+        cardsEl.innerHTML = (cat.plans || []).map(p => {
+          const isCurrent = p.id === plan.id;
+          const price = `$${(p.monthly_cents / 100).toFixed(0)} / month`;
+          let actionLabel = 'Current plan';
+          let actionKind = '';
+          if (!isCurrent) {
+            if (plan.id === 'free' && (p.id === 'pro' || p.id === 'team')) {
+              actionLabel = `Upgrade to ${p.name}`;
+              actionKind = 'checkout';
+            } else {
+              actionLabel = 'Change in Billing Portal';
+              actionKind = 'portal';
+            }
+          }
+          return `
+            <section class="p-4 rounded-xl bg-slate-950/90 border ${isCurrent ? 'border-emerald-400/60 ring-1 ring-emerald-400/20' : 'border-slate-800'} flex flex-col justify-between space-y-3">
+              <div class="space-y-2">
+                <div class="flex items-center justify-between">
+                  <span class="text-xs font-bold uppercase ${isCurrent ? 'text-emerald-300' : 'text-slate-400'}">${p.name}</span>
+                  ${isCurrent ? '<span class="px-2 py-0.5 rounded text-[8px] font-bold bg-emerald-500/20 text-emerald-300 uppercase">CURRENT</span>' : ''}
+                </div>
+                <div class="text-2xl font-bold text-white">${price}</div>
+                <dl class="space-y-1 text-[10px] pt-2 border-t border-slate-800/80">
+                  <div class="flex justify-between"><dt class="text-slate-400">Stored memories</dt><dd class="text-white font-bold">${p.max_memories.toLocaleString('en-US')}</dd></div>
+                  <div class="flex justify-between"><dt class="text-slate-400">Write requests / month</dt><dd class="text-white font-bold">${p.writes_per_month.toLocaleString('en-US')}</dd></div>
+                  <div class="flex justify-between"><dt class="text-slate-400">Retrieval requests / month</dt><dd class="text-white font-bold">${p.retrievals_per_month.toLocaleString('en-US')}</dd></div>
+                </dl>
+              </div>
+              <button
+                type="button"
+                ${isCurrent ? 'disabled' : `onclick="window.startStripeFlow('${actionKind}', '${p.id}')"`}
+                class="w-full py-2 rounded-lg font-bold text-[10px] uppercase tracking-wider transition-all ${isCurrent ? 'bg-slate-900 text-slate-500 cursor-default' : 'bg-emerald-400 hover:bg-emerald-300 text-black cursor-pointer'}"
+              >
+                ${actionLabel}
+              </button>
+            </section>
+          `;
+        }).join('');
+      }
+
+      const refusalEl = document.getElementById('billing-config-refusal');
+      if (refusalEl) {
+        refusalEl.innerText = me.billing_configured
+          ? 'Stripe billing gateway is active (API 2025-06-30.basil).'
+          : 'Note: Paid Stripe Checkout requires live/test STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET, and Price IDs configured in environment variables.';
+      }
+    };
+
+    window.startStripeFlow = async function(kind, planId) {
+      if (!kind) return;
+      try {
+        const endpoint = kind === 'checkout' ? '/api/managed/checkout' : '/api/managed/portal';
+        const r = await fetch(endpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(kind === 'checkout' ? { plan: planId } : {})
+        });
+        const data = await r.json();
+        if (!r.ok) throw new Error(data.error || 'Stripe request refused');
+        if (data.url && data.url.startsWith('https://')) {
+          window.location.assign(data.url);
+        }
+      } catch (err) {
+        window.showToast(err.message);
+      }
+    };
+
+    // Route URL hashes & query parameters on startup
+    window.addEventListener('DOMContentLoaded', () => {
+      window.refreshOperatorSessionState();
+      const billingResult = window.consumeBillingReturnBanner();
+      if (billingResult) {
+        window.openBillingStudio();
+        const banner = document.getElementById('billing-return-banner');
+        if (banner) {
+          banner.classList.remove('hidden');
+          banner.className = billingResult === 'success'
+            ? 'p-3 rounded-xl border border-emerald-500/40 bg-emerald-500/15 text-emerald-300 text-xs font-bold'
+            : 'p-3 rounded-xl border border-amber-500/40 bg-amber-500/15 text-amber-300 text-xs font-bold';
+          banner.innerText = billingResult === 'success'
+            ? '✓ Checkout completed. Your subscription will update as soon as Stripe confirms payment.'
+            : 'Checkout was canceled; your workspace plan was not changed.';
+        }
+      }
+      const params = new URLSearchParams(window.location.search);
+      const pairCode = params.get('pair_code') || params.get('code');
+      const h = window.location.hash;
+      if (pairCode || h.startsWith('#pair')) {
+        window.openDevicePairModal(pairCode || '');
+      } else if (h === '#landing') {
+        window.openLandingOverlay();
+      } else if (h === '#login' || h === '#signin') {
+        window.openAuthOverlay('login');
+      } else if (h === '#signup') {
+        window.openAuthOverlay('signup');
+      } else if (h === '#billing') {
+        window.openBillingStudio();
+      }
+    });
+  </script>
+
 </body>
 </html>

@@ -97,7 +97,7 @@ class SuperCortex:
         # Map namespace: single-agent scopes use clean identifier
         if not namespace:
             if effective_scope == "shared":
-                ns = self.config.default_namespace
+                ns = self.config.shared_namespace
             else:
                 ns = effective_scope.replace(":", "-")
         else:
@@ -241,7 +241,7 @@ class SuperCortex:
         # Resolve target namespace from scope or agent
         if not namespace:
             if scope and scope != "all":
-                ns = self.config.default_namespace if scope == "shared" else scope.replace(":", "-")
+                ns = self.config.shared_namespace if scope == "shared" else scope.replace(":", "-")
             elif agent_id:
                 ns = f"agent-{agent_id}"
             else:
