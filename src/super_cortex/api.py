@@ -1316,6 +1316,32 @@ def create_app(config: SuperCortexConfig | None = None) -> Starlette:
             }
         })
 
+    async def api_canvas_profile(request: Request) -> JSONResponse:
+        """Retrieves or saves persistent canvas studio profiles and active configuration."""
+        profile_file = cfg.db_path.parent / "canvas_profiles.json"
+        if request.method == "GET":
+            if profile_file.exists():
+                try:
+                    data = json.loads(profile_file.read_text(encoding="utf-8"))
+                    return JSONResponse(data)
+                except Exception as e:
+                    logger.warning("Failed to parse canvas_profiles.json: %s", e)
+            return JSONResponse({
+                "status": "default",
+                "active_profile": "deep_void",
+                "custom_profiles": {},
+                "config": None
+            })
+        elif request.method == "POST":
+            try:
+                body = await request.json()
+                profile_file.parent.mkdir(parents=True, exist_ok=True)
+                profile_file.write_text(json.dumps(body, indent=2), encoding="utf-8")
+                return JSONResponse({"status": "saved", "active_profile": body.get("active_profile", "deep_void")})
+            except Exception as e:
+                logger.error("Failed to save canvas profile: %s", e)
+                return JSONResponse({"status": "error", "message": str(e)}, status_code=500)
+
     routes = [
         Route("/api/status", api_status, methods=["GET"]),
         Route("/api/graph", api_graph, methods=["GET"]),
@@ -1353,6 +1379,7 @@ def create_app(config: SuperCortexConfig | None = None) -> Starlette:
         Route("/api/audit", api_audit, methods=["GET"]),
         Route("/api/spectral", api_spectral, methods=["GET"]),
         Route("/api/profile", api_profile, methods=["GET", "POST"]),
+        Route("/api/config/canvas-profile", api_canvas_profile, methods=["GET", "POST"]),
         Route("/api/namespaces", api_namespaces, methods=["GET"]),
         Route("/api/providers", api_providers_list, methods=["GET"]),
         Route("/api/providers", api_providers_save, methods=["POST"]),

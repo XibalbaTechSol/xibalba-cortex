@@ -767,6 +767,12 @@
         <span class="text-[10px] font-bold tracking-wider hidden xl:inline">CANVAS</span>
       </button>
 
+      <!-- Canvas Studio Active Profile Indicator -->
+      <button onclick="window.toggleCanvasCustomizer()" id="header-canvas-profile-badge" class="h-7 px-2 rounded-lg hidden xl:flex items-center gap-1.5 bg-slate-900/90 hover:bg-slate-800 border border-outline-variant/40 hover:border-cyan-400/50 text-cyan-300 font-mono text-[9px] transition-all cursor-pointer" title="Active Canvas Studio Profile (Click to open studio)">
+        <span class="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse"></span>
+        <span id="header-active-profile-name" class="font-bold tracking-wider truncate max-w-[110px]">DEEP VOID</span>
+      </button>
+
       <!-- Spectral Math Drawer Toggle -->
       <button onclick="window.toggleSpectralDockDrawer()" id="btn-header-spectral" class="w-7 h-7 rounded-lg flex items-center justify-center bg-slate-900/90 hover:bg-slate-800 border border-cyan-500/30 hover:border-cyan-400 text-cyan-300 transition-all cursor-pointer relative" title="Toggle Spectral Math & Eigenmap Drawer (S)">
         <span class="material-symbols-outlined text-[15px]">scatter_plot</span>
@@ -3037,31 +3043,87 @@
     <!-- Tab Panels Body (Zero cutoffs, dense cyber layout) -->
     <div class="p-2.5 overflow-y-auto flex-1 text-[9px] space-y-2">
       <!-- ================= TAB 1: THEMES & ATMOSPHERE ================= -->
-      <div id="studio-panel-themes" class="space-y-2">
-        <div class="text-[8px] text-cyan-300 font-bold uppercase tracking-wider">ONE-CLICK ATMOSPHERIC PRESETS</div>
-        <div class="grid grid-cols-2 gap-1">
-          <button onclick="applyCanvasPreset('deep_void')" class="p-1.5 rounded-lg bg-surface-container-high/80 hover:bg-cyan-500/20 border border-cyan-500/30 text-left transition-all cursor-pointer group">
+      <div id="studio-panel-themes" class="space-y-2.5">
+        <!-- Profile Manager & Quick Selector -->
+        <div class="p-2 bg-surface-container-low/90 rounded-lg border border-outline-variant/30 space-y-2">
+          <div class="flex items-center justify-between">
+            <span class="text-[8px] text-cyan-300 font-bold uppercase tracking-wider flex items-center gap-1">
+              <span class="material-symbols-outlined text-[11px]">bookmarks</span>
+              <span>ACTIVE STUDIO PROFILE</span>
+            </span>
+            <span id="studio-profile-sync-badge" class="text-[7.5px] font-mono px-1 py-0.2 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">SYNCED</span>
+          </div>
+
+          <!-- Profile Dropdown & Quick Actions -->
+          <div class="flex items-center gap-1">
+            <select id="studio-profile-select" onchange="onStudioProfileSelect(this.value)" class="flex-1 bg-[#0b1220] border border-cyan-500/40 text-cyan-300 text-[9px] rounded px-1.5 py-1 font-mono outline-none truncate" title="Select or switch active studio profile">
+              <!-- Populated dynamically -->
+            </select>
+            <button onclick="promptSaveCustomProfile()" id="btn-save-profile" class="px-2 py-1 rounded bg-cyan-500/20 hover:bg-cyan-500/30 border border-cyan-400/50 text-cyan-300 text-[8.5px] font-bold flex items-center gap-1 shrink-0 transition-all cursor-pointer" title="Save current canvas settings as a new custom profile">
+              <span class="material-symbols-outlined text-[10px]">add</span>
+              <span>SAVE AS</span>
+            </button>
+          </div>
+
+          <!-- Custom Profile Inline Management (Visible when custom profile selected) -->
+          <div id="studio-custom-profile-actions" class="hidden flex items-center justify-between gap-1 pt-0.5 border-t border-outline-variant/20 text-[8px]">
+            <span class="text-slate-400 truncate">Custom Profile</span>
+            <div class="flex items-center gap-1">
+              <button onclick="overwriteActiveCustomProfile()" class="px-1.5 py-0.5 rounded bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-400/40 font-bold transition-all cursor-pointer" title="Update active custom profile with current adjustments">UPDATE</button>
+              <button onclick="deleteActiveCustomProfile()" class="px-1.5 py-0.5 rounded bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 border border-rose-400/40 font-bold transition-all cursor-pointer" title="Delete this custom profile">DELETE</button>
+            </div>
+          </div>
+
+          <!-- Backup & Migration (Export / Import JSON) -->
+          <div class="flex items-center justify-between text-[7.5px] text-slate-400 pt-1 border-t border-outline-variant/20">
+            <span>PROFILES BACKUP</span>
+            <div class="flex items-center gap-1.5">
+              <button onclick="exportCanvasProfilesJSON()" class="hover:text-cyan-300 underline cursor-pointer">EXPORT JSON</button>
+              <span>·</span>
+              <label class="hover:text-cyan-300 underline cursor-pointer">
+                IMPORT JSON
+                <input type="file" accept=".json" onchange="importCanvasProfilesJSON(event)" class="hidden">
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <!-- Curated Atmospheric Presets Grid (7 presets) -->
+        <div class="text-[8px] text-cyan-300 font-bold uppercase tracking-wider flex items-center justify-between">
+          <span>CURATED THEMES (7 PRESETS)</span>
+          <span class="text-[7.5px] text-slate-400 font-normal">Instant Switch</span>
+        </div>
+        <div class="grid grid-cols-2 gap-1" id="curated-presets-grid">
+          <button onclick="applyCanvasPreset('deep_void')" id="preset-card-deep_void" class="p-1.5 rounded-lg bg-surface-container-high/80 hover:bg-cyan-500/20 border border-cyan-500/30 text-left transition-all cursor-pointer group">
             <div class="font-bold text-white text-[8.5px] group-hover:text-cyan-300">🛰️ DEEP VOID</div>
-            <div class="text-[7.5px] text-slate-400">Cyan grid on dark void</div>
+            <div class="text-[7.5px] text-slate-400">Cyan grid on dark obsidian</div>
           </button>
-          <button onclick="applyCanvasPreset('obsidian_cyber')" class="p-1.5 rounded-lg bg-surface-container-high/80 hover:bg-emerald-500/20 border border-emerald-500/30 text-left transition-all cursor-pointer group">
+          <button onclick="applyCanvasPreset('obsidian_cyber')" id="preset-card-obsidian_cyber" class="p-1.5 rounded-lg bg-surface-container-high/80 hover:bg-emerald-500/20 border border-emerald-500/30 text-left transition-all cursor-pointer group">
             <div class="font-bold text-white text-[8.5px] group-hover:text-emerald-300">⚡ OBSIDIAN</div>
-            <div class="text-[7.5px] text-slate-400">Carbon black &amp; green</div>
+            <div class="text-[7.5px] text-slate-400">Carbon black &amp; mint</div>
           </button>
-          <button onclick="applyCanvasPreset('cosmic_nebula')" class="p-1.5 rounded-lg bg-surface-container-high/80 hover:bg-purple-500/20 border border-purple-500/30 text-left transition-all cursor-pointer group">
+          <button onclick="applyCanvasPreset('cosmic_nebula')" id="preset-card-cosmic_nebula" class="p-1.5 rounded-lg bg-surface-container-high/80 hover:bg-purple-500/20 border border-purple-500/30 text-left transition-all cursor-pointer group">
             <div class="font-bold text-white text-[8.5px] group-hover:text-purple-300">🌌 NEBULA</div>
             <div class="text-[7.5px] text-slate-400">Violet void, pink aura</div>
           </button>
-          <button onclick="applyCanvasPreset('paper_blueprint')" class="p-1.5 rounded-lg bg-surface-container-high/80 hover:bg-sky-500/20 border border-sky-500/30 text-left transition-all cursor-pointer group">
+          <button onclick="applyCanvasPreset('paper_blueprint')" id="preset-card-paper_blueprint" class="p-1.5 rounded-lg bg-surface-container-high/80 hover:bg-sky-500/20 border border-sky-500/30 text-left transition-all cursor-pointer group">
             <div class="font-bold text-white text-[8.5px] group-hover:text-sky-300">📐 BLUEPRINT</div>
             <div class="text-[7.5px] text-slate-400">Navy slate &amp; white</div>
           </button>
-          <button onclick="applyCanvasPreset('solaris_core')" class="col-span-2 p-1.5 rounded-lg bg-surface-container-high/80 hover:bg-amber-500/20 border border-amber-500/30 text-left transition-all cursor-pointer group flex items-center justify-between">
+          <button onclick="applyCanvasPreset('solaris_core')" id="preset-card-solaris_core" class="p-1.5 rounded-lg bg-surface-container-high/80 hover:bg-amber-500/20 border border-amber-500/30 text-left transition-all cursor-pointer group">
+            <div class="font-bold text-white text-[8.5px] group-hover:text-amber-300">☀️ SOLARIS</div>
+            <div class="text-[7.5px] text-slate-400">Amber solar gold</div>
+          </button>
+          <button onclick="applyCanvasPreset('high_contrast_dark')" id="preset-card-high_contrast_dark" class="p-1.5 rounded-lg bg-surface-container-high/80 hover:bg-cyan-500/20 border border-outline-variant/40 text-left transition-all cursor-pointer group">
+            <div class="font-bold text-white text-[8.5px] group-hover:text-cyan-300">🎯 HIGH CONTRAST</div>
+            <div class="text-[7.5px] text-slate-400">Pure black, 1.2x voxels</div>
+          </button>
+          <button onclick="applyCanvasPreset('stealth_monochrome')" id="preset-card-stealth_monochrome" class="col-span-2 p-1.5 rounded-lg bg-surface-container-high/80 hover:bg-slate-500/20 border border-outline-variant/40 text-left transition-all cursor-pointer group flex items-center justify-between">
             <div>
-              <div class="font-bold text-white text-[8.5px] group-hover:text-amber-300">☀️ SOLARIS CORE</div>
-              <div class="text-[7.5px] text-slate-400">Amber solar gold coordinate grid</div>
+              <div class="font-bold text-white text-[8.5px] group-hover:text-slate-300">🕶️ STEALTH MONOCHROME</div>
+              <div class="text-[7.5px] text-slate-400">Low-fatigue graphite void with zinc lattice</div>
             </div>
-            <span class="text-[10px]">🔥</span>
+            <span class="text-[10px]">◼️</span>
           </button>
         </div>
 
@@ -7201,18 +7263,328 @@
         levitationAmplitude: 0.0,
         voxelScale: 1.0,
         innerCoreSpin: 'hubs_only'
+      },
+      high_contrast_dark: {
+        preset: 'high_contrast_dark',
+        bgColor: '#000000',
+        fogEnabled: true,
+        fogColor: '#000000',
+        fogDensity: 0.0015,
+        stardustEnabled: true,
+        stardustColor: '#00ffff',
+        stardustOpacity: 0.50,
+        gridVisible: true,
+        gridMode: 'both',
+        gridThickness: 'crisp',
+        gridPrimaryColor: '#00ffff',
+        gridPrimaryOpacity: 0.60,
+        gridDivisionColor: '#334155',
+        gridDivisionOpacity: 0.30,
+        gridYOffset: 0,
+        axisGuidesVisible: true,
+        ambientIntensity: 0.95,
+        dirLightIntensity: 2.8,
+        sunCoronaEnabled: true,
+        sunCoronaColor: '#00ffff',
+        levitationAmplitude: 0.0,
+        voxelScale: 1.2,
+        innerCoreSpin: 'hubs_only'
+      },
+      stealth_monochrome: {
+        preset: 'stealth_monochrome',
+        bgColor: '#0b0f17',
+        fogEnabled: true,
+        fogColor: '#0b0f17',
+        fogDensity: 0.0020,
+        stardustEnabled: true,
+        stardustColor: '#a1a1aa',
+        stardustOpacity: 0.25,
+        gridVisible: true,
+        gridMode: 'both',
+        gridThickness: 'hairline',
+        gridPrimaryColor: '#71717a',
+        gridPrimaryOpacity: 0.35,
+        gridDivisionColor: '#27272a',
+        gridDivisionOpacity: 0.18,
+        gridYOffset: 0,
+        axisGuidesVisible: true,
+        ambientIntensity: 0.70,
+        dirLightIntensity: 2.0,
+        sunCoronaEnabled: true,
+        sunCoronaColor: '#94a3b8',
+        levitationAmplitude: 0.0,
+        voxelScale: 1.0,
+        innerCoreSpin: 'hubs_only'
       }
     };
 
     window.canvasConfig = Object.assign({}, DEFAULT_CANVAS_CONFIG);
-    try {
-      const saved = localStorage.getItem('cortex_canvas_config_v1');
-      if (saved) Object.assign(window.canvasConfig, JSON.parse(saved));
-    } catch (e) {}
+    window.activeCanvasProfileId = 'deep_void';
+    window.canvasCustomProfiles = {};
+    let canvasSaveDebounceTimer = null;
+
+    // Load profiles from LocalStorage and Remote API
+    async function initCanvasProfiles() {
+      // 1. Hydrate from LocalStorage immediately for 0ms lag
+      try {
+        const localCustom = localStorage.getItem('cortex_canvas_custom_profiles_v1');
+        if (localCustom) {
+          window.canvasCustomProfiles = JSON.parse(localCustom);
+        }
+        const localActive = localStorage.getItem('cortex_canvas_active_profile_v1');
+        if (localActive) {
+          window.activeCanvasProfileId = localActive;
+        }
+        const localCfg = localStorage.getItem('cortex_canvas_config_v1');
+        if (localCfg) {
+          Object.assign(window.canvasConfig, JSON.parse(localCfg));
+        }
+      } catch (e) {
+        console.warn("Error reading local canvas config:", e);
+      }
+
+      // Apply immediate configuration to canvas
+      applyCanvasConfig(window.canvasConfig);
+      renderProfileSelectorUI();
+
+      // 2. Fetch server-side profile configuration
+      try {
+        const res = await fetch('/api/config/canvas-profile');
+        if (res.ok) {
+          const data = await res.json();
+          if (data && data.custom_profiles) {
+            window.canvasCustomProfiles = Object.assign({}, window.canvasCustomProfiles, data.custom_profiles);
+          }
+          if (data && data.active_profile) {
+            window.activeCanvasProfileId = data.active_profile;
+          }
+          if (data && data.config) {
+            Object.assign(window.canvasConfig, data.config);
+            applyCanvasConfig(window.canvasConfig);
+          }
+          renderProfileSelectorUI();
+        }
+      } catch (err) {
+        console.warn("Could not sync remote canvas profile:", err);
+      }
+    }
+    window.initCanvasProfiles = initCanvasProfiles;
+
+    function renderProfileSelectorUI() {
+      const select = document.getElementById('studio-profile-select');
+      const customActions = document.getElementById('studio-custom-profile-actions');
+      const headerBadge = document.getElementById('header-active-profile-name');
+      const syncBadge = document.getElementById('studio-profile-sync-badge');
+
+      // Update Header Profile Badge
+      let profileDisplayName = window.activeCanvasProfileId.toUpperCase().replace(/_/g, ' ');
+      if (window.canvasCustomProfiles[window.activeCanvasProfileId]) {
+        profileDisplayName = window.canvasCustomProfiles[window.activeCanvasProfileId].name.toUpperCase();
+      }
+      if (headerBadge) {
+        headerBadge.innerText = profileDisplayName;
+      }
+
+      // Highlight matching preset card if any
+      const allPresets = ['deep_void', 'obsidian_cyber', 'cosmic_nebula', 'paper_blueprint', 'solaris_core', 'high_contrast_dark', 'stealth_monochrome'];
+      allPresets.forEach(p => {
+        const card = document.getElementById(`preset-card-${p}`);
+        if (card) {
+          const isActive = (window.activeCanvasProfileId === p);
+          card.classList.toggle('ring-1', isActive);
+          card.classList.toggle('ring-cyan-400', isActive);
+          card.classList.toggle('bg-cyan-500/25', isActive);
+        }
+      });
+
+      // Populate Dropdown
+      if (select) {
+        let html = '<optgroup label="⚡ CURATED PRESETS">';
+        allPresets.forEach(p => {
+          const pName = p.replace(/_/g, ' ').toUpperCase();
+          html += `<option value="${p}">${pName}</option>`;
+        });
+        html += '</optgroup>';
+
+        const customKeys = Object.keys(window.canvasCustomProfiles);
+        if (customKeys.length > 0) {
+          html += '<optgroup label="⭐ CUSTOM PROFILES">';
+          customKeys.forEach(k => {
+            const prof = window.canvasCustomProfiles[k];
+            html += `<option value="${k}">${escapeHtml(prof.name)}</option>`;
+          });
+          html += '</optgroup>';
+        }
+
+        select.innerHTML = html;
+        select.value = window.activeCanvasProfileId;
+      }
+
+      // Show/hide custom actions
+      const isCustom = Boolean(window.canvasCustomProfiles[window.activeCanvasProfileId]);
+      if (customActions) {
+        customActions.classList.toggle('hidden', !isCustom);
+      }
+    }
+
+    function onStudioProfileSelect(profileId) {
+      if (!profileId) return;
+      window.activeCanvasProfileId = profileId;
+
+      if (CANVAS_PRESETS[profileId]) {
+        window.canvasConfig = Object.assign({}, window.canvasConfig, CANVAS_PRESETS[profileId]);
+      } else if (window.canvasCustomProfiles[profileId]) {
+        window.canvasConfig = Object.assign({}, window.canvasConfig, window.canvasCustomProfiles[profileId].config);
+      }
+
+      applyCanvasConfig(window.canvasConfig);
+      persistCanvasProfileData();
+      renderProfileSelectorUI();
+    }
+    window.onStudioProfileSelect = onStudioProfileSelect;
+
+    function promptSaveCustomProfile() {
+      const defaultName = `Custom Profile ${Object.keys(window.canvasCustomProfiles).length + 1}`;
+      const name = prompt("Enter a name for this Custom Canvas Studio Profile:", defaultName);
+      if (!name || !name.trim()) return;
+
+      const profileId = 'custom_' + Date.now().toString(36);
+      window.canvasCustomProfiles[profileId] = {
+        id: profileId,
+        name: name.trim(),
+        created_at: new Date().toISOString(),
+        config: Object.assign({}, window.canvasConfig, { preset: profileId })
+      };
+      window.activeCanvasProfileId = profileId;
+      window.canvasConfig.preset = profileId;
+
+      persistCanvasProfileData();
+      renderProfileSelectorUI();
+    }
+    window.promptSaveCustomProfile = promptSaveCustomProfile;
+
+    function overwriteActiveCustomProfile() {
+      if (!window.canvasCustomProfiles[window.activeCanvasProfileId]) return;
+      const prof = window.canvasCustomProfiles[window.activeCanvasProfileId];
+      prof.config = Object.assign({}, window.canvasConfig);
+      prof.updated_at = new Date().toISOString();
+      persistCanvasProfileData();
+      renderProfileSelectorUI();
+
+      const syncBadge = document.getElementById('studio-profile-sync-badge');
+      if (syncBadge) {
+        syncBadge.innerText = 'SAVED!';
+        syncBadge.className = 'text-[7.5px] font-mono px-1 py-0.2 rounded bg-cyan-500/20 text-cyan-300 border border-cyan-400/50';
+        setTimeout(() => {
+          syncBadge.innerText = 'SYNCED';
+          syncBadge.className = 'text-[7.5px] font-mono px-1 py-0.2 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/30';
+        }, 1500);
+      }
+    }
+    window.overwriteActiveCustomProfile = overwriteActiveCustomProfile;
+
+    function deleteActiveCustomProfile() {
+      if (!window.canvasCustomProfiles[window.activeCanvasProfileId]) return;
+      const name = window.canvasCustomProfiles[window.activeCanvasProfileId].name;
+      if (!confirm(`Are you sure you want to delete profile "${name}"?`)) return;
+
+      delete window.canvasCustomProfiles[window.activeCanvasProfileId];
+      window.activeCanvasProfileId = 'deep_void';
+      window.canvasConfig = Object.assign({}, window.canvasConfig, CANVAS_PRESETS.deep_void);
+
+      applyCanvasConfig(window.canvasConfig);
+      persistCanvasProfileData();
+      renderProfileSelectorUI();
+    }
+    window.deleteActiveCustomProfile = deleteActiveCustomProfile;
+
+    function exportCanvasProfilesJSON() {
+      const exportBundle = {
+        version: "1.0",
+        exported_at: new Date().toISOString(),
+        active_profile: window.activeCanvasProfileId,
+        config: window.canvasConfig,
+        custom_profiles: window.canvasCustomProfiles
+      };
+      const blob = new Blob([JSON.stringify(exportBundle, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `cortex_canvas_profiles_${new Date().toISOString().slice(0, 10)}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+    window.exportCanvasProfilesJSON = exportCanvasProfilesJSON;
+
+    function importCanvasProfilesJSON(evt) {
+      const file = evt.target.files?.[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        try {
+          const imported = JSON.parse(e.target.result);
+          if (imported.custom_profiles) {
+            window.canvasCustomProfiles = Object.assign({}, window.canvasCustomProfiles, imported.custom_profiles);
+          }
+          if (imported.active_profile) {
+            window.activeCanvasProfileId = imported.active_profile;
+          }
+          if (imported.config) {
+            window.canvasConfig = Object.assign({}, window.canvasConfig, imported.config);
+            applyCanvasConfig(window.canvasConfig);
+          }
+          persistCanvasProfileData();
+          renderProfileSelectorUI();
+          alert("Studio Profiles imported successfully!");
+        } catch (err) {
+          alert("Failed to parse canvas profile JSON: " + err.message);
+        }
+      };
+      reader.readAsText(file);
+    }
+    window.importCanvasProfilesJSON = importCanvasProfilesJSON;
+
+    function persistCanvasProfileData() {
+      try {
+        localStorage.setItem('cortex_canvas_config_v1', JSON.stringify(window.canvasConfig));
+        localStorage.setItem('cortex_canvas_active_profile_v1', window.activeCanvasProfileId);
+        localStorage.setItem('cortex_canvas_custom_profiles_v1', JSON.stringify(window.canvasCustomProfiles));
+      } catch (e) {}
+
+      // Debounced backend sync
+      clearTimeout(canvasSaveDebounceTimer);
+      canvasSaveDebounceTimer = setTimeout(async () => {
+        try {
+          const syncBadge = document.getElementById('studio-profile-sync-badge');
+          if (syncBadge) syncBadge.innerText = 'SYNCING...';
+
+          await fetch('/api/config/canvas-profile', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              active_profile: window.activeCanvasProfileId,
+              custom_profiles: window.canvasCustomProfiles,
+              config: window.canvasConfig
+            })
+          });
+
+          if (syncBadge) {
+            syncBadge.innerText = 'SYNCED';
+            syncBadge.className = 'text-[7.5px] font-mono px-1 py-0.2 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/30';
+          }
+        } catch (err) {
+          const syncBadge = document.getElementById('studio-profile-sync-badge');
+          if (syncBadge) {
+            syncBadge.innerText = 'LOCAL ONLY';
+            syncBadge.className = 'text-[7.5px] font-mono px-1 py-0.2 rounded bg-amber-500/10 text-amber-400 border border-amber-500/30';
+          }
+        }
+      }, 350);
+    }
 
     window.canvasCustomizerOpen = false;
 
-        window.switchStudioTab = function(tab) {
+    window.switchStudioTab = function(tab) {
       const tabs = ['themes', 'grid', 'light', 'nodes'];
       tabs.forEach(t => {
         const btn = document.getElementById(`studio-tab-btn-${t}`);
@@ -7245,6 +7617,7 @@
         drawer.style.transform = 'none';
         if (typeof closeInspector === 'function') closeInspector();
         syncCustomizerUI(window.canvasConfig);
+        renderProfileSelectorUI();
       } else {
         drawer.style.transform = 'translateX(100%)';
         setTimeout(() => drawer.classList.add('translate-x-full'), 300);
@@ -7256,18 +7629,25 @@
     window.applyCanvasPreset = function(presetName) {
       const p = CANVAS_PRESETS[presetName];
       if (!p) return;
+      window.activeCanvasProfileId = presetName;
       window.canvasConfig = Object.assign({}, window.canvasConfig, p);
       applyCanvasConfig(window.canvasConfig);
+      persistCanvasProfileData();
+      renderProfileSelectorUI();
     };
 
     window.updateCanvasSetting = function(key, val) {
       window.canvasConfig[key] = val;
       applyCanvasConfig(window.canvasConfig);
+      persistCanvasProfileData();
     };
 
     window.resetCanvasDefaults = function() {
+      window.activeCanvasProfileId = 'deep_void';
       window.canvasConfig = Object.assign({}, DEFAULT_CANVAS_CONFIG);
       applyCanvasConfig(window.canvasConfig);
+      persistCanvasProfileData();
+      renderProfileSelectorUI();
     };
 
     function applyCanvasConfig(cfg) {
@@ -7434,6 +7814,11 @@
           }`;
         }
       });
+    }
+
+    // Initialize Studio Profiles immediately
+    if (typeof initCanvasProfiles === 'function') {
+      initCanvasProfiles();
     }
 
 
