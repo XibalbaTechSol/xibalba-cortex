@@ -345,6 +345,142 @@
       border-color: #00f0ff !important;
       box-shadow: 0 0 30px rgba(0, 240, 255, 0.25) !important;
     }
+
+    /* ========================================================================= */
+    /* PLAYING CARD DECKS & FAN-OUT SOLITAIRE ENGINE                             */
+    /* ========================================================================= */
+    .card-deck-container {
+      position: relative;
+      min-width: 160px;
+      height: 236px;
+      perspective: 1200px;
+      user-select: none;
+      transition: min-width 0.45s cubic-bezier(0.18, 1, 0.25, 1);
+    }
+    .card-deck-stack {
+      position: relative;
+      width: 154px;
+      height: 220px;
+      cursor: pointer;
+      transform-style: preserve-3d;
+      transition: width 0.45s cubic-bezier(0.18, 1, 0.25, 1);
+    }
+    .playing-card {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 154px;
+      height: 220px;
+      border-radius: 12px;
+      padding: 9px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      box-sizing: border-box;
+      background: #090e1a;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.75), inset 0 1px 0 rgba(255, 255, 255, 0.15);
+      border: 1.5px solid rgba(255, 255, 255, 0.14);
+      transform-origin: center bottom;
+      transition: transform 0.42s cubic-bezier(0.18, 1, 0.25, 1), box-shadow 0.25s ease, border-color 0.2s ease, opacity 0.25s ease;
+      cursor: pointer;
+      overflow: hidden;
+    }
+    .playing-card.card-prompt {
+      background: radial-gradient(circle at top left, #291203 0%, #0a0501 85%);
+      border-color: rgba(245, 158, 11, 0.6);
+      color: #f59e0b;
+    }
+    .playing-card.card-prompt:hover {
+      border-color: #f59e0b;
+      box-shadow: 0 16px 36px rgba(0, 0, 0, 0.95), 0 0 22px rgba(245, 158, 11, 0.35);
+    }
+    .playing-card.card-thought {
+      background: radial-gradient(circle at top left, #210738 0%, #090212 85%);
+      border-color: rgba(168, 85, 247, 0.6);
+      color: #c084fc;
+    }
+    .playing-card.card-thought:hover {
+      border-color: #c084fc;
+      box-shadow: 0 16px 36px rgba(0, 0, 0, 0.95), 0 0 22px rgba(168, 85, 247, 0.35);
+    }
+    .playing-card.card-command {
+      background: radial-gradient(circle at top left, #051d2d 0%, #020b12 85%);
+      border-color: rgba(0, 240, 255, 0.6);
+      color: #00f0ff;
+    }
+    .playing-card.card-command:hover {
+      border-color: #00f0ff;
+      box-shadow: 0 16px 36px rgba(0, 0, 0, 0.95), 0 0 22px rgba(0, 240, 255, 0.35);
+    }
+    .playing-card.card-file {
+      background: radial-gradient(circle at top left, #05261c 0%, #020f0b 85%);
+      border-color: rgba(16, 185, 129, 0.6);
+      color: #10b981;
+    }
+    .playing-card.card-file:hover {
+      border-color: #10b981;
+      box-shadow: 0 16px 36px rgba(0, 0, 0, 0.95), 0 0 22px rgba(16, 185, 129, 0.35);
+    }
+    .playing-card.card-mcp {
+      background: radial-gradient(circle at top left, #081d36 0%, #020914 85%);
+      border-color: rgba(56, 189, 248, 0.6);
+      color: #38bdf8;
+    }
+    .playing-card.card-mcp:hover {
+      border-color: #38bdf8;
+      box-shadow: 0 16px 36px rgba(0, 0, 0, 0.95), 0 0 22px rgba(56, 189, 248, 0.35);
+    }
+    .playing-card.card-response {
+      background: radial-gradient(circle at top left, #29052b 0%, #0c010d 85%);
+      border-color: rgba(232, 121, 249, 0.6);
+      color: #e879f9;
+    }
+    .playing-card.card-response:hover {
+      border-color: #e879f9;
+      box-shadow: 0 16px 36px rgba(0, 0, 0, 0.95), 0 0 22px rgba(232, 121, 249, 0.35);
+    }
+    .playing-card.card-anchor {
+      background: radial-gradient(circle at top left, #032b1f 0%, #01120d 85%);
+      border-color: rgba(0, 255, 163, 0.6);
+      color: #00ffa3;
+    }
+    .playing-card.card-anchor:hover {
+      border-color: #00ffa3;
+      box-shadow: 0 16px 36px rgba(0, 0, 0, 0.95), 0 0 22px rgba(0, 255, 163, 0.35);
+    }
+    .card-pip {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      font-family: 'JetBrains Mono', monospace;
+      font-weight: 800;
+      line-height: 1;
+    }
+    .deck-fan-prompt-pill {
+      position: absolute;
+      bottom: 8px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(0, 0, 0, 0.92);
+      border: 1px solid currentColor;
+      padding: 3px 8px;
+      border-radius: 9999px;
+      font-size: 8px;
+      font-weight: 800;
+      letter-spacing: 0.05em;
+      white-space: nowrap;
+      pointer-events: none;
+      box-shadow: 0 4px 14px rgba(0,0,0,0.8);
+      transition: all 0.2s ease;
+      z-index: 50;
+    }
+    .card-deck-stack:not(.is-fanned):hover .playing-card:last-child {
+      transform: translateY(-8px) scale(1.02) !important;
+    }
+    .card-deck-stack.is-fanned .playing-card:hover {
+      transform: translateY(-22px) scale(1.08) !important;
+      z-index: 250 !important;
+    }
     /* Chrono-Loom Runway Tape Action Chips (Compact High-Density) */
     .chrono-action-node {
       display: inline-flex;
@@ -1746,8 +1882,17 @@
           </div>
           <div class="bg-surface-container-lowest/90 backdrop-blur border border-outline-variant/40 rounded p-1 flex items-center gap-1 shadow-lg">
             <span class="text-outline text-[9px] px-1 font-bold">LAYOUT:</span>
-            <button id="btn-dag-layout-linear" onclick="setDialogueLayout('linear')" class="px-2 py-0.5 bg-primary-container text-on-primary-container font-bold rounded-sm text-[9px]">HORIZONTAL DAG</button>
+            <button id="btn-dag-layout-cards" onclick="setDialogueLayout('cards')" class="px-2 py-0.5 bg-primary-container text-on-primary-container font-bold rounded-sm text-[9px] flex items-center gap-1" title="Cards organized by type, overlapping like playing cards, fanning out on click">
+              <span class="material-symbols-outlined text-[11px]">style</span>
+              <span>PLAYING CARDS</span>
+            </button>
+            <button id="btn-dag-layout-linear" onclick="setDialogueLayout('linear')" class="px-2 py-0.5 text-on-surface-variant hover:text-on-surface font-semibold rounded-sm text-[9px]">HORIZONTAL DAG</button>
             <button id="btn-dag-layout-stacked" onclick="setDialogueLayout('stacked')" class="px-2 py-0.5 text-on-surface-variant hover:text-on-surface font-semibold rounded-sm text-[9px]">ISOMETRIC PIPELINE</button>
+            <span class="text-outline text-[9px] px-0.5">|</span>
+            <button id="btn-toggle-fan-all" onclick="toggleFanAllStacks()" class="px-2 py-0.5 bg-cyan-500/15 hover:bg-cyan-500/30 text-cyan-300 border border-cyan-500/40 font-bold rounded-sm text-[9px] flex items-center gap-1 transition-all" title="Toggle Fan Out on all card decks">
+              <span class="material-symbols-outlined text-[11px]">unfold_more</span>
+              <span id="btn-fan-all-label">FAN ALL</span>
+            </button>
           </div>
         </div>
 
@@ -10743,7 +10888,7 @@ ${staticFacts.length > 0 ? `## Static Knowledge Core:\n${staticFacts.map(f => `-
     let dialogueIsDragging = false;
     let dialogueStartPos = { x: 0, y: 0 };
     let dialogueStartPan = { x: 0, y: 0 };
-    let dialogueLayout = 'linear'; // 'linear' or 'stacked'
+    let dialogueLayout = 'cards'; // 'cards', 'linear', or 'stacked'
     let currentDialogueFilter = 'all';
 
     // Video Replay State
@@ -10876,15 +11021,24 @@ ${staticFacts.length > 0 ? `## Static Knowledge Core:\n${staticFacts.map(f => `-
 
     function setDialogueLayout(layout) {
       dialogueLayout = layout;
+      const btnCards = document.getElementById('btn-dag-layout-cards');
       const btnLinear = document.getElementById('btn-dag-layout-linear');
       const btnStacked = document.getElementById('btn-dag-layout-stacked');
 
-      if (layout === 'linear') {
-        if (btnLinear) btnLinear.className = "px-2 py-0.5 bg-primary-container text-on-primary-container font-bold rounded-sm text-[9px]";
-        if (btnStacked) btnStacked.className = "px-2 py-0.5 text-on-surface-variant hover:text-on-surface font-semibold rounded-sm text-[9px]";
-      } else {
-        if (btnLinear) btnLinear.className = "px-2 py-0.5 text-on-surface-variant hover:text-on-surface font-semibold rounded-sm text-[9px]";
-        if (btnStacked) btnStacked.className = "px-2 py-0.5 bg-primary-container text-on-primary-container font-bold rounded-sm text-[9px]";
+      if (btnCards) {
+        btnCards.className = layout === 'cards'
+          ? "px-2 py-0.5 bg-primary-container text-on-primary-container font-bold rounded-sm text-[9px] flex items-center gap-1 shadow-sm"
+          : "px-2 py-0.5 text-on-surface-variant hover:text-on-surface font-semibold rounded-sm text-[9px] flex items-center gap-1";
+      }
+      if (btnLinear) {
+        btnLinear.className = layout === 'linear'
+          ? "px-2 py-0.5 bg-primary-container text-on-primary-container font-bold rounded-sm text-[9px]"
+          : "px-2 py-0.5 text-on-surface-variant hover:text-on-surface font-semibold rounded-sm text-[9px]";
+      }
+      if (btnStacked) {
+        btnStacked.className = layout === 'stacked'
+          ? "px-2 py-0.5 bg-primary-container text-on-primary-container font-bold rounded-sm text-[9px]"
+          : "px-2 py-0.5 text-on-surface-variant hover:text-on-surface font-semibold rounded-sm text-[9px]";
       }
 
       if (currentDialogueSessionId) {
@@ -10892,6 +11046,461 @@ ${staticFacts.length > 0 ? `## Static Knowledge Core:\n${staticFacts.map(f => `-
       }
     }
     window.setDialogueLayout = setDialogueLayout;
+
+    // =========================================================================
+    // PLAYING CARD DECKS & FAN-OUT SOLITAIRE ENGINE
+    // =========================================================================
+    let allStacksFanned = false;
+
+    function applyStackTransforms(stackEl, isFanned) {
+      if (!stackEl) return;
+      const cards = stackEl.querySelectorAll('.playing-card');
+      const count = cards.length;
+      if (count === 0) return;
+
+      const promptPill = stackEl.querySelector('.deck-fan-prompt-pill');
+      const deckContainer = stackEl.closest('.card-deck-container');
+
+      if (!isFanned) {
+        stackEl.classList.remove('is-fanned');
+        stackEl.dataset.isFanned = 'false';
+        if (promptPill) {
+          promptPill.style.display = count > 1 ? 'block' : 'none';
+          promptPill.innerHTML = `🃏 ${count} CARDS · CLICK TO FAN OUT`;
+        }
+        cards.forEach((card, i) => {
+          const dx = Math.min(24, i * 4.5);
+          const dy = -Math.min(18, i * 3.5);
+          const rot = ((i % 5) - 2) * 1.8;
+          card.style.transform = `translate3d(${dx}px, ${dy}px, 0) rotate(${rot}deg)`;
+          card.style.zIndex = i + 1;
+        });
+        stackEl.style.width = '160px';
+        if (deckContainer) deckContainer.style.minWidth = '160px';
+      } else {
+        stackEl.classList.add('is-fanned');
+        stackEl.dataset.isFanned = 'true';
+        if (promptPill) {
+          promptPill.style.display = 'block';
+          promptPill.innerHTML = `✕ CLICK TO COLLAPSE`;
+        }
+        const spread = Math.min(135, Math.max(65, 520 / Math.max(1, count - 1)));
+        const center = (count - 1) / 2;
+        cards.forEach((card, i) => {
+          const dx = i * spread;
+          const norm = center > 0 ? (i - center) / center : 0;
+          const rot = norm * 12;
+          const dy = Math.pow(norm, 2) * 10;
+          card.style.transform = `translate3d(${dx}px, ${dy}px, 0) rotate(${rot}deg)`;
+          card.style.zIndex = 30 + i;
+        });
+        const totalSpan = Math.max(160, (count - 1) * spread + 160);
+        stackEl.style.width = `${totalSpan}px`;
+        if (deckContainer) deckContainer.style.minWidth = `${totalSpan + 24}px`;
+      }
+    }
+
+    function createPlayingCardDeck(stackId, title, icon, colorHex, suitSymbol, cardsList) {
+      if (!cardsList || cardsList.length === 0) return null;
+
+      const deckContainer = document.createElement('div');
+      deckContainer.className = 'card-deck-container';
+      deckContainer.id = `deck-container-${stackId}`;
+
+      // Header
+      const header = document.createElement('div');
+      header.className = 'flex items-center justify-between gap-1 mb-2 px-1 text-[9px] font-mono select-none';
+      header.innerHTML = `
+        <span class="flex items-center gap-1 font-bold uppercase truncate" style="color: ${colorHex}">
+          <span class="material-symbols-outlined text-[13px]">${icon}</span>
+          <span class="truncate">${escapeHtml(title)}</span>
+        </span>
+        <button type="button" onclick="window.toggleStackFan('${stackId}', event)" class="px-1.5 py-0.2 rounded bg-black/60 hover:bg-surface-container-high border border-white/20 text-[8px] font-bold text-neutral-300 transition-colors flex items-center gap-0.5 shrink-0" title="Click to fan out / collapse deck">
+          <span>${cardsList.length}</span>
+          <span class="material-symbols-outlined text-[10px]">style</span>
+        </button>
+      `;
+      deckContainer.appendChild(header);
+
+      // Stack
+      const stackEl = document.createElement('div');
+      stackEl.className = 'card-deck-stack';
+      stackEl.id = `stack-${stackId}`;
+      stackEl.dataset.stackId = stackId;
+      stackEl.dataset.isFanned = 'false';
+      stackEl.onclick = (e) => {
+        if (stackEl.dataset.isFanned === 'true' && e.target.closest('.playing-card')) {
+          return;
+        }
+        window.toggleStackFan(stackId, e);
+      };
+
+      cardsList.forEach((c, idx) => {
+        const cardEl = document.createElement('div');
+        cardEl.className = `playing-card card-${c.type}`;
+        cardEl.id = c.id;
+        cardEl.dataset.cardId = c.id;
+        cardEl.dataset.cardIndex = idx;
+        cardEl.title = `${c.title} (Step #${idx + 1})`;
+        cardEl.onclick = (e) => {
+          e.stopPropagation();
+          openDialogueNodeModal(c);
+        };
+
+        cardEl.innerHTML = `
+          <div class="absolute inset-0 bg-gradient-to-tr from-transparent via-white/[0.04] to-transparent pointer-events-none rounded-xl"></div>
+          
+          <!-- Top: Rank + Suit + Status Badge -->
+          <div class="flex items-start justify-between gap-1 leading-none">
+            <div class="card-pip ${c.pipColor}">
+              <span class="text-[12px] font-black">${c.rank}</span>
+              <span class="text-[10px] leading-none">${c.suit || suitSymbol}</span>
+            </div>
+            <span class="text-[7.5px] font-mono font-bold px-1.5 py-0.5 rounded ${c.badgeStyle}">${c.badgeText}</span>
+          </div>
+
+          <!-- Center: Category + Title + Content Snippet -->
+          <div class="my-auto py-1 flex flex-col justify-center">
+            <div class="flex items-center gap-1 text-[8.5px] font-mono font-bold uppercase tracking-wider mb-1" style="color: ${colorHex}">
+              <span class="material-symbols-outlined text-[13px]">${c.icon || icon}</span>
+              <span class="truncate">${escapeHtml(c.categoryLabel || title)}</span>
+            </div>
+            <div class="text-[9.5px] font-mono text-white font-bold truncate mb-1" title="${escapeHtml(c.title)}">
+              ${escapeHtml(c.title)}
+            </div>
+            <div class="bg-black/60 border border-white/10 rounded p-1.5 text-[8px] font-mono text-neutral-300 overflow-hidden line-clamp-3 leading-tight select-none">
+              ${escapeHtml(c.snippet || '')}
+            </div>
+          </div>
+
+          <!-- Bottom: Step Label + Inverted Pip -->
+          <div class="flex items-end justify-between gap-1 leading-none pt-1 border-t border-white/10">
+            <div class="flex flex-col text-[7px] font-mono text-neutral-400">
+              <span class="text-neutral-400 font-bold">#${idx + 1} OF ${cardsList.length}</span>
+              <span class="text-cyan-300 font-semibold hover:underline">INSPECT ↗</span>
+            </div>
+            <div class="card-pip ${c.pipColor} rotate-180">
+              <span class="text-[12px] font-black">${c.rank}</span>
+              <span class="text-[10px] leading-none">${c.suit || suitSymbol}</span>
+            </div>
+          </div>
+        `;
+
+        stackEl.appendChild(cardEl);
+      });
+
+      if (cardsList.length > 1) {
+        const promptPill = document.createElement('div');
+        promptPill.className = 'deck-fan-prompt-pill text-cyan-300';
+        promptPill.innerHTML = `🃏 ${cardsList.length} CARDS · CLICK TO FAN OUT`;
+        stackEl.appendChild(promptPill);
+      }
+
+      deckContainer.appendChild(stackEl);
+      applyStackTransforms(stackEl, false);
+      return deckContainer;
+    }
+
+    function toggleStackFan(stackId, e) {
+      if (e) e.stopPropagation();
+      const stack = document.getElementById(`stack-${stackId}`);
+      if (!stack) return;
+      const isCurrentlyFanned = stack.dataset.isFanned === 'true';
+      applyStackTransforms(stack, !isCurrentlyFanned);
+    }
+    window.toggleStackFan = toggleStackFan;
+
+    function toggleFanAllStacks() {
+      allStacksFanned = !allStacksFanned;
+      const stacks = document.querySelectorAll('.card-deck-stack');
+      stacks.forEach(stack => {
+        applyStackTransforms(stack, allStacksFanned);
+      });
+      const lbl = document.getElementById('btn-fan-all-label');
+      if (lbl) lbl.innerText = allStacksFanned ? 'COLLAPSE' : 'FAN ALL';
+      const icon = document.querySelector('#btn-toggle-fan-all span.material-symbols-outlined');
+      if (icon) icon.innerText = allStacksFanned ? 'unfold_less' : 'unfold_more';
+    }
+    window.toggleFanAllStacks = toggleFanAllStacks;
+
+    window.toggleTurnStacks = function(turnIdx) {
+      const enclave = document.getElementById(`turn-enclave-${turnIdx}`);
+      if (!enclave) return;
+      const stacks = enclave.querySelectorAll('.card-deck-stack');
+      const anyUnfanned = Array.from(stacks).some(s => s.dataset.isFanned !== 'true');
+      stacks.forEach(s => applyStackTransforms(s, anyUnfanned));
+    };
+
+    function renderPlayingCardDecks(sessionDetail) {
+      const nodesLayer = document.getElementById('dialogue-nodes-layer');
+      const linesGroup = document.getElementById('dialogue-svg-lines');
+      const transformLayer = document.getElementById('dialogue-transform-layer');
+      if (!nodesLayer || !linesGroup) return;
+
+      nodesLayer.innerHTML = '';
+      linesGroup.innerHTML = '';
+      dialogueFlatSteps = [];
+
+      const turns = sessionDetail.turns || [];
+      if (turns.length === 0) {
+        nodesLayer.innerHTML = '<div class="p-8 text-neutral-400 font-mono text-xs italic">No exchanges recorded in this session.</div>';
+        return;
+      }
+
+      let currentX = 60;
+      let prevEnclaveAnchor = null;
+
+      turns.forEach((turn, turnIdx) => {
+        const toolCalls = turn.tool_calls || [];
+        const turnTimeStr = turn.created_at ? new Date(turn.created_at).toLocaleTimeString() : `TURN ${turnIdx + 1}`;
+
+        // 1. Separate cards by type
+        const promptCards = [];
+        if (turn.prompt_text) {
+          promptCards.push({
+            id: `card-prompt-${turnIdx}`,
+            type: 'prompt',
+            turnIdx,
+            turn,
+            sessionDetail,
+            rank: 'P',
+            suit: '♠',
+            pipColor: 'text-amber-400',
+            badgeStyle: 'bg-amber-500/20 text-amber-300 border border-amber-500/40',
+            badgeText: 'USER INTENT',
+            icon: 'person',
+            categoryLabel: 'PROMPT INTENT',
+            title: `Turn ${turnIdx + 1} Prompt`,
+            snippet: turn.prompt_text
+          });
+        }
+
+        const thoughtCards = [];
+        if (turn.thinking_text) {
+          thoughtCards.push({
+            id: `card-thought-${turnIdx}`,
+            type: 'thought',
+            turnIdx,
+            turn,
+            sessionDetail,
+            rank: 'T',
+            suit: '♦',
+            pipColor: 'text-purple-400',
+            badgeStyle: 'bg-purple-500/20 text-purple-300 border border-purple-500/40',
+            badgeText: 'COT REASON',
+            icon: 'psychology',
+            categoryLabel: 'CHAIN-OF-THOUGHT',
+            title: `Turn ${turnIdx + 1} Deliberation`,
+            snippet: turn.thinking_text
+          });
+        }
+
+        const cmdCards = [];
+        const fileCards = [];
+        const mcpCards = [];
+
+        toolCalls.forEach((tc, tcIdx) => {
+          const tName = (tc.name || tc.tool_name || 'tool').toLowerCase();
+          const tArgs = tc.args || tc.arguments || {};
+          const isCmd = tName.includes('command') || tName.includes('bash') || tName.includes('exec') || tName.includes('sh');
+          const isFile = tName.includes('file') || tName.includes('read') || tName.includes('write') || tName.includes('edit');
+
+          if (isCmd) {
+            let cmd = tArgs.CommandLine || tArgs.command || tArgs.cmd || tArgs.script || '';
+            if (typeof cmd === 'string') cmd = cmd.replace(/^["']|["']$/g, '').trim();
+            const summary = (tArgs.toolSummary || tArgs.summary || cmd || 'run_command').replace(/^["']|["']$/g, '');
+            cmdCards.push({
+              id: `card-tool-${turnIdx}-${tcIdx}`,
+              type: 'command',
+              tool: tc,
+              toolIdx: tcIdx,
+              turnIdx,
+              turn,
+              sessionDetail,
+              command: cmd,
+              toolSummary: summary,
+              rank: '$',
+              suit: '♣',
+              pipColor: 'text-cyan-400',
+              badgeStyle: 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40',
+              badgeText: 'EXIT 0',
+              icon: 'terminal',
+              categoryLabel: 'CLI COMMAND',
+              title: summary || 'Shell Execution',
+              snippet: cmd ? `$ ${cmd}` : `$ ${tName}`
+            });
+          } else if (isFile) {
+            let filePath = tArgs.Path || tArgs.path || tArgs.file_path || tArgs.filePath || '';
+            if (typeof filePath === 'string') filePath = filePath.replace(/^["']|["']$/g, '').trim();
+            const fileName = filePath ? filePath.split('/').pop() : tName;
+            fileCards.push({
+              id: `card-tool-${turnIdx}-${tcIdx}`,
+              type: 'file',
+              tool: tc,
+              toolIdx: tcIdx,
+              turnIdx,
+              turn,
+              sessionDetail,
+              filePath,
+              toolName: tName,
+              rank: 'F',
+              suit: '♥',
+              pipColor: 'text-emerald-400',
+              badgeStyle: 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40',
+              badgeText: 'WORKSPACE',
+              icon: 'description',
+              categoryLabel: 'WORKSPACE FILE',
+              title: fileName || tName,
+              snippet: filePath || tName
+            });
+          } else {
+            const shortToolName = tName.replace(/^(memory_|super_|cortex_)/, '');
+            mcpCards.push({
+              id: `card-tool-${turnIdx}-${tcIdx}`,
+              type: 'mcp',
+              tool: tc,
+              toolIdx: tcIdx,
+              turnIdx,
+              turn,
+              sessionDetail,
+              toolName: tName,
+              rank: 'M',
+              suit: '★',
+              pipColor: 'text-sky-400',
+              badgeStyle: 'bg-sky-500/20 text-sky-300 border border-sky-500/40',
+              badgeText: 'MCP CALL',
+              icon: 'hub',
+              categoryLabel: 'MCP DISPATCH',
+              title: shortToolName || tName,
+              snippet: JSON.stringify(tArgs)
+            });
+          }
+        });
+
+        const respCards = [];
+        if (turn.response_text) {
+          respCards.push({
+            id: `card-resp-${turnIdx}`,
+            type: 'response',
+            turnIdx,
+            turn,
+            sessionDetail,
+            rank: 'R',
+            suit: '👑',
+            pipColor: 'text-fuchsia-400',
+            badgeStyle: 'bg-fuchsia-500/20 text-fuchsia-300 border border-fuchsia-500/40',
+            badgeText: 'SYNTHESIS',
+            icon: 'forum',
+            categoryLabel: 'AGENT SYNTHESIS',
+            title: `Turn ${turnIdx + 1} Synthesis`,
+            snippet: turn.response_text
+          });
+        }
+
+        const anchorCards = [];
+        if (turn.turn_hash || sessionDetail.merkle_root) {
+          anchorCards.push({
+            id: `card-anchor-${turnIdx}`,
+            type: 'anchor',
+            turnIdx,
+            turn,
+            sessionDetail,
+            rank: 'A',
+            suit: '⚓',
+            pipColor: 'text-mint-400',
+            badgeStyle: 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40',
+            badgeText: 'STATE ROOT',
+            icon: 'verified',
+            categoryLabel: 'CRYPTOGRAPHIC ROOT',
+            title: `Turn ${turnIdx + 1} Proof`,
+            snippet: `Hash: 0x${(turn.turn_hash || sessionDetail.merkle_root || '').substring(0, 16)}...`
+          });
+        }
+
+        // Build Turn Enclave DOM
+        const enclaveEl = document.createElement('div');
+        enclaveEl.className = 'turn-enclave group/enclave flex flex-col gap-2 p-3.5';
+        enclaveEl.id = `turn-enclave-${turnIdx}`;
+        enclaveEl.style.left = `${currentX}px`;
+        enclaveEl.style.top = '70px';
+        enclaveEl.style.minHeight = '320px';
+        enclaveEl.style.width = 'auto';
+
+        // Enclave Header
+        const headerEl = document.createElement('div');
+        headerEl.className = 'flex items-center justify-between border-b border-outline-variant/20 pb-1.5 font-mono text-[9px] shrink-0';
+        headerEl.innerHTML = `
+          <div class="flex items-center gap-2">
+            <span class="w-2 h-2 rounded-full bg-cyan-400 shadow-[0_0_8px_#00f0ff] animate-pulse"></span>
+            <span class="font-bold text-cyan-300 tracking-wider">TURN ${turnIdx + 1}</span>
+            <span class="text-neutral-500 text-[8px]">· ${escapeHtml(turnTimeStr)}</span>
+            <span class="text-[8px] px-1.5 py-0.2 rounded bg-surface-container-high border border-outline-variant/30 text-neutral-300">
+              ${toolCalls.length} ACTIONS · ${(turn.turn_hash || '').substring(0, 8)}
+            </span>
+          </div>
+          <div class="flex items-center gap-1.5">
+            <button type="button" onclick="window.toggleTurnStacks(${turnIdx})" class="px-2 py-0.5 rounded bg-cyan-500/15 hover:bg-cyan-500/30 text-cyan-300 border border-cyan-500/40 text-[8px] font-bold transition-all" title="Fan out all stacks in Turn ${turnIdx + 1}">
+              FAN TURN
+            </button>
+          </div>
+        `;
+        enclaveEl.appendChild(headerEl);
+
+        // Decks Flex Row
+        const decksRow = document.createElement('div');
+        decksRow.className = 'flex items-start gap-5 pt-2 relative z-10';
+
+        // Deck 1: Prompt Intent
+        const promptDeck = createPlayingCardDeck(`prompt-${turnIdx}`, 'Intent', 'person', '#f59e0b', '♠', promptCards);
+        if (promptDeck) decksRow.appendChild(promptDeck);
+
+        // Deck 2: Reasoning / COT
+        const thoughtDeck = createPlayingCardDeck(`thought-${turnIdx}`, 'Thinking', 'psychology', '#c084fc', '♦', thoughtCards);
+        if (thoughtDeck) decksRow.appendChild(thoughtDeck);
+
+        // Deck 3: CLI Commands Stack (overlapping playing cards!)
+        const cmdDeck = createPlayingCardDeck(`cmds-${turnIdx}`, 'CLI Commands', 'terminal', '#00f0ff', '♣', cmdCards);
+        if (cmdDeck) decksRow.appendChild(cmdDeck);
+
+        // Deck 4: Workspace Files Stack (overlapping playing cards!)
+        const fileDeck = createPlayingCardDeck(`files-${turnIdx}`, 'Workspace Files', 'description', '#10b981', '♥', fileCards);
+        if (fileDeck) decksRow.appendChild(fileDeck);
+
+        // Deck 5: MCP Tool Calls Stack (overlapping playing cards!)
+        const mcpDeck = createPlayingCardDeck(`mcp-${turnIdx}`, 'MCP Dispatches', 'hub', '#38bdf8', '★', mcpCards);
+        if (mcpDeck) decksRow.appendChild(mcpDeck);
+
+        // Deck 6: Response Synthesis
+        const respDeck = createPlayingCardDeck(`resp-${turnIdx}`, 'Synthesis', 'forum', '#e879f9', '👑', respCards);
+        if (respDeck) decksRow.appendChild(respDeck);
+
+        // Deck 7: Merkle State Anchor
+        const anchorDeck = createPlayingCardDeck(`anchor-${turnIdx}`, 'State Seal', 'verified', '#00ffa3', '⚓', anchorCards);
+        if (anchorDeck) decksRow.appendChild(anchorDeck);
+
+        enclaveEl.appendChild(decksRow);
+        nodesLayer.appendChild(enclaveEl);
+
+        // Record flat steps for replay
+        [...promptCards, ...thoughtCards, ...cmdCards, ...fileCards, ...mcpCards, ...respCards, ...anchorCards].forEach(c => {
+          dialogueFlatSteps.push({
+            stepIdx: dialogueFlatSteps.length,
+            type: c.type,
+            turnIdx,
+            nodeId: c.id,
+            summary: c.title
+          });
+        });
+
+        // Compute width and advance currentX
+        const enclaveWidth = enclaveEl.offsetWidth || 700;
+        currentX += Math.max(500, enclaveWidth) + 36;
+      });
+
+      if (transformLayer) {
+        transformLayer.style.width = `${Math.max(3800, currentX + 400)}px`;
+      }
+    }
 
     window.loadDialogueData = async function() {
       initDialogueCanvasControls();
@@ -10982,6 +11591,11 @@ ${staticFacts.length > 0 ? `## Static Knowledge Core:\n${staticFacts.map(f => `-
 
         nodesLayer.innerHTML = '';
         linesGroup.innerHTML = '';
+
+        if (dialogueLayout === 'cards') {
+          renderPlayingCardDecks(sessionDetail);
+          return;
+        }
 
         const turns = sessionDetail.turns || [];
         let totalTools = 0;
@@ -12732,6 +13346,7 @@ ${staticFacts.length > 0 ? `## Static Knowledge Core:\n${staticFacts.map(f => `-
       if (e.key.toLowerCase() === 'c') openNewMemoryModal();
       if (e.key.toLowerCase() === 'l' && !e.target.matches('input, textarea, select')) toggleGraphLegend();
       if ((e.key === '[' || e.key === ']') && !e.target.matches('input, textarea, select')) toggleSpectralDrawer();
+      if (currentView === 'dialogue' && e.key.toLowerCase() === 'f' && !e.target.matches('input, textarea, select')) toggleFanAllStacks();
 
       // Timeline lens keyboard scrubbing & inspection (ArrowLeft, ArrowRight, Home, End, Escape)
       if (currentView === 'timeline' && !e.target.matches('input, textarea, select')) {
