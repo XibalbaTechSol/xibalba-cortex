@@ -1621,6 +1621,28 @@ def create_app(
         )
         return response
 
+    async def api_managed_local_connect(request: Request) -> JSONResponse:
+        """Issue a session cookie for the seeded local operator account."""
+        account, _, _ = managed.default_operator_context()
+        sess = managed.create_session(account)
+        pub_acc = managed._public_account(account)
+        response = JSONResponse({
+            "ok": True,
+            "account": pub_acc,
+            "csrf_token": sess["csrf_token"],
+            "session_expires_at": sess["expires_at"],
+        })
+        response.set_cookie(
+            SESSION_COOKIE_NAME,
+            sess["token"],
+            max_age=SESSION_TTL_HOURS * 3600,
+            httponly=True,
+            secure=m_cfg.public_url.startswith("https:"),
+            samesite="lax",
+            path="/",
+        )
+        return response
+
     async def api_managed_me(request: Request) -> JSONResponse:
         try:
             strict = request.query_params.get("strict_auth") == "1"
@@ -1629,6 +1651,7 @@ def create_app(
             usage = managed.usage(tenant)
             pub_acc = managed._public_account(account)
             return JSONResponse({
+                "authenticated": True,
                 "account": pub_acc,
                 "tenant_id": tenant["id"],
                 "entitlement": entitlement,
@@ -1637,8 +1660,12 @@ def create_app(
                 "csrf_token": csrf_token,
                 "capabilities": ["graph", "timeline", "dialogue", "fabric", "billing", "agents", "settings"],
             })
-        except PermissionError as exc:
-            return JSONResponse({"error": str(exc)}, status_code=401)
+        except PermissionError:
+            return JSONResponse({
+                "authenticated": False,
+                "account": None,
+                "billing_configured": m_cfg.billing_ready,
+            })
 
     async def api_managed_account_update(request: Request) -> JSONResponse:
         try:
@@ -1831,6 +1858,7 @@ def create_app(
         Route("/api/auth/login", api_managed_login, methods=["POST"]),
         Route("/api/managed/logout", api_managed_logout, methods=["POST"]),
         Route("/api/auth/logout", api_managed_logout, methods=["POST"]),
+        Route("/api/managed/local-connect", api_managed_local_connect, methods=["POST"]),
         Route("/api/managed/me", api_managed_me, methods=["GET"]),
         Route("/api/auth/me", api_managed_me, methods=["GET"]),
         Route("/api/managed/profile", api_managed_account_update, methods=["POST", "PUT"]),
