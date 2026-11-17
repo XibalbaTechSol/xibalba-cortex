@@ -24,6 +24,11 @@ from .ais_reward import (
     multiplicative_reward,
 )
 from .classifier import classify_epistemic, classify_para, extract_triples
+from .compliance_and_spotcheck import (
+    export_compliance_bundle,
+    hard_purge_memories,
+    spot_check_memory,
+)
 from .config import SuperCortexConfig
 from .connectors import SuperCortexConnectors
 from .deterministic import (
@@ -2033,6 +2038,55 @@ def create_app(
             res = snapshot_sync.backup_database(cortex.store.db_path, "provenance.db")
         return JSONResponse(res)
 
+    async def api_spot_check(request: Request) -> JSONResponse:
+        try:
+            body = await request.json()
+        except Exception:
+            return JSONResponse({"error": "Invalid JSON body"}, status_code=400)
+        try:
+            res = spot_check_memory(
+                cortex.store,
+                nonce=str(body.get("nonce") or ""),
+                index=int(body["index"]) if body.get("index") is not None else None,
+                memory_id=str(body["memory_id"]) if body.get("memory_id") else None,
+                expected_root=str(body["expected_root"]) if body.get("expected_root") else None,
+                scope=str(body["scope"]) if body.get("scope") else None,
+            )
+            return JSONResponse(res, status_code=200 if res.get("ok") else 409)
+        except ValueError as exc:
+            return JSONResponse({"error": str(exc)}, status_code=400)
+
+    async def api_hard_purge(request: Request) -> JSONResponse:
+        try:
+            body = await request.json()
+        except Exception:
+            return JSONResponse({"error": "Invalid JSON body"}, status_code=400)
+        try:
+            res = hard_purge_memories(
+                cortex.store,
+                scope=str(body["scope"]) if body.get("scope") else None,
+                memory_id=str(body["memory_id"]) if body.get("memory_id") else None,
+                actor=str(body.get("actor") or cfg.actor_did),
+            )
+            return JSONResponse(res)
+        except ValueError as exc:
+            return JSONResponse({"error": str(exc)}, status_code=400)
+
+    async def api_compliance_export(request: Request) -> JSONResponse:
+        scope = request.query_params.get("scope") or None
+        if request.method == "POST":
+            try:
+                body = await request.json()
+                scope = str(body.get("scope") or scope or "") or None
+            except Exception:
+                pass
+        bundle = export_compliance_bundle(
+            cortex.store,
+            scope=scope,
+            actor_did=cfg.actor_did,
+        )
+        return JSONResponse(bundle)
+
     routes = [
         Route("/healthz", api_healthz, methods=["GET"]),
         Route("/readyz", api_readyz, methods=["GET"]),
@@ -2067,6 +2121,12 @@ def create_app(
         Route("/api/otel/ingest", api_otlp_traces, methods=["POST"]),
         Route("/api/migrations/legacy-cortex", api_migrate_legacy_cortex, methods=["POST"]),
         Route("/api/managed/storage/snapshot", api_storage_snapshot, methods=["GET", "POST"]),
+        Route("/api/spot-check", api_spot_check, methods=["POST"]),
+        Route("/api/managed/spot-check", api_spot_check, methods=["POST"]),
+        Route("/api/purge", api_hard_purge, methods=["POST"]),
+        Route("/api/managed/purge", api_hard_purge, methods=["POST"]),
+        Route("/api/compliance/export", api_compliance_export, methods=["GET", "POST"]),
+        Route("/api/managed/compliance/export", api_compliance_export, methods=["GET", "POST"]),
         Route("/api/managed/recovery/{action}", api_managed_recovery, methods=["POST"]),
         Route("/api/auth/password/reset/{action}", api_managed_recovery, methods=["POST"]),
         Route("/api/managed/device/pair/request", api_device_pair_request, methods=["POST"]),

@@ -247,3 +247,42 @@ def test_secret_redaction_and_otlp_and_legacy_migration(tmp_path: Path) -> None:
     )
     assert otlp_resp.status_code == 200
     assert otlp_resp.json()["ingested_spans"] == 1
+
+    # Verify C3 spot-check, B7 compliance export, and B6/C3 hard purge
+    mems = cortex.store.list_memories(limit=10)
+    target_mem_id = mems[0]["id"]
+    spot_ok = client.post(
+        "/api/spot-check",
+        json={"memory_id": target_mem_id, "nonce": "oracle_nonce_9988"},
+    )
+    assert spot_ok.status_code == 200
+    sdata = spot_ok.json()
+    assert sdata["ok"] is True
+    assert sdata["proof_verified"] is True
+    assert len(sdata["nonce_content_hmac"]) == 64
+
+    comp_resp = client.get("/api/compliance/export")
+    assert comp_resp.status_code == 200
+    cdata = comp_resp.json()
+    assert cdata["observed_evidence"]["raw_content_included"] is False
+    assert cdata["merkle_and_anchor_proofs"]["hash_chain_valid"] is True
+    assert len(cdata["ocsf_6003_events"]) == 1
+    assert len(cdata["vanta_controls"]) >= 5
+
+    purge_resp = client.post(
+        "/api/purge",
+        json={"memory_id": target_mem_id, "actor": "did:integrity:test_operator"},
+    )
+    assert purge_resp.status_code == 200
+    assert purge_resp.json()["purged_count"] == 1
+
+    # After hard purge, spot-check on that purged memory must fail closed with memory_unavailable
+    spot_after_purge = client.post(
+        "/api/spot-check",
+        json={"memory_id": target_mem_id, "nonce": "oracle_nonce_9988"},
+    )
+    assert spot_after_purge.status_code == 409
+    assert spot_after_purge.json()["status"] == "memory_unavailable"
+    # Hash chain must still verify cleanly after purge
+    assert cortex.store.verify_chain()["valid"] is True
+
