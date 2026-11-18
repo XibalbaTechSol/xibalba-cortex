@@ -206,3 +206,18 @@ Run the test suite:
 uv run pytest -v
 ```
 Tests cover store operations, cryptographic chain integrity, MCP server endpoints and the engine (retention policy, dreaming, certainty floors, profile dating). Engine-only tests need the `engine-local` extra: `uv run --extra engine-local pytest`.
+
+---
+
+## Organization & Executive Inquiries
+
+**Xibalba Solutions LLC**
+- **Corporate Portal:** [https://xibalbasolutions.com](https://xibalbasolutions.com)
+- **Executive Contact:** [jacob@xibalbasolutions.com](mailto:jacob@xibalbasolutions.com)
+- **Direct Telephone:** `+1 (262) 864-1589`
+- **Headquarters:** Wisconsin, United States
+- **Commercial Verticals:**
+  - **Integrity Protocol:** On-chain agent control layer, verifiable DIDs, and deterministic AIS feedback.
+  - **Super-Cortex:** Local-first 3D graph memory, Merkle-attested provenance, and agent trajectory planning.
+  - **Xibalba Shield:** Deterministic response governance, boundary gating, and host containment.
+
