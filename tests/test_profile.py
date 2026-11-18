@@ -104,3 +104,31 @@ def test_profile_endpoint_accepts_the_live_client_payload(store):
     assert body["profile"]["buckets"]["preferences"][0]["memory"] == "Priya prefers dark roast coffee."
     assert body["ignored"] == ["filter"]
     assert client.post(f"/ns/{NS}/profile", json={}).status_code == 401
+
+
+def remember_dated(store, doc_id, text, quote, metadata):
+    store.upsert_document(NS, DOCS[doc_id], doc_id, metadata)
+    docs = [d for d in store.pending_documents(50) if d["id"] == doc_id]
+    apply_proposals(store, NS, docs, [], [{"memory": text, "doc": "D1", "quote": quote, "confidence": 0.9,
+                                           "inference": False, "kind": "fact"}], "fake", DreamStats())
+
+
+def test_dynamic_items_are_dated_by_their_source_record_not_extraction_time(store):
+    # A backfill extracts months-old records today; the profile must show when they were recorded.
+    remember_dated(store, "b", "Priya plans to ship the billing dashboard.", "ship the billing dashboard",
+                   {"recordCreatedAt": "2026-03-01 09:00:00"})
+    remember_dated(store, "c", "The staging database runs on port 5433.", "runs on port 5433",
+                   {"createdAt": "2026-05-02T10:00:00+00:00"})
+    dynamic = build_profile(store, NS)["profile"]["dynamic"]
+    assert [d["memory"] for d in dynamic] == [
+        "[2026-05-02] The staging database runs on port 5433.",   # newest record first
+        "[2026-03-01] Priya plans to ship the billing dashboard.",
+    ]
+    assert dynamic[0]["observedAt"].startswith("2026-05-02")
+
+
+def test_a_non_date_record_time_falls_back_to_when_the_document_arrived(store):
+    remember_dated(store, "c", "The staging database runs on port 5433.", "runs on port 5433",
+                   {"recordCreatedAt": "yesterday-ish"})
+    received = store.get_document(NS, "c")["createdAt"][:10]
+    assert build_profile(store, NS)["profile"]["dynamic"][0]["memory"].startswith(f"[{received}]")
