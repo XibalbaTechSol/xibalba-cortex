@@ -16756,6 +16756,7 @@ console.log("Loaded " + nodes.length + " memory invariants.");</code></pre>
       </div>
       <nav class="hidden md:flex items-center gap-6 text-xs font-mono text-slate-300">
         <a href="#xc-what" onclick="event.preventDefault(); document.getElementById('xc-what')?.scrollIntoView({behavior:'smooth'})" class="hover:text-cyan-300 transition-colors">What it is</a>
+        <a href="#xc-byom" onclick="event.preventDefault(); document.getElementById('xc-byom')?.scrollIntoView({behavior:'smooth'})" class="hover:text-cyan-300 transition-colors">Your own model</a>
         <a href="#xc-how" onclick="event.preventDefault(); document.getElementById('xc-how')?.scrollIntoView({behavior:'smooth'})" class="hover:text-cyan-300 transition-colors">How it runs</a>
         <a href="#xc-pricing" onclick="event.preventDefault(); document.getElementById('xc-pricing')?.scrollIntoView({behavior:'smooth'})" class="hover:text-cyan-300 transition-colors">Plans</a>
         <a href="#xc-compare" onclick="event.preventDefault(); document.getElementById('xc-compare')?.scrollIntoView({behavior:'smooth'})" class="hover:text-cyan-300 transition-colors">Compare</a>
@@ -16843,6 +16844,43 @@ console.log("Loaded " + nodes.length + " memory invariants.");</code></pre>
         </div>
       </section>
 
+      <!-- Bring Your Own Model: session extraction -->
+      <section id="xc-byom" class="space-y-6">
+        <div>
+          <p class="font-mono text-xs uppercase tracking-widest text-emerald-400 font-bold">Bring your own model</p>
+          <h2 class="text-2xl md:text-3xl font-bold text-white mt-1">Your agent already has a model. Let it write the memories.</h2>
+          <p class="text-slate-300 text-sm leading-relaxed max-w-3xl mt-2">
+            Learning memories from raw notes needs an LLM. Instead of paying for one, the agent session you are already running
+            does the extraction: it claims a few pending documents, reads them with its own model, and submits what it learned.
+            No extra API key, no extra bill.
+          </p>
+        </div>
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+          <ol class="lg:col-span-5 space-y-3 p-5 rounded-xl bg-[#090e1a] border border-slate-800 text-xs text-slate-300 leading-relaxed">
+            <li><span class="font-mono text-emerald-300 font-bold">1 · Claim.</span> The engine leases up to 10 pending documents to your session and hands it the extractor prompt.</li>
+            <li><span class="font-mono text-emerald-300 font-bold">2 · Extract.</span> Your model writes short memories, each with a quote copied from its document.</li>
+            <li><span class="font-mono text-emerald-300 font-bold">3 · Verify.</span> The engine keeps a memory only if its quote is really in the document, rejects anything that looks like a secret, merges duplicates and supersedes stale facts.</li>
+            <li class="pt-2 border-t border-slate-800/80 text-slate-400">Every memory records which model wrote it (<code class="text-emerald-300">session:&lt;model&gt;</code>). Namespaces set to <code class="text-emerald-300">dreaming: off</code> are never handed to any model.</li>
+          </ol>
+          <div class="lg:col-span-7 grid grid-cols-1 md:grid-cols-2 gap-4 font-mono text-xs">
+            <div class="p-5 rounded-xl bg-[#090e1a] border border-emerald-500/30 space-y-2">
+              <span class="text-emerald-300 font-bold uppercase text-[10px]">From any MCP agent</span>
+              <pre class="p-3 rounded bg-black/70 border border-slate-800 text-[10px] text-emerald-300 overflow-x-auto">memory_extraction_claim
+  → read the prompt, extract
+memory_extraction_submit
+  claim_id, documents</pre>
+            </div>
+            <div class="p-5 rounded-xl bg-[#090e1a] border border-emerald-500/30 space-y-2">
+              <span class="text-emerald-300 font-bold uppercase text-[10px]">From the command line</span>
+              <pre class="p-3 rounded bg-black/70 border border-slate-800 text-[10px] text-emerald-300 overflow-x-auto">super-cortex extract run \
+  --with "claude -p"
+
+# or codex exec, gemini -p, ...</pre>
+            </div>
+          </div>
+        </div>
+      </section>
+
       <!-- How It Runs -->
       <section id="xc-how" class="space-y-6">
         <div>
@@ -16923,6 +16961,11 @@ console.log("Loaded " + nodes.length + " memory invariants.");</code></pre>
                 <td class="p-3.5 font-bold text-white">Retrieval &amp; Inspection</td>
                 <td class="p-3.5">Reciprocal Rank Fusion + 3D geodesic shortest-path routing, connected neighborhood explorer, and playing-card session replay.</td>
                 <td class="p-3.5 text-slate-400">Top-K cosine similarity chunks only.</td>
+              </tr>
+              <tr>
+                <td class="p-3.5 font-bold text-white">Memory Extraction</td>
+                <td class="p-3.5">Bring your own model: the agent session you already run extracts memories; every one is checked against a verbatim quote from its source.</td>
+                <td class="p-3.5 text-slate-400">A hosted LLM you pay for per token, with its output stored unchecked.</td>
               </tr>
               <tr>
                 <td class="p-3.5 font-bold text-white">Agent Identity &amp; Auth</td>
@@ -17051,6 +17094,7 @@ console.log("Loaded " + nodes.length + " memory invariants.");</code></pre>
           <p class="text-[10px] uppercase tracking-wider text-slate-300 font-bold">Platform</p>
           <ul class="space-y-2 text-xs">
             <li><a href="#xc-what" onclick="event.preventDefault(); document.getElementById('xc-what')?.scrollIntoView({behavior:'smooth'})" class="hover:text-cyan-300 transition-colors">Capabilities</a></li>
+            <li><a href="#xc-byom" onclick="event.preventDefault(); document.getElementById('xc-byom')?.scrollIntoView({behavior:'smooth'})" class="hover:text-cyan-300 transition-colors">Bring your own model</a></li>
             <li><a href="#xc-how" onclick="event.preventDefault(); document.getElementById('xc-how')?.scrollIntoView({behavior:'smooth'})" class="hover:text-cyan-300 transition-colors">Architecture</a></li>
             <li><a href="#xc-pricing" onclick="event.preventDefault(); document.getElementById('xc-pricing')?.scrollIntoView({behavior:'smooth'})" class="hover:text-cyan-300 transition-colors">Pricing &amp; Plans</a></li>
             <li><a href="#xc-compare" onclick="event.preventDefault(); document.getElementById('xc-compare')?.scrollIntoView({behavior:'smooth'})" class="hover:text-cyan-300 transition-colors">Vector DB Comparison</a></li>

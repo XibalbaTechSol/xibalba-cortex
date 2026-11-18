@@ -21,7 +21,7 @@ import struct
 import threading
 import uuid
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
@@ -234,6 +234,14 @@ class EngineStore:
                 CREATE VIRTUAL TABLE IF NOT EXISTS memories_fts USING fts5(
                     content, memory_id UNINDEXED, namespace UNINDEXED, tokenize = 'porter unicode61'
                 );
+                CREATE TABLE IF NOT EXISTS dream_claims (
+                    id TEXT PRIMARY KEY,
+                    namespace TEXT NOT NULL,
+                    doc_ids_json TEXT NOT NULL,
+                    related_ids_json TEXT NOT NULL,
+                    created_at TEXT NOT NULL,
+                    expires_at TEXT NOT NULL
+                );
                 CREATE TABLE IF NOT EXISTS llm_usage (
                     day TEXT NOT NULL,
                     model TEXT NOT NULL,
@@ -249,6 +257,8 @@ class EngineStore:
                 ("dream_status", "TEXT NOT NULL DEFAULT 'pending'"),
                 ("dream_attempts", "INTEGER NOT NULL DEFAULT 0"),
                 ("raw_dropped", "INTEGER NOT NULL DEFAULT 0"),
+                ("dream_claim", "TEXT"),          # lease holder: a session claim or the worker
+                ("dream_claim_until", "TEXT"),    # ISO time the lease lapses
             ):
                 if column not in columns:
                     self._conn.execute(f"ALTER TABLE documents ADD COLUMN {column} {ddl}")
@@ -323,7 +333,7 @@ class EngineStore:
                        ON CONFLICT(namespace, id) DO UPDATE SET content = excluded.content,
                          metadata_json = excluded.metadata_json, content_hash = excluded.content_hash,
                          updated_at = excluded.updated_at, task_type = excluded.task_type,
-                         dreaming = excluded.dreaming, dream_status = excluded.dream_status, dream_attempts = 0,
+                         dreaming = excluded.dreaming, dream_status = excluded.dream_status, dream_attempts = 0, dream_claim = NULL, dream_claim_until = NULL,
                          raw_dropped = 0""",
                     (namespace, doc_id, content, meta_json, digest, now, now, task_type, dreaming, dream_status),
                 )
@@ -608,23 +618,114 @@ class EngineStore:
 
     # -- dreaming queue ------------------------------------------------------------------------
 
-    def pending_documents(self, limit: int = 200, max_attempts: int = 3) -> list[dict[str, Any]]:
+    def pending_documents(self, limit: int = 200, max_attempts: int = 3,
+                          namespace: str | None = None) -> list[dict[str, Any]]:
+        """Documents waiting for extraction that nobody holds a lease on.
+
+        A namespace whose current policy says `dreaming: off` is never returned, even for documents
+        queued before the policy changed: no extractor (worker or session) may see them.
+        """
+        where, params = "", []
+        if namespace is not None:
+            where, params = " AND namespace = ?", [namespace]
         with self._lock:
             rows = self._conn.execute(
-                """SELECT namespace, id, content, metadata_json, created_at, dreaming, dream_attempts FROM documents
+                f"""SELECT namespace, id, content, metadata_json, created_at, dreaming, dream_attempts FROM documents
                    WHERE dream_status = 'pending' AND dream_attempts < ?
+                     AND (dream_claim_until IS NULL OR dream_claim_until <= ?){where}
                    ORDER BY (dreaming = 'instant') DESC, namespace, created_at, id LIMIT ?""",
-                (max_attempts, limit),
+                (max_attempts, _now(), *params, limit),
             ).fetchall()
-        return [{"namespace": r["namespace"], "id": r["id"], "content": r["content"],
-                 "metadata": json.loads(r["metadata_json"]), "created_at": r["created_at"],
-                 "dreaming": r["dreaming"], "attempts": r["dream_attempts"]} for r in rows]
+        allowed: dict[str, bool] = {}
+        out = []
+        for r in rows:
+            ns = r["namespace"]
+            if ns not in allowed:
+                allowed[ns] = self.get_policy(ns).dreaming != "off"
+            if allowed[ns]:
+                out.append(self._queued(r))
+        return out
+
+    @staticmethod
+    def _queued(r: sqlite3.Row) -> dict[str, Any]:
+        return {"namespace": r["namespace"], "id": r["id"], "content": r["content"],
+                "metadata": json.loads(r["metadata_json"]), "created_at": r["created_at"],
+                "dreaming": r["dreaming"], "attempts": r["dream_attempts"]}
+
+    def lease_documents(self, namespace: str, doc_ids: list[str], holder: str, seconds: float) -> list[str]:
+        """Lease pending, unleased documents to `holder`; returns the ids actually leased."""
+        if not doc_ids:
+            return []
+        now = datetime.now(timezone.utc)
+        until = (now + timedelta(seconds=seconds)).isoformat()
+        marks = ",".join("?" for _ in doc_ids)
+        with self._lock, self._conn:
+            rows = self._conn.execute(
+                f"""UPDATE documents SET dream_claim = ?, dream_claim_until = ?
+                    WHERE namespace = ? AND id IN ({marks}) AND dream_status = 'pending'
+                      AND (dream_claim_until IS NULL OR dream_claim_until <= ?)
+                    RETURNING id""",
+                (holder, until, namespace, *doc_ids, now.isoformat()),
+            ).fetchall()
+        leased = {r["id"] for r in rows}
+        return [i for i in doc_ids if i in leased]
+
+    def release_lease(self, namespace: str, doc_ids: list[str], holder: str) -> None:
+        if not doc_ids:
+            return
+        marks = ",".join("?" for _ in doc_ids)
+        with self._lock, self._conn:
+            self._conn.execute(
+                f"""UPDATE documents SET dream_claim = NULL, dream_claim_until = NULL
+                    WHERE namespace = ? AND id IN ({marks}) AND dream_claim = ?""",
+                (namespace, *doc_ids, holder),
+            )
+
+    def leased_documents(self, namespace: str, doc_ids: list[str], holder: str) -> list[dict[str, Any]]:
+        """The documents `holder` still holds an unexpired lease on, in `doc_ids` order."""
+        if not doc_ids:
+            return []
+        marks = ",".join("?" for _ in doc_ids)
+        with self._lock:
+            rows = self._conn.execute(
+                f"""SELECT namespace, id, content, metadata_json, created_at, dreaming, dream_attempts FROM documents
+                    WHERE namespace = ? AND id IN ({marks}) AND dream_status = 'pending'
+                      AND dream_claim = ? AND dream_claim_until > ?""",
+                (namespace, *doc_ids, holder, _now()),
+            ).fetchall()
+        found = {r["id"]: self._queued(r) for r in rows}
+        return [found[i] for i in doc_ids if i in found]
+
+    def save_claim(self, claim_id: str, namespace: str, doc_ids: list[str], related_ids: list[str],
+                   expires_at: str) -> None:
+        with self._lock, self._conn:
+            self._conn.execute(
+                "INSERT INTO dream_claims(id, namespace, doc_ids_json, related_ids_json, created_at, expires_at) "
+                "VALUES (?, ?, ?, ?, ?, ?)",
+                (claim_id, namespace, json.dumps(doc_ids), json.dumps(related_ids), _now(), expires_at),
+            )
+            # Claims are short-lived; drop ones that lapsed over a day ago.
+            cutoff = (datetime.now(timezone.utc) - timedelta(days=1)).isoformat()
+            self._conn.execute("DELETE FROM dream_claims WHERE expires_at < ?", (cutoff,))
+
+    def get_claim(self, claim_id: str) -> dict[str, Any] | None:
+        with self._lock:
+            r = self._conn.execute("SELECT * FROM dream_claims WHERE id = ?", (claim_id,)).fetchone()
+        if r is None:
+            return None
+        return {"id": r["id"], "namespace": r["namespace"], "doc_ids": json.loads(r["doc_ids_json"]),
+                "related_ids": json.loads(r["related_ids_json"]), "expires_at": r["expires_at"]}
+
+    def delete_claim(self, claim_id: str) -> None:
+        with self._lock, self._conn:
+            self._conn.execute("DELETE FROM dream_claims WHERE id = ?", (claim_id,))
 
     def mark_dreamed(self, namespace: str, doc_ids: list[str], status: str = "done") -> None:
         marks = ",".join("?" for _ in doc_ids)
         with self._lock, self._conn:
             self._conn.execute(
-                f"UPDATE documents SET dream_status = ? WHERE namespace = ? AND id IN ({marks})",
+                f"UPDATE documents SET dream_status = ?, dream_claim = NULL, dream_claim_until = NULL "
+                f"WHERE namespace = ? AND id IN ({marks})",
                 (status, namespace, *doc_ids),
             )
             if status == "done" and self.get_policy(namespace).raw_after_dream == "drop":
@@ -642,7 +743,7 @@ class EngineStore:
         marks = ",".join("?" for _ in doc_ids)
         with self._lock, self._conn:
             self._conn.execute(
-                f"""UPDATE documents SET dream_attempts = dream_attempts + 1,
+                f"""UPDATE documents SET dream_attempts = dream_attempts + 1, dream_claim = NULL, dream_claim_until = NULL,
                       dream_status = CASE WHEN dream_attempts + 1 >= ? THEN 'failed' ELSE dream_status END
                     WHERE namespace = ? AND id IN ({marks})""",
                 (max_attempts, namespace, *doc_ids),

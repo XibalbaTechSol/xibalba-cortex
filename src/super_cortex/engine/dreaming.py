@@ -343,6 +343,12 @@ def run_dreaming(
                 stats.stopped = "daily budget reached"
                 return stats
             namespace = batch[0]["namespace"]
+            # Lease the batch so a session claiming meanwhile cannot extract the same documents.
+            holder = f"worker:{extractor.model}"
+            leased = set(store.lease_documents(namespace, [d["id"] for d in batch], holder, 600))
+            batch = [d for d in batch if d["id"] in leased]
+            if not batch:
+                continue
             doc_ids = [d["id"] for d in batch]
             related = related_memories(store, namespace, batch)
             for attempt in range(max_transient_retries + 1):
@@ -358,6 +364,7 @@ def run_dreaming(
                     stats.quota_ids.append(str(exc))
                     if exc.per_day:
                         stats.stopped = "provider daily quota exhausted"
+                        store.release_lease(namespace, doc_ids, holder)
                         return stats
                     sleep(max(exc.retry_after or 0.0, spacing, 5.0))
                     continue
@@ -375,6 +382,7 @@ def run_dreaming(
                 break
             else:
                 stats.failed_batches += 1  # transient errors used up; documents stay pending
+                store.release_lease(namespace, doc_ids, holder)
     if not stats.stopped:
         stats.stopped = "stop requested" if stop and stop.is_set() else "request cap reached"
     return stats

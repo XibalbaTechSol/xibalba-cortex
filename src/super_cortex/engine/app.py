@@ -11,7 +11,9 @@ Differences, all deliberate:
 - `searchMode: "combined"` ranks memories and chunks together; each hit says which `kind` it is.
 - Retention is a per-namespace policy (GET/PUT /ns/{ns}/policy; presets audit, standard,
   research; see policy.py). Kept versions are served at GET /ns/{ns}/document/{id}/versions.
-- Learned memories are written by the dreaming worker, which is OFF unless SUPER_CORTEX_DREAMING=on.
+- Learned memories are written by the dreaming worker, which is OFF unless SUPER_CORTEX_DREAMING=on,
+  or by an agent session using its own model: POST /ns/{ns}/extraction/claim, then
+  POST /extraction/claims/{id}/submit (or /release). See session_extraction.py.
 """
 
 from __future__ import annotations
@@ -28,6 +30,7 @@ from starlette.routing import Route
 
 from .profile import DYNAMIC_LIMIT, build_profile
 from .search import combined_search, hybrid_search, memory_search
+from .session_extraction import DEFAULT_LEASE_SECONDS, claim, release, submit
 from .store import EngineStore
 
 _NAMESPACE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$")
@@ -200,6 +203,19 @@ def create_app(store: EngineStore, api_key: str | None = None, allow_anonymous: 
             return JSONResponse({"error": "not found"}, status_code=404)
         return JSONResponse({"documentId": request.path_params["doc_id"], "versions": versions})
 
+    async def extraction_claim(request: Request) -> JSONResponse:
+        data = await body(request) if await request.body() else {}
+        lease = max(60.0, min(float(data.get("leaseSeconds", DEFAULT_LEASE_SECONDS)), 3600.0))
+        return JSONResponse(claim(store, request.path_params["ns"], int(data.get("limit", 5)), lease))
+
+    async def extraction_submit(request: Request) -> JSONResponse:
+        data = await body(request)
+        return JSONResponse(submit(store, request.path_params["claim_id"], str(data.get("model") or ""),
+                                   documents=data.get("documents"), proposals=data.get("proposals")))
+
+    async def extraction_release(request: Request) -> JSONResponse:
+        return JSONResponse(release(store, request.path_params["claim_id"]))
+
     dreaming_state: dict[str, Any] = {"enabled": False}
     if os.getenv("SUPER_CORTEX_DREAMING", "off").lower() == "on":
         dreaming_state.update(_start_dreaming(store))
@@ -219,6 +235,9 @@ def create_app(store: EngineStore, api_key: str | None = None, allow_anonymous: 
         Route("/ns/{ns}/list/memories", guard(list_memories), methods=["POST"]),
         Route("/ns/{ns}/memory/{memory_id}", guard(get_memory), methods=["GET"]),
         Route("/ns/{ns}/profile", guard(profile), methods=["POST"]),
+        Route("/ns/{ns}/extraction/claim", guard(extraction_claim), methods=["POST"]),
+        Route("/extraction/claims/{claim_id}/submit", guard(extraction_submit), methods=["POST"]),
+        Route("/extraction/claims/{claim_id}/release", guard(extraction_release), methods=["POST"]),
     ])
 
 

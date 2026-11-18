@@ -143,6 +143,53 @@ def create_server(config: SuperCortexConfig | None = None) -> MCPServer:
         res = await cortex.get_profile(namespace=namespace, buckets=buckets)
         return json.dumps(res, indent=2)
 
+    def _extraction_namespace(namespace: str | None) -> str:
+        if not namespace:
+            return cfg.default_namespace
+        return cfg.shared_namespace if namespace == "shared" else namespace
+
+    @server.tool()
+    async def memory_extraction_claim(namespace: str | None = None, limit: int = 5) -> str:
+        """Extract memories with YOUR OWN model instead of the engine's paid/free-tier extractor.
+
+        Leases up to `limit` (max 10) pending documents from `namespace` (default: this agent's
+        namespace; "shared" for the shared one) for 15 minutes, and returns the extractor
+        `instructions`, the `prompt` (documents D1..Dn, related memories M1..Mn) and the
+        `responseSchema`. Follow the instructions on the prompt yourself, then call
+        memory_extraction_submit with the claimId. Every memory needs a quote copied exactly from
+        its document: the engine stores only quotes it can find. Returns claimId=null when there is
+        nothing to do. Needs the SuperCortex engine backend.
+        """
+        res = await cortex.client.claim_extraction(_extraction_namespace(namespace), limit)
+        return json.dumps(res, indent=2)
+
+    @server.tool()
+    async def memory_extraction_submit(
+        claim_id: str,
+        documents: list[dict[str, Any]] | None = None,
+        proposals: list[dict[str, Any]] | None = None,
+        model: str | None = None,
+    ) -> str:
+        """Submit the memories you extracted for a claim from memory_extraction_claim.
+
+        Pass `documents` as in the claim's responseSchema ([{"doc": "D1", "memories": [{"memory",
+        "quote", "certainty", "inference", "kind", "updates"}]}]) or a flat `proposals` list where
+        each memory has its own "doc". `model` names the model that did the work (stored as
+        session:<model> on each memory). Returns what was stored, merged, superseded, or rejected
+        as ungrounded. Submit an empty list to mark documents with nothing worth keeping as done.
+        """
+        import os
+
+        used = model or os.getenv("SUPER_CORTEX_SESSION_MODEL") or os.getenv("SUPER_CORTEX_AGENT_ID") or "agent"
+        res = await cortex.client.submit_extraction(claim_id, used, documents=documents, proposals=proposals)
+        return json.dumps(res, indent=2)
+
+    @server.tool()
+    async def memory_extraction_release(claim_id: str) -> str:
+        """Give an unfinished claim back so its documents return to the extraction queue."""
+        res = await cortex.client.release_extraction(claim_id)
+        return json.dumps(res, indent=2)
+
     @server.tool()
     async def memory_contradict(
         target_memory_id: str,

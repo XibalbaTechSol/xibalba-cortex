@@ -10,6 +10,7 @@ backends by changing one URL. Nothing in the client changes.
 | API | `/namespaces`, `/ns/{ns}/document`, `/ns/{ns}/search`, `/ns/{ns}/profile`, … | Same paths and payloads, plus the additions below |
 | Search | Vector | Hybrid (FTS5 + sqlite-vec), or `memories`, `combined`, `lexical`, `vector` |
 | Learned memories | Opaque | Extracted by "dreaming", every memory grounded in a verbatim quote |
+| Extraction model | Hosted | Gemini free tier, or the calling agent's own model (session extraction) |
 | Retention | Fixed | Per-namespace policy: `audit`, `standard`, `research` |
 
 ## Running it
@@ -79,6 +80,31 @@ proposals in the same shape, `{"doc": "D1", "memory", "quote", "kind", "certaint
 and applying them with `store.mark_dreamed(...)`. Grounding, secret filtering, dedup and the
 floors still apply. Label the run (`extractor_label`) so each memory's `generator` records what
 produced it.
+
+## Bring your own model: session extraction
+
+Any agent session can do the extraction on its own model instead of the worker calling Gemini:
+
+| Endpoint | Body | Returns |
+|---|---|---|
+| `POST /ns/{ns}/extraction/claim` | `{"limit": 5, "leaseSeconds": 900}` | `claimId`, `expiresAt`, `instructions`, `prompt`, `responseSchema`, `documents` (`D` labels), `related` (`M` labels); `claimId: null` when nothing is pending |
+| `POST /extraction/claims/{id}/submit` | `{"model": "...", "documents": [{"doc": "D1", "memories": [...]}]}` or `{"model", "proposals": [...]}` | the same stats as a worker pass, plus `extractor` and `skipped` |
+| `POST /extraction/claims/{id}/release` | none | `{"released": n}`; documents return to the queue without using an attempt |
+
+- A claim leases its documents (`limit` at most 10, lease 60 to 3600 seconds). The worker leases
+  its batches too, so a session and the worker never extract the same document.
+- Submissions go through `apply_proposals`: grounding, secret filter, dedup, supersede, certainty
+  floors. Nothing about acceptance depends on which model answered.
+- A document edited after the claim loses its lease and is skipped (`skipped`). Labels are
+  renumbered on submit, so `D2` or `M1` can never point at a different document or memory.
+- An expired or already-submitted claim is refused with 409. An expired claim's documents are
+  back in the queue.
+- Memories are stored with `extractor`/`generator` `session:<model>`.
+- `dreaming: off` namespaces are never claimable. This is checked against the namespace's
+  *current* policy, so documents queued before the policy changed are covered too.
+
+The MCP tools `memory_extraction_claim`/`_submit`/`_release` and the CLI
+`super-cortex extract run --with "<agent command>"` wrap these endpoints.
 
 ## Profile
 
