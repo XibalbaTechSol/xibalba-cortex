@@ -316,3 +316,29 @@ def test_combined_search_ranks_memories_and_chunks_together(store):
     assert all(r["dataClass"] == "metadata" and r["derivedFrom"] for r in results)
     scores = [r["score"] for r in results]
     assert scores == sorted(scores, reverse=True)
+
+
+# -- certainty: a label, not an invented probability (Gemini returned 1.0 for every memory) --------
+
+def test_schema_asks_for_a_certainty_label_not_a_probability():
+    from super_cortex.engine.dreaming import RESPONSE_SCHEMA
+
+    item = RESPONSE_SCHEMA["properties"]["documents"]["items"]["properties"]["memories"]["items"]
+    assert item["properties"]["certainty"]["enum"] == ["certain", "likely", "uncertain"]
+    assert "certainty" in item["required"] and "confidence" not in item["required"]
+
+
+@pytest.mark.parametrize("certainty,inference,status", [
+    ("certain", False, "latest"),
+    ("likely", False, "latest"),
+    ("uncertain", False, "candidate"),
+    ("certain", True, "latest"),
+    ("likely", True, "candidate"),
+])
+def test_certainty_label_decides_whether_a_memory_is_served(store, certainty, inference, status):
+    docs = ingest(store, ("a", COFFEE))
+    apply_proposals(store, NS, docs, [], [{"memory": "Priya prefers dark roast coffee.", "doc": "D1",
+                                           "quote": "prefers dark roast coffee", "certainty": certainty,
+                                           "inference": inference, "kind": "preference"}], "fake", DreamStats())
+    memories = store.list_memories(NS, status=None, limit=10)["memories"]
+    assert [m["status"] for m in memories] == [status]
