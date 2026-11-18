@@ -34,6 +34,8 @@ Super-Cortex is a hybrid memory architecture designed for autonomous agents, com
    (Deterministic SQLite)             (Supermemory Local Daemon)
 ```
 
+The memory backend is whatever `SUPERMEMORY_URL` names: the SuperCortex engine (`super_cortex.engine`, default `127.0.0.1:6768`; see [docs/ENGINE.md](docs/ENGINE.md)) or Supermemory Local (`127.0.0.1:6767`). Both serve the same API. Learned memories in the engine are classed as metadata derived from content, and each carries a verbatim quote from its source, a kind, and a certainty-derived confidence.
+
 ## 2. Cryptographic Ledger Contract
 
 ### 2.1 Event Hash Chain

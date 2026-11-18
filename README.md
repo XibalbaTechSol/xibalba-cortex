@@ -1,6 +1,6 @@
 # Super-Cortex (`super-cortex`)
 
-High-performance, zero-inference cryptographic graph memory engine, 3D neural manifold visualizer, and Model Context Protocol (MCP) server for the Xibalba ecosystem, built upon **Supermemory Local**.
+High-performance, zero-inference cryptographic graph memory engine, 3D neural manifold visualizer, and Model Context Protocol (MCP) server for the Xibalba ecosystem. Its memory backend is the **SuperCortex engine** (`super_cortex.engine`, see [docs/ENGINE.md](docs/ENGINE.md)), which serves the same HTTP API as Supermemory Local, so either backend works behind `SUPERMEMORY_URL`.
 
 ---
 
@@ -23,7 +23,7 @@ flowchart TD
     end
 
     subgraph StorageLedger["Hybrid Dual-Engine Storage"]
-        C1["Supermemory Local (127.0.0.1:6767)<br>768-D Vector Embeddings & Fast Cosine Search"]
+        C1["SuperCortex engine (SUPERMEMORY_URL)<br>Hybrid FTS5 + vector search, grounded learned memories, per-namespace retention"]
         C2["Cryptographic Provenance Store (~/.super-cortex/provenance.db)<br>Append-Only SHA-256 Hash Chain & Merkle Roots"]
     end
 
@@ -67,7 +67,7 @@ flowchart TD
 
 ### Prerequisites
 - Python 3.12+ with `uv`
-- Supermemory Local daemon running on `127.0.0.1:6767`
+- A memory backend at `SUPERMEMORY_URL` with its key in `SUPERMEMORY_API_KEY`: the SuperCortex engine ([docs/ENGINE.md](docs/ENGINE.md)), or Supermemory Local (default `http://127.0.0.1:6767`)
 
 ### Diagnostic Doctor
 Verify daemon connectivity, API key authorization, and database chain integrity:
@@ -183,12 +183,11 @@ Super-Cortex implements the Model Context Protocol (MCP) over both `stdio` and H
 
 ## Background Daemon & Systemd Units
 
-To ensure Supermemory Local and Super-Cortex Studio run persistently on system startup:
+To keep the memory backend and Super-Cortex Studio running on system startup (unit names are examples; see [docs/ENGINE.md](docs/ENGINE.md) for moving clients from Supermemory to the engine):
 
 ```bash
-# Enable and start Supermemory Local daemon
-systemctl --user enable supermemory-daemon.service
-systemctl --user start supermemory-daemon.service
+# Enable and start the SuperCortex engine
+systemctl --user enable --now super-cortex-engine.service
 
 # Enable and start Super-Cortex Studio interface (port 4174)
 systemctl --user enable super-cortex-studio.service
@@ -206,4 +205,4 @@ Run the test suite:
 ```bash
 uv run pytest -v
 ```
-All 16 unit tests covering store operations, cryptographic chain integrity, and MCP server endpoints pass with 100% green status.
+Tests cover store operations, cryptographic chain integrity, MCP server endpoints and the engine (retention policy, dreaming, certainty floors, profile dating). Engine-only tests need the `engine-local` extra: `uv run --extra engine-local pytest`.
