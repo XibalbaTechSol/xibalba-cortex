@@ -16,6 +16,11 @@ from starlette.routing import Mount, Route
 from starlette.staticfiles import StaticFiles
 from sse_starlette.sse import EventSourceResponse
 
+from .agent0_bridge import (
+    BASE_SEPOLIA_CHAIN_ID,
+    BASE_SEPOLIA_ERC8004_REGISTRY,
+    build_agent0_passport_card,
+)
 from .ais_reward import (
     TrajectoryStepInput,
     build_dpo_preference_pair,
@@ -2250,6 +2255,53 @@ def create_app(
         _, _, csrf = auth
         return JSONResponse({"csrf_token": csrf})
 
+    async def api_agent0_passport(request: Request) -> JSONResponse:
+        if request.method == "GET":
+            did = (request.query_params.get("did") or cfg.actor_did).strip()
+            name = (request.query_params.get("name") or "Super-Cortex Agent").strip()
+            description = (
+                request.query_params.get("description")
+                or "Integrity Protocol policy-confined autonomous agent"
+            ).strip()
+            actor = request.query_params.get("sovereign_actor_wallet")
+            token_id = request.query_params.get("token_id", "0")
+            chain_id = int(request.query_params.get("chain_id", str(BASE_SEPOLIA_CHAIN_ID)))
+            registry = request.query_params.get("registry_address", BASE_SEPOLIA_ERC8004_REGISTRY)
+            mcp = request.query_params.get("mcp_endpoint")
+            a2a = request.query_params.get("a2a_endpoint")
+            x402 = str(request.query_params.get("x402_support", "false")).lower() in {"1", "true", "yes"}
+        else:
+            body = await request.json()
+            did = str(body.get("integrity_did") or body.get("did") or cfg.actor_did).strip()
+            name = str(body.get("name") or "Super-Cortex Agent").strip()
+            description = str(
+                body.get("description") or "Integrity Protocol policy-confined autonomous agent"
+            ).strip()
+            actor = body.get("sovereign_actor_wallet")
+            token_id = body.get("token_id", 0)
+            chain_id = int(body.get("chain_id", BASE_SEPOLIA_CHAIN_ID))
+            registry = str(body.get("registry_address") or BASE_SEPOLIA_ERC8004_REGISTRY)
+            mcp = body.get("mcp_endpoint")
+            a2a = body.get("a2a_endpoint")
+            x402 = bool(body.get("x402_support", False))
+
+        try:
+            card = build_agent0_passport_card(
+                integrity_did=did,
+                name=name,
+                description=description,
+                chain_id=chain_id,
+                registry_address=registry,
+                token_id=token_id,
+                sovereign_actor_wallet=actor,
+                mcp_endpoint=mcp,
+                a2a_endpoint=a2a,
+                x402_support=x402,
+            )
+            return JSONResponse(card)
+        except ValueError as exc:
+            return JSONResponse({"error": str(exc)}, status_code=400)
+
     routes = [
         Route("/healthz", api_healthz, methods=["GET"]),
         Route("/readyz", api_readyz, methods=["GET"]),
@@ -2385,6 +2437,8 @@ def create_app(
         Route("/api/graph/operations/discover-links", api_graph_discover_links, methods=["GET", "POST"]),
         Route("/api/graph/operations/commit-links", api_graph_commit_links, methods=["POST"]),
         Route("/api/graph/operations/query", api_graph_query, methods=["POST"]),
+        Route("/api/agent0/passport", api_agent0_passport, methods=["GET", "POST"]),
+        Route("/api/managed/agent0/passport", api_agent0_passport, methods=["GET", "POST"]),
     ]
 
     # Mount static viewer if dist or viewer dir exists
