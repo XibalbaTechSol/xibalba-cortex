@@ -31,6 +31,9 @@ DEFAULT_MODEL = "gemini-3.5-flash-lite"
 MERGE_SIMILARITY = 0.92      # a new memory this close to an existing one adds evidence instead
 MIN_CONFIDENCE = 0.6         # below this a memory is stored as a candidate, not served
 MIN_INFERENCE_CONFIDENCE = 0.8
+# Models give uncalibrated probabilities (Gemini said 1.0 for all 352 eval memories), so the
+# extractor picks a label and the engine maps it to a stored score.
+CERTAINTY_SCORES = {"certain": 0.95, "likely": 0.75, "uncertain": 0.4}
 MAX_QUOTE_CHARS = 300
 MAX_DOC_CHARS = 4000
 
@@ -64,7 +67,9 @@ Rules:
   "rule" (a standing instruction, policy or constraint), "goal" (an intended future outcome or
   plan), "decision" (a choice that was made), "event" (something that happened at a point in
   time), or "fact" (any other state of the world). Choose the most specific that fits.
-- "confidence" is your probability (0 to 1) that the memory is correct and still current.
+- "certainty": "certain" when the quote states the memory outright and nothing suggests it has
+  changed; "likely" when it is stated but hedged, partial, or may be out of date; "uncertain"
+  when it is speculative ("might", "probably", an untested idea). Do not default to "certain".
 - Never write credentials, keys, tokens or passwords into a memory.
 - If nothing is worth keeping, return each document's entry with an empty "memories" list."""
 
@@ -73,12 +78,12 @@ _MEMORY_SCHEMA = {
     "properties": {
         "memory": {"type": "STRING"},
         "quote": {"type": "STRING"},
-        "confidence": {"type": "NUMBER"},
+        "certainty": {"type": "STRING", "enum": list(CERTAINTY_SCORES)},
         "inference": {"type": "BOOLEAN"},
         "kind": {"type": "STRING", "enum": list(MEMORY_KINDS)},
         "updates": {"type": "STRING", "nullable": True},
     },
-    "required": ["memory", "quote", "confidence", "inference", "kind"],
+    "required": ["memory", "quote", "certainty", "inference", "kind"],
 }
 # One entry per document: batching otherwise lets the model skim and silently skip documents
 # (measured: 6-doc batches yielded under half the memories of single-document requests).
@@ -257,10 +262,14 @@ def apply_proposals(store: EngineStore, namespace: str, documents: list[dict[str
         if chunk_id is None:
             stats.ungrounded += 1
             continue
-        try:
-            confidence = max(0.0, min(1.0, float(proposal.get("confidence", 0.0))))
-        except (TypeError, ValueError):
-            confidence = 0.0
+        label = str(proposal.get("certainty") or "").strip().lower()
+        if label in CERTAINTY_SCORES:
+            confidence = CERTAINTY_SCORES[label]
+        else:  # a numeric confidence from an older or non-Gemini extractor
+            try:
+                confidence = max(0.0, min(1.0, float(proposal.get("confidence", 0.0))))
+            except (TypeError, ValueError):
+                confidence = 0.0
         is_inference = bool(proposal.get("inference"))
         floor = MIN_INFERENCE_CONFIDENCE if is_inference else MIN_CONFIDENCE
         status = "latest" if confidence >= floor else "candidate"
