@@ -15,6 +15,7 @@ from .store import EngineStore
 
 RRF_K = 60
 SEARCH_MODES = ("hybrid", "lexical", "vector")
+MEMORY_STATUSES = ("latest",)
 
 
 def hybrid_search(
@@ -94,4 +95,75 @@ def hybrid_search(
         "searchTime": round((time.perf_counter() - started) * 1000, 2),
         "engine": {"mode": mode, "rrf_k": RRF_K, "embedding_model": store.embedder.model_key,
                    "vector_backend": store.vector_backend, "threshold": threshold},
+    }
+
+
+def memory_search(
+    store: EngineStore,
+    namespace: str,
+    query: str,
+    *,
+    limit: int = 10,
+    threshold: float = 0.3,
+    include_documents: bool = False,
+    include_candidates: bool = False,
+) -> dict[str, Any]:
+    """Search learned memories (keyword + vector, RRF). Only `latest` memories unless asked.
+
+    Each result carries its evidence: `sources` lists every document and quote behind it, and
+    `documentId` / `included.document` name the first, so clients that anchor provenance on the
+    source document (super-cortex's `hybrid_retrieve`, the eval harness) work unchanged.
+    """
+    started = time.perf_counter()
+    limit = max(1, min(int(limit), 100))
+    pool = max(limit * 4, 40)
+    statuses = ("latest", "candidate") if include_candidates else MEMORY_STATUSES
+    query_vector = store.embedder.embed([query])[0]
+    lexical = store.memory_lexical_ranked(namespace, query, pool, statuses)
+    vector_hits = store.memory_vector_ranked(namespace, query_vector, pool, statuses)
+
+    scores: dict[str, float] = {}
+    lexical_rank: dict[str, int] = {}
+    for rank, memory_id in enumerate(lexical, 1):
+        scores[memory_id] = scores.get(memory_id, 0.0) + 1.0 / (RRF_K + rank)
+        lexical_rank[memory_id] = rank
+    for rank, (memory_id, _) in enumerate(vector_hits, 1):
+        scores[memory_id] = scores.get(memory_id, 0.0) + 1.0 / (RRF_K + rank)
+    similarity = dict(vector_hits)
+    similarity.update(store.memory_similarities([m for m in scores if m not in similarity], query_vector))
+
+    ranked = sorted(scores, key=lambda mid: (-scores[mid], mid))
+    found = store.get_memories(ranked[: pool])
+    results: list[dict[str, Any]] = []
+    for memory_id in ranked:
+        memory = found.get(memory_id)
+        if memory is None or not memory["sources"]:
+            continue
+        sim = similarity.get(memory_id, 0.0)
+        if sim < threshold and memory_id not in lexical_rank:
+            continue
+        first = memory["sources"][0]
+        item: dict[str, Any] = {
+            "id": memory_id,
+            "memory": memory["memory"],
+            "similarity": sim,
+            "score": scores[memory_id],
+            "isLatest": memory["isLatest"],
+            "isInference": memory["isInference"],
+            "confidence": memory["confidence"],
+            "supersedes": memory["supersedes"],
+            "documentId": first["documentId"],
+            "sources": memory["sources"],
+            "updatedAt": memory["updatedAt"],
+        }
+        if include_documents:
+            item["included"] = {"document": {"id": first["documentId"]}}
+        results.append(item)
+        if len(results) >= limit:
+            break
+    return {
+        "results": results,
+        "searchTime": round((time.perf_counter() - started) * 1000, 2),
+        "engine": {"mode": "memories", "rrf_k": RRF_K, "embedding_model": store.embedder.model_key,
+                   "statuses": list(statuses), "threshold": threshold},
     }

@@ -46,6 +46,13 @@ def _unpack(blob: bytes) -> list[float]:
     return list(struct.unpack(f"<{len(blob) // 4}f", blob))
 
 
+def quota_day() -> str:
+    """Gemini's daily quotas reset at midnight Pacific, so the budget counter rolls over then too."""
+    from zoneinfo import ZoneInfo
+
+    return datetime.now(ZoneInfo("America/Los_Angeles")).date().isoformat()
+
+
 def _normalise(text: str) -> str:
     return re.sub(r"\s+", " ", text).strip().lower()
 
@@ -223,6 +230,9 @@ class EngineStore:
             now = _now()
             with self._conn:
                 self._delete_chunks(namespace, [doc_id])
+                # Old quotes and chunk ids no longer describe the new text: drop them, and forget
+                # any memory that loses its last evidence. Dreaming re-reads the new content.
+                self._detach_sources(namespace, [doc_id])
                 self._conn.execute(
                     """INSERT INTO documents(namespace, id, content, metadata_json, content_hash, created_at, updated_at,
                                             task_type, dreaming, dream_status, dream_attempts)
@@ -244,6 +254,27 @@ class EngineStore:
                         (chunk, chunk_id, namespace),
                     )
         return {"id": doc_id, "status": "updated" if existing else "created", "chunks": len(chunks)}
+
+    def _detach_sources(self, namespace: str, doc_ids: list[str]) -> list[str]:
+        """Remove `doc_ids`' evidence rows; forget memories left with none. Caller holds the txn.
+
+        A memory with no remaining evidence is forgotten in the same transaction as the document
+        change, so search can never return a memory whose source is gone or rewritten.
+        """
+        marks = ",".join("?" for _ in doc_ids)
+        affected = [r["memory_id"] for r in self._conn.execute(
+            f"SELECT DISTINCT memory_id FROM memory_sources WHERE namespace = ? AND doc_id IN ({marks})",
+            (namespace, *doc_ids),
+        )]
+        self._conn.execute(
+            f"DELETE FROM memory_sources WHERE namespace = ? AND doc_id IN ({marks})", (namespace, *doc_ids)
+        )
+        forgotten = []
+        for memory_id in affected:
+            if self._conn.execute("SELECT 1 FROM memory_sources WHERE memory_id = ? LIMIT 1", (memory_id,)).fetchone() is None:
+                self._set_memory_status(memory_id, "forgotten")
+                forgotten.append(memory_id)
+        return forgotten
 
     def _delete_chunks(self, namespace: str, doc_ids: list[str]) -> None:
         marks = ",".join("?" for _ in doc_ids)
@@ -267,19 +298,7 @@ class EngineStore:
         marks = ",".join("?" for _ in doc_ids)
         with self._lock, self._conn:
             self._delete_chunks(namespace, doc_ids)
-            affected = [r["memory_id"] for r in self._conn.execute(
-                f"SELECT DISTINCT memory_id FROM memory_sources WHERE namespace = ? AND doc_id IN ({marks})",
-                (namespace, *doc_ids),
-            )]
-            self._conn.execute(
-                f"DELETE FROM memory_sources WHERE namespace = ? AND doc_id IN ({marks})", (namespace, *doc_ids)
-            )
-            # A learned memory with no remaining evidence is forgotten in the same transaction,
-            # so search can never return a memory whose source was deleted.
-            for memory_id in affected:
-                left = self._conn.execute("SELECT 1 FROM memory_sources WHERE memory_id = ? LIMIT 1", (memory_id,)).fetchone()
-                if left is None:
-                    self._set_memory_status(memory_id, "forgotten")
+            self._detach_sources(namespace, doc_ids)
             cur = self._conn.execute(
                 f"DELETE FROM documents WHERE namespace = ? AND id IN ({marks})", (namespace, *doc_ids)
             )
@@ -387,7 +406,7 @@ class EngineStore:
             rows = self._conn.execute(
                 """SELECT namespace, id, content, metadata_json, created_at, dreaming, dream_attempts FROM documents
                    WHERE dream_status = 'pending' AND dream_attempts < ?
-                   ORDER BY namespace, created_at, id LIMIT ?""",
+                   ORDER BY (dreaming = 'instant') DESC, namespace, created_at, id LIMIT ?""",
                 (max_attempts, limit),
             ).fetchall()
         return [{"namespace": r["namespace"], "id": r["id"], "content": r["content"],
@@ -445,8 +464,8 @@ class EngineStore:
         vector: list[float] | None = None,
     ) -> str:
         """Insert a memory with its evidence; superseding `supersedes_id` in the same transaction."""
-        if not sources:
-            raise ValueError("a memory needs at least one source")
+        if not sources or any(chunk_id is None for _, chunk_id, _ in sources):
+            raise ValueError("a memory needs at least one source, each located in a chunk")
         vector = vector if vector is not None else self.embedder.embed([content])[0]
         memory_id = "m_" + uuid.uuid4().hex[:20]
         now = _now()
@@ -466,10 +485,13 @@ class EngineStore:
                     (memory_id, namespace, doc_id, chunk_id, quote),
                 )
             if supersedes_id and status == "latest":
-                self._set_memory_status(supersedes_id, "superseded")
+                self._conn.execute(
+                    "UPDATE memories SET status = 'superseded', updated_at = ? WHERE id = ? AND namespace = ? AND status = 'latest'",
+                    (now, supersedes_id, namespace),
+                )
         return memory_id
 
-    def add_memory_source(self, memory_id: str, namespace: str, doc_id: str, chunk_id: str | None, quote: str) -> None:
+    def add_memory_source(self, memory_id: str, namespace: str, doc_id: str, chunk_id: str, quote: str) -> None:
         with self._lock, self._conn:
             self._conn.execute(
                 "INSERT OR IGNORE INTO memory_sources(memory_id, namespace, doc_id, chunk_id, quote) VALUES (?, ?, ?, ?, ?)",
@@ -565,13 +587,13 @@ class EngineStore:
     # -- LLM budget ---------------------------------------------------------------------------
 
     def llm_requests_today(self, model: str) -> int:
-        day = datetime.now(timezone.utc).date().isoformat()
+        day = quota_day()
         with self._lock:
             row = self._conn.execute("SELECT requests FROM llm_usage WHERE day = ? AND model = ?", (day, model)).fetchone()
         return row["requests"] if row else 0
 
     def record_llm_request(self, model: str) -> None:
-        day = datetime.now(timezone.utc).date().isoformat()
+        day = quota_day()
         with self._lock, self._conn:
             self._conn.execute(
                 """INSERT INTO llm_usage(day, model, requests) VALUES (?, ?, 1)

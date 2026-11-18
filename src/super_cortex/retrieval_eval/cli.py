@@ -37,8 +37,19 @@ def build(
     typer.echo(json.dumps({"corpus": len(corpus), "queries": len(queries), "mean_lexical_overlap": round(overlap, 3)}))
 
 
-def _targets(namespace: str, include_engine: bool, include_supermemory: bool, engine_url: str, supermemory_url: str):
+def _targets(namespace: str, include_engine: bool, include_supermemory: bool, engine_url: str, supermemory_url: str,
+             memories: bool = False):
     targets = []
+    if memories:
+        key = os.getenv("SUPER_CORTEX_ENGINE_API_KEY", "")
+        if include_supermemory:
+            targets.append(HttpTarget("supermemory:memories", supermemory_url, namespace, resolve_api_key(),
+                                      ingest_extras={"taskType": "memory"}, search_extras={"searchMode": "memories"}))
+        if include_engine:
+            targets.append(HttpTarget("supercortex:memories", engine_url, namespace, key,
+                                      ingest_extras={"taskType": "memory"}, search_extras={"searchMode": "memories"}))
+            targets.append(HttpTarget("supercortex:hybrid", engine_url, namespace, key))
+        return targets
     if include_supermemory:
         targets.append(HttpTarget("supermemory", supermemory_url, namespace, resolve_api_key(),
                                   ingest_extras={"taskType": "superrag"}, search_extras={"searchMode": "chunks"}))
@@ -57,11 +68,14 @@ def ingest(
     engine: bool = typer.Option(True), supermemory: bool = typer.Option(True),
     engine_url: str = typer.Option("http://127.0.0.1:6768"),
     supermemory_url: str = typer.Option("http://127.0.0.1:6767"),
+    memories: bool = typer.Option(False, help="Ingest with taskType=memory (LLM extraction) instead of superrag"),
+    limit: int = typer.Option(0, help="Only the first N corpus documents (0 = all)"),
 ) -> None:
-    """Load the corpus into each target. Supermemory gets taskType=superrag (no LLM extraction)."""
+    """Load the corpus into each target. Default taskType=superrag (no LLM extraction)."""
     corpus = load_jsonl(data_dir / "corpus.jsonl")
-    for target in _targets(namespace, engine, supermemory, engine_url, supermemory_url):
-        if target.name.endswith((":lexical", ":vector")):
+    corpus = corpus[:limit] if limit else corpus
+    for target in _targets(namespace, engine, supermemory, engine_url, supermemory_url, memories):
+        if target.name.endswith((":lexical", ":vector")) or (memories and target.name.endswith(":hybrid")):
             continue  # same store as supercortex:hybrid
         target.ingest(corpus)
         typer.echo(f"{target.name}: {len(corpus)} documents")
@@ -76,16 +90,22 @@ def run(
     supermemory_url: str = typer.Option("http://127.0.0.1:6767"),
     k: int = typer.Option(10),
     label: str = typer.Option("run"),
+    memories: bool = typer.Option(False, help="Score learned-memory search (hits map to their source documents)"),
+    limit: int = typer.Option(0, help="Corpus size that was ingested (0 = all); queries outside it are dropped"),
 ) -> None:
     """Evaluate every target plus the random control; write JSON and Markdown reports."""
     corpus = load_jsonl(data_dir / "corpus.jsonl")
-    queries = load_jsonl(data_dir / "queries.jsonl")
+    corpus = corpus[:limit] if limit else corpus
+    in_corpus = {d["id"] for d in corpus}
+    queries = [q for q in load_jsonl(data_dir / "queries.jsonl") if q["relevant"][0] in in_corpus]
     control = RandomTarget([d["id"] for d in corpus])
-    targets = _targets(namespace, engine, supermemory, engine_url, supermemory_url) + [control]
+    targets = _targets(namespace, engine, supermemory, engine_url, supermemory_url, memories) + [control]
     report = evaluate(targets, queries, k)
     comparisons = {}
-    if engine and supermemory:
+    if engine and supermemory and not memories:
         comparisons["supercortex:hybrid − supermemory"] = compare(report, "supercortex:hybrid", "supermemory")
+    if engine and supermemory and memories:
+        comparisons["supercortex:memories − supermemory:memories"] = compare(report, "supercortex:memories", "supermemory:memories")
     check = control_check(report, control.name)
     md = render_markdown(report, comparisons, check)
     out = data_dir / "reports"
@@ -102,3 +122,22 @@ def serve() -> None:
     from ..engine.app import main
 
     main()
+
+
+@engine_app.command("dream")
+def dream(
+    max_requests: int = typer.Option(..., help="Hard cap on Gemini requests for this run"),
+    db: Path = typer.Option(Path(os.getenv("SUPER_CORTEX_ENGINE_DB", str(Path.home() / ".super-cortex" / "engine.db")))),
+    daily_budget: int = typer.Option(200, help="Stop when today's (Pacific) request count reaches this"),
+    rpm: float = typer.Option(12.0, help="Requests per minute (free tier for flash-lite is 15)"),
+    docs_per_request: int = typer.Option(6),
+) -> None:
+    """Run dreaming once over the pending queue (Gemini free tier; needs GEMINI_API_KEY)."""
+    from ..engine.dreaming import GeminiExtractor, run_dreaming
+    from ..engine.embedder import default_embedder
+    from ..engine.store import EngineStore
+
+    store = EngineStore(db, default_embedder())
+    stats = run_dreaming(store, GeminiExtractor(), max_requests=max_requests, daily_budget=daily_budget, rpm=rpm,
+                         docs_per_request=docs_per_request)
+    typer.echo(json.dumps({**stats.as_dict(), "queue": store.dream_counts()}, indent=2))

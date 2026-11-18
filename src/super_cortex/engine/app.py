@@ -7,7 +7,8 @@ run identical requests against both.
 Differences, all deliberate:
 - `limit` is honoured up to 100 (the client never sent it to Supermemory, which capped at 10).
 - `searchMode` also accepts `lexical` and `vector` (single-channel ablations for the eval).
-- `searchMode: "memories"` returns no results until learned memories exist (Phase 2).
+- `searchMode: "memories"` searches learned memories; each hit lists the quotes behind it.
+- Learned memories are written by the dreaming worker, which is OFF unless SUPER_CORTEX_DREAMING=on.
 """
 
 from __future__ import annotations
@@ -22,7 +23,7 @@ from starlette.requests import Request
 from starlette.responses import JSONResponse
 from starlette.routing import Route
 
-from .search import hybrid_search
+from .search import hybrid_search, memory_search
 from .store import EngineStore
 
 _NAMESPACE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$")
@@ -64,7 +65,7 @@ def create_app(store: EngineStore, api_key: str | None = None, allow_anonymous: 
 
     async def healthz(request: Request) -> JSONResponse:
         return JSONResponse({"ok": True, "engine": "supercortex", "embedding_model": store.embedder.model_key,
-                             "vector_backend": store.vector_backend})
+                             "vector_backend": store.vector_backend, "dreaming": dreaming_state})
 
     async def namespaces(request: Request) -> JSONResponse:
         return JSONResponse({"namespaces": [{"namespace": n} for n in store.list_namespaces()]})
@@ -74,7 +75,8 @@ def create_app(store: EngineStore, api_key: str | None = None, allow_anonymous: 
         content = data.get("content")
         if not isinstance(content, str) or not content.strip():
             raise ValueError("content is required")
-        result = store.upsert_document(request.path_params["ns"], content, data.get("id"), data.get("metadata"))
+        result = store.upsert_document(request.path_params["ns"], content, data.get("id"), data.get("metadata"),
+                                       **_task_options(data))
         return JSONResponse(result, status_code=201 if result["status"] == "created" else 200)
 
     async def add_batch(request: Request) -> JSONResponse:
@@ -85,7 +87,13 @@ def create_app(store: EngineStore, api_key: str | None = None, allow_anonymous: 
         if len(docs) > 100:
             raise ValueError("at most 100 documents per batch")
         ns = request.path_params["ns"]
-        results = [store.upsert_document(ns, d["content"], d.get("id"), d.get("metadata")) for d in docs]
+        options = _task_options(data)
+        results = []
+        for d in docs:
+            if not isinstance(d, dict) or not isinstance(d.get("content"), str):
+                raise ValueError("each document needs string content")
+            results.append(store.upsert_document(ns, d["content"], d.get("id"), d.get("metadata"),
+                                                 **{**options, **_task_options(d)}))
         return JSONResponse({"results": results})
 
     async def get_document(request: Request) -> JSONResponse:
@@ -107,12 +115,16 @@ def create_app(store: EngineStore, api_key: str | None = None, allow_anonymous: 
         if not isinstance(query, str) or not query.strip():
             raise ValueError("query is required")
         mode = str(data.get("searchMode") or "hybrid")
+        include = data.get("include") or {}
         if mode == "memories":
-            return JSONResponse({"results": [], "searchTime": 0.0,
-                                 "notice": "learned memories are not built yet (Phase 2)"})
+            return JSONResponse(memory_search(
+                store, request.path_params["ns"], query,
+                limit=int(data.get("limit", 10)), threshold=float(data.get("threshold", 0.3)),
+                include_documents=bool(include.get("documents")) if isinstance(include, dict) else False,
+                include_candidates=bool(data.get("includeCandidates")),
+            ))
         if mode == "chunks":
             mode = "hybrid"
-        include = data.get("include") or {}
         result = hybrid_search(
             store,
             request.path_params["ns"],
@@ -130,6 +142,26 @@ def create_app(store: EngineStore, api_key: str | None = None, allow_anonymous: 
         return JSONResponse(store.list_documents(request.path_params["ns"], int(data.get("page", 1)),
                                                  int(data.get("limit", 10))))
 
+    async def list_memories(request: Request) -> JSONResponse:
+        # Supermemory pages list endpoints through the query string; accept both for convenience.
+        data = await body(request) if await request.body() else {}
+        page = int(request.query_params.get("page", data.get("page", 1)))
+        limit = int(request.query_params.get("limit", data.get("limit", 10)))
+        status = data.get("status", "latest")
+        if status not in (None, "latest", "superseded", "candidate", "forgotten"):
+            raise ValueError("status must be latest, superseded, candidate, forgotten or null")
+        return JSONResponse(store.list_memories(request.path_params["ns"], status, page, limit))
+
+    async def get_memory(request: Request) -> JSONResponse:
+        found = store.get_memories([request.path_params["memory_id"]]).get(request.path_params["memory_id"])
+        if found is None or found["namespace"] != request.path_params["ns"]:
+            return JSONResponse({"error": "not found"}, status_code=404)
+        return JSONResponse(found)
+
+    dreaming_state: dict[str, Any] = {"enabled": False}
+    if os.getenv("SUPER_CORTEX_DREAMING", "off").lower() == "on":
+        dreaming_state.update(_start_dreaming(store))
+
     return Starlette(routes=[
         Route("/healthz", healthz, methods=["GET"]),
         Route("/namespaces", guard(namespaces), methods=["GET"]),
@@ -139,7 +171,43 @@ def create_app(store: EngineStore, api_key: str | None = None, allow_anonymous: 
         Route("/ns/{ns}/document/{doc_id}", guard(get_document), methods=["GET"]),
         Route("/ns/{ns}/search", guard(search), methods=["POST"]),
         Route("/ns/{ns}/list/documents", guard(list_documents), methods=["POST"]),
+        Route("/ns/{ns}/list/memories", guard(list_memories), methods=["POST"]),
+        Route("/ns/{ns}/memory/{memory_id}", guard(get_memory), methods=["GET"]),
     ])
+
+
+def _task_options(data: dict[str, Any]) -> dict[str, str]:
+    options: dict[str, str] = {}
+    if "taskType" in data:
+        options["task_type"] = str(data["taskType"])
+    if "dreaming" in data:
+        options["dreaming"] = str(data["dreaming"])
+    return options
+
+
+def _start_dreaming(store: EngineStore) -> dict[str, Any]:
+    """Background worker: poll the queue every SUPER_CORTEX_DREAM_INTERVAL seconds (default 300)."""
+    import threading
+
+    from .dreaming import GeminiExtractor, run_dreaming
+
+    extractor = GeminiExtractor()
+    interval = float(os.getenv("SUPER_CORTEX_DREAM_INTERVAL", "300"))
+    stop = threading.Event()
+
+    def loop() -> None:
+        while not stop.is_set():
+            try:
+                run_dreaming(store, extractor, max_requests=int(os.getenv("SUPER_CORTEX_DREAM_MAX_REQUESTS_PER_PASS", "30")),
+                             stop=stop)
+            except Exception:  # noqa: BLE001 - the worker must not take the API down
+                import logging
+
+                logging.getLogger(__name__).exception("dreaming pass failed")
+            stop.wait(interval)
+
+    threading.Thread(target=loop, name="supercortex-dreaming", daemon=True).start()
+    return {"enabled": True, "model": extractor.model, "interval_s": interval}
 
 
 def main() -> None:
