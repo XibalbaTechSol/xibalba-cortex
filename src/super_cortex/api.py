@@ -89,6 +89,18 @@ def create_app(
     managed = ManagedControl(m_cfg, stripe=stripe_gateway, store=cortex.store)
     subscribers: list[asyncio.Queue] = []
 
+    def _attach_session_cookie(response: Any, token: str) -> None:
+        """The one place a first-party session cookie is issued (password, local, OAuth)."""
+        response.set_cookie(
+            SESSION_COOKIE_NAME,
+            token,
+            max_age=SESSION_TTL_HOURS * 3600,
+            httponly=True,
+            secure=m_cfg.public_url.startswith("https:"),
+            samesite="lax",
+            path="/",
+        )
+
     async def broadcast_event(event_type: str, data: dict[str, Any]) -> None:
         payload = json.dumps({"type": event_type, "data": data})
         for q in subscribers:
@@ -1632,15 +1644,7 @@ def create_app(
                 "csrf_token": sess["csrf_token"],
                 "session_expires_at": sess["expires_at"],
             })
-            response.set_cookie(
-                SESSION_COOKIE_NAME,
-                sess["token"],
-                max_age=SESSION_TTL_HOURS * 3600,
-                httponly=True,
-                secure=m_cfg.public_url.startswith("https:"),
-                samesite="lax",
-                path="/",
-            )
+            _attach_session_cookie(response, sess["token"])
             return response
         except BillingUnavailable as exc:
             return JSONResponse({"error": str(exc)}, status_code=503)
@@ -1663,15 +1667,7 @@ def create_app(
                 "csrf_token": sess["csrf_token"],
                 "session_expires_at": sess["expires_at"],
             })
-            response.set_cookie(
-                SESSION_COOKIE_NAME,
-                sess["token"],
-                max_age=SESSION_TTL_HOURS * 3600,
-                httponly=True,
-                secure=m_cfg.public_url.startswith("https:"),
-                samesite="lax",
-                path="/",
-            )
+            _attach_session_cookie(response, sess["token"])
             return response
         except PermissionError as exc:
             return JSONResponse({"error": str(exc)}, status_code=401)
@@ -1703,15 +1699,7 @@ def create_app(
             "csrf_token": sess["csrf_token"],
             "session_expires_at": sess["expires_at"],
         })
-        response.set_cookie(
-            SESSION_COOKIE_NAME,
-            sess["token"],
-            max_age=SESSION_TTL_HOURS * 3600,
-            httponly=True,
-            secure=m_cfg.public_url.startswith("https:"),
-            samesite="lax",
-            path="/",
-        )
+        _attach_session_cookie(response, sess["token"])
         return response
 
     async def api_managed_me(request: Request) -> JSONResponse:
