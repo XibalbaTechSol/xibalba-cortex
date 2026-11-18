@@ -17836,6 +17836,7 @@ console.log("Loaded " + nodes.length + " memory invariants.");</code></pre>
     window.addEventListener('DOMContentLoaded', async () => {
       // Exchange Supabase OAuth redirect (#access_token=...) into first-party HttpOnly session cookie
       const rawHash = window.location.hash || '';
+      let oauthFailure = null;
       if (rawHash.includes('access_token=')) {
         const hashParams = new URLSearchParams(rawHash.replace(/^#/, ''));
         const supaToken = hashParams.get('access_token');
@@ -17856,10 +17857,27 @@ console.log("Loaded " + nodes.length + " memory invariants.");</code></pre>
               window.showToast('Signed in via OAuth 2.0');
               return;
             }
+            let reason = `sign-in failed (HTTP ${sr.status})`;
+            try { reason = (await sr.json()).error || reason; } catch (_) {}
+            oauthFailure = reason;
           } catch (e) {
             console.warn('Supabase OAuth session exchange error:', e);
+            oauthFailure = 'could not reach the sign-in service';
           }
         }
+        // Never leave a bearer token in the address bar, success or not.
+        history.replaceState(null, '', window.location.pathname + window.location.search);
+      }
+      if (oauthFailure) {
+        // A failed OAuth return is a sign-in attempt, not a first visit: show the form and why.
+        window.openAuthOverlay('login');
+        const notice = document.getElementById('cortex-auth-notice');
+        if (notice) {
+          notice.classList.remove('hidden');
+          notice.className = 'p-2.5 rounded-lg border border-rose-500/40 bg-rose-500/15 text-rose-300 text-xs';
+          notice.innerText = `Google/GitHub ${oauthFailure}. Please try again.`;
+        }
+        return;
       }
 
       const hasSessionCookie = await window.refreshOperatorSessionState(true);
