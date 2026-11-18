@@ -80,7 +80,8 @@ def test_grounded_memory_is_stored_and_ungrounded_ones_are_dropped(store):
     assert stats.grounded_rate == pytest.approx(0.25)
     memory = store.list_memories(NS)["memories"][0]
     assert memory["memory"].startswith("Priya's weekly design review")
-    assert memory["sources"] == [{"documentId": "a", "chunkId": "a#0", "quote": "from Tuesday to   THURSDAY at 3pm"}]
+    assert memory["sources"] == [{"documentId": "a", "documentVersion": 1, "chunkId": "a#0",
+                                  "quote": "from Tuesday to   THURSDAY at 3pm"}]
 
 
 def test_insert_memory_refuses_evidence_without_a_chunk(store):

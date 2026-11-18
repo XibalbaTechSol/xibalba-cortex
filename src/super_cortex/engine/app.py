@@ -8,6 +8,8 @@ Differences, all deliberate:
 - `limit` is honoured up to 100 (the client never sent it to Supermemory, which capped at 10).
 - `searchMode` also accepts `lexical` and `vector` (single-channel ablations for the eval).
 - `searchMode: "memories"` searches learned memories; each hit lists the quotes behind it.
+- Retention is a per-namespace policy (GET/PUT /ns/{ns}/policy; presets audit, standard,
+  research; see policy.py). Kept versions are served at GET /ns/{ns}/document/{id}/versions.
 - Learned memories are written by the dreaming worker, which is OFF unless SUPER_CORTEX_DREAMING=on.
 """
 
@@ -49,6 +51,8 @@ def create_app(store: EngineStore, api_key: str | None = None, allow_anonymous: 
                 return JSONResponse({"error": "invalid namespace"}, status_code=400)
             try:
                 return await handler(request)
+            except PermissionError as exc:
+                return JSONResponse({"error": str(exc)}, status_code=409)
             except ValueError as exc:
                 return JSONResponse({"error": str(exc)}, status_code=400)
 
@@ -114,7 +118,9 @@ def create_app(store: EngineStore, api_key: str | None = None, allow_anonymous: 
         query = data.get("query")
         if not isinstance(query, str) or not query.strip():
             raise ValueError("query is required")
-        mode = str(data.get("searchMode") or "hybrid")
+        mode = str(data.get("searchMode") or "")
+        if not mode:
+            mode = "memories" if store.get_policy(request.path_params["ns"]).default_search == "memories" else "hybrid"
         include = data.get("include") or {}
         if mode == "memories":
             return JSONResponse(memory_search(
@@ -158,6 +164,22 @@ def create_app(store: EngineStore, api_key: str | None = None, allow_anonymous: 
             return JSONResponse({"error": "not found"}, status_code=404)
         return JSONResponse(found)
 
+    async def get_policy(request: Request) -> JSONResponse:
+        return JSONResponse(store.get_policy(request.path_params["ns"]).as_dict())
+
+    async def put_policy(request: Request) -> JSONResponse:
+        data = await body(request)
+        overrides = data.get("settings") or {}
+        if not isinstance(overrides, dict):
+            raise ValueError("settings must be an object")
+        return JSONResponse(store.set_policy(request.path_params["ns"], str(data.get("preset", "")), overrides).as_dict())
+
+    async def document_versions(request: Request) -> JSONResponse:
+        versions = store.document_versions(request.path_params["ns"], request.path_params["doc_id"])
+        if not versions:
+            return JSONResponse({"error": "not found"}, status_code=404)
+        return JSONResponse({"documentId": request.path_params["doc_id"], "versions": versions})
+
     dreaming_state: dict[str, Any] = {"enabled": False}
     if os.getenv("SUPER_CORTEX_DREAMING", "off").lower() == "on":
         dreaming_state.update(_start_dreaming(store))
@@ -168,6 +190,9 @@ def create_app(store: EngineStore, api_key: str | None = None, allow_anonymous: 
         Route("/ns/{ns}/document", guard(add_document), methods=["POST"]),
         Route("/ns/{ns}/document", guard(delete_documents), methods=["DELETE"]),
         Route("/ns/{ns}/document/batch", guard(add_batch), methods=["POST"]),
+        Route("/ns/{ns}/document/{doc_id}/versions", guard(document_versions), methods=["GET"]),
+        Route("/ns/{ns}/policy", guard(get_policy), methods=["GET"]),
+        Route("/ns/{ns}/policy", guard(put_policy), methods=["PUT"]),
         Route("/ns/{ns}/document/{doc_id}", guard(get_document), methods=["GET"]),
         Route("/ns/{ns}/search", guard(search), methods=["POST"]),
         Route("/ns/{ns}/list/documents", guard(list_documents), methods=["POST"]),
