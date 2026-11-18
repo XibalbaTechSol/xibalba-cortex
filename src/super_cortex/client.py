@@ -147,3 +147,41 @@ class SupermemoryClient:
                     f"Get profile failed: {resp.status_code} {resp.text}"
                 )
             return resp.json()
+
+    # -- session extraction (SuperCortex engine only) ----------------------------------------
+
+    async def _extraction_post(self, path: str, payload: dict[str, Any]) -> dict[str, Any]:
+        url = f"{self.base_url}{path}"
+        async with httpx.AsyncClient(timeout=60.0) as client:
+            resp = await client.post(url, json=payload, headers=self._headers())
+        if resp.status_code == 404:
+            raise SupermemoryClientError(
+                "session extraction needs the SuperCortex engine; this backend does not serve it "
+                f"({self.base_url})"
+            )
+        if resp.status_code != 200:
+            raise SupermemoryClientError(f"Extraction request failed: {resp.status_code} {resp.text}")
+        return resp.json()
+
+    async def claim_extraction(self, namespace: str, limit: int = 5) -> dict[str, Any]:
+        """Lease pending documents and get the extractor prompt to run on the caller's model."""
+        return await self._extraction_post(f"/ns/{namespace}/extraction/claim", {"limit": limit})
+
+    async def submit_extraction(
+        self,
+        claim_id: str,
+        model: str,
+        documents: list[dict[str, Any]] | None = None,
+        proposals: list[dict[str, Any]] | None = None,
+    ) -> dict[str, Any]:
+        """Submit the caller's extraction for a claim; the engine grounds and stores it."""
+        payload: dict[str, Any] = {"model": model}
+        if documents is not None:
+            payload["documents"] = documents
+        if proposals is not None:
+            payload["proposals"] = proposals
+        return await self._extraction_post(f"/extraction/claims/{claim_id}/submit", payload)
+
+    async def release_extraction(self, claim_id: str) -> dict[str, Any]:
+        """Give a claim back unfinished; its documents return to the queue."""
+        return await self._extraction_post(f"/extraction/claims/{claim_id}/release", {})

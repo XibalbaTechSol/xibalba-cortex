@@ -18,6 +18,10 @@ from .retrieval_eval.cli import engine_app, eval_app  # noqa: E402
 app.add_typer(eval_app, name="eval")
 app.add_typer(engine_app, name="engine")
 
+from .extract_cli import extract_app  # noqa: E402
+
+app.add_typer(extract_app, name="extract")
+
 
 @app.command()
 def doctor() -> None:
