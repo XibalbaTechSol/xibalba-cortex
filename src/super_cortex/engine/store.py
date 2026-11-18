@@ -35,6 +35,9 @@ _STOPWORDS = frozenset(
 )
 
 
+# What a memory says, set at extraction. Profile buckets select by it (embeddings cannot).
+MEMORY_KINDS = ("fact", "preference", "goal", "decision", "rule", "event")
+
 def _now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
@@ -158,6 +161,7 @@ class EngineStore:
                     status TEXT NOT NULL,            -- latest | superseded | candidate | forgotten
                     is_inference INTEGER NOT NULL DEFAULT 0,
                     confidence REAL NOT NULL,
+                    kind TEXT NOT NULL DEFAULT 'fact',  -- fact | preference | goal | decision | rule | event
                     supersedes_id TEXT,
                     extractor TEXT NOT NULL,         -- model that proposed it
                     model_key TEXT NOT NULL,
@@ -249,6 +253,9 @@ class EngineStore:
                 if column not in columns:
                     self._conn.execute(f"ALTER TABLE documents ADD COLUMN {column} {ddl}")
             self._conn.execute("CREATE INDEX IF NOT EXISTS documents_dream ON documents(dream_status, namespace, created_at)")
+            if "kind" not in {r["name"] for r in self._conn.execute("PRAGMA table_info(memories)")}:
+                self._conn.execute("ALTER TABLE memories ADD COLUMN kind TEXT NOT NULL DEFAULT 'fact'")
+            self._conn.execute("CREATE INDEX IF NOT EXISTS memories_ns_kind ON memories(namespace, status, kind)")
             self._conn.execute(
                 """INSERT INTO document_versions(namespace, doc_id, version, content, content_hash, metadata_json,
                                                  task_type, received_at)
@@ -688,6 +695,7 @@ class EngineStore:
         is_inference: bool = False,
         supersedes_id: str | None = None,
         vector: list[float] | None = None,
+        kind: str = "fact",
     ) -> str:
         """Insert a memory with its evidence; superseding `supersedes_id` in the same transaction."""
         if not sources or any(chunk_id is None for _, chunk_id, _ in sources):
@@ -697,10 +705,11 @@ class EngineStore:
         now = _now()
         with self._lock, self._conn:
             self._conn.execute(
-                """INSERT INTO memories(id, namespace, content, status, is_inference, confidence, supersedes_id,
+                """INSERT INTO memories(id, namespace, content, status, is_inference, confidence, kind, supersedes_id,
                                        extractor, model_key, embedding, created_at, updated_at)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-                (memory_id, namespace, content, status, int(is_inference), confidence, supersedes_id,
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                (memory_id, namespace, content, status, int(is_inference), confidence,
+                 kind if kind in MEMORY_KINDS else "fact", supersedes_id,
                  extractor, self.embedder.model_key, _pack(vector), now, now),
             )
             self._conn.execute("INSERT INTO memories_fts(content, memory_id, namespace) VALUES (?, ?, ?)",
@@ -759,7 +768,7 @@ class EngineStore:
             r["id"]: {
                 "id": r["id"], "namespace": r["namespace"], "memory": r["content"], "status": r["status"],
                 "isLatest": r["status"] == "latest", "isInference": bool(r["is_inference"]),
-                "confidence": r["confidence"], "supersedes": r["supersedes_id"], "extractor": r["extractor"],
+                "confidence": r["confidence"], "kind": r["kind"], "supersedes": r["supersedes_id"], "extractor": r["extractor"],
                 "createdAt": r["created_at"], "updatedAt": r["updated_at"], "sources": sources.get(r["id"], []),
                 "detachedSources": detached.get(r["id"], []),
                 # Synthesised from ingested content, so classed as metadata with its provenance.
