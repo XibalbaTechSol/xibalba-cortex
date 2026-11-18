@@ -7,6 +7,11 @@ from typing import Any
 
 from mcp.server import MCPServer
 
+from .agent0_bridge import (
+    BASE_SEPOLIA_CHAIN_ID,
+    BASE_SEPOLIA_ERC8004_REGISTRY,
+     build_agent0_passport_card,
+)
 from .config import SuperCortexConfig
 from .memory import SuperCortex
 
@@ -346,6 +351,35 @@ def create_server(config: SuperCortexConfig | None = None) -> MCPServer:
             },
             indent=2,
         )
+
+    @server.tool()
+    def agent0_prepare_passport(
+        name: str,
+        description: str,
+        integrity_did: str | None = None,
+        sovereign_actor_wallet: str | None = None,
+        token_id: int | str = 0,
+        chain_id: int = BASE_SEPOLIA_CHAIN_ID,
+        registry_address: str = BASE_SEPOLIA_ERC8004_REGISTRY,
+        mcp_endpoint: str | None = None,
+        a2a_endpoint: str | None = None,
+        x402_support: bool = False,
+    ) -> str:
+        """Build a canonical ERC-8004 / Agent0 Public Passport card with a cryptographic two-way Integrity DID backlink and policy-confined SovereignAgent actor wallet."""
+        did = (integrity_did or cfg.actor_did).strip()
+        card = build_agent0_passport_card(
+            integrity_did=did,
+            name=name,
+            description=description,
+            chain_id=chain_id,
+            registry_address=registry_address,
+            token_id=token_id,
+            sovereign_actor_wallet=sovereign_actor_wallet,
+            mcp_endpoint=mcp_endpoint,
+            a2a_endpoint=a2a_endpoint,
+            x402_support=x402_support,
+        )
+        return json.dumps(card, indent=2)
 
     return server
 
