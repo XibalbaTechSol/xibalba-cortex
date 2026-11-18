@@ -176,3 +176,40 @@ def memory_search(
         "engine": {"mode": "memories", "rrf_k": RRF_K, "embedding_model": store.embedder.model_key,
                    "statuses": list(statuses), "threshold": threshold},
     }
+
+
+def combined_search(
+    store: EngineStore,
+    namespace: str,
+    query: str,
+    *,
+    limit: int = 10,
+    threshold: float = 0.3,
+    include_documents: bool = False,
+) -> dict[str, Any]:
+    """Learned memories and document chunks in one ranking (RRF over the two result lists).
+
+    A memory answers "what is known"; a chunk answers "what was said". Fusing by rank, not score,
+    means neither list's similarity scale has to be calibrated against the other. Every item
+    keeps its `kind` and its provenance, so callers can still tell a distilled fact from a quote.
+    """
+    started = time.perf_counter()
+    limit = max(1, min(int(limit), 100))
+    pool = max(limit * 2, 20)
+    memories = memory_search(store, namespace, query, limit=pool, threshold=threshold,
+                             include_documents=include_documents)["results"]
+    chunks = hybrid_search(store, namespace, query, limit=pool, threshold=threshold,
+                           include_documents=include_documents)["results"]
+    fused: dict[str, float] = {}
+    items: dict[str, dict[str, Any]] = {}
+    for kind, results in (("memory", memories), ("chunk", chunks)):
+        for rank, item in enumerate(results, 1):
+            key = f"{kind}:{item['id']}"
+            fused[key] = fused.get(key, 0.0) + 1.0 / (RRF_K + rank)
+            items[key] = {**item, "kind": kind}
+    ranked = sorted(fused, key=lambda k: (-fused[k], k))[:limit]
+    return {
+        "results": [{**items[k], "score": fused[k]} for k in ranked],
+        "searchTime": round((time.perf_counter() - started) * 1000, 2),
+        "engine": {"mode": "combined", "rrf_k": RRF_K, "embedding_model": store.embedder.model_key},
+    }

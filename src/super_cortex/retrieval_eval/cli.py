@@ -48,6 +48,8 @@ def _targets(namespace: str, include_engine: bool, include_supermemory: bool, en
         if include_engine:
             targets.append(HttpTarget("supercortex:memories", engine_url, namespace, key,
                                       ingest_extras={"taskType": "memory"}, search_extras={"searchMode": "memories"}))
+            targets.append(HttpTarget("supercortex:combined", engine_url, namespace, key,
+                                      search_extras={"searchMode": "combined"}))
             targets.append(HttpTarget("supercortex:hybrid", engine_url, namespace, key))
         return targets
     if include_supermemory:
@@ -75,7 +77,7 @@ def ingest(
     corpus = load_jsonl(data_dir / "corpus.jsonl")
     corpus = corpus[:limit] if limit else corpus
     for target in _targets(namespace, engine, supermemory, engine_url, supermemory_url, memories):
-        if target.name.endswith((":lexical", ":vector")) or (memories and target.name.endswith(":hybrid")):
+        if target.name.endswith((":lexical", ":vector")) or (memories and target.name.endswith((":hybrid", ":combined"))):
             continue  # same store as supercortex:hybrid
         target.ingest(corpus)
         typer.echo(f"{target.name}: {len(corpus)} documents")

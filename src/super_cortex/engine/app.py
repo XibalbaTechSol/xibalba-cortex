@@ -8,6 +8,7 @@ Differences, all deliberate:
 - `limit` is honoured up to 100 (the client never sent it to Supermemory, which capped at 10).
 - `searchMode` also accepts `lexical` and `vector` (single-channel ablations for the eval).
 - `searchMode: "memories"` searches learned memories; each hit lists the quotes behind it.
+- `searchMode: "combined"` ranks memories and chunks together; each hit says which `kind` it is.
 - Retention is a per-namespace policy (GET/PUT /ns/{ns}/policy; presets audit, standard,
   research; see policy.py). Kept versions are served at GET /ns/{ns}/document/{id}/versions.
 - Learned memories are written by the dreaming worker, which is OFF unless SUPER_CORTEX_DREAMING=on.
@@ -25,7 +26,7 @@ from starlette.requests import Request
 from starlette.responses import JSONResponse
 from starlette.routing import Route
 
-from .search import hybrid_search, memory_search
+from .search import combined_search, hybrid_search, memory_search
 from .store import EngineStore
 
 _NAMESPACE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$")
@@ -128,6 +129,12 @@ def create_app(store: EngineStore, api_key: str | None = None, allow_anonymous: 
                 limit=int(data.get("limit", 10)), threshold=float(data.get("threshold", 0.3)),
                 include_documents=bool(include.get("documents")) if isinstance(include, dict) else False,
                 include_candidates=bool(data.get("includeCandidates")),
+            ))
+        if mode == "combined":
+            return JSONResponse(combined_search(
+                store, request.path_params["ns"], query,
+                limit=int(data.get("limit", 10)), threshold=float(data.get("threshold", 0.3)),
+                include_documents=bool(include.get("documents")) if isinstance(include, dict) else False,
             ))
         if mode == "chunks":
             mode = "hybrid"

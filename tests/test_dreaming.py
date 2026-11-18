@@ -300,3 +300,19 @@ def test_only_close_memories_are_offered_for_replacement(store):
     far = [{"id": "y", "namespace": NS, "content": "Quarterly tax filing deadlines for the Ohio office."}]
     assert len(related_memories(store, NS, near)) == 1
     assert related_memories(store, NS, far) == []
+
+
+def test_combined_search_ranks_memories_and_chunks_together(store):
+    from super_cortex.engine.search import combined_search
+
+    docs = ingest(store, ("a", COFFEE), ("r", REVIEW))
+    apply_proposals(store, NS, docs, [], [
+        {"memory": "Priya is allergic to peanuts.", "doc": "D1", "quote": "allergic to peanuts",
+         "confidence": 0.9, "inference": False}], "fake", DreamStats())
+    results = combined_search(store, NS, "peanuts allergy", threshold=0)["results"]
+    kinds = {r["kind"] for r in results}
+    assert kinds == {"memory", "chunk"}
+    assert results[0]["documentId"] == "a"
+    assert all(r["dataClass"] == "metadata" and r["derivedFrom"] for r in results)
+    scores = [r["score"] for r in results]
+    assert scores == sorted(scores, reverse=True)
