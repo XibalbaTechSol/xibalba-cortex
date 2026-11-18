@@ -2,6 +2,9 @@
 
 High-performance, zero-inference cryptographic graph memory engine, 3D neural manifold visualizer, and Model Context Protocol (MCP) server for the Xibalba ecosystem. Its memory backend is the **SuperCortex engine** (`super_cortex.engine`, see [docs/ENGINE.md](docs/ENGINE.md)), which serves the same HTTP API as Supermemory Local, so either backend works behind `SUPERMEMORY_URL`.
 
+
+> **Bring your own model.** Learning memories from raw notes needs an LLM. Super-Cortex lets the agent you already run do it: your session claims pending documents, extracts memories with its own model, and submits them, so extraction costs nothing extra. Every memory must quote its source verbatim or it is rejected. See [Bring your own model](#bring-your-own-model-session-extraction).
+
 ---
 
 ## Architecture Overview
@@ -110,6 +113,37 @@ Start the full 9-view 3D Neural Graph Manifold Studio:
 uv run super-cortex viewer --port 4174
 ```
 Open [http://127.0.0.1:4174](http://127.0.0.1:4174) in your browser.
+
+---
+
+## Bring Your Own Model: Session Extraction
+
+Raw documents become learned memories through extraction, which needs an LLM. Instead of the engine calling a hosted model, the agent session you are already running can do the work on its own inference, at no extra cost.
+
+1. **Claim**: the engine leases up to 10 pending documents (15 minutes) and returns the extractor instructions, the prompt (documents `D1..Dn`, related memories `M1..Mn`) and the JSON schema.
+2. **Extract**: your model writes short memories, each with a quote copied from its document, a `kind` and a `certainty`.
+3. **Submit**: the engine keeps a memory only if its quote is found in the document. It rejects anything that looks like a secret, merges near-duplicates, supersedes stale facts, and applies the certainty floors. Each memory records `generator: session:<model>`.
+
+From any MCP agent (Claude Code, Codex, Antigravity, Cursor, Hermes):
+
+```text
+memory_extraction_claim(namespace?, limit?)    -> claimId, instructions, prompt, responseSchema
+memory_extraction_submit(claim_id, documents, model?)
+memory_extraction_release(claim_id)            # give it back unfinished
+```
+
+From the command line, with any agent CLI that reads a prompt on stdin:
+
+```bash
+uv run super-cortex extract run --with "claude -p"          # loop until the queue is empty
+uv run super-cortex extract run --with "codex exec" -n shared --max-claims 5
+
+# or by hand
+uv run super-cortex extract claim --prompt > prompt.txt     # claimId is printed to stderr
+uv run super-cortex extract submit <claimId> answer.json --model my-model
+```
+
+Namespaces whose policy is `dreaming: off` are never handed to any model. Session extraction needs the SuperCortex engine backend ([docs/ENGINE.md](docs/ENGINE.md#bring-your-own-model-session-extraction)); the background Gemini worker can run alongside it, and the two never extract the same documents.
 
 ---
 
