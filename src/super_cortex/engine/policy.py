@@ -13,6 +13,11 @@ except under `audit`.
 - research  raw content dropped once dreaming has extracted memories; search defaults to
             memories. Needs dreaming, so needs the extractor (Gemini free tier).
 
+Data classes: what was ingested is `content`, the record. Everything synthesised from it
+(chunks, embeddings, learned memories, their evidence links) is `metadata`, and every such item
+says what it was derived from (`derivedFrom`) and what made it (`generator`). Retention presets
+govern content; metadata can always be regenerated from retained content.
+
 What gets *sent* (every thought vs final answers) is decided by the capture side; the engine
 keeps whatever arrives according to this policy.
 """

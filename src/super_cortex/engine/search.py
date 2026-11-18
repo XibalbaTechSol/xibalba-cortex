@@ -68,6 +68,8 @@ def hybrid_search(
             continue
         if hit.doc_id not in doc_cache:
             doc_cache[hit.doc_id] = store.get_document(namespace, hit.doc_id)
+            if doc_cache[hit.doc_id] is not None:
+                doc_cache[hit.doc_id]["version"] = store.current_version(namespace, hit.doc_id)
         doc = doc_cache[hit.doc_id]
         if doc is None:
             continue
@@ -83,6 +85,10 @@ def hybrid_search(
             "metadata": doc["metadata"],
             "isLatest": True,
             "isInference": False,
+            # A chunk is synthesised from the document (split + embedded): metadata, not the record.
+            "dataClass": "metadata",
+            "derivedFrom": [{"documentId": hit.doc_id, "documentVersion": doc.get("version")}],
+            "generator": {"process": "chunking", "embeddingModel": store.embedder.model_key},
         }
         if include_documents:
             item["included"] = {"document": {"id": doc["id"], "title": doc["content"][:80]}}
@@ -155,6 +161,9 @@ def memory_search(
             "documentId": first["documentId"],
             "sources": memory["sources"],
             "updatedAt": memory["updatedAt"],
+            "dataClass": "metadata",
+            "derivedFrom": memory["derivedFrom"],
+            "generator": memory["generator"],
         }
         if include_documents:
             item["included"] = {"document": {"id": first["documentId"]}}

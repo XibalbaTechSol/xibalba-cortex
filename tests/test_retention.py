@@ -194,3 +194,25 @@ def test_api_serves_kept_version_history(store):
     history = client.get(f"/ns/{NS}/document/a/versions", headers=auth).json()["versions"]
     assert [v["content"] for v in history] == [V1, V2]
     assert client.get(f"/ns/{NS}/document/zzz/versions", headers=auth).status_code == 404
+
+
+# -- data classes: ingested content is the record, everything synthesised is metadata ------------
+
+def test_synthesised_items_are_metadata_with_provenance_and_documents_are_content(store):
+    from super_cortex.engine.search import hybrid_search, memory_search
+
+    store.upsert_document(NS, ALLERGY, "a")
+    remember_peanuts(store)
+    doc = store.get_document(NS, "a")
+    assert doc["dataClass"] == "content"
+    assert store.document_versions(NS, "a")[0]["dataClass"] == "content"
+
+    chunk = hybrid_search(store, NS, "peanuts", threshold=0)["results"][0]
+    assert chunk["dataClass"] == "metadata"
+    assert chunk["derivedFrom"] == [{"documentId": "a", "documentVersion": 1}]
+    assert chunk["generator"]["process"] == "chunking"
+
+    memory = memory_search(store, NS, "peanuts", threshold=0)["results"][0]
+    assert memory["dataClass"] == "metadata"
+    assert memory["derivedFrom"] == [{"documentId": "a", "documentVersion": 1, "quote": "allergic to peanuts"}]
+    assert memory["generator"]["process"] == "extraction" and memory["generator"]["model"] == "fake"

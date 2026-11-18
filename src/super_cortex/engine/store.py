@@ -427,7 +427,7 @@ class EngineStore:
                 "SELECT * FROM document_versions WHERE namespace = ? AND doc_id = ? ORDER BY version",
                 (namespace, doc_id),
             ).fetchall()
-        return [{"version": r["version"], "content": r["content"], "contentHash": r["content_hash"],
+        return [{"version": r["version"], "dataClass": "content", "content": r["content"], "contentHash": r["content_hash"],
                  "metadata": json.loads(r["metadata_json"]), "taskType": r["task_type"],
                  "receivedAt": r["received_at"], "replacedAt": r["replaced_at"], "deletedAt": r["deleted_at"]}
                 for r in rows]
@@ -532,6 +532,7 @@ class EngineStore:
             "createdAt": row["created_at"],
             "updatedAt": row["updated_at"],
             "rawDropped": bool(row["raw_dropped"]),
+            "dataClass": "content",
         }
 
     # -- retrieval channels ------------------------------------------------------------------
@@ -761,6 +762,11 @@ class EngineStore:
                 "confidence": r["confidence"], "supersedes": r["supersedes_id"], "extractor": r["extractor"],
                 "createdAt": r["created_at"], "updatedAt": r["updated_at"], "sources": sources.get(r["id"], []),
                 "detachedSources": detached.get(r["id"], []),
+                # Synthesised from ingested content, so classed as metadata with its provenance.
+                "dataClass": "metadata",
+                "derivedFrom": [{k: v for k, v in e.items() if k != "chunkId"} for e in sources.get(r["id"], [])],
+                "generator": {"process": "extraction", "model": r["extractor"], "at": r["created_at"],
+                              "embeddingModel": r["model_key"]},
             }
             for r in rows
         }
