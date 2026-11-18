@@ -298,4 +298,20 @@ def test_secret_redaction_and_otlp_and_legacy_migration(tmp_path: Path) -> None:
     assert sum_resp.status_code == 200
     assert "recent_memories" in sum_resp.json()
 
+    # Verify shared Google + GitHub OAuth 2.0 & Supabase Auth endpoints
+    prov_resp = client.get("/api/managed/oauth/providers")
+    assert prov_resp.status_code == 200
+    pdata = prov_resp.json()
+    assert pdata["google"] is True
+    assert pdata["github"] is True
+
+    g_auth = client.get("/api/managed/oauth/google/authorize?redirect=0")
+    assert g_auth.status_code == 200
+    assert "provider=google" in g_auth.json()["authorization_url"]
+
+    gh_auth = client.get("/api/managed/oauth/github/authorize?redirect=0")
+    assert gh_auth.status_code == 200
+    assert "provider=github" in gh_auth.json()["authorization_url"]
+
+
 

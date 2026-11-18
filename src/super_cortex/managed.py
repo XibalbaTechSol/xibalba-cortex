@@ -44,7 +44,7 @@ class ManagedConfig:
     allow_signup: bool = True
     signup_daily_limit: int = 50
     require_email_verification: bool = False
-    supabase_url: str = ""
+    supabase_url: str = "https://ftspunijfgcbkuybobhf.supabase.co"
     supabase_jwt_audience: str = "authenticated"
     google_client_id: str = ""
     google_client_secret: str = field(default="", repr=False)
@@ -78,6 +78,25 @@ class ManagedConfig:
         allow_signup_raw = os.getenv("CORTEX_MANAGED_ALLOW_SIGNUP", "true").lower()
         stripe_live_raw = os.getenv("CORTEX_STRIPE_LIVE", "false").lower()
         verify_raw = os.getenv("CORTEX_REQUIRE_EMAIL_VERIFICATION", "false").lower()
+        google_cid = os.getenv("GOOGLE_CLIENT_ID") or os.getenv("SUPABASE_AUTH_EXTERNAL_GOOGLE_CLIENT_ID") or ""
+        google_csec = os.getenv("GOOGLE_CLIENT_SECRET") or os.getenv("SUPABASE_AUTH_EXTERNAL_GOOGLE_CLIENT_SECRET") or ""
+        if not google_cid or not google_csec:
+            for candidate_json in (
+                Path.home() / ".config" / "xibalba-secrets" / "client_secret_209789763691-lu1kmbqgbr21b35j0gcve5g6caskv5k2.apps.googleusercontent.com.json",
+                Path.home() / "client_secret_209789763691-n8hbn67l7u1a61rd8fp077r45i36tu36.apps.googleusercontent.com.json",
+            ):
+                if candidate_json.exists():
+                    try:
+                        raw = json.loads(candidate_json.read_text(encoding="utf-8"))
+                        web = raw.get("web") or raw.get("installed") or {}
+                        google_cid = google_cid or str(web.get("client_id") or "")
+                        google_csec = google_csec or str(web.get("client_secret") or "")
+                        if google_cid and google_csec:
+                            break
+                    except Exception:
+                        pass
+        github_cid = os.getenv("GITHUB_CLIENT_ID") or os.getenv("SUPABASE_AUTH_EXTERNAL_GITHUB_CLIENT_ID") or ""
+        github_csec = os.getenv("GITHUB_CLIENT_SECRET") or os.getenv("SUPABASE_AUTH_EXTERNAL_GITHUB_CLIENT_SECRET") or ""
         return cls(
             home=Path(home_raw),
             public_url=os.getenv("CORTEX_MANAGED_PUBLIC_URL", "http://localhost:4174"),
@@ -89,12 +108,12 @@ class ManagedConfig:
             allow_signup=allow_signup_raw in {"1", "true", "yes"},
             signup_daily_limit=int(os.getenv("CORTEX_MANAGED_SIGNUP_DAILY_LIMIT", "50")),
             require_email_verification=verify_raw in {"1", "true", "yes"},
-            supabase_url=os.getenv("SUPABASE_URL", ""),
+            supabase_url=os.getenv("SUPABASE_URL", "https://ftspunijfgcbkuybobhf.supabase.co"),
             supabase_jwt_audience=os.getenv("SUPABASE_JWT_AUDIENCE", "authenticated"),
-            google_client_id=os.getenv("GOOGLE_CLIENT_ID", ""),
-            google_client_secret=os.getenv("GOOGLE_CLIENT_SECRET", ""),
-            github_client_id=os.getenv("GITHUB_CLIENT_ID", ""),
-            github_client_secret=os.getenv("GITHUB_CLIENT_SECRET", ""),
+            google_client_id=google_cid,
+            google_client_secret=google_csec,
+            github_client_id=github_cid,
+            github_client_secret=github_csec,
         )
 
 

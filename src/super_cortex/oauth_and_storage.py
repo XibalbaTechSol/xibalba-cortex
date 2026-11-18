@@ -236,6 +236,67 @@ class GitHubOAuthProvider:
         )
 
 
+DEFAULT_SUPABASE_URL = "https://ftspunijfgcbkuybobhf.supabase.co"
+DEFAULT_SUPABASE_AUDIENCE = "authenticated"
+SUPPORTED_OAUTH_PROVIDERS = ("google", "github")
+
+
+class SupabaseAuthError(RuntimeError):
+    """Raised when Supabase Auth JWT or user verification fails."""
+
+
+class SupabaseAuthVerifier:
+    """Shared Supabase Auth broker verifier (used across Super-Cortex, Xibalba Shield, and Integrity Console)."""
+
+    def __init__(
+        self,
+        supabase_url: str | None = None,
+        audience: str | None = None,
+        jwks_client: Any = None,
+    ) -> None:
+        raw_url = supabase_url or os.getenv("SUPABASE_URL", DEFAULT_SUPABASE_URL)
+        self.supabase_url = raw_url.strip().rstrip("/")
+        self.audience = (audience or os.getenv("SUPABASE_JWT_AUDIENCE", DEFAULT_SUPABASE_AUDIENCE)).strip()
+        self.jwks_url = f"{self.supabase_url}/auth/v1/.well-known/jwks.json"
+        self._jwks_client = jwks_client
+
+    def get_authorization_url(self, provider: str, redirect_to: str) -> str:
+        provider_norm = provider.strip().lower()
+        if provider_norm not in SUPPORTED_OAUTH_PROVIDERS:
+            raise ValueError(f"Unsupported OAuth provider: {provider}")
+        params = {
+            "provider": provider_norm,
+            "redirect_to": redirect_to.strip(),
+        }
+        return f"{self.supabase_url}/auth/v1/authorize?{urllib.parse.urlencode(params)}"
+
+    def verify_token(self, token: str) -> dict[str, Any]:
+        cleaned = token.strip()
+        if not cleaned or len(cleaned) > 16384:
+            raise SupabaseAuthError("Missing or malformed Supabase access token")
+        try:
+            import jwt
+            from jwt import PyJWKClient
+
+            if self._jwks_client is None:
+                self._jwks_client = PyJWKClient(self.jwks_url, timeout=10)
+            signing_key = self._jwks_client.get_signing_key_from_jwt(cleaned)
+            claims = jwt.decode(
+                cleaned,
+                signing_key.key,
+                algorithms=["RS256", "ES256", "EdDSA"],
+                audience=self.audience,
+                options={
+                    "verify_exp": True,
+                    "verify_aud": bool(self.audience),
+                },
+            )
+            return dict(claims)
+        except Exception as exc:
+            raise SupabaseAuthError(f"Invalid or expired Supabase token: {exc}") from exc
+
+
+
 class SupabaseSnapshotSync:
     """Durable SQLite snapshot sync for stateless Render containers using Supabase REST or local backup target."""
 

@@ -58,6 +58,8 @@ from .models import ProviderRecord, ProviderType
 from .oauth_and_storage import (
     GitHubOAuthProvider,
     GoogleOAuthProvider,
+    SupabaseAuthError,
+    SupabaseAuthVerifier,
     SupabaseSnapshotSync,
     generate_pkce,
     sign_oauth_state,
@@ -1755,7 +1757,13 @@ def create_app(
             return JSONResponse({"error": str(exc)}, status_code=401)
 
     async def api_managed_oauth_providers(request: Request) -> JSONResponse:
-        return JSONResponse({"providers": managed.configured_oauth_providers()})
+        provs = managed.configured_oauth_providers()
+        ids = {p["id"] for p in provs}
+        return JSONResponse({
+            "google": "google" in ids,
+            "github": "github" in ids,
+            "providers": provs,
+        })
 
     async def api_managed_recovery(request: Request) -> JSONResponse:
         action = request.path_params.get("action", "request")
@@ -1911,6 +1919,10 @@ def create_app(
             return JSONResponse({"error": str(exc)}, status_code=401)
 
     snapshot_sync = SupabaseSnapshotSync()
+    supabase_verifier = SupabaseAuthVerifier(
+        supabase_url=managed.config.supabase_url,
+        audience=managed.config.supabase_jwt_audience,
+    )
 
     def _build_oauth_provider(provider_name: str, redirect_uri: str) -> GoogleOAuthProvider | GitHubOAuthProvider:
         p = provider_name.strip().lower()
@@ -1935,6 +1947,19 @@ def create_app(
             provider = _build_oauth_provider(provider_name, redirect_uri)
         except ValueError as exc:
             return JSONResponse({"error": str(exc)}, status_code=400)
+
+        mode = request.query_params.get("mode", "")
+        # Use shared Supabase Auth broker by default (exact same architecture as Shield & Integrity Console)
+        if managed.config.supabase_url and (mode != "direct" or not provider.configured):
+            redirect_to = str(
+                request.query_params.get("redirect_to")
+                or f"{managed.config.public_url.rstrip('/')}/"
+            )
+            auth_url = supabase_verifier.get_authorization_url(provider_name, redirect_to)
+            if request.query_params.get("json") in {"1", "true"} or request.query_params.get("redirect") in {"0", "false"}:
+                return JSONResponse({"provider": provider_name, "authorize_url": auth_url, "authorization_url": auth_url})
+            return RedirectResponse(auth_url, status_code=303)
+
         if not provider.configured:
             return JSONResponse(
                 {"error": f"{provider_name.title()} OAuth is not configured on this deployment"},
@@ -1946,9 +1971,52 @@ def create_app(
             managed.config.stripe_webhook_secret or "super-cortex-oauth-secret",
         )
         url = provider.build_authorize_url(state=state, code_challenge=challenge)
-        if request.query_params.get("json") in {"1", "true"}:
-            return JSONResponse({"provider": provider_name, "authorize_url": url, "state": state})
+        if request.query_params.get("json") in {"1", "true"} or request.query_params.get("redirect") in {"0", "false"}:
+            return JSONResponse({"provider": provider_name, "authorize_url": url, "authorization_url": url, "state": state})
         return RedirectResponse(url, status_code=302)
+
+    async def api_supabase_session(request: Request) -> JSONResponse:
+        try:
+            body = await request.json()
+        except Exception:
+            return JSONResponse({"error": "Invalid JSON body"}, status_code=400)
+        access_token = str(body.get("access_token") or "").strip()
+        if not access_token:
+            return JSONResponse({"error": "access_token is required"}, status_code=400)
+        try:
+            claims = supabase_verifier.verify_token(access_token)
+        except SupabaseAuthError as exc:
+            return JSONResponse({"error": str(exc)}, status_code=401)
+
+        email = str(claims.get("email") or "").strip().lower()
+        sub = str(claims.get("sub") or "").strip()
+        if not email or not sub:
+            return JSONResponse({"error": "Supabase token missing email or subject"}, status_code=400)
+        user_meta = claims.get("user_metadata") or {}
+        app_meta = claims.get("app_metadata") or {}
+        display_name = str(
+            user_meta.get("full_name")
+            or user_meta.get("name")
+            or user_meta.get("user_name")
+            or email.split("@")[0]
+        ).strip()
+        provider = str(app_meta.get("provider") or "google").strip()
+
+        result = managed.oauth_login_or_register(
+            provider=provider,
+            provider_user_id=sub,
+            email=email,
+            display_name=display_name,
+        )
+        resp = JSONResponse({
+            "ok": True,
+            "account": result["account"],
+            "tenant_id": result["account"]["profile_id"],
+            "csrf_token": result["session"]["csrf_token"],
+            "access_token": result["session"]["token"],
+        })
+        _attach_session_cookie(resp, result["session"]["token"])
+        return resp
 
     async def api_oauth_callback(request: Request) -> JSONResponse | RedirectResponse:
         provider_name = str(request.path_params.get("provider") or "").lower()
@@ -2203,10 +2271,17 @@ def create_app(
         Route("/api/auth/events", api_managed_auth_events, methods=["GET"]),
         Route("/api/managed/oauth/providers", api_managed_oauth_providers, methods=["GET"]),
         Route("/api/auth/oauth/providers", api_managed_oauth_providers, methods=["GET"]),
+        Route("/api/shield/auth/providers", api_managed_oauth_providers, methods=["GET"]),
         Route("/api/managed/oauth/{provider}/authorize", api_oauth_authorize, methods=["GET"]),
         Route("/api/auth/oauth/{provider}/authorize", api_oauth_authorize, methods=["GET"]),
+        Route("/api/shield/auth/oauth/{provider}/authorize", api_oauth_authorize, methods=["GET"]),
         Route("/api/managed/oauth/{provider}/callback", api_oauth_callback, methods=["GET"]),
         Route("/api/auth/oauth/{provider}/callback", api_oauth_callback, methods=["GET"]),
+        Route("/api/managed/auth/supabase/session", api_supabase_session, methods=["POST"]),
+        Route("/api/auth/supabase/session", api_supabase_session, methods=["POST"]),
+        Route("/api/auth/supabase", api_supabase_session, methods=["POST"]),
+        Route("/api/managed/auth/session", api_supabase_session, methods=["POST"]),
+        Route("/api/shield/auth/supabase/session", api_supabase_session, methods=["POST"]),
         Route("/api/managed/ais/reward/evaluate", api_ais_reward_evaluate, methods=["POST"]),
         Route("/api/ais/reward/evaluate", api_ais_reward_evaluate, methods=["POST"]),
         Route("/api/managed/discovery/reward-trajectory", api_ais_reward_evaluate, methods=["POST"]),
