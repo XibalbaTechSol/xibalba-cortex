@@ -16739,17 +16739,31 @@ console.log("Loaded " + nodes.length + " memory invariants.");</code></pre>
   <div id="cortex-landing-overlay" class="hidden fixed inset-0 z-50 bg-[#050811] text-slate-100 overflow-y-auto font-sans selection:bg-cyan-500/30">
     <!-- Top Sticky Bar -->
     <header class="sticky top-0 z-30 bg-[#050811]/90 backdrop-blur-xl border-b border-slate-800/80 px-6 py-3 flex items-center justify-between max-w-7xl mx-auto">
-      <a href="#landing" onclick="event.preventDefault(); document.getElementById('cortex-landing-overlay').scrollTo({top:0,behavior:'smooth'})" class="flex items-center gap-3">
-        <img src="/cortex-rail-mark.png" alt="Super-Cortex" class="w-7 h-7 object-contain" />
-        <span class="font-mono font-bold text-sm tracking-wider uppercase text-white">Super-Cortex</span>
-        <span class="px-1.5 py-0.5 rounded text-[9px] font-mono font-bold bg-cyan-500/15 text-cyan-300 border border-cyan-500/30">MANAGED &amp; LOCAL</span>
-      </a>
+      <div class="flex items-center gap-3">
+        <a href="#landing" onclick="event.preventDefault(); document.getElementById('cortex-landing-overlay').scrollTo({top:0,behavior:'smooth'})" class="flex items-center gap-2.5">
+          <img src="/cortex-rail-mark.png" alt="Super-Cortex" class="w-7 h-7 object-contain" />
+          <div class="flex flex-col">
+            <div class="flex items-center gap-2">
+              <span class="font-mono font-bold text-sm tracking-wider uppercase text-white">Super-Cortex</span>
+              <span class="px-1.5 py-0.5 rounded text-[9px] font-mono font-bold bg-cyan-500/15 text-cyan-300 border border-cyan-500/30">MANAGED &amp; LOCAL</span>
+            </div>
+          </div>
+        </a>
+        <a href="https://xibalbasolutions.com" target="_blank" rel="noopener noreferrer" class="hidden sm:inline-flex items-center gap-1 text-[11px] font-mono text-slate-400 hover:text-cyan-300 transition-colors border-l border-slate-800 pl-3 ml-1" title="Xibalba Solutions LLC Portal">
+          <span>xibalbasolutions.com</span>
+          <span class="material-symbols-outlined text-[12px]">open_in_new</span>
+        </a>
+      </div>
       <nav class="hidden md:flex items-center gap-6 text-xs font-mono text-slate-300">
         <a href="#xc-what" onclick="event.preventDefault(); document.getElementById('xc-what')?.scrollIntoView({behavior:'smooth'})" class="hover:text-cyan-300 transition-colors">What it is</a>
         <a href="#xc-how" onclick="event.preventDefault(); document.getElementById('xc-how')?.scrollIntoView({behavior:'smooth'})" class="hover:text-cyan-300 transition-colors">How it runs</a>
         <a href="#xc-pricing" onclick="event.preventDefault(); document.getElementById('xc-pricing')?.scrollIntoView({behavior:'smooth'})" class="hover:text-cyan-300 transition-colors">Plans</a>
         <a href="#xc-compare" onclick="event.preventDefault(); document.getElementById('xc-compare')?.scrollIntoView({behavior:'smooth'})" class="hover:text-cyan-300 transition-colors">Compare</a>
         <a href="#xc-contact" onclick="event.preventDefault(); document.getElementById('xc-contact')?.scrollIntoView({behavior:'smooth'})" class="hover:text-cyan-300 transition-colors">Contact</a>
+        <a href="https://xibalbasolutions.com" target="_blank" rel="noopener noreferrer" class="hover:text-cyan-300 transition-colors flex items-center gap-1 text-slate-400">
+          <span>Company</span>
+          <span class="material-symbols-outlined text-[11px]">north_east</span>
+        </a>
       </nav>
       <div class="flex items-center gap-2 font-mono text-xs">
         <button onclick="window.enterConsoleFromLanding()" class="px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 border border-cyan-500/40 text-cyan-300 font-bold transition-all cursor-pointer flex items-center gap-1.5">
@@ -16926,16 +16940,62 @@ console.log("Loaded " + nodes.length + " memory invariants.");</code></pre>
       </section>
 
       <!-- Public Contact Form -->
-      <section id="xc-contact" class="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start pt-4 pb-12 border-t border-slate-800/80">
-        <div class="lg:col-span-5 space-y-3">
-          <p class="font-mono text-xs uppercase tracking-widest text-cyan-400 font-bold">Contact Xibalba Solutions</p>
-          <h2 class="text-2xl font-bold text-white">Questions, enterprise deployments, or dedicated clusters</h2>
-          <p class="text-xs text-slate-400 leading-relaxed">
-            Reach out for dedicated HIPAA-ready Xibalba Shield enclaves, high-throughput quantitative agent swarms, or custom on-premise deployments.
+      <section id="xc-contact" class="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start pt-6 pb-12 border-t border-slate-800/80">
+        <div class="lg:col-span-5 space-y-4">
+          <div>
+            <p class="font-mono text-xs uppercase tracking-widest text-cyan-400 font-bold">Contact Leadership</p>
+            <h2 class="text-2xl font-bold text-white mt-1">Direct Inquiries &amp; Dedicated Deployments</h2>
+          </div>
+          <p class="text-xs text-slate-300 leading-relaxed font-sans">
+            Reach out for dedicated HIPAA-ready Xibalba Shield enclaves, high-throughput quantitative agent memory swarms, or custom on-premise clusters.
           </p>
-          <div class="font-mono text-xs text-cyan-300 pt-2">contact@xibalba.dev</div>
+
+          <!-- Direct Executive Contact Channels -->
+          <div class="space-y-2.5 pt-2 font-mono text-xs">
+            <a href="mailto:jacob@xibalbasolutions.com" class="p-3 rounded-lg bg-[#090e1a] border border-slate-800 hover:border-cyan-500/50 flex items-center gap-3 text-slate-200 transition-colors">
+              <span class="w-8 h-8 rounded bg-cyan-500/10 border border-cyan-500/30 flex items-center justify-center text-cyan-300 shrink-0">
+                <span class="material-symbols-outlined text-[17px]">mail</span>
+              </span>
+              <div>
+                <div class="text-[10px] text-slate-400 uppercase font-semibold">Executive Email</div>
+                <div class="font-bold text-white">jacob@xibalbasolutions.com</div>
+              </div>
+            </a>
+
+            <a href="tel:+12628641589" class="p-3 rounded-lg bg-[#090e1a] border border-slate-800 hover:border-cyan-500/50 flex items-center gap-3 text-slate-200 transition-colors">
+              <span class="w-8 h-8 rounded bg-cyan-500/10 border border-cyan-500/30 flex items-center justify-center text-cyan-300 shrink-0">
+                <span class="material-symbols-outlined text-[17px]">call</span>
+              </span>
+              <div>
+                <div class="text-[10px] text-slate-400 uppercase font-semibold">Direct Telephone</div>
+                <div class="font-bold text-white">1 (262) 864-1589</div>
+              </div>
+            </a>
+
+            <a href="https://xibalbasolutions.com" target="_blank" rel="noopener noreferrer" class="p-3 rounded-lg bg-[#090e1a] border border-slate-800 hover:border-cyan-500/50 flex items-center gap-3 text-slate-200 transition-colors">
+              <span class="w-8 h-8 rounded bg-cyan-500/10 border border-cyan-500/30 flex items-center justify-center text-cyan-300 shrink-0">
+                <span class="material-symbols-outlined text-[17px]">public</span>
+              </span>
+              <div>
+                <div class="text-[10px] text-slate-400 uppercase font-semibold">Parent Company</div>
+                <div class="font-bold text-white flex items-center gap-1">
+                  <span>xibalbasolutions.com</span>
+                  <span class="material-symbols-outlined text-[13px] text-cyan-400">north_east</span>
+                </div>
+              </div>
+            </a>
+          </div>
+
+          <div class="text-[11px] font-mono text-slate-400 pt-1 flex items-center gap-2">
+            <span class="material-symbols-outlined text-sm text-cyan-400">pin_drop</span>
+            <span>Xibalba Solutions LLC · Operations based in Wisconsin, USA</span>
+          </div>
         </div>
+
         <form onsubmit="window.submitLandingContact(event)" class="lg:col-span-7 p-6 rounded-xl bg-[#090e1a] border border-slate-800 space-y-4 font-mono text-xs">
+          <!-- Honeypot field for bot suppression -->
+          <input name="website" type="text" tabindex="-1" autocomplete="off" class="hidden" style="display:none;" />
+          
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <label class="block space-y-1">
               <span class="text-slate-400 text-[10px] uppercase font-bold">Your Name *</span>
@@ -16955,11 +17015,101 @@ console.log("Loaded " + nodes.length + " memory invariants.");</code></pre>
             <textarea name="message" rows="3" required placeholder="Tell us about your agent workload and memory capacity requirements..." class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-cyan-400"></textarea>
           </label>
           <div id="landing-contact-feedback" class="hidden p-2.5 rounded text-xs"></div>
-          <button type="submit" class="px-5 py-2 rounded-lg bg-cyan-400 hover:bg-cyan-300 text-black font-bold uppercase tracking-wider cursor-pointer transition-all">
-            Send Inquiry
+          <button type="submit" class="px-5 py-2.5 rounded-lg bg-cyan-400 hover:bg-cyan-300 text-black font-bold uppercase tracking-wider cursor-pointer transition-all flex items-center gap-2">
+            <span>Send Inquiry</span>
+            <span class="material-symbols-outlined text-[15px]">send</span>
           </button>
         </form>
       </section>
+    </main>
+
+    <!-- Public Corporate Footer -->
+    <footer class="border-t border-slate-800/80 bg-[#070b16] text-slate-400 font-mono text-xs">
+      <div class="max-w-7xl mx-auto px-6 py-12 grid grid-cols-1 md:grid-cols-12 gap-10">
+        <!-- Brand & Mission Column -->
+        <div class="md:col-span-4 space-y-4">
+          <div class="flex items-center gap-3">
+            <img src="/cortex-rail-mark.png" alt="Super-Cortex" class="w-8 h-8 object-contain" />
+            <div>
+              <span class="font-bold text-sm tracking-wider uppercase text-white block">Super-Cortex</span>
+              <span class="text-[10px] text-cyan-400 font-semibold">Autonomous Memory &amp; Graph Fabric</span>
+            </div>
+          </div>
+          <p class="text-xs text-slate-400 leading-relaxed font-sans max-w-sm">
+            Local-first neural knowledge graphs, Merkle-attested provenance, and high-throughput agent memory orchestration. Engineered by Xibalba Solutions LLC.
+          </p>
+          <div class="pt-2">
+            <a href="https://xibalbasolutions.com" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-1.5 text-cyan-300 hover:text-cyan-200 text-xs font-semibold">
+              <span>xibalbasolutions.com</span>
+              <span class="material-symbols-outlined text-[13px]">open_in_new</span>
+            </a>
+          </div>
+        </div>
+
+        <!-- Navigation Links -->
+        <div class="md:col-span-2 space-y-3">
+          <p class="text-[10px] uppercase tracking-wider text-slate-300 font-bold">Platform</p>
+          <ul class="space-y-2 text-xs">
+            <li><a href="#xc-what" onclick="event.preventDefault(); document.getElementById('xc-what')?.scrollIntoView({behavior:'smooth'})" class="hover:text-cyan-300 transition-colors">Capabilities</a></li>
+            <li><a href="#xc-how" onclick="event.preventDefault(); document.getElementById('xc-how')?.scrollIntoView({behavior:'smooth'})" class="hover:text-cyan-300 transition-colors">Architecture</a></li>
+            <li><a href="#xc-pricing" onclick="event.preventDefault(); document.getElementById('xc-pricing')?.scrollIntoView({behavior:'smooth'})" class="hover:text-cyan-300 transition-colors">Pricing &amp; Plans</a></li>
+            <li><a href="#xc-compare" onclick="event.preventDefault(); document.getElementById('xc-compare')?.scrollIntoView({behavior:'smooth'})" class="hover:text-cyan-300 transition-colors">Vector DB Comparison</a></li>
+            <li><button onclick="window.enterConsoleFromLanding()" class="hover:text-cyan-300 transition-colors cursor-pointer text-left">3D Graph Console</button></li>
+          </ul>
+        </div>
+
+        <!-- Ecosystem Links -->
+        <div class="md:col-span-3 space-y-3">
+          <p class="text-[10px] uppercase tracking-wider text-slate-300 font-bold">Xibalba Ecosystem</p>
+          <ul class="space-y-2 text-xs">
+            <li><a href="https://xibalbasolutions.com" target="_blank" rel="noopener noreferrer" class="hover:text-cyan-300 transition-colors flex items-center gap-1"><span>Xibalba Solutions LLC</span><span class="material-symbols-outlined text-[11px]">north_east</span></a></li>
+            <li><a href="https://github.com/xibalbatechsol/integrity-core" target="_blank" rel="noopener noreferrer" class="hover:text-cyan-300 transition-colors flex items-center gap-1"><span>Integrity Protocol</span><span class="material-symbols-outlined text-[11px]">north_east</span></a></li>
+            <li><a href="https://github.com/xibalbatechsol/xibalba-shield" target="_blank" rel="noopener noreferrer" class="hover:text-cyan-300 transition-colors flex items-center gap-1"><span>Xibalba Shield (EDR)</span><span class="material-symbols-outlined text-[11px]">north_east</span></a></li>
+            <li><a href="https://github.com/xibalbatechsol" target="_blank" rel="noopener noreferrer" class="hover:text-cyan-300 transition-colors flex items-center gap-1"><span>GitHub Organization</span><span class="material-symbols-outlined text-[11px]">north_east</span></a></li>
+          </ul>
+        </div>
+
+        <!-- Direct Contact Column -->
+        <div class="md:col-span-3 space-y-3">
+          <p class="text-[10px] uppercase tracking-wider text-slate-300 font-bold">Direct Contact</p>
+          <div class="space-y-2.5 text-xs">
+            <a href="mailto:jacob@xibalbasolutions.com" class="flex items-center gap-2 text-slate-300 hover:text-cyan-300 transition-colors">
+              <span class="material-symbols-outlined text-sm text-cyan-400">mail</span>
+              <span>jacob@xibalbasolutions.com</span>
+            </a>
+            <a href="tel:+12628641589" class="flex items-center gap-2 text-slate-300 hover:text-cyan-300 transition-colors">
+              <span class="material-symbols-outlined text-sm text-cyan-400">call</span>
+              <span>1 (262) 864-1589</span>
+            </a>
+            <div class="flex items-center gap-2 text-slate-400">
+              <span class="material-symbols-outlined text-sm text-cyan-400">location_on</span>
+              <span>Wisconsin, United States</span>
+            </div>
+            <div class="pt-2">
+              <button onclick="document.getElementById('xc-contact')?.scrollIntoView({behavior:'smooth'})" class="px-3 py-1.5 rounded bg-slate-900 border border-slate-700 hover:border-cyan-400 text-cyan-300 text-[11px] font-bold cursor-pointer transition-all">
+                Send Contact Message
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Bottom Bar -->
+      <div class="border-t border-slate-800/60 py-5 bg-[#050811]">
+        <div class="max-w-7xl mx-auto px-6 flex flex-col sm:flex-row items-center justify-between gap-3 text-[11px] text-slate-400">
+          <div>
+            &copy; 2026 <a href="https://xibalbasolutions.com" target="_blank" rel="noopener noreferrer" class="text-slate-300 hover:text-white transition-colors">Xibalba Solutions LLC</a>. All rights reserved.
+          </div>
+          <div class="flex items-center gap-5">
+            <a href="mailto:jacob@xibalbasolutions.com" class="hover:text-cyan-300 transition-colors">jacob@xibalbasolutions.com</a>
+            <span>·</span>
+            <a href="tel:+12628641589" class="hover:text-cyan-300 transition-colors">1 (262) 864-1589</a>
+            <span>·</span>
+            <span class="text-slate-400">Local-First · Zero-Cloud Retention · Provable Merkle History</span>
+          </div>
+        </div>
+      </div>
+    </footer>
     </main>
   </div>
 
