@@ -54,6 +54,15 @@ def quota_day() -> str:
     return datetime.now(ZoneInfo("America/Los_Angeles")).date().isoformat()
 
 
+_LINK = re.compile(r"\[([^\]]*)\]\([^)]*\)")
+_NON_WORD = re.compile(r"[^0-9a-z]+")
+
+
+def match_key(text: str) -> str:
+    """Lowercased word sequence of the text as rendered: link text kept, markup and punctuation gone."""
+    return _NON_WORD.sub(" ", _LINK.sub(r"\1", text).lower()).strip()
+
+
 def _normalise(text: str) -> str:
     return re.sub(r"\s+", " ", text).strip().lower()
 
@@ -637,16 +646,32 @@ class EngineStore:
         return {r["dream_status"]: r["n"] for r in rows}
 
     def chunk_for_quote(self, namespace: str, doc_id: str, quote: str) -> str | None:
-        """The chunk of `doc_id` containing `quote` (whitespace- and case-insensitive), if any."""
-        needle = _normalise(quote)
+        """The chunk of `doc_id` where `quote` appears, comparing the words a reader sees.
+
+        Matching ignores case, whitespace and Markdown markup (link syntax, backticks, emphasis,
+        curly quotes, dash variants) because a model quotes rendered text, but the word sequence
+        must match exactly. A quote spanning a chunk boundary resolves to the chunk it starts in.
+        """
+        needle = match_key(quote)
+        if len(needle) < 8:
+            return None
         with self._lock:
             rows = self._conn.execute(
                 "SELECT id, content FROM chunks WHERE namespace = ? AND doc_id = ? ORDER BY ordinal", (namespace, doc_id)
             ).fetchall()
+            doc = self._conn.execute(
+                "SELECT content FROM documents WHERE namespace = ? AND id = ?", (namespace, doc_id)
+            ).fetchone()
         for row in rows:
-            if needle and needle in _normalise(row["content"]):
+            if needle in match_key(row["content"]):
                 return row["id"]
-        return None
+        if doc is None or needle not in match_key(doc["content"]):
+            return None
+        head = " ".join(needle.split()[:4])
+        for row in rows:
+            if head in match_key(row["content"]):
+                return row["id"]
+        return rows[0]["id"] if rows else None
 
     # -- learned memories ---------------------------------------------------------------------
 

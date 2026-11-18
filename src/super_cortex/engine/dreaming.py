@@ -46,9 +46,13 @@ Rules:
 - One fact per memory. Resolve pronouns and vague references using the document ("the service" ->
   its name). Keep names, numbers, dates and identifiers exactly as written.
 - Keep durable information: decisions, preferences, configurations, states, outcomes, causes,
-  commitments, and who/what/where. Skip greetings, filler, and step-by-step narration.
+  commitments, identifiers (PR numbers, versions, paths, ports), and who/what/where.
+- Many documents are an agent's progress notes. Narration still contains facts: record the
+  outcomes, states, findings and decisions it reports. Skip only greetings and filler.
+- Be thorough: most documents yield 1 to 4 memories; a document with nothing durable yields none.
 - Every memory must cite one document (its D-number) and a quote copied character-for-character
-  from that document (at most 300 characters) that supports it. No quote, no memory.
+  from that document (at most 300 characters) that supports it. Quote the words as they read;
+  Markdown symbols may be dropped. No quote, no memory.
 - Set "inference": true only when the memory is a conclusion the document implies but does not
   state; it still needs a supporting quote.
 - If a memory replaces or contradicts an existing memory listed below, set "updates" to that

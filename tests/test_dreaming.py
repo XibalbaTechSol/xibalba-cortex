@@ -259,3 +259,23 @@ def test_api_memory_search_and_listing(store):
     assert client.get(f"/ns/other/memory/{memory_id}", headers=auth).status_code == 404
     assert client.post(f"/ns/{NS}/list/memories", headers={}).status_code == 401
     assert client.get("/healthz").json()["dreaming"] == {"enabled": False}
+
+
+def test_quotes_match_rendered_markdown_but_not_different_words(store):
+    text = ("**Two open PRs:**\n- [demo-repo#35](https://example.test/pull/35) — fixes the duplicate key\n"
+            "The session wants `~/.demo/tenant-a-token`; the file is missing.")
+    store.upsert_document(NS, text, "a")
+    assert store.chunk_for_quote(NS, "a", "demo-repo#35 — fixes the duplicate key") == "a#0"
+    assert store.chunk_for_quote(NS, "a", "The session wants ~/.demo/tenant-a-token; the file") == "a#0"
+    assert store.chunk_for_quote(NS, "a", "demo-repo#35 fixes the duplicated key") is None
+    assert store.chunk_for_quote(NS, "a", "PRs") is None          # too short to be evidence
+
+
+def test_a_quote_spanning_two_chunks_resolves_to_where_it_starts():
+    s = EngineStore(":memory:", HashingEmbedder(), max_chunk_chars=60)
+    first = "Alpha bravo charlie delta echo foxtrot golf hotel india juliet."
+    second = "Kilo lima mike november oscar papa quebec romeo sierra tango."
+    s.upsert_document(NS, first + "\n\n" + second, "a")
+    assert len(s.chunks(["a#0", "a#1"])) == 2
+    assert s.chunk_for_quote(NS, "a", "india juliet. Kilo lima mike") == "a#0"
+    s.close()
