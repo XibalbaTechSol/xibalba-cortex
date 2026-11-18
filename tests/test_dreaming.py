@@ -13,6 +13,7 @@ from super_cortex.engine.dreaming import (
     TransientError,
     apply_proposals,
     build_prompt,
+    flatten_response,
     related_memories,
     run_dreaming,
 )
@@ -114,7 +115,7 @@ def test_update_supersedes_the_old_memory_in_the_same_namespace(store):
          "quote": "to Thursday at 3pm", "confidence": 0.9, "inference": False}], "fake", DreamStats())
     store.mark_dreamed(NS, ["a"])
     docs = ingest(store, ("b", MOVED_AGAIN))
-    related = related_memories(store, NS, docs)
+    related = related_memories(store, NS, docs, min_similarity=0.0)
     assert [m["memory"] for m in related] == ["The weekly design review is on Thursday at 3pm."]
     stats = DreamStats()
     apply_proposals(store, NS, docs, related, [
@@ -279,3 +280,23 @@ def test_a_quote_spanning_two_chunks_resolves_to_where_it_starts():
     assert len(s.chunks(["a#0", "a#1"])) == 2
     assert s.chunk_for_quote(NS, "a", "india juliet. Kilo lima mike") == "a#0"
     s.close()
+
+
+def test_per_document_response_is_flattened_with_document_labels():
+    data = {"documents": [
+        {"doc": "D1", "memories": [{"memory": "a", "quote": "qa", "confidence": 1, "inference": False}]},
+        {"doc": "D2", "memories": []},
+        {"doc": "D3", "memories": [{"memory": "b", "quote": "qb", "confidence": 1, "inference": False},
+                                   {"memory": "c", "quote": "qc", "confidence": 1, "inference": False}]}]}
+    assert [(p["doc"], p["memory"]) for p in flatten_response(data)] == [("D1", "a"), ("D3", "b"), ("D3", "c")]
+    assert flatten_response({}) == []
+
+
+def test_only_close_memories_are_offered_for_replacement(store):
+    store.upsert_document(NS, COFFEE, "a")
+    store.insert_memory(NS, "Priya prefers dark roast coffee.", [("a", "a#0", "dark roast")], confidence=1,
+                        status="latest", extractor="t")
+    near = [{"id": "x", "namespace": NS, "content": "Priya prefers dark roast coffee."}]
+    far = [{"id": "y", "namespace": NS, "content": "Quarterly tax filing deadlines for the Ohio office."}]
+    assert len(related_memories(store, NS, near)) == 1
+    assert related_memories(store, NS, far) == []

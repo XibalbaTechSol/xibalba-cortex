@@ -130,7 +130,7 @@ def dream(
     db: Path = typer.Option(Path(os.getenv("SUPER_CORTEX_ENGINE_DB", str(Path.home() / ".super-cortex" / "engine.db")))),
     daily_budget: int = typer.Option(200, help="Stop when today's (Pacific) request count reaches this"),
     rpm: float = typer.Option(12.0, help="Requests per minute (free tier for flash-lite is 15)"),
-    docs_per_request: int = typer.Option(6),
+    docs_per_request: int = typer.Option(3),
 ) -> None:
     """Run dreaming once over the pending queue (Gemini free tier; needs GEMINI_API_KEY)."""
     from ..engine.dreaming import GeminiExtractor, run_dreaming

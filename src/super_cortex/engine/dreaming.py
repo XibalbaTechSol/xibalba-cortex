@@ -55,32 +55,41 @@ Rules:
   Markdown symbols may be dropped. No quote, no memory.
 - Set "inference": true only when the memory is a conclusion the document implies but does not
   state; it still needs a supporting quote.
-- If a memory replaces or contradicts an existing memory listed below, set "updates" to that
-  memory's M-number. Otherwise null. Do not restate an existing memory unchanged.
+- Existing memories are listed only so you can mark replacements. If a memory replaces or
+  contradicts one, set "updates" to its M-number; otherwise null. They are never a reason to
+  skip a new fact, and only an exact restatement of one should be left out.
+- Return one entry per document, in order D1..Dn, each with its own list of memories. Read every
+  document; an entry may have an empty list only if that document has nothing durable.
 - "confidence" is your probability (0 to 1) that the memory is correct and still current.
 - Never write credentials, keys, tokens or passwords into a memory.
 - Return {"memories": []} if nothing is worth keeping."""
 
+_MEMORY_SCHEMA = {
+    "type": "OBJECT",
+    "properties": {
+        "memory": {"type": "STRING"},
+        "quote": {"type": "STRING"},
+        "confidence": {"type": "NUMBER"},
+        "inference": {"type": "BOOLEAN"},
+        "updates": {"type": "STRING", "nullable": True},
+    },
+    "required": ["memory", "quote", "confidence", "inference"],
+}
+# One entry per document: batching otherwise lets the model skim and silently skip documents
+# (measured: 6-doc batches yielded under half the memories of single-document requests).
 RESPONSE_SCHEMA = {
     "type": "OBJECT",
     "properties": {
-        "memories": {
+        "documents": {
             "type": "ARRAY",
             "items": {
                 "type": "OBJECT",
-                "properties": {
-                    "memory": {"type": "STRING"},
-                    "doc": {"type": "STRING"},
-                    "quote": {"type": "STRING"},
-                    "confidence": {"type": "NUMBER"},
-                    "inference": {"type": "BOOLEAN"},
-                    "updates": {"type": "STRING", "nullable": True},
-                },
-                "required": ["memory", "doc", "quote", "confidence", "inference"],
+                "properties": {"doc": {"type": "STRING"}, "memories": {"type": "ARRAY", "items": _MEMORY_SCHEMA}},
+                "required": ["doc", "memories"],
             },
         }
     },
-    "required": ["memories"],
+    "required": ["documents"],
 }
 
 
@@ -146,9 +155,18 @@ class GeminiExtractor:
         data = response.json()
         try:
             text = "".join(p.get("text", "") for p in data["candidates"][0]["content"]["parts"])
-            return list(json.loads(text).get("memories", []))
+            return flatten_response(json.loads(text))
         except (KeyError, IndexError, json.JSONDecodeError) as exc:
             raise ValueError(f"unparseable extraction response: {exc}") from exc
+
+
+def flatten_response(data: dict[str, Any]) -> list[dict[str, Any]]:
+    """Per-document entries -> flat proposals, each tagged with its document's D-number."""
+    out: list[dict[str, Any]] = []
+    for entry in data.get("documents", []) or []:
+        for memory in entry.get("memories", []) or []:
+            out.append({**memory, "doc": str(entry.get("doc", ""))})
+    return out
 
 
 def _quota_error(response: Any) -> QuotaExhausted:
@@ -191,16 +209,24 @@ class DreamStats:
         return {**self.__dict__, "grounded_rate": round(self.grounded_rate, 4)}
 
 
-def related_memories(store: EngineStore, namespace: str, documents: list[dict[str, Any]], per_doc: int = 5,
-                     cap: int = 30) -> list[dict[str, Any]]:
-    """Existing latest memories near these documents: the only ones the model may mark as updated."""
+# bge-small scores even unrelated agent notes around 0.70 (median), so 0.8 is where "related" starts.
+# Model-specific: override with SUPER_CORTEX_DREAM_RELATED_SIMILARITY for another embedder.
+RELATED_SIMILARITY = float(os.getenv("SUPER_CORTEX_DREAM_RELATED_SIMILARITY", "0.8"))
+
+
+def related_memories(store: EngineStore, namespace: str, documents: list[dict[str, Any]], per_doc: int = 3,
+                     cap: int = 12, min_similarity: float = RELATED_SIMILARITY) -> list[dict[str, Any]]:
+    """Existing latest memories close to these documents: the only ones the model may mark as updated.
+
+    Kept short and close on purpose: a long list of loosely related memories made the model treat
+    new facts as already known (measured: 30 shown halved the memories proposed).
+    """
     ids: list[str] = []
     vectors = store.embedder.embed([d["content"][:MAX_DOC_CHARS] for d in documents])
-    for doc, vector in zip(documents, vectors):
-        for memory_id in store.memory_lexical_ranked(namespace, doc["content"][:2000], per_doc):
-            ids.append(memory_id)
-        for memory_id, _ in store.memory_vector_ranked(namespace, vector, per_doc):
-            ids.append(memory_id)
+    for vector in vectors:
+        for memory_id, sim in store.memory_vector_ranked(namespace, vector, per_doc):
+            if sim >= min_similarity:
+                ids.append(memory_id)
     unique = list(dict.fromkeys(ids))[:cap]
     found = store.get_memories(unique)
     return [found[i] for i in unique if i in found and found[i]["namespace"] == namespace]
@@ -278,8 +304,8 @@ def run_dreaming(
     max_requests: int,
     daily_budget: int | None = None,
     rpm: float | None = None,
-    docs_per_request: int = 6,
-    max_chars_per_request: int = 14000,
+    docs_per_request: int = 3,      # measured: 3/request kept 85% of 1/request's yield at a third of the requests
+    max_chars_per_request: int = 9000,
     max_transient_retries: int = 3,
     stop: threading.Event | None = None,
     sleep=time.sleep,
