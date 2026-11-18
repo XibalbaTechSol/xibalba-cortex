@@ -23,7 +23,7 @@ import time
 from dataclasses import dataclass, field
 from typing import Any, Protocol
 
-from .store import EngineStore
+from .store import MEMORY_KINDS, EngineStore
 
 log = logging.getLogger(__name__)
 
@@ -60,9 +60,13 @@ Rules:
   skip a new fact, and only an exact restatement of one should be left out.
 - Return one entry per document, in order D1..Dn, each with its own list of memories. Read every
   document; an entry may have an empty list only if that document has nothing durable.
+- "kind" says what the memory is: "preference" (what someone likes, wants or habitually does),
+  "rule" (a standing instruction, policy or constraint), "goal" (an intended future outcome or
+  plan), "decision" (a choice that was made), "event" (something that happened at a point in
+  time), or "fact" (any other state of the world). Choose the most specific that fits.
 - "confidence" is your probability (0 to 1) that the memory is correct and still current.
 - Never write credentials, keys, tokens or passwords into a memory.
-- Return {"memories": []} if nothing is worth keeping."""
+- If nothing is worth keeping, return each document's entry with an empty "memories" list."""
 
 _MEMORY_SCHEMA = {
     "type": "OBJECT",
@@ -71,9 +75,10 @@ _MEMORY_SCHEMA = {
         "quote": {"type": "STRING"},
         "confidence": {"type": "NUMBER"},
         "inference": {"type": "BOOLEAN"},
+        "kind": {"type": "STRING", "enum": list(MEMORY_KINDS)},
         "updates": {"type": "STRING", "nullable": True},
     },
-    "required": ["memory", "quote", "confidence", "inference"],
+    "required": ["memory", "quote", "confidence", "inference", "kind"],
 }
 # One entry per document: batching otherwise lets the model skim and silently skip documents
 # (measured: 6-doc batches yielded under half the memories of single-document requests).
@@ -272,6 +277,7 @@ def apply_proposals(store: EngineStore, namespace: str, documents: list[dict[str
             namespace, text, [(doc["id"], chunk_id, quote)], confidence=confidence, status=status,
             extractor=extractor_model, is_inference=is_inference,
             supersedes_id=target["id"] if target else None, vector=vector,
+            kind=str(proposal.get("kind") or "fact"),
         )
         stats.stored += 1
         if status == "candidate":

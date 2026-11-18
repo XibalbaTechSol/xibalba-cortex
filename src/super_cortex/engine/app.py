@@ -26,6 +26,7 @@ from starlette.requests import Request
 from starlette.responses import JSONResponse
 from starlette.routing import Route
 
+from .profile import DYNAMIC_LIMIT, build_profile
 from .search import combined_search, hybrid_search, memory_search
 from .store import EngineStore
 
@@ -165,6 +166,18 @@ def create_app(store: EngineStore, api_key: str | None = None, allow_anonymous: 
             raise ValueError("status must be latest, superseded, candidate, forgotten or null")
         return JSONResponse(store.list_memories(request.path_params["ns"], status, page, limit))
 
+    async def profile(request: Request) -> JSONResponse:
+        data = await body(request) if await request.body() else {}
+        buckets = data.get("buckets")
+        if buckets is not None and (not isinstance(buckets, list) or not all(isinstance(b, str) for b in buckets)):
+            raise ValueError("buckets must be a list of strings")
+        result = build_profile(store, request.path_params["ns"], buckets,
+                               int(data.get("limit", DYNAMIC_LIMIT)))
+        ignored = sorted(k for k in data if k not in {"buckets", "limit"})
+        if ignored:
+            result["ignored"] = ignored  # e.g. Supermemory's `filter`: accepted, not applied
+        return JSONResponse(result)
+
     async def get_memory(request: Request) -> JSONResponse:
         found = store.get_memories([request.path_params["memory_id"]]).get(request.path_params["memory_id"])
         if found is None or found["namespace"] != request.path_params["ns"]:
@@ -205,6 +218,7 @@ def create_app(store: EngineStore, api_key: str | None = None, allow_anonymous: 
         Route("/ns/{ns}/list/documents", guard(list_documents), methods=["POST"]),
         Route("/ns/{ns}/list/memories", guard(list_memories), methods=["POST"]),
         Route("/ns/{ns}/memory/{memory_id}", guard(get_memory), methods=["GET"]),
+        Route("/ns/{ns}/profile", guard(profile), methods=["POST"]),
     ])
 
 
