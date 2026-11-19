@@ -1314,6 +1314,53 @@ def create_app(
         res = compute_spectral_properties(nodes, edges)
         return JSONResponse(res)
 
+    async def api_export_trajectories(request: Request) -> Response:
+        """Export agent reasoning trajectories formatted for SFT, DPO, or GRPO fine-tuning."""
+        from super_cortex.trajectories import (
+            export_dataset_jsonl,
+            export_dpo_dataset,
+            export_grpo_dataset,
+            export_sft_dataset,
+        )
+        scope = request.query_params.get("scope", "all")
+        fmt = request.query_params.get("format", "sft").lower()
+        as_jsonl = request.query_params.get("as_jsonl", "false").lower() in ("true", "1", "yes") or request.query_params.get("download") == "true"
+
+        if fmt == "dpo":
+            dataset = export_dpo_dataset(cortex.store, scope=scope)
+        elif fmt == "grpo":
+            dataset = export_grpo_dataset(cortex.store, scope=scope)
+        else:
+            fmt = "sft"
+            dataset = export_sft_dataset(cortex.store, scope=scope)
+
+        if as_jsonl:
+            jsonl_str = export_dataset_jsonl(dataset)
+            return Response(
+                content=jsonl_str,
+                media_type="application/x-ndjson",
+                headers={"Content-Disposition": f'attachment; filename="super_cortex_{fmt}_dataset.jsonl"'},
+            )
+
+        return JSONResponse({"format": fmt, "count": len(dataset), "dataset": dataset})
+
+    async def api_export_notebook(request: Request) -> Response:
+        """Generate dynamic Jupyter Notebook (.ipynb v4) pre-configured with Super-Cortex endpoints."""
+        from super_cortex.trajectories import generate_jupyter_notebook
+        scope = request.query_params.get("scope", "all")
+        template = request.query_params.get("template", "spectral").lower()
+
+        host_header = request.headers.get("host", "127.0.0.1:4174")
+        scheme = "https" if request.url.is_secure else "http"
+        host_url = f"{scheme}://{host_header}"
+
+        nb = generate_jupyter_notebook(template=template, host_url=host_url, scope=scope)
+        return Response(
+            content=json.dumps(nb, indent=2),
+            media_type="application/x-ipynb+json",
+            headers={"Content-Disposition": f'attachment; filename="super_cortex_{template}.ipynb"'},
+        )
+
     async def api_live_events(request: Request) -> EventSourceResponse:
         queue: asyncio.Queue = asyncio.Queue()
         subscribers.append(queue)
@@ -3187,6 +3234,8 @@ em {{ color: #94a3b8; }}
         Route("/api/analytics/communities", api_analytics_communities, methods=["GET"]),
         Route("/api/analytics/centrality", api_analytics_centrality, methods=["GET"]),
         Route("/api/analytics/spectral", api_analytics_spectral, methods=["GET"]),
+        Route("/api/export/trajectories", api_export_trajectories, methods=["GET"]),
+        Route("/api/export/notebook", api_export_notebook, methods=["GET"]),
         Route("/api/agent0/passport", api_agent0_passport, methods=["GET", "POST"]),
         Route("/api/managed/agent0/passport", api_agent0_passport, methods=["GET", "POST"]),
     ]

@@ -6668,6 +6668,56 @@
             </div>
             <div class="text-[10px] text-outline font-sans mt-1">Tensor indices (edge_index, node_types, class labels) for Graph Convolutional Networks (GCN/GAT).</div>
           </a>
+
+          <!-- Jupyter Notebooks -->
+          <div class="pt-2 border-t border-outline-variant/20">
+            <div class="text-[10px] font-bold text-white uppercase tracking-wider flex items-center justify-between pb-1.5">
+              <span class="flex items-center gap-1.5">
+                <span class="material-symbols-outlined text-sm text-cyan-400">menu_book</span>
+                <span>Pre-Configured Jupyter Notebooks</span>
+              </span>
+              <span class="text-[8.5px] px-1.5 py-0.5 rounded bg-cyan-500/20 text-cyan-300 font-bold">.IPYNB v4</span>
+            </div>
+            <div class="grid grid-cols-3 gap-1.5">
+              <a id="ds-link-nb-spectral" href="/api/export/notebook?template=spectral" download class="p-2 rounded bg-surface-container-low hover:bg-surface-container-high border border-outline-variant/30 hover:border-cyan-400 text-center block cursor-pointer transition-all">
+                <div class="text-[9.5px] font-bold text-white">01 Spectral</div>
+                <div class="text-[7.5px] text-slate-400 mt-0.5">Laplacian / Louvain</div>
+              </a>
+              <a id="ds-link-nb-gnn" href="/api/export/notebook?template=gnn" download class="p-2 rounded bg-surface-container-low hover:bg-surface-container-high border border-outline-variant/30 hover:border-purple-400 text-center block cursor-pointer transition-all">
+                <div class="text-[9.5px] font-bold text-white">02 PyG GNN</div>
+                <div class="text-[7.5px] text-slate-400 mt-0.5">GCN Classifier</div>
+              </a>
+              <a id="ds-link-nb-traj" href="/api/export/notebook?template=trajectories" download class="p-2 rounded bg-surface-container-low hover:bg-surface-container-high border border-outline-variant/30 hover:border-emerald-400 text-center block cursor-pointer transition-all">
+                <div class="text-[9.5px] font-bold text-white">03 Reasoning</div>
+                <div class="text-[7.5px] text-slate-400 mt-0.5">DPO &amp; SFT Traces</div>
+              </a>
+            </div>
+          </div>
+
+          <!-- Fine-Tuning Datasets -->
+          <div class="pt-2 border-t border-outline-variant/20">
+            <div class="text-[10px] font-bold text-white uppercase tracking-wider flex items-center justify-between pb-1.5">
+              <span class="flex items-center gap-1.5">
+                <span class="material-symbols-outlined text-sm text-emerald-400">model_training</span>
+                <span>AI Reasoning Datasets (JSONL)</span>
+              </span>
+              <span class="text-[8.5px] px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 font-bold">FINE-TUNING</span>
+            </div>
+            <div class="grid grid-cols-3 gap-1.5">
+              <a id="ds-link-sft-jsonl" href="/api/export/trajectories?format=sft&as_jsonl=true" download class="p-2 rounded bg-surface-container-low hover:bg-surface-container-high border border-outline-variant/30 hover:border-emerald-400 text-center block cursor-pointer transition-all">
+                <div class="text-[9.5px] font-bold text-white">SFT (ChatML)</div>
+                <div class="text-[7.5px] text-slate-400 mt-0.5">Thinking Traces</div>
+              </a>
+              <a id="ds-link-dpo-jsonl" href="/api/export/trajectories?format=dpo&as_jsonl=true" download class="p-2 rounded bg-surface-container-low hover:bg-surface-container-high border border-outline-variant/30 hover:border-amber-400 text-center block cursor-pointer transition-all">
+                <div class="text-[9.5px] font-bold text-white">DPO Pairs</div>
+                <div class="text-[7.5px] text-slate-400 mt-0.5">Chosen/Rejected</div>
+              </a>
+              <a id="ds-link-grpo-jsonl" href="/api/export/trajectories?format=grpo&as_jsonl=true" download class="p-2 rounded bg-surface-container-low hover:bg-surface-container-high border border-outline-variant/30 hover:border-purple-400 text-center block cursor-pointer transition-all">
+                <div class="text-[9.5px] font-bold text-white">GRPO RLVR</div>
+                <div class="text-[7.5px] text-slate-400 mt-0.5">Reward Verifier</div>
+              </a>
+            </div>
+          </div>
         </div>
 
         <!-- Col 2: Jupyter Notebook Snippets -->
@@ -6688,6 +6738,7 @@
             <button onclick="window.switchDsSnippetTab('networkx')" id="ds-tab-networkx" class="flex-1 py-1 rounded font-bold transition-all bg-emerald-600 text-white text-center cursor-pointer">NetworkX</button>
             <button onclick="window.switchDsSnippetTab('polars')" id="ds-tab-polars" class="flex-1 py-1 rounded font-bold transition-all text-neutral-400 hover:text-white text-center cursor-pointer">Polars/Pandas</button>
             <button onclick="window.switchDsSnippetTab('pyg')" id="ds-tab-pyg" class="flex-1 py-1 rounded font-bold transition-all text-neutral-400 hover:text-white text-center cursor-pointer">PyG (GNN)</button>
+            <button onclick="window.switchDsSnippetTab('dpo')" id="ds-tab-dpo" class="flex-1 py-1 rounded font-bold transition-all text-neutral-400 hover:text-white text-center cursor-pointer">DPO Pairs</button>
           </div>
 
           <!-- Code Box -->
@@ -20370,7 +20421,25 @@ y = torch.tensor(spec["y"], dtype=torch.long)
 # 3. Construct PyG Data object ready for GCN/GAT model training
 data = Data(edge_index=edge_index, y=y, num_nodes=spec["num_nodes"])
 print(f"PyG Graph: {data.num_nodes} nodes, {data.num_edges} directed edges")
-print(f"Classes ({len(spec['class_labels'])}):", spec["class_labels"])`
+print(f"Classes ({len(spec['class_labels'])}):", spec["class_labels"])`,
+      dpo: `# 1. Ingest DPO Preference Pairs from Super-Cortex
+import httpx
+import json
+
+base = window.location.origin
+scope = "all"
+resp = httpx.get(f"{base}/api/export/trajectories?format=dpo&scope={scope}")
+dataset = resp.json()["dataset"]
+
+print(f"Loaded {len(dataset)} DPO pairs from Super-Cortex")
+
+# 2. Inspect high-margin reasoning pairs
+for sample in dataset[:3]:
+    print("--- PROMPT ---")
+    print(sample["prompt"])
+    print("CHOSEN REWARD:", sample["chosen"]["reward"], "| REJECTED REWARD:", sample["rejected"]["reward"])
+    print("CHOSEN THINKING:", sample["chosen"].get("thinking", "")[:80], "...")
+    print("MARGIN:", sample["margin"])`
     };
 
     window.openDataScienceModal = function() {
@@ -20378,9 +20447,15 @@ print(f"Classes ({len(spec['class_labels'])}):", spec["class_labels"])`
       if (modal) {
         modal.classList.remove('hidden');
         window.updateDataScienceLinks();
-        window.switchDsSnippetTab(window.currentDsSnippetTab || 'networkx');
+        window.switchDsSnippetTab(window.currentDsSnippetTab || 'dpo');
       }
     };
+
+    window.addEventListener('DOMContentLoaded', () => {
+      if (window.location.hash === '#data-science' || window.location.search.includes('modal=data-science')) {
+        setTimeout(() => { if (window.openDataScienceModal) window.openDataScienceModal(); }, 300);
+      }
+    });
 
     window.closeDataScienceModal = function() {
       const modal = document.getElementById('data-science-modal');
@@ -20405,11 +20480,24 @@ print(f"Classes ({len(spec['class_labels'])}):", spec["class_labels"])`
 
       const pyg = document.getElementById('ds-link-pyg');
       if (pyg) pyg.href = `${base}/api/export/pyg?scope=${scope}`;
+
+      // Jupyter Notebooks
+      ['spectral', 'gnn', 'traj'].forEach(tmpl => {
+        const key = tmpl === 'traj' ? 'trajectories' : tmpl;
+        const el = document.getElementById(`ds-link-nb-${tmpl}`);
+        if (el) el.href = `${base}/api/export/notebook?template=${key}&scope=${scope}`;
+      });
+
+      // Fine-Tuning Datasets
+      ['sft', 'dpo', 'grpo'].forEach(fmt => {
+        const el = document.getElementById(`ds-link-${fmt}-jsonl`);
+        if (el) el.href = `${base}/api/export/trajectories?format=${fmt}&as_jsonl=true&scope=${scope}`;
+      });
     };
 
     window.switchDsSnippetTab = function(tab) {
       window.currentDsSnippetTab = tab;
-      ['networkx', 'polars', 'pyg'].forEach(t => {
+      ['networkx', 'polars', 'pyg', 'dpo'].forEach(t => {
         const btn = document.getElementById(`ds-tab-${t}`);
         if (btn) {
           if (t === tab) {
