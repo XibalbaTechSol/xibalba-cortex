@@ -1375,6 +1375,36 @@ em {{ color: #94a3b8; }}
         except Exception as exc:
             return JSONResponse({"error": str(exc)}, status_code=400)
 
+    async def api_connectors_github_tree(request: Request) -> JSONResponse:
+        repo = request.query_params.get("repo", "XibalbaTechSol/super-cortex").strip()
+        branch = request.query_params.get("branch", "").strip()
+        return JSONResponse(connectors.get_github_tree(repo=repo, branch=branch))
+
+    async def api_connectors_github_file(request: Request) -> JSONResponse:
+        repo = request.query_params.get("repo", "XibalbaTechSol/super-cortex").strip()
+        f_path = request.query_params.get("path", "README.md").strip()
+        try:
+            return JSONResponse(connectors.get_github_file_content(repo=repo, path=f_path))
+        except FileNotFoundError as e:
+            return JSONResponse({"error": str(e)}, status_code=404)
+        except Exception as e:
+            return JSONResponse({"error": str(e)}, status_code=500)
+
+    async def api_connectors_github_commits(request: Request) -> JSONResponse:
+        repo = request.query_params.get("repo", "XibalbaTechSol/super-cortex").strip()
+        limit = int(request.query_params.get("limit", 30))
+        return JSONResponse(connectors.get_github_commits(repo=repo, limit=limit))
+
+    async def api_connectors_github_prs(request: Request) -> JSONResponse:
+        repo = request.query_params.get("repo", "XibalbaTechSol/super-cortex").strip()
+        limit = int(request.query_params.get("limit", 30))
+        return JSONResponse(connectors.get_github_prs(repo=repo, limit=limit))
+
+    async def api_connectors_github_issues(request: Request) -> JSONResponse:
+        repo = request.query_params.get("repo", "XibalbaTechSol/super-cortex").strip()
+        limit = int(request.query_params.get("limit", 30))
+        return JSONResponse(connectors.get_github_issues(repo=repo, limit=limit))
+
     async def api_connectors_github_repos(request: Request) -> JSONResponse:
         owner = request.query_params.get("owner", "XibalbaTechSol").strip() or "XibalbaTechSol"
         return JSONResponse(connectors.list_github_repos(owner=owner, limit=15))
@@ -2753,6 +2783,11 @@ em {{ color: #94a3b8; }}
         Route("/api/connectors/google-workspace", api_connectors_google_workspace, methods=["POST"]),
         Route("/api/connectors/pdf/preview", api_connectors_pdf_preview, methods=["GET"]),
         Route("/api/connectors/file/preview", api_connectors_file_preview, methods=["GET"]),
+        Route("/api/connectors/github/tree", api_connectors_github_tree, methods=["GET"]),
+        Route("/api/connectors/github/file", api_connectors_github_file, methods=["GET"]),
+        Route("/api/connectors/github/commits", api_connectors_github_commits, methods=["GET"]),
+        Route("/api/connectors/github/prs", api_connectors_github_prs, methods=["GET"]),
+        Route("/api/connectors/github/issues", api_connectors_github_issues, methods=["GET"]),
         Route("/api/connectors/github/repos", api_connectors_github_repos, methods=["GET"]),
         Route("/api/connectors/github/search", api_connectors_github_search, methods=["GET"]),
         Route("/api/connectors/github/repo", api_connectors_github_repo, methods=["POST"]),
