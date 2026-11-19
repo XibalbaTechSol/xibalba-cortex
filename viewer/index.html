@@ -1514,6 +1514,19 @@
           <span class="text-[8px] font-bold text-cyan-300 uppercase tracking-tighter hidden sm:inline">FINE</span>
         </div>
 
+        <!-- Compact History & Horizon Controls -->
+        <div class="flex items-center gap-0.5 px-1.5 border-r border-outline-variant/30">
+          <button id="btn-nav-history-back" onclick="window.navHistoryBack()" disabled class="w-5 h-5 rounded flex items-center justify-center bg-surface-container-high hover:bg-primary-container text-neutral-400 hover:text-white transition-colors disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer" title="Previous Visited Node (Alt+←)">
+            <span class="material-symbols-outlined text-[12px]">arrow_back</span>
+          </button>
+          <button id="btn-nav-history-forward" onclick="window.navHistoryForward()" disabled class="w-5 h-5 rounded flex items-center justify-center bg-surface-container-high hover:bg-primary-container text-neutral-400 hover:text-white transition-colors disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer mr-0.5" title="Next Visited Node (Alt+→)">
+            <span class="material-symbols-outlined text-[12px]">arrow_forward</span>
+          </button>
+          <button onclick="window.levelGraphHorizon()" class="w-5 h-5 rounded flex items-center justify-center bg-surface-container-high hover:bg-cyan-500/30 text-cyan-300 hover:text-white transition-colors text-[9px] font-bold cursor-pointer" title="Level Horizon (Upright View / Double-click Canvas)">
+            <span class="material-symbols-outlined text-[12px]">screen_rotation</span>
+          </button>
+        </div>
+
         <!-- Compact Pan Controls (Inline Micro Cluster) -->
         <div class="flex items-center gap-0.5 px-1.5 border-r border-outline-variant/30">
           <button onclick="window.panGraph(-30, 0)" class="w-5 h-5 rounded flex items-center justify-center bg-surface-container-high hover:bg-surface-container-highest text-cyan-300 hover:text-white transition-colors" title="Pan Left (A / ←)">
@@ -1582,6 +1595,161 @@
           </button>
         </div>
       </div>
+
+      <!-- 2D PIP RADAR MINIMAP HUD (Bottom-Left) -->
+      <div id="graph-radar-minimap" class="fixed bottom-3 left-14 z-40 select-none font-mono transition-transform duration-200">
+        <div class="relative group">
+          <canvas id="radar-canvas" width="130" height="130" class="rounded-xl border border-cyan-500/40 bg-[#070b14]/90 backdrop-blur-md shadow-[0_8px_30px_rgba(0,0,0,0.85)] cursor-crosshair block" title="2D Top-Down Manifold Radar (Click to Pan Camera)"></canvas>
+          <div class="absolute top-1 left-2 flex items-center gap-1 text-[7px] text-cyan-400 font-bold uppercase tracking-wider pointer-events-none">
+            <span class="w-1 h-1 rounded-full bg-cyan-400 animate-pulse"></span>
+            <span>RADAR</span>
+          </div>
+          <button onclick="window.toggleRadarMinimap()" class="absolute top-1 right-1 w-4 h-4 rounded bg-slate-900/80 hover:bg-slate-800 text-slate-400 hover:text-white flex items-center justify-center text-[9px] cursor-pointer" title="Toggle Radar Size">
+            <span class="material-symbols-outlined text-[11px]" id="radar-expand-icon">fullscreen</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- SUBGRAPH ISOLATION ACTIVE BANNER (Top-Center) -->
+      <div id="graph-isolation-banner" class="hidden fixed top-12 left-1/2 -translate-x-1/2 z-40 flex items-center gap-2.5 px-3.5 py-1.5 rounded-full bg-[#0a0f1d]/95 backdrop-blur-2xl border border-purple-500/50 shadow-[0_0_25px_rgba(192,132,252,0.35)] font-mono text-[10px] select-none text-purple-200">
+        <span class="material-symbols-outlined text-[14px] text-purple-400 animate-pulse">grain</span>
+        <span class="font-bold uppercase tracking-wider text-white">SUBGRAPH ISOLATION:</span>
+        <span id="isolation-node-title" class="text-cyan-300 font-bold truncate max-w-[200px]">Node Title</span>
+        <span id="isolation-neighbor-count" class="text-slate-400 text-[9px]">(12 Connected)</span>
+        <div class="h-3 w-[1px] bg-purple-500/40"></div>
+        <button onclick="window.clearSubgraphIsolation()" class="px-2 py-0.5 rounded bg-purple-500/20 hover:bg-purple-500/40 text-purple-300 hover:text-white font-bold text-[9px] uppercase transition-colors cursor-pointer flex items-center gap-1" title="Exit Isolation Mode (X / Esc)">
+          <span>Exit</span>
+          <span class="text-[8px] opacity-70">(X/Esc)</span>
+        </button>
+      </div>
+
+      <!-- SEARCH TOUR CAROUSEL HUD (Top-Center) -->
+      <div id="graph-tour-carousel-hud" class="hidden fixed top-12 left-1/2 -translate-x-1/2 z-40 flex items-center gap-2 px-3 py-1.5 rounded-full bg-[#090d16]/95 backdrop-blur-2xl border border-cyan-400/50 shadow-[0_0_25px_rgba(0,240,255,0.35)] font-mono text-[10px] select-none text-cyan-200">
+        <span class="material-symbols-outlined text-[14px] text-cyan-400 animate-spin">travel_explore</span>
+        <button onclick="window.tourPrevMatch()" class="px-1.5 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white font-bold flex items-center gap-0.5 cursor-pointer" title="Previous Search Result (K)">
+          <span class="material-symbols-outlined text-[12px]">arrow_back</span>
+          <span class="text-[8px]">K</span>
+        </button>
+        <span id="tour-carousel-count" class="text-cyan-300 font-bold px-1">1 / 8</span>
+        <span id="tour-carousel-title" class="text-white font-bold truncate max-w-[180px]">Node Match</span>
+        <button onclick="window.tourNextMatch()" class="px-1.5 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white font-bold flex items-center gap-0.5 cursor-pointer" title="Next Search Result (J)">
+          <span class="text-[8px]">J</span>
+          <span class="material-symbols-outlined text-[12px]">arrow_forward</span>
+        </button>
+        <div class="h-3 w-[1px] bg-slate-700/60 mx-0.5"></div>
+        <button onclick="window.closeTourCarousel()" class="px-1.5 py-0.5 rounded hover:bg-rose-500/20 text-slate-400 hover:text-rose-300 text-[10px] font-bold cursor-pointer" title="Exit Tour (Esc)">✕</button>
+      </div>
+
+      <!-- CONTEXT CART / PROMPT STAGING TRAY (Bottom-Center) -->
+      <div id="graph-context-cart-dock" class="fixed bottom-3 left-1/2 -translate-x-1/2 z-40 select-none font-mono transition-all duration-200">
+        <!-- Collapsed Floating Pill -->
+        <div id="cart-collapsed-pill" onclick="window.toggleContextCart(true)" class="flex items-center gap-2 px-3 py-1.5 rounded-full bg-[#080d1a]/95 hover:bg-[#0e1628] backdrop-blur-2xl border border-cyan-400/40 text-cyan-300 hover:text-white shadow-[0_8px_30px_rgba(0,0,0,0.85)] cursor-pointer group transition-all text-[10px] font-bold" title="Click to view Context Cart / Prompt Stash">
+          <span class="material-symbols-outlined text-[14px] text-cyan-400 group-hover:scale-110 transition-transform">shopping_cart</span>
+          <span>CONTEXT CART</span>
+          <span id="cart-item-count-badge" class="px-1.5 py-0.2 rounded-full bg-cyan-500/20 border border-cyan-500/40 text-[9px] text-cyan-300">0</span>
+        </div>
+
+        <!-- Expanded Drawer Panel -->
+        <div id="cart-expanded-panel" class="hidden flex flex-col w-[480px] max-w-[calc(100vw-30px)] bg-[#080d1a]/98 backdrop-blur-3xl border border-cyan-400/40 rounded-2xl shadow-[0_16px_50px_rgba(0,0,0,0.95)] p-3 space-y-2.5 font-mono text-xs">
+          <div class="flex items-center justify-between border-b border-slate-800 pb-2">
+            <div class="flex items-center gap-2 text-cyan-300 font-bold uppercase text-[11px]">
+              <span class="material-symbols-outlined text-[15px] text-cyan-400">shopping_cart</span>
+              <span>Context Cart &amp; Prompt Staging Tray</span>
+              <span id="cart-expanded-count" class="text-slate-400 text-[9px] font-normal">(0 items)</span>
+            </div>
+            <button onclick="window.toggleContextCart(false)" class="text-slate-400 hover:text-white text-xs cursor-pointer">✕</button>
+          </div>
+          <!-- Items List -->
+          <div id="cart-items-container" class="max-h-48 overflow-y-auto space-y-1.5 pr-1 scrollbar-thin text-[10px]">
+            <div class="p-3 text-center text-slate-500 italic">No nodes stashed yet. Right-click any 3D node or click &quot;Stash&quot; in Inspector to collect context.</div>
+          </div>
+          <!-- Actions Footer -->
+          <div class="flex items-center justify-between pt-1 border-t border-slate-800 text-[9px]">
+            <button onclick="window.clearContextCart()" class="text-slate-400 hover:text-rose-400 font-bold cursor-pointer">Clear All</button>
+            <div class="flex items-center gap-1.5">
+              <button onclick="window.copyContextCart('triples')" class="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white font-bold cursor-pointer">Copy Triples (JSON)</button>
+              <button onclick="window.copyContextCart('markdown')" class="px-2.5 py-1 rounded bg-cyan-500 hover:bg-cyan-400 text-black font-extrabold uppercase cursor-pointer flex items-center gap-1 shadow">
+                <span class="material-symbols-outlined text-[12px]">content_copy</span>
+                <span>Copy Markdown Prompt</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 3D NODE RIGHT-CLICK CONTEXT MENU -->
+      <div id="node-context-menu" class="hidden fixed z-50 bg-[#090e1c]/98 border border-cyan-500/40 rounded-xl shadow-[0_16px_50px_rgba(0,0,0,0.95)] py-1.5 w-60 font-mono text-[11px] backdrop-blur-2xl select-none text-slate-200 divide-y divide-slate-800/60">
+        <div class="px-3 py-1 flex flex-col">
+          <span id="ctx-menu-title" class="font-bold text-white text-[11px] truncate">Node Title</span>
+          <span id="ctx-menu-meta" class="text-[8px] text-cyan-400 uppercase font-mono">Scope · Class</span>
+        </div>
+        <div class="py-1">
+          <button onclick="window.ctxActionFly()" class="w-full text-left px-3 py-1.5 hover:bg-cyan-500/15 hover:text-cyan-300 flex items-center gap-2 cursor-pointer transition-colors">
+            <span class="material-symbols-outlined text-[13px] text-cyan-400">center_focus_strong</span>
+            <span>Fly to &amp; Inspect Node</span>
+          </button>
+          <button onclick="window.ctxActionIsolate()" class="w-full text-left px-3 py-1.5 hover:bg-purple-500/15 hover:text-purple-300 flex items-center gap-2 cursor-pointer transition-colors">
+            <span class="material-symbols-outlined text-[13px] text-purple-400">grain</span>
+            <span>Isolate Subgraph (X)</span>
+          </button>
+          <button onclick="window.ctxActionStash()" class="w-full text-left px-3 py-1.5 hover:bg-emerald-500/15 hover:text-emerald-300 flex items-center gap-2 cursor-pointer transition-colors">
+            <span class="material-symbols-outlined text-[13px] text-emerald-400">shopping_cart</span>
+            <span>Stash to Context Cart</span>
+          </button>
+        </div>
+        <div class="py-1">
+          <button onclick="window.ctxActionRouteStart()" class="w-full text-left px-3 py-1.5 hover:bg-amber-500/15 hover:text-amber-300 flex items-center gap-2 cursor-pointer transition-colors">
+            <span class="material-symbols-outlined text-[13px] text-amber-400">alt_route</span>
+            <span>Set as Shortest Path Start</span>
+          </button>
+          <button onclick="window.ctxActionRouteTarget()" class="w-full text-left px-3 py-1.5 hover:bg-amber-500/15 hover:text-amber-300 flex items-center gap-2 cursor-pointer transition-colors">
+            <span class="material-symbols-outlined text-[13px] text-amber-400">flag</span>
+            <span>Set as Shortest Path Target</span>
+          </button>
+        </div>
+        <div class="py-1">
+          <button onclick="window.ctxActionCopyCitation()" class="w-full text-left px-3 py-1.5 hover:bg-slate-800 text-slate-300 hover:text-white flex items-center gap-2 cursor-pointer transition-colors">
+            <span class="material-symbols-outlined text-[13px]">link</span>
+            <span>Copy Citation Link</span>
+          </button>
+          <button onclick="window.ctxActionCopyHash()" class="w-full text-left px-3 py-1.5 hover:bg-slate-800 text-slate-300 hover:text-white flex items-center gap-2 cursor-pointer transition-colors">
+            <span class="material-symbols-outlined text-[13px]">fingerprint</span>
+            <span>Copy Hash (SHA-256)</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- QUICK-SEARCH OMNIBAR MODAL (Cmd+K / /) -->
+      <div id="graph-omnibar-modal" class="hidden fixed inset-0 z-50 bg-[#050811]/75 backdrop-blur-md flex items-start justify-center pt-20 px-4 font-mono select-none" onclick="if(event.target===this) window.closeOmnibar()">
+        <div class="w-full max-w-2xl bg-[#090e1c] border border-cyan-400/50 rounded-2xl shadow-[0_24px_80px_rgba(0,0,0,0.95)] overflow-hidden flex flex-col">
+          <!-- Omnibar Search Input Bar -->
+          <div class="p-3 bg-slate-900/90 border-b border-slate-800 flex items-center gap-2.5">
+            <span class="material-symbols-outlined text-cyan-400 text-lg">search</span>
+            <input id="omnibar-search-input" type="text" aria-label="Omnibar search" placeholder="Quick-search nodes, thoughts, entities, hashes... (↑↓ navigate, ↵ fly, Esc close)" class="flex-1 bg-transparent text-white text-xs placeholder:text-neutral-500 focus:outline-none font-mono" oninput="window.filterOmnibarResults()" onkeydown="window.handleOmnibarKeydown(event)" />
+            <kbd class="px-1.5 py-0.5 rounded bg-slate-800 border border-slate-700 text-[8px] text-slate-400 font-mono">ESC</kbd>
+          </div>
+          <!-- Category Filter Strip -->
+          <div class="px-3 py-1.5 bg-[#070b14] border-b border-slate-800/80 flex items-center gap-1.5 text-[9px] overflow-x-auto">
+            <span class="text-slate-500 uppercase font-bold mr-1">TYPE:</span>
+            <button onclick="window.setOmnibarTypeFilter('all')" id="ob-filter-all" class="ob-filter-btn px-2 py-0.5 rounded bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 font-bold cursor-pointer">ALL</button>
+            <button onclick="window.setOmnibarTypeFilter('thought')" id="ob-filter-thought" class="ob-filter-btn px-2 py-0.5 rounded text-slate-400 hover:text-white cursor-pointer">THOUGHTS</button>
+            <button onclick="window.setOmnibarTypeFilter('fact')" id="ob-filter-fact" class="ob-filter-btn px-2 py-0.5 rounded text-slate-400 hover:text-white cursor-pointer">FACTS</button>
+            <button onclick="window.setOmnibarTypeFilter('rule')" id="ob-filter-rule" class="ob-filter-btn px-2 py-0.5 rounded text-slate-400 hover:text-white cursor-pointer">RULES</button>
+            <button onclick="window.setOmnibarTypeFilter('decision')" id="ob-filter-decision" class="ob-filter-btn px-2 py-0.5 rounded text-slate-400 hover:text-white cursor-pointer">DECISIONS</button>
+            <button onclick="window.setOmnibarTypeFilter('entity')" id="ob-filter-entity" class="ob-filter-btn px-2 py-0.5 rounded text-slate-400 hover:text-white cursor-pointer">ENTITIES</button>
+            <div class="flex-1"></div>
+            <button onclick="window.startTourFromOmnibar()" id="ob-btn-start-tour" class="px-2 py-0.5 rounded bg-purple-500/20 hover:bg-purple-500/30 text-purple-300 border border-purple-500/40 font-bold cursor-pointer flex items-center gap-1">
+              <span class="material-symbols-outlined text-[11px]">travel_explore</span>
+              <span>Start Camera Tour (J/K)</span>
+            </button>
+          </div>
+          <!-- Results List -->
+          <div id="omnibar-results-container" class="max-h-80 overflow-y-auto divide-y divide-slate-800/50 p-1 font-mono text-xs scrollbar-thin">
+            <!-- Dynamically populated -->
+          </div>
+        </div>
+      </div>
+
     </div>
 
     <!-- ======================================================================= -->
@@ -3375,6 +3543,14 @@
               <button id="btn-focus-cam" onclick="window.focusCurrentTarget()" class="px-1.5 py-0.5 bg-surface-container-high hover:bg-primary-container hover:text-on-primary-container text-neutral-300 rounded text-[8px] uppercase font-bold flex items-center gap-1 transition-colors">
                 <span class="material-symbols-outlined text-[11px]">center_focus_strong</span>
                 Focus
+              </button>
+              <button id="btn-isolate-subgraph" onclick="window.toggleSubgraphIsolation()" class="px-1.5 py-0.5 bg-purple-500/20 hover:bg-purple-500/40 text-purple-300 rounded text-[8px] uppercase font-bold flex items-center gap-1 transition-colors border border-purple-500/30 cursor-pointer" title="Isolate 1st &amp; 2nd degree neighborhood (X)">
+                <span class="material-symbols-outlined text-[11px]">grain</span>
+                Isolate
+              </button>
+              <button id="btn-add-to-cart" onclick="window.addCurrentToContextCart()" class="px-1.5 py-0.5 bg-cyan-500/20 hover:bg-cyan-500/40 text-cyan-300 rounded text-[8px] uppercase font-bold flex items-center gap-1 transition-colors border border-cyan-500/30 cursor-pointer" title="Stash into Context Cart for LLM Prompts">
+                <span class="material-symbols-outlined text-[11px]">shopping_cart</span>
+                Stash
               </button>
               <button id="btn-copy-id" onclick="window.copyCurrentId()" class="px-1.5 py-0.5 bg-surface-container-high hover:bg-[#ffd166] hover:text-black text-neutral-300 rounded text-[8px] uppercase font-bold flex items-center gap-1 transition-colors">
                 <span class="material-symbols-outlined text-[11px]">content_copy</span>
@@ -6132,6 +6308,64 @@
     const raycaster = new THREE.Raycaster();
     const mouse = new THREE.Vector2();
 
+    // Double-click: Zoom into node or level horizon on empty space
+    dom.addEventListener('dblclick', (e) => {
+      const rect = dom.getBoundingClientRect();
+      mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+      mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+      raycaster.setFromCamera(mouse, camera);
+      const hitsNodes = raycaster.intersectObjects(cubeMeshes, true);
+      if (hitsNodes.length > 0) {
+        let topObj = hitsNodes[0].object;
+        while (topObj.parent && !topObj.userData.data && topObj.parent !== graphGroup) {
+          topObj = topObj.parent;
+        }
+        const data = topObj.userData.data || topObj.parent?.userData.data;
+        if (data) {
+          select3DNode(data);
+          zoomTarget = Math.max(70, Math.min(zoomTarget, 130));
+          return;
+        }
+      }
+      // Double clicked empty canvas: Level horizon & center view!
+      if (typeof window.levelGraphHorizon === 'function') {
+        window.levelGraphHorizon();
+      }
+      targetPan.set(0, 0, 0);
+      zoomTarget = 480;
+    });
+
+    // Right-click: Open contextual 3D Node actions
+    dom.addEventListener('contextmenu', (e) => {
+      const rect = dom.getBoundingClientRect();
+      mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+      mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+      raycaster.setFromCamera(mouse, camera);
+      const hitsNodes = raycaster.intersectObjects(cubeMeshes, true);
+      if (hitsNodes.length > 0) {
+        e.preventDefault();
+        let topObj = hitsNodes[0].object;
+        while (topObj.parent && !topObj.userData.data && topObj.parent !== graphGroup) {
+          topObj = topObj.parent;
+        }
+        const data = topObj.userData.data || topObj.parent?.userData.data;
+        if (data && typeof window.openNodeContextMenu === 'function') {
+          window.openNodeContextMenu(e.clientX, e.clientY, data);
+          return;
+        }
+      }
+      if (typeof window.closeNodeContextMenu === 'function') {
+        window.closeNodeContextMenu();
+      }
+    });
+
+    // Outside click closes context menu
+    document.addEventListener('click', (e) => {
+      if (!e.target.closest('#node-context-menu') && typeof window.closeNodeContextMenu === 'function') {
+        window.closeNodeContextMenu();
+      }
+    });
+
     dom.addEventListener('click', (e) => {
       // If user dragged/orbited the scene, completely suppress click to prevent accidental selections
       if (hasDragged) {
@@ -6706,6 +6940,11 @@
       window.activeSelectedNode = node;
       activeSelectedEdge = null;
       window.activeSelectedEdge = null;
+
+      // Traversal History push
+      if (typeof window.recordNavHistory === 'function') {
+        window.recordNavHistory(node);
+      }
 
       // Default action: if node has an attachment, open immediately in universal viewer
       if (openViewerIfAttachment && typeof window.getNodeAttachmentInfo === 'function' && typeof window.openGenericViewer === 'function') {
@@ -8066,6 +8305,11 @@
         if (dustField.visible) {
           dustField.rotation.y = time * 0.015;
         }
+      }
+
+      // Render 2D PIP Radar Minimap
+      if (typeof renderRadarMinimap === 'function') {
+        renderRadarMinimap();
       }
 
       renderer.render(scene, camera);
@@ -17016,7 +17260,28 @@ ${staticFacts.length > 0 ? `## Static Knowledge Core:\n${staticFacts.map(f => `-
     document.addEventListener('keydown', (e) => {
       if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
         e.preventDefault();
-        focusSearch();
+        if (window.openOmnibar) window.openOmnibar();
+      }
+      if (e.key === '/' && !e.target.matches('input, textarea, select')) {
+        e.preventDefault();
+        if (window.openOmnibar) window.openOmnibar();
+      }
+      if (e.key.toLowerCase() === 'x' && !e.target.matches('input, textarea, select')) {
+        if (window.toggleSubgraphIsolation) window.toggleSubgraphIsolation();
+      }
+      if (e.key.toLowerCase() === 'j' && !e.target.matches('input, textarea, select')) {
+        if (window.isTourActive && window.tourNextMatch) window.tourNextMatch();
+      }
+      if (e.key.toLowerCase() === 'k' && !e.target.matches('input, textarea, select') && !e.metaKey && !e.ctrlKey) {
+        if (window.isTourActive && window.tourPrevMatch) window.tourPrevMatch();
+      }
+      if (e.altKey && e.key === 'ArrowLeft') {
+        e.preventDefault();
+        if (window.navHistoryBack) window.navHistoryBack();
+      }
+      if (e.altKey && e.key === 'ArrowRight') {
+        e.preventDefault();
+        if (window.navHistoryForward) window.navHistoryForward();
       }
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'g') {
         e.preventDefault();
@@ -17029,6 +17294,10 @@ ${staticFacts.length > 0 ? `## Static Knowledge Core:\n${staticFacts.map(f => `-
       if (e.key === '5') switchView('spaces');
       if (e.key === '6') switchView('memories');
       if (e.key === 'Escape') {
+        if (window.isOmnibarOpen && window.closeOmnibar) window.closeOmnibar();
+        if (window.isTourActive && window.closeTourCarousel) window.closeTourCarousel();
+        if (window.isEgoIsolationActive && window.clearSubgraphIsolation) window.clearSubgraphIsolation();
+        if (window.isContextMenuOpen && window.closeNodeContextMenu) window.closeNodeContextMenu();
         if (window.closeMemoryAuditModal) window.closeMemoryAuditModal();
         if (window.closeAISAuditModal) window.closeAISAuditModal();
         if (window.closeDialogueNodeModal) window.closeDialogueNodeModal();
@@ -17995,7 +18264,672 @@ ${staticFacts.length > 0 ? `## Static Knowledge Core:\n${staticFacts.map(f => `-
     });
 
 
+
+    // =========================================================================
+    // ADVANCED GRAPH NAVIGATION & WORKFLOW POWER TOOLS (Omnibar, Tour, Radar, Cart, Isolation)
+    // =========================================================================
+
+    // 1. HORIZON LEVELING & TRAVERSAL HISTORY
     // -------------------------------------------------------------------------
+    window.levelGraphHorizon = function() {
+      targetRotation.x = 0;
+      isFlying = false;
+      isNodeFlyFocus = false;
+    };
+
+    window.nodeNavHistory = [];
+    window.nodeNavIndex = -1;
+    let isNavigatingHistory = false;
+
+    window.recordNavHistory = function(node) {
+      if (!node || isNavigatingHistory) return;
+      if (window.nodeNavIndex < window.nodeNavHistory.length - 1) {
+        window.nodeNavHistory = window.nodeNavHistory.slice(0, window.nodeNavIndex + 1);
+      }
+      const last = window.nodeNavHistory[window.nodeNavHistory.length - 1];
+      if (last && (last.id === node.id)) return;
+
+      window.nodeNavHistory.push(node);
+      window.nodeNavIndex = window.nodeNavHistory.length - 1;
+      window.updateNavHistoryButtons();
+    };
+
+    window.navHistoryBack = function() {
+      if (window.nodeNavIndex > 0) {
+        window.nodeNavIndex--;
+        const prevNode = window.nodeNavHistory[window.nodeNavIndex];
+        if (prevNode) {
+          isNavigatingHistory = true;
+          select3DNode(prevNode);
+          isNavigatingHistory = false;
+          window.updateNavHistoryButtons();
+        }
+      }
+    };
+
+    window.navHistoryForward = function() {
+      if (window.nodeNavIndex < window.nodeNavHistory.length - 1) {
+        window.nodeNavIndex++;
+        const nextNode = window.nodeNavHistory[window.nodeNavIndex];
+        if (nextNode) {
+          isNavigatingHistory = true;
+          select3DNode(nextNode);
+          isNavigatingHistory = false;
+          window.updateNavHistoryButtons();
+        }
+      }
+    };
+
+    window.updateNavHistoryButtons = function() {
+      const btnBack = document.getElementById('btn-nav-history-back');
+      const btnFwd = document.getElementById('btn-nav-history-forward');
+      if (btnBack) btnBack.disabled = (window.nodeNavIndex <= 0);
+      if (btnFwd) btnFwd.disabled = (window.nodeNavIndex >= window.nodeNavHistory.length - 1);
+    };
+
+    // 2. EGO NETWORK SUBGRAPH ISOLATION (X HOTKEY)
+    // -------------------------------------------------------------------------
+    window.isEgoIsolationActive = false;
+    window.egoIsolatedNode = null;
+
+    window.toggleSubgraphIsolation = function(targetNode) {
+      const node = targetNode || activeSelectedNode || window.activeSelectedNode;
+      if (!node) {
+        alert("Select a node first to isolate its subgraph.");
+        return;
+      }
+      if (window.isEgoIsolationActive && window.egoIsolatedNode?.id === node.id) {
+        window.clearSubgraphIsolation();
+        return;
+      }
+      window.isolateSubgraph(node);
+    };
+
+    window.isolateSubgraph = function(node) {
+      if (!node) return;
+      window.isEgoIsolationActive = true;
+      window.egoIsolatedNode = node;
+
+      const firstDeg = new Set([node.id]);
+      const secondDeg = new Set();
+
+      if (Array.isArray(currentLinks)) {
+        currentLinks.forEach(link => {
+          const sId = typeof link.source === 'object' ? link.source.id : link.source;
+          const tId = typeof link.target === 'object' ? link.target.id : link.target;
+          if (sId === node.id && tId) firstDeg.add(tId);
+          if (tId === node.id && sId) firstDeg.add(sId);
+        });
+        currentLinks.forEach(link => {
+          const sId = typeof link.source === 'object' ? link.source.id : link.source;
+          const tId = typeof link.target === 'object' ? link.target.id : link.target;
+          if (firstDeg.has(sId) && tId) secondDeg.add(tId);
+          if (firstDeg.has(tId) && sId) secondDeg.add(sId);
+        });
+      }
+
+      const neighborhood = new Set([...firstDeg, ...secondDeg]);
+
+      cubeMeshes.forEach(mesh => {
+        const d = mesh.userData.data;
+        const isMember = d && neighborhood.has(d.id);
+        mesh.userData.boxMat.opacity = isMember ? 0.95 : 0.03;
+        mesh.userData.edgeMat.opacity = isMember ? 0.95 : 0.03;
+        mesh.scale.setScalar(isMember ? (d.id === node.id ? 1.35 : 1.05) : 0.25);
+      });
+
+      edgeHitMeshes.forEach(em => {
+        const sId = em.userData.source?.id;
+        const tId = em.userData.target?.id;
+        em.visible = neighborhood.has(sId) && neighborhood.has(tId);
+      });
+
+      const banner = document.getElementById('graph-isolation-banner');
+      const titleEl = document.getElementById('isolation-node-title');
+      const countEl = document.getElementById('isolation-neighbor-count');
+      if (banner && titleEl && countEl) {
+        banner.classList.remove('hidden');
+        titleEl.innerText = node.title || node.id;
+        countEl.innerText = `(${neighborhood.size} connected nodes)`;
+      }
+    };
+
+    window.clearSubgraphIsolation = function() {
+      window.isEgoIsolationActive = false;
+      window.egoIsolatedNode = null;
+
+      cubeMeshes.forEach(mesh => {
+        mesh.userData.boxMat.opacity = 0.75;
+        mesh.userData.edgeMat.opacity = 0.95;
+        mesh.scale.setScalar(1.0);
+      });
+
+      edgeHitMeshes.forEach(em => {
+        em.visible = showEdgesEnabled;
+      });
+
+      const banner = document.getElementById('graph-isolation-banner');
+      if (banner) banner.classList.add('hidden');
+    };
+
+    // 3. SEARCH TOUR CAROUSEL (J / K NAVIGATION)
+    // -------------------------------------------------------------------------
+    window.isTourActive = false;
+    window.tourMatches = [];
+    window.tourIndex = 0;
+
+    window.startTourWithMatches = function(matches, initialIndex = 0) {
+      if (!matches || matches.length === 0) return;
+      window.tourMatches = matches;
+      window.tourIndex = Math.max(0, Math.min(initialIndex, matches.length - 1));
+      window.isTourActive = true;
+
+      const hud = document.getElementById('graph-tour-carousel-hud');
+      if (hud) hud.classList.remove('hidden');
+
+      window.updateTourHud();
+      const current = window.tourMatches[window.tourIndex];
+      if (current) select3DNode(current);
+    };
+
+    window.updateTourHud = function() {
+      const countEl = document.getElementById('tour-carousel-count');
+      const titleEl = document.getElementById('tour-carousel-title');
+      const current = window.tourMatches[window.tourIndex];
+      if (countEl) countEl.innerText = `${window.tourIndex + 1} / ${window.tourMatches.length}`;
+      if (titleEl && current) titleEl.innerText = current.title || current.id;
+    };
+
+    window.tourNextMatch = function() {
+      if (!window.isTourActive || window.tourMatches.length === 0) return;
+      window.tourIndex = (window.tourIndex + 1) % window.tourMatches.length;
+      window.updateTourHud();
+      const node = window.tourMatches[window.tourIndex];
+      if (node) select3DNode(node);
+    };
+
+    window.tourPrevMatch = function() {
+      if (!window.isTourActive || window.tourMatches.length === 0) return;
+      window.tourIndex = (window.tourIndex - 1 + window.tourMatches.length) % window.tourMatches.length;
+      window.updateTourHud();
+      const node = window.tourMatches[window.tourIndex];
+      if (node) select3DNode(node);
+    };
+
+    window.closeTourCarousel = function() {
+      window.isTourActive = false;
+      const hud = document.getElementById('graph-tour-carousel-hud');
+      if (hud) hud.classList.add('hidden');
+    };
+
+    // 4. QUICK-SEARCH OMNIBAR (CMD+K / /)
+    // -------------------------------------------------------------------------
+    window.isOmnibarOpen = false;
+    window.omnibarTypeFilter = 'all';
+    window.omnibarResults = [];
+    window.omnibarSelectedIndex = 0;
+
+    window.openOmnibar = function() {
+      window.isOmnibarOpen = true;
+      const modal = document.getElementById('graph-omnibar-modal');
+      const inp = document.getElementById('omnibar-search-input');
+      if (modal) modal.classList.remove('hidden');
+      if (inp) {
+        inp.value = '';
+        setTimeout(() => inp.focus(), 50);
+      }
+      window.filterOmnibarResults();
+    };
+
+    window.closeOmnibar = function() {
+      window.isOmnibarOpen = false;
+      const modal = document.getElementById('graph-omnibar-modal');
+      if (modal) modal.classList.add('hidden');
+    };
+
+    window.setOmnibarTypeFilter = function(type) {
+      window.omnibarTypeFilter = type;
+      document.querySelectorAll('.ob-filter-btn').forEach(btn => {
+        const isAct = btn.id === `ob-filter-${type}`;
+        btn.className = isAct
+          ? 'ob-filter-btn px-2 py-0.5 rounded bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 font-bold cursor-pointer'
+          : 'ob-filter-btn px-2 py-0.5 rounded text-slate-400 hover:text-white cursor-pointer';
+      });
+      window.filterOmnibarResults();
+    };
+
+    window.filterOmnibarResults = function() {
+      const query = (document.getElementById('omnibar-search-input')?.value || '').toLowerCase().trim();
+      const container = document.getElementById('omnibar-results-container');
+      if (!container) return;
+
+      const allNodes = cubeMeshes.map(m => m.userData?.data).filter(Boolean);
+      const typeFilter = window.omnibarTypeFilter;
+
+      const matches = allNodes.filter(n => {
+        if (typeFilter !== 'all') {
+          const isThought = n.type === 'thought' || n.category === 'thought';
+          if (typeFilter === 'thought' && !isThought) return false;
+          if (typeFilter === 'entity' && n.type !== 'entity') return false;
+          if (typeFilter !== 'thought' && typeFilter !== 'entity' && n.epistemic_class !== typeFilter) return false;
+        }
+        if (!query) return true;
+        const title = (n.title || '').toLowerCase();
+        const hash = (n.hash || '').toLowerCase();
+        const id = (n.id || '').toLowerCase();
+        const content = (n.content || '').toLowerCase();
+        const scope = (n.scope || '').toLowerCase();
+        return title.includes(query) || hash.includes(query) || id.includes(query) || content.includes(query) || scope.includes(query);
+      });
+
+      window.omnibarResults = matches.slice(0, 25);
+      window.omnibarSelectedIndex = 0;
+
+      if (window.omnibarResults.length === 0) {
+        container.innerHTML = `<div class="p-6 text-center text-slate-500 italic">No nodes match "${escapeHtml(query)}"</div>`;
+        return;
+      }
+
+      container.innerHTML = window.omnibarResults.map((n, idx) => {
+        const isThought = n.type === 'thought' || n.category === 'thought';
+        const isEntity = n.type === 'entity';
+        const classBadge = isThought ? 'THOUGHT' : (isEntity ? 'ENTITY' : (n.epistemic_class || 'FACT').toUpperCase());
+        const badgeColor = isThought ? 'text-[#ddb7ff] bg-purple-500/20 border-purple-500/40' : (isEntity ? 'text-[#ffd166] bg-[#ffd166]/10 border-[#ffd166]/30' : 'text-cyan-300 bg-cyan-500/20 border-cyan-500/40');
+        const isSel = idx === window.omnibarSelectedIndex;
+        return `
+          <div id="ob-item-${idx}" onclick="window.selectOmnibarItem(${idx})" class="p-2.5 rounded-lg flex items-center justify-between cursor-pointer transition-colors ${isSel ? 'bg-cyan-500/15 border border-cyan-500/40' : 'hover:bg-slate-800/60'}">
+            <div class="flex items-center gap-2 truncate flex-1 min-w-0">
+              <span class="text-[9px] px-1.5 py-0.5 rounded font-bold uppercase border ${badgeColor} shrink-0">${classBadge}</span>
+              <span class="text-white font-bold text-xs truncate">${escapeHtml(n.title || n.id)}</span>
+              <span class="text-slate-500 text-[10px] truncate max-w-[200px]">${escapeHtml((n.content || '').substring(0, 48))}</span>
+            </div>
+            <div class="flex items-center gap-2 shrink-0 ml-2">
+              <span class="text-[8px] text-cyan-400 font-mono">${escapeHtml(n.scope || 'shared')}</span>
+              <span class="material-symbols-outlined text-slate-400 text-sm">arrow_forward</span>
+            </div>
+          </div>
+        `;
+      }).join('');
+    };
+
+    window.handleOmnibarKeydown = function(e) {
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        if (window.omnibarResults.length > 0) {
+          window.omnibarSelectedIndex = (window.omnibarSelectedIndex + 1) % window.omnibarResults.length;
+          window.updateOmnibarSelectionUI();
+        }
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        if (window.omnibarResults.length > 0) {
+          window.omnibarSelectedIndex = (window.omnibarSelectedIndex - 1 + window.omnibarResults.length) % window.omnibarResults.length;
+          window.updateOmnibarSelectionUI();
+        }
+      } else if (e.key === 'Enter') {
+        e.preventDefault();
+        if (e.shiftKey) {
+          window.startTourFromOmnibar();
+        } else {
+          window.selectOmnibarItem(window.omnibarSelectedIndex);
+        }
+      } else if (e.key === 'Escape') {
+        window.closeOmnibar();
+      }
+    };
+
+    window.updateOmnibarSelectionUI = function() {
+      window.omnibarResults.forEach((_, idx) => {
+        const el = document.getElementById(`ob-item-${idx}`);
+        if (el) {
+          if (idx === window.omnibarSelectedIndex) {
+            el.className = 'p-2.5 rounded-lg flex items-center justify-between cursor-pointer transition-colors bg-cyan-500/15 border border-cyan-500/40';
+            el.scrollIntoView({ block: 'nearest' });
+          } else {
+            el.className = 'p-2.5 rounded-lg flex items-center justify-between cursor-pointer transition-colors hover:bg-slate-800/60';
+          }
+        }
+      });
+    };
+
+    window.selectOmnibarItem = function(index) {
+      const node = window.omnibarResults[index];
+      if (node) {
+        window.closeOmnibar();
+        select3DNode(node);
+      }
+    };
+
+    window.startTourFromOmnibar = function() {
+      if (window.omnibarResults.length > 0) {
+        const matches = [...window.omnibarResults];
+        window.closeOmnibar();
+        window.startTourWithMatches(matches, window.omnibarSelectedIndex);
+      }
+    };
+
+    // 5. CONTEXT CART / PROMPT STAGING TRAY
+    // -------------------------------------------------------------------------
+    try {
+      window.contextCart = JSON.parse(localStorage.getItem('supercortex_context_cart') || '[]');
+    } catch(e) {
+      window.contextCart = [];
+    }
+
+    window.saveContextCart = function() {
+      localStorage.setItem('supercortex_context_cart', JSON.stringify(window.contextCart));
+      window.updateContextCartUI();
+    };
+
+    window.addToContextCart = function(node) {
+      if (!node) return;
+      if (!window.contextCart.some(item => item.id === node.id)) {
+        window.contextCart.push({
+          id: node.id,
+          title: node.title,
+          type: node.type,
+          epistemic_class: node.epistemic_class,
+          scope: node.scope,
+          hash: node.hash,
+          content: node.content
+        });
+        window.saveContextCart();
+      }
+      window.toggleContextCart(true);
+    };
+
+    window.addCurrentToContextCart = function() {
+      const node = activeSelectedNode || window.activeSelectedNode;
+      if (node) {
+        window.addToContextCart(node);
+      } else {
+        alert("Select a node first to add to Context Cart.");
+      }
+    };
+
+    window.removeFromContextCart = function(nodeId) {
+      window.contextCart = window.contextCart.filter(item => item.id !== nodeId);
+      window.saveContextCart();
+    };
+
+    window.clearContextCart = function() {
+      window.contextCart = [];
+      window.saveContextCart();
+    };
+
+    window.toggleContextCart = function(expand) {
+      const pill = document.getElementById('cart-collapsed-pill');
+      const panel = document.getElementById('cart-expanded-panel');
+      if (pill && panel) {
+        if (expand) {
+          panel.classList.remove('hidden');
+          pill.classList.add('hidden');
+          window.renderContextCartItems();
+        } else {
+          panel.classList.add('hidden');
+          pill.classList.remove('hidden');
+        }
+      }
+    };
+
+    window.updateContextCartUI = function() {
+      const countBadge = document.getElementById('cart-item-count-badge');
+      const expCount = document.getElementById('cart-expanded-count');
+      const count = window.contextCart.length;
+      if (countBadge) countBadge.innerText = count;
+      if (expCount) expCount.innerText = `(${count} items)`;
+      window.renderContextCartItems();
+    };
+
+    window.renderContextCartItems = function() {
+      const container = document.getElementById('cart-items-container');
+      if (!container) return;
+      if (window.contextCart.length === 0) {
+        container.innerHTML = `<div class="p-3 text-center text-slate-500 italic">No nodes stashed yet. Right-click any 3D node or click &quot;Stash&quot; in Inspector to collect context.</div>`;
+        return;
+      }
+      container.innerHTML = window.contextCart.map(item => {
+        const isThought = item.type === 'thought';
+        const isEntity = item.type === 'entity';
+        const badge = isThought ? 'THOUGHT' : (isEntity ? 'ENTITY' : (item.epistemic_class || 'FACT').toUpperCase());
+        return `
+          <div class="p-2 rounded bg-slate-900/80 border border-slate-800 flex items-center justify-between gap-2">
+            <div class="flex items-center gap-1.5 truncate flex-1 min-w-0">
+              <span class="text-[8px] px-1 py-0.2 rounded bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 font-bold uppercase shrink-0">${badge}</span>
+              <span class="text-white font-bold truncate text-[10px] cursor-pointer hover:text-cyan-300" onclick="window.flyToCartItem('${item.id}')">${escapeHtml(item.title || item.id)}</span>
+              <span class="text-[8px] text-slate-500 font-mono truncate">(${escapeHtml(item.scope || 'shared')})</span>
+            </div>
+            <button onclick="window.removeFromContextCart('${item.id}')" class="text-slate-400 hover:text-rose-400 p-0.5 cursor-pointer text-xs" title="Remove from cart">✕</button>
+          </div>
+        `;
+      }).join('');
+    };
+
+    window.flyToCartItem = function(id) {
+      const m = cubeMeshes.find(mesh => mesh.userData?.data?.id === id);
+      if (m && m.userData?.data) {
+        select3DNode(m.userData.data);
+      }
+    };
+
+    window.copyContextCart = function(format) {
+      if (window.contextCart.length === 0) return;
+      let text = '';
+      if (format === 'markdown') {
+        text = `### Super-Cortex Anchored Context Bundle (${window.contextCart.length} Staged Nodes)
+
+` +
+          window.contextCart.map(item => {
+            const cls = (item.epistemic_class || item.type || 'fact').toUpperCase();
+            return `#### [${cls}] ${item.title || item.id}
+- **Scope:** \`${item.scope || 'shared'}\` | **Hash:** \`${item.hash || 'unknown'}\`
+- **Content:** ${item.content || item.title || ''}
+`;
+          }).join('\n');
+      } else if (format === 'triples') {
+        text = JSON.stringify(window.contextCart, null, 2);
+      }
+      navigator.clipboard.writeText(text).then(() => {
+        alert(`Copied ${window.contextCart.length} stashed nodes as ${format.toUpperCase()}!`);
+      });
+    };
+
+    // 6. NODE RIGHT-CLICK CONTEXT MENU
+    // -------------------------------------------------------------------------
+    window.contextMenuTargetNode = null;
+    window.isContextMenuOpen = false;
+
+    window.openNodeContextMenu = function(clientX, clientY, node) {
+      window.contextMenuTargetNode = node;
+      const menu = document.getElementById('node-context-menu');
+      const titleEl = document.getElementById('ctx-menu-title');
+      const metaEl = document.getElementById('ctx-menu-meta');
+      if (!menu) return;
+
+      if (titleEl) titleEl.innerText = (node.title || node.id).substring(0, 30);
+      if (metaEl) metaEl.innerText = `${node.scope || 'shared'} · ${(node.epistemic_class || node.type || 'node').toUpperCase()}`;
+
+      const x = Math.min(window.innerWidth - 250, clientX + 4);
+      const y = Math.min(window.innerHeight - 260, clientY + 4);
+      menu.style.left = `${x}px`;
+      menu.style.top = `${y}px`;
+      menu.classList.remove('hidden');
+      window.isContextMenuOpen = true;
+    };
+
+    window.closeNodeContextMenu = function() {
+      const menu = document.getElementById('node-context-menu');
+      if (menu) menu.classList.add('hidden');
+      window.isContextMenuOpen = false;
+    };
+
+    window.ctxActionFly = function() {
+      if (window.contextMenuTargetNode) {
+        select3DNode(window.contextMenuTargetNode);
+      }
+      window.closeNodeContextMenu();
+    };
+
+    window.ctxActionIsolate = function() {
+      if (window.contextMenuTargetNode) {
+        window.toggleSubgraphIsolation(window.contextMenuTargetNode);
+      }
+      window.closeNodeContextMenu();
+    };
+
+    window.ctxActionStash = function() {
+      if (window.contextMenuTargetNode) {
+        window.addToContextCart(window.contextMenuTargetNode);
+      }
+      window.closeNodeContextMenu();
+    };
+
+    window.ctxActionRouteStart = function() {
+      if (window.contextMenuTargetNode && typeof window.setShortestPathStart === 'function') {
+        window.setShortestPathStart(window.contextMenuTargetNode.id);
+      }
+      window.closeNodeContextMenu();
+    };
+
+    window.ctxActionRouteTarget = function() {
+      if (window.contextMenuTargetNode && typeof window.setShortestPathTarget === 'function') {
+        window.setShortestPathTarget(window.contextMenuTargetNode.id);
+      }
+      window.closeNodeContextMenu();
+    };
+
+    window.ctxActionCopyCitation = function() {
+      if (window.contextMenuTargetNode) {
+        const n = window.contextMenuTargetNode;
+        const citation = `[Super-Cortex: ${n.title || n.id}](${window.location.origin}/?node=${encodeURIComponent(n.id)})`;
+        navigator.clipboard.writeText(citation).then(() => alert("Citation copied to clipboard!"));
+      }
+      window.closeNodeContextMenu();
+    };
+
+    window.ctxActionCopyHash = function() {
+      if (window.contextMenuTargetNode) {
+        const hash = window.contextMenuTargetNode.hash || window.contextMenuTargetNode.id;
+        navigator.clipboard.writeText(hash).then(() => alert(`Hash copied: ${hash.substring(0, 16)}...`));
+      }
+      window.closeNodeContextMenu();
+    };
+
+    // 7. 2D PIP RADAR MINIMAP
+    // -------------------------------------------------------------------------
+    window.radarExpanded = false;
+    window.toggleRadarMinimap = function() {
+      window.radarExpanded = !window.radarExpanded;
+      const canvas = document.getElementById('radar-canvas');
+      const icon = document.getElementById('radar-expand-icon');
+      if (canvas) {
+        const size = window.radarExpanded ? 200 : 130;
+        canvas.width = size;
+        canvas.height = size;
+      }
+      if (icon) {
+        icon.innerText = window.radarExpanded ? 'fullscreen_exit' : 'fullscreen';
+      }
+    };
+
+    function renderRadarMinimap() {
+      const canvas = document.getElementById('radar-canvas');
+      if (!canvas || currentView !== 'graph') return;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
+
+      const w = canvas.width;
+      const h = canvas.height;
+      const cx = w / 2;
+      const cy = h / 2;
+      const scale = (w / 1400) * 0.95;
+
+      ctx.clearRect(0, 0, w, h);
+
+      // Background Grid Rings
+      ctx.strokeStyle = 'rgba(0, 240, 255, 0.12)';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.arc(cx, cy, w * 0.22, 0, Math.PI * 2);
+      ctx.arc(cx, cy, w * 0.44, 0, Math.PI * 2);
+      ctx.stroke();
+
+      // Crosshairs
+      ctx.strokeStyle = 'rgba(0, 240, 255, 0.08)';
+      ctx.beginPath();
+      ctx.moveTo(cx, 4); ctx.lineTo(cx, h - 4);
+      ctx.moveTo(4, cy); ctx.lineTo(w - 4, cy);
+      ctx.stroke();
+
+      // Draw Nodes projected on XZ
+      cubeMeshes.forEach(mesh => {
+        const d = mesh.userData.data;
+        if (!d || mesh.visible === false) return;
+        const p = mesh.userData.targetBase || [mesh.position.x, mesh.position.y, mesh.position.z];
+        const u = cx + p[0] * scale;
+        const v = cy + p[2] * scale;
+        if (u < 0 || u > w || v < 0 || v > h) return;
+
+        let color = '#00f0ff';
+        if (d.type === 'thought' || d.category === 'thought') color = '#c084fc';
+        else if (d.type === 'entity') color = '#ffd166';
+        else if (d.epistemic_class === 'rule') color = '#00ffa3';
+        else if (d.epistemic_class === 'decision') color = '#34d399';
+
+        ctx.fillStyle = color;
+        ctx.beginPath();
+        ctx.arc(u, v, d.id === activeSelectedNode?.id ? 3.0 : 1.4, 0, Math.PI * 2);
+        ctx.fill();
+      });
+
+      // Camera Position & Frustum Cone
+      const camU = cx + (-targetPan.x) * scale;
+      const camV = cy + (-targetPan.z) * scale;
+      const heading = -targetRotation.y;
+      const fovAngle = (55 * Math.PI) / 180;
+      const coneLength = w * 0.35;
+
+      // Frustum Cone
+      ctx.fillStyle = 'rgba(0, 240, 255, 0.15)';
+      ctx.beginPath();
+      ctx.moveTo(camU, camV);
+      ctx.arc(camU, camV, coneLength, heading - fovAngle / 2 - Math.PI / 2, heading + fovAngle / 2 - Math.PI / 2);
+      ctx.closePath();
+      ctx.fill();
+
+      // Camera Dot
+      ctx.fillStyle = '#00ffa3';
+      ctx.beginPath();
+      ctx.arc(camU, camV, 3, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // Radar Click-to-Pan
+    document.getElementById('radar-canvas')?.addEventListener('click', (e) => {
+      const canvas = e.currentTarget;
+      const rect = canvas.getBoundingClientRect();
+      const clickX = e.clientX - rect.left;
+      const clickY = e.clientY - rect.top;
+      const w = canvas.width;
+      const cx = w / 2;
+      const cy = canvas.height / 2;
+      const scale = (w / 1400) * 0.95;
+
+      const worldX = (clickX - cx) / scale;
+      const worldZ = (clickY - cy) / scale;
+
+      targetPan.x = -worldX;
+      targetPan.z = -worldZ;
+    });
+
+    // Initialize Cart count on boot
+    setTimeout(() => {
+      if (typeof window.updateContextCartUI === 'function') {
+        window.updateContextCartUI();
+      }
+    }, 500);
+
+
+        // -------------------------------------------------------------------------
     // REIMAGINED INTERACTION CONTROLLERS (Breadcrumbs, Disputes, Tension Cam, SOP Filters)
     // -------------------------------------------------------------------------
     window.traversalTrail = [];
