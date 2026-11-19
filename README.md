@@ -157,6 +157,47 @@ Super-Cortex provides a zero-install browser bookmarklet for 1-click ingestion o
 
 ---
 
+## Data Science, Graph ML & Reasoning Trajectory Hub
+
+Super-Cortex provides native, zero-dependency data science export capabilities, graph theory quantitative analytics, and AI reasoning trajectory dataset hubs. See [docs/DATA_SCIENCE.md](docs/DATA_SCIENCE.md) for full documentation.
+
+### 1. Python SDK Interoperability
+```python
+from super_cortex.memory import SuperCortex
+
+cortex = SuperCortex()
+
+# Direct conversion into standard analytical objects
+G = cortex.to_networkx(scope="shared")              # NetworkX DiGraph
+nodes_df, edges_df = cortex.to_polars(scope="shared") # Polars DataFrames
+pyg_data = cortex.to_pyg(scope="shared")             # PyTorch Geometric Data tensor
+
+# Quantitative graph analytics
+scorecard = cortex.get_graph_analytics(scope="shared") # Modularity Q, clustering, centralities
+communities = cortex.get_communities(scope="shared")   # Louvain community clusters
+spectral = cortex.get_spectral_properties(scope="shared") # Laplacian eigenvalues, Fiedler vector
+
+# AI Fine-tuning datasets
+sft_dataset = cortex.export_sft_dataset(scope="shared")  # ChatML with thinking traces
+dpo_pairs = cortex.export_dpo_dataset(scope="shared")    # Chosen/Rejected preference pairs
+grpo_samples = cortex.export_grpo_dataset(scope="shared") # RLVR verification samples
+```
+
+### 2. Direct REST Export Endpoints
+- **NetworkX & Gephi:** `GET /api/export/networkx?format=json|graphml`
+- **DataFrames:** `GET /api/export/dataframe?table=nodes|edges&format=csv|json`
+- **PyTorch Geometric:** `GET /api/export/pyg`
+- **Dynamic Jupyter Notebooks:** `GET /api/export/notebook?template=spectral|gnn|trajectories`
+- **AI Fine-Tuning Datasets:** `GET /api/export/trajectories?format=sft|dpo|grpo&as_jsonl=true`
+- **Quantitative Analytics:** `GET /api/analytics/summary`, `/api/analytics/communities`, `/api/analytics/centrality`, `/api/analytics/spectral`
+
+### 3. Pre-Packaged Runnable Notebooks
+- [`notebooks/01_spectral_graph_analysis.ipynb`](notebooks/01_spectral_graph_analysis.ipynb): Graph Laplacian spectra, algebraic connectivity ($\lambda_2$), and Louvain community visualization.
+- [`notebooks/02_gnn_node_classification.ipynb`](notebooks/02_gnn_node_classification.ipynb): End-to-end PyTorch Geometric GCN training on live graph tensors.
+- [`notebooks/03_reasoning_trajectory_analytics.ipynb`](notebooks/03_reasoning_trajectory_analytics.ipynb): Reward margin analysis and token distributions for fine-tuning.
+
+---
+
 ## Studio Views (9 Interactive Workbenches)
 
 | View | Access Key | Purpose |
