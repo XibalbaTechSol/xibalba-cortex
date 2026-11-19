@@ -458,7 +458,7 @@ def create_app(
                 FROM exchanges
                 WHERE (thinking_text IS NOT NULL AND trim(thinking_text) != '')
                    OR (response_text IS NOT NULL AND trim(response_text) != '' AND length(prompt_text) > 8)
-                ORDER BY rowid DESC LIMIT 200
+                ORDER BY rowid DESC LIMIT 600
                 """
             )
             thought_rows = thought_cursor.fetchall()
@@ -733,6 +733,60 @@ def create_app(
         from super_cortex.causal import compute_probabilistic_causal_chain
         res = compute_probabilistic_causal_chain(session_id=session_id or "unknown", turns=turns, turn_index=turn_index)
         return JSONResponse(res)
+
+    async def api_causal_chains(request: Request) -> JSONResponse:
+        from super_cortex.causal import discover_graph_causal_chains
+        max_chains = int(request.query_params.get("limit", 12))
+        res = discover_graph_causal_chains(cortex=cortex, max_chains=max_chains)
+        return JSONResponse(res)
+
+    async def api_causal_trace(request: Request) -> JSONResponse:
+        from super_cortex.causal import trace_causal_chain
+        body = await request.json() if request.method == "POST" else dict(request.query_params)
+        mode = body.get("mode", "root_cause")
+        source_id = body.get("source_id")
+        target_id = body.get("target_id")
+        max_depth = int(body.get("max_depth", 10))
+        res = trace_causal_chain(cortex=cortex, mode=mode, source_id=source_id, target_id=target_id, max_depth=max_depth)
+        return JSONResponse(res)
+
+    async def api_record_thought(request: Request) -> JSONResponse:
+        body = await request.json()
+        thought_text = (body.get("thought_text") or body.get("text") or "").strip()
+        if not thought_text:
+            return JSONResponse({"error": "thought_text is required"}, status_code=400)
+
+        session_id = body.get("session_id") or "session_general"
+        prompt_context = body.get("prompt_context") or "Internal cognitive deliberation"
+        step_phase = body.get("step_phase") or "deliberation"
+        agent_id = body.get("agent_id") or "agy"
+        scope = body.get("scope") or body.get("scope_id") or f"agent:{agent_id}"
+
+        res = cortex.record_exchange(
+            session_id=session_id,
+            prompt_text=prompt_context,
+            response_text="Thought anchored to cognitive ledger.",
+            thinking_text=thought_text,
+            tool_calls=[],
+            agent_id=agent_id,
+            scope_id=scope,
+        )
+        exchange_id = res.get("exchange_id", "")
+        payload = {
+            "status": "recorded",
+            "session_id": session_id,
+            "exchange_id": exchange_id,
+            "step_phase": step_phase,
+            "turn_hash": res.get("turn_hash"),
+            "session_merkle_root": res.get("session_merkle_root"),
+            "agent_id": agent_id,
+            "scope_id": scope,
+            "graph_node_id": f"thought_{exchange_id}",
+            "thought_text": thought_text,
+            "created_at": res.get("created_at"),
+        }
+        await broadcast_event("thought_recorded", payload)
+        return JSONResponse(payload)
 
     async def api_import_local_sessions(request: Request) -> JSONResponse:
         from super_cortex.importers import scan_and_import_local_sessions
@@ -1704,6 +1758,8 @@ em {{ color: #94a3b8; }}
             return JSONResponse({"error": str(exc)}, status_code=400)
 
     async def api_memories(request: Request) -> JSONResponse:
+        if request.method == "POST":
+            return await api_remember(request)
         scope = request.query_params.get("scope")
         epistemic = request.query_params.get("epistemic")
         q = request.query_params.get("q")
@@ -2851,6 +2907,9 @@ em {{ color: #94a3b8; }}
         Route("/api/sessions/{session_id}/proof", api_session_proof, methods=["GET"]),
         Route("/api/sessions/{session_id}/causal", api_causal_analysis, methods=["GET"]),
         Route("/api/causal/analysis", api_causal_analysis, methods=["GET"]),
+        Route("/api/causal/chains", api_causal_chains, methods=["GET", "POST"]),
+        Route("/api/causal/trace", api_causal_trace, methods=["GET", "POST"]),
+        Route("/api/thoughts", api_record_thought, methods=["POST"]),
         Route("/api/sessions/{session_id}/rebuild", api_session_rebuild, methods=["GET"]),
         Route("/api/tenants", api_tenants_list, methods=["GET", "POST"]),
         Route("/api/tenants/keys", api_tenant_keys_list, methods=["GET", "POST"]),
@@ -2907,7 +2966,7 @@ em {{ color: #94a3b8; }}
         Route("/api/connectors/public-datasets/sparql", api_connectors_public_datasets_sparql, methods=["POST"]),
         Route("/api/connectors/fhir", api_connectors_fhir, methods=["POST"]),
         Route("/api/managed/connectors/fhir", api_connectors_fhir, methods=["POST"]),
-        Route("/api/memories", api_memories, methods=["GET"]),
+        Route("/api/memories", api_memories, methods=["GET", "POST"]),
         Route("/api/memories/{memory_id}", api_delete_memory, methods=["DELETE"]),
         Route("/api/settings", api_settings, methods=["GET", "POST"]),
         Route("/api/context/inject", api_context_inject, methods=["GET", "POST"]),

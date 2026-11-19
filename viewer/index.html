@@ -531,6 +531,13 @@
     .cube-pop-in {
       animation: branchPopIn 0.35s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
     }
+    @keyframes causalFlowPulse {
+      0% { stroke-dashoffset: 24; }
+      100% { stroke-dashoffset: 0; }
+    }
+    .xc-causal-flow-anim {
+      animation: causalFlowPulse 1.2s linear infinite;
+    }
   </style>
   <script src="https://cdn.tailwindcss.com"></script>
   <script id="tailwind-config">
@@ -802,11 +809,16 @@
         <span class="material-symbols-outlined text-[15px]">psychology</span>
       </button>
 
-      <!-- Synaptic Edges Toggle Icon -->
-      <button onclick="toggleGraphEdges()" id="btn-header-edges" class="w-7 h-7 rounded-lg flex items-center justify-center bg-slate-900/90 hover:bg-slate-800 border border-slate-700/80 text-cyan-400 transition-all relative cursor-pointer" title="Toggle 3D Directed Edges (E)">
-        <span class="material-symbols-outlined text-[15px]">timeline</span>
-        <span id="header-edges-indicator" class="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-[#00f0ff] shadow-[0_0_6px_#00f0ff]"></span>
-      </button>
+      <!-- Synaptic Edges Toggle & Line/Cylinder Switcher -->
+      <div class="flex items-center gap-1 bg-slate-900/90 border border-slate-700/80 rounded-lg p-0.5 shadow-sm">
+        <button onclick="toggleGraphEdges()" id="btn-header-edges" class="w-6 h-6 rounded flex items-center justify-center text-cyan-400 hover:text-white transition-all relative cursor-pointer" title="Toggle 3D Directed Edges On/Off (E)">
+          <span class="material-symbols-outlined text-[14px]">timeline</span>
+          <span id="header-edges-indicator" class="absolute top-0.5 right-0.5 w-1.5 h-1.5 rounded-full bg-[#00f0ff] shadow-[0_0_6px_#00f0ff]"></span>
+        </button>
+        <div class="h-4 w-px bg-slate-700/80"></div>
+        <button id="btn-edge-mode-lines" onclick="window.setEdgeRenderStyle('lines')" class="px-1.5 py-0.5 rounded text-slate-400 hover:text-white text-[8px] font-mono font-bold transition-colors cursor-pointer" title="Hairline Wireframe Lines">LINE</button>
+        <button id="btn-edge-mode-tubes" onclick="window.setEdgeRenderStyle('tubes')" class="px-1.5 py-0.5 rounded bg-purple-500/20 text-purple-300 border border-purple-500/40 text-[8px] font-mono font-bold transition-colors cursor-pointer" title="3D Volumetric Tubes / Cylinders">CYLINDER</button>
+      </div>
 
       <!-- Live Agent Sync Trigger Icon -->
       <button onclick="window.syncLiveAgentSessions()" id="btn-header-sync" class="w-7 h-7 rounded-lg flex items-center justify-center bg-cyan-500/10 hover:bg-cyan-500/25 border border-cyan-500/30 text-cyan-300 transition-all cursor-pointer" title="Sync Live Agent Sessions & Turns">
@@ -1182,8 +1194,11 @@
           <option value="all">🤖 AGENT: ALL</option>
           <option value="agy">AGY</option>
           <option value="claude">CLAUDE</option>
-          <option value="codex">CODEX</option>
           <option value="hermes">HERMES</option>
+          <option value="xibalba">XIBALBA</option>
+          <option value="shield">SHIELD</option>
+          <option value="cortex">CORTEX</option>
+          <option value="cursor">CURSOR</option>
         </select>
 
         <button onclick="window.toggleCausalFlowHighlight()" id="btn-toggle-causal-flow" class="px-2 py-0.5 rounded text-purple-300 hover:text-white border border-purple-500/30 flex items-center gap-1 font-bold text-[9px] cursor-pointer" title="Highlight Causal Flow from Intent to Executed Actions">
@@ -1208,18 +1223,72 @@
         <div id="tooltip-meta" class="text-[9px] text-outline">Category: document · Pos: [0, 20, 0]</div>
       </div>
 
+      <!-- INTERACTIVE 3D CAUSAL FLOW STREAM RUNNER HUD -->
+      <div id="graph-causal-flow-hud" class="hidden absolute bottom-14 left-1/2 -translate-x-1/2 z-30 flex items-center gap-2.5 px-3 py-1.5 rounded-xl bg-[#080d19]/95 backdrop-blur-2xl border border-purple-500/50 shadow-[0_10px_35px_rgba(168,85,247,0.4)] font-mono text-[10px] select-none pointer-events-auto max-w-[95vw] overflow-x-auto">
+        <!-- Left: Badge & Session Chain Selector -->
+        <div class="flex items-center gap-1.5 shrink-0">
+          <span class="flex items-center gap-1 px-2 py-0.5 rounded bg-purple-500/20 text-purple-300 font-bold border border-purple-400/40 text-[9px]">
+            <span class="w-1.5 h-1.5 rounded-full bg-purple-400 animate-ping"></span>
+            <span>CAUSAL STREAM</span>
+          </span>
+          <select id="causal-chain-select" onchange="window.selectCausalChain(this.value)" class="bg-[#0e1628] border border-purple-500/40 text-purple-200 rounded px-1.5 py-0.5 text-[9px] font-bold outline-none cursor-pointer max-w-[150px] md:max-w-[200px] truncate" title="Select session to trace causal reasoning & tool actions">
+            <!-- Dynamically populated -->
+          </select>
+        </div>
+
+        <!-- Center: Step Indicator & Description -->
+        <div class="flex items-center gap-2 px-2 border-x border-slate-800 text-slate-300 shrink-0">
+          <span id="causal-step-counter" class="text-purple-300 font-bold shrink-0">STEP 1 / --</span>
+          <span id="causal-step-desc" class="text-[9px] text-slate-300 truncate max-w-[160px] md:max-w-[260px]">[INTENT] Initializing trajectory...</span>
+        </div>
+
+        <!-- Right: Step & Playback Controls -->
+        <div class="flex items-center gap-1 shrink-0">
+          <button onclick="window.stepCausalFlow(-1)" class="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 cursor-pointer font-bold text-[9px]" title="Previous Causal Step">◀</button>
+          <button id="btn-causal-play" onclick="window.toggleCausalPlay()" class="px-2 py-0.5 rounded bg-purple-600 hover:bg-purple-500 text-white font-bold flex items-center gap-1 cursor-pointer text-[9px] shadow-sm" title="Auto-Play Causal Flight">
+            <span class="material-symbols-outlined text-[12px]">play_arrow</span>
+            <span>AUTO-PLAY</span>
+          </button>
+          <button onclick="window.stepCausalFlow(1)" class="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 cursor-pointer font-bold text-[9px]" title="Next Causal Step">▶</button>
+          <button onclick="window.openCausalAnalysis(window.activeCausalChainSessionId)" class="px-2 py-0.5 rounded bg-gradient-to-r from-purple-500/30 to-cyan-500/30 hover:from-purple-500/50 hover:to-cyan-500/50 border border-purple-400/40 text-purple-200 font-bold text-[9px] cursor-pointer" title="Open Bayesian Markov DAG Analysis">
+            <span>DAG MATH</span>
+          </button>
+          <button onclick="window.toggleCausalFlowHighlight(false)" class="w-5 h-5 rounded flex items-center justify-center text-slate-400 hover:text-white hover:bg-slate-800 cursor-pointer text-[11px]" title="Close Causal Stream">✕</button>
+        </div>
+      </div>
+
       <!-- STREAMLINED DOCKED BOTTOM CANVAS BAR (Status & Quick Navigation) -->
       <div id="graph-bottom-quickbar" class="absolute bottom-2.5 left-4 right-4 z-20 flex items-center justify-between px-3 py-1.5 rounded-xl bg-[#080d1a]/95 backdrop-blur-xl border border-slate-800/80 shadow-[0_8px_30px_rgba(0,0,0,0.85)] font-mono text-[10px] select-none pointer-events-auto">
-        <!-- Left: Minimap Toggle & Context Cart Trigger -->
-        <div class="flex items-center gap-2">
+        <!-- Left: Minimap Toggle & Context Cart Trigger & Edge / Declutter Controls -->
+        <div class="flex items-center gap-1.5 flex-wrap">
           <button onclick="window.toggleRadarMinimap()" id="btn-bottom-minimap" class="px-2 py-0.5 rounded bg-surface-container-high hover:bg-cyan-500/20 text-slate-300 hover:text-cyan-300 border border-outline-variant/30 flex items-center gap-1 transition-colors cursor-pointer" title="Toggle 2D Radar Minimap">
             <span class="material-symbols-outlined text-[13px]">radar</span>
             <span>MINIMAP</span>
           </button>
-          <button id="cart-collapsed-pill" onclick="window.toggleContextCart(true)" class="flex items-center gap-1.5 px-2.5 py-0.5 rounded bg-cyan-500/10 hover:bg-cyan-500/25 border border-cyan-400/30 text-cyan-300 hover:text-white cursor-pointer transition-all font-bold">
+          <button id="cart-collapsed-pill" onclick="window.toggleContextCart(true)" class="flex items-center gap-1.5 px-2 py-0.5 rounded bg-cyan-500/10 hover:bg-cyan-500/25 border border-cyan-400/30 text-cyan-300 hover:text-white cursor-pointer transition-all font-bold">
             <span class="material-symbols-outlined text-[12px]">shopping_cart</span>
-            <span>CONTEXT CART</span>
+            <span>CART</span>
             <span id="cart-item-count-badge" class="px-1 py-0.2 rounded-full bg-cyan-500/20 border border-cyan-500/40 text-[8px] text-cyan-300">0</span>
+          </button>
+          <!-- Edge Visibility Toggle -->
+          <button onclick="window.toggleGraphEdges()" id="btn-bottom-edges" class="px-2 py-0.5 rounded bg-surface-container-high hover:bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 flex items-center gap-1 transition-colors cursor-pointer font-bold" title="Toggle 3D Edges Visibility On/Off (E)">
+            <span class="material-symbols-outlined text-[13px]">timeline</span>
+            <span>EDGES: <span id="bottom-edges-status" class="text-cyan-400">ON</span></span>
+          </button>
+          <!-- Edge Geometry Style Toggle (Lines vs Cylinders) -->
+          <button onclick="window.cycleEdgeRenderStyle()" id="btn-bottom-edge-style" class="px-2 py-0.5 rounded bg-surface-container-high hover:bg-purple-500/20 text-purple-300 border border-purple-500/40 flex items-center gap-1 transition-colors cursor-pointer font-bold" title="Switch Edge Geometry: Lines (Hairline) vs Cylinders (3D Volumetric Tubes)">
+            <span class="material-symbols-outlined text-[13px]">shape_line</span>
+            <span id="bottom-edge-style-label">CYLINDERS</span>
+          </button>
+          <!-- Declutter Leaf / Isolated Nodes Toggle -->
+          <button onclick="window.toggleLeafNodePruning()" id="btn-bottom-prune-leaves" class="px-2 py-0.5 rounded bg-surface-container-high hover:bg-amber-500/20 text-slate-300 hover:text-amber-300 border border-outline-variant/30 flex items-center gap-1 transition-colors cursor-pointer font-bold" title="Hide Leaf and Isolated Nodes (degree <= 1) to Unclutter Graph">
+            <span class="material-symbols-outlined text-[13px]">filter_list_off</span>
+            <span id="bottom-prune-leaves-label">DECLUTTER</span>
+          </button>
+          <!-- Causal Chains Studio Button -->
+          <button onclick="window.toggleCausalDiscoveryStudio()" id="btn-bottom-causal" class="px-2.5 py-0.5 rounded bg-purple-500/20 hover:bg-purple-500/30 text-purple-200 border border-purple-500/40 font-bold flex items-center gap-1 transition-all cursor-pointer shadow-[0_0_12px_rgba(168,85,247,0.3)]" title="Autonomous Causal Chain Discovery &amp; Root-Cause Analysis">
+            <span class="material-symbols-outlined text-[13px]">account_tree</span>
+            <span>CAUSAL CHAINS</span>
           </button>
         </div>
 
@@ -1878,6 +1947,14 @@
 
         <!-- Primary Operations -->
         <div class="py-1">
+          <!-- Stream 3D Causal Flow -->
+          <button onclick="window.tlCtxStreamCausalFlow()" class="w-full text-left px-3 py-1.5 hover:bg-purple-600/25 hover:text-purple-200 text-purple-300 flex items-center justify-between cursor-pointer transition-colors group">
+            <span class="flex items-center gap-2">
+              <span class="material-symbols-outlined text-[14px] text-purple-400 group-hover:scale-110 transition-transform animate-pulse">insights</span>
+              <span class="font-bold">Stream 3D Causal Flow</span>
+            </span>
+            <span class="text-[8px] px-1.5 py-0.2 rounded bg-purple-500/30 text-purple-200 font-bold">3D FLOW</span>
+          </button>
           <!-- Probabilistic Causal Analysis -->
           <button onclick="window.tlCtxOpenCausalAnalysis()" class="w-full text-left px-3 py-1.5 hover:bg-purple-500/20 hover:text-purple-200 text-slate-100 flex items-center justify-between cursor-pointer transition-colors group">
             <span class="flex items-center gap-2">
@@ -4528,6 +4605,47 @@
             <span>6+ (Backbone)</span>
           </div>
         </div>
+
+        <!-- Smart Declutter & Density Matrix Controls -->
+        <div class="p-2 rounded bg-surface-container-low/90 border border-cyan-500/30 space-y-1.5 select-none">
+          <div class="flex items-center justify-between text-[8px] font-bold text-cyan-300 uppercase">
+            <span class="flex items-center gap-1">
+              <span class="material-symbols-outlined text-[12px] text-cyan-400">tune</span>
+              <span>SMART DECLUTTER &amp; PRUNING</span>
+            </span>
+            <span id="declutter-active-badge" class="px-1 py-0.2 rounded bg-slate-800 text-slate-400 text-[7px]">ALL VISIBLE</span>
+          </div>
+          
+          <div class="grid grid-cols-2 gap-1">
+            <button id="btn-prune-leaves-filter" onclick="window.toggleLeafNodePruning()" class="py-1 px-1.5 rounded bg-surface-container-lowest hover:bg-amber-500/20 text-slate-300 hover:text-amber-300 border border-outline-variant/30 text-[7.5px] font-bold flex items-center justify-center gap-1 transition-colors cursor-pointer" title="Hide leaf nodes (degree <= 1) to eliminate clutter">
+              <span class="material-symbols-outlined text-[11px]">filter_list_off</span>
+              <span id="label-prune-leaves">HIDE LEAVES</span>
+            </button>
+            <button id="btn-filter-display-mode" onclick="window.toggleFilterDisplayMode()" class="py-1 px-1.5 rounded bg-surface-container-lowest hover:bg-cyan-500/20 text-cyan-300 border border-outline-variant/30 text-[7.5px] font-bold flex items-center justify-center gap-1 transition-colors cursor-pointer" title="Toggle between Dimming vs completely Hiding unmatched nodes">
+              <span class="material-symbols-outlined text-[11px]">visibility</span>
+              <span id="label-filter-display-mode">MODE: HIDE</span>
+            </button>
+          </div>
+
+          <!-- K-Hop Ego-Graph Neighborhood Focus -->
+          <div class="space-y-1 pt-0.5">
+            <div class="text-[7px] text-slate-400 uppercase font-bold flex justify-between">
+              <span>EGO-GRAPH NEIGHBORHOOD BUBBLE</span>
+              <span class="text-purple-300">RADIAL MASK</span>
+            </div>
+            <div class="flex items-center gap-1">
+              <button onclick="window.focusEgoGraph(1)" class="flex-1 py-1 rounded bg-purple-500/20 hover:bg-purple-500/30 text-purple-200 border border-purple-500/40 text-[7.5px] font-bold cursor-pointer" title="Isolate 1-hop immediate neighborhood of active node">
+                🎯 1-HOP
+              </button>
+              <button onclick="window.focusEgoGraph(2)" class="flex-1 py-1 rounded bg-purple-500/20 hover:bg-purple-500/30 text-purple-200 border border-purple-500/40 text-[7.5px] font-bold cursor-pointer" title="Isolate 2-hop cluster of active node">
+                🎯 2-HOPS
+              </button>
+              <button onclick="window.clearEgoGraphFocus()" class="px-1.5 py-1 rounded bg-surface-container-high hover:bg-surface-container text-slate-300 text-[7.5px] font-bold cursor-pointer" title="Show entire graph">
+                RESET
+              </button>
+            </div>
+          </div>
+        </div>
       </div>
 
       <!-- Segmented Tab Selector -->
@@ -4677,6 +4795,73 @@
 
       <!-- Ops Body (Scrollable) -->
       <div class="flex-1 p-3 overflow-y-auto space-y-3 font-mono text-[9px] select-text">
+        <!-- NOVEL CAUSAL CHAIN DISCOVERY & ROOT-CAUSE STUDIO CARD -->
+        <div id="card-causal-discovery-studio" class="p-2.5 bg-gradient-to-b from-[#140b25] to-surface-container-low/90 rounded-lg border border-purple-500/50 space-y-2 shadow-lg">
+          <div class="flex items-center justify-between text-[9px] font-bold text-purple-200 uppercase pb-1 border-b border-purple-500/30">
+            <span class="flex items-center gap-1.5">
+              <span class="material-symbols-outlined text-[14px] text-purple-400 animate-pulse">account_tree</span>
+              <span>CAUSAL CHAIN DISCOVERY &amp; ROOT CAUSE</span>
+            </span>
+            <span class="px-1.5 py-0.2 rounded bg-purple-500/20 text-purple-300 border border-purple-500/40 text-[7px]">DAG INFERENCE</span>
+          </div>
+
+          <!-- Discovery Mode Pills -->
+          <div class="grid grid-cols-3 gap-1 select-none">
+            <button id="btn-causal-mode-discover" onclick="window.setCausalDiscoveryMode('discover')" class="py-1 rounded bg-purple-500/30 text-purple-200 border border-purple-500/50 text-[7.5px] font-bold text-center cursor-pointer hover:bg-purple-500/40 transition-colors">
+              ⚡ AUTO-DISCOVER
+            </button>
+            <button id="btn-causal-mode-root" onclick="window.setCausalDiscoveryMode('root_cause')" class="py-1 rounded bg-surface-container-lowest text-slate-300 border border-outline-variant/30 text-[7.5px] font-bold text-center cursor-pointer hover:text-white transition-colors">
+              ◀ ROOT CAUSE
+            </button>
+            <button id="btn-causal-mode-impact" onclick="window.setCausalDiscoveryMode('impact')" class="py-1 rounded bg-surface-container-lowest text-slate-300 border border-outline-variant/30 text-[7.5px] font-bold text-center cursor-pointer hover:text-white transition-colors">
+              ▶ IMPACT CASCADE
+            </button>
+          </div>
+
+          <!-- Solo Causal Mode Toggle -->
+          <div class="flex items-center justify-between p-1.5 rounded bg-surface-container-lowest border border-outline-variant/20 select-none">
+            <div class="flex items-center gap-1.5 text-[8px] text-slate-300">
+              <span class="material-symbols-outlined text-[12px] text-amber-400">filter_center_focus</span>
+              <span class="font-bold">SOLO CAUSAL CONDUIT:</span>
+            </div>
+            <button id="btn-toggle-solo-causal" onclick="window.toggleSoloCausalMode()" class="px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/40 text-[7.5px] font-bold cursor-pointer hover:bg-amber-500/30">
+              OFF (SHOW ALL)
+            </button>
+          </div>
+
+          <!-- Auto-Discovered Chains Dropdown / List -->
+          <div id="causal-discovery-list-container" class="space-y-1">
+            <label class="text-[7.5px] text-purple-300 uppercase font-bold flex justify-between">
+              <span>ACTIVE CAUSAL TRAJECTORIES</span>
+              <span id="causal-chains-count" class="text-slate-400">Loading...</span>
+            </label>
+            <select id="causal-studio-chains-select" onchange="window.activateDiscoveredChain(this.value)" class="w-full bg-[#060a14] border border-purple-500/40 text-purple-200 text-[8.5px] rounded p-1.5 focus:outline-none focus:border-purple-400 font-mono truncate cursor-pointer">
+              <option value="">Select or run discovery...</option>
+            </select>
+          </div>
+
+          <!-- Action buttons -->
+          <div class="flex items-center gap-1 select-none">
+            <button onclick="window.refreshDiscoveredChains()" class="flex-1 py-1 rounded bg-purple-600/30 hover:bg-purple-600/50 text-purple-200 border border-purple-500/40 text-[8px] font-bold uppercase transition-all cursor-pointer flex items-center justify-center gap-1">
+              <span class="material-symbols-outlined text-[11px]">refresh</span>
+              <span>RUN CAUSAL DISCOVERY</span>
+            </button>
+            <button onclick="window.traceRootCauseFromActiveNode()" class="px-2 py-1 rounded bg-amber-500/20 hover:bg-amber-500/30 text-amber-200 border border-amber-500/40 text-[8px] font-bold uppercase transition-all cursor-pointer" title="Trace upstream causes from active selected node">
+              TRACE ROOT
+            </button>
+          </div>
+
+          <!-- Active Chain Narrative & Inspection Box -->
+          <div id="causal-studio-narrative-box" class="hidden p-2 rounded bg-[#060a14] border border-purple-500/30 space-y-1.5 text-[8px]">
+            <div class="flex items-center justify-between text-purple-300 font-bold border-b border-purple-500/20 pb-1">
+              <span id="causal-active-title">Trajectory Overview</span>
+              <span id="causal-active-p" class="text-emerald-400 font-mono">p=0.94</span>
+            </div>
+            <div id="causal-active-narrative" class="text-slate-300 leading-relaxed font-sans select-text"></div>
+            <div id="causal-active-hops" class="space-y-1 pt-1 max-h-36 overflow-y-auto select-none"></div>
+          </div>
+        </div>
+
         <!-- NEW: Geodesic Shortest Path Router Card -->
         <div class="p-2.5 bg-surface-container-low/80 rounded-lg border border-purple-500/40 space-y-2">
           <div class="flex items-center justify-between text-[9px] font-bold text-purple-300 uppercase pb-1 border-b border-outline-variant/20">
@@ -4688,19 +4873,40 @@
           </div>
 
           <div class="space-y-1.5 select-none">
+            <!-- Mouse Click Interactive Mode Trigger -->
+            <button id="btn-geodesic-interactive" onclick="window.toggleGeodesicPickMode('interactive')" class="w-full py-1.5 rounded bg-gradient-to-r from-amber-500/20 to-purple-500/20 hover:from-amber-500/30 hover:to-purple-500/30 border border-amber-500/40 text-amber-200 font-bold text-[8px] uppercase cursor-pointer flex items-center justify-center gap-1.5 shadow-sm transition-all">
+              <span class="material-symbols-outlined text-[13px] text-amber-400">touch_app</span>
+              <span>🖱️ CLICK 2 NODES ON CANVAS (A ➔ B)</span>
+            </button>
+            <div id="geodesic-pick-banner" class="hidden p-1.5 rounded bg-amber-500/20 border border-amber-500/50 text-amber-200 text-[8px] font-bold text-center animate-pulse">
+              Click any node on 3D canvas to select...
+            </div>
+
             <div class="flex items-center gap-1">
-              <label class="text-[8px] text-slate-400 w-11 shrink-0 uppercase font-bold">SOURCE:</label>
-              <select id="dock-path-source" class="flex-1 bg-surface-container-lowest border border-outline-variant/40 rounded p-1 text-[8.5px] text-white truncate focus:outline-none focus:border-purple-400">
+              <label class="text-[8px] text-amber-400 w-11 shrink-0 uppercase font-bold flex items-center gap-0.5">
+                <span class="w-1.5 h-1.5 rounded-full bg-amber-400"></span>
+                <span>ORIGIN:</span>
+              </label>
+              <select id="dock-path-source" onchange="window.onGeodesicDropdownChange()" class="flex-1 bg-surface-container-lowest border border-outline-variant/40 rounded p-1 text-[8.5px] text-white truncate focus:outline-none focus:border-purple-400">
                 <option value="">Select source node...</option>
               </select>
-              <button onclick="window.pinSelectedNodeToPath('source')" class="px-1.5 py-1 bg-purple-500/20 text-purple-300 border border-purple-500/40 rounded text-[7.5px] font-bold hover:bg-purple-500/40 cursor-pointer" title="Pin active 3D selection as source">PIN</button>
+              <button id="btn-pick-src" onclick="window.toggleGeodesicPickMode('source')" class="px-1.5 py-1 bg-amber-500/20 text-amber-300 border border-amber-500/40 rounded text-[7.5px] font-bold hover:bg-amber-500/40 cursor-pointer flex items-center gap-0.5" title="Click a 3D node with your mouse to set Source (A)">
+                <span class="material-symbols-outlined text-[10px]">ads_click</span>
+                <span>CLICK A</span>
+              </button>
             </div>
             <div class="flex items-center gap-1">
-              <label class="text-[8px] text-slate-400 w-11 shrink-0 uppercase font-bold">TARGET:</label>
-              <select id="dock-path-target" class="flex-1 bg-surface-container-lowest border border-outline-variant/40 rounded p-1 text-[8.5px] text-white truncate focus:outline-none focus:border-purple-400">
+              <label class="text-[8px] text-purple-400 w-11 shrink-0 uppercase font-bold flex items-center gap-0.5">
+                <span class="w-1.5 h-1.5 rounded-full bg-purple-400"></span>
+                <span>TARGET:</span>
+              </label>
+              <select id="dock-path-target" onchange="window.onGeodesicDropdownChange()" class="flex-1 bg-surface-container-lowest border border-outline-variant/40 rounded p-1 text-[8.5px] text-white truncate focus:outline-none focus:border-purple-400">
                 <option value="">Select target node...</option>
               </select>
-              <button onclick="window.pinSelectedNodeToPath('target')" class="px-1.5 py-1 bg-purple-500/20 text-purple-300 border border-purple-500/40 rounded text-[7.5px] font-bold hover:bg-purple-500/40 cursor-pointer" title="Pin active 3D selection as target">PIN</button>
+              <button id="btn-pick-tgt" onclick="window.toggleGeodesicPickMode('target')" class="px-1.5 py-1 bg-purple-500/20 text-purple-300 border border-purple-500/40 rounded text-[7.5px] font-bold hover:bg-purple-500/40 cursor-pointer flex items-center gap-0.5" title="Click a 3D node with your mouse to set Target (B)">
+                <span class="material-symbols-outlined text-[10px]">ads_click</span>
+                <span>CLICK B</span>
+              </button>
             </div>
           </div>
 
@@ -4904,6 +5110,89 @@
         <button onclick="closeNewMemoryModal()" class="px-3 py-1.5 text-neutral-400 hover:text-white text-xs">Cancel</button>
         <button onclick="commitNewMemory()" class="px-4 py-1.5 bg-primary-container hover:bg-secondary-container text-on-primary-container font-bold text-xs uppercase flex items-center gap-1.5 transition-colors">
           Commit &amp; Anchor
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- RECORD AGENT COGNITIVE THOUGHT (COT) MODAL -->
+  <div id="modal-record-thought" class="hidden fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 font-mono select-none">
+    <div class="w-full max-w-lg bg-[#0a0f1d] border border-purple-500/50 rounded-xl p-5 shadow-[0_15px_50px_rgba(168,85,247,0.35)] space-y-4">
+      <div class="flex items-center justify-between pb-3 border-b border-purple-500/30">
+        <div class="flex items-center gap-2">
+          <span class="w-7 h-7 rounded-lg bg-purple-500/20 border border-purple-400/40 flex items-center justify-center text-purple-300">
+            <span class="material-symbols-outlined text-[17px]">psychology</span>
+          </span>
+          <div>
+            <div class="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-1.5">
+              <span>RECORD AGENT REASONING STEP</span>
+              <span class="px-1.5 py-0.2 rounded bg-purple-500/20 text-purple-300 border border-purple-500/40 text-[8px]">COT</span>
+            </div>
+            <div class="text-[8.5px] text-purple-400">Anchor deliberation token into Super-Cortex cryptographic Merkle graph</div>
+          </div>
+        </div>
+        <button onclick="window.closeRecordThoughtModal()" class="w-6 h-6 rounded flex items-center justify-center text-slate-400 hover:text-white hover:bg-slate-800 cursor-pointer">
+          <span class="material-symbols-outlined text-sm">close</span>
+        </button>
+      </div>
+
+      <div class="space-y-3 text-xs">
+        <div>
+          <label class="text-[9.5px] text-purple-300 uppercase font-bold block mb-1">Deliberation / Reasoning Content</label>
+          <textarea id="modal-thought-text" rows="4" class="w-full bg-[#060a14] border border-purple-500/30 rounded-lg p-3 text-white placeholder:text-slate-600 focus:outline-none focus:border-purple-400 font-mono text-[11px] leading-relaxed select-text" placeholder="e.g. Evaluating security boundary: command complies with boundary constraints..."></textarea>
+        </div>
+
+        <div class="grid grid-cols-3 gap-2">
+          <div>
+            <label class="text-[9px] text-slate-400 uppercase font-bold block mb-1">Cognitive Phase</label>
+            <select id="modal-thought-phase" class="w-full bg-[#060a14] border border-purple-500/30 rounded p-1.5 text-purple-200 font-bold focus:outline-none focus:border-purple-400 text-[10px]">
+              <option value="planning">PLANNING</option>
+              <option value="deliberation" selected>DELIBERATION</option>
+              <option value="tool_intent">TOOL INTENT</option>
+              <option value="reflection">REFLECTION</option>
+              <option value="synthesis">SYNTHESIS</option>
+            </select>
+          </div>
+          <div>
+            <label class="text-[9px] text-slate-400 uppercase font-bold block mb-1">Agent Identity</label>
+            <select id="modal-thought-agent" class="w-full bg-[#060a14] border border-purple-500/30 rounded p-1.5 text-cyan-300 font-bold focus:outline-none focus:border-cyan-400 text-[10px]">
+              <option value="agy" selected>AGY (Antigravity)</option>
+              <option value="claude">CLAUDE CODE</option>
+              <option value="hermes">HERMES</option>
+              <option value="xibalba">XIBALBA</option>
+              <option value="shield">SHIELD</option>
+            </select>
+          </div>
+          <div>
+            <label class="text-[9px] text-slate-400 uppercase font-bold block mb-1">Target Scope</label>
+            <select id="modal-thought-scope" class="w-full bg-[#060a14] border border-purple-500/30 rounded p-1.5 text-emerald-300 font-bold focus:outline-none focus:border-emerald-400 text-[10px]">
+              <option value="agent:agy">agent:agy</option>
+              <option value="shared" selected>shared</option>
+              <option value="agent:claude">agent:claude</option>
+              <option value="agent:hermes">agent:hermes</option>
+            </select>
+          </div>
+        </div>
+
+        <div>
+          <label class="text-[9px] text-slate-400 uppercase font-bold block mb-1">Triggering Prompt Context (Optional)</label>
+          <input type="text" id="modal-thought-prompt" class="w-full bg-[#060a14] border border-purple-500/30 rounded p-2 text-slate-200 placeholder:text-slate-600 focus:outline-none focus:border-purple-400 font-mono text-[10px]" placeholder="e.g. User requested graph causal verification" />
+        </div>
+
+        <div class="p-2 rounded bg-purple-950/20 border border-purple-500/20 text-[8.5px] text-purple-300 font-mono flex items-center justify-between">
+          <span class="flex items-center gap-1">
+            <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+            <span>Cryptographic State Anchor: SHA-256 Turn Lineage</span>
+          </span>
+          <span class="text-slate-400">Node: thought_exch_*</span>
+        </div>
+      </div>
+
+      <div class="flex justify-end gap-2 pt-3 border-t border-purple-500/20">
+        <button onclick="window.closeRecordThoughtModal()" class="px-3 py-1.5 text-slate-400 hover:text-white text-xs cursor-pointer">Cancel</button>
+        <button onclick="window.submitRecordThought()" class="px-4 py-1.5 bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs uppercase rounded flex items-center gap-1.5 transition-colors cursor-pointer shadow-[0_0_15px_rgba(168,85,247,0.4)]">
+          <span class="material-symbols-outlined text-sm">send</span>
+          <span>Anchor &amp; Dispatch to Graph</span>
         </button>
       </div>
     </div>
@@ -5315,6 +5604,10 @@
 
         <!-- Right: Actions & Close -->
         <div class="flex items-center gap-2">
+          <button onclick="window.viewCausalIn3D()" class="px-2.5 py-1 rounded bg-purple-600 hover:bg-purple-500 text-white font-bold text-[10px] flex items-center gap-1 cursor-pointer transition-all shadow-md shadow-purple-900/40" title="Project and Animate Causal Flow in 3D Knowledge Manifold">
+            <span class="material-symbols-outlined text-[13px]">view_in_ar</span>
+            <span>PROJECT IN 3D GRAPH</span>
+          </button>
           <button onclick="window.refreshCausalAnalysis()" class="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 hover:border-purple-400 text-[10px] font-bold flex items-center gap-1 cursor-pointer transition-colors" title="Recompute Causal Probabilities">
             <span class="material-symbols-outlined text-[13px]">refresh</span>
             <span>Recompute</span>
@@ -6293,24 +6586,34 @@
       <div class="flex-1 overflow-y-auto space-y-4 pr-1">
         <!-- TAB 1: SYNTHESIZE GRAPH INSIGHTS -->
         <div id="ai-ops-view-synthesize" class="space-y-4">
-          <div class="p-3 bg-surface-container-lowest rounded-lg border border-outline-variant/30 flex flex-wrap items-center justify-between gap-3 text-xs">
-            <div class="flex items-center gap-3">
-              <span class="text-[10px] text-outline uppercase font-bold">Scope:</span>
-              <select id="ai-synthesize-scope" class="bg-surface-container-low border border-outline-variant/40 rounded px-2.5 py-1 text-xs text-primary-container font-bold focus:outline-none">
-                <option value="all">Entire Graph (All Scopes)</option>
-                <option value="shared">Shared Memory Fabric</option>
-                <option value="agent:hermes">Hermes Scope (Quant)</option>
-                <option value="agent:claude">Claude Code Scope</option>
-                <option value="agent:xibalba">Xibalba Executive Scope</option>
-              </select>
+          <div class="p-3 bg-surface-container-lowest rounded-lg border border-outline-variant/30 flex flex-col gap-2 text-xs">
+            <div class="flex flex-wrap items-center justify-between gap-3">
+              <div class="flex items-center gap-3">
+                <span class="text-[10px] text-outline uppercase font-bold">Scope:</span>
+                <select id="ai-synthesize-scope" class="bg-surface-container-low border border-outline-variant/40 rounded px-2.5 py-1 text-xs text-primary-container font-bold focus:outline-none">
+                  <option value="all">Entire Graph (All Scopes)</option>
+                  <option value="shared">Shared Memory Fabric</option>
+                  <option value="agent:hermes">Hermes Scope (Quant)</option>
+                  <option value="agent:claude">Claude Code Scope</option>
+                  <option value="agent:xibalba">Xibalba Executive Scope</option>
+                </select>
+              </div>
+              <div class="flex items-center gap-2 flex-1 max-w-md">
+                <input type="text" id="ai-synthesize-focus" onkeydown="window.handleAiOpsTabKey(event, 'synthesize')" class="w-full bg-surface-container-low border border-outline-variant/40 rounded px-2.5 py-1 text-xs text-white placeholder:text-neutral-500 focus:outline-none focus:border-purple-400 font-mono" placeholder="Focus: hit [TAB] to auto-fill suggestions (e.g. risk guardrails, architectural invariants)..." />
+              </div>
+              <button onclick="window.runAiSynthesis()" id="btn-run-synthesis" class="px-4 py-1.5 bg-purple-600 hover:bg-purple-500 text-white rounded font-bold text-xs uppercase flex items-center gap-1.5 transition-all shadow">
+                <span class="material-symbols-outlined text-sm">play_arrow</span>
+                <span>Execute Synthesis</span>
+              </button>
             </div>
-            <div class="flex items-center gap-2 flex-1 max-w-md">
-              <input type="text" id="ai-synthesize-focus" class="w-full bg-surface-container-low border border-outline-variant/40 rounded px-2.5 py-1 text-xs text-white placeholder:text-neutral-500 focus:outline-none font-mono" placeholder="Focus: e.g. risk guardrails, architectural invariants..." />
+            <!-- Interactive Tab-Fill Suggestions Row -->
+            <div class="flex items-center gap-1.5 flex-wrap pt-1 text-[8.5px] font-mono text-slate-400 border-t border-outline-variant/15">
+              <span class="text-purple-400 font-bold flex items-center gap-1"><span class="material-symbols-outlined text-[11px]">keyboard_tab</span><span>PRESETS [TAB]:</span></span>
+              <button type="button" onclick="window.fillAiOpsInput('synthesize', 'risk guardrails and trading invariants')" class="px-2 py-0.5 rounded bg-surface-container-high hover:bg-purple-500/25 hover:text-purple-200 border border-outline-variant/30 text-slate-300 transition-colors cursor-pointer">Risk Guardrails</button>
+              <button type="button" onclick="window.fillAiOpsInput('synthesize', 'architectural invariants and DID boundaries')" class="px-2 py-0.5 rounded bg-surface-container-high hover:bg-purple-500/25 hover:text-purple-200 border border-outline-variant/30 text-slate-300 transition-colors cursor-pointer">Architectural Invariants</button>
+              <button type="button" onclick="window.fillAiOpsInput('synthesize', 'causal reasoning chains and tool execution traces')" class="px-2 py-0.5 rounded bg-surface-container-high hover:bg-purple-500/25 hover:text-purple-200 border border-outline-variant/30 text-slate-300 transition-colors cursor-pointer">Causal Reasoning</button>
+              <button type="button" onclick="window.fillAiOpsInput('synthesize', 'dialectic contradictions and superseded memory facts')" class="px-2 py-0.5 rounded bg-surface-container-high hover:bg-purple-500/25 hover:text-purple-200 border border-outline-variant/30 text-slate-300 transition-colors cursor-pointer">Dialectic Conflicts</button>
             </div>
-            <button onclick="window.runAiSynthesis()" id="btn-run-synthesis" class="px-4 py-1.5 bg-purple-600 hover:bg-purple-500 text-white rounded font-bold text-xs uppercase flex items-center gap-1.5 transition-all shadow">
-              <span class="material-symbols-outlined text-sm">play_arrow</span>
-              <span>Execute Synthesis</span>
-            </button>
           </div>
 
           <div id="ai-synthesis-output" class="hidden p-4 rounded-lg bg-surface-container-lowest border border-purple-500/40 space-y-3 font-sans text-xs leading-relaxed text-neutral-200">
@@ -6344,13 +6647,22 @@
 
         <!-- TAB 3: GROUNDED GRAPH Q&A -->
         <div id="ai-ops-view-query" class="hidden space-y-4">
-          <div class="p-3 bg-surface-container-lowest rounded-lg border border-outline-variant/30 space-y-3 text-xs">
+          <div class="p-3 bg-surface-container-lowest rounded-lg border border-outline-variant/30 space-y-2.5 text-xs">
             <div class="flex items-center gap-2">
-              <input type="text" id="ai-rag-query-input" onkeydown="if(event.key==='Enter') window.runAiGraphQuery()" class="flex-1 bg-surface-container-low border border-outline-variant/40 rounded px-3 py-2 text-xs text-white placeholder:text-neutral-500 focus:outline-none focus:border-cyan-400 font-mono" placeholder="Ask any question across the entire knowledge graph (e.g. 'What rules constrain trading risk across Hermes and Xibalba?')" />
-              <button onclick="window.runAiGraphQuery()" id="btn-run-query" class="px-5 py-2 bg-primary-container text-on-primary-container hover:bg-secondary-container rounded font-bold text-xs uppercase flex items-center gap-1.5 transition-all shadow">
+              <input type="text" id="ai-rag-query-input" onkeydown="if(event.key==='Enter') window.runAiGraphQuery(); else window.handleAiOpsTabKey(event, 'query')" class="flex-1 bg-surface-container-low border border-outline-variant/40 rounded px-3 py-2 text-xs text-white placeholder:text-neutral-500 focus:outline-none focus:border-cyan-400 font-mono" placeholder="Ask any question across entire graph or hit [TAB] for suggestions..." />
+              <button onclick="window.runAiGraphQuery()" id="btn-run-query" class="px-5 py-2 bg-primary-container text-on-primary-container hover:bg-secondary-container rounded font-bold text-xs uppercase flex items-center gap-1.5 transition-all shadow cursor-pointer">
                 <span class="material-symbols-outlined text-sm">send</span>
                 <span>Ask Oracle</span>
               </button>
+            </div>
+            <!-- Interactive Tab-Fill Suggestions Row -->
+            <div class="flex items-center gap-1.5 flex-wrap pt-1 text-[8.5px] font-mono text-slate-400 border-t border-outline-variant/15">
+              <span class="text-cyan-400 font-bold flex items-center gap-1"><span class="material-symbols-outlined text-[11px]">keyboard_tab</span><span>PRESETS [TAB]:</span></span>
+              <button type="button" onclick="window.fillAiOpsInput('query', 'What rules constrain trading risk across Hermes and Xibalba?')" class="px-2 py-0.5 rounded bg-surface-container-high hover:bg-cyan-500/25 hover:text-cyan-200 border border-outline-variant/30 text-slate-300 transition-colors cursor-pointer">Trading Risk Rules</button>
+              <button type="button" onclick="window.fillAiOpsInput('query', 'Which architectural invariants govern Super-Cortex, Shield, and Core?')" class="px-2 py-0.5 rounded bg-surface-container-high hover:bg-cyan-500/25 hover:text-cyan-200 border border-outline-variant/30 text-slate-300 transition-colors cursor-pointer">System Invariants</button>
+              <button type="button" onclick="window.fillAiOpsInput('query', 'Trace all tool executions and failures across recent agent sessions')" class="px-2 py-0.5 rounded bg-surface-container-high hover:bg-cyan-500/25 hover:text-cyan-200 border border-outline-variant/30 text-slate-300 transition-colors cursor-pointer">Tool Trace & Failures</button>
+              <button type="button" onclick="window.fillAiOpsInput('query', 'Identify all dialectic contradictions and superseded facts in the graph')" class="px-2 py-0.5 rounded bg-surface-container-high hover:bg-cyan-500/25 hover:text-cyan-200 border border-outline-variant/30 text-slate-300 transition-colors cursor-pointer">Dialectic Conflicts</button>
+              <button type="button" onclick="window.fillAiOpsInput('query', 'Explain the mathematical foundation of PID dynamic grid control')" class="px-2 py-0.5 rounded bg-surface-container-high hover:bg-cyan-500/25 hover:text-cyan-200 border border-outline-variant/30 text-slate-300 transition-colors cursor-pointer">PID Control Theory</button>
             </div>
           </div>
 
@@ -6563,6 +6875,9 @@
     let edgeHitMeshes = [];
     let selectedEdgeMesh = null;
     let currentLinks = [];
+    let edgeTubeGroup = null;
+    let edgeTubeMeshes = [];
+    window.edgeRenderStyle = localStorage.getItem('supercortex_edge_style') || 'tubes'; // 'tubes' | 'lines'
 
     const lineMat = new THREE.LineBasicMaterial({
       color: 0x00f0ff,
@@ -6761,6 +7076,18 @@
         graphGroup.remove(selectedEdgeMesh);
         selectedEdgeMesh = null;
       }
+      if (edgeTubeGroup) {
+        graphGroup.remove(edgeTubeGroup);
+        edgeTubeGroup = null;
+        edgeTubeMeshes = [];
+      }
+      if (window.causalFlowGroup) {
+        graphGroup.remove(window.causalFlowGroup);
+        window.causalFlowGroup = null;
+      }
+      window.causalParticlesMesh = null;
+      window.causalParticleData = [];
+      window.causalBeaconRings = [];
     }
 
     function resolveNodeCollisions3D(meshes, minPadding = 18.0, maxIters = 40) {
@@ -6842,6 +7169,10 @@
       currentLinks = links || [];
       window.nodeDefs = nodes;
       window.linkDefs = currentLinks;
+
+      if (typeof window.populateShortestPathDropdowns === 'function') {
+        window.populateShortestPathDropdowns();
+      }
 
       // Update Header Contradiction Badge if any exist
       const contraLinks = currentLinks.filter(l => l.type === 'contradiction' || l.isContradiction);
@@ -7058,23 +7389,68 @@
         const linePos = new Float32Array(edges.length * 6);
         lineGeo.setAttribute('position', new THREE.BufferAttribute(linePos, 3));
         lineMesh = new THREE.LineSegments(lineGeo, lineMat);
-        lineMesh.visible = showEdgesEnabled;
+        lineMesh.visible = showEdgesEnabled && (window.edgeRenderStyle === 'lines');
         graphGroup.add(lineMesh);
+
+        // 3D Volumetric Detailed Edge Tubes
+        edgeTubeGroup = new THREE.Group();
+        edgeTubeGroup.name = 'edgeTubeGroup';
+        edgeTubeMeshes = [];
+
+        const sharedEdgeMats = {
+          cyan: new THREE.MeshPhongMaterial({ color: 0x00f0ff, emissive: 0x003344, emissiveIntensity: 0.35, shininess: 80, transparent: true, opacity: 0.75 }),
+          purple: new THREE.MeshPhongMaterial({ color: 0xc084fc, emissive: 0x4c1d95, emissiveIntensity: 0.45, shininess: 90, transparent: true, opacity: 0.85 }),
+          red: new THREE.MeshPhongMaterial({ color: 0xef4444, emissive: 0x7f1d1d, emissiveIntensity: 0.65, shininess: 95, transparent: true, opacity: 0.9 }),
+          green: new THREE.MeshPhongMaterial({ color: 0x10b981, emissive: 0x064e3b, emissiveIntensity: 0.35, shininess: 80, transparent: true, opacity: 0.8 }),
+          gold: new THREE.MeshPhongMaterial({ color: 0xf59e0b, emissive: 0x78350f, emissiveIntensity: 0.45, shininess: 85, transparent: true, opacity: 0.85 })
+        };
+
+        const tubeGeoUnit = new THREE.CylinderGeometry(1.2, 1.2, 1.0, 8);
+
+        edges.forEach(([sIdx, tIdx], eIdx) => {
+          const l = currentLinks[eIdx];
+          const isContra = l && (l.type === 'contradiction' || l.isContradiction);
+          const lType = (l && (l.type || l.predicate || '')).toLowerCase();
+
+          let tMat = sharedEdgeMats.cyan;
+          if (isContra) tMat = sharedEdgeMats.red;
+          else if (lType.includes('deliberat') || lType.includes('thought')) tMat = sharedEdgeMats.purple;
+          else if (lType.includes('evidence') || lType.includes('proves')) tMat = sharedEdgeMats.green;
+          else if (lType.includes('federat') || lType.includes('bridge') || lType.includes('rule')) tMat = sharedEdgeMats.gold;
+
+          const tubeMesh = new THREE.Mesh(tubeGeoUnit, tMat);
+          tubeMesh.userData = { edgeIndex: eIdx, link: l };
+          edgeTubeGroup.add(tubeMesh);
+          edgeTubeMeshes.push(tubeMesh);
+        });
+
+        edgeTubeGroup.visible = showEdgesEnabled && (window.edgeRenderStyle !== 'lines');
+        graphGroup.add(edgeTubeGroup);
 
         // Build 3D Directed Arrow Cones
         arrowGroup = new THREE.Group();
         arrowMeshes = [];
-        const coneGeo = new THREE.ConeGeometry(2.4, 7.5, 8);
+        const coneGeo = new THREE.ConeGeometry(2.6, 7.5, 8);
 
         const sharedArrowMats = {
           cyan: new THREE.MeshPhongMaterial({ color: 0x00f0ff, emissive: 0x00f0ff, emissiveIntensity: 0.4, shininess: 90 }),
-          red: new THREE.MeshPhongMaterial({ color: 0xef4444, emissive: 0xef4444, emissiveIntensity: 0.9, shininess: 90 })
+          red: new THREE.MeshPhongMaterial({ color: 0xef4444, emissive: 0xef4444, emissiveIntensity: 0.9, shininess: 90 }),
+          purple: new THREE.MeshPhongMaterial({ color: 0xc084fc, emissive: 0xc084fc, emissiveIntensity: 0.6, shininess: 90 }),
+          green: new THREE.MeshPhongMaterial({ color: 0x10b981, emissive: 0x10b981, emissiveIntensity: 0.5, shininess: 90 }),
+          gold: new THREE.MeshPhongMaterial({ color: 0xf59e0b, emissive: 0xf59e0b, emissiveIntensity: 0.5, shininess: 90 })
         };
 
         edges.forEach(([sIdx, tIdx], eIdx) => {
           const l = currentLinks[eIdx];
           const isContra = l && (l.type === 'contradiction' || l.isContradiction);
-          const arrowMat = isContra ? sharedArrowMats.red : sharedArrowMats.cyan;
+          const lType = (l && (l.type || l.predicate || '')).toLowerCase();
+
+          let arrowMat = sharedArrowMats.cyan;
+          if (isContra) arrowMat = sharedArrowMats.red;
+          else if (lType.includes('deliberat') || lType.includes('thought')) arrowMat = sharedArrowMats.purple;
+          else if (lType.includes('evidence')) arrowMat = sharedArrowMats.green;
+          else if (lType.includes('federat')) arrowMat = sharedArrowMats.gold;
+
           const arrowCone = new THREE.Mesh(coneGeo, arrowMat);
           arrowCone.userData = { edgeIndex: eIdx, link: l, isContra: isContra };
           arrowGroup.add(arrowCone);
@@ -7105,6 +7481,17 @@
       if (footerEdgeCount) footerEdgeCount.innerText = `${currentLinks.length} Links`;
       window.cubeMeshes = cubeMeshes;
       window.edgeHitMeshes = edgeHitMeshes;
+      window.lineMesh = lineMesh;
+      window.lineMat = lineMat;
+      window.edgeTubeGroup = edgeTubeGroup;
+      window.edgeTubeMeshes = edgeTubeMeshes;
+      window.arrowGroup = arrowGroup;
+      window.arrowMeshes = arrowMeshes;
+      window.currentEdges = edges;
+      window.currentLinks = currentLinks;
+      window.graphGroup = graphGroup;
+      window.threeScene = scene;
+      window.threeCamera = camera;
       if (typeof updateLegendCounts === 'function') updateLegendCounts(nodes);
       if (typeof window.applyCanvasConfig === 'function') window.applyCanvasConfig(window.canvasConfig);
       if (typeof applyLegendFacetFilters === 'function') applyLegendFacetFilters();
@@ -7115,48 +7502,120 @@
     const _scratchOffset = new THREE.Vector3();
 
     function updateEdges() {
-      if (!lineMesh || !showEdgesEnabled) return;
-      const posAttr = lineMesh.geometry.attributes.position;
-      let ptr = 0;
+      if (!showEdgesEnabled) {
+        if (lineMesh) lineMesh.visible = false;
+        if (edgeTubeGroup) edgeTubeGroup.visible = false;
+        if (arrowGroup) arrowGroup.visible = false;
+        return;
+      }
 
+      if (lineMesh && lineMesh.visible) {
+        const posAttr = lineMesh.geometry.attributes.position;
+        let ptr = 0;
+        for (let i = 0; i < edges.length; i++) {
+          const [a, b] = edges[i];
+          if (!cubeMeshes[a] || !cubeMeshes[b]) continue;
+          const meshA = cubeMeshes[a];
+          const meshB = cubeMeshes[b];
+          if (!meshA.visible || !meshB.visible) continue;
+          const p1 = meshA.position;
+          const p2 = meshB.position;
+          posAttr.array[ptr++] = p1.x;
+          posAttr.array[ptr++] = p1.y;
+          posAttr.array[ptr++] = p1.z;
+          posAttr.array[ptr++] = p2.x;
+          posAttr.array[ptr++] = p2.y;
+          posAttr.array[ptr++] = p2.z;
+        }
+        posAttr.needsUpdate = true;
+      }
+
+      // Update 3D Volumetric Tubes & Directed Arrow Cones
       for (let i = 0; i < edges.length; i++) {
         const [a, b] = edges[i];
         if (!cubeMeshes[a] || !cubeMeshes[b]) continue;
         const meshA = cubeMeshes[a];
         const meshB = cubeMeshes[b];
-        if (!meshA.visible || !meshB.visible) {
-          if (arrowMeshes && arrowMeshes[i]) arrowMeshes[i].visible = false;
-          continue;
-        }
-
         const p1 = meshA.position;
         const p2 = meshB.position;
-        posAttr.array[ptr++] = p1.x;
-        posAttr.array[ptr++] = p1.y;
-        posAttr.array[ptr++] = p1.z;
-        posAttr.array[ptr++] = p2.x;
-        posAttr.array[ptr++] = p2.y;
-        posAttr.array[ptr++] = p2.z;
+        const isVisible = meshA.visible && meshB.visible;
 
-        // Position and orient directed arrow cone without per-frame allocations
+        if (edgeTubeMeshes && edgeTubeMeshes[i]) {
+          const tube = edgeTubeMeshes[i];
+          if (!isVisible) {
+            tube.visible = false;
+          } else {
+            _scratchDir.subVectors(p2, p1);
+            const dist = _scratchDir.length();
+            if (dist > 1.0) {
+              tube.position.addVectors(p1, p2).multiplyScalar(0.5);
+              _scratchDir.normalize();
+              tube.quaternion.setFromUnitVectors(_scratchUp, _scratchDir);
+              tube.scale.set(1.0, dist, 1.0);
+              tube.visible = (window.edgeRenderStyle !== 'lines');
+            } else {
+              tube.visible = false;
+            }
+          }
+        }
+
         if (arrowMeshes && arrowMeshes[i]) {
           const arrow = arrowMeshes[i];
-          _scratchDir.subVectors(p2, p1);
-          const dist = _scratchDir.length();
-          if (dist > 22) {
-            _scratchDir.normalize();
-            _scratchOffset.copy(_scratchDir).multiplyScalar(15);
-            arrow.position.copy(p2).sub(_scratchOffset);
-            arrow.quaternion.setFromUnitVectors(_scratchUp, _scratchDir);
-            arrow.visible = true;
-          } else {
+          if (!isVisible) {
             arrow.visible = false;
+          } else {
+            _scratchDir.subVectors(p2, p1);
+            const dist = _scratchDir.length();
+            if (dist > 22) {
+              _scratchDir.normalize();
+              _scratchOffset.copy(_scratchDir).multiplyScalar(15);
+              arrow.position.copy(p2).sub(_scratchOffset);
+              arrow.quaternion.setFromUnitVectors(_scratchUp, _scratchDir);
+              arrow.visible = true;
+            } else {
+              arrow.visible = false;
+            }
           }
         }
       }
-      posAttr.needsUpdate = true;
     }
     updateEdges();
+
+    window.setEdgeRenderStyle = function(style) {
+      window.edgeRenderStyle = style;
+      localStorage.setItem('supercortex_edge_style', style);
+      if (lineMesh) lineMesh.visible = showEdgesEnabled && (style === 'lines');
+      if (edgeTubeGroup) edgeTubeGroup.visible = showEdgesEnabled && (style !== 'lines');
+      if (edgeTubeMeshes && !showEdgesEnabled) {
+        edgeTubeMeshes.forEach(t => { if (t) t.visible = false; });
+      }
+      updateEdges();
+
+      // Synchronize UI labels & buttons
+      const lbl = document.getElementById('bottom-edge-style-label');
+      if (lbl) lbl.innerText = style === 'tubes' ? 'CYLINDERS' : 'LINES';
+
+      const btnLines = document.getElementById('btn-edge-mode-lines');
+      const btnTubes = document.getElementById('btn-edge-mode-tubes');
+      if (btnLines && btnTubes) {
+        if (style === 'lines') {
+          btnLines.className = 'px-1.5 py-0.5 rounded bg-cyan-500/20 text-cyan-300 font-bold border border-cyan-500/40 transition-colors cursor-pointer';
+          btnTubes.className = 'px-1.5 py-0.5 rounded text-slate-400 hover:text-white transition-colors cursor-pointer';
+        } else {
+          btnLines.className = 'px-1.5 py-0.5 rounded text-slate-400 hover:text-white transition-colors cursor-pointer';
+          btnTubes.className = 'px-1.5 py-0.5 rounded bg-purple-500/20 text-purple-300 border border-purple-500/40 font-bold transition-colors cursor-pointer';
+        }
+      }
+
+      if (typeof showToast === 'function') {
+        showToast(style === 'tubes' ? 'Edge Style: 3D Volumetric Cylinders' : 'Edge Style: Hairline Wireframe Lines');
+      }
+    };
+
+    window.cycleEdgeRenderStyle = function() {
+      const nextStyle = window.edgeRenderStyle === 'lines' ? 'tubes' : 'lines';
+      window.setEdgeRenderStyle(nextStyle);
+    };
 
     // -------------------------------------------------------------------------
     // 3D LINEAGE FLY-THROUGH (CatmullRom Spline Flight Path)
@@ -7398,6 +7857,10 @@
         }
         const data = topObj.userData.data || topObj.parent?.userData.data;
         if (data) {
+          if (window.geodesicPickMode && typeof window.handleGeodesicCanvasNodeClick === 'function') {
+            window.handleGeodesicCanvasNodeClick(data);
+            return;
+          }
           select3DNode(data);
           return;
         }
@@ -8580,6 +9043,8 @@
 
     window.cubeMeshes = cubeMeshes;
     window.edgeHitMeshes = edgeHitMeshes;
+    window.updateEdges = updateEdges;
+    window.updateEdgesGeometry = updateEdges;
     window.select3DNode = select3DNode;
     window.select3DEdge = select3DEdge;
     window.nodeDefs = nodeDefs;
@@ -9213,8 +9678,12 @@
     window.toggleGraphEdges = function() {
       showEdgesEnabled = !showEdgesEnabled;
       window.showEdgesEnabled = showEdgesEnabled;
-      if (lineMesh) lineMesh.visible = showEdgesEnabled;
+      if (lineMesh) lineMesh.visible = showEdgesEnabled && (window.edgeRenderStyle === 'lines');
+      if (edgeTubeGroup) edgeTubeGroup.visible = showEdgesEnabled && (window.edgeRenderStyle !== 'lines');
       if (arrowGroup) arrowGroup.visible = showEdgesEnabled;
+      if (edgeTubeMeshes && !showEdgesEnabled) {
+        edgeTubeMeshes.forEach(t => { if (t) t.visible = false; });
+      }
       edgeHitMeshes.forEach(h => h.visible = showEdgesEnabled);
 
       const btn = document.getElementById('btn-hud-edges');
@@ -9439,6 +9908,11 @@
       // Render 2D PIP Radar Minimap
       if (typeof renderRadarMinimap === 'function') {
         renderRadarMinimap();
+      }
+
+      // Update 3D Causal Flow Energy Stream Particles
+      if (typeof window.updateCausalFlowParticles === 'function') {
+        window.updateCausalFlowParticles(delta, time);
       }
 
       renderer.render(scene, camera);
@@ -10244,20 +10718,23 @@
     window.canvasCustomizerOpen = false;
 
     window.switchStudioTab = function(tab) {
-      const tabs = ['themes', 'grid', 'light', 'nodes'];
-      tabs.forEach(t => {
-        const btn = document.getElementById(`studio-tab-btn-${t}`);
+      let active = tab;
+      if (active === 'grid') active = 'grids';
+      if (active === 'themes') active = 'theme';
+      if (active === 'light') active = 'stars';
+
+      const allTabs = ['theme', 'grids', 'stars', 'nodes'];
+      allTabs.forEach(t => {
+        const btn = document.getElementById(`studio-tab-${t}`) || document.getElementById(`studio-tab-btn-${t}`);
         const panel = document.getElementById(`studio-panel-${t}`);
-        if (t === tab) {
-          if (btn) {
-            btn.className = "flex-1 py-1 rounded flex items-center justify-center gap-0.5 font-bold bg-cyan-500/20 text-cyan-300 border border-cyan-400/30 transition-all cursor-pointer";
-          }
-          if (panel) panel.classList.remove('hidden');
-        } else {
-          if (btn) {
-            btn.className = "flex-1 py-1 rounded flex items-center justify-center gap-0.5 font-bold text-neutral-400 hover:text-white border border-transparent transition-all cursor-pointer";
-          }
-          if (panel) panel.classList.add('hidden');
+        const isSel = (t === active);
+        if (btn) {
+          btn.className = isSel
+            ? "flex-1 py-1 rounded text-center font-bold bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 cursor-pointer transition-all"
+            : "flex-1 py-1 rounded text-center font-bold text-slate-400 hover:text-white border border-transparent cursor-pointer transition-all";
+        }
+        if (panel) {
+          panel.classList.toggle('hidden', !isSel);
         }
       });
       syncCustomizerUI(window.canvasConfig);
@@ -11254,7 +11731,9 @@
       if (typeof updateEdgesGeometry === 'function') updateEdgesGeometry();
     };
 
-    // Geodesic Shortest Path Router
+    // Geodesic Shortest Path Router & Mouse Click Picker
+    window.geodesicPickMode = null; // 'source' | 'target' | 'interactive' | null
+
     window.populateShortestPathDropdowns = function() {
       const sSelect = document.getElementById('dock-path-source');
       const tSelect = document.getElementById('dock-path-target');
@@ -11272,6 +11751,131 @@
       });
     };
 
+    window.toggleGeodesicPickMode = function(mode) {
+      if (window.geodesicPickMode === mode) {
+        window.geodesicPickMode = null;
+      } else {
+        window.geodesicPickMode = mode;
+      }
+      window.updateGeodesicPickUI();
+    };
+
+    window.updateGeodesicPickUI = function() {
+      const banner = document.getElementById('geodesic-pick-banner');
+      const btnInt = document.getElementById('btn-geodesic-interactive');
+      const btnSrc = document.getElementById('btn-pick-src');
+      const btnTgt = document.getElementById('btn-pick-tgt');
+
+      if (btnSrc) btnSrc.classList.toggle('bg-amber-500', window.geodesicPickMode === 'source');
+      if (btnSrc) btnSrc.classList.toggle('text-black', window.geodesicPickMode === 'source');
+      if (btnTgt) btnTgt.classList.toggle('bg-purple-500', window.geodesicPickMode === 'target');
+      if (btnTgt) btnTgt.classList.toggle('text-black', window.geodesicPickMode === 'target');
+
+      if (!window.geodesicPickMode) {
+        if (banner) banner.classList.add('hidden');
+        return;
+      }
+
+      if (banner) {
+        banner.classList.remove('hidden');
+        if (window.geodesicPickMode === 'source') {
+          banner.innerText = '🎯 Click any node on 3D canvas to set ORIGIN (A)...';
+          banner.className = 'p-1.5 rounded bg-amber-500/25 border border-amber-500/50 text-amber-200 text-[8px] font-bold text-center animate-pulse';
+        } else if (window.geodesicPickMode === 'target') {
+          banner.innerText = '🎯 Click any node on 3D canvas to set TARGET (B)...';
+          banner.className = 'p-1.5 rounded bg-purple-500/25 border border-purple-500/50 text-purple-200 text-[8px] font-bold text-center animate-pulse';
+        } else if (window.geodesicPickMode === 'interactive') {
+          const sVal = document.getElementById('dock-path-source')?.value;
+          if (!sVal) {
+            banner.innerText = '🖱️ Step 1: Click first node to set ORIGIN (A)...';
+            banner.className = 'p-1.5 rounded bg-amber-500/25 border border-amber-500/50 text-amber-200 text-[8px] font-bold text-center animate-pulse';
+          } else {
+            banner.innerText = '🖱️ Step 2: Now click second node to set TARGET (B)...';
+            banner.className = 'p-1.5 rounded bg-purple-500/25 border border-purple-500/50 text-purple-200 text-[8px] font-bold text-center animate-pulse';
+          }
+        }
+      }
+    };
+
+    window.handleGeodesicCanvasNodeClick = function(nodeData) {
+      if (!nodeData || !nodeData.id) return;
+
+      if (typeof window.populateShortestPathDropdowns === 'function') {
+        window.populateShortestPathDropdowns();
+      }
+
+      const sSelect = document.getElementById('dock-path-source');
+      const tSelect = document.getElementById('dock-path-target');
+
+      if (window.geodesicPickMode === 'source') {
+        window.setShortestPathStart(nodeData.id, nodeData.title);
+        window.geodesicPickMode = null;
+        window.updateGeodesicPickUI();
+        if (typeof showToast === 'function') showToast(`Origin (A) Selected: ${nodeData.title || nodeData.id}`);
+      } else if (window.geodesicPickMode === 'target') {
+        window.setShortestPathTarget(nodeData.id, nodeData.title);
+        window.geodesicPickMode = null;
+        window.updateGeodesicPickUI();
+        if (typeof showToast === 'function') showToast(`Target (B) Selected: ${nodeData.title || nodeData.id}`);
+        if (sSelect && sSelect.value) {
+          window.computeAndHighlightShortestPath();
+        }
+      } else if (window.geodesicPickMode === 'interactive') {
+        if (!sSelect?.value || (sSelect?.value && tSelect?.value)) {
+          // Set first point
+          if (tSelect) tSelect.value = '';
+          window.setShortestPathStart(nodeData.id, nodeData.title);
+          window.updateGeodesicPickUI();
+          if (typeof showToast === 'function') showToast(`Origin (A) Selected. Now click Target (B)...`);
+        } else {
+          // Set second point & calculate
+          window.setShortestPathTarget(nodeData.id, nodeData.title);
+          window.geodesicPickMode = null;
+          window.updateGeodesicPickUI();
+          if (typeof showToast === 'function') showToast(`Target (B) Selected! Calculating geodesic path...`);
+          window.computeAndHighlightShortestPath();
+        }
+      }
+    };
+
+    window.setShortestPathStart = function(nodeId, nodeTitle) {
+      if (typeof window.populateShortestPathDropdowns === 'function') {
+        window.populateShortestPathDropdowns();
+      }
+      const sSelect = document.getElementById('dock-path-source');
+      if (sSelect) {
+        let opt = Array.from(sSelect.options).find(o => o.value === nodeId);
+        if (!opt) {
+          opt = new Option(`${(nodeTitle || nodeId).substring(0, 24)}`, nodeId);
+          sSelect.add(opt);
+        }
+        sSelect.value = nodeId;
+      }
+    };
+
+    window.setShortestPathTarget = function(nodeId, nodeTitle) {
+      if (typeof window.populateShortestPathDropdowns === 'function') {
+        window.populateShortestPathDropdowns();
+      }
+      const tSelect = document.getElementById('dock-path-target');
+      if (tSelect) {
+        let opt = Array.from(tSelect.options).find(o => o.value === nodeId);
+        if (!opt) {
+          opt = new Option(`${(nodeTitle || nodeId).substring(0, 24)}`, nodeId);
+          tSelect.add(opt);
+        }
+        tSelect.value = nodeId;
+      }
+    };
+
+    window.onGeodesicDropdownChange = function() {
+      const sId = document.getElementById('dock-path-source')?.value;
+      const tId = document.getElementById('dock-path-target')?.value;
+      if (sId && tId && sId !== tId) {
+        window.computeAndHighlightShortestPath();
+      }
+    };
+
     window.pinSelectedNodeToPath = function(role) {
       if (!window.activeSelectedNode) {
         showToast("Select a node in 3D first");
@@ -11281,6 +11885,7 @@
       if (select) {
         select.value = window.activeSelectedNode.id;
         showToast(`Pinned as ${role.toUpperCase()}: ${window.activeSelectedNode.title || window.activeSelectedNode.id}`);
+        window.onGeodesicDropdownChange();
       }
     };
 
@@ -18080,7 +18685,10 @@ ${staticFacts.length > 0 ? `## Static Knowledge Core:\n${staticFacts.map(f => `-
               <span class="text-[8px] font-bold px-1 rounded uppercase tracking-wider ${badgeColor}">${escapeHtml(agentId)}</span>
               <b class="truncate" title="${escapeHtml(lane.session_id)}">${escapeHtml(shortId)}</b>
             </div>
-            <span class="text-[8px] text-secondary-container bg-secondary-container/10 px-1 rounded font-bold shrink-0">${isOpen ? 'OPEN' : 'ROOTED'}</span>
+            <div class="flex items-center gap-1 shrink-0">
+              <button type="button" onclick="event.stopPropagation(); window.activateSessionCausalFlow('${lane.session_id}')" class="px-1.5 py-0.2 rounded bg-purple-500/20 hover:bg-purple-500/40 border border-purple-500/40 text-purple-300 font-bold text-[8px] flex items-center gap-0.5 cursor-pointer transition-colors shadow-sm" title="Launch 3D Causal Flow Stream">⚡ FLOW</button>
+              <span class="text-[8px] text-secondary-container bg-secondary-container/10 px-1 rounded font-bold">${isOpen ? 'OPEN' : 'ROOTED'}</span>
+            </div>
           </div>
           <span class="text-[9px] text-outline truncate">${lane.turn_count || turns.length} exchanges · ${lane.tool_execution_count || 0} tools · ${durationStr}</span>
         `;
@@ -18172,6 +18780,31 @@ ${staticFacts.length > 0 ? `## Static Knowledge Core:\n${staticFacts.map(f => `-
         // Calculate multi-row vertical stacking offsets
         const pixelPositions = laneMarks.map(m => (pct(m.time) / 100) * trackWidth);
         const rows = markRows(pixelPositions, 12, 5);
+
+        // Render Causal Flow Trajectory Path connecting timeline marks
+        if (laneMarks.length >= 2) {
+          const svgCausal = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+          svgCausal.setAttribute('class', 'absolute inset-0 w-full h-full pointer-events-none overflow-visible');
+          svgCausal.style.zIndex = '1';
+
+          let pathD = '';
+          laneMarks.forEach((m, idx) => {
+            const x = pct(m.time);
+            const y = (rows[idx] + 0.5) * 12 + 6;
+            pathD += (idx === 0) ? `M ${x}% ${y}` : ` L ${x}% ${y}`;
+          });
+
+          const pathEl = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+          pathEl.setAttribute('d', pathD);
+          pathEl.setAttribute('fill', 'none');
+          pathEl.setAttribute('stroke', '#a855f7');
+          pathEl.setAttribute('stroke-width', '1.8');
+          pathEl.setAttribute('stroke-dasharray', '6 3');
+          pathEl.setAttribute('stroke-opacity', '0.75');
+          pathEl.setAttribute('class', 'xc-causal-flow-anim');
+          svgCausal.appendChild(pathEl);
+          trackDiv.appendChild(svgCausal);
+        }
 
         laneMarks.forEach((m, mIdx) => {
           const markBtn = document.createElement('button');
@@ -19296,6 +19929,51 @@ ${staticFacts.length > 0 ? `## Static Knowledge Core:\n${staticFacts.map(f => `-
     // AI GRAPH OPERATIONS STUDIO CONTROLLER
     // -------------------------------------------------------------------------
     window.cachedDiscoveredLinks = [];
+
+    // Curated Tab-Fill Presets for AI Graph Operations Studio
+    window.aiOpsPresets = {
+      synthesize: [
+        "risk guardrails and trading invariants",
+        "architectural invariants and DID boundaries",
+        "causal reasoning chains and tool execution traces",
+        "dialectic contradictions and superseded memory facts",
+        "cross-scope agent telemetry and consensus"
+      ],
+      query: [
+        "What rules constrain trading risk across Hermes and Xibalba?",
+        "Which architectural invariants govern Super-Cortex, Shield, and Core?",
+        "Trace all tool executions and failures across recent agent sessions",
+        "Identify all dialectic contradictions and superseded facts in the graph",
+        "Explain the mathematical foundation of PID dynamic grid control",
+        "How is agent session telemetry cryptographically anchored to Merkle roots?"
+      ]
+    };
+    window.aiOpsPresetIndices = { synthesize: 0, query: 0 };
+
+    window.handleAiOpsTabKey = function(evt, mode) {
+      if (evt.key === 'Tab') {
+        evt.preventDefault();
+        const list = window.aiOpsPresets[mode] || [];
+        if (list.length === 0) return;
+        const curIdx = window.aiOpsPresetIndices[mode] % list.length;
+        const nextVal = list[curIdx];
+        window.aiOpsPresetIndices[mode] = (curIdx + 1) % list.length;
+        window.fillAiOpsInput(mode, nextVal);
+      }
+    };
+
+    window.fillAiOpsInput = function(mode, val) {
+      const inputId = (mode === 'synthesize') ? 'ai-synthesize-focus' : 'ai-rag-query-input';
+      const el = document.getElementById(inputId);
+      if (el) {
+        el.value = val;
+        el.focus();
+        el.setSelectionRange(val.length, val.length);
+        if (typeof window.showToast === 'function') {
+          window.showToast(`Auto-filled preset: "${val.substring(0, 36)}..."`);
+        }
+      }
+    };
 
     window.openAiOpsModal = function() {
       const modal = document.getElementById('ai-ops-modal');
@@ -23627,26 +24305,369 @@ memory_extraction_submit
     };
 
     window.openInjectThoughtModal = function() {
-      const txt = prompt('Enter agent deliberation or reasoning thought to anchor into Super-Cortex:');
-      if (txt && txt.trim()) {
-        fetch('/api/memories', {
+      const modal = document.getElementById('modal-record-thought');
+      if (modal) {
+        modal.classList.remove('hidden');
+        const txtArea = document.getElementById('modal-thought-text');
+        if (txtArea) {
+          txtArea.value = '';
+          txtArea.focus();
+        }
+      }
+    };
+
+    window.closeRecordThoughtModal = function() {
+      const modal = document.getElementById('modal-record-thought');
+      if (modal) modal.classList.add('hidden');
+    };
+
+    window.submitRecordThought = async function() {
+      const text = document.getElementById('modal-thought-text')?.value?.trim();
+      if (!text) {
+        if (typeof window.showToast === 'function') window.showToast('Please enter thought deliberation text');
+        return;
+      }
+      const phase = document.getElementById('modal-thought-phase')?.value || 'deliberation';
+      const agent = document.getElementById('modal-thought-agent')?.value || 'agy';
+      const scope = document.getElementById('modal-thought-scope')?.value || 'agent:agy';
+      const promptCtx = document.getElementById('modal-thought-prompt')?.value?.trim() || 'Internal cognitive deliberation';
+      const sess = window.activeThoughtSession !== 'all' ? window.activeThoughtSession : (window.activeSessionId || 'sess_agy_local_41ef6169');
+
+      window.closeRecordThoughtModal();
+
+      try {
+        const res = await fetch('/api/thoughts', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            text: txt.trim(),
-            epistemic_class: 'thought',
-            scope: 'shared',
-            category: 'thought',
-            step_phase: 'deliberation',
-            session_id: window.activeThoughtSession !== 'all' ? window.activeThoughtSession : 'session_general'
+            thought_text: text,
+            step_phase: phase,
+            agent_id: agent,
+            scope: scope,
+            prompt_context: promptCtx,
+            session_id: sess
           })
-        }).then(r => r.json()).then(d => {
-          if (typeof window.showToast === 'function') window.showToast('Reasoning thought recorded into graph!');
-          window.refreshThoughtTracker();
-          if (typeof loadGraphData === 'function') loadGraphData('all');
-        }).catch(err => {
-          if (typeof window.showToast === 'function') window.showToast(`Error: ${err.message}`);
         });
+        const data = await res.json();
+        if (typeof window.showToast === 'function') {
+          window.showToast(`Thought recorded: ${data.graph_node_id || 'anchored to Merkle graph'}`);
+        }
+        if (typeof window.refreshThoughtTracker === 'function') {
+          window.refreshThoughtTracker();
+        }
+        if (typeof loadGraphData === 'function') {
+          loadGraphData('all');
+        }
+      } catch (err) {
+        if (typeof window.showToast === 'function') {
+          window.showToast(`Failed to record thought: ${err.message}`);
+        }
+      }
+    };
+
+    // -------------------------------------------------------------------------
+    // SMART DECLUTTER & PRUNING ENGINE
+    // -------------------------------------------------------------------------
+    window.isLeafPruningActive = false;
+    window.filterDisplayMode = 'hide'; // 'hide' | 'dim'
+
+    window.toggleLeafNodePruning = function() {
+      window.isLeafPruningActive = !window.isLeafPruningActive;
+      const links = window.linkDefs || [];
+      const degreeMap = new Map();
+      links.forEach(l => {
+        degreeMap.set(l.source, (degreeMap.get(l.source) || 0) + 1);
+        degreeMap.set(l.target, (degreeMap.get(l.target) || 0) + 1);
+      });
+
+      let hiddenCount = 0;
+      (window.cubeMeshes || []).forEach(m => {
+        const id = m.userData.data?.id;
+        const deg = degreeMap.get(id) || 0;
+        if (window.isLeafPruningActive) {
+          const keep = deg > 1 || m.userData.data?.type === 'hub';
+          m.visible = keep;
+          if (!keep) hiddenCount++;
+        } else {
+          m.visible = true;
+        }
+      });
+
+      if (typeof updateEdges === 'function') updateEdges();
+      
+      const bBtn = document.getElementById('btn-bottom-prune-leaves');
+      const fBtn = document.getElementById('btn-prune-leaves-filter');
+      const bLbl = document.getElementById('bottom-prune-leaves-label');
+      const fLbl = document.getElementById('label-prune-leaves');
+      const badge = document.getElementById('declutter-active-badge');
+
+      if (window.isLeafPruningActive) {
+        if (bLbl) bLbl.innerText = 'RESTORE';
+        if (fLbl) fLbl.innerText = 'SHOW ALL';
+        if (bBtn) bBtn.className = 'px-2 py-0.5 rounded bg-amber-500 text-black font-bold border border-amber-400 flex items-center gap-1 transition-colors cursor-pointer';
+        if (fBtn) fBtn.className = 'py-1 px-1.5 rounded bg-amber-500 text-black border border-amber-400 text-[7.5px] font-bold flex items-center justify-center gap-1 transition-colors cursor-pointer';
+        if (badge) {
+          badge.innerText = `PRUNED ${hiddenCount} LEAVES`;
+          badge.className = 'px-1 py-0.2 rounded bg-amber-500/20 text-amber-300 border border-amber-500/40 text-[7px] font-bold animate-pulse';
+        }
+        if (typeof showToast === 'function') showToast(`Decluttered: ${hiddenCount} leaf/orphan nodes hidden`);
+      } else {
+        if (bLbl) bLbl.innerText = 'DECLUTTER';
+        if (fLbl) fLbl.innerText = 'HIDE LEAVES';
+        if (bBtn) bBtn.className = 'px-2 py-0.5 rounded bg-surface-container-high hover:bg-amber-500/20 text-slate-300 hover:text-amber-300 border border-outline-variant/30 flex items-center gap-1 transition-colors cursor-pointer font-bold';
+        if (fBtn) fBtn.className = 'py-1 px-1.5 rounded bg-surface-container-lowest hover:bg-amber-500/20 text-slate-300 hover:text-amber-300 border border-outline-variant/30 text-[7.5px] font-bold flex items-center justify-center gap-1 transition-colors cursor-pointer';
+        if (badge) {
+          badge.innerText = 'ALL VISIBLE';
+          badge.className = 'px-1 py-0.2 rounded bg-slate-800 text-slate-400 text-[7px]';
+        }
+        if (typeof showToast === 'function') showToast('All leaf & orphan nodes restored');
+      }
+    };
+
+    window.toggleFilterDisplayMode = function() {
+      window.filterDisplayMode = window.filterDisplayMode === 'hide' ? 'dim' : 'hide';
+      const lbl = document.getElementById('label-filter-display-mode');
+      if (lbl) lbl.innerText = `MODE: ${window.filterDisplayMode.toUpperCase()}`;
+      if (typeof showToast === 'function') {
+        showToast(window.filterDisplayMode === 'hide' ? 'Filter Mode: Completely HIDE unmatched nodes (clean view)' : 'Filter Mode: DIM unmatched nodes (0.08 opacity)');
+      }
+    };
+
+    window.focusEgoGraph = function(kHops = 1) {
+      if (!window.activeSelectedNode) {
+        if (typeof showToast === 'function') showToast('Select a node in 3D first to isolate its neighborhood');
+        return;
+      }
+      const rootId = window.activeSelectedNode.id;
+      const links = window.linkDefs || [];
+      const adj = new Map();
+      links.forEach(l => {
+        if (!adj.has(l.source)) adj.set(l.source, []);
+        if (!adj.has(l.target)) adj.set(l.target, []);
+        adj.get(l.source).push(l.target);
+        adj.get(l.target).push(l.source);
+      });
+
+      const allowedIds = new Set([rootId]);
+      let currentWave = [rootId];
+      for (let h = 0; h < kHops; h++) {
+        const nextWave = [];
+        currentWave.forEach(nid => {
+          (adj.get(nid) || []).forEach(neighbor => {
+            if (!allowedIds.has(neighbor)) {
+              allowedIds.add(neighbor);
+              nextWave.push(neighbor);
+            }
+          });
+        });
+        currentWave = nextWave;
+      }
+
+      (window.cubeMeshes || []).forEach(m => {
+        const nid = m.userData.data?.id;
+        m.visible = allowedIds.has(nid);
+      });
+      if (typeof updateEdges === 'function') updateEdges();
+
+      const banner = document.getElementById('graph-isolation-banner');
+      if (banner) {
+        banner.classList.remove('hidden');
+        banner.innerHTML = `
+          <span>Ego-Graph Focus: <strong>${allowedIds.size} nodes</strong> within ${kHops}-hop(s) of "${window.activeSelectedNode.title || rootId}"</span>
+          <button onclick="window.clearEgoGraphFocus()" class="px-2 py-0.5 rounded bg-cyan-500 text-black font-bold uppercase cursor-pointer hover:bg-cyan-400">Exit Focus</button>
+        `;
+      }
+      if (typeof showToast === 'function') showToast(`Ego-Graph Isolated: ${allowedIds.size} nodes in ${kHops}-hop neighborhood`);
+    };
+
+    window.clearEgoGraphFocus = function() {
+      (window.cubeMeshes || []).forEach(m => { m.visible = true; });
+      if (typeof updateEdges === 'function') updateEdges();
+      const banner = document.getElementById('graph-isolation-banner');
+      if (banner) banner.classList.add('hidden');
+      if (typeof showToast === 'function') showToast('Ego-Graph filter cleared. Entire graph visible.');
+    };
+
+    // -------------------------------------------------------------------------
+    // NOVEL CAUSAL CHAIN DISCOVERY & ROOT CAUSE ENGINE
+    // -------------------------------------------------------------------------
+    window.causalDiscoveryMode = 'discover';
+    window.discoveredCausalChains = [];
+    window.activeDiscoveredChainIndex = -1;
+    window.isSoloCausalActive = false;
+
+    window.openCausalDiscoveryStudio = function() {
+      if (typeof window.openRightDock === 'function') {
+        window.openRightDock('ops');
+      }
+      window.refreshDiscoveredChains();
+    };
+
+    window.toggleCausalDiscoveryStudio = function() {
+      window.openCausalDiscoveryStudio();
+    };
+
+    window.setCausalDiscoveryMode = function(mode) {
+      window.causalDiscoveryMode = mode;
+      ['discover', 'root', 'impact'].forEach(m => {
+        const btn = document.getElementById(`btn-causal-mode-${m}`);
+        const active = (m === 'discover' && mode === 'discover') || (m === 'root' && mode === 'root_cause') || (m === 'impact' && mode === 'impact');
+        if (btn) {
+          btn.className = active
+            ? 'py-1 rounded bg-purple-500/30 text-purple-200 border border-purple-500/50 text-[7.5px] font-bold text-center cursor-pointer transition-colors'
+            : 'py-1 rounded bg-surface-container-lowest text-slate-300 border border-outline-variant/30 text-[7.5px] font-bold text-center cursor-pointer hover:text-white transition-colors';
+        }
+      });
+      if (mode === 'discover') {
+        window.refreshDiscoveredChains();
+      } else if (mode === 'root_cause') {
+        window.traceRootCauseFromActiveNode();
+      } else if (mode === 'impact') {
+        window.traceImpactCascadeFromActiveNode();
+      }
+    };
+
+    window.refreshDiscoveredChains = async function() {
+      const select = document.getElementById('causal-studio-chains-select');
+      const countEl = document.getElementById('causal-chains-count');
+      if (countEl) countEl.innerText = 'Scanning graph...';
+
+      try {
+        const res = await fetch('/api/causal/chains?limit=12');
+        const data = await res.json();
+        window.discoveredCausalChains = data.chains || [];
+        if (countEl) countEl.innerText = `${window.discoveredCausalChains.length} AVAILABLE`;
+
+        if (select) {
+          select.innerHTML = '<option value="">Select discovered causal chain...</option>';
+          window.discoveredCausalChains.forEach((c, idx) => {
+            const opt = document.createElement('option');
+            opt.value = String(idx);
+            opt.text = `[${c.type.toUpperCase()}] ${c.title} (${c.node_count} nodes)`;
+            select.appendChild(opt);
+          });
+        }
+        if (window.discoveredCausalChains.length > 0 && window.activeDiscoveredChainIndex === -1) {
+          window.activateDiscoveredChain(0);
+        }
+      } catch (e) {
+        if (countEl) countEl.innerText = 'Error loading';
+      }
+    };
+
+    window.activateDiscoveredChain = function(idx) {
+      idx = parseInt(idx);
+      if (isNaN(idx) || !window.discoveredCausalChains[idx]) return;
+      window.activeDiscoveredChainIndex = idx;
+      const chain = window.discoveredCausalChains[idx];
+
+      const narrativeBox = document.getElementById('causal-studio-narrative-box');
+      const titleEl = document.getElementById('causal-active-title');
+      const pEl = document.getElementById('causal-active-p');
+      const narrEl = document.getElementById('causal-active-narrative');
+      const hopsEl = document.getElementById('causal-active-hops');
+
+      if (narrativeBox) narrativeBox.classList.remove('hidden');
+      if (titleEl) titleEl.innerText = chain.title;
+      if (pEl) pEl.innerText = `det=${chain.metrics?.causal_determinism || 0.90}`;
+      if (narrEl) narrEl.innerText = chain.narrative || 'Sequential probabilistic causal chain across agent deliberations.';
+
+      if (hopsEl) {
+        hopsEl.innerHTML = (chain.nodes || []).map((n, i) => `
+          <div onclick="window.flyToCausalNode('${n.id}')" class="p-1 rounded bg-[#0b101d] hover:bg-purple-900/30 border border-purple-500/20 text-[7.5px] flex items-center justify-between cursor-pointer transition-colors group">
+            <div class="flex items-center gap-1.5 truncate">
+              <span class="w-1.5 h-1.5 rounded-full bg-purple-400"></span>
+              <span class="text-purple-300 font-bold">Step ${i + 1}:</span>
+              <span class="text-slate-200 truncate">${escapeHtml(n.label || n.title || n.id)}</span>
+            </div>
+            <span class="text-emerald-400 font-mono text-[7px] shrink-0">p=${n.probability || 0.95}</span>
+          </div>
+        `).join('');
+      }
+
+      window.highlightCausalChainOnGraph(chain);
+    };
+
+    window.highlightCausalChainOnGraph = function(chain) {
+      if (!chain || !chain.nodes) return;
+      const chainNodeIds = new Set(chain.nodes.map(n => n.id));
+
+      if (window.isSoloCausalActive) {
+        (window.cubeMeshes || []).forEach(m => {
+          const nid = m.userData.data?.id;
+          m.visible = chainNodeIds.has(nid);
+        });
+      } else {
+        (window.cubeMeshes || []).forEach(m => {
+          const nid = m.userData.data?.id;
+          const isMatch = chainNodeIds.has(nid);
+          if (m.userData.boxMat) m.userData.boxMat.opacity = isMatch ? 1.0 : 0.05;
+          if (m.userData.edgeMat) m.userData.edgeMat.opacity = isMatch ? 1.0 : 0.05;
+          m.scale.setScalar(isMatch ? 1.35 : 0.4);
+        });
+      }
+
+      const hud = document.getElementById('graph-causal-flow-hud');
+      if (hud) hud.classList.remove('hidden');
+    };
+
+    window.toggleSoloCausalMode = function() {
+      window.isSoloCausalActive = !window.isSoloCausalActive;
+      const btn = document.getElementById('btn-toggle-solo-causal');
+      if (btn) {
+        btn.innerText = window.isSoloCausalActive ? 'ON (PRUNED ALL)' : 'OFF (SHOW ALL)';
+        btn.className = window.isSoloCausalActive
+          ? 'px-2 py-0.5 rounded bg-amber-500 text-black text-[7.5px] font-bold cursor-pointer'
+          : 'px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/40 text-[7.5px] font-bold cursor-pointer';
+      }
+      if (window.activeDiscoveredChainIndex >= 0) {
+        window.activateDiscoveredChain(window.activeDiscoveredChainIndex);
+      }
+    };
+
+    window.traceRootCauseFromActiveNode = async function() {
+      if (!window.activeSelectedNode) {
+        if (typeof showToast === 'function') showToast('Select a node in 3D first to trace its root cause');
+        return;
+      }
+      const targetId = window.activeSelectedNode.id;
+      if (typeof showToast === 'function') showToast(`Tracing root cause upstream from: ${targetId}...`);
+
+      try {
+        const res = await fetch(`/api/causal/trace?mode=root_cause&target_id=${encodeURIComponent(targetId)}`);
+        const data = await res.json();
+        if (data.status === 'ok') {
+          window.discoveredCausalChains.unshift(data);
+          window.activateDiscoveredChain(0);
+          if (typeof showToast === 'function') showToast(`Root cause discovered: ${data.root_cause_id}`);
+        } else {
+          if (typeof showToast === 'function') showToast(data.message || 'No upstream root cause found');
+        }
+      } catch (err) {
+        if (typeof showToast === 'function') showToast(`Error: ${err.message}`);
+      }
+    };
+
+    window.traceImpactCascadeFromActiveNode = async function() {
+      if (!window.activeSelectedNode) {
+        if (typeof showToast === 'function') showToast('Select a node in 3D first to project downstream impact');
+        return;
+      }
+      const sourceId = window.activeSelectedNode.id;
+      if (typeof showToast === 'function') showToast(`Projecting downstream impact cascade from: ${sourceId}...`);
+
+      try {
+        const res = await fetch(`/api/causal/trace?mode=impact&source_id=${encodeURIComponent(sourceId)}`);
+        const data = await res.json();
+        if (data.status === 'ok') {
+          window.discoveredCausalChains.unshift(data);
+          window.activateDiscoveredChain(0);
+          if (typeof showToast === 'function') showToast(`Downstream cascade: ${data.node_count} affected nodes`);
+        } else {
+          if (typeof showToast === 'function') showToast(data.message || 'No downstream impact path found');
+        }
+      } catch (err) {
+        if (typeof showToast === 'function') showToast(`Error: ${err.message}`);
       }
     };
 
@@ -24141,18 +25162,479 @@ memory_extraction_submit
       window.applyGraphIntentActionFilter();
     };
 
-    window.toggleCausalFlowHighlight = function() {
-      window.graphCausalFlowActive = !window.graphCausalFlowActive;
+    // =========================================================================
+    // 3D CAUSAL FLOW MANIFOLD & PARTICLE STREAM ENGINE
+    // =========================================================================
+    window.graphCausalFlowActive = false;
+    window.activeCausalChainSessionId = null;
+    window.currentCausalStepIndex = 0;
+    window.activeCausalSteps = [];
+    window.causalAutoPlayTimer = null;
+    window.causalFlowGroup = null;
+    window.causalParticlesMesh = null;
+    window.causalParticleData = [];
+    window.causalBeaconRings = [];
+
+    window.toggleCausalFlowHighlight = function(forceActive) {
+      if (typeof forceActive === 'boolean') {
+        window.graphCausalFlowActive = forceActive;
+      } else {
+        window.graphCausalFlowActive = !window.graphCausalFlowActive;
+      }
+
       const btn = document.getElementById('btn-toggle-causal-flow');
       if (btn) {
-        btn.classList.toggle('bg-purple-500/30', window.graphCausalFlowActive);
-        btn.classList.toggle('text-purple-200', window.graphCausalFlowActive);
+        btn.classList.toggle('bg-purple-600/40', window.graphCausalFlowActive);
+        btn.classList.toggle('text-white', window.graphCausalFlowActive);
         btn.classList.toggle('border-purple-400', window.graphCausalFlowActive);
+        btn.classList.toggle('shadow-[0_0_15px_rgba(168,85,247,0.5)]', window.graphCausalFlowActive);
       }
+
+      const hud = document.getElementById('graph-causal-flow-hud');
+      if (hud) {
+        hud.classList.toggle('hidden', !window.graphCausalFlowActive);
+      }
+
+      if (window.graphCausalFlowActive) {
+        const sid = window.activeCausalChainSessionId || (typeof activeSessionId !== 'undefined' && activeSessionId) || (window.timelineSessionsData && window.timelineSessionsData[0]?.session_id) || 'sess_agy_local_41ef6169';
+        window.initCausalFlowStream(sid);
+      } else {
+        window.clearCausalFlowStream();
+      }
+
       window.applyGraphIntentActionFilter();
+
       if (typeof window.showToast === 'function') {
-        window.showToast(window.graphCausalFlowActive ? 'Causal Flow Path Highlight: ON' : 'Causal Flow Path Highlight: OFF');
+        window.showToast(window.graphCausalFlowActive ? '⚡ 3D Causal Flow Stream: ACTIVE' : 'Causal Flow Stream: DISABLED');
       }
+    };
+
+    window.activateSessionCausalFlow = function(sessionId) {
+      if (!sessionId) return;
+      window.activeCausalChainSessionId = sessionId;
+      if (typeof switchView === 'function') switchView('graph');
+      window.toggleCausalFlowHighlight(true);
+    };
+
+    window.viewCausalIn3D = function() {
+      if (typeof window.closeCausalAnalysis === 'function') window.closeCausalAnalysis();
+      const sid = window.activeCausalSessionId || (window.currentCausalData && window.currentCausalData.session_id);
+      window.activateSessionCausalFlow(sid);
+    };
+
+    window.tlCtxStreamCausalFlow = function() {
+      const ctx = window.timelineContextMenuContext;
+      if (ctx && ctx.lane) {
+        window.activateSessionCausalFlow(ctx.lane.session_id);
+      }
+      if (typeof window.closeTimelineContextMenu === 'function') window.closeTimelineContextMenu();
+    };
+
+    window.clearCausalFlowStream = function() {
+      if (window.causalAutoPlayTimer) {
+        clearInterval(window.causalAutoPlayTimer);
+        window.causalAutoPlayTimer = null;
+        const playBtn = document.getElementById('btn-causal-play');
+        if (playBtn) playBtn.innerHTML = '<span class="material-symbols-outlined text-[12px]">play_arrow</span><span>AUTO-PLAY</span>';
+      }
+
+      if (window.causalFlowGroup && window.graphGroup) {
+        window.graphGroup.remove(window.causalFlowGroup);
+        window.causalFlowGroup = null;
+      }
+      window.causalParticlesMesh = null;
+      window.causalParticleData = [];
+      window.causalBeaconRings = [];
+      window.activeCausalSteps = [];
+
+      // Restore all meshes to normal visibility
+      if (window.cubeMeshes) {
+        window.cubeMeshes.forEach(m => {
+          if (m.userData?.boxMat) {
+            m.userData.boxMat.opacity = (m.userData.data?.isLineage ? 0.95 : 0.75);
+            m.userData.boxMat.transparent = true;
+          }
+          if (m.userData?.edgeMat) {
+            m.userData.edgeMat.opacity = 0.95;
+            m.userData.edgeMat.transparent = true;
+          }
+          m.scale.set(1.0, 1.0, 1.0);
+        });
+      }
+      if (window.lineMesh && window.lineMesh.material) {
+        window.lineMesh.material.opacity = 0.45;
+        window.lineMesh.material.color.setHex(0x00f0ff);
+      }
+      if (window.arrowMeshes) {
+        window.arrowMeshes.forEach(a => {
+          if (a.material) a.material.opacity = 0.8;
+        });
+      }
+    };
+
+    window.initCausalFlowStream = async function(sessionId) {
+      window.activeCausalChainSessionId = sessionId;
+      window.clearCausalFlowStream();
+
+      // Populate Chain Selector Dropdown
+      const sel = document.getElementById('causal-chain-select');
+      if (sel && window.timelineSessionsData) {
+        sel.innerHTML = '';
+        window.timelineSessionsData.forEach(s => {
+          const opt = document.createElement('option');
+          opt.value = s.session_id;
+          opt.selected = (s.session_id === sessionId);
+          const ag = (s.agent_id || 'AGENT').toUpperCase();
+          const sh = s.session_id.replace(/^sess_/, '').substring(0, 14);
+          opt.text = `${ag} // ${sh} (${s.turn_count || 0} turns)`;
+          sel.appendChild(opt);
+        });
+      }
+
+      // Fetch Causal DAG analysis from backend
+      let causalData = null;
+      try {
+        const res = await fetch(`/api/causal/analysis?session_id=${encodeURIComponent(sessionId)}`);
+        if (res.ok) causalData = await res.json();
+      } catch (e) {
+        console.warn('Could not fetch backend causal analysis:', e);
+      }
+
+      // Collect Causal Event Nodes
+      const rawNodes = (causalData && causalData.nodes && causalData.nodes.length > 0)
+        ? causalData.nodes
+        : [];
+
+      // Fallback extraction from local timelineSessionDetails
+      if (rawNodes.length === 0 && window.timelineSessionDetails) {
+        const detail = window.timelineSessionDetails.get(sessionId);
+        const turns = detail?.turns || [];
+        turns.forEach((t, i) => {
+          rawNodes.push({
+            id: `intent_${i}`,
+            type: 'intent',
+            epistemic_class: 'intent',
+            label: `Turn ${i + 1} User Intent`,
+            text: t.prompt_text || 'User request',
+            probability: 0.95,
+            turn_index: i
+          });
+          if (t.thinking_text) {
+            rawNodes.push({
+              id: `delib_${i}`,
+              type: 'deliberation',
+              epistemic_class: 'thought',
+              label: `Turn ${i + 1} COT Deliberation`,
+              text: t.thinking_text,
+              probability: 0.85,
+              turn_index: i
+            });
+          }
+          if (t.tool_calls && t.tool_calls.length > 0) {
+            t.tool_calls.forEach((tc, j) => {
+              rawNodes.push({
+                id: `action_${i}_${j}`,
+                type: 'action',
+                epistemic_class: 'action',
+                label: `Turn ${i + 1} Tool: ${tc.name || 'action'}`,
+                text: JSON.stringify(tc.arguments || {}),
+                probability: 0.90,
+                turn_index: i
+              });
+            });
+          }
+          rawNodes.push({
+            id: `state_${i}`,
+            type: 'state',
+            epistemic_class: 'decision',
+            label: `Turn ${i + 1} State Transition`,
+            text: (t.response_text || 'Output emitted').substring(0, 80),
+            probability: 0.88,
+            turn_index: i
+          });
+        });
+      }
+
+      if (rawNodes.length === 0) {
+        if (typeof window.showToast === 'function') window.showToast('No causal events recorded for this session.');
+        return;
+      }
+
+      // Limit to first 40 high-confidence causal transitions if session is huge to keep animation butter-smooth
+      const displayNodes = rawNodes.slice(0, 40);
+
+      // Map steps to 3D Coordinates
+      const steps = [];
+      const meshes = window.cubeMeshes || [];
+
+      // Find session origin point in 3D manifold
+      let originPos = new THREE.Vector3(0, 20, 0);
+      const sessionMesh = meshes.find(m => m.userData?.id === sessionId || m.userData?.data?.id === sessionId || (m.userData?.data?.session_id === sessionId));
+      if (sessionMesh) {
+        originPos.copy(sessionMesh.position);
+      }
+
+      displayNodes.forEach((n, idx) => {
+        let p3D = null;
+        const m = meshes.find(mesh => mesh.userData?.id === n.id || mesh.userData?.data?.id === n.id || mesh.userData?.data?.title?.includes(n.id));
+        if (m) {
+          p3D = m.position.clone();
+        } else {
+          // Arrange along a sweeping helical energy stream around session origin
+          const angle = idx * 0.52;
+          const radius = 65 + idx * 7.5;
+          const yOff = (idx - displayNodes.length / 2) * 12;
+          p3D = new THREE.Vector3(
+            originPos.x + Math.cos(angle) * radius,
+            originPos.y + yOff,
+            originPos.z + Math.sin(angle) * radius
+          );
+        }
+        steps.push({
+          index: idx,
+          data: n,
+          pos: p3D,
+          matchedMesh: m || null
+        });
+      });
+
+      window.activeCausalSteps = steps;
+      window.currentCausalStepIndex = 0;
+
+      // Build 3D Visual Causal Group
+      const cGroup = new THREE.Group();
+      cGroup.name = 'causalFlowGroup';
+      window.causalFlowGroup = cGroup;
+
+      const beamMat = new THREE.MeshBasicMaterial({
+        color: 0xc084fc, // Radiant electric violet
+        transparent: true,
+        opacity: 0.92
+      });
+
+      const coneGeo = new THREE.ConeGeometry(3.0, 8.5, 10);
+      const coneMat = new THREE.MeshBasicMaterial({
+        color: 0xf59e0b, // Radiant amber
+        transparent: true,
+        opacity: 0.95
+      });
+
+      const particleLinks = [];
+
+      for (let i = 0; i < steps.length - 1; i++) {
+        const s1 = steps[i];
+        const s2 = steps[i + 1];
+        const p1 = s1.pos;
+        const p2 = s2.pos;
+        const dist = p1.distanceTo(p2);
+        if (dist < 1) continue;
+
+        const mid = new THREE.Vector3().addVectors(p1, p2).multiplyScalar(0.5);
+        const dir = new THREE.Vector3().subVectors(p2, p1).normalize();
+
+        // 1. Radiant Energy Beam Cylinder
+        const beamGeo = new THREE.CylinderGeometry(2.0, 2.0, dist, 8);
+        const beamMesh = new THREE.Mesh(beamGeo, beamMat);
+        beamMesh.position.copy(mid);
+        beamMesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir);
+        cGroup.add(beamMesh);
+
+        // 2. Directed Causal Arrow Cone
+        const coneMesh = new THREE.Mesh(coneGeo, coneMat);
+        coneMesh.position.copy(p2).sub(dir.clone().multiplyScalar(12));
+        coneMesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir);
+        cGroup.add(coneMesh);
+
+        // Store for particle stream
+        particleLinks.push({ p1: p1.clone(), p2: p2.clone(), dist: dist });
+      }
+
+      // 3. Animated Flowing Photon Particles
+      if (particleLinks.length > 0) {
+        const particlesPerLink = 4;
+        const totalParticles = particleLinks.length * particlesPerLink;
+        const pSphereGeo = new THREE.SphereGeometry(1.8, 8, 8);
+        const pSphereMat = new THREE.MeshBasicMaterial({
+          color: 0x00f0ff,
+          transparent: true,
+          opacity: 0.95
+        });
+        const instMesh = new THREE.InstancedMesh(pSphereGeo, pSphereMat, totalParticles);
+        instMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+        cGroup.add(instMesh);
+        window.causalParticlesMesh = instMesh;
+
+        const pData = [];
+        particleLinks.forEach(link => {
+          for (let k = 0; k < particlesPerLink; k++) {
+            pData.push({
+              p1: link.p1,
+              p2: link.p2,
+              progress: k / particlesPerLink,
+              speed: 0.5 + (k % 2) * 0.25
+            });
+          }
+        });
+        window.causalParticleData = pData;
+      }
+
+      // 4. Role-Coded Beacon Halos at Each Step
+      const beaconRings = [];
+      steps.forEach(step => {
+        const role = step.data.type || step.data.epistemic_class || 'state';
+        let ringCol = 0x10b981; // emerald
+        if (role === 'intent') ringCol = 0xf59e0b; // amber
+        else if (role === 'deliberation' || role === 'thought') ringCol = 0xa855f7; // purple
+        else if (role === 'action') ringCol = 0xec4899; // coral/pink
+
+        const rGeo = new THREE.RingGeometry(8, 12, 24);
+        const rMat = new THREE.MeshBasicMaterial({
+          color: ringCol,
+          side: THREE.DoubleSide,
+          transparent: true,
+          opacity: 0.95
+        });
+        const rMesh = new THREE.Mesh(rGeo, rMat);
+        rMesh.position.copy(step.pos);
+        rMesh.rotation.x = Math.PI / 2;
+        cGroup.add(rMesh);
+        beaconRings.push(rMesh);
+      });
+      window.causalBeaconRings = beaconRings;
+
+      // Add to graph group
+      if (window.graphGroup) {
+        window.graphGroup.add(cGroup);
+      }
+
+      // Dim non-causal nodes & non-causal edges
+      const causalStepNodeIds = new Set(steps.map(s => s.data.id));
+      if (meshes.length > 0) {
+        meshes.forEach(m => {
+          const isCausalNode = causalStepNodeIds.has(m.userData?.id) || causalStepNodeIds.has(m.userData?.data?.id);
+          if (m.userData?.boxMat) {
+            m.userData.boxMat.opacity = isCausalNode ? 1.0 : 0.06;
+            m.userData.boxMat.transparent = true;
+          }
+          if (m.userData?.edgeMat) {
+            m.userData.edgeMat.opacity = isCausalNode ? 1.0 : 0.06;
+            m.userData.edgeMat.transparent = true;
+          }
+          m.scale.setScalar(isCausalNode ? 1.35 : 0.45);
+        });
+      }
+      if (window.lineMesh && window.lineMesh.material) {
+        window.lineMesh.material.opacity = 0.04;
+      }
+
+      // Update HUD Readout and focus step 0
+      window.updateCausalStepHud();
+      window.flyToCausalStep(0);
+    };
+
+    window.updateCausalFlowParticles = function(delta, time) {
+      if (!window.graphCausalFlowActive) return;
+
+      // Update Particle Stream
+      if (window.causalParticlesMesh && window.causalParticleData && window.causalParticleData.length > 0) {
+        const dummy = new THREE.Object3D();
+        const pCur = new THREE.Vector3();
+        for (let i = 0; i < window.causalParticleData.length; i++) {
+          const item = window.causalParticleData[i];
+          item.progress = (item.progress + item.speed * delta) % 1.0;
+          pCur.lerpVectors(item.p1, item.p2, item.progress);
+          dummy.position.copy(pCur);
+          const pScale = 1.0 + 0.35 * Math.sin(time * 8 + i);
+          dummy.scale.set(pScale, pScale, pScale);
+          dummy.updateMatrix();
+          window.causalParticlesMesh.setMatrixAt(i, dummy.matrix);
+        }
+        window.causalParticlesMesh.instanceMatrix.needsUpdate = true;
+      }
+
+      // Pulse Beacon Rings
+      if (window.causalBeaconRings && window.causalBeaconRings.length > 0) {
+        window.causalBeaconRings.forEach((r, idx) => {
+          r.rotation.z += 0.02;
+          const scale = 1.0 + 0.15 * Math.sin(time * 5 + idx);
+          r.scale.set(scale, scale, scale);
+        });
+      }
+    };
+
+    window.updateCausalStepHud = function() {
+      const steps = window.activeCausalSteps || [];
+      const curIdx = window.currentCausalStepIndex || 0;
+      const countEl = document.getElementById('causal-step-counter');
+      const descEl = document.getElementById('causal-step-desc');
+
+      if (steps.length === 0) {
+        if (countEl) countEl.innerText = 'NO STEPS';
+        if (descEl) descEl.innerText = 'Select a session with recorded exchanges';
+        return;
+      }
+
+      const s = steps[curIdx];
+      if (countEl) countEl.innerText = `STEP ${curIdx + 1} / ${steps.length}`;
+      if (descEl && s) {
+        const role = (s.data.type || s.data.epistemic_class || 'STEP').toUpperCase();
+        const pVal = s.data.probability ? ` [P=${s.data.probability.toFixed(2)}]` : '';
+        const title = (s.data.label || s.data.text || '').substring(0, 48);
+        descEl.innerText = `[${role}] ${title}${pVal}`;
+      }
+    };
+
+    window.stepCausalFlow = function(dir) {
+      const steps = window.activeCausalSteps || [];
+      if (steps.length === 0) return;
+      window.currentCausalStepIndex = Math.max(0, Math.min(steps.length - 1, window.currentCausalStepIndex + dir));
+      window.updateCausalStepHud();
+      window.flyToCausalStep(window.currentCausalStepIndex);
+    };
+
+    window.flyToCausalStep = function(stepIdx) {
+      const steps = window.activeCausalSteps || [];
+      const step = steps[stepIdx];
+      if (!step) return;
+
+      if (step.matchedMesh) {
+        window.focusNode(step.matchedMesh.userData?.data || { id: step.data.id, pos3D: [step.pos.x, step.pos.y, step.pos.z] });
+      } else if (typeof targetPan !== 'undefined' && typeof targetRotation !== 'undefined') {
+        const pLocal = step.pos.clone();
+        const euler = new THREE.Euler(targetRotation.x, targetRotation.y, 0, 'XYZ');
+        const pRot = pLocal.clone().applyEuler(euler);
+        targetPan.set(-pRot.x, -pRot.y, -pRot.z);
+        if (typeof zoomTarget !== 'undefined') {
+          zoomTarget = Math.max(140, Math.min(zoomTarget, 280));
+        }
+      }
+    };
+
+    window.toggleCausalPlay = function() {
+      const btn = document.getElementById('btn-causal-play');
+      if (window.causalAutoPlayTimer) {
+        clearInterval(window.causalAutoPlayTimer);
+        window.causalAutoPlayTimer = null;
+        if (btn) btn.innerHTML = '<span class="material-symbols-outlined text-[12px]">play_arrow</span><span>AUTO-PLAY</span>';
+        if (typeof window.showToast === 'function') window.showToast('Causal Auto-Play: PAUSED');
+      } else {
+        if (btn) btn.innerHTML = '<span class="material-symbols-outlined text-[12px]">pause</span><span>PAUSE</span>';
+        if (typeof window.showToast === 'function') window.showToast('Causal Auto-Play: RUNNING');
+        window.causalAutoPlayTimer = setInterval(() => {
+          const steps = window.activeCausalSteps || [];
+          if (steps.length === 0) return;
+          let nextIdx = window.currentCausalStepIndex + 1;
+          if (nextIdx >= steps.length) nextIdx = 0;
+          window.currentCausalStepIndex = nextIdx;
+          window.updateCausalStepHud();
+          window.flyToCausalStep(nextIdx);
+        }, 1600);
+      }
+    };
+
+    window.selectCausalChain = function(sessionId) {
+      if (!sessionId) return;
+      window.initCausalFlowStream(sessionId);
     };
 
     window.applyGraphIntentActionFilter = function() {
@@ -24160,7 +25642,6 @@ memory_extraction_submit
 
       const fType = window.graphActiveIntentFilter;
       const fAgent = window.graphActiveAgentFilter;
-      const causalFlow = window.graphCausalFlowActive;
 
       let matchCount = 0;
 
@@ -24170,51 +25651,71 @@ memory_extraction_submit
 
         let matchType = true;
         if (fType === 'intent') {
-          matchType = (d.type === 'prompt' || d.category === 'intent' || d.epistemic_class === 'intent' || (d.id && d.id.includes('intent')));
+          matchType = Boolean(
+            d.epistemic_class === 'goal' || d.epistemic_class === 'intent' ||
+            d.type === 'intent' || d.type === 'prompt' || d.type === 'goal' ||
+            d.category === 'intent' || d.category === 'goal' ||
+            (d.id && (d.id.includes('intent') || d.id.includes('goal') || d.id.includes('prompt') || d.id.includes('user'))) ||
+            (d.labelTag && d.labelTag.toLowerCase().includes('intent')) ||
+            (d.title && d.title.toLowerCase().includes('prompt')) ||
+            (d.content && (d.content.toLowerCase().includes('intent') || d.content.toLowerCase().includes('prompt') || d.content.toLowerCase().includes('user request') || d.content.toLowerCase().includes('goal')))
+          );
         } else if (fType === 'action') {
-          matchType = (d.type === 'action' || d.category === 'command' || d.category === 'tool' || (d.id && d.id.includes('action')) || (d.metadata && d.metadata.tool_name));
+          matchType = Boolean(
+            d.type === 'action' || d.type === 'tool' || d.type === 'command' ||
+            d.category === 'command' || d.category === 'tool' || d.category === 'action' ||
+            (d.metadata && (d.metadata.tool_name || d.metadata.command || d.metadata.tool_calls)) ||
+            (d.id && (d.id.includes('action') || d.id.includes('tool') || d.id.includes('cmd') || d.id.includes('exec'))) ||
+            (d.labelTag && (d.labelTag.toLowerCase().includes('tool') || d.labelTag.toLowerCase().includes('action'))) ||
+            (d.content && (d.content.toLowerCase().includes('run_command') || d.content.toLowerCase().includes('tool') || d.content.toLowerCase().includes('execution') || d.content.toLowerCase().includes('command') || d.content.toLowerCase().includes('action')))
+          );
         } else if (fType === 'thought') {
-          matchType = (d.type === 'thought' || d.category === 'thought' || d.epistemic_class === 'thought' || (d.id && d.id.startsWith('thought_')));
+          matchType = Boolean(
+            d.type === 'thought' || d.category === 'thought' ||
+            d.epistemic_class === 'thought' || d.epistemic_class === 'inference' ||
+            (d.id && (d.id.startsWith('thought_') || d.id.includes('delib') || d.id.includes('thought'))) ||
+            (d.labelTag && (d.labelTag.toLowerCase().includes('thought') || d.labelTag.toLowerCase().includes('deliberation') || d.labelTag.toLowerCase().includes('cot')))
+          );
         } else if (fType === 'decision') {
-          matchType = (d.epistemic_class === 'decision' || d.epistemic_class === 'inference' || d.type === 'decision');
+          matchType = Boolean(
+            d.epistemic_class === 'decision' || d.epistemic_class === 'rule' ||
+            d.type === 'decision' || d.category === 'decision' ||
+            (d.labelTag && (d.labelTag.toLowerCase().includes('decision') || d.labelTag.toLowerCase().includes('rule')))
+          );
         } else if (fType === 'fact') {
-          matchType = (d.epistemic_class === 'fact' || d.type === 'entity' || d.type === 'doc');
+          matchType = Boolean(
+            d.epistemic_class === 'fact' ||
+            d.type === 'entity' || d.type === 'doc' || d.type === 'memory' ||
+            d.category === 'entity' || d.category === 'area' || d.category === 'fact' ||
+            d.category === 'archive' || d.category === 'resource'
+          );
         }
 
         let matchAgent = true;
         if (fAgent !== 'all') {
           const a = (d.agent_id || (d.metadata && d.metadata.agent_id) || '').toLowerCase();
           const s = (d.scope || '').toLowerCase();
-          matchAgent = a.includes(fAgent) || s.includes(fAgent);
+          matchAgent = a.includes(fAgent) || s.includes(fAgent) || s === 'shared';
         }
 
         const isMatch = matchType && matchAgent;
         if (isMatch) matchCount++;
 
-        // Visual Dimming / Spotlighting
-        if (mesh.material) {
-          if (isMatch) {
-            mesh.material.opacity = 1.0;
-            mesh.material.transparent = false;
-            mesh.scale.set(1.15, 1.15, 1.15);
-          } else {
-            mesh.material.opacity = 0.08;
-            mesh.material.transparent = true;
-            mesh.scale.set(0.7, 0.7, 0.7);
+        // Visual Dimming / Spotlighting if Causal Flow is NOT explicitly managing opacity
+        if (!window.graphCausalFlowActive) {
+          const boxMat = mesh.userData?.boxMat;
+          const edgeMat = mesh.userData?.edgeMat;
+          if (boxMat) {
+            boxMat.opacity = isMatch ? (d.isLineage ? 0.95 : 0.75) : 0.06;
+            boxMat.transparent = true;
           }
+          if (edgeMat) {
+            edgeMat.opacity = isMatch ? 0.95 : 0.06;
+            edgeMat.transparent = true;
+          }
+          mesh.scale.setScalar(isMatch ? 1.15 : 0.35);
         }
       });
-
-      // Highlight Causal Directed Edges if active
-      if (typeof window.edgesGeometry !== 'undefined' && window.edgesMesh && window.edgesMesh.material) {
-        if (causalFlow) {
-          window.edgesMesh.material.opacity = 0.85;
-          window.edgesMesh.material.color.setHex(0xa855f7); // Purple energy flow
-        } else {
-          window.edgesMesh.material.opacity = 0.35;
-          window.edgesMesh.material.color.setHex(0x00f0ff);
-        }
-      }
 
       if (typeof window.showToast === 'function' && fType !== 'all') {
         window.showToast(`Filtered: ${matchCount} matching nodes (${fType.toUpperCase()})`);
