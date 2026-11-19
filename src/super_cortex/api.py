@@ -427,6 +427,16 @@ def create_app(
                 "file_type": meta.get("file_type"),
                 "filename": meta.get("filename") or meta.get("title"),
                 "file_path": meta.get("file_path") or meta.get("path"),
+                "has_attachment": bool(
+                    meta.get("file_url")
+                    or meta.get("pdf_url")
+                    or meta.get("has_pdf")
+                    or meta.get("file_type")
+                    or any(
+                        str(meta.get("filename") or meta.get("title") or row["source_id"]).lower().endswith(ext)
+                        for ext in (".pdf", ".docx", ".md", ".png", ".jpg", ".jpeg", ".svg", ".gif", ".webp", ".html", ".txt", ".csv")
+                    )
+                ),
                 "source_origin": meta.get("source_origin") or row["source_id"],
             })
 

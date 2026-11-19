@@ -5468,6 +5468,94 @@
       return getCachedGeometry(shapeName, size);
     }
 
+    window.nodeHasAttachment = function(data) {
+      if (!data) return false;
+      if (data.has_attachment === true) return true;
+      if (data.file_url || data.pdf_url) return true;
+      if (data.metadata && (data.metadata.file_url || data.metadata.pdf_url || data.metadata.has_pdf || data.metadata.file_type)) return true;
+      const fn = (data.filename || data.metadata?.filename || data.metadata?.title || data.title || '').toLowerCase();
+      const mime = (data.mime_type || data.metadata?.mime_type || data.metadata?.mimeType || '').toLowerCase();
+      const cat = (data.category || '').toLowerCase();
+      const src = (data.source_origin || '').toLowerCase();
+
+      if (['pdf', 'docx', 'markdown', 'image', 'document'].includes(cat) && fn.includes('.')) return true;
+      if (src.startsWith('gdrive://') || src.startsWith('file://')) return true;
+      if (mime.startsWith('image/') || mime === 'application/pdf' || mime.includes('wordprocessingml') || mime === 'text/markdown') return true;
+      if (/\.(pdf|docx|md|markdown|png|jpg|jpeg|gif|webp|svg|bmp|ico|html|txt|py|js|ts|rs|go|sh|sql|json|csv|yaml|yml)$/i.test(fn)) return true;
+      return false;
+    };
+
+    let _paperclipSpriteMaterial = null;
+    function getPaperclipSpriteMaterial() {
+      if (_paperclipSpriteMaterial) return _paperclipSpriteMaterial;
+
+      const canvas = document.createElement('canvas');
+      canvas.width = 128;
+      canvas.height = 128;
+      const ctx = canvas.getContext('2d');
+
+      // Circular dark badge backing
+      ctx.beginPath();
+      ctx.arc(64, 64, 56, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(11, 15, 25, 0.92)';
+      ctx.fill();
+
+      // Outer glow and border
+      ctx.lineWidth = 6;
+      ctx.strokeStyle = '#00f0ff';
+      ctx.stroke();
+
+      ctx.beginPath();
+      ctx.arc(64, 64, 50, 0, Math.PI * 2);
+      ctx.lineWidth = 2;
+      ctx.strokeStyle = 'rgba(56, 189, 248, 0.6)';
+      ctx.stroke();
+
+      // Draw paperclip glyph rotated 45 degrees
+      ctx.save();
+      ctx.translate(64, 64);
+      ctx.rotate(-Math.PI / 4);
+
+      ctx.beginPath();
+      // Outer U-loop
+      ctx.moveTo(-11, 16);
+      ctx.lineTo(-11, -12);
+      ctx.arc(0, -12, 11, Math.PI, 0, false);
+      ctx.lineTo(11, 16);
+      ctx.arc(2, 16, 9, 0, Math.PI, false);
+      // Inner U-loop
+      ctx.lineTo(-7, -6);
+      ctx.arc(-1, -6, 6, Math.PI, 0, false);
+      ctx.lineTo(5, 12);
+
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      ctx.lineWidth = 6;
+      ctx.strokeStyle = '#ffffff';
+      ctx.stroke();
+
+      // Inner cyan wire accent
+      ctx.lineWidth = 2.5;
+      ctx.strokeStyle = '#38bdf8';
+      ctx.stroke();
+
+      ctx.restore();
+
+      const texture = new THREE.CanvasTexture(canvas);
+      texture.minFilter = THREE.LinearFilter;
+      texture.magFilter = THREE.LinearFilter;
+
+      _paperclipSpriteMaterial = new THREE.SpriteMaterial({
+        map: texture,
+        transparent: true,
+        opacity: 0.96,
+        depthTest: true,
+        depthWrite: false,
+      });
+
+      return _paperclipSpriteMaterial;
+    }
+
     function clearGraphMeshes() {
       cubeMeshes.forEach(m => graphGroup.remove(m));
       cubeMeshes = [];
@@ -5678,6 +5766,17 @@
           nodeObj.add(contraRing);
         }
 
+        // Small paperclip badge for nodes with attachments
+        let paperclipSprite = null;
+        if (window.nodeHasAttachment(data)) {
+          const clipMat = getPaperclipSpriteMaterial();
+          paperclipSprite = new THREE.Sprite(clipMat);
+          const badgeSize = Math.max(6.0, Math.min(13.0, size * 0.44));
+          paperclipSprite.scale.set(badgeSize, badgeSize, 1);
+          paperclipSprite.position.set(size * 0.52, size * 0.52, size * 0.28);
+          nodeObj.add(paperclipSprite);
+        }
+
         nodeObj.userData = {
           index: idx,
           id: data.id,
@@ -5687,6 +5786,7 @@
           core: coreMesh,
           beaconRing: beaconRing,
           contraRing: contraRing,
+          paperclip: paperclipSprite,
           boxMat: boxMat,
           edgeMat: edgeMat,
           curBase: [...pos],
@@ -6092,8 +6192,17 @@
             const clampedY = Math.max(10, Math.min(window.innerHeight - tipH - 12, e.clientY - 40));
             tip.style.top = `${clampedY}px`;
             const isThought = data.type === 'thought' || data.category === 'thought';
-            document.getElementById('tooltip-title').innerText = data.title;
-            document.getElementById('tooltip-category').innerText = isThought ? 'REASONING // CHAIN-OF-THOUGHT' : `NODE // ${(data.category || 'NODE').toUpperCase()}`;
+            const hasAtt = window.nodeHasAttachment(data);
+            const titleEl = document.getElementById('tooltip-title');
+            if (titleEl) {
+              titleEl.innerHTML = (hasAtt ? '<span class="text-cyan-300 font-bold mr-1">📎</span>' : '') + escapeHtml(data.title || '');
+            }
+            const catEl = document.getElementById('tooltip-category');
+            if (catEl) {
+              catEl.innerText = isThought
+                ? (hasAtt ? 'REASONING · 📎 ATTACHED ASSET' : 'REASONING // CHAIN-OF-THOUGHT')
+                : `NODE // ${(data.category || 'NODE').toUpperCase()}${hasAtt ? ' · 📎 ATTACHED FILE' : ''}`;
+            }
             document.getElementById('tooltip-meta').innerText = isThought
               ? `Agent: ${data.agent_id || 'agent'} · Length: ${(data.content || '').length} chars · Session: ${data.session_id || 'unknown'}`
               : `Scope: ${data.scope || 'shared'} · Epistemic: ${(data.epistemic_class || 'fact').toUpperCase()} · Pos: [${(data.pos3D || [0, 0, 0]).join(', ')}]`;
@@ -7114,7 +7223,10 @@
 
           <!-- Node Title & Proportional Content -->
           <div>
-            <h3 class="text-sm font-bold text-white leading-snug">${escapeHtml(node.title || '')}</h3>
+            <div class="flex items-center gap-1.5 flex-wrap">
+              <h3 class="text-sm font-bold text-white leading-snug">${escapeHtml(node.title || '')}</h3>
+              ${hasFilePreview ? `<span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-cyan-500/20 text-cyan-300 text-[8.5px] font-mono border border-cyan-500/30">📎 ATTACHED FILE</span>` : ''}
+            </div>
             <div class="mt-2 text-xs text-neutral-200 leading-relaxed font-sans select-text p-3 rounded-lg bg-surface-container-lowest border border-outline-variant/20 shadow-inner max-h-48 overflow-y-auto scrollbar-thin">
               ${escapeHtml(node.content || 'Cryptographically anchored knowledge node indexed in Supermemory local vector space.')}
             </div>
@@ -14151,6 +14263,16 @@ ${staticFacts.length > 0 ? `## Static Knowledge Core:\n${staticFacts.map(f => `-
         const coreMat = new THREE.MeshBasicMaterial({ color: 0xffffff, wireframe: true, opacity: 0.6, transparent: true });
         const coreMesh = new THREE.Mesh(coreGeo, coreMat);
         nodeGroup.add(coreMesh);
+
+        // Small paperclip badge for nodes with attachments
+        if (window.nodeHasAttachment(node)) {
+          const clipMat = getPaperclipSpriteMaterial();
+          const clipSprite = new THREE.Sprite(clipMat);
+          const badgeSize = Math.max(5.5, Math.min(12.0, size * 0.42));
+          clipSprite.scale.set(badgeSize, badgeSize, 1);
+          clipSprite.position.set(size * 0.52, size * 0.52, size * 0.28);
+          nodeGroup.add(clipSprite);
+        }
 
         // Position coordinates
         const pos3D = new THREE.Vector3(p[0] * 1.25, p[1] * 1.25, p[2] * 1.25);
