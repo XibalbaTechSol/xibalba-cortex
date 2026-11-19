@@ -6566,11 +6566,15 @@
         <button onclick="window.closeAiOpsModal()" class="w-8 h-8 rounded bg-surface-container-high hover:bg-surface-container-highest text-neutral-400 hover:text-white flex items-center justify-center text-sm font-bold transition-colors">✕</button>
       </div>
 
-      <!-- Navigation Tabs: Synthesize / Discover Links / Graph Q&A -->
+      <!-- Navigation Tabs: Atlas Graph Agent / Synthesize / Discover Links / Graph Q&A -->
       <div class="flex items-center bg-surface-container-low p-1 rounded border border-outline-variant/30 gap-1 text-[11px] font-mono shrink-0">
-        <button onclick="window.switchAiOpsTab('synthesize')" id="tab-btn-ai-synthesize" class="flex-1 py-1.5 text-center rounded font-bold transition-all bg-purple-600 text-white flex items-center justify-center gap-1.5 shadow">
+        <button onclick="window.switchAiOpsTab('agent')" id="tab-btn-ai-agent" class="flex-1 py-1.5 text-center rounded font-bold transition-all bg-purple-600 text-white flex items-center justify-center gap-1.5 shadow">
+          <span class="material-symbols-outlined text-[14px]">smart_toy</span>
+          <span>Atlas Graph AI Agent</span>
+        </button>
+        <button onclick="window.switchAiOpsTab('synthesize')" id="tab-btn-ai-synthesize" class="flex-1 py-1.5 text-center rounded font-bold transition-all text-neutral-400 hover:text-white flex items-center justify-center gap-1.5">
           <span class="material-symbols-outlined text-[14px]">auto_awesome</span>
-          <span>Synthesize Graph Insights</span>
+          <span>Synthesize Graph</span>
         </button>
         <button onclick="window.switchAiOpsTab('discover')" id="tab-btn-ai-discover" class="flex-1 py-1.5 text-center rounded font-bold transition-all text-neutral-400 hover:text-white flex items-center justify-center gap-1.5">
           <span class="material-symbols-outlined text-[14px]">share</span>
@@ -6584,8 +6588,115 @@
 
       <!-- Tab Content Area -->
       <div class="flex-1 overflow-y-auto space-y-4 pr-1">
+        <!-- TAB 0: ATLAS GRAPH AI AGENT -->
+        <div id="ai-ops-view-agent" class="flex flex-col h-full space-y-3">
+          <!-- Top Telemetry & Controls Bar -->
+          <div class="p-3 bg-surface-container-lowest rounded-lg border border-outline-variant/30 flex flex-col gap-2.5 text-xs">
+            <div class="flex flex-wrap items-center justify-between gap-2">
+              <div class="flex items-center gap-2">
+                <span class="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping"></span>
+                <span class="font-bold text-white text-[11px] uppercase tracking-wider">ATLAS ACTIVE</span>
+                <span class="text-[9px] px-2 py-0.5 rounded bg-purple-500/20 text-purple-300 font-mono font-bold">WHOLE GRAPH MANIFOLD ACCESS</span>
+              </div>
+              <div class="flex items-center gap-2">
+                <span class="text-[10px] text-outline font-bold">Scope:</span>
+                <select id="ai-agent-scope" class="bg-surface-container-low border border-outline-variant/40 rounded px-2 py-0.5 text-xs text-primary-container font-bold focus:outline-none">
+                  <option value="all">Entire Graph Galaxy</option>
+                  <option value="shared">Shared Memory Fabric</option>
+                  <option value="agent:hermes">Hermes Scope</option>
+                  <option value="agent:claude">Claude Code Scope</option>
+                  <option value="agent:agy">Antigravity Scope</option>
+                </select>
+                <button type="button" onclick="window.triggerGitTreeSync()" id="btn-sync-git-tree" class="px-2.5 py-1 bg-indigo-600/30 hover:bg-indigo-600 text-indigo-200 border border-indigo-500/50 rounded font-bold text-[10px] uppercase flex items-center gap-1 transition-all cursor-pointer" title="Ingest entire Git tree, PRs, and commit lineage">
+                  <span class="material-symbols-outlined text-[12px]">account_tree</span>
+                  <span>Sync Git Tree</span>
+                </button>
+              </div>
+            </div>
+
+            <!-- Quick Pattern Discovery Action Chips -->
+            <div class="flex items-center gap-1.5 flex-wrap pt-1 border-t border-outline-variant/20 text-[9px] font-mono">
+              <span class="text-purple-400 font-bold flex items-center gap-1"><span class="material-symbols-outlined text-[11px]">bolt</span><span>FIND PATTERNS:</span></span>
+              <button type="button" onclick="window.runAiOpsAgentChat('Find all dialectic contradictions and conflicting invariants across memory clusters')" class="px-2 py-0.5 rounded bg-surface-container-high hover:bg-rose-500/20 hover:text-rose-300 border border-outline-variant/30 text-slate-300 transition-colors cursor-pointer flex items-center gap-1">
+                <span class="material-symbols-outlined text-[10px] text-rose-400">warning</span>
+                <span>Contradictions</span>
+              </button>
+              <button type="button" onclick="window.runAiOpsAgentChat('Analyze tool execution patterns, action frequencies, and failure hotspots across all agents')" class="px-2 py-0.5 rounded bg-surface-container-high hover:bg-amber-500/20 hover:text-amber-300 border border-outline-variant/30 text-slate-300 transition-colors cursor-pointer flex items-center gap-1">
+                <span class="material-symbols-outlined text-[10px] text-amber-400">build</span>
+                <span>Tool Actions</span>
+              </button>
+              <button type="button" onclick="window.runAiOpsAgentChat('Trace multi-agent causal reasoning chains and consecutive deliberation turns')" class="px-2 py-0.5 rounded bg-surface-container-high hover:bg-purple-500/20 hover:text-purple-300 border border-outline-variant/30 text-slate-300 transition-colors cursor-pointer flex items-center gap-1">
+                <span class="material-symbols-outlined text-[10px] text-purple-400">route</span>
+                <span>Causal Chains</span>
+              </button>
+              <button type="button" onclick="window.runAiOpsAgentChat('Show the recent Git pull requests, merges, and commit architecture trajectory')" class="px-2 py-0.5 rounded bg-surface-container-high hover:bg-indigo-500/20 hover:text-indigo-300 border border-outline-variant/30 text-slate-300 transition-colors cursor-pointer flex items-center gap-1">
+                <span class="material-symbols-outlined text-[10px] text-indigo-400">merge</span>
+                <span>Git PRs &amp; Merges</span>
+              </button>
+              <button type="button" onclick="window.runAiOpsAgentChat('Declutter the graph by pruning leaf nodes and switch edge style to cylinders')" class="px-2 py-0.5 rounded bg-surface-container-high hover:bg-cyan-500/20 hover:text-cyan-300 border border-outline-variant/30 text-slate-300 transition-colors cursor-pointer flex items-center gap-1">
+                <span class="material-symbols-outlined text-[10px] text-cyan-400">filter_vintage</span>
+                <span>Prune &amp; Cylinders</span>
+              </button>
+              <button type="button" onclick="window.runAiOpsAgentChat('Identify keystone PageRank hubs and high-centrality backbone nodes')" class="px-2 py-0.5 rounded bg-surface-container-high hover:bg-emerald-500/20 hover:text-emerald-300 border border-outline-variant/30 text-slate-300 transition-colors cursor-pointer flex items-center gap-1">
+                <span class="material-symbols-outlined text-[10px] text-emerald-400">hub</span>
+                <span>Keystone Hubs</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Chat Dialogue Feed -->
+          <div id="ai-agent-chat-feed" class="flex-1 overflow-y-auto space-y-3.5 p-3 rounded-lg bg-surface-container-lowest border border-outline-variant/30 min-h-[280px] max-h-[460px]">
+            <!-- Initial Welcome Greeting from Atlas -->
+            <div class="flex justify-start">
+              <div class="max-w-[90%] bg-surface-container-low border border-purple-500/40 rounded-xl p-3.5 text-xs text-neutral-200 font-sans shadow-lg space-y-2">
+                <div class="flex items-center justify-between border-b border-outline-variant/30 pb-1.5 text-[10px] font-mono text-outline">
+                  <span class="flex items-center gap-1.5 text-purple-300 font-bold">
+                    <span class="w-2 h-2 rounded-full bg-emerald-400"></span>
+                    <span>ATLAS // AUTONOMOUS GRAPH AGENT</span>
+                  </span>
+                  <span>READY</span>
+                </div>
+                <div class="leading-relaxed">
+                  Greetings, Operator. I am <strong>Atlas</strong>, the whole-graph autonomous intelligence engine. I possess full semantic and topological access across all memory clusters, reasoning traces, tool executions, and git lineage.
+                  <br/><br/>
+                  Ask me to analyze patterns, trace multi-agent causal flows, or execute operations directly on the 3D canvas (e.g. <em>"switch to cylinders and prune leaves"</em>, <em>"isolate tool actions"</em>, <em>"spotlight trading rules"</em>).
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Input Bar with Direct Action Dispatcher -->
+          <div class="p-2.5 bg-surface-container-lowest rounded-lg border border-outline-variant/30 flex flex-col gap-2">
+            <div class="flex items-center gap-2">
+              <input type="text" id="ai-agent-chat-input" onkeydown="if(event.key==='Enter') window.runAiOpsAgentChat()" class="flex-1 bg-surface-container-low border border-outline-variant/40 rounded px-3 py-2 text-xs text-white placeholder:text-neutral-500 focus:outline-none focus:border-purple-400 font-mono" placeholder="Instruct Atlas or ask pattern questions (e.g. 'Audit tool actions', 'Switch to cylinders and prune leaves')..." />
+              <button type="button" onclick="window.runAiOpsAgentChat()" id="btn-run-agent-chat" class="px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white rounded font-bold text-xs uppercase flex items-center gap-1.5 transition-all shadow shrink-0 cursor-pointer">
+                <span class="material-symbols-outlined text-sm">send</span>
+                <span>Send</span>
+              </button>
+            </div>
+            <!-- Fast Canvas Quick Actions Strip -->
+            <div class="flex items-center justify-between text-[10px] font-mono text-outline pt-1 border-t border-outline-variant/15 flex-wrap gap-2">
+              <div class="flex items-center gap-2">
+                <span class="font-bold text-purple-300">QUICK TOGGLES:</span>
+                <button type="button" onclick="window.setEdgeGeometryStyle('lines')" class="px-2 py-0.5 rounded bg-surface-container-high hover:bg-surface-container-highest text-slate-300 cursor-pointer">Lines</button>
+                <button type="button" onclick="window.setEdgeGeometryStyle('cylinders')" class="px-2 py-0.5 rounded bg-surface-container-high hover:bg-surface-container-highest text-slate-300 cursor-pointer">Cylinders</button>
+                <button type="button" onclick="window.toggleLeafNodePruning()" class="px-2 py-0.5 rounded bg-surface-container-high hover:bg-surface-container-highest text-slate-300 cursor-pointer">Prune Leaves</button>
+                <button type="button" onclick="window.toggleGraphEdges()" class="px-2 py-0.5 rounded bg-surface-container-high hover:bg-surface-container-highest text-slate-300 cursor-pointer">Toggle Edges (E)</button>
+              </div>
+              <div class="flex items-center gap-2">
+                <span class="font-bold text-secondary-container">FILTER:</span>
+                <button type="button" onclick="window.applySpotlightFilter('')" class="px-1.5 py-0.5 rounded bg-surface-container-high hover:bg-surface-container-highest text-slate-300 cursor-pointer">All</button>
+                <button type="button" onclick="window.applySpotlightFilter('action')" class="px-1.5 py-0.5 rounded bg-surface-container-high hover:bg-amber-500/25 text-amber-300 cursor-pointer">Actions</button>
+                <button type="button" onclick="window.applySpotlightFilter('thought')" class="px-1.5 py-0.5 rounded bg-surface-container-high hover:bg-purple-500/25 text-purple-300 cursor-pointer">Thoughts</button>
+                <button type="button" onclick="window.applySpotlightFilter('rule')" class="px-1.5 py-0.5 rounded bg-surface-container-high hover:bg-emerald-500/25 text-emerald-300 cursor-pointer">Rules</button>
+                <button type="button" onclick="window.applySpotlightFilter('fact')" class="px-1.5 py-0.5 rounded bg-surface-container-high hover:bg-sky-500/25 text-sky-300 cursor-pointer">Facts</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
         <!-- TAB 1: SYNTHESIZE GRAPH INSIGHTS -->
-        <div id="ai-ops-view-synthesize" class="space-y-4">
+        <div id="ai-ops-view-synthesize" class="hidden space-y-4">
           <div class="p-3 bg-surface-container-lowest rounded-lg border border-outline-variant/30 flex flex-col gap-2 text-xs">
             <div class="flex flex-wrap items-center justify-between gap-3">
               <div class="flex items-center gap-3">
@@ -19977,7 +20088,10 @@ ${staticFacts.length > 0 ? `## Static Knowledge Core:\n${staticFacts.map(f => `-
 
     window.openAiOpsModal = function() {
       const modal = document.getElementById('ai-ops-modal');
-      if (modal) modal.classList.remove('hidden');
+      if (modal) {
+        modal.classList.remove('hidden');
+        window.switchAiOpsTab('agent');
+      }
     };
 
     window.closeAiOpsModal = function() {
@@ -19986,7 +20100,7 @@ ${staticFacts.length > 0 ? `## Static Knowledge Core:\n${staticFacts.map(f => `-
     };
 
     window.switchAiOpsTab = function(tab) {
-      ['synthesize', 'discover', 'query'].forEach(t => {
+      ['agent', 'synthesize', 'discover', 'query'].forEach(t => {
         const view = document.getElementById(`ai-ops-view-${t}`);
         const btn = document.getElementById(`tab-btn-ai-${t}`);
         if (view) view.classList.toggle('hidden', t !== tab);
@@ -19998,6 +20112,169 @@ ${staticFacts.length > 0 ? `## Static Knowledge Core:\n${staticFacts.map(f => `-
           }
         }
       });
+    };
+
+    window.executeGraphAgentOperations = function(ops) {
+      if (!ops || !Array.isArray(ops) || ops.length === 0) return;
+      ops.forEach(op => {
+        try {
+          if (op.op === 'toggle_edges') {
+            const shouldShow = !!op.visible;
+            if (window.isEdgesVisible !== shouldShow && typeof window.toggleGraphEdges === 'function') {
+              window.toggleGraphEdges();
+            }
+          } else if (op.op === 'set_edge_style') {
+            if (typeof window.setEdgeGeometryStyle === 'function') {
+              window.setEdgeGeometryStyle(op.style === 'cylinders' ? 'cylinders' : 'lines');
+            }
+          } else if (op.op === 'prune_leaves') {
+            const shouldPrune = !!op.enabled;
+            if (window.isLeafPruningActive !== shouldPrune && typeof window.toggleLeafNodePruning === 'function') {
+              window.toggleLeafNodePruning();
+            }
+          } else if (op.op === 'filter_epistemic') {
+            const cls = op.class;
+            if (typeof window.applySpotlightFilter === 'function') {
+              window.applySpotlightFilter(cls === 'all' ? '' : cls);
+            }
+          } else if (op.op === 'spotlight') {
+            if (typeof window.applySpotlightKeyword === 'function') {
+              window.applySpotlightKeyword(op.query);
+            }
+          } else if (op.op === 'focus_node') {
+            if (typeof window.flyToNode === 'function') {
+              window.flyToNode(op.node_id);
+            }
+          } else if (op.op === 'apply_preset') {
+            if (typeof window.applyCanvasPreset === 'function') {
+              window.applyCanvasPreset(op.preset);
+            }
+          } else if (op.op === 'set_layout') {
+            if (typeof window.switchGraphLayout === 'function') {
+              window.switchGraphLayout(op.layout);
+            }
+          } else if (op.op === 'trace_causal') {
+            if (typeof window.traceCausalChain === 'function') {
+              window.traceCausalChain(op.chain_id);
+            }
+          }
+        } catch (err) {
+          console.warn("Atlas failed executing op:", op, err);
+        }
+      });
+    };
+
+    window.runAiOpsAgentChat = async function(prefilledMsg) {
+      const inputEl = document.getElementById('ai-agent-chat-input');
+      const msg = (prefilledMsg || inputEl?.value || '').trim();
+      if (!msg) return;
+      if (inputEl) inputEl.value = '';
+
+      const scope = document.getElementById('ai-agent-scope')?.value || 'all';
+      const feed = document.getElementById('ai-agent-chat-feed');
+      const btn = document.getElementById('btn-run-agent-chat');
+
+      if (feed) {
+        const userDiv = document.createElement('div');
+        userDiv.className = "flex justify-end";
+        userDiv.innerHTML = `
+          <div class="max-w-[80%] bg-purple-600/30 border border-purple-500/50 rounded-xl p-3 text-xs text-white font-sans shadow">
+            <div class="text-[9px] font-mono text-purple-300 font-bold uppercase pb-1 mb-1 border-b border-purple-500/30">OPERATOR</div>
+            <div>${escapeHtml(msg)}</div>
+          </div>
+        `;
+        feed.appendChild(userDiv);
+        feed.scrollTop = feed.scrollHeight;
+      }
+
+      const thinkDiv = document.createElement('div');
+      thinkDiv.className = "flex justify-start";
+      thinkDiv.innerHTML = `
+        <div class="max-w-[85%] bg-surface-container-low border border-outline-variant/30 rounded-xl p-3 text-xs font-sans text-neutral-300 animate-pulse flex items-center gap-2">
+          <span class="material-symbols-outlined text-purple-400 animate-spin text-sm">psychology</span>
+          <span>Atlas is reasoning over whole graph topology & executing operations...</span>
+        </div>
+      `;
+      if (feed) {
+        feed.appendChild(thinkDiv);
+        feed.scrollTop = feed.scrollHeight;
+      }
+
+      if (btn) btn.disabled = true;
+
+      try {
+        const resp = await fetch('/api/graph/agent/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ message: msg, scope: scope })
+        });
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        const data = await resp.json();
+
+        if (data.operations && data.operations.length > 0) {
+          window.executeGraphAgentOperations(data.operations);
+          if (typeof window.showToast === 'function') {
+            window.showToast(`Atlas executed ${data.operations.length} graph operations`);
+          }
+        }
+
+        if (thinkDiv) {
+          const opsHtml = (data.operations || []).map(op => `
+            <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 font-mono text-[9px]">
+              <span class="material-symbols-outlined text-[10px]">check_circle</span>
+              <span>${escapeHtml(op.op)}</span>
+            </span>
+          `).join(' ');
+
+          thinkDiv.innerHTML = `
+            <div class="max-w-[90%] bg-surface-container-low border border-purple-500/40 rounded-xl p-3.5 text-xs text-neutral-200 font-sans shadow-lg space-y-2">
+              <div class="flex items-center justify-between border-b border-outline-variant/30 pb-1.5 text-[10px] font-mono text-outline">
+                <span class="flex items-center gap-1.5 text-purple-300 font-bold">
+                  <span class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
+                  <span>ATLAS // GRAPH MIND</span>
+                </span>
+                <span>${data.elapsed_ms}ms</span>
+              </div>
+              <div class="whitespace-pre-wrap leading-relaxed select-text font-sans">${escapeHtml(data.response || '')}</div>
+              ${opsHtml ? `<div class="pt-2 border-t border-outline-variant/20 flex items-center gap-1.5 flex-wrap"><span class="text-[9px] font-mono text-outline font-bold">DISPATCHED OPS:</span> ${opsHtml}</div>` : ''}
+            </div>
+          `;
+          feed.scrollTop = feed.scrollHeight;
+        }
+      } catch (err) {
+        if (thinkDiv) {
+          thinkDiv.innerHTML = `<div class="p-3 rounded bg-rose-500/20 border border-rose-500/40 text-rose-300 text-xs">Atlas error: ${escapeHtml(err.message)}</div>`;
+        }
+      } finally {
+        if (btn) btn.disabled = false;
+      }
+    };
+
+    window.triggerGitTreeSync = async function() {
+      const btn = document.getElementById('btn-sync-git-tree');
+      if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = `<span class="material-symbols-outlined text-[12px] animate-spin">sync</span><span>Syncing...</span>`;
+      }
+      try {
+        const resp = await fetch('/api/connectors/git-tree', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ scope: 'shared' })
+        });
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        const data = await resp.json();
+        const res = data.result || {};
+        alert(`Successfully ingested Git Tree manifold!\n• PRs: ${res.prs_ingested || 0}\n• Commits: ${res.commits_ingested || 0}\n• Relational Edges: ${res.relations_created || 0}`);
+        if (typeof window.loadGraphData === 'function') window.loadGraphData();
+      } catch (err) {
+        alert("Git Tree sync failed: " + err.message);
+      } finally {
+        if (btn) {
+          btn.disabled = false;
+          btn.innerHTML = `<span class="material-symbols-outlined text-[12px]">account_tree</span><span>Sync Git Tree</span>`;
+        }
+      }
     };
 
     window.runAiSynthesis = async function() {

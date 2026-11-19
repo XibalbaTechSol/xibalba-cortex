@@ -43,6 +43,7 @@ from .deterministic import (
     detect_contradictions,
     detect_cycles,
 )
+from .graph_agent import GraphAIAgent
 from .inference import (
     call_llm,
     run_graph_rag_query,
@@ -291,6 +292,9 @@ def create_app(
             "belief": 0xf59e0b,     # Amber
             "goal": 0xf43f5e,       # Rose
             "document": 0x00f0ff,   # Cyan
+            "action": 0xf59e0b,     # Amber Orange
+            "thought": 0xa855f7,    # Amethyst Purple
+            "git": 0x818cf8,        # Indigo
         }
 
         # Central Root Hub: Shared Memory Fabric (Celestial Core Sun)
@@ -453,18 +457,21 @@ def create_app(
         with cortex.store._get_conn() as conn:
             thought_cursor = conn.execute(
                 """
-                SELECT exchange_id, session_id, prompt_text, response_text, thinking_text,
+                SELECT exchange_id, session_id, prompt_text, response_text, thinking_text, tool_calls_json,
                        turn_hash, parent_hash, created_at, scope_id, agent_id
                 FROM exchanges
                 WHERE (thinking_text IS NOT NULL AND trim(thinking_text) != '')
                    OR (response_text IS NOT NULL AND trim(response_text) != '' AND length(prompt_text) > 8)
-                ORDER BY rowid DESC LIMIT 600
+                   OR (tool_calls_json IS NOT NULL AND tool_calls_json != '[]' AND trim(tool_calls_json) != '')
+                ORDER BY rowid DESC LIMIT 1200
                 """
             )
             thought_rows = thought_cursor.fetchall()
 
         thought_count = 0
         agent_thought_counts: dict[str, int] = {}
+        last_thought_by_session: dict[str, str] = {}
+
         for trow in thought_rows:
             th_raw_think = (trow["thinking_text"] or "").strip()
             th_text = th_raw_think or (trow["prompt_text"] or "").strip()
@@ -472,6 +479,7 @@ def create_app(
                 continue
             th_aid = trow["agent_id"] or "agent"
             th_scope = trow["scope_id"] or f"agent:{th_aid}"
+            sess_id = trow["session_id"]
 
             # Filter if a specific scope is requested
             if selected_scope and selected_scope != "all" and th_scope != selected_scope and selected_scope != f"agent:{th_aid}":
@@ -531,6 +539,69 @@ def create_app(
                 "type": "deliberation",
                 "label": "deliberates (COT)",
             })
+
+            # Connect consecutive thoughts in same session (Causal CoT pipeline)
+            if sess_id in last_thought_by_session:
+                prev_th_id = last_thought_by_session[sess_id]
+                links.append({
+                    "source": prev_th_id,
+                    "target": th_id,
+                    "type": "causal",
+                    "label": "then deliberates",
+                })
+            last_thought_by_session[sess_id] = th_id
+
+            # Parse tool calls into Action Nodes orbiting this thought
+            raw_tools = trow["tool_calls_json"]
+            if raw_tools:
+                try:
+                    tc_list = json.loads(raw_tools)
+                    if isinstance(tc_list, dict):
+                        tc_list = [tc_list]
+                    if isinstance(tc_list, list):
+                        for a_idx, tc in enumerate(tc_list[:3]):
+                            tname = tc.get("name") or tc.get("tool_name") or "tool"
+                            targs = tc.get("args") or tc.get("arguments") or {}
+                            act_id = f"act_{trow['exchange_id']}_{a_idx}"
+
+                            # Position action node in a close orbital ring around parent thought
+                            act_angle = (2.0 * math.pi / max(len(tc_list), 1)) * a_idx
+                            adx = 18.0 * math.cos(act_angle)
+                            ady = 10.0 * math.sin(a_idx * 1.5)
+                            adz = 18.0 * math.sin(act_angle)
+
+                            act_content = f"Tool Execution: {tname}\nArguments: {json.dumps(targs, indent=2)[:300]}"
+                            nodes.append({
+                                "id": act_id,
+                                "title": f"Action: {tname}",
+                                "labelTag": f"TOOL // {tname.upper()}",
+                                "category": "action",
+                                "type": "action",
+                                "status": "executed",
+                                "epistemic_class": "action",
+                                "color": 0xf59e0b,  # Amber Orange
+                                "size": 13,
+                                "pos3D": [round(tx + adx, 1), round(ty + ady, 1), round(tz + adz, 1)],
+                                "pos2D": [round(tx + adx, 1), round(tz + adz, 1), 0],
+                                "confidence": 1.0,
+                                "hash": f"0xACT_{hashlib.sha256(act_id.encode()).hexdigest()[:8].upper()}",
+                                "content": act_content,
+                                "scope": th_scope,
+                                "agent_id": th_aid,
+                                "tool_name": tname,
+                                "tool_args": targs,
+                                "created_at": trow["created_at"],
+                            })
+
+                            # Link Thought -> Action
+                            links.append({
+                                "source": th_id,
+                                "target": act_id,
+                                "type": "executes",
+                                "label": f"executes {tname}",
+                            })
+                except Exception:
+                    pass
 
         # Collect unique entity nodes from relational triples (Inclined Golden Asteroid Belt, R = 360)
         entity_names = set()
@@ -1123,6 +1194,45 @@ def create_app(
             return JSONResponse(res)
         except Exception as e:
             logger.error("Graph RAG query failed: %s", e)
+            return JSONResponse({"error": str(e)}, status_code=500)
+
+    async def api_graph_agent_chat(request: Request) -> JSONResponse:
+        body = await request.json() if request.method == "POST" else {}
+        message = body.get("message", "").strip()
+        if not message:
+            return JSONResponse({"error": "message is required"}, status_code=400)
+        history = body.get("history", [])
+        scope = body.get("scope", "all")
+        try:
+            agent = GraphAIAgent(cortex.store)
+            res = agent.chat(message=message, history=history, scope=scope)
+            return JSONResponse(res)
+        except Exception as e:
+            logger.error("Graph AI Agent chat failed: %s", e)
+            return JSONResponse({"error": str(e)}, status_code=500)
+
+    async def api_graph_agent_patterns(request: Request) -> JSONResponse:
+        scope = request.query_params.get("scope", "all")
+        query = request.query_params.get("q", "")
+        try:
+            agent = GraphAIAgent(cortex.store)
+            patterns = agent.discover_patterns(scope=scope, query=query)
+            summary = agent.get_manifold_summary(scope=scope)
+            return JSONResponse({"patterns": patterns, "manifold_summary": summary})
+        except Exception as e:
+            logger.error("Graph AI Agent pattern discovery failed: %s", e)
+            return JSONResponse({"error": str(e)}, status_code=500)
+
+    async def api_connectors_git_tree(request: Request) -> JSONResponse:
+        body = await request.json() if request.method == "POST" else {}
+        repo_path = body.get("repo_path") or "/mnt/storage/xibalba/Projects/worktrees/super-cortex/graph-ai-agent-and-thought-ingestion"
+        scope = body.get("scope", "shared")
+        try:
+            res = await connectors.ingest_git_tree_manifold(repo_path=repo_path, scope=scope)
+            await broadcast_event("relations_updated", {"created_count": res.get("relations_created", 0)})
+            return JSONResponse({"status": "success", "result": res})
+        except Exception as e:
+            logger.error("Git tree ingestion failed: %s", e)
             return JSONResponse({"error": str(e)}, status_code=500)
 
     async def api_live_events(request: Request) -> EventSourceResponse:
@@ -2988,6 +3098,9 @@ em {{ color: #94a3b8; }}
         Route("/api/graph/operations/discover-links", api_graph_discover_links, methods=["GET", "POST"]),
         Route("/api/graph/operations/commit-links", api_graph_commit_links, methods=["POST"]),
         Route("/api/graph/operations/query", api_graph_query, methods=["POST"]),
+        Route("/api/graph/agent/chat", api_graph_agent_chat, methods=["POST"]),
+        Route("/api/graph/agent/patterns", api_graph_agent_patterns, methods=["GET"]),
+        Route("/api/connectors/git-tree", api_connectors_git_tree, methods=["POST"]),
         Route("/api/agent0/passport", api_agent0_passport, methods=["GET", "POST"]),
         Route("/api/managed/agent0/passport", api_agent0_passport, methods=["GET", "POST"]),
     ]

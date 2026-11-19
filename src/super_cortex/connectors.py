@@ -3244,3 +3244,183 @@ class SuperCortexConnectors:
             scope=scope,
         )
         return {"status": "synced", "connector": connector_id, "message": f"Connector {connector_id} verified and ready"}
+
+    async def ingest_git_tree_manifold(
+        self,
+        repo_path: str = "/mnt/storage/xibalba/Projects/worktrees/super-cortex/graph-ai-agent-and-thought-ingestion",
+        repo_name: str = "XibalbaTechSol/super-cortex",
+        scope: str = "shared",
+        max_commits: int = 50,
+        max_prs: int = 40,
+    ) -> dict[str, Any]:
+        """
+        Ingest the complete git tree (branches, pull requests, merges, commits)
+        into the 3D Knowledge Graph as first-class relational entities and memories.
+        """
+        import json
+        import os
+        import re
+        import subprocess
+
+        results: dict[str, Any] = {
+            "prs_ingested": 0,
+            "commits_ingested": 0,
+            "relations_created": 0,
+            "branches": [],
+            "repo_name": repo_name,
+        }
+
+        # 1. Fetch branches and worktrees
+        try:
+            wt_out = subprocess.check_output(
+                ["git", "worktree", "list", "--porcelain"],
+                cwd=repo_path,
+                text=True,
+                stderr=subprocess.DEVNULL,
+                timeout=5.0,
+            )
+            branches = set()
+            for line in wt_out.splitlines():
+                if line.startswith("branch refs/heads/"):
+                    branches.add(line.replace("branch refs/heads/", "").strip())
+            results["branches"] = sorted(list(branches))
+        except Exception:
+            pass
+
+        # 2. Fetch Pull Requests with merges via gh CLI
+        prs: list[dict[str, Any]] = []
+        try:
+            prs_json = subprocess.check_output(
+                [
+                    "gh", "pr", "list",
+                    "--repo", repo_name,
+                    "--state", "all",
+                    "--limit", str(max_prs),
+                    "--json", "number,title,state,author,mergedAt,headRefName,baseRefName",
+                ],
+                text=True,
+                stderr=subprocess.DEVNULL,
+                timeout=10.0,
+            )
+            prs = json.loads(prs_json)
+        except Exception:
+            pass
+
+        # 3. Fetch Commits via git log
+        commits: list[dict[str, Any]] = []
+        try:
+            log_out = subprocess.check_output(
+                ["git", "log", f"-n{max_commits}", "--pretty=format:%H|%h|%an|%ad|%s", "--date=iso"],
+                cwd=repo_path,
+                text=True,
+                stderr=subprocess.DEVNULL,
+                timeout=8.0,
+            )
+            for line in log_out.splitlines():
+                if "|" in line:
+                    parts = line.split("|", 4)
+                    if len(parts) == 5:
+                        commits.append({
+                            "sha": parts[0],
+                            "short_sha": parts[1],
+                            "author": parts[2],
+                            "date": parts[3],
+                            "message": parts[4],
+                        })
+        except Exception:
+            pass
+
+        # 4. Ingest PRs as entities & relations
+        with self.cortex.store._get_conn() as conn:
+            for pr in prs:
+                pr_num = pr.get("number")
+                pr_title = pr.get("title", "")
+                author = pr.get("author", {}).get("name") or pr.get("author", {}).get("login") or "Xibalba"
+                state = pr.get("state", "OPEN")
+                base_ref = pr.get("baseRefName", "main")
+
+                pr_entity = f"PR #{pr_num}: {pr_title[:40]}"
+                branch_entity = f"branch:{base_ref}"
+
+                conn.execute(
+                    """
+                    INSERT INTO relations (subject, predicate, object, confidence, evidence_links_json, created_at)
+                    VALUES (?, ?, ?, ?, ?, datetime('now'))
+                    """,
+                    (pr_entity, "merges_into", branch_entity, 1.0, json.dumps({"pr": pr_num, "state": state}))
+                )
+                results["relations_created"] += 1
+
+                conn.execute(
+                    """
+                    INSERT INTO relations (subject, predicate, object, confidence, evidence_links_json, created_at)
+                    VALUES (?, ?, ?, ?, ?, datetime('now'))
+                    """,
+                    (pr_entity, "authored_by", f"agent:{author}", 1.0, json.dumps({"pr": pr_num}))
+                )
+                results["relations_created"] += 1
+                results["prs_ingested"] += 1
+
+            # 5. Ingest Commits & Lineage
+            prev_commit_entity = None
+            for c in commits[:30]:
+                c_entity = f"commit:{c['short_sha']}"
+                msg = c["message"]
+
+                if prev_commit_entity:
+                    conn.execute(
+                        """
+                        INSERT INTO relations (subject, predicate, object, confidence, evidence_links_json, created_at)
+                        VALUES (?, ?, ?, ?, ?, datetime('now'))
+                        """,
+                        (prev_commit_entity, "parent_of", c_entity, 1.0, json.dumps({"sha": c["sha"]}))
+                    )
+                    results["relations_created"] += 1
+                prev_commit_entity = c_entity
+
+                pr_match = re.search(r"#(\d+)", msg)
+                if pr_match:
+                    p_num = pr_match.group(1)
+                    conn.execute(
+                        """
+                        INSERT INTO relations (subject, predicate, object, confidence, evidence_links_json, created_at)
+                        VALUES (?, ?, ?, ?, ?, datetime('now'))
+                        """,
+                        (c_entity, "implements", f"PR #{p_num}", 1.0, json.dumps({"message": msg}))
+                    )
+                    results["relations_created"] += 1
+                results["commits_ingested"] += 1
+
+            conn.commit()
+
+        # Ingest a comprehensive memory summarizing the Git Tree
+        pr_summary_lines = [f"- PR #{p['number']} ({p['state']}): {p['title']} [branch: {p.get('headRefName')}]" for p in prs[:15]]
+        git_summary_text = (
+            f"Git Tree & Pull Request Architecture Ledger [{repo_name}]:\n"
+            f"Active Worktree Branches: {', '.join(results['branches'])}\n"
+            f"Total Ingested PRs: {len(prs)}\n"
+            f"Recent Pull Requests:\n" + "\n".join(pr_summary_lines)
+        )
+        await self.cortex.remember(
+            text=git_summary_text,
+            epistemic_class="decision",
+            scope=scope,
+            metadata={
+                "scope": scope,
+                "category": "git_tree",
+                "prs_count": len(prs),
+                "commits_count": len(commits),
+                "branches": results["branches"],
+            },
+        )
+
+        self._record_sync(
+            "github",
+            status="connected",
+            summary=f"Ingested complete git tree: {results['prs_ingested']} PRs, {results['commits_ingested']} commits, {results['relations_created']} relations",
+            items_ingested=results["prs_ingested"] + results["commits_ingested"],
+            scope=scope,
+        )
+
+        return results
+
