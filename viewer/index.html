@@ -1677,44 +1677,241 @@
         </div>
       </div>
 
-      <!-- 3D NODE RIGHT-CLICK CONTEXT MENU -->
-      <div id="node-context-menu" class="hidden fixed z-50 bg-[#090e1c]/98 border border-cyan-500/40 rounded-xl shadow-[0_16px_50px_rgba(0,0,0,0.95)] py-1.5 w-60 font-mono text-[11px] backdrop-blur-2xl select-none text-slate-200 divide-y divide-slate-800/60">
-        <div class="px-3 py-1 flex flex-col">
-          <span id="ctx-menu-title" class="font-bold text-white text-[11px] truncate">Node Title</span>
-          <span id="ctx-menu-meta" class="text-[8px] text-cyan-400 uppercase font-mono">Scope · Class</span>
+      <!-- 3D NODE RIGHT-CLICK CONTEXT MENU (ALL SUPER-CORTEX FEATURES) -->
+      <div id="node-context-menu" class="hidden fixed z-50 bg-[#070b16]/98 border border-cyan-500/50 rounded-2xl shadow-[0_20px_70px_rgba(0,0,0,0.95)] py-2 w-72 font-mono text-[11px] backdrop-blur-2xl select-none text-slate-200 divide-y divide-slate-800/70 max-h-[85vh] overflow-y-auto scrollbar-thin">
+        
+        <!-- Header -->
+        <div class="px-3 py-1.5 flex flex-col gap-0.5 bg-slate-900/40">
+          <div class="flex items-center justify-between gap-1.5">
+            <span id="ctx-menu-title" class="font-bold text-white text-[11px] truncate flex-1">Node Title</span>
+            <span id="ctx-menu-degree" class="px-1.5 py-0.2 rounded bg-cyan-500/10 border border-cyan-500/30 text-cyan-300 text-[8px] font-bold">0 EDGES</span>
+          </div>
+          <div class="flex items-center justify-between text-[8px] text-slate-400 font-mono">
+            <span id="ctx-menu-meta" class="text-cyan-400 uppercase font-bold">Scope · Class</span>
+            <span id="ctx-menu-hash-short" class="text-slate-500 truncate max-w-[90px]">0x000000</span>
+          </div>
         </div>
+
+        <!-- 1. PREVIEWS & DOCUMENTS -->
         <div class="py-1">
-          <button onclick="window.ctxActionFly()" class="w-full text-left px-3 py-1.5 hover:bg-cyan-500/15 hover:text-cyan-300 flex items-center gap-2 cursor-pointer transition-colors">
-            <span class="material-symbols-outlined text-[13px] text-cyan-400">center_focus_strong</span>
-            <span>Fly to &amp; Inspect Node</span>
+          <div class="px-3 py-0.5 text-[8px] font-extrabold uppercase tracking-wider text-emerald-400 flex items-center justify-between">
+            <span>PREVIEWS &amp; DOCUMENTS</span>
+            <span class="material-symbols-outlined text-[10px]">auto_stories</span>
+          </div>
+          <button id="ctx-btn-markdown" onclick="window.ctxActionViewMarkdown()" class="w-full text-left px-3 py-1.5 hover:bg-emerald-500/15 hover:text-emerald-300 text-slate-200 flex items-center justify-between cursor-pointer transition-colors group">
+            <span class="flex items-center gap-2">
+              <span class="material-symbols-outlined text-[13px] text-emerald-400 group-hover:scale-110 transition-transform">article</span>
+              <span>View Markdown Content</span>
+            </span>
+            <span class="text-[8px] text-emerald-500 font-bold uppercase">GFM</span>
           </button>
-          <button onclick="window.ctxActionIsolate()" class="w-full text-left px-3 py-1.5 hover:bg-purple-500/15 hover:text-purple-300 flex items-center gap-2 cursor-pointer transition-colors">
-            <span class="material-symbols-outlined text-[13px] text-purple-400">grain</span>
-            <span>Isolate Subgraph (X)</span>
+          <button id="ctx-btn-attachment" onclick="window.ctxActionViewAttachment()" class="hidden w-full text-left px-3 py-1.5 hover:bg-cyan-500/15 hover:text-cyan-300 text-slate-200 flex items-center justify-between cursor-pointer transition-colors group">
+            <span class="flex items-center gap-2 min-w-0">
+              <span class="material-symbols-outlined text-[13px] text-cyan-400 group-hover:scale-110 transition-transform" id="ctx-attachment-icon">attach_file</span>
+              <span id="ctx-attachment-label" class="truncate font-semibold">Preview Attached File</span>
+            </span>
+            <span class="text-[8px] text-cyan-400 font-bold uppercase">FILE</span>
           </button>
-          <button onclick="window.ctxActionStash()" class="w-full text-left px-3 py-1.5 hover:bg-emerald-500/15 hover:text-emerald-300 flex items-center gap-2 cursor-pointer transition-colors">
-            <span class="material-symbols-outlined text-[13px] text-emerald-400">shopping_cart</span>
-            <span>Stash to Context Cart</span>
+          <button id="ctx-btn-external" onclick="window.ctxActionOpenExternal()" class="hidden w-full text-left px-3 py-1.5 hover:bg-blue-500/15 hover:text-blue-300 text-slate-200 flex items-center justify-between cursor-pointer transition-colors group">
+            <span class="flex items-center gap-2 min-w-0">
+              <span class="material-symbols-outlined text-[13px] text-blue-400 group-hover:scale-110 transition-transform">open_in_new</span>
+              <span class="truncate">Open External Link</span>
+            </span>
+            <span class="text-[8px] text-blue-400 font-bold uppercase">URL ↗</span>
+          </button>
+          <button onclick="window.ctxActionViewRawJson()" class="w-full text-left px-3 py-1.5 hover:bg-slate-800 hover:text-white text-slate-300 flex items-center justify-between cursor-pointer transition-colors group">
+            <span class="flex items-center gap-2">
+              <span class="material-symbols-outlined text-[13px] text-slate-400 group-hover:scale-110 transition-transform">data_object</span>
+              <span>Inspect Raw JSON AST</span>
+            </span>
+            <span class="text-[8px] text-slate-500 font-bold uppercase">JSON</span>
           </button>
         </div>
+
+        <!-- 2. GRAPH NAVIGATION & TOPOLOGY -->
         <div class="py-1">
-          <button onclick="window.ctxActionRouteStart()" class="w-full text-left px-3 py-1.5 hover:bg-amber-500/15 hover:text-amber-300 flex items-center gap-2 cursor-pointer transition-colors">
-            <span class="material-symbols-outlined text-[13px] text-amber-400">alt_route</span>
-            <span>Set as Shortest Path Start</span>
+          <div class="px-3 py-0.5 text-[8px] font-extrabold uppercase tracking-wider text-cyan-400 flex items-center justify-between">
+            <span>GRAPH &amp; NAVIGATION</span>
+            <span class="material-symbols-outlined text-[10px]">travel_explore</span>
+          </div>
+          <button onclick="window.ctxActionFly()" class="w-full text-left px-3 py-1.5 hover:bg-cyan-500/15 hover:text-cyan-300 text-slate-200 flex items-center justify-between cursor-pointer transition-colors group">
+            <span class="flex items-center gap-2">
+              <span class="material-symbols-outlined text-[13px] text-cyan-400 group-hover:scale-110 transition-transform">center_focus_strong</span>
+              <span>Fly to &amp; Inspect Node</span>
+            </span>
+            <span class="text-[8px] text-slate-500">ZOOM</span>
           </button>
-          <button onclick="window.ctxActionRouteTarget()" class="w-full text-left px-3 py-1.5 hover:bg-amber-500/15 hover:text-amber-300 flex items-center gap-2 cursor-pointer transition-colors">
-            <span class="material-symbols-outlined text-[13px] text-amber-400">flag</span>
-            <span>Set as Shortest Path Target</span>
+          <button onclick="window.ctxActionIsolate()" class="w-full text-left px-3 py-1.5 hover:bg-purple-500/15 hover:text-purple-300 text-slate-200 flex items-center justify-between cursor-pointer transition-colors group">
+            <span class="flex items-center gap-2">
+              <span class="material-symbols-outlined text-[13px] text-purple-400 group-hover:scale-110 transition-transform">grain</span>
+              <span>Isolate Subgraph (Ego)</span>
+            </span>
+            <span class="text-[8px] text-purple-400 font-bold border border-purple-500/40 rounded px-1">X</span>
+          </button>
+          <button onclick="window.ctxActionExploreNeighbors()" class="w-full text-left px-3 py-1.5 hover:bg-cyan-500/15 hover:text-cyan-300 text-slate-200 flex items-center justify-between cursor-pointer transition-colors group">
+            <span class="flex items-center gap-2">
+              <span class="material-symbols-outlined text-[13px] text-cyan-400 group-hover:scale-110 transition-transform">share</span>
+              <span>Explore Neighborhood Dock</span>
+            </span>
+            <span class="text-[8px] text-slate-500">DOCK</span>
+          </button>
+          <button onclick="window.ctxActionRouteStart()" class="w-full text-left px-3 py-1.5 hover:bg-amber-500/15 hover:text-amber-300 text-slate-200 flex items-center justify-between cursor-pointer transition-colors group">
+            <span class="flex items-center gap-2">
+              <span class="material-symbols-outlined text-[13px] text-amber-400 group-hover:scale-110 transition-transform">alt_route</span>
+              <span>Set as Geodesic Path Start</span>
+            </span>
+            <span class="text-[8px] text-amber-400 font-bold">A ➔</span>
+          </button>
+          <button onclick="window.ctxActionRouteTarget()" class="w-full text-left px-3 py-1.5 hover:bg-amber-500/15 hover:text-amber-300 text-slate-200 flex items-center justify-between cursor-pointer transition-colors group">
+            <span class="flex items-center gap-2">
+              <span class="material-symbols-outlined text-[13px] text-amber-400 group-hover:scale-110 transition-transform">flag</span>
+              <span>Set as Geodesic Path Target</span>
+            </span>
+            <span class="text-[8px] text-amber-400 font-bold">🏁 B</span>
+          </button>
+          <button onclick="window.ctxActionTogglePin()" class="w-full text-left px-3 py-1.5 hover:bg-slate-800 hover:text-white text-slate-300 flex items-center justify-between cursor-pointer transition-colors group">
+            <span class="flex items-center gap-2">
+              <span class="material-symbols-outlined text-[13px] text-slate-400 group-hover:scale-110 transition-transform" id="ctx-pin-icon">push_pin</span>
+              <span id="ctx-pin-label">Pin 3D Coordinates</span>
+            </span>
+            <span class="text-[8px] text-slate-500">PHYSICS</span>
           </button>
         </div>
+
+        <!-- 3. COGNITIVE & MATHEMATICAL OPERATIONS -->
         <div class="py-1">
-          <button onclick="window.ctxActionCopyCitation()" class="w-full text-left px-3 py-1.5 hover:bg-slate-800 text-slate-300 hover:text-white flex items-center gap-2 cursor-pointer transition-colors">
-            <span class="material-symbols-outlined text-[13px]">link</span>
-            <span>Copy Citation Link</span>
+          <div class="px-3 py-0.5 text-[8px] font-extrabold uppercase tracking-wider text-purple-400 flex items-center justify-between">
+            <span>COGNITIVE &amp; MATH OPS</span>
+            <span class="material-symbols-outlined text-[10px]">psychology</span>
+          </div>
+          <button onclick="window.ctxActionContradictions()" class="w-full text-left px-3 py-1.5 hover:bg-rose-500/15 hover:text-rose-300 text-slate-200 flex items-center justify-between cursor-pointer transition-colors group">
+            <span class="flex items-center gap-2">
+              <span class="material-symbols-outlined text-[13px] text-rose-400 group-hover:scale-110 transition-transform">warning</span>
+              <span>Scan Dialectic Conflicts</span>
+            </span>
+            <span class="text-[8px] text-rose-400 font-bold uppercase">LENS</span>
           </button>
-          <button onclick="window.ctxActionCopyHash()" class="w-full text-left px-3 py-1.5 hover:bg-slate-800 text-slate-300 hover:text-white flex items-center gap-2 cursor-pointer transition-colors">
-            <span class="material-symbols-outlined text-[13px]">fingerprint</span>
-            <span>Copy Hash (SHA-256)</span>
+          <button onclick="window.ctxActionSpectral()" class="w-full text-left px-3 py-1.5 hover:bg-cyan-500/15 hover:text-cyan-300 text-slate-200 flex items-center justify-between cursor-pointer transition-colors group">
+            <span class="flex items-center gap-2">
+              <span class="material-symbols-outlined text-[13px] text-cyan-400 group-hover:scale-110 transition-transform">scatter_plot</span>
+              <span>Spectral Laplacian Math</span>
+            </span>
+            <span class="text-[8px] text-cyan-400 font-bold border border-cyan-500/40 rounded px-1">S</span>
+          </button>
+          <button onclick="window.ctxActionLiterature()" class="w-full text-left px-3 py-1.5 hover:bg-amber-500/15 hover:text-amber-300 text-slate-200 flex items-center justify-between cursor-pointer transition-colors group">
+            <span class="flex items-center gap-2">
+              <span class="material-symbols-outlined text-[13px] text-amber-400 group-hover:scale-110 transition-transform">biotech</span>
+              <span>Scientific Literature Radar</span>
+            </span>
+            <span class="text-[8px] text-amber-400 font-bold uppercase">ARXIV</span>
+          </button>
+          <button onclick="window.ctxActionAiOps()" class="w-full text-left px-3 py-1.5 hover:bg-purple-500/15 hover:text-purple-300 text-slate-200 flex items-center justify-between cursor-pointer transition-colors group">
+            <span class="flex items-center gap-2">
+              <span class="material-symbols-outlined text-[13px] text-purple-400 group-hover:scale-110 transition-transform">hub</span>
+              <span>AI Graph Ops &amp; Synthesis</span>
+            </span>
+            <span class="text-[8px] text-purple-400 font-bold uppercase">STUDIO</span>
+          </button>
+        </div>
+
+        <!-- 4. CRYPTOGRAPHIC PROOF & MERKLE AUDIT -->
+        <div class="py-1">
+          <div class="px-3 py-0.5 text-[8px] font-extrabold uppercase tracking-wider text-amber-400 flex items-center justify-between">
+            <span>PROVENANCE &amp; AUDIT</span>
+            <span class="material-symbols-outlined text-[10px]">verified_user</span>
+          </div>
+          <button onclick="window.ctxActionAuditMerkle()" class="w-full text-left px-3 py-1.5 hover:bg-amber-500/15 hover:text-amber-300 text-slate-200 flex items-center justify-between cursor-pointer transition-colors group">
+            <span class="flex items-center gap-2">
+              <span class="material-symbols-outlined text-[13px] text-amber-400 group-hover:scale-110 transition-transform">policy</span>
+              <span>Audit Merkle Provenance</span>
+            </span>
+            <span class="text-[8px] text-amber-400 font-bold uppercase">PROOF</span>
+          </button>
+          <button onclick="window.ctxActionAuditAis()" class="w-full text-left px-3 py-1.5 hover:bg-cyan-500/15 hover:text-cyan-300 text-slate-200 flex items-center justify-between cursor-pointer transition-colors group">
+            <span class="flex items-center gap-2">
+              <span class="material-symbols-outlined text-[13px] text-cyan-400 group-hover:scale-110 transition-transform">rewarded_ads</span>
+              <span>AIS Reward &amp; Advantage Audit</span>
+            </span>
+            <span class="text-[8px] text-cyan-400 font-bold uppercase">GRPO</span>
+          </button>
+          <button onclick="window.ctxActionAuditSession()" class="w-full text-left px-3 py-1.5 hover:bg-purple-500/15 hover:text-purple-300 text-slate-200 flex items-center justify-between cursor-pointer transition-colors group">
+            <span class="flex items-center gap-2">
+              <span class="material-symbols-outlined text-[13px] text-purple-400 group-hover:scale-110 transition-transform">account_tree</span>
+              <span>Session Merkle Rebuilder</span>
+            </span>
+            <span class="text-[8px] text-purple-400 font-bold uppercase">CHAIN</span>
+          </button>
+        </div>
+
+        <!-- 5. FILTERING & SCOPE ISOLATION -->
+        <div class="py-1">
+          <div class="px-3 py-0.5 text-[8px] font-extrabold uppercase tracking-wider text-indigo-400 flex items-center justify-between">
+            <span>FILTERS &amp; ENCLAVES</span>
+            <span class="material-symbols-outlined text-[10px]">filter_alt</span>
+          </div>
+          <button onclick="window.ctxActionFilterScope()" class="w-full text-left px-3 py-1.5 hover:bg-indigo-500/15 hover:text-indigo-300 text-slate-200 flex items-center justify-between cursor-pointer transition-colors group">
+            <span class="flex items-center gap-2">
+              <span class="material-symbols-outlined text-[13px] text-indigo-400 group-hover:scale-110 transition-transform">security</span>
+              <span>Filter by Scope: <strong id="ctx-scope-name" class="text-indigo-300">shared</strong></span>
+            </span>
+            <span class="text-[8px] text-indigo-400 font-bold uppercase">ABAC</span>
+          </button>
+          <button onclick="window.ctxActionFilterClass()" class="w-full text-left px-3 py-1.5 hover:bg-indigo-500/15 hover:text-indigo-300 text-slate-200 flex items-center justify-between cursor-pointer transition-colors group">
+            <span class="flex items-center gap-2">
+              <span class="material-symbols-outlined text-[13px] text-indigo-400 group-hover:scale-110 transition-transform">category</span>
+              <span>Filter by Class: <strong id="ctx-class-name" class="text-indigo-300">FACT</strong></span>
+            </span>
+            <span class="text-[8px] text-indigo-400 font-bold uppercase">TYPE</span>
+          </button>
+          <button onclick="window.ctxActionSpotlight()" class="w-full text-left px-3 py-1.5 hover:bg-cyan-500/15 hover:text-cyan-300 text-slate-200 flex items-center justify-between cursor-pointer transition-colors group">
+            <span class="flex items-center gap-2">
+              <span class="material-symbols-outlined text-[13px] text-cyan-400 group-hover:scale-110 transition-transform">highlight</span>
+              <span>Spotlight Keyword Filter</span>
+            </span>
+            <span class="text-[8px] text-cyan-400 font-bold uppercase">3D SPOT</span>
+          </button>
+        </div>
+
+        <!-- 6. STAGING, PROMPTS & CLIPBOARD -->
+        <div class="py-1">
+          <div class="px-3 py-0.5 text-[8px] font-extrabold uppercase tracking-wider text-teal-400 flex items-center justify-between">
+            <span>STAGING &amp; EXPORT</span>
+            <span class="material-symbols-outlined text-[10px]">output</span>
+          </div>
+          <button onclick="window.ctxActionStash()" class="w-full text-left px-3 py-1.5 hover:bg-teal-500/15 hover:text-teal-300 text-slate-200 flex items-center justify-between cursor-pointer transition-colors group">
+            <span class="flex items-center gap-2">
+              <span class="material-symbols-outlined text-[13px] text-teal-400 group-hover:scale-110 transition-transform">shopping_cart</span>
+              <span>Stash to Context Cart</span>
+            </span>
+            <span class="text-[8px] text-teal-400 font-bold uppercase">+CART</span>
+          </button>
+          <button onclick="window.ctxActionInjectContext()" class="w-full text-left px-3 py-1.5 hover:bg-cyan-500/15 hover:text-cyan-300 text-slate-200 flex items-center justify-between cursor-pointer transition-colors group">
+            <span class="flex items-center gap-2">
+              <span class="material-symbols-outlined text-[13px] text-cyan-400 group-hover:scale-110 transition-transform">bolt</span>
+              <span>Inject into AI Prompt Context</span>
+            </span>
+            <span class="text-[8px] text-cyan-400 font-bold uppercase">PROMPT</span>
+          </button>
+          <button onclick="window.ctxActionCopyCitation()" class="w-full text-left px-3 py-1.5 hover:bg-slate-800 text-slate-300 hover:text-white flex items-center justify-between cursor-pointer transition-colors group">
+            <span class="flex items-center gap-2">
+              <span class="material-symbols-outlined text-[13px] text-slate-400 group-hover:scale-110 transition-transform">link</span>
+              <span>Copy Citation Link</span>
+            </span>
+            <span class="text-[8px] text-slate-500">MD</span>
+          </button>
+          <button onclick="window.ctxActionCopyHash()" class="w-full text-left px-3 py-1.5 hover:bg-slate-800 text-slate-300 hover:text-white flex items-center justify-between cursor-pointer transition-colors group">
+            <span class="flex items-center gap-2">
+              <span class="material-symbols-outlined text-[13px] text-slate-400 group-hover:scale-110 transition-transform">fingerprint</span>
+              <span>Copy SHA-256 Hash</span>
+            </span>
+            <span class="text-[8px] text-slate-500">HASH</span>
+          </button>
+          <button onclick="window.ctxActionCopyId()" class="w-full text-left px-3 py-1.5 hover:bg-slate-800 text-slate-300 hover:text-white flex items-center justify-between cursor-pointer transition-colors group">
+            <span class="flex items-center gap-2">
+              <span class="material-symbols-outlined text-[13px] text-slate-400 group-hover:scale-110 transition-transform">tag</span>
+              <span>Copy Node ID</span>
+            </span>
+            <span class="text-[8px] text-slate-500">UUID</span>
           </button>
         </div>
       </div>
@@ -7483,6 +7680,12 @@
             <div class="mt-2 text-xs text-neutral-200 leading-relaxed font-sans select-text p-3 rounded-lg bg-surface-container-lowest border border-outline-variant/20 shadow-inner max-h-48 overflow-y-auto scrollbar-thin">
               ${escapeHtml(node.content || 'Cryptographically anchored knowledge node indexed in Supermemory local vector space.')}
             </div>
+            <div class="mt-2 flex items-center gap-2">
+              <button onclick="window.ctxActionViewMarkdownFromNode('${node.id}')" class="px-2.5 py-1 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 rounded font-mono text-[10px] flex items-center gap-1 cursor-pointer transition-colors">
+                <span class="material-symbols-outlined text-[13px]">article</span>
+                <span>View Full Markdown Modal ↗</span>
+              </button>
+            </div>
           </div>
 
           <!-- Non-Inference Deterministic KPI Strip -->
@@ -11680,7 +11883,27 @@ ${staticFacts.length > 0 ? `## Static Knowledge Core:\n${staticFacts.map(f => `-
     }
 
     window.openMemoryAuditModal = async function(id) {
-      const memory = cachedMemories.find(m => m.id === id);
+      let memory = cachedMemories.find(m => m.id === id);
+      if (!memory) {
+        let n = window.graphData?.nodes?.find(node => node.id === id);
+        if (!n && window.contextMenuTargetNode && window.contextMenuTargetNode.id === id) {
+          n = window.contextMenuTargetNode;
+        }
+        if (n) {
+          memory = {
+            id: n.id,
+            epistemic_class: (n.epistemic_class || n.type || 'FACT').toUpperCase(),
+            lifecycle_status: 'ACTIVE',
+            scope: n.scope || 'shared',
+            text: n.content || n.title || '',
+            content_hash: n.hash || 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855',
+            agent_id: n.agent_id || n.actor || 'did:integrity:68fed1331613937555a59398223e8e87520a87dd0305aac4fd7ecdc32a14a861',
+            created_at: n.created_at || new Date().toISOString(),
+            triples: []
+          };
+          cachedMemories.push(memory);
+        }
+      }
       if (!memory) return;
       currentAuditMemory = memory;
 
@@ -11812,6 +12035,7 @@ ${staticFacts.length > 0 ? `## Static Knowledge Core:\n${staticFacts.map(f => `-
       const modal = document.getElementById('ais-audit-report-modal');
       if (modal) modal.classList.add('hidden');
     };
+    window.openAISAuditModal = window.triggerAISChainAudit;
 
     // -------------------------------------------------------------------------
     // FORENSIC SESSION REBUILD CONTROLLER
@@ -13163,8 +13387,28 @@ ${staticFacts.length > 0 ? `## Static Knowledge Core:\n${staticFacts.map(f => `-
       window._viewerState.activeUrl = url;
 
       if (titleEl) titleEl.innerText = title;
-      if (dlBtn) dlBtn.href = url ? (url + (url.includes('?') ? '&download=1' : '?download=1')) : '#';
-      if (tabBtn) tabBtn.href = url || '#';
+      if (dlBtn) {
+        if (url) {
+          dlBtn.classList.remove('hidden');
+          dlBtn.href = url + (url.includes('?') ? '&download=1' : '?download=1');
+          dlBtn.removeAttribute('download');
+        } else if (opts.content) {
+          dlBtn.classList.remove('hidden');
+          const cleanName = (title.replace(/[^\w\s-]/g, '').trim() || 'document') + '.md';
+          dlBtn.href = 'data:text/markdown;charset=utf-8,' + encodeURIComponent(opts.content);
+          dlBtn.setAttribute('download', cleanName);
+        } else {
+          dlBtn.classList.add('hidden');
+        }
+      }
+      if (tabBtn) {
+        if (url) {
+          tabBtn.classList.remove('hidden');
+          tabBtn.href = url;
+        } else {
+          tabBtn.classList.add('hidden');
+        }
+      }
       if (copyBtn) copyBtn.classList.remove('hidden');
 
       if (iframeFrame) { iframeFrame.classList.add('hidden'); iframeFrame.src = 'about:blank'; }
@@ -18702,23 +18946,172 @@ ${staticFacts.length > 0 ? `## Static Knowledge Core:\n${staticFacts.map(f => `-
       });
     };
 
-    // 6. NODE RIGHT-CLICK CONTEXT MENU
+    // 6. EXPANDED NODE RIGHT-CLICK CONTEXT MENU (ALL SUPER-CORTEX FEATURES)
     // -------------------------------------------------------------------------
     window.contextMenuTargetNode = null;
     window.isContextMenuOpen = false;
 
+    window.formatNodeAsMarkdown = function(node) {
+      if (!node) return '';
+      const rawContent = node.content || node.text || (node.metadata && (node.metadata.content || node.metadata.text || node.metadata.description || node.metadata.summary)) || '';
+      
+      let md = `# ${node.title || node.id}\n\n`;
+      md += `| Attribute | Value |\n`;
+      md += `| :--- | :--- |\n`;
+      md += `| **Node ID** | \`${node.id}\` |\n`;
+      md += `| **Scope** | \`${node.scope || 'shared'}\` |\n`;
+      md += `| **Epistemic Class** | \`${(node.epistemic_class || node.type || 'unknown').toUpperCase()}\` |\n`;
+      if (node.hash) {
+        md += `| **SHA-256 Hash** | \`${node.hash}\` |\n`;
+      }
+      if (node.created_at || node.timestamp) {
+        const d = new Date(node.created_at || node.timestamp);
+        md += `| **Created** | ${isNaN(d.getTime()) ? (node.created_at || node.timestamp) : d.toLocaleString()} |\n`;
+      }
+      if (node.degree != null) {
+        md += `| **Topology Degree** | ${node.degree} edges |\n`;
+      }
+      if (node.page_rank != null) {
+        md += `| **PageRank Centrality** | ${(Number(node.page_rank) * 100).toFixed(2)}% |\n`;
+      }
+      if (node.entropy != null) {
+        md += `| **Shannon Entropy** | ${Number(node.entropy).toFixed(3)} bits |\n`;
+      }
+      md += `\n---\n\n`;
+
+      md += `### Content\n\n`;
+      if (rawContent && rawContent.trim()) {
+        md += `${rawContent}\n\n`;
+      } else {
+        md += `*Cryptographically anchored knowledge node with no plain-text content body.*\n\n`;
+      }
+
+      // Attached file details
+      const attInfo = typeof window.getNodeAttachmentInfo === 'function' ? window.getNodeAttachmentInfo(node) : null;
+      if (attInfo) {
+        md += `### Attached File Document\n\n`;
+        md += `- **Filename**: \`${attInfo.filename || attInfo.title}\`\n`;
+        md += `- **Format**: \`${attInfo.kind.toUpperCase()}\`\n`;
+        md += `- **Preview URL**: [Open Direct Link](${attInfo.url})\n\n`;
+      }
+
+      // Metadata section
+      if (node.metadata && Object.keys(node.metadata).length > 0) {
+        md += `### Metadata Attributes\n\n`;
+        md += `\`\`\`json\n${JSON.stringify(node.metadata, null, 2)}\n\`\`\`\n\n`;
+      }
+
+      // Relations / Neighborhood
+      if (window.graphData && Array.isArray(window.graphData.links)) {
+        const connectedEdges = window.graphData.links.filter(l => {
+          const s = typeof l.source === 'object' ? l.source.id : l.source;
+          const t = typeof l.target === 'object' ? l.target.id : l.target;
+          return s === node.id || t === node.id;
+        });
+
+        if (connectedEdges.length > 0) {
+          md += `### Connected Graph Edges (${connectedEdges.length})\n\n`;
+          md += `| Direction | Relation | Connected Node |\n`;
+          md += `| :--- | :--- | :--- |\n`;
+          connectedEdges.slice(0, 30).forEach(e => {
+            const s = typeof e.source === 'object' ? e.source.id : e.source;
+            const t = typeof e.target === 'object' ? e.target.id : e.target;
+            const isOutgoing = s === node.id;
+            const targetId = isOutgoing ? t : s;
+            const targetNode = window.graphData.nodes?.find(n => n.id === targetId);
+            const targetName = targetNode ? (targetNode.title || targetNode.id) : targetId;
+            const dirIcon = isOutgoing ? 'Outgoing ➔' : 'Incoming ⬅';
+            md += `| ${dirIcon} | \`${e.predicate || e.label || 'connected_to'}\` | \`${targetName}\` |\n`;
+          });
+          if (connectedEdges.length > 30) {
+            md += `\n*... and ${connectedEdges.length - 30} more edges.*\n`;
+          }
+          md += `\n`;
+        }
+      }
+
+      return md;
+    };
+
     window.openNodeContextMenu = function(clientX, clientY, node) {
       window.contextMenuTargetNode = node;
       const menu = document.getElementById('node-context-menu');
-      const titleEl = document.getElementById('ctx-menu-title');
-      const metaEl = document.getElementById('ctx-menu-meta');
       if (!menu) return;
 
-      if (titleEl) titleEl.innerText = (node.title || node.id).substring(0, 30);
-      if (metaEl) metaEl.innerText = `${node.scope || 'shared'} · ${(node.epistemic_class || node.type || 'node').toUpperCase()}`;
+      const titleEl = document.getElementById('ctx-menu-title');
+      const metaEl = document.getElementById('ctx-menu-meta');
+      const degreeEl = document.getElementById('ctx-menu-degree');
+      const hashShortEl = document.getElementById('ctx-menu-hash-short');
+      const scopeNameEl = document.getElementById('ctx-scope-name');
+      const classNameEl = document.getElementById('ctx-class-name');
+      const attBtn = document.getElementById('ctx-btn-attachment');
+      const attIcon = document.getElementById('ctx-attachment-icon');
+      const attLabel = document.getElementById('ctx-attachment-label');
+      const extBtn = document.getElementById('ctx-btn-external');
+      const pinIcon = document.getElementById('ctx-pin-icon');
+      const pinLabel = document.getElementById('ctx-pin-label');
 
-      const x = Math.min(window.innerWidth - 250, clientX + 4);
-      const y = Math.min(window.innerHeight - 260, clientY + 4);
+      // Calculate real connected degree from links
+      let degree = node.degree;
+      if (degree == null && window.graphData && Array.isArray(window.graphData.links)) {
+        degree = window.graphData.links.filter(l => {
+          const s = typeof l.source === 'object' ? l.source.id : l.source;
+          const t = typeof l.target === 'object' ? l.target.id : l.target;
+          return s === node.id || t === node.id;
+        }).length;
+      }
+      if (degree == null) degree = 0;
+
+      if (titleEl) titleEl.innerText = (node.title || node.id);
+      if (metaEl) metaEl.innerText = `${node.scope || 'shared'} · ${(node.epistemic_class || node.type || 'node').toUpperCase()}`;
+      if (degreeEl) degreeEl.innerText = `${degree} EDGES`;
+      if (hashShortEl) hashShortEl.innerText = (node.hash ? node.hash.substring(0, 10) : (node.id ? node.id.substring(0, 10) : '0x000000'));
+      if (scopeNameEl) scopeNameEl.innerText = node.scope || 'shared';
+      if (classNameEl) classNameEl.innerText = (node.epistemic_class || node.type || 'FACT').toUpperCase();
+
+      // Pin state
+      const isPinned = node.isPinned || node.fx != null;
+      if (pinIcon) pinIcon.innerText = isPinned ? 'push_pin_slash' : 'push_pin';
+      if (pinLabel) pinLabel.innerText = isPinned ? 'Unpin 3D Coordinates' : 'Pin 3D Coordinates';
+
+      // Attachment check
+      let attInfo = null;
+      if (typeof window.getNodeAttachmentInfo === 'function') {
+        attInfo = window.getNodeAttachmentInfo(node);
+      }
+      if (attBtn) {
+        if (attInfo) {
+          attBtn.classList.remove('hidden');
+          if (attLabel) {
+            attLabel.innerText = `Preview ${attInfo.kind.toUpperCase()}: ${(attInfo.title || attInfo.filename || 'File').substring(0, 16)}`;
+          }
+          if (attIcon) {
+            if (attInfo.kind === 'pdf') attIcon.innerText = 'picture_as_pdf';
+            else if (attInfo.kind === 'image') attIcon.innerText = 'image';
+            else if (attInfo.kind === 'markdown') attIcon.innerText = 'edit_note';
+            else if (attInfo.kind === 'docx') attIcon.innerText = 'description';
+            else attIcon.innerText = 'attach_file';
+          }
+        } else {
+          attBtn.classList.add('hidden');
+        }
+      }
+
+      // External link check
+      const extUrl = node.url || (node.metadata && (node.metadata.url || node.metadata.source_url || node.metadata.external_url));
+      if (extBtn) {
+        if (extUrl && (/^https?:\/\//i).test(extUrl)) {
+          extBtn.classList.remove('hidden');
+        } else {
+          extBtn.classList.add('hidden');
+        }
+      }
+
+      // Positioning with boundary safety
+      const menuWidth = 288;
+      const menuHeight = 520;
+      const x = Math.min(window.innerWidth - menuWidth - 10, Math.max(10, clientX + 4));
+      const y = Math.min(window.innerHeight - menuHeight - 10, Math.max(10, clientY + 4));
       menu.style.left = `${x}px`;
       menu.style.top = `${y}px`;
       menu.classList.remove('hidden');
@@ -18731,6 +19124,91 @@ ${staticFacts.length > 0 ? `## Static Knowledge Core:\n${staticFacts.map(f => `-
       window.isContextMenuOpen = false;
     };
 
+    // 1. Previews & Documents Actions
+    window.ctxActionViewMarkdown = function() {
+      const node = window.contextMenuTargetNode;
+      if (!node) { window.closeNodeContextMenu(); return; }
+      window.closeNodeContextMenu();
+
+      const mdContent = window.formatNodeAsMarkdown(node);
+      if (typeof window.openGenericViewer === 'function') {
+        window.openGenericViewer({
+          title: `${node.title || node.id} (Markdown View)`,
+          fileType: 'md',
+          content: mdContent,
+          metadata: node.metadata,
+        });
+      }
+    };
+
+    window.ctxActionViewMarkdownFromNode = function(nodeId) {
+      let node = null;
+      if (window.graphData && Array.isArray(window.graphData.nodes)) {
+        node = window.graphData.nodes.find(n => n.id === nodeId);
+      }
+      if (!node && window.selectedNode && window.selectedNode.id === nodeId) {
+        node = window.selectedNode;
+      }
+      if (!node) return;
+
+      const mdContent = window.formatNodeAsMarkdown(node);
+      if (typeof window.openGenericViewer === 'function') {
+        window.openGenericViewer({
+          title: `${node.title || node.id} (Markdown View)`,
+          fileType: 'md',
+          content: mdContent,
+          metadata: node.metadata,
+        });
+      }
+    };
+
+    window.ctxActionViewAttachment = function() {
+      const node = window.contextMenuTargetNode;
+      if (!node) { window.closeNodeContextMenu(); return; }
+      window.closeNodeContextMenu();
+
+      if (typeof window.getNodeAttachmentInfo === 'function' && typeof window.openGenericViewer === 'function') {
+        const attInfo = window.getNodeAttachmentInfo(node);
+        if (attInfo) {
+          window.openGenericViewer({
+            url: attInfo.url,
+            title: attInfo.title,
+            fileType: attInfo.kind,
+            filename: attInfo.filename,
+            fileId: node.id,
+            metadata: node.metadata,
+          });
+        }
+      }
+    };
+
+    window.ctxActionOpenExternal = function() {
+      const node = window.contextMenuTargetNode;
+      if (!node) { window.closeNodeContextMenu(); return; }
+      window.closeNodeContextMenu();
+
+      const extUrl = node.url || (node.metadata && (node.metadata.url || node.metadata.source_url || node.metadata.external_url));
+      if (extUrl) {
+        window.open(extUrl, '_blank', 'noopener,noreferrer');
+      }
+    };
+
+    window.ctxActionViewRawJson = function() {
+      const node = window.contextMenuTargetNode;
+      if (!node) { window.closeNodeContextMenu(); return; }
+      window.closeNodeContextMenu();
+
+      if (typeof window.openGenericViewer === 'function') {
+        window.openGenericViewer({
+          title: `${node.title || node.id} (Raw JSON AST)`,
+          fileType: 'json',
+          content: JSON.stringify(node, null, 2),
+          metadata: node.metadata,
+        });
+      }
+    };
+
+    // 2. Navigation & Topology Actions
     window.ctxActionFly = function() {
       if (window.contextMenuTargetNode) {
         select3DNode(window.contextMenuTargetNode);
@@ -18745,16 +19223,22 @@ ${staticFacts.length > 0 ? `## Static Knowledge Core:\n${staticFacts.map(f => `-
       window.closeNodeContextMenu();
     };
 
-    window.ctxActionStash = function() {
-      if (window.contextMenuTargetNode) {
-        window.addToContextCart(window.contextMenuTargetNode);
-      }
+    window.ctxActionExploreNeighbors = function() {
+      const node = window.contextMenuTargetNode;
+      if (!node) { window.closeNodeContextMenu(); return; }
       window.closeNodeContextMenu();
+
+      if (typeof window.populateNeighborhoodExplorer === 'function') {
+        window.populateNeighborhoodExplorer(node);
+        const tabBtn = document.getElementById('tab-btn-neighborhood');
+        if (tabBtn) tabBtn.click();
+      }
     };
 
     window.ctxActionRouteStart = function() {
       if (window.contextMenuTargetNode && typeof window.setShortestPathStart === 'function') {
         window.setShortestPathStart(window.contextMenuTargetNode.id);
+        if (typeof window.showToast === 'function') window.showToast(`Set Geodesic Origin (A): ${window.contextMenuTargetNode.title || window.contextMenuTargetNode.id}`);
       }
       window.closeNodeContextMenu();
     };
@@ -18762,15 +19246,178 @@ ${staticFacts.length > 0 ? `## Static Knowledge Core:\n${staticFacts.map(f => `-
     window.ctxActionRouteTarget = function() {
       if (window.contextMenuTargetNode && typeof window.setShortestPathTarget === 'function') {
         window.setShortestPathTarget(window.contextMenuTargetNode.id);
+        if (typeof window.showToast === 'function') window.showToast(`Set Geodesic Target (B): ${window.contextMenuTargetNode.title || window.contextMenuTargetNode.id}`);
       }
       window.closeNodeContextMenu();
+    };
+
+    window.ctxActionTogglePin = function() {
+      const node = window.contextMenuTargetNode;
+      if (!node) { window.closeNodeContextMenu(); return; }
+      window.closeNodeContextMenu();
+
+      if (node.isPinned || node.fx != null) {
+        node.fx = null;
+        node.fy = null;
+        node.fz = null;
+        node.isPinned = false;
+        if (typeof window.showToast === 'function') window.showToast(`Unpinned 3D coordinates for ${node.title || node.id}`);
+      } else {
+        node.fx = node.x;
+        node.fy = node.y;
+        node.fz = node.z;
+        node.isPinned = true;
+        if (typeof window.showToast === 'function') window.showToast(`Pinned 3D coordinates for ${node.title || node.id}`);
+      }
+    };
+
+    // 3. Cognitive & Math Ops Actions
+    window.ctxActionContradictions = function() {
+      window.closeNodeContextMenu();
+      if (typeof window.toggleContradictionLens === 'function') {
+        window.toggleContradictionLens();
+      }
+      if (typeof window.runContradictionScan === 'function') {
+        window.runContradictionScan();
+      }
+    };
+
+    window.ctxActionSpectral = function() {
+      window.closeNodeContextMenu();
+      if (typeof window.toggleSpectralDockDrawer === 'function') {
+        window.toggleSpectralDockDrawer(true);
+      }
+    };
+
+    window.ctxActionLiterature = function() {
+      const node = window.contextMenuTargetNode;
+      if (!node) { window.closeNodeContextMenu(); return; }
+      window.closeNodeContextMenu();
+
+      if (typeof window.searchLiteratureFromNode === 'function') {
+        window.searchLiteratureFromNode(node.id);
+      }
+    };
+
+    window.ctxActionAiOps = function() {
+      window.closeNodeContextMenu();
+      if (typeof window.openAiOpsModal === 'function') {
+        window.openAiOpsModal();
+      }
+    };
+
+    // 4. Provenance & Audit Actions
+    window.ctxActionAuditMerkle = function() {
+      const node = window.contextMenuTargetNode;
+      if (!node) { window.closeNodeContextMenu(); return; }
+      window.closeNodeContextMenu();
+
+      if (Array.isArray(window.cachedMemories)) {
+        let m = window.cachedMemories.find(mem => mem.id === node.id);
+        if (!m) {
+          m = {
+            id: node.id,
+            epistemic_class: node.epistemic_class || node.type || 'FACT',
+            lifecycle_status: 'ACTIVE',
+            scope: node.scope || 'shared',
+            text: node.content || node.title || '',
+            content_hash: node.hash || 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855',
+            agent_id: node.agent_id || node.actor || 'did:integrity:68fed1331613937555a59398223e8e87520a87dd0305aac4fd7ecdc32a14a861',
+            created_at: node.created_at || new Date().toISOString(),
+            triples: []
+          };
+          window.cachedMemories.push(m);
+        }
+      }
+      if (typeof window.openMemoryAuditModal === 'function') {
+        window.openMemoryAuditModal(node.id);
+      }
+    };
+
+    window.ctxActionAuditAis = function() {
+      window.closeNodeContextMenu();
+      if (typeof window.openAISAuditModal === 'function') {
+        window.openAISAuditModal();
+      }
+    };
+
+    window.ctxActionAuditSession = function() {
+      window.closeNodeContextMenu();
+      if (typeof window.openSessionRebuilderModal === 'function') {
+        window.openSessionRebuilderModal();
+      }
+    };
+
+    // 5. Filters & Scope Enclaves Actions
+    window.ctxActionFilterScope = function() {
+      const node = window.contextMenuTargetNode;
+      if (!node) { window.closeNodeContextMenu(); return; }
+      window.closeNodeContextMenu();
+
+      const scope = node.scope || 'shared';
+      if (typeof window.applyScopeFilterAcrossViews === 'function') {
+        window.applyScopeFilterAcrossViews(scope);
+      } else if (typeof window.setScopeFilter === 'function') {
+        window.setScopeFilter(scope);
+      }
+      if (typeof window.showToast === 'function') window.showToast(`Filtered graph to scope: ${scope}`);
+    };
+
+    window.ctxActionFilterClass = function() {
+      const node = window.contextMenuTargetNode;
+      if (!node) { window.closeNodeContextMenu(); return; }
+      window.closeNodeContextMenu();
+
+      const cls = (node.epistemic_class || node.type || '').toLowerCase();
+      if (typeof window.setEpFilter === 'function') {
+        window.setEpFilter(cls);
+      }
+      if (typeof window.showToast === 'function') window.showToast(`Filtered graph to epistemic class: ${cls.toUpperCase()}`);
+    };
+
+    window.ctxActionSpotlight = function() {
+      const node = window.contextMenuTargetNode;
+      if (!node) { window.closeNodeContextMenu(); return; }
+      window.closeNodeContextMenu();
+
+      const query = (node.title || node.id).substring(0, 24);
+      const spotInput = document.getElementById('spotlight-search-input');
+      if (spotInput) {
+        spotInput.value = query;
+        if (typeof window.applySpotlightSearch === 'function') {
+          window.applySpotlightSearch(query);
+        }
+      }
+      if (typeof window.showToast === 'function') window.showToast(`Spotlight focused on: ${query}`);
+    };
+
+    // 6. Staging, Export & Clipboard Actions
+    window.ctxActionStash = function() {
+      if (window.contextMenuTargetNode) {
+        window.addToContextCart(window.contextMenuTargetNode);
+      }
+      window.closeNodeContextMenu();
+    };
+
+    window.ctxActionInjectContext = function() {
+      const node = window.contextMenuTargetNode;
+      if (node && typeof window.addToContextCart === 'function') {
+        window.addToContextCart(node);
+      }
+      window.closeNodeContextMenu();
+      if (typeof window.openContextModal === 'function') {
+        window.openContextModal();
+      }
     };
 
     window.ctxActionCopyCitation = function() {
       if (window.contextMenuTargetNode) {
         const n = window.contextMenuTargetNode;
         const citation = `[Super-Cortex: ${n.title || n.id}](${window.location.origin}/?node=${encodeURIComponent(n.id)})`;
-        navigator.clipboard.writeText(citation).then(() => alert("Citation copied to clipboard!"));
+        navigator.clipboard.writeText(citation).then(() => {
+          if (typeof window.showToast === 'function') window.showToast('Citation copied to clipboard!');
+          else alert("Citation copied to clipboard!");
+        });
       }
       window.closeNodeContextMenu();
     };
@@ -18778,11 +19425,25 @@ ${staticFacts.length > 0 ? `## Static Knowledge Core:\n${staticFacts.map(f => `-
     window.ctxActionCopyHash = function() {
       if (window.contextMenuTargetNode) {
         const hash = window.contextMenuTargetNode.hash || window.contextMenuTargetNode.id;
-        navigator.clipboard.writeText(hash).then(() => alert(`Hash copied: ${hash.substring(0, 16)}...`));
+        navigator.clipboard.writeText(hash).then(() => {
+          if (typeof window.showToast === 'function') window.showToast(`Hash copied: ${hash.substring(0, 16)}...`);
+          else alert(`Hash copied: ${hash.substring(0, 16)}...`);
+        });
       }
       window.closeNodeContextMenu();
     };
 
+    window.ctxActionCopyId = function() {
+      if (window.contextMenuTargetNode) {
+        const id = window.contextMenuTargetNode.id;
+        navigator.clipboard.writeText(id).then(() => {
+          if (typeof window.showToast === 'function') window.showToast(`Node ID copied: ${id}`);
+          else alert(`Node ID copied: ${id}`);
+        });
+      }
+      window.closeNodeContextMenu();
+    };
+    
     // 7. 2D PIP RADAR MINIMAP
     // -------------------------------------------------------------------------
     window.radarExpanded = false;
