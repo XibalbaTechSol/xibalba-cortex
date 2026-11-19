@@ -754,3 +754,25 @@ class SuperCortex:
             return compute_degree_centrality(nodes, edges)
         else:
             return compute_pagerank(nodes, edges)
+
+    def export_sft_dataset(self, scope: str = "all") -> list[dict[str, Any]]:
+        """Export reasoning traces formatted for Supervised Fine-Tuning (SFT)."""
+        from super_cortex.trajectories import export_sft_dataset
+        return export_sft_dataset(self.store, scope=scope)
+
+    def export_dpo_dataset(self, scope: str = "all") -> list[dict[str, Any]]:
+        """Export reasoning traces formatted for Direct Preference Optimization (DPO)."""
+        from super_cortex.trajectories import export_dpo_dataset
+        return export_dpo_dataset(self.store, scope=scope)
+
+    def export_grpo_dataset(self, scope: str = "all") -> list[dict[str, Any]]:
+        """Export reasoning traces formatted for Group Relative Policy Optimization (GRPO / RLVR)."""
+        from super_cortex.trajectories import export_grpo_dataset
+        return export_grpo_dataset(self.store, scope=scope)
+
+    def generate_jupyter_notebook(
+        self, template: str = "spectral", host_url: str = "http://127.0.0.1:4174", scope: str = "all"
+    ) -> dict[str, Any]:
+        """Generate a dynamic, pre-configured Jupyter Notebook (.ipynb v4)."""
+        from super_cortex.trajectories import generate_jupyter_notebook
+        return generate_jupyter_notebook(template=template, host_url=host_url, scope=scope)
