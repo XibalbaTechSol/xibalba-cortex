@@ -1235,6 +1235,47 @@ def create_app(
             logger.error("Git tree ingestion failed: %s", e)
             return JSONResponse({"error": str(e)}, status_code=500)
 
+    # -------------------------------------------------------------------------
+    # Data Science & Quantitative Modeling Interoperability (Phase 1)
+    # -------------------------------------------------------------------------
+    async def api_export_networkx(request: Request) -> Response:
+        from super_cortex.data_science import export_graphml_xml, export_networkx_json
+        scope = request.query_params.get("scope", "all")
+        fmt = request.query_params.get("format", "json").lower()
+        if fmt == "graphml":
+            xml_str = export_graphml_xml(cortex.store, scope=scope)
+            return Response(
+                content=xml_str,
+                media_type="application/xml",
+                headers={"Content-Disposition": 'attachment; filename="super_cortex_graph.graphml"'},
+            )
+        data = export_networkx_json(cortex.store, scope=scope)
+        return JSONResponse(data)
+
+    async def api_export_dataframe(request: Request) -> Response:
+        from super_cortex.data_science import export_tabular_csv, extract_graph_components
+        scope = request.query_params.get("scope", "all")
+        table = request.query_params.get("table", "nodes").lower()
+        fmt = request.query_params.get("format", "json").lower()
+
+        if fmt == "csv":
+            csv_str = export_tabular_csv(cortex.store, table=table, scope=scope)
+            return Response(
+                content=csv_str,
+                media_type="text/csv",
+                headers={"Content-Disposition": f'attachment; filename="super_cortex_{table}.csv"'},
+            )
+        nodes, edges = extract_graph_components(cortex.store, scope=scope)
+        if table == "edges":
+            return JSONResponse({"edges": edges, "count": len(edges)})
+        return JSONResponse({"nodes": nodes, "count": len(nodes)})
+
+    async def api_export_pyg(request: Request) -> JSONResponse:
+        from super_cortex.data_science import export_pyg_specification
+        scope = request.query_params.get("scope", "all")
+        spec = export_pyg_specification(cortex.store, scope=scope)
+        return JSONResponse(spec)
+
     async def api_live_events(request: Request) -> EventSourceResponse:
         queue: asyncio.Queue = asyncio.Queue()
         subscribers.append(queue)
@@ -3101,6 +3142,9 @@ em {{ color: #94a3b8; }}
         Route("/api/graph/agent/chat", api_graph_agent_chat, methods=["POST"]),
         Route("/api/graph/agent/patterns", api_graph_agent_patterns, methods=["GET"]),
         Route("/api/connectors/git-tree", api_connectors_git_tree, methods=["POST"]),
+        Route("/api/export/networkx", api_export_networkx, methods=["GET"]),
+        Route("/api/export/dataframe", api_export_dataframe, methods=["GET"]),
+        Route("/api/export/pyg", api_export_pyg, methods=["GET"]),
         Route("/api/agent0/passport", api_agent0_passport, methods=["GET", "POST"]),
         Route("/api/managed/agent0/passport", api_agent0_passport, methods=["GET", "POST"]),
     ]

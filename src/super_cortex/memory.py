@@ -673,3 +673,49 @@ class SuperCortex:
 
     def revoke_tenant_key(self, key_id: str) -> bool:
         return self.store.revoke_tenant_key(key_id)
+
+    # -------------------------------------------------------------------------
+    # Data Science & Quantitative Modeling Interoperability (Phase 1)
+    # -------------------------------------------------------------------------
+    def to_networkx(self, scope: str = "all") -> Any:
+        """Export knowledge manifold to a NetworkX DiGraph (or node-link dict if NetworkX not installed)."""
+        from super_cortex.data_science import export_networkx_json
+        data = export_networkx_json(self.store, scope=scope)
+        try:
+            import networkx as nx
+            return nx.node_link_graph(data, edges="links")
+        except ImportError:
+            return data
+
+    def to_pandas(self, scope: str = "all") -> tuple[Any, Any]:
+        """Export knowledge manifold to (nodes_df, edges_df) using Pandas (or raw dicts if not installed)."""
+        from super_cortex.data_science import extract_graph_components
+        nodes, edges = extract_graph_components(self.store, scope=scope)
+        try:
+            import pandas as pd
+            return pd.DataFrame(nodes), pd.DataFrame(edges)
+        except ImportError:
+            return nodes, edges
+
+    def to_polars(self, scope: str = "all") -> tuple[Any, Any]:
+        """Export knowledge manifold to (nodes_df, edges_df) using Polars (or raw dicts if not installed)."""
+        from super_cortex.data_science import extract_graph_components
+        nodes, edges = extract_graph_components(self.store, scope=scope)
+        try:
+            import polars as pl
+            return pl.DataFrame(nodes), pl.DataFrame(edges)
+        except ImportError:
+            return nodes, edges
+
+    def to_pyg(self, scope: str = "all") -> Any:
+        """Export knowledge manifold to PyTorch Geometric Data structure (or dict spec if PyG not installed)."""
+        from super_cortex.data_science import export_pyg_specification
+        spec = export_pyg_specification(self.store, scope=scope)
+        try:
+            import torch
+            from torch_geometric.data import Data
+            edge_index = torch.tensor(spec["edge_index"], dtype=torch.long)
+            y = torch.tensor(spec["y"], dtype=torch.long)
+            return Data(edge_index=edge_index, y=y, num_nodes=spec["num_nodes"])
+        except ImportError:
+            return spec

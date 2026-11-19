@@ -804,6 +804,13 @@
         <span class="material-symbols-outlined text-[15px]">terminal</span>
       </button>
 
+      <!-- Data Science Export & Python Bridge Trigger -->
+      <button onclick="window.openDataScienceModal()" id="btn-header-data-science" class="px-2.5 py-1 rounded-lg flex items-center gap-1.5 bg-gradient-to-r from-emerald-500/20 to-cyan-500/20 hover:from-emerald-500/30 hover:to-cyan-500/30 border border-emerald-500/40 hover:border-cyan-400 text-emerald-200 hover:text-white transition-all cursor-pointer font-mono text-[10px] font-bold" title="Data Science & Quantitative Research Interoperability (NetworkX, Polars, PyG, Parquet)">
+        <span class="material-symbols-outlined text-[14px] text-emerald-400">query_stats</span>
+        <span class="hidden 2xl:inline">DATA SCIENCE</span>
+        <span class="px-1 py-0.2 rounded bg-emerald-950/80 text-emerald-300 text-[8px] border border-emerald-500/40">GML</span>
+      </button>
+
       <!-- AI Graph Ops Trigger -->
       <button onclick="window.openAiOpsModal()" id="btn-header-aiops" class="w-7 h-7 rounded-lg flex items-center justify-center bg-purple-500/10 hover:bg-purple-500/25 border border-purple-500/30 hover:border-purple-400 text-[#ddb7ff] transition-all cursor-pointer relative" title="AI Graph Operations & Community Clustering">
         <span class="material-symbols-outlined text-[15px]">psychology</span>
@@ -6536,6 +6543,146 @@
 
           <!-- Real-time Test Output Strip -->
           <div id="provider-test-output" class="hidden p-2 rounded bg-surface-container-high text-[9px] font-mono border"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========================================================================= -->
+  <!-- DATA SCIENCE & QUANTITATIVE RESEARCH INTEROP MODAL                        -->
+  <!-- ========================================================================= -->
+  <div id="data-science-modal" class="hidden fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-3 md:p-6 font-mono select-text" onclick="if(event.target === this) window.closeDataScienceModal()">
+    <div class="bg-[#090d16] border border-emerald-500/50 rounded-xl p-5 shadow-[0_20px_70px_rgba(0,0,0,0.95)] max-w-4xl w-full max-h-[90vh] flex flex-col gap-4 overflow-hidden animate-in fade-in zoom-in-95 duration-150 ring-1 ring-emerald-500/20">
+      <!-- Modal Header Bar -->
+      <div class="flex items-center justify-between pb-3 border-b border-outline-variant/30 shrink-0">
+        <div class="flex items-center gap-3">
+          <span class="w-9 h-9 rounded-lg flex items-center justify-center bg-gradient-to-br from-emerald-500/20 to-cyan-500/30 text-emerald-300 border border-emerald-500/40 shadow-sm">
+            <span class="material-symbols-outlined text-xl">query_stats</span>
+          </span>
+          <div>
+            <div class="flex items-center gap-2 flex-wrap">
+              <span class="text-xs md:text-sm font-bold uppercase tracking-wider text-white">DATA SCIENCE &amp; GRAPH ML STUDIO</span>
+              <span class="text-[9px] px-2 py-0.5 rounded bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 font-bold">PYTHON / NETWORKX / PYG / POLARS</span>
+            </div>
+            <div class="text-[10px] text-outline mt-0.5 font-sans">
+              Export live knowledge manifolds into standard graph data formats, tabular dataframes, and tensor representations.
+            </div>
+          </div>
+        </div>
+        <button onclick="window.closeDataScienceModal()" class="w-8 h-8 rounded bg-surface-container-high hover:bg-surface-container-highest text-neutral-400 hover:text-white flex items-center justify-center text-sm font-bold transition-colors cursor-pointer">✕</button>
+      </div>
+
+      <!-- Scope Selector -->
+      <div class="flex items-center justify-between bg-surface-container-lowest p-2.5 rounded-lg border border-outline-variant/30 text-xs shrink-0">
+        <div class="flex items-center gap-2">
+          <span class="text-[10px] text-outline uppercase font-bold">Manifold Scope:</span>
+          <select id="ds-export-scope" onchange="window.updateDataScienceLinks()" class="bg-surface-container-low border border-outline-variant/40 rounded px-2 py-1 text-xs text-secondary-container font-bold focus:outline-none">
+            <option value="all">Entire Knowledge Galaxy (All Scopes)</option>
+            <option value="shared">Shared Memory Fabric</option>
+            <option value="agent:hermes">Hermes Quant Scope</option>
+            <option value="agent:claude">Claude Code Scope</option>
+            <option value="agent:agy">Antigravity Scope</option>
+          </select>
+        </div>
+        <div class="text-[10px] text-outline font-mono">
+          ENDPOINT BASE: <span class="text-cyan-300 font-bold">/api/export/*</span>
+        </div>
+      </div>
+
+      <!-- Content Grid: Left 1-Click Downloads, Right Jupyter Snippet -->
+      <div class="flex-1 overflow-y-auto grid grid-cols-1 md:grid-cols-2 gap-4 pr-1">
+        <!-- Col 1: 1-Click Formats -->
+        <div class="space-y-3">
+          <div class="text-[11px] font-bold text-white uppercase tracking-wider flex items-center gap-1.5">
+            <span class="material-symbols-outlined text-sm text-emerald-400">download</span>
+            <span>Direct File Downloads</span>
+          </div>
+
+          <!-- NetworkX GraphML -->
+          <a id="ds-link-graphml" href="/api/export/networkx?format=graphml" download class="block p-3 rounded-lg bg-surface-container-low hover:bg-surface-container-high border border-outline-variant/30 hover:border-emerald-400/50 transition-all group cursor-pointer">
+            <div class="flex items-center justify-between">
+              <div class="flex items-center gap-2">
+                <span class="material-symbols-outlined text-emerald-400 text-lg">schema</span>
+                <span class="font-bold text-white text-xs group-hover:text-emerald-300">NetworkX / Gephi GraphML</span>
+              </div>
+              <span class="text-[9px] px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 font-mono font-bold">.GRAPHML</span>
+            </div>
+            <div class="text-[10px] text-outline font-sans mt-1">XML graph format with typed node attributes (degree, category, timestamps) and weighted directed edges.</div>
+          </a>
+
+          <!-- NetworkX Node-Link JSON -->
+          <a id="ds-link-nodelink" href="/api/export/networkx?format=json" target="_blank" class="block p-3 rounded-lg bg-surface-container-low hover:bg-surface-container-high border border-outline-variant/30 hover:border-cyan-400/50 transition-all group cursor-pointer">
+            <div class="flex items-center justify-between">
+              <div class="flex items-center gap-2">
+                <span class="material-symbols-outlined text-cyan-400 text-lg">data_object</span>
+                <span class="font-bold text-white text-xs group-hover:text-cyan-300">NetworkX Node-Link JSON</span>
+              </div>
+              <span class="text-[9px] px-1.5 py-0.5 rounded bg-cyan-500/20 text-cyan-300 font-mono font-bold">.JSON</span>
+            </div>
+            <div class="text-[10px] text-outline font-sans mt-1">Standardized JSON structure consumable via <code>networkx.node_link_graph(data, edges='links')</code>.</div>
+          </a>
+
+          <!-- Nodes CSV -->
+          <a id="ds-link-nodes-csv" href="/api/export/dataframe?table=nodes&format=csv" download class="block p-3 rounded-lg bg-surface-container-low hover:bg-surface-container-high border border-outline-variant/30 hover:border-amber-400/50 transition-all group cursor-pointer">
+            <div class="flex items-center justify-between">
+              <div class="flex items-center gap-2">
+                <span class="material-symbols-outlined text-amber-400 text-lg">table_chart</span>
+                <span class="font-bold text-white text-xs group-hover:text-amber-300">Nodes Table (Pandas / Polars)</span>
+              </div>
+              <span class="text-[9px] px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 font-mono font-bold">.CSV</span>
+            </div>
+            <div class="text-[10px] text-outline font-sans mt-1">Tabular dataset of all nodes with degree, category, scope, and ISO timestamps.</div>
+          </a>
+
+          <!-- Edges CSV -->
+          <a id="ds-link-edges-csv" href="/api/export/dataframe?table=edges&format=csv" download class="block p-3 rounded-lg bg-surface-container-low hover:bg-surface-container-high border border-outline-variant/30 hover:border-amber-400/50 transition-all group cursor-pointer">
+            <div class="flex items-center justify-between">
+              <div class="flex items-center gap-2">
+                <span class="material-symbols-outlined text-amber-400 text-lg">route</span>
+                <span class="font-bold text-white text-xs group-hover:text-amber-300">Edges Table (Relations &amp; CoT)</span>
+              </div>
+              <span class="text-[9px] px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 font-mono font-bold">.CSV</span>
+            </div>
+            <div class="text-[10px] text-outline font-sans mt-1">Tabular adjacency list containing source, target, predicate, edge type, and confidence score.</div>
+          </a>
+
+          <!-- PyTorch Geometric Tensors -->
+          <a id="ds-link-pyg" href="/api/export/pyg" target="_blank" class="block p-3 rounded-lg bg-surface-container-low hover:bg-surface-container-high border border-outline-variant/30 hover:border-purple-400/50 transition-all group cursor-pointer">
+            <div class="flex items-center justify-between">
+              <div class="flex items-center gap-2">
+                <span class="material-symbols-outlined text-purple-400 text-lg">neurology</span>
+                <span class="font-bold text-white text-xs group-hover:text-purple-300">PyTorch Geometric (PyG) Graph Spec</span>
+              </div>
+              <span class="text-[9px] px-1.5 py-0.5 rounded bg-purple-500/20 text-purple-300 font-mono font-bold">TENSORS</span>
+            </div>
+            <div class="text-[10px] text-outline font-sans mt-1">Tensor indices (edge_index, node_types, class labels) for Graph Convolutional Networks (GCN/GAT).</div>
+          </a>
+        </div>
+
+        <!-- Col 2: Jupyter Notebook Snippets -->
+        <div class="space-y-3 flex flex-col">
+          <div class="flex items-center justify-between">
+            <div class="text-[11px] font-bold text-white uppercase tracking-wider flex items-center gap-1.5">
+              <span class="material-symbols-outlined text-sm text-cyan-400">code</span>
+              <span>Python &amp; Jupyter Snippets</span>
+            </div>
+            <button onclick="window.copyDataScienceSnippet()" id="btn-copy-ds-snippet" class="px-2.5 py-1 bg-cyan-600/30 hover:bg-cyan-600 text-cyan-200 border border-cyan-500/50 rounded font-bold text-[9px] uppercase flex items-center gap-1 transition-all cursor-pointer">
+              <span class="material-symbols-outlined text-[11px]">content_copy</span>
+              <span id="copy-ds-snippet-label">Copy Code</span>
+            </button>
+          </div>
+
+          <!-- Snippet Segmented Switcher -->
+          <div class="flex items-center bg-surface-container-low p-0.5 rounded border border-outline-variant/30 gap-1 text-[10px]">
+            <button onclick="window.switchDsSnippetTab('networkx')" id="ds-tab-networkx" class="flex-1 py-1 rounded font-bold transition-all bg-emerald-600 text-white text-center cursor-pointer">NetworkX</button>
+            <button onclick="window.switchDsSnippetTab('polars')" id="ds-tab-polars" class="flex-1 py-1 rounded font-bold transition-all text-neutral-400 hover:text-white text-center cursor-pointer">Polars/Pandas</button>
+            <button onclick="window.switchDsSnippetTab('pyg')" id="ds-tab-pyg" class="flex-1 py-1 rounded font-bold transition-all text-neutral-400 hover:text-white text-center cursor-pointer">PyG (GNN)</button>
+          </div>
+
+          <!-- Code Box -->
+          <div class="flex-1 rounded-lg bg-[#040711] border border-outline-variant/30 p-3 font-mono text-[11px] leading-relaxed text-neutral-200 overflow-x-auto select-all min-h-[220px]">
+            <pre id="ds-snippet-code" class="whitespace-pre"></pre>
+          </div>
         </div>
       </div>
     </div>
@@ -20084,6 +20231,126 @@ ${staticFacts.length > 0 ? `## Static Knowledge Core:\n${staticFacts.map(f => `-
           window.showToast(`Auto-filled preset: "${val.substring(0, 36)}..."`);
         }
       }
+    };
+
+    // -------------------------------------------------------------------------
+    // DATA SCIENCE & QUANTITATIVE MODELING INTEROPERABILITY CONTROLLER
+    // -------------------------------------------------------------------------
+    window.currentDsSnippetTab = 'networkx';
+
+    window.dsSnippets = {
+      networkx: `import httpx
+import networkx as nx
+
+# 1. Fetch live Super-Cortex knowledge manifold
+url = "http://127.0.0.1:4174/api/export/networkx?format=json"
+data = httpx.get(url).json()
+
+# 2. Ingest directly into NetworkX DiGraph
+G = nx.node_link_graph(data, edges="links")
+print(f"Loaded: {G.number_of_nodes()} nodes, {G.number_of_edges()} edges")
+
+# 3. Graph Machine Learning analytics
+pageranks = nx.pagerank(G)
+top_keystones = sorted(pageranks.items(), key=lambda x: x[1], reverse=True)[:5]
+print("Top 5 Keystones:", top_keystones)`,
+
+      polars: `import polars as pl
+
+# Ingest Super-Cortex manifold tables into Polars DataFrames
+nodes_df = pl.read_csv("http://127.0.0.1:4174/api/export/dataframe?table=nodes&format=csv")
+edges_df = pl.read_csv("http://127.0.0.1:4174/api/export/dataframe?table=edges&format=csv")
+
+print("Nodes Breakdown by Epistemic Class:")
+print(nodes_df.group_by("epistemic_class").len())
+
+print("\nTop 5 Most Connected Nodes:")
+print(nodes_df.sort("degree", descending=True).select(["id", "title", "degree"]).head(5))`,
+
+      pyg: `import httpx
+import torch
+from torch_geometric.data import Data
+
+# 1. Fetch PyTorch Geometric graph tensor specification
+spec = httpx.get("http://127.0.0.1:4174/api/export/pyg").json()
+
+# 2. Convert indices and classes to PyTorch tensors
+edge_index = torch.tensor(spec["edge_index"], dtype=torch.long)
+y = torch.tensor(spec["y"], dtype=torch.long)
+
+# 3. Construct PyG Data object ready for GCN/GAT model training
+data = Data(edge_index=edge_index, y=y, num_nodes=spec["num_nodes"])
+print(f"PyG Graph: {data.num_nodes} nodes, {data.num_edges} directed edges")
+print(f"Classes ({len(spec['class_labels'])}):", spec["class_labels"])`
+    };
+
+    window.openDataScienceModal = function() {
+      const modal = document.getElementById('data-science-modal');
+      if (modal) {
+        modal.classList.remove('hidden');
+        window.updateDataScienceLinks();
+        window.switchDsSnippetTab(window.currentDsSnippetTab || 'networkx');
+      }
+    };
+
+    window.closeDataScienceModal = function() {
+      const modal = document.getElementById('data-science-modal');
+      if (modal) modal.classList.add('hidden');
+    };
+
+    window.updateDataScienceLinks = function() {
+      const scope = document.getElementById('ds-export-scope')?.value || 'all';
+      const base = window.location.origin;
+
+      const gl = document.getElementById('ds-link-graphml');
+      if (gl) gl.href = `${base}/api/export/networkx?format=graphml&scope=${scope}`;
+
+      const nl = document.getElementById('ds-link-nodelink');
+      if (nl) nl.href = `${base}/api/export/networkx?format=json&scope=${scope}`;
+
+      const nc = document.getElementById('ds-link-nodes-csv');
+      if (nc) nc.href = `${base}/api/export/dataframe?table=nodes&format=csv&scope=${scope}`;
+
+      const ec = document.getElementById('ds-link-edges-csv');
+      if (ec) ec.href = `${base}/api/export/dataframe?table=edges&format=csv&scope=${scope}`;
+
+      const pyg = document.getElementById('ds-link-pyg');
+      if (pyg) pyg.href = `${base}/api/export/pyg?scope=${scope}`;
+    };
+
+    window.switchDsSnippetTab = function(tab) {
+      window.currentDsSnippetTab = tab;
+      ['networkx', 'polars', 'pyg'].forEach(t => {
+        const btn = document.getElementById(`ds-tab-${t}`);
+        if (btn) {
+          if (t === tab) {
+            btn.className = "flex-1 py-1 rounded font-bold transition-all bg-emerald-600 text-white text-center cursor-pointer";
+          } else {
+            btn.className = "flex-1 py-1 rounded font-bold transition-all text-neutral-400 hover:text-white text-center cursor-pointer";
+          }
+        }
+      });
+
+      const codeEl = document.getElementById('ds-snippet-code');
+      if (codeEl) {
+        codeEl.textContent = window.dsSnippets[tab] || '';
+      }
+    };
+
+    window.copyDataScienceSnippet = function() {
+      const code = window.dsSnippets[window.currentDsSnippetTab || 'networkx'];
+      if (!code) return;
+      navigator.clipboard.writeText(code).then(() => {
+        const lbl = document.getElementById('copy-ds-snippet-label');
+        if (lbl) {
+          const orig = lbl.textContent;
+          lbl.textContent = "COPIED!";
+          setTimeout(() => { lbl.textContent = orig; }, 1800);
+        }
+        if (typeof window.showToast === 'function') {
+          window.showToast("Copied Data Science snippet to clipboard");
+        }
+      });
     };
 
     window.openAiOpsModal = function() {
