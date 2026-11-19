@@ -10,6 +10,7 @@ import os
 import glob
 import json
 import logging
+import re
 from datetime import datetime, timezone
 from typing import Any
 
@@ -41,7 +42,7 @@ def _parse_iso_or_millis(val: Any) -> str:
 def scan_and_import_local_sessions(
     cortex: SuperCortex | None = None,
     limit_per_source: int = 50,
-    max_turns_per_session: int = 60,
+    max_turns_per_session: int = 500,
 ) -> dict[str, Any]:
     """Discover and ingest local agent sessions into Super-Cortex provenance store."""
     cortex = cortex or SuperCortex()

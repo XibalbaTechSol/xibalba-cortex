@@ -7,8 +7,11 @@ decision entropy H(S), and counterfactual influence scores.
 
 from __future__ import annotations
 
+import heapq
+import json
 import math
 import re
+from collections import deque
 from typing import Any
 
 
@@ -272,3 +275,354 @@ def compute_probabilistic_causal_chain(
             "bayesian_confidence": "HIGH" if geometric_mean_prob > 0.82 else ("MODERATE" if geometric_mean_prob > 0.70 else "EXPLORATORY"),
         },
     }
+
+
+def discover_graph_causal_chains(
+    cortex: Any,
+    max_chains: int = 12,
+    min_depth: int = 2,
+) -> dict[str, Any]:
+    """Autonomous Graph Causal Chain Discovery.
+
+    Discovers top causal sequences across agent deliberation turns,
+    tool actions, state mutations, relational dependencies, and contradiction resolutions.
+    """
+    chains: list[dict[str, Any]] = []
+
+    # 1. Discover Session Trajectory Causal Chains
+    sessions = cortex.get_session_distribution() if hasattr(cortex, "get_session_distribution") else []
+    for s_info in sessions[:8]:
+        sid = s_info.get("session_id")
+        if not sid:
+            continue
+        turns = cortex.get_session_turns(sid) if hasattr(cortex, "get_session_turns") else []
+        if not turns:
+            continue
+
+        c_res = compute_probabilistic_causal_chain(sid, turns)
+        if c_res.get("nodes") and len(c_res.get("nodes")) >= min_depth:
+            det = c_res.get("metrics", {}).get("causal_determinism", 0.0)
+            entropy = c_res.get("metrics", {}).get("average_entropy_bits", 0.0)
+
+            first_prompt = turns[0].get("prompt_text", "")[:120] if turns else ""
+            last_resp = turns[-1].get("response_text", "")[:120] if turns else ""
+            narrative = (
+                f"Agent Trajectory in session {sid[:12]}: Initiated by '{first_prompt}...', "
+                f"transitioned through {len(c_res['nodes'])} causal stages with {det:.2f} determinism "
+                f"and {entropy:.2f} bits entropy, concluding with: '{last_resp}...'."
+            )
+
+            chains.append({
+                "chain_id": f"chain_session_{sid[:12]}",
+                "title": f"Agent Reasoning Trajectory ({sid[:12]}...)",
+                "type": "agent_trajectory",
+                "session_id": sid,
+                "node_count": len(c_res["nodes"]),
+                "edge_count": len(c_res["edges"]),
+                "nodes": c_res["nodes"],
+                "edges": c_res["edges"],
+                "metrics": c_res.get("metrics", {}),
+                "narrative": narrative,
+                "created_at": turns[0].get("created_at") if turns else "",
+            })
+
+    # 2. Discover Relational & Contradiction Causal Chains from Provenance Store
+    try:
+        with cortex.store._get_conn() as conn:
+            cur = conn.execute(
+                """
+                SELECT relation_id, subject, predicate, object, confidence, created_at
+                FROM relations
+                WHERE predicate IN ('caused_by', 'leads_to', 'evidence_for', 'contradicts', 'supersedes', 'inferred_from', 'executes', 'resolves', 'depends_on')
+                   OR predicate LIKE '%cause%' OR predicate LIKE '%lead%'
+                ORDER BY rowid DESC LIMIT 100
+                """
+            )
+            rel_rows = [dict(r) for r in cur.fetchall()]
+
+            adj: dict[str, list[dict[str, Any]]] = {}
+            in_degree: dict[str, int] = {}
+            for r in rel_rows:
+                s, p, o = r["subject"], r["predicate"], r["object"]
+                if s not in adj:
+                    adj[s] = []
+                adj[s].append({"target": o, "pred": p, "conf": r.get("confidence", 0.9), "rel_id": r.get("relation_id")})
+                in_degree[o] = in_degree.get(o, 0) + 1
+                if s not in in_degree:
+                    in_degree[s] = 0
+
+            visited_chains: set[tuple[str, ...]] = set()
+            for start_node in adj:
+                if in_degree.get(start_node, 0) == 0:
+                    queue: deque[list[str]] = deque([[start_node]])
+                    while queue and len(chains) < max_chains + 5:
+                        path = queue.popleft()
+                        curr = path[-1]
+                        if len(path) >= min_depth:
+                            path_key = tuple(path)
+                            if path_key not in visited_chains:
+                                visited_chains.add(path_key)
+                                c_nodes = []
+                                c_edges = []
+                                path_p = 1.0
+                                for p_idx, nid in enumerate(path):
+                                    c_nodes.append({
+                                        "id": nid,
+                                        "label": nid.replace("_", " ").title(),
+                                        "type": "relational_entity",
+                                        "epistemic_class": "fact",
+                                        "step_index": p_idx,
+                                        "probability": 0.95,
+                                    })
+                                    if p_idx > 0:
+                                        prev_id = path[p_idx - 1]
+                                        c_edges.append({
+                                            "source": prev_id,
+                                            "target": nid,
+                                            "relation": "leads_to",
+                                            "probability": 0.90,
+                                        })
+                                        path_p *= 0.90
+                                chains.append({
+                                    "chain_id": f"chain_rel_{len(chains)+1}",
+                                    "title": f"Causal Pathway: {path[0]} ➔ {path[-1]}",
+                                    "type": "relational_pathway",
+                                    "node_count": len(c_nodes),
+                                    "edge_count": len(c_edges),
+                                    "nodes": c_nodes,
+                                    "edges": c_edges,
+                                    "metrics": {
+                                        "causal_determinism": round(path_p, 3),
+                                        "average_entropy_bits": 0.15,
+                                        "markov_chain_length": len(c_edges),
+                                    },
+                                    "narrative": f"Knowledge dependency chain starting at {path[0]}, flowing through {' ➔ '.join(path[1:-1])} to {path[-1]}.",
+                                })
+                        if len(path) < 6:
+                            for neighbor in adj.get(curr, []):
+                                if neighbor["target"] not in path:
+                                    queue.append(path + [neighbor["target"]])
+    except Exception:
+        pass
+
+    return {
+        "status": "ok",
+        "total_chains": len(chains),
+        "chains": chains[:max_chains],
+    }
+
+
+def trace_causal_chain(
+    cortex: Any,
+    mode: str = "root_cause",
+    source_id: str | None = None,
+    target_id: str | None = None,
+    max_depth: int = 10,
+) -> dict[str, Any]:
+    """Trace causal connections in the graph: root-cause attribution, downstream impact, or directed pathway."""
+    if mode == "root_cause":
+        if not target_id:
+            return {"status": "error", "message": "target_id is required for root_cause attribution"}
+
+        # Backward search from target_id along causal links and session lineage
+        visited = set()
+        chain_nodes = []
+        chain_edges = []
+        current = target_id
+        depth = 0
+
+        # Collect backward relations from store
+        try:
+            with cortex.store._get_conn() as conn:
+                while current and depth < max_depth and current not in visited:
+                    visited.add(current)
+                    chain_nodes.append({
+                        "id": current,
+                        "label": current.replace("_", " ").title(),
+                        "step_index": depth,
+                        "attribution_weight": round(math.exp(-0.25 * depth), 3),
+                    })
+
+                    # Look for upstream causes
+                    cur = conn.execute(
+                        """
+                        SELECT subject, predicate, confidence FROM relations
+                        WHERE object = ? AND (predicate IN ('caused_by', 'leads_to', 'evidence_for', 'inferred_from', 'executes', 'resolves') OR predicate LIKE '%cause%')
+                        LIMIT 1
+                        """,
+                        (current,),
+                    )
+                    row = cur.fetchone()
+                    if row:
+                        parent = row[0]
+                        chain_edges.append({
+                            "source": parent,
+                            "target": current,
+                            "relation": row[1],
+                            "probability": row[2] or 0.90,
+                        })
+                        current = parent
+                        depth += 1
+                    else:
+                        break
+        except Exception:
+            pass
+
+        chain_nodes.reverse()
+        chain_edges.reverse()
+        for idx, n in enumerate(chain_nodes):
+            n["step_index"] = idx
+
+        root_node = chain_nodes[0]["id"] if chain_nodes else target_id
+        narrative = f"Root cause attribution for '{target_id}': Traced {len(chain_nodes)} steps upstream to originating premise '{root_node}'."
+
+        return {
+            "status": "ok",
+            "mode": "root_cause",
+            "target_id": target_id,
+            "root_cause_id": root_node,
+            "node_count": len(chain_nodes),
+            "edge_count": len(chain_edges),
+            "nodes": chain_nodes,
+            "edges": chain_edges,
+            "narrative": narrative,
+        }
+
+    elif mode == "impact":
+        if not source_id:
+            return {"status": "error", "message": "source_id is required for impact cascade"}
+
+        visited = set()
+        chain_nodes = []
+        chain_edges = []
+        current = source_id
+        depth = 0
+
+        try:
+            with cortex.store._get_conn() as conn:
+                while current and depth < max_depth and current not in visited:
+                    visited.add(current)
+                    chain_nodes.append({
+                        "id": current,
+                        "label": current.replace("_", " ").title(),
+                        "step_index": depth,
+                        "impact_weight": round(math.exp(-0.20 * depth), 3),
+                    })
+
+                    cur = conn.execute(
+                        """
+                        SELECT object, predicate, confidence FROM relations
+                        WHERE subject = ? AND (predicate IN ('leads_to', 'causes', 'inferred_from', 'resolves', 'executes') OR predicate LIKE '%lead%')
+                        LIMIT 1
+                        """,
+                        (current,),
+                    )
+                    row = cur.fetchone()
+                    if row:
+                        child = row[0]
+                        chain_edges.append({
+                            "source": current,
+                            "target": child,
+                            "relation": row[1],
+                            "probability": row[2] or 0.90,
+                        })
+                        current = child
+                        depth += 1
+                    else:
+                        break
+        except Exception:
+            pass
+
+        final_node = chain_nodes[-1]["id"] if chain_nodes else source_id
+        narrative = f"Forward impact cascade for '{source_id}': Propagates downstream across {len(chain_nodes)} nodes to terminal effect '{final_node}'."
+
+        return {
+            "status": "ok",
+            "mode": "impact",
+            "source_id": source_id,
+            "terminal_effect_id": final_node,
+            "node_count": len(chain_nodes),
+            "edge_count": len(chain_edges),
+            "nodes": chain_nodes,
+            "edges": chain_edges,
+            "narrative": narrative,
+        }
+
+    elif mode == "pathway":
+        if not source_id or not target_id:
+            return {"status": "error", "message": "source_id and target_id are required for pathway"}
+
+        # Directed BFS / Dijkstra
+        try:
+            with cortex.store._get_conn() as conn:
+                cur = conn.execute("SELECT subject, object, predicate, confidence FROM relations LIMIT 500")
+                rel_rows = cur.fetchall()
+
+            adj: dict[str, list[tuple[str, str, float]]] = {}
+            for r in rel_rows:
+                s, o, p, conf = r[0], r[1], r[2], r[3] or 0.9
+                if s not in adj:
+                    adj[s] = []
+                adj[s].append((o, p, conf))
+
+            # BFS for shortest directed path
+            queue: deque[list[tuple[str, str, float]]] = deque([[(source_id, "start", 1.0)]])
+            visited = {source_id}
+            found_path = None
+
+            while queue:
+                path = queue.popleft()
+                curr_node = path[-1][0]
+                if curr_node == target_id:
+                    found_path = path
+                    break
+                if len(path) <= max_depth:
+                    for nxt, pred, conf in adj.get(curr_node, []):
+                        if nxt not in visited:
+                            visited.add(nxt)
+                            queue.append(path + [(nxt, pred, conf)])
+
+            if found_path:
+                p_nodes = []
+                p_edges = []
+                prob = 1.0
+                for idx, (nid, pred, conf) in enumerate(found_path):
+                    p_nodes.append({
+                        "id": nid,
+                        "label": nid.replace("_", " ").title(),
+                        "step_index": idx,
+                    })
+                    if idx > 0:
+                        prev_id = found_path[idx - 1][0]
+                        p_edges.append({
+                            "source": prev_id,
+                            "target": nid,
+                            "relation": pred,
+                            "probability": conf,
+                        })
+                        prob *= conf
+
+                return {
+                    "status": "ok",
+                    "mode": "pathway",
+                    "source_id": source_id,
+                    "target_id": target_id,
+                    "node_count": len(p_nodes),
+                    "edge_count": len(p_edges),
+                    "nodes": p_nodes,
+                    "edges": p_edges,
+                    "path_probability": round(prob, 3),
+                    "narrative": f"Direct causal pathway found connecting '{source_id}' to '{target_id}' in {len(p_edges)} steps (p={prob:.2f}).",
+                }
+        except Exception:
+            pass
+
+        return {
+            "status": "not_found",
+            "mode": "pathway",
+            "source_id": source_id,
+            "target_id": target_id,
+            "message": "No directed causal path found between specified nodes within max depth.",
+        }
+
+    return {"status": "error", "message": f"Unsupported mode '{mode}'"}
