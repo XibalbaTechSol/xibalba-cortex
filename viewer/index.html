@@ -5468,21 +5468,47 @@
       return getCachedGeometry(shapeName, size);
     }
 
-    window.nodeHasAttachment = function(data) {
-      if (!data) return false;
-      if (data.has_attachment === true) return true;
-      if (data.file_url || data.pdf_url) return true;
-      if (data.metadata && (data.metadata.file_url || data.metadata.pdf_url || data.metadata.has_pdf || data.metadata.file_type)) return true;
-      const fn = (data.filename || data.metadata?.filename || data.metadata?.title || data.title || '').toLowerCase();
-      const mime = (data.mime_type || data.metadata?.mime_type || data.metadata?.mimeType || '').toLowerCase();
-      const cat = (data.category || '').toLowerCase();
-      const src = (data.source_origin || '').toLowerCase();
+    window.getNodeAttachmentInfo = function(node) {
+      if (!node) return null;
+      const fn = (node.filename || node.metadata?.filename || node.metadata?.title || node.title || '');
+      const fnLower = fn.toLowerCase();
+      const mime = (node.mime_type || node.metadata?.mime_type || node.metadata?.mimeType || '').toLowerCase();
+      const cat = (node.category || '').toLowerCase();
+      const src = (node.source_origin || '').toLowerCase();
 
-      if (['pdf', 'docx', 'markdown', 'image', 'document'].includes(cat) && fn.includes('.')) return true;
-      if (src.startsWith('gdrive://') || src.startsWith('file://')) return true;
-      if (mime.startsWith('image/') || mime === 'application/pdf' || mime.includes('wordprocessingml') || mime === 'text/markdown') return true;
-      if (/\.(pdf|docx|md|markdown|png|jpg|jpeg|gif|webp|svg|bmp|ico|html|txt|py|js|ts|rs|go|sh|sql|json|csv|yaml|yml)$/i.test(fn)) return true;
-      return false;
+      const isPdf = fnLower.endsWith('.pdf') || mime === 'application/pdf' || cat === 'pdf' || Boolean(node.pdf_url || node.metadata?.pdf_url || node.metadata?.has_pdf);
+      const isDocx = fnLower.endsWith('.docx') || mime.includes('wordprocessingml') || cat === 'docx';
+      const isMd = fnLower.endsWith('.md') || fnLower.endsWith('.markdown') || mime === 'text/markdown' || cat === 'markdown';
+      const isImg = (/\.(png|jpg|jpeg|gif|webp|svg|bmp|ico)$/i).test(fnLower) || mime.startsWith('image/') || cat === 'image';
+      const isHtml = fnLower.endsWith('.html') || fnLower.endsWith('.htm') || mime === 'text/html';
+      const isText = (/\.(txt|py|js|ts|rs|go|sh|sql|json|csv|tsv|yaml|yml|xml|log|env)$/i).test(fnLower) || mime.startsWith('text/') || cat === 'document';
+
+      const hasAtt = isPdf || isDocx || isMd || isImg || isHtml || isText || Boolean(node.file_url || node.metadata?.file_url || (node.has_attachment === true));
+      if (!hasAtt) return null;
+
+      let kind = 'doc';
+      if (isPdf) kind = 'pdf';
+      else if (isDocx) kind = 'docx';
+      else if (isMd) kind = 'markdown';
+      else if (isImg) kind = 'image';
+      else if (isHtml) kind = 'html';
+      else if (isText) kind = 'text';
+
+      const fileUrl = node.file_url || node.pdf_url || (node.metadata && (node.metadata.file_url || node.metadata.pdf_url)) || (`/api/connectors/file/preview?file_id=${encodeURIComponent(node.id)}&path=${encodeURIComponent(node.metadata?.file_path || node.title || '')}`);
+      const fileTitle = fn || node.title || 'Document';
+
+      return {
+        hasAttachment: true,
+        kind: kind,
+        url: fileUrl,
+        title: fileTitle,
+        filename: fn,
+        node: node,
+      };
+    };
+
+    window.nodeHasAttachment = function(data) {
+      return Boolean(window.getNodeAttachmentInfo(data));
     };
 
     let _paperclipSpriteMaterial = null;
@@ -6663,7 +6689,7 @@
       `;
     }
 
-    function select3DNode(node) {
+    function select3DNode(node, openViewerIfAttachment = true) {
       if (selectedEdgeMesh) {
         graphGroup.remove(selectedEdgeMesh);
         selectedEdgeMesh = null;
@@ -6680,6 +6706,21 @@
       window.activeSelectedNode = node;
       activeSelectedEdge = null;
       window.activeSelectedEdge = null;
+
+      // Default action: if node has an attachment, open immediately in universal viewer
+      if (openViewerIfAttachment && typeof window.getNodeAttachmentInfo === 'function' && typeof window.openGenericViewer === 'function') {
+        const attInfo = window.getNodeAttachmentInfo(node);
+        if (attInfo) {
+          window.openGenericViewer({
+            url: attInfo.url,
+            title: attInfo.title,
+            fileType: attInfo.kind,
+            filename: attInfo.filename,
+            fileId: node.id,
+            metadata: node.metadata,
+          });
+        }
+      }
 
       const isEntity = node.type === 'entity';
       const isThought = node.type === 'thought' || node.category === 'thought';
@@ -14447,6 +14488,21 @@ ${staticFacts.length > 0 ? `## Static Knowledge Core:\n${staticFacts.map(f => `-
       updateNodeProofDisplay(node);
       updateNodeMcpBundle(node);
       if (typeof window.populateNeighborhoodExplorer === 'function') window.populateNeighborhoodExplorer(node);
+
+      // Default action: if spectral node has an attachment, open directly in viewer
+      if (typeof window.getNodeAttachmentInfo === 'function' && typeof window.openGenericViewer === 'function') {
+        const attInfo = window.getNodeAttachmentInfo(node);
+        if (attInfo) {
+          window.openGenericViewer({
+            url: attInfo.url,
+            title: attInfo.title,
+            fileType: attInfo.kind,
+            filename: attInfo.filename,
+            fileId: node.id,
+            metadata: node.metadata,
+          });
+        }
+      }
     }
 
     // =========================================================================
