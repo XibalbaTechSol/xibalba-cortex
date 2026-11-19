@@ -11,7 +11,7 @@ from typing import Any, AsyncGenerator
 from starlette.applications import Starlette
 from starlette.middleware.cors import CORSMiddleware
 from starlette.requests import Request
-from starlette.responses import JSONResponse, RedirectResponse
+from starlette.responses import JSONResponse, RedirectResponse, Response
 from starlette.routing import Mount, Route
 from starlette.staticfiles import StaticFiles
 from sse_starlette.sse import EventSourceResponse
@@ -420,6 +420,10 @@ def create_app(
                 "scope": mem_scope,
                 "agent_id": mem_agent_id,
                 "created_at": row["created_at"],
+                "metadata": meta,
+                "mime_type": meta.get("mime_type") or meta.get("mimeType"),
+                "pdf_url": meta.get("pdf_url"),
+                "source_origin": meta.get("source_origin") or row["source_id"],
             })
 
             # Link memory to its parent hub
@@ -1086,7 +1090,144 @@ def create_app(
         return JSONResponse(res)
 
     async def api_connectors_google_files(request: Request) -> JSONResponse:
-        return JSONResponse(connectors.list_google_workspace_items())
+        q = request.query_params.get("q", "")
+        folder_id = request.query_params.get("folder_id")
+        mime_type = request.query_params.get("mime_type")
+        page_size = int(request.query_params.get("page_size", 50))
+        token = request.query_params.get("access_token")
+        return JSONResponse(
+            connectors.search_google_drive(
+                query=q,
+                folder_id=folder_id,
+                mime_type=mime_type,
+                page_size=page_size,
+                access_token=token,
+            )
+        )
+
+    async def api_connectors_google_batch(request: Request) -> JSONResponse:
+        try:
+            body = await request.json()
+            items = body.get("items") or []
+            scope = str(body.get("scope") or "shared")
+            token = body.get("access_token")
+            res = await connectors.ingest_google_workspace_batch(items=items, scope=scope, access_token=token)
+            await broadcast_event("connector_synced", res)
+            return JSONResponse(res)
+        except Exception as exc:
+            return JSONResponse({"error": str(exc)}, status_code=400)
+
+    async def api_connectors_google_calendar(request: Request) -> JSONResponse:
+        q = request.query_params.get("q", "")
+        max_res = int(request.query_params.get("max_results", 25))
+        token = request.query_params.get("access_token")
+        return JSONResponse(connectors.search_google_calendar(query=q, max_results=max_res, access_token=token))
+
+    async def api_connectors_google_calendar_batch(request: Request) -> JSONResponse:
+        try:
+            body = await request.json()
+            events = body.get("events") or []
+            scope = str(body.get("scope") or "shared")
+            res = await connectors.ingest_google_calendar_batch(events=events, scope=scope)
+            await broadcast_event("connector_synced", res)
+            return JSONResponse(res)
+        except Exception as exc:
+            return JSONResponse({"error": str(exc)}, status_code=400)
+
+    async def api_connectors_google_gmail(request: Request) -> JSONResponse:
+        q = request.query_params.get("q", "is:important")
+        max_res = int(request.query_params.get("max_results", 15))
+        token = request.query_params.get("access_token")
+        return JSONResponse(connectors.search_gmail(query=q, max_results=max_res, access_token=token))
+
+    async def api_connectors_google_gmail_batch(request: Request) -> JSONResponse:
+        try:
+            body = await request.json()
+            messages = body.get("messages") or []
+            scope = str(body.get("scope") or "shared")
+            res = await connectors.ingest_gmail_batch(messages=messages, scope=scope)
+            await broadcast_event("connector_synced", res)
+            return JSONResponse(res)
+        except Exception as exc:
+            return JSONResponse({"error": str(exc)}, status_code=400)
+
+    async def api_connectors_google_oauth_exchange(request: Request) -> JSONResponse:
+        try:
+            body = await request.json()
+            code = str(body.get("code") or "").strip()
+            redirect_uri = str(body.get("redirect_uri") or f"{m_cfg.public_url.rstrip('/')}/api/connectors/google-workspace/oauth-callback").strip()
+            res = connectors.exchange_google_oauth_code(code=code, redirect_uri=redirect_uri)
+            return JSONResponse(res)
+        except Exception as exc:
+            return JSONResponse({"error": str(exc)}, status_code=400)
+
+    async def api_connectors_pdf_preview(request: Request) -> Response:
+        import io
+        import re
+        import httpx
+        file_id = request.query_params.get("file_id") or ""
+        file_path = request.query_params.get("path") or ""
+        url = request.query_params.get("url") or ""
+
+        pdf_bytes = b""
+        filename = "document.pdf"
+
+        from super_cortex.connectors import _get_pdf_cache_dir
+        cache_dir = _get_pdf_cache_dir()
+        if file_id:
+            safe_id = re.sub(r"[^a-zA-Z0-9_-]", "_", file_id)
+            target = cache_dir / f"{safe_id}.pdf"
+            if target.exists():
+                pdf_bytes = target.read_bytes()
+                filename = f"{safe_id}.pdf"
+            else:
+                token, _ = connectors._discover_google_access_token()
+                if token:
+                    try:
+                        with httpx.Client(timeout=15.0) as client:
+                            r = client.get(f"https://www.googleapis.com/drive/v3/files/{file_id}?alt=media", headers={"Authorization": f"Bearer {token}"})
+                            if r.status_code == 200:
+                                pdf_bytes = r.content
+                                target.write_bytes(pdf_bytes)
+                                filename = f"{safe_id}.pdf"
+                    except Exception:
+                        pass
+        elif file_path:
+            p = Path(file_path).resolve()
+            if p.is_file() and p.suffix.lower() == ".pdf" and Path.home() in p.parents:
+                pdf_bytes = p.read_bytes()
+                filename = p.name
+        elif url and url.startswith("https://"):
+            try:
+                with httpx.Client(timeout=15.0, follow_redirects=True) as client:
+                    r = client.get(url)
+                    if r.status_code == 200 and ("application/pdf" in r.headers.get("content-type", "") or len(r.content) > 1000):
+                        pdf_bytes = r.content
+                        filename = url.split("/")[-1] or "document.pdf"
+            except Exception:
+                pass
+
+        if not pdf_bytes:
+            try:
+                from pypdf import PdfWriter
+                writer = PdfWriter()
+                writer.add_blank_page(width=612, height=792)
+                buf = io.BytesIO()
+                writer.write(buf)
+                pdf_bytes = buf.getvalue()
+                filename = "preview_placeholder.pdf"
+            except Exception:
+                return JSONResponse({"error": "PDF not found or could not be loaded"}, status_code=404)
+
+        return Response(
+            content=pdf_bytes,
+            media_type="application/pdf",
+            headers={
+                "Content-Disposition": f"inline; filename={filename}",
+                "Content-Type": "application/pdf",
+                "Cache-Control": "public, max-age=3600",
+            },
+        )
 
     async def api_connectors_google_oauth_url(request: Request) -> JSONResponse:
         redirect_uri = request.query_params.get("redirect_uri") or f"{m_cfg.public_url.rstrip('/')}/api/connectors/google-workspace/oauth-callback"
@@ -1109,6 +1250,39 @@ def create_app(
     async def api_connectors_github_repos(request: Request) -> JSONResponse:
         owner = request.query_params.get("owner", "XibalbaTechSol").strip() or "XibalbaTechSol"
         return JSONResponse(connectors.list_github_repos(owner=owner, limit=15))
+
+    async def api_connectors_github_search(request: Request) -> JSONResponse:
+        q = request.query_params.get("q") or request.query_params.get("query") or ""
+        sort = request.query_params.get("sort", "stars")
+        limit = int(request.query_params.get("limit", 15))
+        items = connectors.search_github_repos(query=q, sort=sort, limit=limit)
+        return JSONResponse({"items": items, "count": len(items), "query": q})
+
+    async def api_connectors_github_repo(request: Request) -> JSONResponse:
+        try:
+            body = await request.json()
+            repo = str(body.get("repo") or "").strip()
+            scope = str(body.get("scope") or "shared")
+            token = body.get("token") or body.get("github_token")
+            res = await connectors.ingest_github_complete_repo(repo=repo, scope=scope, github_token=token)
+            await broadcast_event("connector_synced", res)
+            return JSONResponse(res)
+        except Exception as exc:
+            return JSONResponse({"error": str(exc)}, status_code=400)
+
+    async def api_connectors_github_oauth_url(request: Request) -> JSONResponse:
+        redirect_uri = request.query_params.get("redirect_uri") or f"{m_cfg.public_url.rstrip('/')}/api/managed/oauth/github/callback"
+        return JSONResponse(connectors.get_github_oauth_url(redirect_uri))
+
+    async def api_connectors_github_oauth_exchange(request: Request) -> JSONResponse:
+        try:
+            body = await request.json()
+            code = str(body.get("code") or "").strip()
+            redirect_uri = str(body.get("redirect_uri") or f"{m_cfg.public_url.rstrip('/')}/api/managed/oauth/github/callback").strip()
+            res = connectors.exchange_github_oauth_code(code=code, redirect_uri=redirect_uri)
+            return JSONResponse(res)
+        except Exception as exc:
+            return JSONResponse({"error": str(exc)}, status_code=400)
 
     async def api_connectors_github(request: Request) -> JSONResponse:
         try:
@@ -1222,6 +1396,56 @@ def create_app(
                 bundle=bundle,
                 scope=str(body.get("scope") or "shared"),
             )
+            await broadcast_event("connector_synced", res)
+            return JSONResponse(res)
+        except Exception as exc:
+            return JSONResponse({"error": str(exc)}, status_code=400)
+
+    async def api_connectors_literature_search(request: Request) -> JSONResponse:
+        q = request.query_params.get("query") or request.query_params.get("q") or ""
+        src = request.query_params.get("source") or "arxiv"
+        max_res = int(request.query_params.get("max_results", 6))
+        results = await connectors.search_literature(query=q, source=src, max_results=max_res)
+        return JSONResponse({"results": results, "count": len(results), "query": q, "source": src})
+
+    async def api_connectors_literature_link(request: Request) -> JSONResponse:
+        try:
+            body = await request.json()
+            paper = body.get("paper") or body
+            link_to_node_id = body.get("link_to_node_id") or body.get("node_id")
+            scope = str(body.get("scope") or "shared")
+            res = await connectors.ingest_literature_and_link(paper=paper, link_to_node_id=link_to_node_id, scope=scope)
+            await broadcast_event("connector_synced", res)
+            return JSONResponse(res)
+        except Exception as exc:
+            return JSONResponse({"error": str(exc)}, status_code=400)
+
+    async def api_connectors_public_datasets_catalog(request: Request) -> JSONResponse:
+        return JSONResponse({"catalog": connectors.get_public_datasets_catalog()})
+
+    async def api_connectors_public_datasets_preview(request: Request) -> JSONResponse:
+        ds_id = request.query_params.get("dataset_id") or "demo_ai_control"
+        return JSONResponse(connectors.get_public_dataset_preview(ds_id))
+
+    async def api_connectors_public_datasets_ingest(request: Request) -> JSONResponse:
+        try:
+            body = await request.json()
+            ds_id = str(body.get("dataset_id") or "demo_ai_control")
+            scope = str(body.get("scope") or "shared")
+            res = await connectors.ingest_public_dataset(dataset_id=ds_id, scope=scope)
+            await broadcast_event("connector_synced", res)
+            return JSONResponse(res)
+        except Exception as exc:
+            return JSONResponse({"error": str(exc)}, status_code=400)
+
+    async def api_connectors_public_datasets_sparql(request: Request) -> JSONResponse:
+        try:
+            body = await request.json()
+            q = str(body.get("query") or "")
+            endpoint = str(body.get("endpoint") or "https://query.wikidata.org/sparql")
+            name = str(body.get("name") or "Wikidata Query")
+            scope = str(body.get("scope") or "shared")
+            res = await connectors.query_and_ingest_sparql(endpoint_url=endpoint, sparql_query=q, dataset_name=name, scope=scope)
             await broadcast_event("connector_synced", res)
             return JSONResponse(res)
         except Exception as exc:
@@ -2388,9 +2612,23 @@ def create_app(
         Route("/api/connectors/history", api_connectors_history, methods=["GET"]),
         Route("/api/connectors/config", api_connectors_config, methods=["POST"]),
         Route("/api/connectors/google-workspace/files", api_connectors_google_files, methods=["GET"]),
+        Route("/api/connectors/google-workspace/search", api_connectors_google_files, methods=["GET"]),
+        Route("/api/connectors/google-workspace/batch", api_connectors_google_batch, methods=["POST"]),
+        Route("/api/connectors/google-workspace/calendar", api_connectors_google_calendar, methods=["GET"]),
+        Route("/api/connectors/google-workspace/calendar-batch", api_connectors_google_calendar_batch, methods=["POST"]),
+        Route("/api/connectors/google-workspace/gmail", api_connectors_google_gmail, methods=["GET"]),
+        Route("/api/connectors/google-workspace/gmail-batch", api_connectors_google_gmail_batch, methods=["POST"]),
+        Route("/api/connectors/google-workspace/oauth-exchange", api_connectors_google_oauth_exchange, methods=["POST"]),
         Route("/api/connectors/google-workspace/oauth-url", api_connectors_google_oauth_url, methods=["GET"]),
+        Route("/api/connectors/google-workspace/oauth-callback", api_oauth_callback, methods=["GET"]),
+        Route("/auth", api_oauth_callback, methods=["GET"]),
         Route("/api/connectors/google-workspace", api_connectors_google_workspace, methods=["POST"]),
+        Route("/api/connectors/pdf/preview", api_connectors_pdf_preview, methods=["GET"]),
         Route("/api/connectors/github/repos", api_connectors_github_repos, methods=["GET"]),
+        Route("/api/connectors/github/search", api_connectors_github_search, methods=["GET"]),
+        Route("/api/connectors/github/repo", api_connectors_github_repo, methods=["POST"]),
+        Route("/api/connectors/github/oauth-url", api_connectors_github_oauth_url, methods=["GET"]),
+        Route("/api/connectors/github/oauth-exchange", api_connectors_github_oauth_exchange, methods=["POST"]),
         Route("/api/connectors/github", api_connectors_github, methods=["POST"]),
         Route("/api/connectors/url", api_connectors_url, methods=["POST"]),
         Route("/api/connectors/file", api_connectors_file, methods=["POST"]),
@@ -2399,8 +2637,14 @@ def create_app(
         Route("/api/managed/connectors/csv", api_connectors_csv, methods=["POST"]),
         Route("/api/connectors/triples", api_connectors_triples, methods=["POST"]),
         Route("/api/managed/connectors/triples", api_connectors_triples, methods=["POST"]),
+        Route("/api/connectors/literature/search", api_connectors_literature_search, methods=["GET"]),
+        Route("/api/connectors/literature/link", api_connectors_literature_link, methods=["POST"]),
         Route("/api/connectors/literature", api_connectors_literature, methods=["POST"]),
         Route("/api/managed/connectors/biomedical", api_connectors_literature, methods=["POST"]),
+        Route("/api/connectors/public-datasets/catalog", api_connectors_public_datasets_catalog, methods=["GET"]),
+        Route("/api/connectors/public-datasets/preview", api_connectors_public_datasets_preview, methods=["GET"]),
+        Route("/api/connectors/public-datasets/ingest", api_connectors_public_datasets_ingest, methods=["POST"]),
+        Route("/api/connectors/public-datasets/sparql", api_connectors_public_datasets_sparql, methods=["POST"]),
         Route("/api/connectors/fhir", api_connectors_fhir, methods=["POST"]),
         Route("/api/managed/connectors/fhir", api_connectors_fhir, methods=["POST"]),
         Route("/api/memories", api_memories, methods=["GET"]),
