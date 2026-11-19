@@ -2517,8 +2517,14 @@
               <span class="text-cyan-300 font-bold uppercase">Google OAuth 2.0 Credential</span>
               <button onclick="window.openGoogleOAuthConsent()" class="px-2 py-0.5 rounded bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 border border-cyan-500/40 font-bold cursor-pointer">Launch Google Sign-In ↗</button>
             </div>
-            <div class="text-[9px] text-slate-400 font-sans leading-relaxed">
-              Whitelisted callback: <code class="text-cyan-300 font-mono">/api/managed/oauth/google/callback</code>. If you encounter <span class="text-rose-400 font-mono">Error 400: redirect_uri_mismatch</span>, ensure your browser origin matches the registered host or paste an access token below.
+            <div class="text-[9px] text-slate-400 font-sans leading-relaxed space-y-1">
+              <div>Whitelisted callback: <code class="text-cyan-300 font-mono">/api/connectors/google-workspace/oauth-callback</code> (or <code class="text-cyan-300 font-mono">/api/managed/oauth/google/callback</code>).</div>
+              <div class="text-amber-300/90">
+                <span class="font-bold">OAuth 403 access_denied:</span> In Google Cloud Console, if your OAuth client is in <em>Testing</em> mode, add your email (<span class="font-mono text-cyan-300">jacob.v.universe@gmail.com</span>) under <span class="font-mono text-white">APIs &amp; Services &gt; OAuth consent screen &gt; Test users</span>.
+              </div>
+              <div class="text-slate-400">
+                Alternatively, paste a Google Access Token directly below, or use the automatic local workspace mirror.
+              </div>
             </div>
             <div class="flex items-center gap-2">
               <input id="gworkspace-access-token" type="password" placeholder="Optional: Paste Google Access Token (ya29....)" class="flex-1 bg-surface-container-low border border-slate-800 rounded px-2 py-1 text-white text-[10px] font-mono focus:outline-none focus:border-cyan-400" />
@@ -4437,36 +4443,78 @@
     </div>
   </div>
 
-  <!-- MODAL: INTERACTIVE PDF VIEWER / DOCUMENT PREVIEW -->
-  <div id="pdf-preview-modal" class="hidden fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4 font-mono select-text" onclick="if(event.target === this) window.closePdfModal()">
+  <!-- MODAL: UNIVERSAL GENERIC FILE & DOCUMENT VIEWER -->
+  <div id="generic-file-viewer-modal" class="hidden fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4 font-mono select-text" onclick="if(event.target === this) window.closeGenericViewer()">
     <div class="w-full max-w-5xl h-[88vh] bg-surface-container-lowest border border-cyan-500/40 rounded-xl flex flex-col shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-150">
-      <div class="flex items-center justify-between px-4 py-3 border-b border-cyan-500/30 bg-slate-950">
+      <!-- Header -->
+      <div class="flex items-center justify-between px-4 py-2.5 border-b border-cyan-500/30 bg-slate-950 flex-wrap gap-2">
         <div class="flex items-center gap-2.5 min-w-0">
-          <span class="material-symbols-outlined text-cyan-400 text-xl">picture_as_pdf</span>
+          <span id="viewer-modal-icon" class="material-symbols-outlined text-cyan-400 text-xl shrink-0">description</span>
           <div class="min-w-0">
-            <span id="pdf-modal-title" class="text-xs font-bold text-white uppercase tracking-wider block truncate">PDF Document Preview</span>
-            <span id="pdf-modal-meta" class="text-[9px] text-cyan-300 font-mono">Native PDF Manifold Engine</span>
+            <span id="viewer-modal-title" class="text-xs font-bold text-white uppercase tracking-wider block truncate">Document Preview</span>
+            <span id="viewer-modal-meta" class="text-[9px] text-cyan-300 font-mono">Universal Document Engine</span>
           </div>
         </div>
-        <div class="flex items-center gap-2">
-          <a id="pdf-modal-download-btn" href="#" target="_blank" download class="px-2.5 py-1 rounded bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 border border-cyan-500/40 text-[10px] font-bold uppercase flex items-center gap-1 cursor-pointer">
+        <div class="flex items-center gap-2 flex-wrap">
+          <!-- View mode toggle: Formatted vs Raw -->
+          <div id="viewer-mode-toggle" class="hidden items-center bg-slate-900 border border-outline-variant/40 rounded p-0.5 text-[9px] font-bold">
+            <button id="viewer-btn-mode-formatted" type="button" onclick="window.setViewerMode('formatted')" class="px-2 py-0.5 rounded bg-cyan-500 text-black font-extrabold cursor-pointer">Formatted</button>
+            <button id="viewer-btn-mode-raw" type="button" onclick="window.setViewerMode('raw')" class="px-2 py-0.5 rounded text-slate-400 hover:text-white cursor-pointer">Raw</button>
+          </div>
+          <!-- Image Zoom & Background Controls -->
+          <div id="viewer-image-controls" class="hidden items-center gap-1 bg-slate-900 border border-outline-variant/40 rounded px-1.5 py-0.5 text-[9px]">
+            <button type="button" onclick="window.adjustViewerZoom(-0.25)" class="px-1.5 text-slate-300 hover:text-white cursor-pointer font-bold" title="Zoom Out">-</button>
+            <span id="viewer-zoom-label" class="text-cyan-300 font-mono text-[9px] min-w-[36px] text-center">100%</span>
+            <button type="button" onclick="window.adjustViewerZoom(0.25)" class="px-1.5 text-slate-300 hover:text-white cursor-pointer font-bold" title="Zoom In">+</button>
+            <button type="button" onclick="window.resetViewerZoom()" class="px-1.5 text-slate-400 hover:text-white cursor-pointer text-[8px] uppercase">Fit</button>
+            <button type="button" onclick="window.toggleViewerGridBg()" id="viewer-grid-bg-btn" class="px-1.5 text-slate-400 hover:text-cyan-300 cursor-pointer text-[8px] border-l border-slate-700 uppercase" title="Toggle Transparency Grid">Grid</button>
+          </div>
+          <button id="viewer-modal-copy-btn" type="button" onclick="window.copyViewerContent()" class="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 text-[10px] font-bold uppercase flex items-center gap-1 cursor-pointer">
+            <span class="material-symbols-outlined text-[13px]">content_copy</span>
+            <span>Copy</span>
+          </button>
+          <a id="viewer-modal-download-btn" href="#" target="_blank" download class="px-2.5 py-1 rounded bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 border border-cyan-500/40 text-[10px] font-bold uppercase flex items-center gap-1 cursor-pointer">
             <span class="material-symbols-outlined text-[13px]">download</span>
             <span>Download</span>
           </a>
-          <a id="pdf-modal-tab-btn" href="#" target="_blank" class="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 text-[10px] font-bold uppercase flex items-center gap-1 cursor-pointer">
+          <a id="viewer-modal-tab-btn" href="#" target="_blank" class="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 text-[10px] font-bold uppercase flex items-center gap-1 cursor-pointer">
             <span class="material-symbols-outlined text-[13px]">open_in_new</span>
             <span>New Tab</span>
           </a>
-          <button onclick="window.closePdfModal()" class="w-7 h-7 rounded flex items-center justify-center text-slate-400 hover:text-white hover:bg-slate-800 cursor-pointer">
+          <button onclick="window.closeGenericViewer()" class="w-7 h-7 rounded flex items-center justify-center text-slate-400 hover:text-white hover:bg-slate-800 cursor-pointer">
             <span class="material-symbols-outlined text-base">close</span>
           </button>
         </div>
       </div>
-      <div class="flex-1 w-full bg-slate-900 relative">
-        <iframe id="pdf-modal-frame" src="about:blank" class="w-full h-full border-none"></iframe>
+      <!-- Viewport -->
+      <div id="viewer-modal-body" class="flex-1 w-full bg-slate-900 relative overflow-hidden flex flex-col">
+        <!-- Loading spinner -->
+        <div id="viewer-loading" class="hidden absolute inset-0 bg-slate-950/80 z-20 flex items-center justify-center">
+          <div class="flex items-center gap-2 text-cyan-300 text-xs font-mono animate-pulse">
+            <span class="material-symbols-outlined animate-spin text-base">progress_activity</span>
+            <span>Rendering document preview...</span>
+          </div>
+        </div>
+        <!-- Iframe viewport (for PDF & HTML) -->
+        <iframe id="viewer-iframe-frame" src="about:blank" class="hidden w-full h-full border-none"></iframe>
+        <!-- Image viewport (for PNG, JPG, GIF, SVG, WEBP) -->
+        <div id="viewer-image-pane" class="hidden flex-1 w-full h-full overflow-auto flex items-center justify-center p-4 bg-slate-950">
+          <img id="viewer-image-el" src="" alt="Preview" class="max-w-none transition-transform duration-100 shadow-2xl rounded" />
+        </div>
+        <!-- Formatted Viewport (for DOCX, Markdown) -->
+        <div id="viewer-formatted-pane" class="hidden flex-1 w-full h-full overflow-y-auto p-6 bg-slate-950/90 text-slate-200 select-text font-sans">
+          <div id="viewer-formatted-content" class="max-w-4xl mx-auto space-y-4"></div>
+        </div>
+        <!-- Raw / Code Viewport (for Text, Code, JSON, CSV, Raw markdown) -->
+        <div id="viewer-raw-pane" class="hidden flex-1 w-full h-full overflow-y-auto p-4 bg-[#0d1117] text-slate-200 select-text font-mono text-xs">
+          <pre id="viewer-raw-content" class="whitespace-pre-wrap break-all leading-relaxed"></pre>
+        </div>
       </div>
     </div>
   </div>
+  <!-- Hidden compatibility anchor for legacy calls -->
+  <div id="pdf-preview-modal" class="hidden"></div>
+  <iframe id="pdf-modal-frame" class="hidden"></iframe>
 
   <!-- MODAL: GITHUB REPOSITORY ARCHITECTURE & README -->
   <div id="repo-readme-modal" class="hidden fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4 font-mono select-text" onclick="if(event.target === this) window.closeRepoModal()">
@@ -6823,49 +6871,118 @@
       const retentionColor = node.retention?.status_color || '#00ffa3';
       const retentionStatus = (node.retention?.status || 'FRESH').toUpperCase();
 
-      // Check for PDF Document
-      const isPdf = Boolean(
-        node.pdf_url ||
-        node.mime_type === 'application/pdf' ||
-        (node.title && node.title.toLowerCase().endsWith('.pdf')) ||
-        node.category === 'pdf' ||
-        (node.metadata && (node.metadata.pdf_url || node.metadata.has_pdf || (node.metadata.file_path && node.metadata.file_path.toLowerCase().endsWith('.pdf'))))
-      );
+      // Check for Attached File / Document Asset
+      const nodeFilename = node.metadata?.filename || node.metadata?.title || node.title || '';
+      const fnLower = nodeFilename.toLowerCase();
+      const nodeMime = (node.mime_type || node.metadata?.mime_type || node.metadata?.mimeType || '').toLowerCase();
+      const nodeCat = (node.category || '').toLowerCase();
 
-      let pdfPreviewHtml = '';
-      if (isPdf) {
-        const pdfUrl = node.pdf_url || (node.metadata && node.metadata.pdf_url) || (`/api/connectors/pdf/preview?file_id=${encodeURIComponent(node.id)}&path=${encodeURIComponent(node.metadata?.file_path || node.title || '')}`);
-        const pdfTitle = node.title || 'PDF Document';
-        const pdfPages = node.metadata?.page_count || node.metadata?.pages || (node.metadata?.extracted_pages ? `${node.metadata.extracted_pages} pages` : 'PDF Document');
-        pdfPreviewHtml = `
-          <div class="mt-2.5 p-3 rounded-xl bg-gradient-to-br from-cyan-950/40 via-surface-container-low to-black/60 border border-cyan-500/50 text-cyan-200 font-sans space-y-2.5 ring-1 ring-cyan-500/30 shadow-lg">
-            <div class="flex items-center justify-between text-[11px] font-bold text-cyan-300 uppercase">
+      const isPdf = fnLower.endsWith('.pdf') || nodeMime === 'application/pdf' || nodeCat === 'pdf' || Boolean(node.pdf_url || node.metadata?.pdf_url || node.metadata?.has_pdf);
+      const isDocx = fnLower.endsWith('.docx') || nodeMime.includes('wordprocessingml') || nodeCat === 'docx';
+      const isMd = fnLower.endsWith('.md') || fnLower.endsWith('.markdown') || nodeMime === 'text/markdown' || nodeCat === 'markdown';
+      const isImg = (/\.(png|jpg|jpeg|gif|webp|svg|bmp|ico)$/i).test(fnLower) || nodeMime.startsWith('image/') || nodeCat === 'image';
+      const isHtml = fnLower.endsWith('.html') || fnLower.endsWith('.htm') || nodeMime === 'text/html';
+      const isText = (/\.(txt|py|js|ts|rs|go|sh|sql|json|csv|tsv|yaml|yml|xml|log|env)$/i).test(fnLower) || nodeMime.startsWith('text/') || nodeCat === 'document';
+
+      const hasFilePreview = isPdf || isDocx || isMd || isImg || isHtml || isText || Boolean(node.file_url || node.metadata?.file_url);
+
+      let filePreviewHtml = '';
+      if (hasFilePreview) {
+        let kind = 'doc';
+        let icon = 'description';
+        let badgeColor = 'border-cyan-500/40 text-cyan-300 bg-cyan-500/20';
+        let borderGrad = 'from-cyan-950/40 via-surface-container-low to-black/60 border-cyan-500/50 ring-cyan-500/30';
+        let cardTitle = 'DOCUMENT PREVIEW';
+        let kindName = 'DOCUMENT';
+
+        if (isPdf) {
+          kind = 'pdf';
+          icon = 'picture_as_pdf';
+          badgeColor = 'border-rose-500/40 text-rose-300 bg-rose-500/20';
+          borderGrad = 'from-rose-950/30 via-surface-container-low to-black/60 border-rose-500/50 ring-rose-500/30';
+          cardTitle = 'PDF DOCUMENT PREVIEW';
+          kindName = 'PDF';
+        } else if (isDocx) {
+          kind = 'docx';
+          icon = 'description';
+          badgeColor = 'border-blue-500/40 text-blue-300 bg-blue-500/20';
+          borderGrad = 'from-blue-950/30 via-surface-container-low to-black/60 border-blue-500/50 ring-blue-500/30';
+          cardTitle = 'WORD DOCX PREVIEW';
+          kindName = 'DOCX';
+        } else if (isMd) {
+          kind = 'markdown';
+          icon = 'edit_note';
+          badgeColor = 'border-emerald-500/40 text-emerald-300 bg-emerald-500/20';
+          borderGrad = 'from-emerald-950/30 via-surface-container-low to-black/60 border-emerald-500/50 ring-emerald-500/30';
+          cardTitle = 'MARKDOWN PREVIEW';
+          kindName = 'MARKDOWN';
+        } else if (isImg) {
+          kind = 'image';
+          icon = 'image';
+          badgeColor = 'border-fuchsia-500/40 text-fuchsia-300 bg-fuchsia-500/20';
+          borderGrad = 'from-fuchsia-950/30 via-surface-container-low to-black/60 border-fuchsia-500/50 ring-fuchsia-500/30';
+          cardTitle = 'IMAGE ASSET PREVIEW';
+          kindName = 'IMAGE';
+        } else if (isHtml) {
+          kind = 'html';
+          icon = 'html';
+          badgeColor = 'border-amber-500/40 text-amber-300 bg-amber-500/20';
+          borderGrad = 'from-amber-950/30 via-surface-container-low to-black/60 border-amber-500/50 ring-amber-500/30';
+          cardTitle = 'HTML PREVIEW';
+          kindName = 'HTML';
+        } else if (isText) {
+          kind = 'text';
+          icon = 'code';
+          badgeColor = 'border-purple-500/40 text-purple-300 bg-purple-500/20';
+          borderGrad = 'from-purple-950/30 via-surface-container-low to-black/60 border-purple-500/50 ring-purple-500/30';
+          cardTitle = 'SOURCE / TEXT PREVIEW';
+          kindName = 'TEXT';
+        }
+
+        const fileUrl = node.file_url || node.pdf_url || (node.metadata && (node.metadata.file_url || node.metadata.pdf_url)) || (`/api/connectors/file/preview?file_id=${encodeURIComponent(node.id)}&path=${encodeURIComponent(node.metadata?.file_path || node.title || '')}`);
+        const fileTitle = nodeFilename || node.title || 'Document';
+        const fileMetaBadge = node.metadata?.page_count ? `${node.metadata.page_count} pages` : (node.metadata?.size ? `${(node.metadata.size/1024).toFixed(0)} KB` : kindName);
+
+        filePreviewHtml = `
+          <div class="mt-2.5 p-3 rounded-xl bg-gradient-to-br ${borderGrad} border text-cyan-200 font-sans space-y-2.5 ring-1 shadow-lg">
+            <div class="flex items-center justify-between text-[11px] font-bold text-white uppercase">
               <span class="flex items-center gap-1.5">
-                <span class="material-symbols-outlined text-base text-cyan-400">picture_as_pdf</span>
-                <span>PDF DOCUMENT PREVIEW</span>
+                <span class="material-symbols-outlined text-base">${icon}</span>
+                <span>${cardTitle}</span>
               </span>
-              <span class="px-2 py-0.5 rounded bg-cyan-500/20 text-cyan-300 text-[8px] font-mono font-bold border border-cyan-500/40">${escapeHtml(pdfPages)}</span>
+              <span class="px-2 py-0.5 rounded text-[8px] font-mono font-bold border ${badgeColor}">${escapeHtml(fileMetaBadge)}</span>
             </div>
             <div class="flex items-center gap-1.5 text-[10px] font-mono flex-wrap">
-              <button onclick="window.toggleInlinePdfViewer('${node.id}')" class="px-2.5 py-1 bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-200 border border-cyan-500/40 rounded flex items-center gap-1 cursor-pointer">
+              <button onclick="window.toggleInlineFileViewer('${node.id}')" class="px-2.5 py-1 bg-surface-container-high hover:bg-surface-container-highest text-white border border-outline-variant/40 rounded flex items-center gap-1 cursor-pointer">
                 <span class="material-symbols-outlined text-[12px]">preview</span>
                 <span>Inline Preview</span>
               </button>
-              <button onclick="window.openPdfModal('${pdfUrl}', '${escapeHtml(pdfTitle)}')" class="px-2.5 py-1 bg-cyan-400 text-black hover:bg-cyan-300 rounded font-bold flex items-center gap-1 cursor-pointer">
+              <button onclick="window.openGenericViewer({ url: '${fileUrl}', title: '${escapeHtml(fileTitle)}', fileType: '${kind}' })" class="px-2.5 py-1 bg-cyan-400 text-black hover:bg-cyan-300 rounded font-bold flex items-center gap-1 cursor-pointer">
                 <span class="material-symbols-outlined text-[12px]">fullscreen</span>
                 <span>Fullscreen Modal ↗</span>
               </button>
-              <a href="${pdfUrl}" target="_blank" class="px-2.5 py-1 bg-surface-container-high hover:bg-surface-container-highest text-white border border-outline-variant/40 rounded flex items-center gap-1 cursor-pointer">
+              <a href="${fileUrl}" target="_blank" class="px-2.5 py-1 bg-surface-container-high hover:bg-surface-container-highest text-white border border-outline-variant/40 rounded flex items-center gap-1 cursor-pointer">
                 <span class="material-symbols-outlined text-[12px]">open_in_new</span>
                 <span>New Tab</span>
               </a>
+              <a href="${fileUrl}${fileUrl.includes('?') ? '&' : '?'}download=1" download target="_blank" class="px-2.5 py-1 bg-surface-container-high hover:bg-surface-container-highest text-white border border-outline-variant/40 rounded flex items-center gap-1 cursor-pointer">
+                <span class="material-symbols-outlined text-[12px]">download</span>
+                <span>Download</span>
+              </a>
             </div>
-            <div id="inline-pdf-container-${node.id}" class="hidden pt-1">
-              <iframe src="${pdfUrl}#toolbar=1" class="w-full h-80 rounded-lg border border-cyan-500/40 bg-slate-950"></iframe>
+            <div id="inline-file-container-${node.id}" class="hidden pt-1">
+              ${isImg ? `
+                <div class="w-full max-h-80 rounded-lg border border-outline-variant/40 bg-slate-950 flex items-center justify-center p-2 overflow-hidden">
+                  <img src="${fileUrl}" alt="Preview" class="max-h-72 object-contain rounded" />
+                </div>
+              ` : `
+                <iframe src="${fileUrl}${isPdf ? '#toolbar=1' : ''}" class="w-full h-80 rounded-lg border border-cyan-500/40 bg-slate-950"></iframe>
+              `}
             </div>
           </div>
         `;
       }
+      const pdfPreviewHtml = filePreviewHtml;
 
       // Check for GitHub Repository Node
       const isRepo = Boolean(
@@ -11870,13 +11987,31 @@ ${staticFacts.length > 0 ? `## Static Knowledge Core:\n${staticFacts.map(f => `-
           return;
         }
         listEl.innerHTML = items.map((it, idx) => {
-          const isPdf = it.mimeType === 'application/pdf' || (it.name && it.name.endsWith('.pdf'));
+          const itNameLower = (it.name || '').toLowerCase();
+          const isPdf = it.mimeType === 'application/pdf' || itNameLower.endsWith('.pdf');
+          const isDocx = itNameLower.endsWith('.docx') || (it.mimeType && it.mimeType.includes('wordprocessingml'));
+          const isMd = itNameLower.endsWith('.md') || itNameLower.endsWith('.markdown') || it.mimeType === 'text/markdown';
+          const isImg = (/\.(png|jpg|jpeg|gif|webp|svg|bmp|ico)$/i).test(itNameLower) || (it.mimeType && it.mimeType.startsWith('image/'));
+          const isHtml = (/\.(html|htm)$/i).test(itNameLower) || it.mimeType === 'text/html';
           const isFolder = it.mimeType === 'application/vnd.google-apps.folder' || it.is_directory;
           const isDoc = it.mimeType && it.mimeType.includes('document');
-          const isSheet = it.mimeType && it.mimeType.includes('spreadsheet');
-          const icon = isPdf ? 'picture_as_pdf' : (isFolder ? 'folder' : (isSheet ? 'table_chart' : 'description'));
-          const iconColor = isPdf ? 'text-rose-400' : (isFolder ? 'text-amber-400' : (isSheet ? 'text-emerald-400' : 'text-cyan-400'));
-          const sizeStr = it.size ? `${(it.size / 1024).toFixed(0)} KB` : (isFolder ? 'DIR' : 'DOC');
+          const isSheet = it.mimeType && it.mimeType.includes('spreadsheet') || (/\.(csv|tsv)$/i).test(itNameLower);
+          const isText = (/\.(txt|py|js|ts|rs|go|sh|sql|json|yaml|yml|xml|log)$/i).test(itNameLower) || (it.mimeType && it.mimeType.startsWith('text/'));
+          const isPreviewable = !isFolder && (isPdf || isDocx || isMd || isImg || isHtml || isText || isDoc || isSheet);
+
+          let icon = 'description';
+          let iconColor = 'text-cyan-400';
+          let fileKind = 'doc';
+          if (isFolder) { icon = 'folder'; iconColor = 'text-amber-400'; fileKind = 'folder'; }
+          else if (isPdf) { icon = 'picture_as_pdf'; iconColor = 'text-rose-400'; fileKind = 'pdf'; }
+          else if (isDocx) { icon = 'description'; iconColor = 'text-blue-400'; fileKind = 'docx'; }
+          else if (isMd) { icon = 'edit_note'; iconColor = 'text-emerald-400'; fileKind = 'markdown'; }
+          else if (isImg) { icon = 'image'; iconColor = 'text-fuchsia-400'; fileKind = 'image'; }
+          else if (isHtml) { icon = 'html'; iconColor = 'text-amber-400'; fileKind = 'html'; }
+          else if (isSheet) { icon = 'table_chart'; iconColor = 'text-emerald-400'; fileKind = 'sheet'; }
+          else if (isText) { icon = 'code'; iconColor = 'text-purple-400'; fileKind = 'text'; }
+
+          const sizeStr = it.size ? `${(it.size / 1024).toFixed(0)} KB` : (isFolder ? 'DIR' : fileKind.toUpperCase());
           const modStr = it.modifiedTime ? it.modifiedTime.substring(0, 10) : '';
 
           return `
@@ -11889,7 +12024,7 @@ ${staticFacts.length > 0 ? `## Static Knowledge Core:\n${staticFacts.map(f => `-
               <div class="flex items-center gap-3 shrink-0 text-slate-400 text-[9px]">
                 <span>${sizeStr}</span>
                 <span>${modStr}</span>
-                ${isPdf ? `<button type="button" onclick="event.preventDefault(); event.stopPropagation(); window.openPdfModal('/api/connectors/pdf/preview?file_id=${encodeURIComponent(it.id)}&path=${encodeURIComponent(it.path || it.name)}', '${escapeHtml(it.name)}')" class="text-cyan-300 hover:underline cursor-pointer">Preview</button>` : ''}
+                ${isPreviewable ? `<button type="button" onclick="event.preventDefault(); event.stopPropagation(); window.openGenericViewer({ url: '/api/connectors/file/preview?file_id=${encodeURIComponent(it.id)}&path=${encodeURIComponent(it.path || it.name)}', title: '${escapeHtml(it.name)}', fileType: '${fileKind}' })" class="text-cyan-300 hover:underline cursor-pointer">Preview</button>` : ''}
               </div>
             </label>
           `;
@@ -12529,31 +12664,392 @@ ${staticFacts.length > 0 ? `## Static Knowledge Core:\n${staticFacts.map(f => `-
       await window.submitPublicDatasetIngest();
     };
 
-    window.openPdfModal = function(url, title) {
-      const modal = document.getElementById('pdf-preview-modal');
-      const frame = document.getElementById('pdf-modal-frame');
-      const titleEl = document.getElementById('pdf-modal-title');
-      const dlBtn = document.getElementById('pdf-modal-download-btn');
-      const tabBtn = document.getElementById('pdf-modal-tab-btn');
-      if (!modal || !frame) return;
-      if (titleEl) titleEl.innerText = title || 'PDF Document Preview';
-      if (dlBtn) dlBtn.href = url;
-      if (tabBtn) tabBtn.href = url;
-      frame.src = url + (url.includes('#') ? '' : '#toolbar=1');
+    window.renderMarkdownToHtml = function(markdownText) {
+      if (!markdownText) return '';
+      let text = String(markdownText);
+      text = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+      // Code blocks
+      text = text.replace(/```([a-zA-Z0-9_-]*)\n([\s\S]*?)```/g, (m, lang, code) => {
+        return `<div class="my-3 rounded-lg border border-slate-700 bg-slate-950 overflow-hidden font-mono text-xs">
+          <div class="flex items-center justify-between px-3 py-1 bg-slate-900 border-b border-slate-800 text-[10px] text-slate-400">
+            <span>${lang || 'CODE'}</span>
+            <button onclick="navigator.clipboard.writeText(this.parentElement.nextElementSibling.innerText); window.showToast('Code copied');" class="hover:text-white cursor-pointer">Copy</button>
+          </div>
+          <pre class="p-3 overflow-x-auto text-cyan-200">${code}</pre>
+        </div>`;
+      });
+
+      // Headers
+      text = text.replace(/^###### (.*$)/gim, '<h6 class="text-xs font-bold text-slate-400 mt-2 mb-1">$1</h6>');
+      text = text.replace(/^##### (.*$)/gim, '<h5 class="text-sm font-bold text-slate-300 mt-3 mb-1">$1</h5>');
+      text = text.replace(/^#### (.*$)/gim, '<h4 class="text-base font-bold text-cyan-400 mt-3 mb-1.5">$1</h4>');
+      text = text.replace(/^### (.*$)/gim, '<h3 class="text-lg font-bold text-purple-300 mt-4 mb-2 border-b border-slate-800 pb-1">$1</h3>');
+      text = text.replace(/^## (.*$)/gim, '<h2 class="text-xl font-bold text-cyan-300 mt-5 mb-2 border-b border-slate-800 pb-1.5">$1</h2>');
+      text = text.replace(/^# (.*$)/gim, '<h1 class="text-2xl font-extrabold text-white mt-6 mb-3 border-b border-cyan-500/40 pb-2">$1</h1>');
+
+      // GitHub Alerts
+      text = text.replace(/^&gt; \[!NOTE\]\s*\n?((?:&gt; .*\n?)*)/gim, (m, body) => {
+        const clean = body.replace(/&gt; /g, '');
+        return `<div class="my-2 p-3 rounded-lg border-l-4 border-cyan-400 bg-cyan-950/30 text-cyan-200 text-xs"><strong class="text-cyan-300 font-bold block mb-1">ℹ️ NOTE</strong>${clean}</div>`;
+      });
+      text = text.replace(/^&gt; \[!TIP\]\s*\n?((?:&gt; .*\n?)*)/gim, (m, body) => {
+        const clean = body.replace(/&gt; /g, '');
+        return `<div class="my-2 p-3 rounded-lg border-l-4 border-emerald-400 bg-emerald-950/30 text-emerald-200 text-xs"><strong class="text-emerald-300 font-bold block mb-1">💡 TIP</strong>${clean}</div>`;
+      });
+      text = text.replace(/^&gt; \[!WARNING\]\s*\n?((?:&gt; .*\n?)*)/gim, (m, body) => {
+        const clean = body.replace(/&gt; /g, '');
+        return `<div class="my-2 p-3 rounded-lg border-l-4 border-amber-400 bg-amber-950/30 text-amber-200 text-xs"><strong class="text-amber-300 font-bold block mb-1">⚠️ WARNING</strong>${clean}</div>`;
+      });
+      text = text.replace(/^&gt; \[!CAUTION\]\s*\n?((?:&gt; .*\n?)*)/gim, (m, body) => {
+        const clean = body.replace(/&gt; /g, '');
+        return `<div class="my-2 p-3 rounded-lg border-l-4 border-rose-400 bg-rose-950/30 text-rose-200 text-xs"><strong class="text-rose-300 font-bold block mb-1">🛑 CAUTION</strong>${clean}</div>`;
+      });
+
+      // Blockquotes
+      text = text.replace(/^&gt; (.*$)/gim, '<blockquote class="border-l-2 border-slate-600 pl-3 my-2 text-slate-400 italic text-xs">$1</blockquote>');
+
+      // Horizontal Rule
+      text = text.replace(/^(?:---|\*\*\*|___)\s*$/gim, '<hr class="my-4 border-slate-800" />');
+
+      // Tables
+      text = text.replace(/((?:^\|.+\|\s*$\n?)+)/gim, (match) => {
+        const rows = match.trim().split('\n').map(r => r.trim()).filter(Boolean);
+        if (rows.length < 2) return match;
+        let html = '<div class="my-3 overflow-x-auto"><table class="min-w-full text-xs text-left border border-slate-800 rounded overflow-hidden">';
+        let isHeader = true;
+        rows.forEach(r => {
+          if (r.includes('---')) {
+            isHeader = false;
+            return;
+          }
+          const cells = r.split('|').slice(1, -1).map(c => c.trim());
+          if (isHeader) {
+            html += '<thead class="bg-slate-900 text-cyan-300"><tr>' + cells.map(c => `<th class="px-3 py-2 border-b border-slate-800 font-bold">${c}</th>`).join('') + '</tr></thead><tbody>';
+          } else {
+            html += '<tr class="border-b border-slate-900/60 hover:bg-slate-900/40">' + cells.map(c => `<td class="px-3 py-2 text-slate-300">${c}</td>`).join('') + '</tr>';
+          }
+        });
+        html += '</tbody></table></div>';
+        return html;
+      });
+
+      // Inline styles
+      text = text.replace(/\*\*\*(.*?)\*\*\*/g, '<strong class="text-white font-bold"><em>$1</em></strong>');
+      text = text.replace(/\*\*(.*?)\*\*/g, '<strong class="text-white font-bold">$1</strong>');
+      text = text.replace(/~~(.*?)~~/g, '<del class="text-slate-500">$1</del>');
+      text = text.replace(/\*(.*?)\*/g, '<em class="text-slate-300">$1</em>');
+      text = text.replace(/`([^`]+)`/g, '<code class="px-1.5 py-0.5 rounded bg-slate-800 text-cyan-300 font-mono text-[11px]">$1</code>');
+      text = text.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, '<img src="$2" alt="$1" class="my-2 rounded max-h-96 object-contain" />');
+      text = text.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" class="text-cyan-400 underline hover:text-cyan-300">$1</a>');
+      text = text.replace(/^\s*[-*]\s+(.*$)/gim, '<li class="ml-4 list-disc text-slate-300 mb-1">$1</li>');
+      text = text.replace(/\n\n+/g, '</p><p class="mb-3 text-slate-300 leading-relaxed text-xs">');
+
+      return `<div class="prose-dark font-sans text-xs leading-relaxed"><p class="mb-3 text-slate-300 leading-relaxed text-xs">${text}</p></div>`;
+    };
+
+    window._viewerState = {
+      zoom: 1.0,
+      hasGridBg: false,
+      mode: 'formatted',
+      rawText: '',
+      formattedHtml: '',
+      activeUrl: '',
+      activeKind: 'unknown',
+    };
+
+    window.openGenericViewer = async function(options) {
+      let opts = typeof options === 'string' ? { url: options, title: arguments[1] || 'Document' } : (options || {});
+      const url = opts.url || (opts.fileId ? `/api/connectors/file/preview?file_id=${encodeURIComponent(opts.fileId)}` : '');
+      const title = opts.title || opts.filename || 'Document Preview';
+      const fileType = (opts.fileType || opts.kind || (opts.url ? opts.url.split('?')[0].split('.').pop() : '') || 'doc').toLowerCase();
+
+      const modal = document.getElementById('generic-file-viewer-modal');
+      const titleEl = document.getElementById('viewer-modal-title');
+      const metaEl = document.getElementById('viewer-modal-meta');
+      const iconEl = document.getElementById('viewer-modal-icon');
+      const dlBtn = document.getElementById('viewer-modal-download-btn');
+      const tabBtn = document.getElementById('viewer-modal-tab-btn');
+      const copyBtn = document.getElementById('viewer-modal-copy-btn');
+      const modeToggle = document.getElementById('viewer-mode-toggle');
+      const imgControls = document.getElementById('viewer-image-controls');
+      const loadingEl = document.getElementById('viewer-loading');
+
+      const iframeFrame = document.getElementById('viewer-iframe-frame');
+      const imagePane = document.getElementById('viewer-image-pane');
+      const imageEl = document.getElementById('viewer-image-el');
+      const formattedPane = document.getElementById('viewer-formatted-pane');
+      const formattedContent = document.getElementById('viewer-formatted-content');
+      const rawPane = document.getElementById('viewer-raw-pane');
+      const rawContent = document.getElementById('viewer-raw-content');
+
+      if (!modal) return;
+
+      window._viewerState.zoom = 1.0;
+      window._viewerState.hasGridBg = false;
+      window._viewerState.mode = 'formatted';
+      window._viewerState.rawText = opts.content || '';
+      window._viewerState.formattedHtml = '';
+      window._viewerState.activeUrl = url;
+
+      if (titleEl) titleEl.innerText = title;
+      if (dlBtn) dlBtn.href = url ? (url + (url.includes('?') ? '&download=1' : '?download=1')) : '#';
+      if (tabBtn) tabBtn.href = url || '#';
+      if (copyBtn) copyBtn.classList.remove('hidden');
+
+      if (iframeFrame) { iframeFrame.classList.add('hidden'); iframeFrame.src = 'about:blank'; }
+      if (imagePane) imagePane.classList.add('hidden');
+      if (formattedPane) formattedPane.classList.add('hidden');
+      if (rawPane) rawPane.classList.add('hidden');
+      if (modeToggle) modeToggle.classList.add('hidden');
+      if (imgControls) imgControls.classList.add('hidden');
+
+      const isPdf = fileType === 'pdf' || (/\.pdf$/i).test(title);
+      const isDocx = fileType === 'docx' || (/\.docx$/i).test(title);
+      const isMd = fileType === 'md' || fileType === 'markdown' || (/\.(md|markdown)$/i).test(title);
+      const isImg = ['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'bmp', 'ico'].includes(fileType) || (/\.(png|jpg|jpeg|gif|webp|svg|bmp|ico)$/i).test(title);
+      const isHtml = fileType === 'html' || fileType === 'htm' || (/\.(html|htm)$/i).test(title);
+
       modal.classList.remove('hidden');
+
+      if (isPdf) {
+        window._viewerState.activeKind = 'pdf';
+        if (iconEl) { iconEl.innerText = 'picture_as_pdf'; iconEl.className = 'material-symbols-outlined text-rose-400 text-xl shrink-0'; }
+        if (metaEl) metaEl.innerText = 'Portable Document Format (Native PDF Engine)';
+        if (iframeFrame) {
+          iframeFrame.classList.remove('hidden');
+          iframeFrame.src = url + (url.includes('#') ? '' : '#toolbar=1');
+        }
+        if (copyBtn) copyBtn.classList.add('hidden');
+        return;
+      }
+
+      if (isImg) {
+        window._viewerState.activeKind = 'image';
+        if (iconEl) { iconEl.innerText = 'image'; iconEl.className = 'material-symbols-outlined text-fuchsia-400 text-xl shrink-0'; }
+        if (metaEl) metaEl.innerText = `Image Asset (${fileType.toUpperCase()}) - Zoom & Pan Canvas`;
+        if (imagePane && imageEl) {
+          imagePane.classList.remove('hidden');
+          imageEl.src = url;
+          imageEl.style.transform = 'scale(1)';
+        }
+        if (imgControls) imgControls.classList.remove('hidden');
+        if (copyBtn) copyBtn.classList.add('hidden');
+        return;
+      }
+
+      if (isHtml) {
+        window._viewerState.activeKind = 'html';
+        if (iconEl) { iconEl.innerText = 'html'; iconEl.className = 'material-symbols-outlined text-amber-400 text-xl shrink-0'; }
+        if (metaEl) metaEl.innerText = 'HTML Web Document (Sandboxed View)';
+        if (modeToggle) modeToggle.classList.remove('hidden');
+
+        if (url && !opts.content) {
+          if (loadingEl) loadingEl.classList.remove('hidden');
+          try {
+            const r = await fetch(url.includes('?') ? `${url}&format=json` : `${url}?format=json`);
+            const d = await r.json();
+            window._viewerState.rawText = d.text || d.html || '';
+            window._viewerState.formattedHtml = d.html || d.text || '';
+          } catch(e) {
+            window._viewerState.rawText = `Failed to load HTML content: ${e.message}`;
+          } finally {
+            if (loadingEl) loadingEl.classList.add('hidden');
+          }
+        } else if (opts.content) {
+          window._viewerState.rawText = opts.content;
+          window._viewerState.formattedHtml = opts.content;
+        }
+
+        window.setViewerMode('formatted');
+        return;
+      }
+
+      if (isDocx) {
+        window._viewerState.activeKind = 'docx';
+        if (iconEl) { iconEl.innerText = 'description'; iconEl.className = 'material-symbols-outlined text-blue-400 text-xl shrink-0'; }
+        if (metaEl) metaEl.innerText = 'Microsoft Word OpenXML Document';
+        if (modeToggle) modeToggle.classList.remove('hidden');
+
+        if (loadingEl) loadingEl.classList.remove('hidden');
+        try {
+          const jsonUrl = url.includes('?') ? `${url}&format=json` : `${url}?format=json`;
+          const r = await fetch(jsonUrl);
+          const d = await r.json();
+          window._viewerState.rawText = d.text || '';
+          window._viewerState.formattedHtml = d.html || `<p>${escapeHtml(d.text || '')}</p>`;
+          if (metaEl && d.paragraphs) metaEl.innerText = `Microsoft Word OpenXML Document (${d.paragraphs} paragraphs, ${(d.size/1024).toFixed(1)} KB)`;
+        } catch(e) {
+          window._viewerState.rawText = `Error reading DOCX: ${e.message}`;
+          window._viewerState.formattedHtml = `<div class="p-4 text-rose-400">Failed to parse DOCX document: ${escapeHtml(e.message)}</div>`;
+        } finally {
+          if (loadingEl) loadingEl.classList.add('hidden');
+        }
+
+        window.setViewerMode('formatted');
+        return;
+      }
+
+      if (isMd) {
+        window._viewerState.activeKind = 'markdown';
+        if (iconEl) { iconEl.innerText = 'edit_note'; iconEl.className = 'material-symbols-outlined text-emerald-400 text-xl shrink-0'; }
+        if (metaEl) metaEl.innerText = 'Markdown Document (GFM Rendered)';
+        if (modeToggle) modeToggle.classList.remove('hidden');
+
+        if (url && !opts.content) {
+          if (loadingEl) loadingEl.classList.remove('hidden');
+          try {
+            const r = await fetch(url.includes('?') ? `${url}&format=json` : `${url}?format=json`);
+            const d = await r.json();
+            window._viewerState.rawText = d.text || '';
+          } catch(e) {
+            window._viewerState.rawText = `Error loading Markdown: ${e.message}`;
+          } finally {
+            if (loadingEl) loadingEl.classList.add('hidden');
+          }
+        } else if (opts.content) {
+          window._viewerState.rawText = opts.content;
+        }
+
+        window._viewerState.formattedHtml = window.renderMarkdownToHtml(window._viewerState.rawText);
+        window.setViewerMode('formatted');
+        return;
+      }
+
+      // Default: Code, JSON, CSV, Text
+      window._viewerState.activeKind = 'text';
+      if (iconEl) { iconEl.innerText = 'code'; iconEl.className = 'material-symbols-outlined text-cyan-400 text-xl shrink-0'; }
+      if (metaEl) metaEl.innerText = `${fileType.toUpperCase()} Source / Plain Text`;
+
+      if (url && !opts.content) {
+        if (loadingEl) loadingEl.classList.remove('hidden');
+        try {
+          const r = await fetch(url.includes('?') ? `${url}&format=json` : `${url}?format=json`);
+          const d = await r.json();
+          window._viewerState.rawText = d.text || '';
+        } catch(e) {
+          window._viewerState.rawText = `Error loading text: ${e.message}`;
+        } finally {
+          if (loadingEl) loadingEl.classList.add('hidden');
+        }
+      } else if (opts.content) {
+        window._viewerState.rawText = opts.content;
+      }
+
+      if (rawPane && rawContent) {
+        rawPane.classList.remove('hidden');
+        rawContent.innerText = window._viewerState.rawText;
+      }
+    };
+
+    window.setViewerMode = function(mode) {
+      window._viewerState.mode = mode;
+      const btnFormatted = document.getElementById('viewer-btn-mode-formatted');
+      const btnRaw = document.getElementById('viewer-btn-mode-raw');
+      const formattedPane = document.getElementById('viewer-formatted-pane');
+      const formattedContent = document.getElementById('viewer-formatted-content');
+      const rawPane = document.getElementById('viewer-raw-pane');
+      const rawContent = document.getElementById('viewer-raw-content');
+      const iframeFrame = document.getElementById('viewer-iframe-frame');
+
+      if (mode === 'formatted') {
+        if (btnFormatted) { btnFormatted.className = 'px-2 py-0.5 rounded bg-cyan-500 text-black font-extrabold cursor-pointer'; }
+        if (btnRaw) { btnRaw.className = 'px-2 py-0.5 rounded text-slate-400 hover:text-white cursor-pointer'; }
+        if (rawPane) rawPane.classList.add('hidden');
+
+        if (window._viewerState.activeKind === 'html') {
+          if (formattedPane) formattedPane.classList.add('hidden');
+          if (iframeFrame) {
+            iframeFrame.classList.remove('hidden');
+            iframeFrame.src = window._viewerState.activeUrl;
+          }
+        } else {
+          if (iframeFrame) iframeFrame.classList.add('hidden');
+          if (formattedPane && formattedContent) {
+            formattedPane.classList.remove('hidden');
+            formattedContent.innerHTML = window._viewerState.formattedHtml;
+          }
+        }
+      } else {
+        if (btnRaw) { btnRaw.className = 'px-2 py-0.5 rounded bg-cyan-500 text-black font-extrabold cursor-pointer'; }
+        if (btnFormatted) { btnFormatted.className = 'px-2 py-0.5 rounded text-slate-400 hover:text-white cursor-pointer'; }
+        if (iframeFrame) iframeFrame.classList.add('hidden');
+        if (formattedPane) formattedPane.classList.add('hidden');
+        if (rawPane && rawContent) {
+          rawPane.classList.remove('hidden');
+          rawContent.innerText = window._viewerState.rawText;
+        }
+      }
+    };
+
+    window.adjustViewerZoom = function(delta) {
+      const img = document.getElementById('viewer-image-el');
+      const lbl = document.getElementById('viewer-zoom-label');
+      if (!img) return;
+      window._viewerState.zoom = Math.max(0.2, Math.min(4.0, window._viewerState.zoom + delta));
+      img.style.transform = `scale(${window._viewerState.zoom})`;
+      if (lbl) lbl.innerText = `${Math.round(window._viewerState.zoom * 100)}%`;
+    };
+
+    window.resetViewerZoom = function() {
+      const img = document.getElementById('viewer-image-el');
+      const lbl = document.getElementById('viewer-zoom-label');
+      if (!img) return;
+      window._viewerState.zoom = 1.0;
+      img.style.transform = 'scale(1)';
+      if (lbl) lbl.innerText = '100%';
+    };
+
+    window.toggleViewerGridBg = function() {
+      const pane = document.getElementById('viewer-image-pane');
+      const btn = document.getElementById('viewer-grid-bg-btn');
+      if (!pane) return;
+      window._viewerState.hasGridBg = !window._viewerState.hasGridBg;
+      if (window._viewerState.hasGridBg) {
+        pane.style.backgroundImage = 'radial-gradient(circle, #334155 1px, transparent 1px)';
+        pane.style.backgroundSize = '16px 16px';
+        if (btn) btn.classList.add('text-cyan-300');
+      } else {
+        pane.style.backgroundImage = '';
+        if (btn) btn.classList.remove('text-cyan-300');
+      }
+    };
+
+    window.copyViewerContent = function() {
+      const txt = window._viewerState.rawText;
+      if (!txt) {
+        window.showToast('No textual content to copy');
+        return;
+      }
+      navigator.clipboard.writeText(txt).then(() => {
+        window.showToast('Content copied to clipboard');
+      }).catch(err => {
+        window.showToast(`Copy failed: ${err.message}`);
+      });
+    };
+
+    window.closeGenericViewer = function() {
+      const modal = document.getElementById('generic-file-viewer-modal');
+      const iframe = document.getElementById('viewer-iframe-frame');
+      const img = document.getElementById('viewer-image-el');
+      if (modal) modal.classList.add('hidden');
+      if (iframe) iframe.src = 'about:blank';
+      if (img) img.src = '';
+    };
+
+    window.openPdfModal = function(url, title) {
+      window.openGenericViewer({ url: url, title: title || 'PDF Document Preview', fileType: 'pdf' });
     };
 
     window.closePdfModal = function() {
-      const modal = document.getElementById('pdf-preview-modal');
-      const frame = document.getElementById('pdf-modal-frame');
-      if (modal) modal.classList.add('hidden');
-      if (frame) frame.src = 'about:blank';
+      window.closeGenericViewer();
     };
 
-    window.toggleInlinePdfViewer = function(nodeId) {
-      const el = document.getElementById(`inline-pdf-container-${nodeId}`);
+    window.toggleInlineFileViewer = function(nodeId) {
+      const el = document.getElementById(`inline-file-container-${nodeId}`) || document.getElementById(`inline-pdf-container-${nodeId}`);
       if (el) el.classList.toggle('hidden');
     };
+    window.toggleInlinePdfViewer = window.toggleInlineFileViewer;
 
     window.openRepoModal = function(title, readme) {
       const modal = document.getElementById('repo-readme-modal');
