@@ -719,3 +719,38 @@ class SuperCortex:
             return Data(edge_index=edge_index, y=y, num_nodes=spec["num_nodes"])
         except ImportError:
             return spec
+
+    def get_graph_analytics(self, scope: str = "all") -> dict[str, Any]:
+        """Compute full topological, spectral, and community scorecard for the knowledge manifold."""
+        from super_cortex.analytics import compute_full_graph_scorecard
+        return compute_full_graph_scorecard(self.store, scope=scope)
+
+    def get_communities(self, scope: str = "all") -> dict[str, Any]:
+        """Detect topological communities using Label Propagation and Newman modularity."""
+        from super_cortex.analytics import detect_communities_lpa
+        from super_cortex.data_science import extract_graph_components
+        nodes, edges = extract_graph_components(self.store, scope=scope)
+        return detect_communities_lpa(nodes, edges)
+
+    def get_spectral_properties(self, scope: str = "all") -> dict[str, Any]:
+        """Compute graph Laplacian eigenvalues, Fiedler algebraic connectivity, and spectral bisection."""
+        from super_cortex.analytics import compute_spectral_properties
+        from super_cortex.data_science import extract_graph_components
+        nodes, edges = extract_graph_components(self.store, scope=scope)
+        return compute_spectral_properties(nodes, edges)
+
+    def get_centrality(self, scope: str = "all", metric: str = "pagerank") -> dict[str, Any]:
+        """Compute node centrality scores ('pagerank', 'betweenness', or 'degree')."""
+        from super_cortex.analytics import (
+            compute_betweenness_centrality,
+            compute_degree_centrality,
+            compute_pagerank,
+        )
+        from super_cortex.data_science import extract_graph_components
+        nodes, edges = extract_graph_components(self.store, scope=scope)
+        if metric == "betweenness":
+            return compute_betweenness_centrality(nodes, edges)
+        elif metric == "degree":
+            return compute_degree_centrality(nodes, edges)
+        else:
+            return compute_pagerank(nodes, edges)
