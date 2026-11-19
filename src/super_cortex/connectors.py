@@ -1775,7 +1775,7 @@ class SuperCortexConnectors:
         return {"owner": owner, "repos": [], "authenticated": False}
 
     def _resolve_local_repo(self, repo: str):
-        """Resolve a repository name to a local checkout under ~/Projects if available."""
+        """Resolve a repository name to a local checkout under ~/Projects, CWD, or package root."""
         from pathlib import Path
         clean = repo.strip().rstrip("/").split("/")[-1].lower()
         mapping = {
@@ -1788,6 +1788,18 @@ class SuperCortexConnectors:
         target = mapping.get(clean)
         if target and target.exists() and (target / ".git").exists():
             return target
+
+        # Check current working directory or git toplevel (e.g. CI runner or active worktree)
+        cwd = Path.cwd().resolve()
+        for p in [cwd, *cwd.parents]:
+            if (p / ".git").exists() and (clean in p.name.lower() or "super-cortex" in p.name.lower()):
+                return p
+
+        pkg_root = Path(__file__).resolve().parent.parent.parent
+        for p in [pkg_root, *pkg_root.parents]:
+            if (p / ".git").exists() and (clean in p.name.lower() or "super-cortex" in p.name.lower()):
+                return p
+
         cand = Path.home() / "Projects" / clean
         if cand.exists() and (cand / ".git").exists():
             return cand
@@ -1947,15 +1959,40 @@ class SuperCortexConnectors:
                     "sha": item["sha"],
                     "short_sha": item["sha"][:7],
                     "message": item["commit"]["message"].split("\n")[0],
-                    "author": item["commit"]["author"]["name"],
-                    "date": item["commit"]["author"]["date"],
-                    "url": item["html_url"],
+                    "author": (item.get("commit", {}).get("author", {}) or {}).get("name", "Unknown"),
+                    "date": (item.get("commit", {}).get("author", {}) or {}).get("date", ""),
+                    "url": item.get("html_url", ""),
                 }
                 for item in raw
             ]
             return {"repo": clean_repo, "commits": commits, "source": "gh_api"}
+        except Exception:
+            pass
+
+        token = self._discover_github_token()
+        headers = {"Accept": "application/vnd.github+json", "User-Agent": "SuperCortex-GitHub/1.0"}
+        if token:
+            headers["Authorization"] = f"Bearer {token}"
+        try:
+            with httpx.Client(timeout=10.0, follow_redirects=True) as client:
+                r = client.get(f"https://api.github.com/repos/{clean_repo}/commits", params={"per_page": limit}, headers=headers)
+                if r.status_code == 200:
+                    raw = r.json()
+                    commits = [
+                        {
+                            "sha": item["sha"],
+                            "short_sha": item["sha"][:7],
+                            "message": item["commit"]["message"].split("\n")[0],
+                            "author": (item.get("commit", {}).get("author", {}) or {}).get("name", "Unknown"),
+                            "date": (item.get("commit", {}).get("author", {}) or {}).get("date", ""),
+                            "url": item.get("html_url", ""),
+                        }
+                        for item in raw
+                    ]
+                    return {"repo": clean_repo, "commits": commits, "source": "github_rest_api"}
         except Exception as e:
             return {"repo": clean_repo, "commits": [], "error": str(e)}
+        return {"repo": clean_repo, "commits": [], "count": 0}
 
     def get_github_prs(self, repo: str, limit: int = 30):
         """Fetch pull requests with status and details."""
@@ -1970,8 +2007,34 @@ class SuperCortexConnectors:
                 timeout=8.0
             )
             return {"repo": clean_repo, "prs": json.loads(out), "source": "gh_cli"}
+        except Exception:
+            pass
+
+        token = self._discover_github_token()
+        headers = {"Accept": "application/vnd.github+json", "User-Agent": "SuperCortex-GitHub/1.0"}
+        if token:
+            headers["Authorization"] = f"Bearer {token}"
+        try:
+            with httpx.Client(timeout=10.0, follow_redirects=True) as client:
+                r = client.get(f"https://api.github.com/repos/{clean_repo}/pulls", params={"state": "all", "per_page": limit}, headers=headers)
+                if r.status_code == 200:
+                    raw = r.json()
+                    prs = [
+                        {
+                            "number": item.get("number"),
+                            "title": item.get("title", ""),
+                            "state": item.get("state", "").upper(),
+                            "author": (item.get("user") or {}).get("login", "Unknown"),
+                            "url": item.get("html_url", ""),
+                            "updatedAt": item.get("updated_at"),
+                            "mergedAt": item.get("merged_at"),
+                        }
+                        for item in raw
+                    ]
+                    return {"repo": clean_repo, "prs": prs, "source": "github_rest_api"}
         except Exception as e:
             return {"repo": clean_repo, "prs": [], "error": str(e)}
+        return {"repo": clean_repo, "prs": [], "count": 0}
 
     def get_github_issues(self, repo: str, limit: int = 30):
         """Fetch issues for a repository."""
@@ -1986,8 +2049,34 @@ class SuperCortexConnectors:
                 timeout=8.0
             )
             return {"repo": clean_repo, "issues": json.loads(out), "source": "gh_cli"}
+        except Exception:
+            pass
+
+        token = self._discover_github_token()
+        headers = {"Accept": "application/vnd.github+json", "User-Agent": "SuperCortex-GitHub/1.0"}
+        if token:
+            headers["Authorization"] = f"Bearer {token}"
+        try:
+            with httpx.Client(timeout=10.0, follow_redirects=True) as client:
+                r = client.get(f"https://api.github.com/repos/{clean_repo}/issues", params={"state": "all", "per_page": limit}, headers=headers)
+                if r.status_code == 200:
+                    raw = r.json()
+                    issues = [
+                        {
+                            "number": item.get("number"),
+                            "title": item.get("title", ""),
+                            "state": item.get("state", ""),
+                            "author": (item.get("user") or {}).get("login", "Unknown"),
+                            "url": item.get("html_url", ""),
+                            "labels": [l.get("name") for l in item.get("labels", []) if isinstance(l, dict) and "name" in l],
+                        }
+                        for item in raw
+                        if "pull_request" not in item
+                    ]
+                    return {"repo": clean_repo, "issues": issues, "source": "github_rest_api"}
         except Exception as e:
             return {"repo": clean_repo, "issues": [], "error": str(e)}
+        return {"repo": clean_repo, "issues": [], "count": 0}
 
     async def ingest_github(
         self,
