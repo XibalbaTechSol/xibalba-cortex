@@ -1983,7 +1983,7 @@
           <button id="subtab-btn-connectors" onclick="window.switchFabricTab('connectors')" class="fabric-subtab-btn px-3 py-1 rounded-md flex items-center gap-1.5 transition-all text-slate-400 hover:text-white border border-transparent cursor-pointer">
             <span class="material-symbols-outlined text-[13px]">sync_alt</span>
             <span>Connectors Hub</span>
-            <span id="fabric-badge-connectors" class="text-[8px] px-1 py-0.2 rounded bg-emerald-500/20 text-emerald-400">10 LIVE</span>
+            <span id="fabric-badge-connectors" class="text-[8px] px-1 py-0.2 rounded bg-emerald-500/20 text-emerald-400">11 LIVE</span>
           </button>
 
           <button id="subtab-btn-pipeline" onclick="window.switchFabricTab('pipeline')" class="fabric-subtab-btn px-3 py-1 rounded-md flex items-center gap-1.5 transition-all text-slate-400 hover:text-white border border-transparent cursor-pointer">
@@ -2443,12 +2443,16 @@
           <div class="flex items-center gap-2">
             <span class="material-symbols-outlined text-[#00ffa3] text-lg">sync_alt</span>
             <span class="font-bold text-white uppercase text-sm tracking-wider">CONNECTORS &amp; INGESTION HUB</span>
-            <span class="px-2 py-0.5 rounded bg-emerald-500/15 border border-emerald-500/40 text-emerald-300 text-[9px] font-bold">10 ACTIVE PIPELINES</span>
+            <span class="px-2 py-0.5 rounded bg-emerald-500/15 border border-emerald-500/40 text-emerald-300 text-[9px] font-bold">11 ACTIVE PIPELINES</span>
           </div>
           <p class="text-outline text-[11px] font-sans mt-0.5">Deterministic non-inference ingestion connecting Google Workspace, GitHub, Web URLs, Local Vaults, CSV/RDF Triples, ArXiv/PubMed, and HL7 FHIR R4 into Super-Cortex.</p>
         </div>
 
         <div class="flex flex-wrap items-center gap-2 text-[10px]">
+          <button onclick="window.quickLoadDemoDataset()" id="btn-quick-demo-dataset" class="px-3 py-1.5 bg-gradient-to-r from-amber-500/20 to-emerald-500/20 hover:from-amber-500/30 hover:to-emerald-500/30 text-amber-300 border border-amber-400/50 font-bold uppercase rounded flex items-center gap-1.5 cursor-pointer transition-all shadow" title="Load curated 22-node, 28-edge Control Theory &amp; Epistemic Graph benchmark">
+            <span class="material-symbols-outlined text-[14px]">auto_awesome</span>
+            <span>★ Load Demo Graph Dataset</span>
+          </button>
           <button onclick="window.syncAllConnectors()" id="btn-sync-all-connectors" class="px-3 py-1.5 bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 border border-cyan-400/50 font-bold uppercase rounded flex items-center gap-1.5 cursor-pointer transition-all">
             <span class="material-symbols-outlined text-[14px]">sync</span>
             <span>Sync All Active</span>
@@ -2467,10 +2471,10 @@
       <div class="flex items-center justify-between flex-wrap gap-2 text-[10px]">
         <div class="flex items-center gap-1.5 flex-wrap">
           <span class="text-slate-500 uppercase font-bold mr-1">FILTER:</span>
-          <button onclick="window.filterConnectorsByCategory('all')" id="conn-cat-all" class="px-2.5 py-1 rounded bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 font-bold uppercase cursor-pointer">ALL (10)</button>
+          <button onclick="window.filterConnectorsByCategory('all')" id="conn-cat-all" class="px-2.5 py-1 rounded bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 font-bold uppercase cursor-pointer">ALL (11)</button>
           <button onclick="window.filterConnectorsByCategory('cloud')" id="conn-cat-cloud" class="px-2.5 py-1 rounded bg-surface-container-low text-slate-400 hover:text-white border border-outline-variant/30 font-bold uppercase cursor-pointer">CLOUD &amp; WORKSPACE</button>
-          <button onclick="window.filterConnectorsByCategory('code')" id="conn-cat-code" class="px-2.5 py-1 rounded bg-surface-container-low text-slate-400 hover:text-white border border-outline-variant/30 font-bold uppercase cursor-pointer">GITHUB &amp; GIT</button>
-          <button onclick="window.filterConnectorsByCategory('data')" id="conn-cat-data" class="px-2.5 py-1 rounded bg-surface-container-low text-slate-400 hover:text-white border border-outline-variant/30 font-bold uppercase cursor-pointer">CSV &amp; TRIPLES</button>
+          <button onclick="window.filterConnectorsByCategory('code')" id="conn-cat-code" class="px-2.5 py-1 rounded bg-surface-container-low text-slate-400 hover:text-white border border-outline-variant/30 font-bold uppercase cursor-pointer">GITHUB &amp; REPOS</button>
+          <button onclick="window.filterConnectorsByCategory('datasets')" id="conn-cat-datasets" class="px-2.5 py-1 rounded bg-surface-container-low text-slate-400 hover:text-white border border-outline-variant/30 font-bold uppercase cursor-pointer">PUBLIC DATASETS &amp; TRIPLES</button>
           <button onclick="window.filterConnectorsByCategory('science')" id="conn-cat-science" class="px-2.5 py-1 rounded bg-surface-container-low text-slate-400 hover:text-white border border-outline-variant/30 font-bold uppercase cursor-pointer">ARXIV, PUBMED &amp; FHIR</button>
         </div>
         <div class="text-slate-400">
@@ -2487,7 +2491,7 @@
       </div>
 
       <!-- =================================================================== -->
-      <!-- 6 INTERACTIVE INGESTION WORKBENCH STUDIOS (2x3 GRID)                -->
+      <!-- 7 INTERACTIVE INGESTION WORKBENCH STUDIOS                            -->
       <!-- =================================================================== -->
       <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
 
@@ -2497,89 +2501,250 @@
             <div class="flex items-center justify-between">
               <div class="flex items-center gap-2 text-cyan-300 font-bold text-xs uppercase">
                 <span class="material-symbols-outlined text-base text-cyan-400">cloud_sync</span>
-                <span>Google Workspace (Drive, Docs, Sheets, Gmail, Calendar)</span>
+                <span>Google Workspace (Drive, Calendar, Gmail &amp; Docs)</span>
               </div>
               <div class="flex items-center gap-1.5">
                 <button onclick="document.getElementById('gworkspace-oauth-drawer').classList.toggle('hidden')" class="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-cyan-300 text-[9px] font-bold cursor-pointer">OAuth / Token</button>
-                <span class="text-[9px] px-1.5 py-0.5 rounded bg-emerald-500/15 border border-emerald-500/40 text-emerald-300 font-bold">CONNECTED</span>
+                <span id="gworkspace-status-badge" class="text-[9px] px-1.5 py-0.5 rounded bg-emerald-500/15 border border-emerald-500/40 text-emerald-300 font-bold">ACTIVE</span>
               </div>
             </div>
-            <p class="text-[10px] text-neutral-400 font-sans">Ingest Google Docs, Sheets CSVs, Drive files, Gmail threads, Calendar events, or mirrored Workspace files.</p>
+            <p class="text-[10px] text-neutral-400 font-sans">Search Drive, select multiple files &amp; folders, ingest Calendar events, or sync Gmail threads with PDF page extraction.</p>
           </div>
 
-          <!-- Optional OAuth / Access Token Configuration Drawer -->
+          <!-- OAuth / Access Token Configuration Drawer -->
           <div id="gworkspace-oauth-drawer" class="hidden p-2.5 rounded-lg bg-slate-950 border border-cyan-500/30 space-y-2 text-[10px]">
             <div class="flex items-center justify-between">
               <span class="text-cyan-300 font-bold uppercase">Google OAuth 2.0 Credential</span>
-              <button onclick="window.openGoogleOAuthConsent()" class="px-2 py-0.5 rounded bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 font-bold cursor-pointer">Launch Google OAuth ↗</button>
+              <button onclick="window.openGoogleOAuthConsent()" class="px-2 py-0.5 rounded bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 border border-cyan-500/40 font-bold cursor-pointer">Launch Google Sign-In ↗</button>
             </div>
-            <input id="gworkspace-access-token" type="password" placeholder="Optional: Paste Google OAuth Access Token (ya29....)" class="w-full bg-surface-container-low border border-slate-800 rounded px-2 py-1 text-white" />
-          </div>
-
-          <div class="space-y-2">
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
-              <select id="gworkspace-mode" onchange="window.onGoogleWorkspaceModeChange(this.value)" class="bg-surface-container-low border border-outline-variant/40 rounded px-2 py-1.5 text-xs text-white focus:outline-none focus:border-cyan-400">
-                <option value="doc_url">Google Doc / Sheet URL or Mirror</option>
-                <option value="drive_sync">Batch Sync Workspace Docs</option>
-                <option value="gmail_sync">Gmail Important Threads</option>
-                <option value="calendar_sync">Google Calendar Upcoming</option>
-              </select>
-              <select id="gworkspace-file-select" onchange="if(this.value) document.getElementById('gworkspace-target-input').value = this.value" class="bg-surface-container-low border border-outline-variant/40 rounded px-2 py-1.5 text-xs text-cyan-300 truncate focus:outline-none">
-                <option value="">Select Workspace Document...</option>
-              </select>
+            <div class="text-[9px] text-slate-400 font-sans leading-relaxed">
+              Whitelisted callback: <code class="text-cyan-300 font-mono">/api/managed/oauth/google/callback</code>. If you encounter <span class="text-rose-400 font-mono">Error 400: redirect_uri_mismatch</span>, ensure your browser origin matches the registered host or paste an access token below.
             </div>
             <div class="flex items-center gap-2">
-              <input id="gworkspace-target-input" type="text" placeholder="Paste docs.google.com/document/d/... or select above" class="flex-1 bg-surface-container-low border border-outline-variant/40 rounded p-2 text-xs text-white placeholder:text-neutral-500 focus:outline-none focus:border-cyan-400" />
-              <button onclick="window.submitGoogleWorkspaceIngest()" class="px-3.5 py-2 bg-cyan-400 hover:bg-cyan-300 text-black font-bold text-xs uppercase rounded transition-colors flex items-center gap-1 shrink-0 cursor-pointer">
-                <span class="material-symbols-outlined text-sm">cloud_download</span>
-                <span>Ingest</span>
+              <input id="gworkspace-access-token" type="password" placeholder="Optional: Paste Google Access Token (ya29....)" class="flex-1 bg-surface-container-low border border-slate-800 rounded px-2 py-1 text-white text-[10px] font-mono focus:outline-none focus:border-cyan-400" />
+              <button onclick="window.saveGoogleAccessToken()" class="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-200 text-[9px] font-bold rounded">Save</button>
+            </div>
+          </div>
+
+          <!-- Mode Navigation Strip -->
+          <div class="flex items-center gap-1 bg-slate-950 p-1 rounded-lg border border-slate-800/80 text-[10px] font-mono">
+            <button type="button" onclick="window.setGoogleWorkspaceTab('drive')" id="gw-tab-drive" class="gw-tab-btn flex-1 py-1 rounded bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 font-bold uppercase transition-all">📁 Drive</button>
+            <button type="button" onclick="window.setGoogleWorkspaceTab('calendar')" id="gw-tab-calendar" class="gw-tab-btn flex-1 py-1 rounded text-slate-400 hover:text-white font-bold uppercase transition-all">📅 Calendar</button>
+            <button type="button" onclick="window.setGoogleWorkspaceTab('gmail')" id="gw-tab-gmail" class="gw-tab-btn flex-1 py-1 rounded text-slate-400 hover:text-white font-bold uppercase transition-all">✉️ Gmail</button>
+            <button type="button" onclick="window.setGoogleWorkspaceTab('doc_url')" id="gw-tab-doc_url" class="gw-tab-btn flex-1 py-1 rounded text-slate-400 hover:text-white font-bold uppercase transition-all">🔗 Doc URL</button>
+          </div>
+
+          <!-- PANEL A: DRIVE FILES & DIRECTORIES -->
+          <div id="gw-panel-drive" class="space-y-2">
+            <div class="flex items-center gap-1.5">
+              <div class="relative flex-1">
+                <span class="material-symbols-outlined text-[14px] text-slate-400 absolute left-2 top-2">search</span>
+                <input id="gw-drive-search-input" type="text" placeholder="Search Drive files &amp; folders..." class="w-full bg-surface-container-low border border-outline-variant/40 rounded pl-7 pr-2 py-1.5 text-xs text-white placeholder:text-neutral-500 focus:outline-none focus:border-cyan-400 font-mono" onkeydown="if(event.key==='Enter') window.searchGoogleDrive()" />
+              </div>
+              <select id="gw-drive-type-filter" onchange="window.searchGoogleDrive()" class="bg-surface-container-low border border-outline-variant/40 rounded px-2 py-1.5 text-xs text-cyan-300 font-mono focus:outline-none">
+                <option value="all">All Items</option>
+                <option value="pdf">PDFs Only (*.pdf)</option>
+                <option value="doc">Docs &amp; Text</option>
+                <option value="sheet">Sheets / CSV</option>
+                <option value="folder">Folders / Dirs</option>
+              </select>
+              <button onclick="window.searchGoogleDrive()" class="px-2.5 py-1.5 bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 border border-cyan-400/50 font-bold text-xs uppercase rounded flex items-center gap-1 cursor-pointer">
+                <span class="material-symbols-outlined text-[13px]">search</span>
+                <span>Search</span>
               </button>
             </div>
-            <div id="gworkspace-status" class="hidden text-[10px] p-2 rounded bg-surface-container-low border border-outline-variant/30"></div>
+
+            <!-- Multi-Select File List Container -->
+            <div class="border border-outline-variant/30 rounded-lg bg-slate-950/60 overflow-hidden text-[10px] font-mono">
+              <div class="flex items-center justify-between px-2.5 py-1.5 bg-slate-900/80 border-b border-outline-variant/30 text-slate-400 font-bold uppercase text-[9px]">
+                <div class="flex items-center gap-2">
+                  <input type="checkbox" id="gw-drive-select-all" onchange="window.toggleAllDriveFiles(this.checked)" class="accent-cyan-400 cursor-pointer" />
+                  <span>Item Name &amp; Type</span>
+                </div>
+                <div class="flex items-center gap-3">
+                  <span id="gw-drive-selection-count" class="text-cyan-300 font-bold">0 Selected</span>
+                  <button onclick="window.searchGoogleDrive()" class="text-slate-400 hover:text-white" title="Refresh Drive Items">
+                    <span class="material-symbols-outlined text-[13px]">refresh</span>
+                  </button>
+                </div>
+              </div>
+              <div id="gw-drive-items-list" class="max-h-40 overflow-y-auto divide-y divide-outline-variant/15 scrollbar-thin">
+                <div class="p-3 text-center text-slate-500 italic">Click Search to list files from Google Drive &amp; local mirrors...</div>
+              </div>
+            </div>
+
+            <div class="flex items-center justify-between gap-2 pt-0.5">
+              <span class="text-[9px] text-slate-400">PDFs automatically generate page previews in 3D graph</span>
+              <button onclick="window.submitGoogleDriveBatchIngest()" id="gw-drive-ingest-btn" class="px-3.5 py-1.5 bg-cyan-400 hover:bg-cyan-300 text-black font-bold text-xs uppercase rounded transition-colors flex items-center gap-1.5 shrink-0 cursor-pointer shadow">
+                <span class="material-symbols-outlined text-sm">cloud_download</span>
+                <span>Ingest Selected Files (0)</span>
+              </button>
+            </div>
           </div>
+
+          <!-- PANEL B: CALENDAR EVENTS -->
+          <div id="gw-panel-calendar" class="hidden space-y-2">
+            <div class="flex items-center gap-1.5">
+              <input id="gw-calendar-query" type="text" placeholder="Search calendar events (or leave blank for upcoming)..." class="flex-1 bg-surface-container-low border border-outline-variant/40 rounded px-2.5 py-1.5 text-xs text-white placeholder:text-neutral-500 focus:outline-none focus:border-cyan-400 font-mono" onkeydown="if(event.key==='Enter') window.searchGoogleCalendar()" />
+              <button onclick="window.searchGoogleCalendar()" class="px-2.5 py-1.5 bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 border border-cyan-400/50 font-bold text-xs uppercase rounded flex items-center gap-1 cursor-pointer">
+                <span class="material-symbols-outlined text-[13px]">search</span>
+                <span>Fetch</span>
+              </button>
+            </div>
+            <div class="border border-outline-variant/30 rounded-lg bg-slate-950/60 overflow-hidden text-[10px] font-mono">
+              <div class="flex items-center justify-between px-2.5 py-1.5 bg-slate-900/80 border-b border-outline-variant/30 text-slate-400 font-bold uppercase text-[9px]">
+                <div class="flex items-center gap-2">
+                  <input type="checkbox" id="gw-cal-select-all" onchange="window.toggleAllCalendarEvents(this.checked)" class="accent-cyan-400 cursor-pointer" />
+                  <span>Calendar Event</span>
+                </div>
+                <span id="gw-cal-selection-count" class="text-cyan-300 font-bold">0 Selected</span>
+              </div>
+              <div id="gw-calendar-items-list" class="max-h-40 overflow-y-auto divide-y divide-outline-variant/15 scrollbar-thin">
+                <div class="p-3 text-center text-slate-500 italic">Click Fetch to browse upcoming calendar entries...</div>
+              </div>
+            </div>
+            <div class="flex items-center justify-end">
+              <button onclick="window.submitGoogleCalendarBatchIngest()" id="gw-cal-ingest-btn" class="px-3.5 py-1.5 bg-cyan-400 hover:bg-cyan-300 text-black font-bold text-xs uppercase rounded transition-colors flex items-center gap-1.5 shrink-0 cursor-pointer shadow">
+                <span class="material-symbols-outlined text-sm">event</span>
+                <span>Ingest Selected Events (0)</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- PANEL C: GMAIL THREADS -->
+          <div id="gw-panel-gmail" class="hidden space-y-2">
+            <div class="flex items-center gap-1.5">
+              <input id="gw-gmail-query" type="text" value="is:important" placeholder="Query: is:important or from:example.com..." class="flex-1 bg-surface-container-low border border-outline-variant/40 rounded px-2.5 py-1.5 text-xs text-white placeholder:text-neutral-500 focus:outline-none focus:border-cyan-400 font-mono" onkeydown="if(event.key==='Enter') window.searchGmailThreads()" />
+              <button onclick="window.searchGmailThreads()" class="px-2.5 py-1.5 bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 border border-cyan-400/50 font-bold text-xs uppercase rounded flex items-center gap-1 cursor-pointer">
+                <span class="material-symbols-outlined text-[13px]">search</span>
+                <span>Search</span>
+              </button>
+            </div>
+            <div class="border border-outline-variant/30 rounded-lg bg-slate-950/60 overflow-hidden text-[10px] font-mono">
+              <div class="flex items-center justify-between px-2.5 py-1.5 bg-slate-900/80 border-b border-outline-variant/30 text-slate-400 font-bold uppercase text-[9px]">
+                <div class="flex items-center gap-2">
+                  <input type="checkbox" id="gw-gmail-select-all" onchange="window.toggleAllGmailThreads(this.checked)" class="accent-cyan-400 cursor-pointer" />
+                  <span>Email Thread</span>
+                </div>
+                <span id="gw-gmail-selection-count" class="text-cyan-300 font-bold">0 Selected</span>
+              </div>
+              <div id="gw-gmail-items-list" class="max-h-40 overflow-y-auto divide-y divide-outline-variant/15 scrollbar-thin">
+                <div class="p-3 text-center text-slate-500 italic">Click Search to list matching email threads...</div>
+              </div>
+            </div>
+            <div class="flex items-center justify-end">
+              <button onclick="window.submitGmailBatchIngest()" id="gw-gmail-ingest-btn" class="px-3.5 py-1.5 bg-cyan-400 hover:bg-cyan-300 text-black font-bold text-xs uppercase rounded transition-colors flex items-center gap-1.5 shrink-0 cursor-pointer shadow">
+                <span class="material-symbols-outlined text-sm">mail</span>
+                <span>Ingest Selected Threads (0)</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- PANEL D: DIRECT DOC URL -->
+          <div id="gw-panel-doc_url" class="hidden space-y-2">
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <select id="gworkspace-file-select" onchange="if(this.value) document.getElementById('gworkspace-target-input').value = this.value" class="bg-surface-container-low border border-outline-variant/40 rounded px-2 py-1.5 text-xs text-cyan-300 truncate focus:outline-none font-mono">
+                <option value="">Select Local Workspace Doc...</option>
+              </select>
+              <input id="gworkspace-target-input" type="text" placeholder="Paste docs.google.com/document/d/... or select" class="bg-surface-container-low border border-outline-variant/40 rounded p-2 text-xs text-white placeholder:text-neutral-500 focus:outline-none focus:border-cyan-400 font-mono" />
+            </div>
+            <button onclick="window.submitGoogleWorkspaceIngest()" class="w-full py-1.5 bg-cyan-400 hover:bg-cyan-300 text-black font-bold text-xs uppercase rounded transition-colors flex items-center justify-center gap-1 cursor-pointer">
+              <span class="material-symbols-outlined text-sm">cloud_download</span>
+              <span>Ingest Document</span>
+            </button>
+          </div>
+
+          <div id="gworkspace-status" class="hidden text-[10px] p-2 rounded bg-surface-container-low border border-outline-variant/30 font-mono"></div>
         </div>
 
-        <!-- WORKBENCH 2: GITHUB INTELLIGENCE (Repos, PRs, Issues, Commits, READMEs) -->
+        <!-- WORKBENCH 2: REIMAGINED GITHUB CONNECTOR (Public Search, Complete Repos, Architecture Nodes) -->
         <div class="bg-surface-container-lowest border border-purple-500/30 p-4 rounded-xl flex flex-col justify-between space-y-3 shadow-lg">
           <div class="space-y-1.5">
             <div class="flex items-center justify-between">
               <div class="flex items-center gap-2 text-purple-300 font-bold text-xs uppercase">
                 <span class="material-symbols-outlined text-base text-purple-400">terminal</span>
-                <span>GitHub Intelligence (Repos, PRs, Issues &amp; Commits)</span>
+                <span>GitHub Intelligence &amp; Complete Repository Ingestion</span>
               </div>
-              <span id="github-auth-badge" class="text-[9px] px-1.5 py-0.5 rounded bg-emerald-500/15 border border-emerald-500/40 text-emerald-300 font-bold">GH CLI AUTHED</span>
+              <div class="flex items-center gap-1.5">
+                <button onclick="window.openGitHubOAuthConsent()" class="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-purple-300 text-[9px] font-bold cursor-pointer">OAuth Connect</button>
+                <span id="github-auth-badge" class="text-[9px] px-1.5 py-0.5 rounded bg-emerald-500/15 border border-emerald-500/40 text-emerald-300 font-bold">PUBLIC / AUTH</span>
+              </div>
             </div>
-            <p class="text-[10px] text-neutral-400 font-sans">Syncs repository commits, Pull Requests (with SOP merge triples), Issues, and README specs directly from GitHub.</p>
+            <p class="text-[10px] text-neutral-400 font-sans">Search public GitHub repos or connect via OAuth. Ingest complete codebases into dedicated interactive Repository Nodes.</p>
           </div>
 
-          <div class="space-y-2">
+          <!-- Mode Navigation Strip -->
+          <div class="flex items-center gap-1 bg-slate-950 p-1 rounded-lg border border-slate-800/80 text-[10px] font-mono">
+            <button type="button" onclick="window.setGitHubTab('public_search')" id="gh-tab-public" class="gh-tab-btn flex-1 py-1 rounded bg-purple-500/20 text-purple-300 border border-purple-500/40 font-bold uppercase transition-all">🌐 Search Public Repos</button>
+            <button type="button" onclick="window.setGitHubTab('direct_repo')" id="gh-tab-direct" class="gh-tab-btn flex-1 py-1 rounded text-slate-400 hover:text-white font-bold uppercase transition-all">📦 Complete Repo Node</button>
+            <button type="button" onclick="window.setGitHubTab('sync_prs')" id="gh-tab-sync" class="gh-tab-btn flex-1 py-1 rounded text-slate-400 hover:text-white font-bold uppercase transition-all">🔄 Sync PRs &amp; Commits</button>
+          </div>
+
+          <!-- PANEL A: SEARCH PUBLIC REPOSITORIES -->
+          <div id="gh-panel-public" class="space-y-2">
+            <div class="flex items-center gap-1.5">
+              <div class="relative flex-1">
+                <span class="material-symbols-outlined text-[14px] text-slate-400 absolute left-2 top-2">search</span>
+                <input id="github-search-input" type="text" placeholder="Search public GitHub repos (e.g. super-cortex, fastapi, transformers)..." class="w-full bg-surface-container-low border border-outline-variant/40 rounded pl-7 pr-2 py-1.5 text-xs text-white placeholder:text-neutral-500 focus:outline-none focus:border-purple-400 font-mono" onkeydown="if(event.key==='Enter') window.searchPublicGitHubRepos()" />
+              </div>
+              <button onclick="window.searchPublicGitHubRepos()" class="px-2.5 py-1.5 bg-purple-500/20 hover:bg-purple-500/30 text-purple-300 border border-purple-400/50 font-bold text-xs uppercase rounded flex items-center gap-1 cursor-pointer">
+                <span class="material-symbols-outlined text-[13px]">search</span>
+                <span>Search</span>
+              </button>
+            </div>
+
+            <!-- Public Repos Search Results List -->
+            <div id="github-search-results-list" class="max-h-48 overflow-y-auto space-y-1.5 border border-outline-variant/30 rounded-lg p-1.5 bg-slate-950/60 text-[10px] font-mono scrollbar-thin">
+              <div class="p-3 text-center text-slate-500 italic">Enter query above to search public repositories across GitHub...</div>
+            </div>
+          </div>
+
+          <!-- PANEL B: COMPLETE REPO NODE INGEST -->
+          <div id="gh-panel-direct" class="hidden space-y-2">
             <div class="flex items-center gap-2">
-              <input id="github-owner-input" type="text" value="XibalbaTechSol" placeholder="GitHub Org/User" class="w-36 bg-surface-container-low border border-outline-variant/40 rounded px-2 py-1.5 text-xs text-white focus:outline-none focus:border-purple-400" />
-              <button onclick="window.loadGitHubReposDropdown()" class="px-2 py-1.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 text-[10px] font-bold cursor-pointer" title="Fetch repositories for owner">Load Repos</button>
-              <select id="github-repo-select" onchange="if(this.value) document.getElementById('github-repo-input').value = this.value" class="flex-1 bg-surface-container-low border border-outline-variant/40 rounded px-2 py-1.5 text-xs text-purple-300 font-bold truncate focus:outline-none">
+              <input id="github-direct-repo-input" type="text" value="XibalbaTechSol/super-cortex" placeholder="owner/repo (e.g. tiangolo/fastapi or huggingface/transformers)" class="flex-1 bg-surface-container-low border border-outline-variant/40 rounded p-2 text-xs text-white font-mono focus:outline-none focus:border-purple-400" />
+              <button onclick="window.submitCompleteRepoDirect()" class="px-3.5 py-2 bg-purple-500 hover:bg-purple-400 text-black font-bold text-xs uppercase rounded transition-colors flex items-center gap-1.5 shrink-0 cursor-pointer shadow">
+                <span class="material-symbols-outlined text-sm">hub</span>
+                <span>+ Create Repo Node</span>
+              </button>
+            </div>
+            <div class="p-2 rounded bg-surface-container-lowest border border-purple-500/20 text-[9.5px] text-neutral-400 font-mono space-y-1">
+              <div class="text-purple-300 font-bold uppercase flex items-center gap-1">
+                <span class="material-symbols-outlined text-[12px]">info</span>
+                <span>Complete Repository Analysis Pipeline</span>
+              </div>
+              <p>Extracts file tree modules, manifest dependencies (package.json, pyproject.toml, Cargo.toml), README specification, and creates relational triples (implements_module, has_dependency, maintains_repo).</p>
+            </div>
+          </div>
+
+          <!-- PANEL C: SYNC PRS, COMMITS & ISSUES -->
+          <div id="gh-panel-sync" class="hidden space-y-2">
+            <div class="flex items-center gap-2">
+              <input id="github-owner-input" type="text" value="XibalbaTechSol" placeholder="Owner" class="w-32 bg-surface-container-low border border-outline-variant/40 rounded px-2 py-1 text-xs text-white focus:outline-none focus:border-purple-400 font-mono" />
+              <button onclick="window.loadGitHubReposDropdown()" class="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 text-[9px] font-bold cursor-pointer">Load Repos</button>
+              <select id="github-repo-select" onchange="if(this.value) document.getElementById('github-repo-input').value = this.value" class="flex-1 bg-surface-container-low border border-outline-variant/40 rounded px-2 py-1 text-xs text-purple-300 font-bold truncate focus:outline-none font-mono">
                 <option value="XibalbaTechSol/super-cortex">XibalbaTechSol/super-cortex</option>
                 <option value="XibalbaTechSol/integrity-core">XibalbaTechSol/integrity-core</option>
                 <option value="XibalbaTechSol/xibalba-shield">XibalbaTechSol/xibalba-shield</option>
                 <option value="XibalbaTechSol/integrity-console">XibalbaTechSol/integrity-console</option>
               </select>
             </div>
-
             <div class="flex items-center gap-3 text-[10px] text-slate-300 py-0.5">
               <label class="flex items-center gap-1 cursor-pointer"><input id="gh-inc-commits" type="checkbox" checked class="accent-purple-400" /> Commits</label>
               <label class="flex items-center gap-1 cursor-pointer"><input id="gh-inc-prs" type="checkbox" checked class="accent-purple-400" /> Pull Requests</label>
               <label class="flex items-center gap-1 cursor-pointer"><input id="gh-inc-issues" type="checkbox" checked class="accent-purple-400" /> Issues</label>
               <label class="flex items-center gap-1 cursor-pointer"><input id="gh-inc-readme" type="checkbox" checked class="accent-purple-400" /> Metadata</label>
             </div>
-
             <div class="flex items-center gap-2">
-              <input id="github-repo-input" type="text" value="XibalbaTechSol/super-cortex" placeholder="owner/repo or https://github.com/..." class="flex-1 bg-surface-container-low border border-outline-variant/40 rounded p-2 text-xs text-white focus:outline-none focus:border-purple-400" />
-              <button onclick="window.submitGitHubIngest()" class="px-3.5 py-2 bg-purple-500 hover:bg-purple-400 text-black font-bold text-xs uppercase rounded transition-colors flex items-center gap-1 shrink-0 cursor-pointer">
+              <input id="github-repo-input" type="text" value="XibalbaTechSol/super-cortex" class="flex-1 bg-surface-container-low border border-outline-variant/40 rounded p-1.5 text-xs text-white font-mono focus:outline-none focus:border-purple-400" />
+              <button onclick="window.submitGitHubIngest()" class="px-3.5 py-1.5 bg-purple-500 hover:bg-purple-400 text-black font-bold text-xs uppercase rounded transition-colors flex items-center gap-1 shrink-0 cursor-pointer">
                 <span class="material-symbols-outlined text-sm">sync</span>
-                <span>Sync Repo</span>
+                <span>Sync Items</span>
               </button>
             </div>
-            <div id="github-status" class="hidden text-[10px] p-2 rounded bg-surface-container-low border border-outline-variant/30"></div>
           </div>
+
+          <div id="github-status" class="hidden text-[10px] p-2 rounded bg-surface-container-low border border-outline-variant/30 font-mono"></div>
         </div>
 
         <!-- WORKBENCH 3: WEB URL & DOCUMENTATION CLIPPER -->
@@ -2707,14 +2872,110 @@
           </div>
         </div>
 
+        <!-- WORKBENCH 7: PUBLIC KNOWLEDGE GRAPH DATASETS & BENCHMARK ONTOLOGIES -->
+        <div class="bg-surface-container-lowest border border-emerald-500/40 p-4 rounded-xl flex flex-col justify-between space-y-3 shadow-lg lg:col-span-2">
+          <div class="space-y-1.5">
+            <div class="flex items-center justify-between">
+              <div class="flex items-center gap-2 text-emerald-300 font-bold text-xs uppercase">
+                <span class="material-symbols-outlined text-base text-emerald-400">dataset</span>
+                <span>Public Datasets &amp; Graph Benchmark Ontologies</span>
+              </div>
+              <div class="flex items-center gap-1.5">
+                <span class="text-[9px] px-1.5 py-0.5 rounded bg-emerald-500/15 border border-emerald-500/40 text-emerald-300 font-bold uppercase">GRAPH-NATIVE</span>
+                <span class="text-[9px] px-1.5 py-0.5 rounded bg-cyan-500/15 border border-cyan-500/40 text-cyan-300 font-bold uppercase">ZERO-INFERENCE</span>
+              </div>
+            </div>
+            <p class="text-[10px] text-neutral-400 font-sans">Curated public datasets and live SPARQL endpoints tailored for 3D neural knowledge manifolds, topological spectral analysis, and causal link prediction.</p>
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-3 text-[10px] font-mono">
+            <!-- Dataset Option 1: AI Foundations & Control Theory (Demo Dataset) -->
+            <div onclick="window.selectPublicDataset('demo_ai_control')" id="dataset-card-demo_ai_control" class="dataset-card p-3 rounded-lg bg-surface-container-low border border-emerald-400 ring-1 ring-emerald-400/40 hover:border-emerald-400 cursor-pointer transition-all space-y-1.5 relative overflow-hidden shadow">
+              <div class="flex items-center justify-between text-emerald-300 font-bold uppercase text-[9.5px]">
+                <span>★ AI &amp; Control Theory</span>
+                <span class="text-[8px] px-1 rounded bg-emerald-500/20 text-emerald-300 font-mono">DEMO</span>
+              </div>
+              <p class="text-[9px] text-neutral-300 font-sans leading-tight">Control theory, dynamical systems, epistemic modal logic &amp; knowledge graphs.</p>
+              <div class="flex items-center gap-2 pt-1 text-[8px] text-slate-400 border-t border-outline-variant/20">
+                <span>22 Entities</span>
+                <span>·</span>
+                <span>28 Triples</span>
+                <span>·</span>
+                <span class="text-emerald-400">Perfect Graph</span>
+              </div>
+            </div>
+
+            <!-- Dataset Option 2: Biomedical Hetionet Subgraph -->
+            <div onclick="window.selectPublicDataset('biomedical_hetionet')" id="dataset-card-biomedical_hetionet" class="dataset-card p-3 rounded-lg bg-surface-container-low border border-outline-variant/30 hover:border-cyan-400 cursor-pointer transition-all space-y-1.5 relative overflow-hidden shadow">
+              <div class="flex items-center justify-between text-cyan-300 font-bold uppercase text-[9.5px]">
+                <span>Biomedical Hetionet</span>
+                <span class="text-[8px] px-1 rounded bg-cyan-500/20 text-cyan-300 font-mono">NETWORK</span>
+              </div>
+              <p class="text-[9px] text-neutral-300 font-sans leading-tight">Disease-Gene-Compound-Anatomy network for biomedical target prioritization.</p>
+              <div class="flex items-center gap-2 pt-1 text-[8px] text-slate-400 border-t border-outline-variant/20">
+                <span>15 Entities</span>
+                <span>·</span>
+                <span>18 Triples</span>
+                <span>·</span>
+                <span class="text-cyan-400">Multi-Relational</span>
+              </div>
+            </div>
+
+            <!-- Dataset Option 3: Wikidata Live SPARQL Endpoint -->
+            <div onclick="window.selectPublicDataset('wikidata_sparql')" id="dataset-card-wikidata_sparql" class="dataset-card p-3 rounded-lg bg-surface-container-low border border-outline-variant/30 hover:border-amber-400 cursor-pointer transition-all space-y-1.5 relative overflow-hidden shadow">
+              <div class="flex items-center justify-between text-amber-300 font-bold uppercase text-[9.5px]">
+                <span>Wikidata Live SPARQL</span>
+                <span class="text-[8px] px-1 rounded bg-amber-500/20 text-amber-300 font-mono">FEDERATED</span>
+              </div>
+              <p class="text-[9px] text-neutral-300 font-sans leading-tight">Execute live SPARQL queries against query.wikidata.org to pull real-time ontologies.</p>
+              <div class="flex items-center gap-2 pt-1 text-[8px] text-slate-400 border-t border-outline-variant/20">
+                <span>Live Query</span>
+                <span>·</span>
+                <span>Global Graph</span>
+                <span>·</span>
+                <span class="text-amber-400">Open Linked Data</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Dataset Detail & Action Strip -->
+          <div class="p-3 rounded-lg bg-slate-950/80 border border-outline-variant/30 space-y-2 text-[10px] font-mono">
+            <div class="flex items-center justify-between flex-wrap gap-2">
+              <div class="flex items-center gap-2 min-w-0">
+                <span class="text-neutral-400 uppercase font-bold">Selected:</span>
+                <span id="public-dataset-title" class="text-emerald-300 font-bold truncate">Demo Dataset: AI Foundations, Control Theory &amp; Epistemic Graph Systems (22 Nodes, 28 Triples)</span>
+              </div>
+              <div class="flex items-center gap-2">
+                <button onclick="window.loadPublicDatasetPreview()" class="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 text-[9px] font-bold cursor-pointer">Preview Triples</button>
+                <button onclick="window.submitPublicDatasetIngest()" id="btn-ingest-dataset" class="px-3.5 py-1.5 bg-gradient-to-r from-emerald-500 to-cyan-500 hover:from-emerald-400 hover:to-cyan-400 text-black font-extrabold text-xs uppercase rounded transition-all flex items-center gap-1.5 cursor-pointer shadow-lg">
+                  <span class="material-symbols-outlined text-sm">hub</span>
+                  <span>Ingest Dataset into 3D Graph</span>
+                </button>
+              </div>
+            </div>
+
+            <!-- SPARQL Custom Query input (hidden unless wikidata_sparql is active) -->
+            <div id="sparql-custom-container" class="hidden space-y-1.5 pt-1 border-t border-outline-variant/20">
+              <label class="text-[9px] uppercase font-bold text-amber-300 block">Wikidata SPARQL Query Specification:</label>
+              <textarea id="sparql-query-input" rows="3" class="w-full bg-surface-container-low border border-outline-variant/40 rounded p-2 text-xs text-white font-mono focus:outline-none focus:border-amber-400" placeholder="SELECT ?subj ?pred ?obj WHERE { ... } LIMIT 25">SELECT ?item ?itemLabel ?subclassLabel WHERE { ?item wdt:P279 wd:Q11660 . ?item rdfs:label ?itemLabel . FILTER(LANG(?itemLabel) = "en") } LIMIT 20</textarea>
+            </div>
+
+            <div id="public-dataset-preview-box" class="p-2 rounded bg-surface-container-lowest border border-outline-variant/20 max-h-28 overflow-y-auto text-[9px] text-slate-300 leading-relaxed scrollbar-thin">
+              Curated benchmark graph comprising 22 entities, 28 triples covering Kalman Filters, Pontryagin Maximum Principle, Epistemic Modal Logic, and Spectral Graph Theory. Click Ingest to anchor immediately.
+            </div>
+
+            <div id="public-dataset-status" class="hidden text-[10px] p-2 rounded bg-surface-container-low border border-outline-variant/30"></div>
+          </div>
+        </div>
+
       </div>
 
       <!-- =================================================================== -->
-      <!-- CONFIGURED CONTINUOUS CONNECTORS CATALOG (10 PIPELINES)             -->
+      <!-- CONFIGURED CONTINUOUS CONNECTORS CATALOG (11 PIPELINES)             -->
       <!-- =================================================================== -->
       <div class="space-y-3">
         <div class="flex items-center justify-between">
-          <div class="text-[11px] text-outline uppercase font-bold tracking-wider">Configured Continuous Connectors (10)</div>
+          <div class="text-[11px] text-outline uppercase font-bold tracking-wider">Configured Continuous Connectors (11)</div>
           <button onclick="window.loadConnectors()" class="text-[10px] text-cyan-400 hover:underline flex items-center gap-1 cursor-pointer">
             <span class="material-symbols-outlined text-[12px]">refresh</span> Refresh Status
           </button>
@@ -4173,6 +4434,56 @@
           Close
         </button>
       </div>
+    </div>
+  </div>
+
+  <!-- MODAL: INTERACTIVE PDF VIEWER / DOCUMENT PREVIEW -->
+  <div id="pdf-preview-modal" class="hidden fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4 font-mono select-text" onclick="if(event.target === this) window.closePdfModal()">
+    <div class="w-full max-w-5xl h-[88vh] bg-surface-container-lowest border border-cyan-500/40 rounded-xl flex flex-col shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+      <div class="flex items-center justify-between px-4 py-3 border-b border-cyan-500/30 bg-slate-950">
+        <div class="flex items-center gap-2.5 min-w-0">
+          <span class="material-symbols-outlined text-cyan-400 text-xl">picture_as_pdf</span>
+          <div class="min-w-0">
+            <span id="pdf-modal-title" class="text-xs font-bold text-white uppercase tracking-wider block truncate">PDF Document Preview</span>
+            <span id="pdf-modal-meta" class="text-[9px] text-cyan-300 font-mono">Native PDF Manifold Engine</span>
+          </div>
+        </div>
+        <div class="flex items-center gap-2">
+          <a id="pdf-modal-download-btn" href="#" target="_blank" download class="px-2.5 py-1 rounded bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 border border-cyan-500/40 text-[10px] font-bold uppercase flex items-center gap-1 cursor-pointer">
+            <span class="material-symbols-outlined text-[13px]">download</span>
+            <span>Download</span>
+          </a>
+          <a id="pdf-modal-tab-btn" href="#" target="_blank" class="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 text-[10px] font-bold uppercase flex items-center gap-1 cursor-pointer">
+            <span class="material-symbols-outlined text-[13px]">open_in_new</span>
+            <span>New Tab</span>
+          </a>
+          <button onclick="window.closePdfModal()" class="w-7 h-7 rounded flex items-center justify-center text-slate-400 hover:text-white hover:bg-slate-800 cursor-pointer">
+            <span class="material-symbols-outlined text-base">close</span>
+          </button>
+        </div>
+      </div>
+      <div class="flex-1 w-full bg-slate-900 relative">
+        <iframe id="pdf-modal-frame" src="about:blank" class="w-full h-full border-none"></iframe>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: GITHUB REPOSITORY ARCHITECTURE & README -->
+  <div id="repo-readme-modal" class="hidden fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4 font-mono select-text" onclick="if(event.target === this) window.closeRepoModal()">
+    <div class="w-full max-w-4xl h-[85vh] bg-surface-container-lowest border border-purple-500/40 rounded-xl flex flex-col shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+      <div class="flex items-center justify-between px-4 py-3 border-b border-purple-500/30 bg-slate-950">
+        <div class="flex items-center gap-2.5 min-w-0">
+          <span class="material-symbols-outlined text-purple-400 text-xl">folder_zip</span>
+          <div class="min-w-0">
+            <span id="repo-modal-title" class="text-xs font-bold text-white uppercase tracking-wider block truncate">Repository Architecture Spec</span>
+            <span id="repo-modal-meta" class="text-[9px] text-purple-300 font-mono">GitHub Complete Repository Analysis</span>
+          </div>
+        </div>
+        <button onclick="window.closeRepoModal()" class="w-7 h-7 rounded flex items-center justify-center text-slate-400 hover:text-white hover:bg-slate-800 cursor-pointer">
+          <span class="material-symbols-outlined text-base">close</span>
+        </button>
+      </div>
+      <div class="flex-1 w-full p-4 overflow-y-auto bg-slate-950 text-slate-200 text-xs font-sans whitespace-pre-wrap leading-relaxed select-text" id="repo-modal-content"></div>
     </div>
   </div>
 
@@ -6512,6 +6823,161 @@
       const retentionColor = node.retention?.status_color || '#00ffa3';
       const retentionStatus = (node.retention?.status || 'FRESH').toUpperCase();
 
+      // Check for PDF Document
+      const isPdf = Boolean(
+        node.pdf_url ||
+        node.mime_type === 'application/pdf' ||
+        (node.title && node.title.toLowerCase().endsWith('.pdf')) ||
+        node.category === 'pdf' ||
+        (node.metadata && (node.metadata.pdf_url || node.metadata.has_pdf || (node.metadata.file_path && node.metadata.file_path.toLowerCase().endsWith('.pdf'))))
+      );
+
+      let pdfPreviewHtml = '';
+      if (isPdf) {
+        const pdfUrl = node.pdf_url || (node.metadata && node.metadata.pdf_url) || (`/api/connectors/pdf/preview?file_id=${encodeURIComponent(node.id)}&path=${encodeURIComponent(node.metadata?.file_path || node.title || '')}`);
+        const pdfTitle = node.title || 'PDF Document';
+        const pdfPages = node.metadata?.page_count || node.metadata?.pages || (node.metadata?.extracted_pages ? `${node.metadata.extracted_pages} pages` : 'PDF Document');
+        pdfPreviewHtml = `
+          <div class="mt-2.5 p-3 rounded-xl bg-gradient-to-br from-cyan-950/40 via-surface-container-low to-black/60 border border-cyan-500/50 text-cyan-200 font-sans space-y-2.5 ring-1 ring-cyan-500/30 shadow-lg">
+            <div class="flex items-center justify-between text-[11px] font-bold text-cyan-300 uppercase">
+              <span class="flex items-center gap-1.5">
+                <span class="material-symbols-outlined text-base text-cyan-400">picture_as_pdf</span>
+                <span>PDF DOCUMENT PREVIEW</span>
+              </span>
+              <span class="px-2 py-0.5 rounded bg-cyan-500/20 text-cyan-300 text-[8px] font-mono font-bold border border-cyan-500/40">${escapeHtml(pdfPages)}</span>
+            </div>
+            <div class="flex items-center gap-1.5 text-[10px] font-mono flex-wrap">
+              <button onclick="window.toggleInlinePdfViewer('${node.id}')" class="px-2.5 py-1 bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-200 border border-cyan-500/40 rounded flex items-center gap-1 cursor-pointer">
+                <span class="material-symbols-outlined text-[12px]">preview</span>
+                <span>Inline Preview</span>
+              </button>
+              <button onclick="window.openPdfModal('${pdfUrl}', '${escapeHtml(pdfTitle)}')" class="px-2.5 py-1 bg-cyan-400 text-black hover:bg-cyan-300 rounded font-bold flex items-center gap-1 cursor-pointer">
+                <span class="material-symbols-outlined text-[12px]">fullscreen</span>
+                <span>Fullscreen Modal ↗</span>
+              </button>
+              <a href="${pdfUrl}" target="_blank" class="px-2.5 py-1 bg-surface-container-high hover:bg-surface-container-highest text-white border border-outline-variant/40 rounded flex items-center gap-1 cursor-pointer">
+                <span class="material-symbols-outlined text-[12px]">open_in_new</span>
+                <span>New Tab</span>
+              </a>
+            </div>
+            <div id="inline-pdf-container-${node.id}" class="hidden pt-1">
+              <iframe src="${pdfUrl}#toolbar=1" class="w-full h-80 rounded-lg border border-cyan-500/40 bg-slate-950"></iframe>
+            </div>
+          </div>
+        `;
+      }
+
+      // Check for GitHub Repository Node
+      const isRepo = Boolean(
+        node.category === 'github_repository' ||
+        node.type === 'repository' ||
+        (node.metadata && node.metadata.is_repo) ||
+        (node.title && node.title.startsWith('Repository: '))
+      );
+
+      let repoStudioHtml = '';
+      if (isRepo) {
+        const repoName = node.metadata?.repo_name || node.title.replace('Repository: ', '');
+        const stars = node.metadata?.stars || 0;
+        const forks = node.metadata?.forks || 0;
+        const lang = node.metadata?.language || 'Codebase';
+        const license = node.metadata?.license || 'Open Source';
+        const modules = node.metadata?.modules || [];
+        const deps = node.metadata?.dependencies || [];
+
+        repoStudioHtml = `
+          <div class="mt-2.5 p-3 rounded-xl bg-gradient-to-br from-purple-950/40 via-surface-container-low to-black/60 border border-purple-500/50 text-purple-200 font-sans space-y-2.5 ring-1 ring-purple-500/30 shadow-lg">
+            <div class="flex items-center justify-between text-[11px] font-bold text-purple-300 uppercase">
+              <span class="flex items-center gap-1.5">
+                <span class="material-symbols-outlined text-base text-purple-400">terminal</span>
+                <span>REPOSITORY ARCHITECTURE STUDIO</span>
+              </span>
+              <span class="px-2 py-0.5 rounded bg-purple-500/20 text-purple-300 text-[8px] font-mono font-bold border border-purple-500/40">${escapeHtml(lang)}</span>
+            </div>
+            <div class="grid grid-cols-3 gap-1.5 text-center font-mono text-[9px]">
+              <div class="p-1.5 rounded bg-surface-container-lowest border border-purple-500/20">
+                <span class="text-neutral-400 block text-[8px]">STARS</span>
+                <span class="font-bold text-amber-300">⭐ ${stars}</span>
+              </div>
+              <div class="p-1.5 rounded bg-surface-container-lowest border border-purple-500/20">
+                <span class="text-neutral-400 block text-[8px]">FORKS</span>
+                <span class="font-bold text-cyan-300">🍴 ${forks}</span>
+              </div>
+              <div class="p-1.5 rounded bg-surface-container-lowest border border-purple-500/20">
+                <span class="text-neutral-400 block text-[8px]">LICENSE</span>
+                <span class="font-bold text-emerald-300 truncate block">${escapeHtml(license)}</span>
+              </div>
+            </div>
+            ${modules.length > 0 ? `
+              <div class="space-y-1 text-[9px] font-mono">
+                <span class="text-neutral-400 uppercase font-bold block">Top Architecture Modules:</span>
+                <div class="flex items-center gap-1 flex-wrap">
+                  ${modules.map(m => `<span class="px-1.5 py-0.5 rounded bg-purple-900/30 border border-purple-500/30 text-purple-200 text-[8.5px]">${escapeHtml(m)}</span>`).join('')}
+                </div>
+              </div>
+            ` : ''}
+            ${deps.length > 0 ? `
+              <div class="space-y-1 text-[9px] font-mono">
+                <span class="text-neutral-400 uppercase font-bold block">Manifest Dependencies (${deps.length}):</span>
+                <div class="flex items-center gap-1 flex-wrap max-h-20 overflow-y-auto">
+                  ${deps.slice(0, 10).map(d => `<span class="px-1.5 py-0.5 rounded bg-slate-900 border border-slate-800 text-cyan-300 text-[8px]">${escapeHtml(d)}</span>`).join('')}
+                </div>
+              </div>
+            ` : ''}
+            <div class="flex items-center gap-2 pt-1 border-t border-purple-500/30 text-[10px] font-mono">
+              <button onclick="window.openRepoModal('${escapeHtml(node.title)}', unescape(\`${encodeURIComponent(node.metadata?.readme || node.content || '')}\`))" class="flex-1 py-1 bg-purple-500/20 hover:bg-purple-500/30 text-purple-200 border border-purple-500/40 rounded flex items-center justify-center gap-1 cursor-pointer">
+                <span class="material-symbols-outlined text-[12px]">description</span>
+                <span>View Architecture Spec</span>
+              </button>
+              <a href="https://github.com/${escapeHtml(repoName)}" target="_blank" class="px-3 py-1 bg-slate-800 hover:bg-slate-700 text-white rounded flex items-center gap-1 cursor-pointer">
+                <span class="material-symbols-outlined text-[12px]">open_in_new</span>
+                <span>GitHub</span>
+              </a>
+            </div>
+          </div>
+        `;
+      }
+
+      // Scientific Literature Radar Card
+      const cleanKeywords = (function(t) {
+        if (!t) return 'spectral graph theory';
+        const clean = t.replace(/[^\w\s-]/g, ' ')
+          .replace(/\b(the|and|for|with|from|that|this|into|about|over|under|your|what|when|where|which|who|why|how|item|file|document|thread)\b/gi, '')
+          .trim()
+          .split(/\s+/)
+          .filter(w => w.length > 2)
+          .slice(0, 3)
+          .join(' ');
+        return clean || t;
+      })(node.title);
+
+      const literatureRadarHtml = `
+        <div class="mt-2.5 p-3 rounded-xl bg-gradient-to-br from-amber-950/30 via-surface-container-low to-black/60 border border-amber-500/40 text-amber-200 font-sans space-y-2.5 ring-1 ring-amber-500/20 shadow-md">
+          <div class="flex items-center justify-between text-[11px] font-bold text-amber-300 uppercase">
+            <span class="flex items-center gap-1.5">
+              <span class="material-symbols-outlined text-base text-amber-400">biotech</span>
+              <span>SCIENTIFIC LITERATURE RADAR</span>
+            </span>
+            <span class="px-1.5 py-0.2 rounded bg-amber-500/10 border border-amber-500/30 text-[8px] text-amber-400">ARXIV / PUBMED</span>
+          </div>
+          <div class="space-y-1.5 text-[10px] font-mono">
+            <div class="flex items-center gap-1.5">
+              <input type="text" id="node-lit-search-input" value="${escapeHtml(cleanKeywords)}" placeholder="Keywords or topic..." class="flex-1 bg-surface-container-lowest border border-amber-500/30 rounded px-2 py-1 text-white text-[10px] focus:outline-none focus:border-amber-400" onkeydown="if(event.key==='Enter') window.searchLiteratureFromNode('${node.id}')" />
+              <select id="node-lit-source-select" class="bg-surface-container-lowest border border-amber-500/30 rounded px-1.5 py-1 text-amber-300 text-[9px] font-bold">
+                <option value="both">All</option>
+                <option value="arxiv">ArXiv</option>
+                <option value="pubmed">PubMed</option>
+              </select>
+              <button onclick="window.searchLiteratureFromNode('${node.id}')" class="px-2.5 py-1 bg-amber-500 hover:bg-amber-400 text-black font-bold uppercase rounded text-[9px] flex items-center gap-1 cursor-pointer">
+                <span class="material-symbols-outlined text-[12px]">search</span>
+                <span>Search</span>
+              </button>
+            </div>
+            <div id="node-lit-results-box" class="space-y-1.5 max-h-56 overflow-y-auto pr-1"></div>
+          </div>
+        </div>
+      `;
+
       container.innerHTML = `
         ${contraBannerHtml}
 
@@ -6561,8 +7027,11 @@
             </div>
           </div>
 
+          ${pdfPreviewHtml}
+          ${repoStudioHtml}
           ${triplesHtml}
           ${connectedHtml}
+          ${literatureRadarHtml}
 
           <!-- Provenance Footer -->
           <div class="pt-2 border-t border-outline-variant/20 flex items-center justify-between text-[9px] font-mono text-outline">
@@ -11262,7 +11731,7 @@ ${staticFacts.length > 0 ? `## Static Knowledge Core:\n${staticFacts.map(f => `-
 
     window.filterConnectorsByCategory = function(cat) {
       window.activeConnectorCategory = cat;
-      ['all', 'cloud', 'code', 'data', 'science'].forEach(k => {
+      ['all', 'cloud', 'code', 'datasets', 'science'].forEach(k => {
         const btn = document.getElementById(`conn-cat-${k}`);
         if (btn) {
           btn.className = (k === cat)
@@ -11281,7 +11750,7 @@ ${staticFacts.length > 0 ? `## Static Knowledge Core:\n${staticFacts.map(f => `-
         if (cat === 'all') return true;
         if (cat === 'cloud') return ['cloud', 'web', 'storage'].includes(c.category);
         if (cat === 'code') return ['code', 'agents'].includes(c.category);
-        if (cat === 'data') return ['data', 'graph'].includes(c.category);
+        if (cat === 'datasets' || cat === 'data') return ['datasets', 'data', 'graph'].includes(c.category);
         if (cat === 'science') return ['science', 'enterprise'].includes(c.category);
         return true;
       });
@@ -11350,6 +11819,327 @@ ${staticFacts.length > 0 ? `## Static Knowledge Core:\n${staticFacts.map(f => `-
       }).join('');
     }
 
+    window.activeWorkspaceTab = 'drive';
+
+    window.setGoogleWorkspaceTab = function(tab) {
+      window.activeWorkspaceTab = tab;
+      ['drive', 'calendar', 'gmail', 'doc_url'].forEach(t => {
+        const btn = document.getElementById(`gw-tab-${t}`);
+        const panel = document.getElementById(`gw-panel-${t}`);
+        if (btn) {
+          if (t === tab) {
+            btn.className = 'gw-tab-btn flex-1 py-1 rounded bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 font-bold uppercase transition-all';
+          } else {
+            btn.className = 'gw-tab-btn flex-1 py-1 rounded text-slate-400 hover:text-white font-bold uppercase transition-all';
+          }
+        }
+        if (panel) {
+          if (t === tab) panel.classList.remove('hidden');
+          else panel.classList.add('hidden');
+        }
+      });
+
+      if (tab === 'drive' && !window._gwDriveLoaded) {
+        window.searchGoogleDrive();
+        window._gwDriveLoaded = true;
+      }
+    };
+
+    window.searchGoogleDrive = async function() {
+      const query = document.getElementById('gw-drive-search-input')?.value || '';
+      const filterType = document.getElementById('gw-drive-type-filter')?.value || 'all';
+      const listEl = document.getElementById('gw-drive-items-list');
+      if (!listEl) return;
+
+      let mimeType = '';
+      if (filterType === 'pdf') mimeType = 'application/pdf';
+      else if (filterType === 'doc') mimeType = 'application/vnd.google-apps.document';
+      else if (filterType === 'sheet') mimeType = 'application/vnd.google-apps.spreadsheet';
+      else if (filterType === 'folder') mimeType = 'application/vnd.google-apps.folder';
+
+      listEl.innerHTML = `<div class="p-3 text-center text-cyan-300 animate-pulse text-[10px]">Querying Google Drive &amp; local mirrors...</div>`;
+      try {
+        const url = `/api/connectors/google-workspace/search?query=${encodeURIComponent(query)}&mime_type=${encodeURIComponent(mimeType)}`;
+        const r = await fetch(url);
+        const d = await r.json();
+        if (!r.ok) throw new Error(d.error || 'Failed to search Drive');
+        const items = d.items || [];
+        window._currentDriveFiles = items;
+        if (!items.length) {
+          listEl.innerHTML = `<div class="p-3 text-center text-slate-500 italic text-[10px]">No files matching search criteria found.</div>`;
+          return;
+        }
+        listEl.innerHTML = items.map((it, idx) => {
+          const isPdf = it.mimeType === 'application/pdf' || (it.name && it.name.endsWith('.pdf'));
+          const isFolder = it.mimeType === 'application/vnd.google-apps.folder' || it.is_directory;
+          const isDoc = it.mimeType && it.mimeType.includes('document');
+          const isSheet = it.mimeType && it.mimeType.includes('spreadsheet');
+          const icon = isPdf ? 'picture_as_pdf' : (isFolder ? 'folder' : (isSheet ? 'table_chart' : 'description'));
+          const iconColor = isPdf ? 'text-rose-400' : (isFolder ? 'text-amber-400' : (isSheet ? 'text-emerald-400' : 'text-cyan-400'));
+          const sizeStr = it.size ? `${(it.size / 1024).toFixed(0)} KB` : (isFolder ? 'DIR' : 'DOC');
+          const modStr = it.modifiedTime ? it.modifiedTime.substring(0, 10) : '';
+
+          return `
+            <label class="flex items-center justify-between p-2 hover:bg-slate-900/60 cursor-pointer text-[10px] select-none">
+              <div class="flex items-center gap-2 min-w-0">
+                <input type="checkbox" class="gw-drive-item-cb accent-cyan-400 cursor-pointer" data-idx="${idx}" onchange="window.updateDriveSelectionCount()" />
+                <span class="material-symbols-outlined text-[14px] ${iconColor} shrink-0">${icon}</span>
+                <span class="text-white truncate font-medium" title="${escapeHtml(it.name)}">${escapeHtml(it.name)}</span>
+              </div>
+              <div class="flex items-center gap-3 shrink-0 text-slate-400 text-[9px]">
+                <span>${sizeStr}</span>
+                <span>${modStr}</span>
+                ${isPdf ? `<button type="button" onclick="event.preventDefault(); event.stopPropagation(); window.openPdfModal('/api/connectors/pdf/preview?file_id=${encodeURIComponent(it.id)}&path=${encodeURIComponent(it.path || it.name)}', '${escapeHtml(it.name)}')" class="text-cyan-300 hover:underline cursor-pointer">Preview</button>` : ''}
+              </div>
+            </label>
+          `;
+        }).join('');
+        window.updateDriveSelectionCount();
+      } catch (e) {
+        listEl.innerHTML = `<div class="p-3 text-center text-rose-400 text-[10px]">✗ ${escapeHtml(e.message)}</div>`;
+      }
+    };
+
+    window.toggleAllDriveFiles = function(checked) {
+      document.querySelectorAll('.gw-drive-item-cb').forEach(cb => cb.checked = checked);
+      window.updateDriveSelectionCount();
+    };
+
+    window.updateDriveSelectionCount = function() {
+      const cbs = document.querySelectorAll('.gw-drive-item-cb:checked');
+      const count = cbs.length;
+      const countEl = document.getElementById('gw-drive-selection-count');
+      const btn = document.getElementById('gw-drive-ingest-btn');
+      if (countEl) countEl.innerText = `${count} Selected`;
+      if (btn) btn.innerHTML = `<span class="material-symbols-outlined text-sm">cloud_download</span><span>Ingest Selected Files (${count})</span>`;
+    };
+
+    window.submitGoogleDriveBatchIngest = async function() {
+      const checked = Array.from(document.querySelectorAll('.gw-drive-item-cb:checked'));
+      if (!checked.length) {
+        window.showToast("Please select at least one file or directory to ingest.");
+        return;
+      }
+      const files = checked.map(cb => {
+        const idx = parseInt(cb.getAttribute('data-idx'));
+        return (window._currentDriveFiles || [])[idx];
+      }).filter(Boolean);
+
+      const scope = window.getSelectedConnectorScope();
+      const statusEl = document.getElementById('gworkspace-status');
+      if (statusEl) {
+        statusEl.classList.remove('hidden');
+        statusEl.innerHTML = `<span class="text-cyan-300 animate-pulse">Batch ingesting ${files.length} items from Google Drive...</span>`;
+      }
+      try {
+        const r = await fetch('/api/connectors/google-workspace/batch', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ files, scope })
+        });
+        const d = await r.json();
+        if (!r.ok) throw new Error(d.error || 'Batch ingestion failed');
+        if (statusEl) {
+          statusEl.innerHTML = `
+            <div class="flex items-center justify-between text-emerald-300">
+              <span>✓ Ingested ${d.files_ingested || files.length} files (${d.pdf_pages_extracted || 0} PDF pages)</span>
+              <button onclick="window.loadConnectors(); if(typeof loadGraphData==='function') loadGraphData();" class="underline font-bold cursor-pointer">Refresh 3D Graph ↗</button>
+            </div>
+          `;
+        }
+        window.showToast(`✓ Ingested ${d.files_ingested} Drive documents into graph!`);
+        window.loadConnectors();
+        if (typeof loadGraphData === 'function') await loadGraphData();
+      } catch (err) {
+        if (statusEl) statusEl.innerHTML = `<span class="text-rose-400">✗ ${escapeHtml(err.message)}</span>`;
+        window.showToast(`Error ingesting files: ${err.message}`);
+      }
+    };
+
+    window.searchGoogleCalendar = async function() {
+      const query = document.getElementById('gw-calendar-query')?.value || '';
+      const listEl = document.getElementById('gw-calendar-items-list');
+      if (!listEl) return;
+      listEl.innerHTML = `<div class="p-3 text-center text-cyan-300 animate-pulse text-[10px]">Fetching calendar events...</div>`;
+      try {
+        const r = await fetch(`/api/connectors/google-workspace/calendar?query=${encodeURIComponent(query)}`);
+        const d = await r.json();
+        if (!r.ok) throw new Error(d.error || 'Failed to fetch calendar');
+        const events = d.events || [];
+        window._currentCalEvents = events;
+        if (!events.length) {
+          listEl.innerHTML = `<div class="p-3 text-center text-slate-500 italic text-[10px]">No upcoming events found.</div>`;
+          return;
+        }
+        listEl.innerHTML = events.map((ev, idx) => {
+          const summary = ev.summary || 'Untitled Event';
+          const start = ev.start?.dateTime ? new Date(ev.start.dateTime).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' }) : (ev.start?.date || '');
+          const attCount = ev.attendees ? ev.attendees.length : 0;
+          return `
+            <label class="flex items-center justify-between p-2 hover:bg-slate-900/60 cursor-pointer text-[10px] select-none">
+              <div class="flex items-center gap-2 min-w-0">
+                <input type="checkbox" class="gw-cal-item-cb accent-cyan-400 cursor-pointer" data-idx="${idx}" onchange="window.updateCalSelectionCount()" checked />
+                <span class="material-symbols-outlined text-[14px] text-cyan-400 shrink-0">event</span>
+                <span class="text-white truncate font-medium">${escapeHtml(summary)}</span>
+              </div>
+              <div class="flex items-center gap-2 shrink-0 text-slate-400 text-[9px]">
+                <span>${start}</span>
+                <span>·</span>
+                <span>${attCount} attendees</span>
+              </div>
+            </label>
+          `;
+        }).join('');
+        window.updateCalSelectionCount();
+      } catch (e) {
+        listEl.innerHTML = `<div class="p-3 text-center text-rose-400 text-[10px]">✗ ${escapeHtml(e.message)}</div>`;
+      }
+    };
+
+    window.toggleAllCalendarEvents = function(checked) {
+      document.querySelectorAll('.gw-cal-item-cb').forEach(cb => cb.checked = checked);
+      window.updateCalSelectionCount();
+    };
+
+    window.updateCalSelectionCount = function() {
+      const count = document.querySelectorAll('.gw-cal-item-cb:checked').length;
+      const countEl = document.getElementById('gw-cal-selection-count');
+      const btn = document.getElementById('gw-cal-ingest-btn');
+      if (countEl) countEl.innerText = `${count} Selected`;
+      if (btn) btn.innerHTML = `<span class="material-symbols-outlined text-sm">event</span><span>Ingest Selected Events (${count})</span>`;
+    };
+
+    window.submitGoogleCalendarBatchIngest = async function() {
+      const checked = Array.from(document.querySelectorAll('.gw-cal-item-cb:checked'));
+      if (!checked.length) {
+        window.showToast("Please select at least one calendar event.");
+        return;
+      }
+      const events = checked.map(cb => {
+        const idx = parseInt(cb.getAttribute('data-idx'));
+        return (window._currentCalEvents || [])[idx];
+      }).filter(Boolean);
+
+      const scope = window.getSelectedConnectorScope();
+      const statusEl = document.getElementById('gworkspace-status');
+      if (statusEl) {
+        statusEl.classList.remove('hidden');
+        statusEl.innerHTML = `<span class="text-cyan-300 animate-pulse">Ingesting ${events.length} calendar events into graph...</span>`;
+      }
+      try {
+        const r = await fetch('/api/connectors/google-workspace/calendar-batch', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ events, scope })
+        });
+        const d = await r.json();
+        if (!r.ok) throw new Error(d.error || 'Failed to ingest calendar');
+        if (statusEl) {
+          statusEl.innerHTML = `<span class="text-emerald-300">✓ Ingested ${d.events_ingested} calendar events with attendee relations!</span>`;
+        }
+        window.showToast(`✓ Ingested ${d.events_ingested} calendar events!`);
+        window.loadConnectors();
+        if (typeof loadGraphData === 'function') await loadGraphData();
+      } catch (e) {
+        if (statusEl) statusEl.innerHTML = `<span class="text-rose-400">✗ ${escapeHtml(e.message)}</span>`;
+      }
+    };
+
+    window.searchGmailThreads = async function() {
+      const query = document.getElementById('gw-gmail-query')?.value || 'is:important';
+      const listEl = document.getElementById('gw-gmail-items-list');
+      if (!listEl) return;
+      listEl.innerHTML = `<div class="p-3 text-center text-cyan-300 animate-pulse text-[10px]">Searching Gmail threads...</div>`;
+      try {
+        const r = await fetch(`/api/connectors/google-workspace/gmail?query=${encodeURIComponent(query)}`);
+        const d = await r.json();
+        if (!r.ok) throw new Error(d.error || 'Failed to search Gmail');
+        const threads = d.threads || [];
+        window._currentGmailThreads = threads;
+        if (!threads.length) {
+          listEl.innerHTML = `<div class="p-3 text-center text-slate-500 italic text-[10px]">No threads found matching "${escapeHtml(query)}".</div>`;
+          return;
+        }
+        listEl.innerHTML = threads.map((th, idx) => {
+          const subject = th.subject || 'No Subject';
+          const snippet = th.snippet || '';
+          return `
+            <label class="flex items-center justify-between p-2 hover:bg-slate-900/60 cursor-pointer text-[10px] select-none">
+              <div class="flex items-center gap-2 min-w-0">
+                <input type="checkbox" class="gw-gmail-item-cb accent-cyan-400 cursor-pointer" data-idx="${idx}" onchange="window.updateGmailSelectionCount()" checked />
+                <span class="material-symbols-outlined text-[14px] text-cyan-400 shrink-0">mail</span>
+                <div class="min-w-0">
+                  <span class="text-white truncate font-medium block">${escapeHtml(subject)}</span>
+                  <span class="text-slate-400 text-[8.5px] truncate block">${escapeHtml(snippet)}</span>
+                </div>
+              </div>
+              <span class="text-slate-500 text-[9px] shrink-0 ml-2">${th.messages ? th.messages.length + ' msgs' : ''}</span>
+            </label>
+          `;
+        }).join('');
+        window.updateGmailSelectionCount();
+      } catch (e) {
+        listEl.innerHTML = `<div class="p-3 text-center text-rose-400 text-[10px]">✗ ${escapeHtml(e.message)}</div>`;
+      }
+    };
+
+    window.toggleAllGmailThreads = function(checked) {
+      document.querySelectorAll('.gw-gmail-item-cb').forEach(cb => cb.checked = checked);
+      window.updateGmailSelectionCount();
+    };
+
+    window.updateGmailSelectionCount = function() {
+      const count = document.querySelectorAll('.gw-gmail-item-cb:checked').length;
+      const countEl = document.getElementById('gw-gmail-selection-count');
+      const btn = document.getElementById('gw-gmail-ingest-btn');
+      if (countEl) countEl.innerText = `${count} Selected`;
+      if (btn) btn.innerHTML = `<span class="material-symbols-outlined text-sm">mail</span><span>Ingest Selected Threads (${count})</span>`;
+    };
+
+    window.submitGmailBatchIngest = async function() {
+      const checked = Array.from(document.querySelectorAll('.gw-gmail-item-cb:checked'));
+      if (!checked.length) {
+        window.showToast("Please select at least one email thread.");
+        return;
+      }
+      const threads = checked.map(cb => {
+        const idx = parseInt(cb.getAttribute('data-idx'));
+        return (window._currentGmailThreads || [])[idx];
+      }).filter(Boolean);
+
+      const scope = window.getSelectedConnectorScope();
+      const statusEl = document.getElementById('gworkspace-status');
+      if (statusEl) {
+        statusEl.classList.remove('hidden');
+        statusEl.innerHTML = `<span class="text-cyan-300 animate-pulse">Ingesting ${threads.length} Gmail threads into graph...</span>`;
+      }
+      try {
+        const r = await fetch('/api/connectors/google-workspace/gmail-batch', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ threads, scope })
+        });
+        const d = await r.json();
+        if (!r.ok) throw new Error(d.error || 'Failed to ingest Gmail');
+        if (statusEl) {
+          statusEl.innerHTML = `<span class="text-emerald-300">✓ Ingested ${d.threads_ingested} email threads!</span>`;
+        }
+        window.showToast(`✓ Ingested ${d.threads_ingested} email threads!`);
+        window.loadConnectors();
+        if (typeof loadGraphData === 'function') await loadGraphData();
+      } catch (e) {
+        if (statusEl) statusEl.innerHTML = `<span class="text-rose-400">✗ ${escapeHtml(e.message)}</span>`;
+      }
+    };
+
+    window.saveGoogleAccessToken = function() {
+      const token = document.getElementById('gworkspace-access-token')?.value?.trim();
+      if (token) {
+        sessionStorage.setItem('gworkspace_access_token', token);
+        window.showToast("✓ Access token saved for current session.");
+      }
+    };
+
     window.loadGoogleWorkspaceFilesDropdown = async function() {
       const sel = document.getElementById('gworkspace-file-select');
       if (!sel) return;
@@ -11387,21 +12177,20 @@ ${staticFacts.length > 0 ? `## Static Knowledge Core:\n${staticFacts.map(f => `-
     };
 
     window.submitGoogleWorkspaceIngest = async function() {
-      const mode = document.getElementById('gworkspace-mode')?.value || 'doc_url';
       const target = document.getElementById('gworkspace-target-input')?.value?.trim() || '';
-      const token = document.getElementById('gworkspace-access-token')?.value?.trim() || '';
+      const token = document.getElementById('gworkspace-access-token')?.value?.trim() || sessionStorage.getItem('gworkspace_access_token') || '';
       const scope = window.getSelectedConnectorScope();
       const statusEl = document.getElementById('gworkspace-status');
 
       if (statusEl) {
         statusEl.classList.remove('hidden');
-        statusEl.innerHTML = `<span class="text-cyan-300 animate-pulse">Syncing with Google Workspace (${mode})...</span>`;
+        statusEl.innerHTML = `<span class="text-cyan-300 animate-pulse">Ingesting document from Google Workspace...</span>`;
       }
       try {
         const r = await fetch('/api/connectors/google-workspace', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ mode, target, scope, access_token: token || undefined })
+          body: JSON.stringify({ mode: 'doc_url', target, scope, access_token: token || undefined })
         });
         const data = await r.json();
         if (!r.ok) throw new Error(data.error || 'Google Workspace sync failed');
@@ -11409,7 +12198,7 @@ ${staticFacts.length > 0 ? `## Static Knowledge Core:\n${staticFacts.map(f => `-
         if (statusEl) {
           statusEl.innerHTML = `
             <div class="flex items-center justify-between text-emerald-300">
-              <span>✓ Google Workspace ingested (${escapeHtml(data.title || data.service || mode)})</span>
+              <span>✓ Google Workspace ingested (${escapeHtml(data.title || data.service || 'Document')})</span>
               ${memId ? `<button onclick="window.jumpToMemory3D('${memId}')" class="underline font-bold cursor-pointer">View in 3D ↗</button>` : ''}
             </div>
           `;
@@ -11418,6 +12207,140 @@ ${staticFacts.length > 0 ? `## Static Knowledge Core:\n${staticFacts.map(f => `-
         if (typeof loadGraphData === 'function') loadGraphData();
       } catch (err) {
         if (statusEl) statusEl.innerHTML = `<span class="text-rose-400">✗ ${escapeHtml(err.message)}</span>`;
+      }
+    };
+
+    window.activeGitHubTab = 'public_search';
+
+    window.setGitHubTab = function(tab) {
+      window.activeGitHubTab = tab;
+      ['public_search', 'direct_repo', 'sync_prs'].forEach(t => {
+        const btn = document.getElementById(`gh-tab-${t === 'public_search' ? 'public' : (t === 'direct_repo' ? 'direct' : 'sync')}`);
+        const panel = document.getElementById(`gh-panel-${t === 'public_search' ? 'public' : (t === 'direct_repo' ? 'direct' : 'sync')}`);
+        if (btn) {
+          if (t === tab) {
+            btn.className = 'gh-tab-btn flex-1 py-1 rounded bg-purple-500/20 text-purple-300 border border-purple-500/40 font-bold uppercase transition-all';
+          } else {
+            btn.className = 'gh-tab-btn flex-1 py-1 rounded text-slate-400 hover:text-white font-bold uppercase transition-all';
+          }
+        }
+        if (panel) {
+          if (t === tab) panel.classList.remove('hidden');
+          else panel.classList.add('hidden');
+        }
+      });
+
+      if (tab === 'public_search' && !window._ghPublicSearched) {
+        window.searchPublicGitHubRepos('super-cortex');
+        window._ghPublicSearched = true;
+      }
+    };
+
+    window.searchPublicGitHubRepos = async function(customQuery) {
+      const inp = document.getElementById('github-search-input');
+      const query = (customQuery || (inp ? inp.value.trim() : '')) || 'super-cortex';
+      const listEl = document.getElementById('github-search-results-list');
+      if (!listEl) return;
+
+      listEl.innerHTML = `<div class="p-3 text-center text-purple-300 animate-pulse text-[10px]">Searching public GitHub repositories for "${escapeHtml(query)}"...</div>`;
+      try {
+        const r = await fetch(`/api/connectors/github/search?query=${encodeURIComponent(query)}&limit=8`);
+        const d = await r.json();
+        if (!r.ok) throw new Error(d.error || 'Failed to search GitHub');
+        const repos = d.repos || [];
+        if (!repos.length) {
+          listEl.innerHTML = `<div class="p-3 text-center text-slate-500 italic text-[10px]">No public repositories matching "${escapeHtml(query)}" found.</div>`;
+          return;
+        }
+        listEl.innerHTML = repos.map(rp => {
+          const name = rp.full_name || rp.name;
+          const desc = rp.description || 'No description provided';
+          const stars = rp.stargazers_count !== undefined ? rp.stargazers_count : 0;
+          const forks = rp.forks_count !== undefined ? rp.forks_count : 0;
+          const lang = rp.language || 'Code';
+          const topics = (rp.topics || []).slice(0, 3);
+          return `
+            <div class="p-2.5 rounded bg-surface-container-lowest border border-purple-500/25 hover:border-purple-400/50 transition-all flex items-center justify-between gap-3 text-[10px]">
+              <div class="min-w-0 space-y-1">
+                <div class="flex items-center gap-2">
+                  <span class="material-symbols-outlined text-purple-400 text-sm">terminal</span>
+                  <span class="text-white font-bold truncate">${escapeHtml(name)}</span>
+                  <span class="px-1.5 py-0.2 rounded bg-purple-900/30 text-purple-300 text-[8px] font-bold">${escapeHtml(lang)}</span>
+                </div>
+                <p class="text-slate-400 text-[8.5px] line-clamp-1">${escapeHtml(desc)}</p>
+                <div class="flex items-center gap-2 text-[8px] text-slate-400">
+                  <span class="text-amber-300 font-bold">⭐ ${stars}</span>
+                  <span>·</span>
+                  <span class="text-cyan-300 font-bold">🍴 ${forks}</span>
+                  ${topics.map(t => `<span class="px-1 bg-slate-900 text-slate-400 rounded">${escapeHtml(t)}</span>`).join('')}
+                </div>
+              </div>
+              <button onclick="window.ingestCompleteGitHubRepo('${escapeHtml(name)}')" class="px-3 py-1.5 bg-purple-500 hover:bg-purple-400 text-black font-bold text-[9px] uppercase rounded shrink-0 flex items-center gap-1 transition-all shadow cursor-pointer">
+                <span class="material-symbols-outlined text-[12px]">hub</span>
+                <span>+ Add to Graph</span>
+              </button>
+            </div>
+          `;
+        }).join('');
+      } catch (err) {
+        listEl.innerHTML = `<div class="p-3 text-center text-rose-400 text-[10px]">✗ ${escapeHtml(err.message)}</div>`;
+      }
+    };
+
+    window.ingestCompleteGitHubRepo = async function(repoName) {
+      const scope = window.getSelectedConnectorScope();
+      const statusEl = document.getElementById('github-status');
+      if (statusEl) {
+        statusEl.classList.remove('hidden');
+        statusEl.innerHTML = `<span class="text-purple-300 animate-pulse">Analyzing &amp; anchoring repository "${escapeHtml(repoName)}" into graph...</span>`;
+      }
+      try {
+        const r = await fetch('/api/connectors/github/repo', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ repo: repoName, scope })
+        });
+        const d = await r.json();
+        if (!r.ok) throw new Error(d.error || 'Failed to ingest repository');
+        const memId = d.memory?.memory_id || '';
+        if (statusEl) {
+          statusEl.innerHTML = `
+            <div class="flex items-center justify-between text-emerald-300">
+              <span>✓ Created Repository Node for ${escapeHtml(repoName)} (${d.modules_identified || 0} modules, ${d.dependencies_detected || 0} dependencies)</span>
+              ${memId ? `<button onclick="window.jumpToMemory3D('${memId}')" class="underline font-bold cursor-pointer">View in 3D ↗</button>` : ''}
+            </div>
+          `;
+        }
+        window.showToast(`✓ Ingested complete repository ${repoName}!`);
+        window.loadConnectors();
+        if (typeof loadGraphData === 'function') await loadGraphData();
+        if (memId && typeof selectNodeById === 'function') selectNodeById(memId);
+      } catch (e) {
+        if (statusEl) statusEl.innerHTML = `<span class="text-rose-400">✗ ${escapeHtml(e.message)}</span>`;
+        window.showToast(`Error: ${e.message}`);
+      }
+    };
+
+    window.submitCompleteRepoDirect = async function() {
+      const repo = document.getElementById('github-direct-repo-input')?.value?.trim();
+      if (!repo) {
+        window.showToast("Please enter a repository in owner/repo format.");
+        return;
+      }
+      await window.ingestCompleteGitHubRepo(repo);
+    };
+
+    window.openGitHubOAuthConsent = async function() {
+      try {
+        const r = await fetch('/api/connectors/github/oauth-url');
+        const d = await r.json();
+        if (d.auth_url) {
+          window.open(d.auth_url, '_blank', 'noopener,noreferrer');
+        } else {
+          window.showToast(d.error || 'GitHub OAuth client not configured. Using GH CLI / public mode.');
+        }
+      } catch (e) {
+        window.showToast(e.message);
       }
     };
 
@@ -11478,6 +12401,246 @@ ${staticFacts.length > 0 ? `## Static Knowledge Core:\n${staticFacts.map(f => `-
         if (typeof loadGraphData === 'function') loadGraphData();
       } catch (err) {
         if (statusEl) statusEl.innerHTML = `<span class="text-rose-400">✗ ${escapeHtml(err.message)}</span>`;
+      }
+    };
+
+    window.activePublicDataset = 'demo_ai_control';
+
+    window.selectPublicDataset = function(datasetId) {
+      window.activePublicDataset = datasetId;
+      ['demo_ai_control', 'biomedical_hetionet', 'wikidata_sparql'].forEach(id => {
+        const card = document.getElementById(`dataset-card-${id}`);
+        if (card) {
+          if (id === datasetId) {
+            card.classList.remove('border-outline-variant/30');
+            card.classList.add('border-emerald-400', 'ring-1', 'ring-emerald-400/40');
+          } else {
+            card.classList.remove('border-emerald-400', 'ring-1', 'ring-emerald-400/40');
+            card.classList.add('border-outline-variant/30');
+          }
+        }
+      });
+
+      const sparqlBox = document.getElementById('sparql-custom-container');
+      if (sparqlBox) {
+        if (datasetId === 'wikidata_sparql') sparqlBox.classList.remove('hidden');
+        else sparqlBox.classList.add('hidden');
+      }
+
+      const titleEl = document.getElementById('public-dataset-title');
+      if (titleEl) {
+        if (datasetId === 'demo_ai_control') titleEl.innerText = 'Demo Dataset: AI Foundations, Control Theory & Epistemic Graph Systems (22 Nodes, 28 Triples)';
+        else if (datasetId === 'biomedical_hetionet') titleEl.innerText = 'Biomedical Hetionet Subgraph (Disease-Gene-Compound-Anatomy Network)';
+        else titleEl.innerText = 'Wikidata Live SPARQL Ingestion (Federated Linked Open Data)';
+      }
+
+      window.loadPublicDatasetPreview();
+    };
+
+    window.loadPublicDatasetPreview = async function() {
+      const datasetId = window.activePublicDataset || 'demo_ai_control';
+      const box = document.getElementById('public-dataset-preview-box');
+      if (!box) return;
+      box.innerHTML = `<span class="text-emerald-300 animate-pulse">Loading preview metadata for ${datasetId}...</span>`;
+      try {
+        const r = await fetch(`/api/connectors/public-datasets/preview?dataset=${encodeURIComponent(datasetId)}`);
+        const d = await r.json();
+        if (!r.ok) throw new Error(d.error || 'Failed to load preview');
+        const p = d.preview || {};
+        const sampleTriples = p.sample_triples || [];
+        box.innerHTML = `
+          <div class="space-y-1.5 font-mono">
+            <div class="flex items-center justify-between text-slate-300">
+              <span>Entities: <strong class="text-emerald-400">${p.entities || 'Dynamic'}</strong></span>
+              <span>Relations: <strong class="text-cyan-400">${p.relations || sampleTriples.length}</strong></span>
+              <span>Domains: <strong class="text-purple-300">${(p.domains || []).join(', ')}</strong></span>
+            </div>
+            <div class="text-slate-400 text-[8.5px]">${escapeHtml(p.description || '')}</div>
+            <div class="pt-1 border-t border-outline-variant/20 space-y-1">
+              <div class="text-neutral-400 font-bold uppercase text-[8px]">Sample Triples:</div>
+              ${sampleTriples.slice(0, 4).map(t => `
+                <div class="flex items-center gap-1.5 text-[8.5px]">
+                  <span class="text-cyan-300">[${escapeHtml(t[0])}]</span>
+                  <span class="text-amber-300">──(${escapeHtml(t[1])})──▶</span>
+                  <span class="text-emerald-300">[${escapeHtml(t[2])}]</span>
+                </div>
+              `).join('')}
+            </div>
+          </div>
+        `;
+      } catch (err) {
+        box.innerHTML = `<span class="text-rose-400">✗ ${escapeHtml(err.message)}</span>`;
+      }
+    };
+
+    window.submitPublicDatasetIngest = async function() {
+      const datasetId = window.activePublicDataset || 'demo_ai_control';
+      const scope = window.getSelectedConnectorScope();
+      const statusEl = document.getElementById('public-dataset-status');
+      const btn = document.getElementById('btn-ingest-dataset');
+      if (btn) btn.disabled = true;
+
+      if (statusEl) {
+        statusEl.classList.remove('hidden');
+        statusEl.innerHTML = `<span class="text-emerald-300 animate-pulse">Ingesting ${datasetId} into ${scope}...</span>`;
+      }
+
+      try {
+        let r, data;
+        if (datasetId === 'wikidata_sparql') {
+          const sparql = document.getElementById('sparql-query-input')?.value || '';
+          r = await fetch('/api/connectors/public-datasets/sparql', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ sparql_query: sparql, scope })
+          });
+          data = await r.json();
+        } else {
+          r = await fetch('/api/connectors/public-datasets/ingest', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ dataset: datasetId, scope })
+          });
+          data = await r.json();
+        }
+        if (!r.ok) throw new Error(data.error || 'Dataset ingestion failed');
+        const memId = data.memory?.memory_id || '';
+        if (statusEl) {
+          statusEl.innerHTML = `
+            <div class="flex items-center justify-between text-emerald-300">
+              <span>✓ Anchored ${data.triples_anchored || data.relations_created || 28} triples from ${escapeHtml(data.dataset || datasetId)}</span>
+              ${memId ? `<button onclick="window.jumpToMemory3D('${memId}')" class="underline font-bold cursor-pointer">View in 3D ↗</button>` : ''}
+            </div>
+          `;
+        }
+        window.showToast(`✓ Ingested ${data.triples_anchored || 28} dataset triples into knowledge graph!`);
+        window.loadConnectors();
+        if (typeof loadGraphData === 'function') await loadGraphData();
+      } catch (err) {
+        if (statusEl) statusEl.innerHTML = `<span class="text-rose-400">✗ ${escapeHtml(err.message)}</span>`;
+        window.showToast(`Error ingesting dataset: ${err.message}`);
+      } finally {
+        if (btn) btn.disabled = false;
+      }
+    };
+
+    window.quickLoadDemoDataset = async function() {
+      window.selectPublicDataset('demo_ai_control');
+      await window.submitPublicDatasetIngest();
+    };
+
+    window.openPdfModal = function(url, title) {
+      const modal = document.getElementById('pdf-preview-modal');
+      const frame = document.getElementById('pdf-modal-frame');
+      const titleEl = document.getElementById('pdf-modal-title');
+      const dlBtn = document.getElementById('pdf-modal-download-btn');
+      const tabBtn = document.getElementById('pdf-modal-tab-btn');
+      if (!modal || !frame) return;
+      if (titleEl) titleEl.innerText = title || 'PDF Document Preview';
+      if (dlBtn) dlBtn.href = url;
+      if (tabBtn) tabBtn.href = url;
+      frame.src = url + (url.includes('#') ? '' : '#toolbar=1');
+      modal.classList.remove('hidden');
+    };
+
+    window.closePdfModal = function() {
+      const modal = document.getElementById('pdf-preview-modal');
+      const frame = document.getElementById('pdf-modal-frame');
+      if (modal) modal.classList.add('hidden');
+      if (frame) frame.src = 'about:blank';
+    };
+
+    window.toggleInlinePdfViewer = function(nodeId) {
+      const el = document.getElementById(`inline-pdf-container-${nodeId}`);
+      if (el) el.classList.toggle('hidden');
+    };
+
+    window.openRepoModal = function(title, readme) {
+      const modal = document.getElementById('repo-readme-modal');
+      const titleEl = document.getElementById('repo-modal-title');
+      const contentEl = document.getElementById('repo-modal-content');
+      if (!modal || !contentEl) return;
+      if (titleEl) titleEl.innerText = title || 'Repository Specification';
+      contentEl.innerText = readme || 'No README specification found in repository metadata.';
+      modal.classList.remove('hidden');
+    };
+
+    window.closeRepoModal = function() {
+      const modal = document.getElementById('repo-readme-modal');
+      if (modal) modal.classList.add('hidden');
+    };
+
+    window.searchLiteratureFromNode = async function(nodeId) {
+      const inp = document.getElementById('node-lit-search-input');
+      const srcSel = document.getElementById('node-lit-source-select');
+      const resBox = document.getElementById('node-lit-results-box');
+      const query = inp ? inp.value.trim() : '';
+      const source = srcSel ? srcSel.value : 'both';
+      if (!query || !resBox) return;
+
+      resBox.innerHTML = `<div class="p-2 text-center text-amber-300 animate-pulse text-[9px]">Scanning ${source.toUpperCase()} databases for "${escapeHtml(query)}"...</div>`;
+      try {
+        const r = await fetch(`/api/connectors/literature/search?query=${encodeURIComponent(query)}&source=${encodeURIComponent(source)}&max_results=4`);
+        const d = await r.json();
+        if (!r.ok) throw new Error(d.error || 'Literature search failed');
+        const articles = d.articles || [];
+        if (!articles.length) {
+          resBox.innerHTML = `<div class="p-2 text-center text-slate-500 italic text-[9px]">No matching scientific papers found. Try broadening the search keywords.</div>`;
+          return;
+        }
+        resBox.innerHTML = articles.map((a, idx) => {
+          const title = a.title || 'Untitled Paper';
+          const authors = (a.authors || []).slice(0, 3).join(', ') + ((a.authors || []).length > 3 ? ' et al.' : '');
+          const dateStr = a.published ? a.published.substring(0, 10) : (a.year || '');
+          const paperJsonStr = encodeURIComponent(JSON.stringify(a));
+          const hasPdf = Boolean(a.pdf_url);
+          return `
+            <div class="p-2 rounded bg-surface-container-lowest border border-amber-500/20 space-y-1 text-[9.5px]">
+              <div class="flex items-center justify-between text-[8px] text-amber-400 font-bold uppercase">
+                <span>[${escapeHtml(a.source || 'LIT')}] ${escapeHtml(a.id || '')}</span>
+                <span>${escapeHtml(dateStr)}</span>
+              </div>
+              <div class="text-white font-bold leading-tight select-text">${escapeHtml(title)}</div>
+              <div class="text-slate-400 text-[8.5px] truncate">${escapeHtml(authors)}</div>
+              <p class="text-slate-300 text-[8.5px] line-clamp-2 select-text">${escapeHtml(a.summary || a.abstract || '')}</p>
+              <div class="flex items-center justify-between pt-1 border-t border-outline-variant/20 gap-1.5">
+                ${hasPdf ? `
+                  <button type="button" onclick="window.openPdfModal('${a.pdf_url}', '${escapeHtml(title)}')" class="px-2 py-0.5 rounded bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 border border-cyan-500/40 text-[8px] font-bold flex items-center gap-1 cursor-pointer">
+                    <span class="material-symbols-outlined text-[10px]">picture_as_pdf</span>
+                    <span>PDF Preview</span>
+                  </button>
+                ` : '<span></span>'}
+                <button type="button" onclick="window.ingestLiteratureAndLinkToNode('${paperJsonStr}', '${nodeId}')" class="px-2.5 py-0.5 rounded bg-amber-500 hover:bg-amber-400 text-black font-bold text-[8.5px] uppercase flex items-center gap-1 transition-all shadow cursor-pointer">
+                  <span class="material-symbols-outlined text-[11px]">link</span>
+                  <span>+ Ingest &amp; Link</span>
+                </button>
+              </div>
+            </div>
+          `;
+        }).join('');
+      } catch (err) {
+        resBox.innerHTML = `<div class="p-2 text-center text-rose-400 text-[9px]">✗ ${escapeHtml(err.message)}</div>`;
+      }
+    };
+
+    window.ingestLiteratureAndLinkToNode = async function(paperJsonStr, linkToNodeId) {
+      try {
+        const paper = JSON.parse(decodeURIComponent(paperJsonStr));
+        const scope = window.getSelectedConnectorScope();
+        window.showToast(`Linking "${paper.title?.substring(0, 24)}..." to node...`);
+        const r = await fetch('/api/connectors/literature/link', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ paper, link_to_node_id: linkToNodeId, scope })
+        });
+        const d = await r.json();
+        if (!r.ok) throw new Error(d.error || 'Failed to link literature');
+        window.showToast(`✓ Linked paper to node with cites_literature relation!`);
+        window.loadConnectors();
+        if (typeof loadGraphData === 'function') await loadGraphData();
+        if (typeof selectNodeById === 'function') selectNodeById(linkToNodeId);
+      } catch (e) {
+        window.showToast(`Error linking paper: ${e.message}`);
       }
     };
 
