@@ -5511,75 +5511,52 @@
       return Boolean(window.getNodeAttachmentInfo(data));
     };
 
-    let _paperclipSpriteMaterial = null;
-    function getPaperclipSpriteMaterial() {
-      if (_paperclipSpriteMaterial) return _paperclipSpriteMaterial;
+    const _cornerCubeGeoCache = new Map();
+    function getCachedCornerCubeGeometry(size) {
+      const rounded = Math.round(size * 10) / 10;
+      if (!_cornerCubeGeoCache.has(rounded)) {
+        _cornerCubeGeoCache.set(rounded, new THREE.BoxGeometry(rounded, rounded, rounded));
+      }
+      return _cornerCubeGeoCache.get(rounded);
+    }
 
-      const canvas = document.createElement('canvas');
-      canvas.width = 128;
-      canvas.height = 128;
-      const ctx = canvas.getContext('2d');
+    const _cornerCubeMatCache = new Map();
+    function getAttachmentCornerMaterial(colHex = 0x00f0ff) {
+      if (!_cornerCubeMatCache.has(colHex)) {
+        _cornerCubeMatCache.set(colHex, new THREE.MeshPhongMaterial({
+          color: colHex,
+          emissive: colHex,
+          emissiveIntensity: 0.95,
+          shininess: 100,
+          transparent: false,
+          opacity: 1.0,
+          depthTest: true,
+        }));
+      }
+      return _cornerCubeMatCache.get(colHex);
+    }
 
-      // Circular dark badge backing
-      ctx.beginPath();
-      ctx.arc(64, 64, 56, 0, Math.PI * 2);
-      ctx.fillStyle = 'rgba(11, 15, 25, 0.92)';
-      ctx.fill();
+    function createAttachmentCornerMesh(size, colHex = 0x00f0ff) {
+      const cornerSize = Math.max(4.0, size * 0.38);
+      const cornerGeo = getCachedCornerCubeGeometry(cornerSize);
+      const cornerMat = getAttachmentCornerMaterial(colHex);
+      const cornerMesh = new THREE.Mesh(cornerGeo, cornerMat);
 
-      // Outer glow and border
-      ctx.lineWidth = 6;
-      ctx.strokeStyle = '#00f0ff';
-      ctx.stroke();
-
-      ctx.beginPath();
-      ctx.arc(64, 64, 50, 0, Math.PI * 2);
-      ctx.lineWidth = 2;
-      ctx.strokeStyle = 'rgba(56, 189, 248, 0.6)';
-      ctx.stroke();
-
-      // Draw paperclip glyph rotated 45 degrees
-      ctx.save();
-      ctx.translate(64, 64);
-      ctx.rotate(-Math.PI / 4);
-
-      ctx.beginPath();
-      // Outer U-loop
-      ctx.moveTo(-11, 16);
-      ctx.lineTo(-11, -12);
-      ctx.arc(0, -12, 11, Math.PI, 0, false);
-      ctx.lineTo(11, 16);
-      ctx.arc(2, 16, 9, 0, Math.PI, false);
-      // Inner U-loop
-      ctx.lineTo(-7, -6);
-      ctx.arc(-1, -6, 6, Math.PI, 0, false);
-      ctx.lineTo(5, 12);
-
-      ctx.lineCap = 'round';
-      ctx.lineJoin = 'round';
-      ctx.lineWidth = 6;
-      ctx.strokeStyle = '#ffffff';
-      ctx.stroke();
-
-      // Inner cyan wire accent
-      ctx.lineWidth = 2.5;
-      ctx.strokeStyle = '#38bdf8';
-      ctx.stroke();
-
-      ctx.restore();
-
-      const texture = new THREE.CanvasTexture(canvas);
-      texture.minFilter = THREE.LinearFilter;
-      texture.magFilter = THREE.LinearFilter;
-
-      _paperclipSpriteMaterial = new THREE.SpriteMaterial({
-        map: texture,
+      // Add crisp white edges to the solid corner block
+      const edgeGeo = getCachedEdgesGeometry(cornerGeo);
+      const edgeMat = new THREE.LineBasicMaterial({
+        color: 0xffffff,
+        linewidth: 2,
         transparent: true,
-        opacity: 0.96,
-        depthTest: true,
-        depthWrite: false,
+        opacity: 0.9,
       });
+      const edgeLines = new THREE.LineSegments(edgeGeo, edgeMat);
+      cornerMesh.add(edgeLines);
 
-      return _paperclipSpriteMaterial;
+      // Position flush at top-right-front corner of main cube
+      const cornerOffset = (size - cornerSize) * 0.5 + 0.08;
+      cornerMesh.position.set(cornerOffset, cornerOffset, cornerOffset);
+      return cornerMesh;
     }
 
     function clearGraphMeshes() {
@@ -5792,15 +5769,11 @@
           nodeObj.add(contraRing);
         }
 
-        // Small paperclip badge for nodes with attachments
-        let paperclipSprite = null;
+        // Solid colored corner block marking attached files/documents
+        let cornerBlockMesh = null;
         if (window.nodeHasAttachment(data)) {
-          const clipMat = getPaperclipSpriteMaterial();
-          paperclipSprite = new THREE.Sprite(clipMat);
-          const badgeSize = Math.max(6.0, Math.min(13.0, size * 0.44));
-          paperclipSprite.scale.set(badgeSize, badgeSize, 1);
-          paperclipSprite.position.set(size * 0.52, size * 0.52, size * 0.28);
-          nodeObj.add(paperclipSprite);
+          cornerBlockMesh = createAttachmentCornerMesh(size, 0x00f0ff);
+          nodeObj.add(cornerBlockMesh);
         }
 
         nodeObj.userData = {
@@ -5812,7 +5785,7 @@
           core: coreMesh,
           beaconRing: beaconRing,
           contraRing: contraRing,
-          paperclip: paperclipSprite,
+          cornerBlock: cornerBlockMesh,
           boxMat: boxMat,
           edgeMat: edgeMat,
           curBase: [...pos],
@@ -6221,13 +6194,13 @@
             const hasAtt = window.nodeHasAttachment(data);
             const titleEl = document.getElementById('tooltip-title');
             if (titleEl) {
-              titleEl.innerHTML = (hasAtt ? '<span class="text-cyan-300 font-bold mr-1">📎</span>' : '') + escapeHtml(data.title || '');
+              titleEl.innerHTML = (hasAtt ? '<span class="text-cyan-400 font-mono font-bold mr-1.5 inline-block text-xs" title="Attachment Corner">■</span>' : '') + escapeHtml(data.title || '');
             }
             const catEl = document.getElementById('tooltip-category');
             if (catEl) {
               catEl.innerText = isThought
-                ? (hasAtt ? 'REASONING · 📎 ATTACHED ASSET' : 'REASONING // CHAIN-OF-THOUGHT')
-                : `NODE // ${(data.category || 'NODE').toUpperCase()}${hasAtt ? ' · 📎 ATTACHED FILE' : ''}`;
+                ? (hasAtt ? 'REASONING · ■ ATTACHED ASSET' : 'REASONING // CHAIN-OF-THOUGHT')
+                : `NODE // ${(data.category || 'NODE').toUpperCase()}${hasAtt ? ' · ■ ATTACHED FILE' : ''}`;
             }
             document.getElementById('tooltip-meta').innerText = isThought
               ? `Agent: ${data.agent_id || 'agent'} · Length: ${(data.content || '').length} chars · Session: ${data.session_id || 'unknown'}`
@@ -14305,14 +14278,10 @@ ${staticFacts.length > 0 ? `## Static Knowledge Core:\n${staticFacts.map(f => `-
         const coreMesh = new THREE.Mesh(coreGeo, coreMat);
         nodeGroup.add(coreMesh);
 
-        // Small paperclip badge for nodes with attachments
+        // Solid colored corner block marking attached files/documents
         if (window.nodeHasAttachment(node)) {
-          const clipMat = getPaperclipSpriteMaterial();
-          const clipSprite = new THREE.Sprite(clipMat);
-          const badgeSize = Math.max(5.5, Math.min(12.0, size * 0.42));
-          clipSprite.scale.set(badgeSize, badgeSize, 1);
-          clipSprite.position.set(size * 0.52, size * 0.52, size * 0.28);
-          nodeGroup.add(clipSprite);
+          const cornerMesh = createAttachmentCornerMesh(size, 0x00f0ff);
+          nodeGroup.add(cornerMesh);
         }
 
         // Position coordinates
