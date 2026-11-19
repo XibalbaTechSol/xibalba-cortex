@@ -779,6 +779,11 @@
         <span id="header-spectral-dot" class="hidden absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-cyan-400 shadow-[0_0_6px_#00f0ff]"></span>
       </button>
 
+      <!-- Dedicated GitHub Browser Trigger -->
+      <button onclick="window.openGitHubBrowser()" id="btn-header-github-browser" class="w-7 h-7 rounded-lg flex items-center justify-center bg-purple-500/10 hover:bg-purple-500/25 border border-purple-500/30 hover:border-purple-400 text-purple-300 transition-all cursor-pointer relative" title="Dedicated GitHub Repository Browser (G)">
+        <span class="material-symbols-outlined text-[15px]">terminal</span>
+      </button>
+
       <!-- AI Graph Ops Trigger -->
       <button onclick="window.openAiOpsModal()" id="btn-header-aiops" class="w-7 h-7 rounded-lg flex items-center justify-center bg-purple-500/10 hover:bg-purple-500/25 border border-purple-500/30 hover:border-purple-400 text-[#ddb7ff] transition-all cursor-pointer relative" title="AI Graph Operations & Community Clustering">
         <span class="material-symbols-outlined text-[15px]">psychology</span>
@@ -1315,6 +1320,13 @@
               <span class="truncate">Open External Link</span>
             </span>
             <span class="text-[8px] text-blue-400 font-bold uppercase">URL ↗</span>
+          </button>
+          <button id="ctx-btn-github" onclick="window.ctxActionOpenGitHubBrowser()" class="w-full text-left px-3 py-1.5 hover:bg-purple-500/15 hover:text-purple-300 text-slate-200 flex items-center justify-between cursor-pointer transition-colors group">
+            <span class="flex items-center gap-2 min-w-0">
+              <span class="material-symbols-outlined text-[13px] text-purple-400 group-hover:scale-110 transition-transform">terminal</span>
+              <span class="truncate">Browse GitHub Repository</span>
+            </span>
+            <span class="text-[8px] text-purple-400 font-bold uppercase">CODE ↗</span>
           </button>
           <button onclick="window.ctxActionViewRawJson()" class="w-full text-left px-3 py-1.5 hover:bg-slate-800 hover:text-white text-slate-300 flex items-center justify-between cursor-pointer transition-colors group">
             <span class="flex items-center gap-2">
@@ -5029,6 +5041,225 @@
   <div id="pdf-preview-modal" class="hidden"></div>
   <iframe id="pdf-modal-frame" class="hidden"></iframe>
 
+  <!-- MODAL: DEDICATED GITHUB NODES & REPOSITORY BROWSER -->
+  <div id="github-browser-modal" class="hidden fixed inset-0 z-50 bg-black/90 backdrop-blur-xl flex items-center justify-center p-2 md:p-5 font-mono select-text" onclick="if(event.target === this) window.closeGitHubBrowser()">
+    <div class="w-full max-w-7xl h-[92vh] bg-[#070b16] border border-purple-500/50 rounded-2xl flex flex-col shadow-[0_24px_90px_rgba(0,0,0,0.95)] overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+      
+      <!-- Top Explorer Header -->
+      <div class="px-4 py-2.5 border-b border-purple-500/30 bg-slate-950/95 flex items-center justify-between flex-wrap gap-2.5 shrink-0">
+        <!-- Left: Repo Switcher & Identity -->
+        <div class="flex items-center gap-3 min-w-0 flex-wrap">
+          <div class="flex items-center gap-2">
+            <span class="material-symbols-outlined text-purple-400 text-2xl">terminal</span>
+            <div class="flex flex-col">
+              <span class="text-[9px] text-purple-400 font-extrabold uppercase tracking-widest">GITHUB INTELLIGENCE STUDIO</span>
+              <div class="flex items-center gap-1.5">
+                <select id="gh-browser-repo-select" onchange="window.switchGitHubBrowserRepo(this.value)" class="bg-[#0c1222] border border-purple-500/40 rounded px-2 py-0.5 text-xs text-white font-bold focus:outline-none focus:border-purple-400 cursor-pointer">
+                  <option value="XibalbaTechSol/super-cortex">XibalbaTechSol/super-cortex</option>
+                  <option value="XibalbaTechSol/integrity-core">XibalbaTechSol/integrity-core</option>
+                  <option value="XibalbaTechSol/xibalba-shield">XibalbaTechSol/xibalba-shield</option>
+                  <option value="XibalbaTechSol/integrity-console">XibalbaTechSol/integrity-console</option>
+                  <option value="XibalbaTechSol/xibalba-cortex">XibalbaTechSol/xibalba-cortex</option>
+                </select>
+                <button onclick="window.promptCustomGitHubRepo()" class="px-1.5 py-0.5 rounded bg-purple-500/10 hover:bg-purple-500/25 border border-purple-500/30 text-purple-300 text-[9px] cursor-pointer" title="Load custom GitHub repository">+ Custom Repo</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Badges Strip -->
+          <div class="hidden lg:flex items-center gap-1.5 text-[9px]">
+            <span id="gh-badge-branch" class="px-2 py-0.5 rounded bg-slate-900 border border-slate-700 text-slate-300 flex items-center gap-1">
+              <span class="material-symbols-outlined text-[11px] text-purple-400">fork_right</span>
+              <span>main</span>
+            </span>
+            <span id="gh-badge-lang" class="px-2 py-0.5 rounded bg-purple-900/30 border border-purple-500/40 text-purple-200 font-bold">Python</span>
+            <span id="gh-badge-stars" class="px-2 py-0.5 rounded bg-amber-500/10 border border-amber-500/30 text-amber-300">⭐ 0</span>
+            <span id="gh-badge-forks" class="px-2 py-0.5 rounded bg-cyan-500/10 border border-cyan-500/30 text-cyan-300">🍴 0</span>
+            <span id="gh-badge-files" class="px-2 py-0.5 rounded bg-emerald-500/10 border border-emerald-500/30 text-emerald-300">📁 0 FILES</span>
+          </div>
+        </div>
+
+        <!-- Right: Actions & Close -->
+        <div class="flex items-center gap-2">
+          <input type="text" id="gh-browser-search-input" oninput="window.filterGitHubBrowserContent(this.value)" placeholder="Filter tree, commits, PRs..." class="bg-[#0c1222] border border-purple-500/30 rounded px-2.5 py-1 text-xs text-white placeholder:text-slate-500 focus:outline-none focus:border-purple-400 w-44 md:w-60 font-mono" />
+          <a id="gh-btn-external-link" href="https://github.com/XibalbaTechSol/super-cortex" target="_blank" class="px-2.5 py-1 rounded bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white border border-slate-700 text-[10px] font-bold flex items-center gap-1 cursor-pointer" title="Open repository on GitHub.com">
+            <span class="material-symbols-outlined text-[13px]">open_in_new</span>
+            <span class="hidden sm:inline">GitHub</span>
+          </a>
+          <button onclick="window.syncCurrentGitHubRepoToGraph()" class="px-2.5 py-1 rounded bg-purple-500/20 hover:bg-purple-500/30 text-purple-300 border border-purple-500/40 text-[10px] font-bold flex items-center gap-1 cursor-pointer" title="Sync repository nodes into Super-Cortex graph">
+            <span class="material-symbols-outlined text-[13px]">sync</span>
+            <span class="hidden sm:inline">Ingest / Sync</span>
+          </button>
+          <button onclick="window.closeGitHubBrowser()" class="w-7 h-7 rounded flex items-center justify-center text-slate-400 hover:text-white hover:bg-slate-800 cursor-pointer transition-colors">
+            <span class="material-symbols-outlined text-base">close</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Navigation Subtab Strip -->
+      <div class="px-4 bg-[#0a0f1d] border-b border-purple-500/20 flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider overflow-x-auto shrink-0 select-none">
+        <button id="gh-tab-btn-tree" onclick="window.switchGitHubBrowserTab('tree')" class="px-3 py-2 border-b-2 border-purple-400 text-white flex items-center gap-1.5 cursor-pointer transition-colors">
+          <span class="material-symbols-outlined text-[14px] text-purple-400">folder_open</span>
+          <span>Code &amp; File Tree</span>
+        </button>
+        <button id="gh-tab-btn-commits" onclick="window.switchGitHubBrowserTab('commits')" class="px-3 py-2 border-b-2 border-transparent text-slate-400 hover:text-white flex items-center gap-1.5 cursor-pointer transition-colors">
+          <span class="material-symbols-outlined text-[14px]">commit</span>
+          <span>Commits Lineage</span>
+          <span id="gh-tab-count-commits" class="px-1.5 py-0.2 rounded bg-slate-800 text-[8px] text-slate-300">0</span>
+        </button>
+        <button id="gh-tab-btn-prs" onclick="window.switchGitHubBrowserTab('prs')" class="px-3 py-2 border-b-2 border-transparent text-slate-400 hover:text-white flex items-center gap-1.5 cursor-pointer transition-colors">
+          <span class="material-symbols-outlined text-[14px]">merge</span>
+          <span>Pull Requests &amp; SOPs</span>
+          <span id="gh-tab-count-prs" class="px-1.5 py-0.2 rounded bg-slate-800 text-[8px] text-slate-300">0</span>
+        </button>
+        <button id="gh-tab-btn-issues" onclick="window.switchGitHubBrowserTab('issues')" class="px-3 py-2 border-b-2 border-transparent text-slate-400 hover:text-white flex items-center gap-1.5 cursor-pointer transition-colors">
+          <span class="material-symbols-outlined text-[14px]">adjust</span>
+          <span>Issues</span>
+          <span id="gh-tab-count-issues" class="px-1.5 py-0.2 rounded bg-slate-800 text-[8px] text-slate-300">0</span>
+        </button>
+        <button id="gh-tab-btn-spec" onclick="window.switchGitHubBrowserTab('spec')" class="px-3 py-2 border-b-2 border-transparent text-slate-400 hover:text-white flex items-center gap-1.5 cursor-pointer transition-colors">
+          <span class="material-symbols-outlined text-[14px]">description</span>
+          <span>Architecture Spec / README</span>
+        </button>
+        <button id="gh-tab-btn-graph" onclick="window.switchGitHubBrowserTab('graph')" class="px-3 py-2 border-b-2 border-transparent text-slate-400 hover:text-white flex items-center gap-1.5 cursor-pointer transition-colors">
+          <span class="material-symbols-outlined text-[14px] text-cyan-400">hub</span>
+          <span>Linked Graph Nodes</span>
+          <span id="gh-tab-count-graph" class="px-1.5 py-0.2 rounded bg-cyan-950 text-[8px] text-cyan-300 border border-cyan-500/30">0</span>
+        </button>
+      </div>
+
+      <!-- Main Panels Container -->
+      <div class="flex-1 w-full overflow-hidden relative bg-[#070b16]">
+        
+        <!-- Loading Overlay -->
+        <div id="gh-browser-loading" class="hidden absolute inset-0 z-20 bg-slate-950/80 backdrop-blur-xs flex items-center justify-center">
+          <div class="flex items-center gap-2 text-purple-300 text-xs font-mono animate-pulse">
+            <span class="material-symbols-outlined animate-spin text-lg">progress_activity</span>
+            <span id="gh-browser-loading-text">Loading repository tree &amp; intelligence...</span>
+          </div>
+        </div>
+
+        <!-- Panel 1: File Tree & Code Explorer -->
+        <div id="gh-panel-tree" class="w-full h-full flex">
+          <!-- Sidebar: File Tree -->
+          <div class="w-72 md:w-80 h-full border-r border-slate-800/80 bg-slate-950/60 flex flex-col shrink-0">
+            <div class="p-2.5 border-b border-slate-800/80 flex items-center justify-between text-[9px] text-slate-400 font-bold uppercase">
+              <span>EXPLORER TREE</span>
+              <span id="gh-tree-files-count" class="text-purple-300 font-mono">0 files</span>
+            </div>
+            <div id="gh-file-tree-container" class="flex-1 overflow-y-auto p-1.5 space-y-0.5 text-xs font-mono select-none">
+              <!-- Populated dynamically with folders & files -->
+            </div>
+          </div>
+          <!-- Main Area: Code / File Viewer -->
+          <div class="flex-1 h-full flex flex-col bg-[#090e1c] overflow-hidden">
+            <div class="px-4 py-2 bg-slate-950 border-b border-slate-800 flex items-center justify-between flex-wrap gap-2 text-xs font-mono shrink-0">
+              <div class="flex items-center gap-2 min-w-0">
+                <span class="material-symbols-outlined text-purple-400 text-base" id="gh-active-file-icon">description</span>
+                <span id="gh-active-file-path" class="text-white font-bold truncate">Select a file from the explorer tree</span>
+                <span id="gh-active-file-size" class="text-[9px] text-slate-500 font-mono"></span>
+              </div>
+              <div class="flex items-center gap-1.5">
+                <button id="gh-file-mode-toggle" onclick="window.toggleGitHubFileRenderMode()" class="hidden px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-cyan-300 text-[9px] font-bold uppercase cursor-pointer">Preview</button>
+                <button onclick="window.copyActiveGitHubFileCode()" class="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white text-[9px] font-bold uppercase flex items-center gap-1 cursor-pointer">
+                  <span class="material-symbols-outlined text-[11px]">content_copy</span>
+                  <span>Copy</span>
+                </button>
+                <a id="gh-file-raw-link" href="#" target="_blank" download class="px-2 py-0.5 rounded bg-purple-500/20 hover:bg-purple-500/30 text-purple-300 border border-purple-500/30 text-[9px] font-bold uppercase flex items-center gap-1 cursor-pointer">
+                  <span class="material-symbols-outlined text-[11px]">download</span>
+                  <span>Download</span>
+                </a>
+              </div>
+            </div>
+            <!-- File Content Area -->
+            <div id="gh-file-content-area" class="flex-1 overflow-auto p-4 font-mono text-xs text-cyan-200 select-text leading-relaxed bg-[#060a14]">
+              <div class="text-center text-slate-500 py-16">Select any file from the explorer tree on the left to inspect its source code.</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Panel 2: Commits Lineage -->
+        <div id="gh-panel-commits" class="hidden w-full h-full overflow-y-auto p-5 space-y-3">
+          <div class="max-w-5xl mx-auto space-y-2.5">
+            <div class="flex items-center justify-between text-xs text-slate-400 font-mono pb-2 border-b border-slate-800">
+              <span class="font-bold text-white uppercase tracking-wider">CHRONOLOGICAL COMMIT LINEAGE</span>
+              <span id="gh-commits-total-label" class="text-purple-300 font-mono">0 commits loaded</span>
+            </div>
+            <div id="gh-commits-list" class="space-y-2 font-mono text-xs">
+              <!-- Populated dynamically -->
+            </div>
+          </div>
+        </div>
+
+        <!-- Panel 3: Pull Requests -->
+        <div id="gh-panel-prs" class="hidden w-full h-full overflow-y-auto p-5 space-y-3">
+          <div class="max-w-5xl mx-auto space-y-2.5">
+            <div class="flex items-center justify-between text-xs text-slate-400 font-mono pb-2 border-b border-slate-800">
+              <span class="font-bold text-white uppercase tracking-wider">PULL REQUESTS &amp; SOP TRIPLES</span>
+              <div class="flex items-center gap-1 text-[9px]">
+                <button onclick="window.filterGitHubPRs('all')" class="gh-pr-filter-btn px-2 py-0.5 rounded bg-purple-500/20 text-purple-300 border border-purple-500/40 font-bold cursor-pointer">ALL</button>
+                <button onclick="window.filterGitHubPRs('open')" class="gh-pr-filter-btn px-2 py-0.5 rounded text-slate-400 hover:text-white cursor-pointer">OPEN</button>
+                <button onclick="window.filterGitHubPRs('merged')" class="gh-pr-filter-btn px-2 py-0.5 rounded text-slate-400 hover:text-white cursor-pointer">MERGED</button>
+              </div>
+            </div>
+            <div id="gh-prs-list" class="space-y-2 font-mono text-xs">
+              <!-- Populated dynamically -->
+            </div>
+          </div>
+        </div>
+
+        <!-- Panel 4: Issues -->
+        <div id="gh-panel-issues" class="hidden w-full h-full overflow-y-auto p-5 space-y-3">
+          <div class="max-w-5xl mx-auto space-y-2.5">
+            <div class="flex items-center justify-between text-xs text-slate-400 font-mono pb-2 border-b border-slate-800">
+              <span class="font-bold text-white uppercase tracking-wider">GITHUB ISSUES &amp; TASK BACKLOG</span>
+              <span id="gh-issues-total-label" class="text-purple-300 font-mono">0 issues loaded</span>
+            </div>
+            <div id="gh-issues-list" class="space-y-2 font-mono text-xs">
+              <!-- Populated dynamically -->
+            </div>
+          </div>
+        </div>
+
+        <!-- Panel 5: Architecture Spec / README -->
+        <div id="gh-panel-spec" class="hidden w-full h-full overflow-y-auto p-6 bg-slate-950/70 select-text">
+          <div class="max-w-4xl mx-auto space-y-4">
+            <div class="flex items-center justify-between pb-3 border-b border-purple-500/30 text-xs font-mono">
+              <span class="font-bold text-purple-300 uppercase tracking-wider flex items-center gap-2">
+                <span class="material-symbols-outlined text-base">architecture</span>
+                <span>README &amp; ARCHITECTURE SPECIFICATION</span>
+              </span>
+              <button onclick="navigator.clipboard.writeText(document.getElementById('gh-spec-markdown-content').innerText); window.showToast('README copied!');" class="px-2.5 py-1 rounded bg-slate-900 hover:bg-slate-800 text-slate-300 text-[10px] font-bold uppercase flex items-center gap-1 cursor-pointer">
+                <span class="material-symbols-outlined text-[13px]">content_copy</span>
+                <span>Copy Spec</span>
+              </button>
+            </div>
+            <div id="gh-spec-markdown-content" class="text-slate-200 text-xs font-sans leading-relaxed select-text space-y-4">
+              <!-- Formatted README -->
+            </div>
+          </div>
+        </div>
+
+        <!-- Panel 6: Linked Graph Nodes -->
+        <div id="gh-panel-graph" class="hidden w-full h-full overflow-y-auto p-5 select-text">
+          <div class="max-w-5xl mx-auto space-y-3">
+            <div class="flex items-center justify-between text-xs text-slate-400 font-mono pb-2 border-b border-slate-800">
+              <span class="font-bold text-white uppercase tracking-wider flex items-center gap-2">
+                <span class="material-symbols-outlined text-cyan-400 text-base">hub</span>
+                <span>SUPER-CORTEX KNOWLEDGE GRAPH NODES LINKED TO THIS REPO</span>
+              </span>
+              <span id="gh-graph-nodes-count" class="text-cyan-400 font-mono font-bold">0 nodes</span>
+            </div>
+            <div id="gh-graph-nodes-list" class="grid grid-cols-1 md:grid-cols-2 gap-2.5 font-mono text-xs">
+              <!-- Populated dynamically -->
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
   <!-- MODAL: GITHUB REPOSITORY ARCHITECTURE & README -->
   <div id="repo-readme-modal" class="hidden fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4 font-mono select-text" onclick="if(event.target === this) window.closeRepoModal()">
     <div class="w-full max-w-4xl h-[85vh] bg-surface-container-lowest border border-purple-500/40 rounded-xl flex flex-col shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-150">
@@ -7753,15 +7984,21 @@
                 </div>
               </div>
             ` : ''}
-            <div class="flex items-center gap-2 pt-1 border-t border-purple-500/30 text-[10px] font-mono">
-              <button onclick="window.openRepoModal('${escapeHtml(node.title)}', unescape(\`${encodeURIComponent(node.metadata?.readme || node.content || '')}\`))" class="flex-1 py-1 bg-purple-500/20 hover:bg-purple-500/30 text-purple-200 border border-purple-500/40 rounded flex items-center justify-center gap-1 cursor-pointer">
-                <span class="material-symbols-outlined text-[12px]">description</span>
-                <span>View Architecture Spec</span>
+            <div class="space-y-1.5 pt-1 border-t border-purple-500/30 text-[10px] font-mono">
+              <button onclick="window.openGitHubBrowser('${escapeHtml(repoName)}', '${node.id}')" class="w-full py-2 bg-gradient-to-r from-purple-600/30 to-cyan-500/20 hover:from-purple-600/50 hover:to-cyan-500/40 text-white border border-purple-500/50 rounded-lg flex items-center justify-center gap-2 font-mono text-xs font-bold shadow-lg transition-all cursor-pointer">
+                <span class="material-symbols-outlined text-base text-purple-400">terminal</span>
+                <span>Open Dedicated GitHub Browser ↗</span>
               </button>
-              <a href="https://github.com/${escapeHtml(repoName)}" target="_blank" class="px-3 py-1 bg-slate-800 hover:bg-slate-700 text-white rounded flex items-center gap-1 cursor-pointer">
-                <span class="material-symbols-outlined text-[12px]">open_in_new</span>
-                <span>GitHub</span>
-              </a>
+              <div class="flex items-center gap-2">
+                <button onclick="window.openRepoModal('${escapeHtml(node.title)}', unescape(\`${encodeURIComponent(node.metadata?.readme || node.content || '')}\`))" class="flex-1 py-1 bg-purple-500/20 hover:bg-purple-500/30 text-purple-200 border border-purple-500/40 rounded flex items-center justify-center gap-1 cursor-pointer">
+                  <span class="material-symbols-outlined text-[12px]">description</span>
+                  <span>View Architecture Spec</span>
+                </button>
+                <a href="https://github.com/${escapeHtml(repoName)}" target="_blank" class="px-3 py-1 bg-slate-800 hover:bg-slate-700 text-white rounded flex items-center gap-1 cursor-pointer">
+                  <span class="material-symbols-outlined text-[12px]">open_in_new</span>
+                  <span>GitHub</span>
+                </a>
+              </div>
             </div>
           </div>
         `;
@@ -21781,7 +22018,727 @@ memory_extraction_submit
       }
     };
 
-    // Route URL hashes & query parameters on startup (Landing Page -> Sign In -> 3D Graph UI gate)
+    
+
+    // =========================================================================
+    // DEDICATED GITHUB NODES & REPOSITORY BROWSER STUDIO CONTROLLER
+    // =========================================================================
+    window.currentGitHubRepo = 'XibalbaTechSol/super-cortex';
+    window.currentGitHubBranch = 'main';
+    window.currentGitHubActiveTab = 'tree';
+    window.currentGitHubTree = [];
+    window.currentGitHubFilteredTree = [];
+    window.currentGitHubCommits = [];
+    window.currentGitHubPRs = [];
+    window.currentGitHubIssues = [];
+    window.currentGitHubActiveFile = null;
+    window.currentGitHubFileContent = '';
+    window.currentGitHubFileRenderMode = 'code';
+    window.currentGitHubPRFilter = 'all';
+
+    // Helper: get icon for file extension
+    function getFileIconForPath(filePath) {
+      const ext = filePath.split('.').pop().toLowerCase();
+      if (['py'].includes(ext)) return 'terminal';
+      if (['js', 'jsx', 'ts', 'tsx'].includes(ext)) return 'code';
+      if (['html', 'htm'].includes(ext)) return 'html';
+      if (['css', 'scss'].includes(ext)) return 'css';
+      if (['json', 'geojson'].includes(ext)) return 'data_object';
+      if (['md', 'markdown', 'txt'].includes(ext)) return 'edit_note';
+      if (['yaml', 'yml', 'toml', 'ini', 'cfg'].includes(ext)) return 'settings';
+      if (['png', 'jpg', 'jpeg', 'svg', 'gif', 'webp', 'ico'].includes(ext)) return 'image';
+      if (['pdf'].includes(ext)) return 'picture_as_pdf';
+      if (['sh', 'bash', 'zsh'].includes(ext)) return 'terminal';
+      return 'description';
+    }
+
+    // Open dedicated GitHub browser
+    window.openGitHubBrowser = function(repoName, optionalNodeId) {
+      if (repoName && typeof repoName === 'string' && repoName.trim()) {
+        window.currentGitHubRepo = repoName.trim();
+      } else if (window.selectedNode && window.selectedNode.metadata && window.selectedNode.metadata.repo_name) {
+        window.currentGitHubRepo = window.selectedNode.metadata.repo_name;
+      }
+
+      // Sync select dropdown
+      const repoSelect = document.getElementById('gh-browser-repo-select');
+      if (repoSelect) {
+        let found = false;
+        for (let i = 0; i < repoSelect.options.length; i++) {
+          if (repoSelect.options[i].value === window.currentGitHubRepo) {
+            repoSelect.selectedIndex = i;
+            found = true;
+            break;
+          }
+        }
+        if (!found) {
+          const opt = document.createElement('option');
+          opt.value = window.currentGitHubRepo;
+          opt.innerText = window.currentGitHubRepo;
+          opt.selected = true;
+          repoSelect.appendChild(opt);
+        }
+      }
+
+      const modal = document.getElementById('github-browser-modal');
+      if (modal) {
+        modal.classList.remove('hidden');
+      }
+
+      window.switchGitHubBrowserTab(window.currentGitHubActiveTab || 'tree');
+      window.loadGitHubRepoData(window.currentGitHubRepo, optionalNodeId);
+    };
+
+    // Close dedicated GitHub browser
+    window.closeGitHubBrowser = function() {
+      const modal = document.getElementById('github-browser-modal');
+      if (modal) {
+        modal.classList.add('hidden');
+      }
+    };
+
+    // Switch repo via dropdown
+    window.switchGitHubBrowserRepo = function(repo) {
+      if (!repo) return;
+      window.currentGitHubRepo = repo;
+      window.currentGitHubActiveFile = null;
+      window.loadGitHubRepoData(repo);
+    };
+
+    // Prompt custom repo
+    window.promptCustomGitHubRepo = function() {
+      const custom = prompt('Enter GitHub repository in "owner/repo" format (e.g. XibalbaTechSol/super-cortex):', window.currentGitHubRepo || 'XibalbaTechSol/super-cortex');
+      if (custom && custom.trim() && custom.includes('/')) {
+        const repo = custom.trim();
+        const select = document.getElementById('gh-browser-repo-select');
+        if (select) {
+          const opt = document.createElement('option');
+          opt.value = repo;
+          opt.innerText = repo;
+          opt.selected = true;
+          select.appendChild(opt);
+        }
+        window.switchGitHubBrowserRepo(repo);
+      }
+    };
+
+    // Switch subtab
+    window.switchGitHubBrowserTab = function(tab) {
+      window.currentGitHubActiveTab = tab;
+      const tabs = ['tree', 'commits', 'prs', 'issues', 'spec', 'graph'];
+      tabs.forEach(t => {
+        const btn = document.getElementById(`gh-tab-btn-${t}`);
+        const panel = document.getElementById(`gh-panel-${t}`);
+        if (btn) {
+          if (t === tab) {
+            btn.className = "px-3 py-2 border-b-2 border-purple-400 text-white flex items-center gap-1.5 cursor-pointer transition-colors";
+          } else {
+            btn.className = "px-3 py-2 border-b-2 border-transparent text-slate-400 hover:text-white flex items-center gap-1.5 cursor-pointer transition-colors";
+          }
+        }
+        if (panel) {
+          if (t === tab) {
+            panel.classList.remove('hidden');
+          } else {
+            panel.classList.add('hidden');
+          }
+        }
+      });
+
+      if (tab === 'graph') {
+        window.renderGitHubLinkedGraphNodes();
+      }
+    };
+
+    // Load all intelligence data for a repo
+    window.loadGitHubRepoData = async function(repo, optionalNodeId) {
+      const loading = document.getElementById('gh-browser-loading');
+      if (loading) loading.classList.remove('hidden');
+
+      const extLink = document.getElementById('gh-btn-external-link');
+      if (extLink) extLink.href = `https://github.com/${repo}`;
+
+      try {
+        const [treeRes, commitsRes, prsRes, issuesRes] = await Promise.all([
+          fetch(`/api/connectors/github/tree?repo=${encodeURIComponent(repo)}`),
+          fetch(`/api/connectors/github/commits?repo=${encodeURIComponent(repo)}&limit=40`),
+          fetch(`/api/connectors/github/prs?repo=${encodeURIComponent(repo)}&limit=40`),
+          fetch(`/api/connectors/github/issues?repo=${encodeURIComponent(repo)}&limit=40`)
+        ]);
+
+        // 1. Files & Tree
+        if (treeRes.ok) {
+          const treeData = await treeRes.json();
+          const rawTree = treeData.tree || treeData.files || [];
+          window.currentGitHubTree = rawTree.map(item => {
+            if (typeof item === 'string') return { path: item, size: 0 };
+            return { path: item.path || item.name || '', size: item.size || 0 };
+          });
+          window.currentGitHubFilteredTree = window.currentGitHubTree;
+          const filesBadge = document.getElementById('gh-badge-files');
+          if (filesBadge) filesBadge.innerText = `📁 ${window.currentGitHubTree.length} FILES`;
+          const treeCount = document.getElementById('gh-tree-files-count');
+          if (treeCount) treeCount.innerText = `${window.currentGitHubTree.length} files`;
+          window.renderGitHubFileTree(window.currentGitHubTree);
+
+          // Find README.md for spec tab
+          const readme = window.currentGitHubTree.find(f => f.path.toLowerCase() === 'readme.md');
+          if (readme) {
+            window.loadGitHubSpecReadme(readme.path);
+            if (!window.currentGitHubActiveFile) {
+              window.loadGitHubFileContent(readme.path);
+            }
+          } else if (window.currentGitHubTree.length > 0 && !window.currentGitHubActiveFile) {
+            window.loadGitHubFileContent(window.currentGitHubTree[0].path);
+          }
+        }
+
+        // 2. Commits
+        if (commitsRes.ok) {
+          const commitsData = await commitsRes.json();
+          window.currentGitHubCommits = commitsData.commits || [];
+          const countBadge = document.getElementById('gh-tab-count-commits');
+          if (countBadge) countBadge.innerText = window.currentGitHubCommits.length;
+          const labelTotal = document.getElementById('gh-commits-total-label');
+          if (labelTotal) labelTotal.innerText = `${window.currentGitHubCommits.length} commits loaded`;
+          window.renderGitHubCommits(window.currentGitHubCommits);
+        }
+
+        // 3. PRs
+        if (prsRes.ok) {
+          const prsData = await prsRes.json();
+          window.currentGitHubPRs = prsData.prs || prsData.pull_requests || [];
+          const countBadge = document.getElementById('gh-tab-count-prs');
+          if (countBadge) countBadge.innerText = window.currentGitHubPRs.length;
+          window.renderGitHubPRs(window.currentGitHubPRs);
+        }
+
+        // 4. Issues
+        if (issuesRes.ok) {
+          const issuesData = await issuesRes.json();
+          window.currentGitHubIssues = issuesData.issues || [];
+          const countBadge = document.getElementById('gh-tab-count-issues');
+          if (countBadge) countBadge.innerText = window.currentGitHubIssues.length;
+          const labelTotal = document.getElementById('gh-issues-total-label');
+          if (labelTotal) labelTotal.innerText = `${window.currentGitHubIssues.length} issues loaded`;
+          window.renderGitHubIssues(window.currentGitHubIssues);
+        }
+
+        // 5. Linked Graph Nodes
+        window.renderGitHubLinkedGraphNodes();
+
+      } catch (err) {
+        console.error('Failed to load GitHub repository intelligence:', err);
+        if (typeof window.showToast === 'function') {
+          window.showToast(`GitHub fetch error: ${err.message}`);
+        }
+      } finally {
+        if (loading) loading.classList.add('hidden');
+      }
+    };
+
+    // Render interactive file tree
+    window.renderGitHubFileTree = function(files) {
+      const container = document.getElementById('gh-file-tree-container');
+      if (!container) return;
+
+      if (!files || files.length === 0) {
+        container.innerHTML = '<div class="text-slate-500 text-center py-8">No files found matching filter.</div>';
+        return;
+      }
+
+      const itemsHtml = files.map(file => {
+        const icon = getFileIconForPath(file.path);
+        const isActive = window.currentGitHubActiveFile === file.path;
+        const activeClass = isActive 
+          ? 'bg-purple-500/25 border-purple-500/50 text-white font-bold' 
+          : 'border-transparent text-slate-300 hover:bg-slate-900/80 hover:text-white';
+        const sizeFormatted = file.size > 1024 ? `${(file.size / 1024).toFixed(1)} KB` : (file.size > 0 ? `${file.size} B` : '');
+
+        return `
+          <div onclick="window.loadGitHubFileContent('${escapeHtml(file.path)}')" 
+               class="px-2 py-1 rounded border ${activeClass} flex items-center justify-between gap-1.5 cursor-pointer transition-colors group">
+            <div class="flex items-center gap-1.5 min-w-0">
+              <span class="material-symbols-outlined text-[14px] text-purple-400 group-hover:text-purple-300 shrink-0">${icon}</span>
+              <span class="truncate text-xs" title="${escapeHtml(file.path)}">${escapeHtml(file.path)}</span>
+            </div>
+            ${sizeFormatted ? `<span class="text-[9px] text-slate-500 font-mono shrink-0">${sizeFormatted}</span>` : ''}
+          </div>
+        `;
+      }).join('');
+
+      container.innerHTML = itemsHtml;
+    };
+
+    // Load file source code
+    window.loadGitHubFileContent = async function(filePath) {
+      if (!filePath) return;
+      window.currentGitHubActiveFile = filePath;
+
+      // Update tree active styling
+      if (window.currentGitHubTree) {
+        window.renderGitHubFileTree(window.currentGitHubFilteredTree || window.currentGitHubTree);
+      }
+
+      const pathLabel = document.getElementById('gh-active-file-path');
+      const sizeLabel = document.getElementById('gh-active-file-size');
+      const iconLabel = document.getElementById('gh-active-file-icon');
+      const contentArea = document.getElementById('gh-file-content-area');
+      const modeToggle = document.getElementById('gh-file-mode-toggle');
+      const rawLink = document.getElementById('gh-file-raw-link');
+
+      if (pathLabel) pathLabel.innerText = filePath;
+      if (iconLabel) iconLabel.innerText = getFileIconForPath(filePath);
+      if (contentArea) contentArea.innerHTML = '<div class="text-center text-slate-500 py-12"><span class="material-symbols-outlined animate-spin">progress_activity</span> Loading file content...</div>';
+
+      const isMarkdown = filePath.toLowerCase().endsWith('.md');
+      if (modeToggle) {
+        if (isMarkdown) {
+          modeToggle.classList.remove('hidden');
+          modeToggle.innerText = window.currentGitHubFileRenderMode === 'preview' ? 'Code View' : 'Preview MD';
+        } else {
+          modeToggle.classList.add('hidden');
+          window.currentGitHubFileRenderMode = 'code';
+        }
+      }
+
+      try {
+        const res = await fetch(`/api/connectors/github/file?repo=${encodeURIComponent(window.currentGitHubRepo)}&path=${encodeURIComponent(filePath)}`);
+        if (!res.ok) {
+          const errData = await res.json();
+          throw new Error(errData.detail || `HTTP ${res.status}`);
+        }
+        const data = await res.json();
+        const code = data.content || '';
+        window.currentGitHubFileContent = code;
+
+        if (sizeLabel) sizeLabel.innerText = `${data.size || code.length} bytes`;
+        if (rawLink) {
+          rawLink.href = 'data:text/plain;charset=utf-8,' + encodeURIComponent(code);
+          rawLink.download = filePath.split('/').pop() || 'file';
+        }
+
+        window.renderActiveFileContent();
+
+      } catch (err) {
+        console.error('Failed to load file content:', err);
+        if (contentArea) {
+          contentArea.innerHTML = `<div class="p-6 text-rose-400 bg-rose-950/20 rounded border border-rose-500/30 font-mono text-xs">Error loading file: ${escapeHtml(err.message)}</div>`;
+        }
+      }
+    };
+
+    // Render active file content (code view or preview view)
+    window.renderActiveFileContent = function() {
+      const contentArea = document.getElementById('gh-file-content-area');
+      if (!contentArea) return;
+
+      const code = window.currentGitHubFileContent || '';
+      const isMarkdown = window.currentGitHubActiveFile && window.currentGitHubActiveFile.toLowerCase().endsWith('.md');
+
+      if (isMarkdown && window.currentGitHubFileRenderMode === 'preview' && typeof window.renderMarkdownToHtml === 'function') {
+        contentArea.innerHTML = `
+          <div class="max-w-4xl mx-auto p-4 bg-slate-950/70 rounded-xl border border-slate-800 text-slate-200 select-text font-sans leading-relaxed space-y-4">
+            ${window.renderMarkdownToHtml(code)}
+          </div>
+        `;
+        return;
+      }
+
+      // Code view with line numbers
+      const lines = code.split('\n');
+      const linesHtml = lines.map((line, idx) => {
+        return `
+          <div class="flex items-start hover:bg-slate-900/60 leading-5">
+            <span class="w-12 text-right pr-4 text-slate-600 select-none font-mono text-[11px] shrink-0">${idx + 1}</span>
+            <span class="flex-1 whitespace-pre-wrap break-all text-cyan-200/90 font-mono text-xs select-text">${escapeHtml(line) || '&nbsp;'}</span>
+          </div>
+        `;
+      }).join('');
+
+      contentArea.innerHTML = `
+        <div class="font-mono text-xs py-2 select-text">
+          ${linesHtml}
+        </div>
+      `;
+    };
+
+    // Toggle render mode for markdown
+    window.toggleGitHubFileRenderMode = function() {
+      window.currentGitHubFileRenderMode = window.currentGitHubFileRenderMode === 'preview' ? 'code' : 'preview';
+      const modeToggle = document.getElementById('gh-file-mode-toggle');
+      if (modeToggle) {
+        modeToggle.innerText = window.currentGitHubFileRenderMode === 'preview' ? 'Code View' : 'Preview MD';
+      }
+      window.renderActiveFileContent();
+    };
+
+    // Copy code from active file
+    window.copyActiveGitHubFileCode = function() {
+      if (!window.currentGitHubFileContent) return;
+      navigator.clipboard.writeText(window.currentGitHubFileContent).then(() => {
+        if (typeof window.showToast === 'function') window.showToast('File code copied to clipboard!');
+        else alert('File code copied to clipboard!');
+      });
+    };
+
+    // Load README into spec panel
+    window.loadGitHubSpecReadme = async function(readmePath) {
+      const specContainer = document.getElementById('gh-spec-markdown-content');
+      if (!specContainer) return;
+
+      try {
+        const res = await fetch(`/api/connectors/github/file?repo=${encodeURIComponent(window.currentGitHubRepo)}&path=${encodeURIComponent(readmePath)}`);
+        if (res.ok) {
+          const data = await res.json();
+          const md = data.content || '';
+          if (typeof window.renderMarkdownToHtml === 'function') {
+            specContainer.innerHTML = window.renderMarkdownToHtml(md);
+          } else {
+            specContainer.innerText = md;
+          }
+        }
+      } catch (e) {
+        console.warn('Could not load README for spec tab:', e);
+      }
+    };
+
+    // Render commits lineage
+    window.renderGitHubCommits = function(commits) {
+      const container = document.getElementById('gh-commits-list');
+      if (!container) return;
+
+      if (!commits || commits.length === 0) {
+        container.innerHTML = '<div class="text-slate-500 text-center py-10">No commits found for this repository.</div>';
+        return;
+      }
+
+      container.innerHTML = commits.map(c => {
+        const shortSha = c.sha ? c.sha.substring(0, 7) : 'commit';
+        const msgLines = (c.message || '').split('\n');
+        const title = msgLines[0] || 'Commit';
+        const desc = msgLines.slice(1).join(' ').trim();
+        const dateStr = c.date ? new Date(c.date).toLocaleString() : '';
+
+        return `
+          <div class="p-3 bg-slate-900/50 hover:bg-slate-900/90 border border-slate-800 rounded-xl flex items-start justify-between gap-3 transition-colors">
+            <div class="flex items-start gap-2.5 min-w-0">
+              <span class="material-symbols-outlined text-purple-400 text-lg mt-0.5">commit</span>
+              <div class="min-w-0 space-y-1">
+                <div class="font-bold text-white text-xs hover:text-purple-300 transition-colors">${escapeHtml(title)}</div>
+                ${desc ? `<div class="text-[11px] text-slate-400 truncate">${escapeHtml(desc)}</div>` : ''}
+                <div class="flex items-center gap-2 text-[10px] text-slate-500 font-mono">
+                  <span>${escapeHtml(c.author || 'Author')}</span>
+                  <span>·</span>
+                  <span>${escapeHtml(dateStr)}</span>
+                </div>
+              </div>
+            </div>
+            <div class="flex items-center gap-1.5 shrink-0">
+              <span class="px-2 py-0.5 rounded bg-purple-500/10 text-purple-300 border border-purple-500/30 font-mono text-[10px]">${shortSha}</span>
+              ${c.url ? `
+                <a href="${escapeHtml(c.url)}" target="_blank" class="p-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white" title="Open commit on GitHub">
+                  <span class="material-symbols-outlined text-[13px]">open_in_new</span>
+                </a>
+              ` : ''}
+            </div>
+          </div>
+        `;
+      }).join('');
+    };
+
+    // Render pull requests & SOP triples
+    window.renderGitHubPRs = function(prs) {
+      const container = document.getElementById('gh-prs-list');
+      if (!container) return;
+
+      const filtered = (prs || []).filter(pr => {
+        const st = (pr.state || '').toLowerCase();
+        const isMerged = pr.is_merged || st === 'merged' || Boolean(pr.mergedAt);
+        const isOpen = st === 'open';
+        if (window.currentGitHubPRFilter === 'open') return isOpen;
+        if (window.currentGitHubPRFilter === 'merged') return isMerged;
+        return true;
+      });
+
+      if (filtered.length === 0) {
+        container.innerHTML = '<div class="text-slate-500 text-center py-10">No pull requests match the current filter.</div>';
+        return;
+      }
+
+      container.innerHTML = filtered.map(pr => {
+        const st = (pr.state || '').toLowerCase();
+        const isMerged = pr.is_merged || st === 'merged' || Boolean(pr.mergedAt);
+        const isOpen = st === 'open';
+        const stateBadge = isMerged 
+          ? '<span class="px-2 py-0.5 rounded bg-purple-900/40 text-purple-300 border border-purple-500/40 font-bold text-[9px]">MERGED</span>'
+          : (isOpen 
+              ? '<span class="px-2 py-0.5 rounded bg-emerald-900/40 text-emerald-300 border border-emerald-500/40 font-bold text-[9px]">OPEN</span>'
+              : '<span class="px-2 py-0.5 rounded bg-slate-800 text-slate-400 border border-slate-700 font-bold text-[9px]">CLOSED</span>');
+
+        const authorName = (typeof pr.author === 'object' && pr.author) ? (pr.author.login || pr.author.name || 'User') : (pr.author || 'User');
+        const branchName = pr.branch || pr.headRefName || 'main';
+
+        return `
+          <div class="p-3 bg-slate-900/50 hover:bg-slate-900/90 border border-slate-800 rounded-xl space-y-2 transition-colors">
+            <div class="flex items-start justify-between gap-3">
+              <div class="flex items-center gap-2 min-w-0">
+                ${stateBadge}
+                <span class="text-slate-400 font-mono text-xs">#${pr.number || ''}</span>
+                <span class="font-bold text-white text-xs truncate hover:text-purple-300 transition-colors">${escapeHtml(pr.title || 'Pull Request')}</span>
+              </div>
+              <div class="flex items-center gap-1.5 shrink-0">
+                ${pr.url ? `
+                  <a href="${escapeHtml(pr.url)}" target="_blank" class="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white text-[10px] flex items-center gap-1 font-mono">
+                    <span class="material-symbols-outlined text-[12px]">open_in_new</span>
+                    <span>GitHub</span>
+                  </a>
+                ` : ''}
+              </div>
+            </div>
+            <div class="flex items-center gap-3 text-[10px] text-slate-400 font-mono">
+              <span>Author: ${escapeHtml(authorName)}</span>
+              <span>·</span>
+              <span>Branch: ${escapeHtml(branchName)}</span>
+              ${pr.mergedAt ? `<span>· Merged: ${new Date(pr.mergedAt).toLocaleDateString()}</span>` : ''}
+            </div>
+            ${pr.body ? `
+              <div class="p-2 bg-slate-950/80 rounded border border-slate-800/80 text-[11px] text-slate-300 font-mono leading-relaxed max-h-24 overflow-y-auto select-text">
+                ${escapeHtml(pr.body.substring(0, 300))}${pr.body.length > 300 ? '...' : ''}
+              </div>
+            ` : ''}
+          </div>
+        `;
+      }).join('');
+    };
+
+    // Filter PRs
+    window.filterGitHubPRs = function(filter) {
+      window.currentGitHubPRFilter = filter;
+      const btns = document.querySelectorAll('.gh-pr-filter-btn');
+      btns.forEach(btn => {
+        if (btn.innerText.toLowerCase() === filter.toLowerCase()) {
+          btn.className = "gh-pr-filter-btn px-2 py-0.5 rounded bg-purple-500/20 text-purple-300 border border-purple-500/40 font-bold cursor-pointer";
+        } else {
+          btn.className = "gh-pr-filter-btn px-2 py-0.5 rounded text-slate-400 hover:text-white cursor-pointer";
+        }
+      });
+      window.renderGitHubPRs(window.currentGitHubPRs);
+    };
+
+    // Render issues
+    window.renderGitHubIssues = function(issues) {
+      const container = document.getElementById('gh-issues-list');
+      if (!container) return;
+
+      if (!issues || issues.length === 0) {
+        container.innerHTML = '<div class="text-slate-500 text-center py-10">No active issues found for this repository.</div>';
+        return;
+      }
+
+      container.innerHTML = issues.map(iss => {
+        const isOpen = iss.state === 'open';
+        const icon = isOpen ? '<span class="material-symbols-outlined text-emerald-400 text-base">adjust</span>' : '<span class="material-symbols-outlined text-purple-400 text-base">task_alt</span>';
+        const labels = (iss.labels || []).map(l => {
+          const name = typeof l === 'string' ? l : (l.name || '');
+          return `<span class="px-1.5 py-0.2 rounded bg-slate-800 text-[8px] text-slate-300 border border-slate-700">${escapeHtml(name)}</span>`;
+        }).join(' ');
+
+        return `
+          <div class="p-3 bg-slate-900/50 hover:bg-slate-900/90 border border-slate-800 rounded-xl flex items-start justify-between gap-3 transition-colors">
+            <div class="flex items-start gap-2.5 min-w-0">
+              <div class="mt-0.5 shrink-0">${icon}</div>
+              <div class="min-w-0 space-y-1">
+                <div class="flex items-center gap-2">
+                  <span class="text-slate-500 font-mono text-xs">#${iss.number || ''}</span>
+                  <span class="font-bold text-white text-xs truncate hover:text-purple-300 transition-colors">${escapeHtml(iss.title || 'Issue')}</span>
+                </div>
+                <div class="flex items-center gap-2 flex-wrap text-[10px] text-slate-400">
+                  <span>Created by ${escapeHtml(iss.author || 'User')}</span>
+                  ${labels}
+                </div>
+              </div>
+            </div>
+            ${iss.url ? `
+              <a href="${escapeHtml(iss.url)}" target="_blank" class="p-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white shrink-0" title="View on GitHub">
+                <span class="material-symbols-outlined text-[13px]">open_in_new</span>
+              </a>
+            ` : ''}
+          </div>
+        `;
+      }).join('');
+    };
+
+    // Render linked Super-Cortex knowledge graph nodes
+    window.renderGitHubLinkedGraphNodes = function() {
+      const container = document.getElementById('gh-graph-nodes-list');
+      const countEl = document.getElementById('gh-graph-nodes-count');
+      const tabCount = document.getElementById('gh-tab-count-graph');
+      if (!container) return;
+
+      const repoShort = (window.currentGitHubRepo.split('/')[1] || window.currentGitHubRepo).toLowerCase();
+      let matchedNodes = [];
+
+      if (window.graphData && Array.isArray(window.graphData.nodes)) {
+        matchedNodes = window.graphData.nodes.filter(n => {
+          if (n.metadata && (n.metadata.repo_name === window.currentGitHubRepo || n.metadata.repo === window.currentGitHubRepo)) return true;
+          if (n.metadata && n.metadata.connector === 'github') return true;
+          if (n.category === 'github_repository' || n.category === 'repository') return true;
+          if (n.id && n.id.toLowerCase().includes(repoShort)) return true;
+          if (n.title && n.title.toLowerCase().includes(repoShort)) return true;
+          return false;
+        });
+      }
+
+      if (countEl) countEl.innerText = `${matchedNodes.length} nodes`;
+      if (tabCount) tabCount.innerText = matchedNodes.length;
+
+      if (matchedNodes.length === 0) {
+        container.innerHTML = `
+          <div class="col-span-full p-8 text-center bg-slate-900/30 rounded-xl border border-slate-800 space-y-3">
+            <span class="material-symbols-outlined text-cyan-400 text-3xl">hub</span>
+            <div class="text-xs text-slate-300 font-bold">No knowledge graph nodes currently linked to ${escapeHtml(window.currentGitHubRepo)}</div>
+            <div class="text-[11px] text-slate-500 max-w-md mx-auto">Sync this repository using the Ingest / Sync button above to extract repository architecture, commits, and PR decisions into Super-Cortex!</div>
+            <button onclick="window.syncCurrentGitHubRepoToGraph()" class="px-3 py-1.5 rounded-lg bg-purple-500/20 hover:bg-purple-500/30 text-purple-300 border border-purple-500/40 text-xs font-bold cursor-pointer">
+              Sync Repository to Graph Now
+            </button>
+          </div>
+        `;
+        return;
+      }
+
+      container.innerHTML = matchedNodes.map(node => {
+        const title = node.title || node.id;
+        const epClass = (node.epistemic_class || node.type || 'NODE').toUpperCase();
+        return `
+          <div class="p-3 bg-slate-900/70 hover:bg-slate-900 border border-slate-800 hover:border-cyan-500/40 rounded-xl space-y-2 transition-all">
+            <div class="flex items-start justify-between gap-2">
+              <div class="min-w-0">
+                <span class="text-[9px] px-1.5 py-0.5 rounded bg-cyan-950 text-cyan-300 border border-cyan-500/30 font-bold">${epClass}</span>
+                <div class="font-bold text-white text-xs mt-1 truncate" title="${escapeHtml(title)}">${escapeHtml(title)}</div>
+                <div class="text-[10px] text-slate-400 truncate">${node.scope || 'shared'}</div>
+              </div>
+            </div>
+            <div class="flex items-center gap-1.5 pt-1 border-t border-slate-800/80">
+              <button onclick="window.closeGitHubBrowser(); if(typeof window.select3DNode==='function') window.select3DNode('${node.id}'); if(typeof window.flyToNode==='function') window.flyToNode('${node.id}');" class="px-2 py-0.5 rounded bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 text-[9px] font-bold cursor-pointer">
+                Fly To
+              </button>
+              <button onclick="window.closeGitHubBrowser(); if(typeof window.select3DNode==='function') window.select3DNode('${node.id}');" class="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 text-[9px] font-bold cursor-pointer">
+                Inspect
+              </button>
+              <button onclick="window.ctxActionViewMarkdownFromNode('${node.id}')" class="px-2 py-0.5 rounded bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-[9px] font-bold cursor-pointer">
+                Markdown
+              </button>
+            </div>
+          </div>
+        `;
+      }).join('');
+    };
+
+    // Filter content inside browser
+    window.filterGitHubBrowserContent = function(query) {
+      const q = (query || '').toLowerCase().trim();
+      const tab = window.currentGitHubActiveTab;
+
+      if (tab === 'tree') {
+        if (!q) {
+          window.currentGitHubFilteredTree = window.currentGitHubTree;
+        } else {
+          window.currentGitHubFilteredTree = (window.currentGitHubTree || []).filter(f => f.path.toLowerCase().includes(q));
+        }
+        window.renderGitHubFileTree(window.currentGitHubFilteredTree);
+      } else if (tab === 'commits') {
+        if (!q) {
+          window.renderGitHubCommits(window.currentGitHubCommits);
+        } else {
+          const filtered = (window.currentGitHubCommits || []).filter(c => 
+            (c.message && c.message.toLowerCase().includes(q)) || 
+            (c.sha && c.sha.toLowerCase().includes(q)) || 
+            (c.author && c.author.toLowerCase().includes(q))
+          );
+          window.renderGitHubCommits(filtered);
+        }
+      } else if (tab === 'prs') {
+        if (!q) {
+          window.renderGitHubPRs(window.currentGitHubPRs);
+        } else {
+          const filtered = (window.currentGitHubPRs || []).filter(pr => 
+            (pr.title && pr.title.toLowerCase().includes(q)) || 
+            (pr.author && pr.author.toLowerCase().includes(q)) || 
+            String(pr.number).includes(q)
+          );
+          window.renderGitHubPRs(filtered);
+        }
+      } else if (tab === 'issues') {
+        if (!q) {
+          window.renderGitHubIssues(window.currentGitHubIssues);
+        } else {
+          const filtered = (window.currentGitHubIssues || []).filter(iss => 
+            (iss.title && iss.title.toLowerCase().includes(q)) || 
+            (iss.author && iss.author.toLowerCase().includes(q)) || 
+            String(iss.number).includes(q)
+          );
+          window.renderGitHubIssues(filtered);
+        }
+      }
+    };
+
+    // Right-click action to open GitHub browser for node
+    window.ctxActionOpenGitHubBrowser = function() {
+      const node = window.contextMenuTargetNode;
+      window.closeNodeContextMenu();
+      let repo = 'XibalbaTechSol/super-cortex';
+      if (node) {
+        if (node.metadata && node.metadata.repo_name) repo = node.metadata.repo_name;
+        else if (node.metadata && node.metadata.repo) repo = node.metadata.repo;
+        else if (node.title && node.title.includes('/')) repo = node.title.trim();
+        else if (node.id && node.id.includes('github') && node.title) repo = node.title.trim();
+      }
+      window.openGitHubBrowser(repo, node ? node.id : null);
+    };
+
+    // Sync repo into Super-Cortex
+    window.syncCurrentGitHubRepoToGraph = async function() {
+      if (typeof window.showToast === 'function') {
+        window.showToast(`Syncing ${window.currentGitHubRepo} into Super-Cortex...`);
+      }
+      try {
+        const res = await fetch('/api/connectors/github/sync', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ repo: window.currentGitHubRepo })
+        });
+        if (res.ok) {
+          if (typeof window.showToast === 'function') window.showToast(`Repository ${window.currentGitHubRepo} synced! Refreshing graph...`);
+          if (typeof window.fetchGraphData === 'function') await window.fetchGraphData();
+          window.renderGitHubLinkedGraphNodes();
+        } else {
+          if (typeof window.showToast === 'function') window.showToast(`Sync submitted for ${window.currentGitHubRepo}`);
+        }
+      } catch (err) {
+        if (typeof window.showToast === 'function') window.showToast(`Sync triggered: ${err.message}`);
+      }
+    };
+
+    // Hotkey listener for 'G' key to toggle dedicated GitHub browser
+    document.addEventListener('keydown', (e) => {
+      if (e.key.toLowerCase() === 'g' && !e.target.matches('input, textarea, select')) {
+        const modal = document.getElementById('github-browser-modal');
+        if (modal && !modal.classList.contains('hidden')) {
+          window.closeGitHubBrowser();
+        } else {
+          window.openGitHubBrowser();
+        }
+      }
+      if (e.key === 'Escape') {
+        const modal = document.getElementById('github-browser-modal');
+        if (modal && !modal.classList.contains('hidden')) {
+          window.closeGitHubBrowser();
+        }
+      }
+    });
+
+        // Route URL hashes & query parameters on startup (Landing Page -> Sign In -> 3D Graph UI gate)
     window.addEventListener('DOMContentLoaded', async () => {
       // Exchange Supabase OAuth redirect (#access_token=...) into first-party HttpOnly session cookie
       const rawHash = window.location.hash || '';

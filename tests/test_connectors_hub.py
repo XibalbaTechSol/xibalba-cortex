@@ -385,3 +385,57 @@ async def test_generic_file_viewer_and_docx_extraction(tmp_path):
     for it in batch_res["items"]:
         assert "file_url" in it
         assert it["file_url"].startswith("/api/connectors/file/preview")
+
+
+@pytest.mark.asyncio
+async def test_github_browser_endpoints(tmp_path) -> None:
+    """Verify dedicated GitHub browsing endpoints for repository tree, files, commits, PRs, and issues."""
+    from starlette.testclient import TestClient
+    from super_cortex.api import create_app
+
+    cfg = SuperCortexConfig(
+        db_path=tmp_path / "github_browser_test.db",
+        supermemory_url="http://127.0.0.1:59999",
+    )
+    app = create_app(cfg)
+    client = TestClient(app)
+    # 1. Tree
+    r_tree = client.get("/api/connectors/github/tree?repo=XibalbaTechSol/super-cortex")
+    assert r_tree.status_code == 200
+    d_tree = r_tree.json()
+    assert "tree" in d_tree
+    assert isinstance(d_tree["tree"], list)
+    assert len(d_tree["tree"]) > 0
+    assert any("pyproject.toml" in f for f in d_tree["tree"])
+
+    # 2. File Content
+    r_file = client.get("/api/connectors/github/file?repo=XibalbaTechSol/super-cortex&path=pyproject.toml")
+    assert r_file.status_code == 200
+    d_file = r_file.json()
+    assert d_file["path"] == "pyproject.toml"
+    assert "super-cortex" in d_file["content"]
+    assert d_file["is_binary"] is False
+
+    # 3. Commits
+    r_commits = client.get("/api/connectors/github/commits?repo=XibalbaTechSol/super-cortex&limit=5")
+    assert r_commits.status_code == 200
+    d_commits = r_commits.json()
+    assert "commits" in d_commits
+    assert isinstance(d_commits["commits"], list)
+    assert len(d_commits["commits"]) > 0
+    assert "sha" in d_commits["commits"][0]
+    assert "message" in d_commits["commits"][0]
+
+    # 4. PRs
+    r_prs = client.get("/api/connectors/github/prs?repo=XibalbaTechSol/super-cortex&limit=5")
+    assert r_prs.status_code == 200
+    d_prs = r_prs.json()
+    assert "prs" in d_prs
+    assert isinstance(d_prs["prs"], list)
+
+    # 5. Issues
+    r_issues = client.get("/api/connectors/github/issues?repo=XibalbaTechSol/super-cortex&limit=5")
+    assert r_issues.status_code == 200
+    d_issues = r_issues.json()
+    assert "issues" in d_issues
+    assert isinstance(d_issues["issues"], list)

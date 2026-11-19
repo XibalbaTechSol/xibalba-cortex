@@ -1774,6 +1774,310 @@ class SuperCortexConnectors:
                 return {"owner": owner, "repos": repos, "source": "github_rest_api", "authenticated": bool(token)}
         return {"owner": owner, "repos": [], "authenticated": False}
 
+    def _resolve_local_repo(self, repo: str):
+        """Resolve a repository name to a local checkout under ~/Projects, CWD, or package root."""
+        from pathlib import Path
+        clean = repo.strip().rstrip("/").split("/")[-1].lower()
+        mapping = {
+            "super-cortex": Path.home() / "Projects" / "super-cortex",
+            "integrity-core": Path.home() / "Projects" / "integrity-core",
+            "xibalba-shield": Path.home() / "Projects" / "xibalba-shield",
+            "integrity-console": Path.home() / "Projects" / "integrity-console",
+            "xibalba-cortex": Path.home() / "Projects" / "xibalba-cortex",
+        }
+        target = mapping.get(clean)
+        if target and target.exists() and (target / ".git").exists():
+            return target
+
+        # Check current working directory or git toplevel (e.g. CI runner or active worktree)
+        cwd = Path.cwd().resolve()
+        for p in [cwd, *cwd.parents]:
+            if (p / ".git").exists() and (clean in p.name.lower() or "super-cortex" in p.name.lower()):
+                return p
+
+        pkg_root = Path(__file__).resolve().parent.parent.parent
+        for p in [pkg_root, *pkg_root.parents]:
+            if (p / ".git").exists() and (clean in p.name.lower() or "super-cortex" in p.name.lower()):
+                return p
+
+        cand = Path.home() / "Projects" / clean
+        if cand.exists() and (cand / ".git").exists():
+            return cand
+        return None
+
+    def get_github_tree(self, repo: str, branch: str = ""):
+        """Get repository file tree either from local checkout or GitHub API."""
+        import subprocess, json
+        clean_repo = repo.strip()
+        if "/" not in clean_repo and not clean_repo.startswith("http"):
+            clean_repo = f"XibalbaTechSol/{clean_repo}"
+
+        local_p = self._resolve_local_repo(clean_repo)
+        if local_p:
+            try:
+                out = subprocess.check_output(
+                    ["git", "-C", str(local_p), "ls-tree", "-r", "--name-only", "HEAD"],
+                    text=True,
+                    timeout=5.0
+                )
+                files = [f.strip() for f in out.splitlines() if f.strip() and not f.startswith(".git/")]
+                return {
+                    "repo": clean_repo,
+                    "default_branch": "main",
+                    "tree": files,
+                    "source": "local_git",
+                    "count": len(files)
+                }
+            except Exception:
+                pass
+
+        # Remote fallback
+        token = self._discover_github_token()
+        headers = {
+            "Accept": "application/vnd.github+json",
+            "User-Agent": "SuperCortex-GitHubTree/1.0",
+        }
+        if token:
+            headers["Authorization"] = f"Bearer {token}"
+
+        b = branch or "main"
+        url = f"https://api.github.com/repos/{clean_repo}/git/trees/{b}?recursive=1"
+        try:
+            with httpx.Client(timeout=10.0, follow_redirects=True) as client:
+                r = client.get(url, headers=headers)
+                if r.status_code == 200:
+                    data = r.json()
+                    files = [item["path"] for item in data.get("tree", []) if item.get("type") == "blob"]
+                    return {
+                        "repo": clean_repo,
+                        "default_branch": b,
+                        "tree": files,
+                        "source": "github_rest_api",
+                        "count": len(files)
+                    }
+        except Exception as e:
+            return {"repo": clean_repo, "tree": [], "error": str(e)}
+        return {"repo": clean_repo, "tree": [], "count": 0}
+
+    def get_github_file_content(self, repo: str, path: str):
+        """Fetch file content from local repository or remote GitHub API."""
+        from pathlib import Path
+        clean_repo = repo.strip()
+        clean_path = path.strip().lstrip("/")
+        if "/" not in clean_repo and not clean_repo.startswith("http"):
+            clean_repo = f"XibalbaTechSol/{clean_repo}"
+
+        local_p = self._resolve_local_repo(clean_repo)
+        if local_p:
+            file_path = (local_p / clean_path).resolve()
+            if not file_path.is_relative_to(local_p.resolve()) or not file_path.exists() or file_path.is_dir():
+                raise FileNotFoundError(f"File {clean_path} not found in {clean_repo}")
+            try:
+                content = file_path.read_text(encoding="utf-8")
+                return {
+                    "repo": clean_repo,
+                    "path": clean_path,
+                    "filename": file_path.name,
+                    "content": content,
+                    "size": file_path.stat().st_size,
+                    "source": "local_git",
+                    "is_binary": False
+                }
+            except UnicodeDecodeError:
+                return {
+                    "repo": clean_repo,
+                    "path": clean_path,
+                    "filename": file_path.name,
+                    "content": "[Binary file cannot be displayed]",
+                    "size": file_path.stat().st_size,
+                    "source": "local_git",
+                    "is_binary": True
+                }
+
+        token = self._discover_github_token()
+        headers = {
+            "Accept": "application/vnd.github.raw+json",
+            "User-Agent": "SuperCortex-GitHubFile/1.0",
+        }
+        if token:
+            headers["Authorization"] = f"Bearer {token}"
+        url = f"https://api.github.com/repos/{clean_repo}/contents/{clean_path}"
+        with httpx.Client(timeout=10.0, follow_redirects=True) as client:
+            r = client.get(url, headers=headers)
+            if r.status_code == 200:
+                return {
+                    "repo": clean_repo,
+                    "path": clean_path,
+                    "filename": Path(clean_path).name,
+                    "content": r.text,
+                    "size": len(r.content),
+                    "source": "github_rest_api",
+                    "is_binary": False
+                }
+            raise FileNotFoundError(f"Failed to fetch {clean_path} from GitHub: {r.status_code}")
+
+    def get_github_commits(self, repo: str, limit: int = 30):
+        """Fetch recent commit lineage for a repository."""
+        import subprocess, json
+        clean_repo = repo.strip()
+        if "/" not in clean_repo and not clean_repo.startswith("http"):
+            clean_repo = f"XibalbaTechSol/{clean_repo}"
+
+        local_p = self._resolve_local_repo(clean_repo)
+        if local_p:
+            try:
+                out = subprocess.check_output(
+                    ["git", "-C", str(local_p), "log", f"-n{limit}", "--pretty=format:%H|||%h|||%s|||%an|||%ci"],
+                    text=True,
+                    timeout=5.0
+                )
+                commits = []
+                for line in out.splitlines():
+                    if "|||" in line:
+                        p = line.split("|||")
+                        commits.append({
+                            "sha": p[0],
+                            "short_sha": p[1],
+                            "message": p[2],
+                            "author": p[3],
+                            "date": p[4],
+                            "url": f"https://github.com/{clean_repo}/commit/{p[0]}"
+                        })
+                return {"repo": clean_repo, "commits": commits, "source": "local_git"}
+            except Exception:
+                pass
+
+        try:
+            out = subprocess.check_output(
+                ["gh", "api", f"repos/{clean_repo}/commits?per_page={limit}"],
+                text=True,
+                timeout=8.0
+            )
+            raw = json.loads(out)
+            commits = [
+                {
+                    "sha": item["sha"],
+                    "short_sha": item["sha"][:7],
+                    "message": item["commit"]["message"].split("\n")[0],
+                    "author": (item.get("commit", {}).get("author", {}) or {}).get("name", "Unknown"),
+                    "date": (item.get("commit", {}).get("author", {}) or {}).get("date", ""),
+                    "url": item.get("html_url", ""),
+                }
+                for item in raw
+            ]
+            return {"repo": clean_repo, "commits": commits, "source": "gh_api"}
+        except Exception:
+            pass
+
+        token = self._discover_github_token()
+        headers = {"Accept": "application/vnd.github+json", "User-Agent": "SuperCortex-GitHub/1.0"}
+        if token:
+            headers["Authorization"] = f"Bearer {token}"
+        try:
+            with httpx.Client(timeout=10.0, follow_redirects=True) as client:
+                r = client.get(f"https://api.github.com/repos/{clean_repo}/commits", params={"per_page": limit}, headers=headers)
+                if r.status_code == 200:
+                    raw = r.json()
+                    commits = [
+                        {
+                            "sha": item["sha"],
+                            "short_sha": item["sha"][:7],
+                            "message": item["commit"]["message"].split("\n")[0],
+                            "author": (item.get("commit", {}).get("author", {}) or {}).get("name", "Unknown"),
+                            "date": (item.get("commit", {}).get("author", {}) or {}).get("date", ""),
+                            "url": item.get("html_url", ""),
+                        }
+                        for item in raw
+                    ]
+                    return {"repo": clean_repo, "commits": commits, "source": "github_rest_api"}
+        except Exception as e:
+            return {"repo": clean_repo, "commits": [], "error": str(e)}
+        return {"repo": clean_repo, "commits": [], "count": 0}
+
+    def get_github_prs(self, repo: str, limit: int = 30):
+        """Fetch pull requests with status and details."""
+        import subprocess, json
+        clean_repo = repo.strip()
+        if "/" not in clean_repo and not clean_repo.startswith("http"):
+            clean_repo = f"XibalbaTechSol/{clean_repo}"
+        try:
+            out = subprocess.check_output(
+                ["gh", "pr", "list", "--repo", clean_repo, f"--limit={limit}", "--state=all", "--json=number,title,state,author,url,updatedAt,mergedAt"],
+                text=True,
+                timeout=8.0
+            )
+            return {"repo": clean_repo, "prs": json.loads(out), "source": "gh_cli"}
+        except Exception:
+            pass
+
+        token = self._discover_github_token()
+        headers = {"Accept": "application/vnd.github+json", "User-Agent": "SuperCortex-GitHub/1.0"}
+        if token:
+            headers["Authorization"] = f"Bearer {token}"
+        try:
+            with httpx.Client(timeout=10.0, follow_redirects=True) as client:
+                r = client.get(f"https://api.github.com/repos/{clean_repo}/pulls", params={"state": "all", "per_page": limit}, headers=headers)
+                if r.status_code == 200:
+                    raw = r.json()
+                    prs = [
+                        {
+                            "number": item.get("number"),
+                            "title": item.get("title", ""),
+                            "state": item.get("state", "").upper(),
+                            "author": (item.get("user") or {}).get("login", "Unknown"),
+                            "url": item.get("html_url", ""),
+                            "updatedAt": item.get("updated_at"),
+                            "mergedAt": item.get("merged_at"),
+                        }
+                        for item in raw
+                    ]
+                    return {"repo": clean_repo, "prs": prs, "source": "github_rest_api"}
+        except Exception as e:
+            return {"repo": clean_repo, "prs": [], "error": str(e)}
+        return {"repo": clean_repo, "prs": [], "count": 0}
+
+    def get_github_issues(self, repo: str, limit: int = 30):
+        """Fetch issues for a repository."""
+        import subprocess, json
+        clean_repo = repo.strip()
+        if "/" not in clean_repo and not clean_repo.startswith("http"):
+            clean_repo = f"XibalbaTechSol/{clean_repo}"
+        try:
+            out = subprocess.check_output(
+                ["gh", "issue", "list", "--repo", clean_repo, f"--limit={limit}", "--state=all", "--json=number,title,state,author,url,updatedAt,labels"],
+                text=True,
+                timeout=8.0
+            )
+            return {"repo": clean_repo, "issues": json.loads(out), "source": "gh_cli"}
+        except Exception:
+            pass
+
+        token = self._discover_github_token()
+        headers = {"Accept": "application/vnd.github+json", "User-Agent": "SuperCortex-GitHub/1.0"}
+        if token:
+            headers["Authorization"] = f"Bearer {token}"
+        try:
+            with httpx.Client(timeout=10.0, follow_redirects=True) as client:
+                r = client.get(f"https://api.github.com/repos/{clean_repo}/issues", params={"state": "all", "per_page": limit}, headers=headers)
+                if r.status_code == 200:
+                    raw = r.json()
+                    issues = [
+                        {
+                            "number": item.get("number"),
+                            "title": item.get("title", ""),
+                            "state": item.get("state", ""),
+                            "author": (item.get("user") or {}).get("login", "Unknown"),
+                            "url": item.get("html_url", ""),
+                            "labels": [l.get("name") for l in item.get("labels", []) if isinstance(l, dict) and "name" in l],
+                        }
+                        for item in raw
+                        if "pull_request" not in item
+                    ]
+                    return {"repo": clean_repo, "issues": issues, "source": "github_rest_api"}
+        except Exception as e:
+            return {"repo": clean_repo, "issues": [], "error": str(e)}
+        return {"repo": clean_repo, "issues": [], "count": 0}
+
     async def ingest_github(
         self,
         *,
