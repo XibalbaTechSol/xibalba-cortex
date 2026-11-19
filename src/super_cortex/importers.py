@@ -69,8 +69,10 @@ def scan_and_import_local_sessions(
             for d in dirs:
                 if agy_imported >= limit_per_source:
                     break
-                tpath = os.path.join(d, ".system_generated", "logs", "transcript.jsonl")
-                if not os.path.exists(tpath) or os.path.getsize(tpath) < 1500:
+                full_tpath = os.path.join(d, ".system_generated", "logs", "transcript_full.jsonl")
+                compact_tpath = os.path.join(d, ".system_generated", "logs", "transcript.jsonl")
+                tpath = full_tpath if (os.path.exists(full_tpath) and os.path.getsize(full_tpath) > 500) else compact_tpath
+                if not os.path.exists(tpath) or os.path.getsize(tpath) < 500:
                     continue
 
                 conv_id = os.path.basename(d)
@@ -93,6 +95,11 @@ def scan_and_import_local_sessions(
                             stype = step.get("type")
                             if stype == "USER_INPUT":
                                 if cur_prompt is not None:
+                                    if "<think>" in cur_response:
+                                        t_matches = re.findall(r"<think>(.*?)</think>", cur_response, re.DOTALL)
+                                        for tm in t_matches:
+                                            cur_thinking += ("\n\n" if cur_thinking else "") + tm.strip()
+                                        cur_response = re.sub(r"<think>.*?</think>", "", cur_response, flags=re.DOTALL).strip()
                                     turns.append((cur_prompt, cur_response, cur_thinking, cur_tools, cur_time))
                                     if len(turns) >= max_turns_per_session:
                                         break
@@ -108,6 +115,9 @@ def scan_and_import_local_sessions(
                                         cur_thinking += "\n\n" + th.strip()
                                     else:
                                         cur_thinking = th.strip()
+                                raw_th = step.get("thought") or step.get("reasoning_content") or step.get("thoughts")
+                                if raw_th and isinstance(raw_th, str) and raw_th.strip() and raw_th.strip() not in cur_thinking:
+                                    cur_thinking += ("\n\n" if cur_thinking else "") + raw_th.strip()
                                 tc = step.get("tool_calls", [])
                                 if tc:
                                     for t in tc:
@@ -118,6 +128,11 @@ def scan_and_import_local_sessions(
                                     cur_response += step.get("content") + " "
 
                     if cur_prompt is not None and len(turns) < max_turns_per_session:
+                        if "<think>" in cur_response:
+                            t_matches = re.findall(r"<think>(.*?)</think>", cur_response, re.DOTALL)
+                            for tm in t_matches:
+                                cur_thinking += ("\n\n" if cur_thinking else "") + tm.strip()
+                            cur_response = re.sub(r"<think>.*?</think>", "", cur_response, flags=re.DOTALL).strip()
                         turns.append((cur_prompt, cur_response, cur_thinking, cur_tools, cur_time))
 
                     if turns:
@@ -226,6 +241,11 @@ def scan_and_import_local_sessions(
                                     cur_response += content + " "
 
                     if cur_prompt is not None and len(turns) < max_turns_per_session:
+                        if "<think>" in cur_response:
+                            t_matches = re.findall(r"<think>(.*?)</think>", cur_response, re.DOTALL)
+                            for tm in t_matches:
+                                cur_thinking += ("\n\n" if cur_thinking else "") + tm.strip()
+                            cur_response = re.sub(r"<think>.*?</think>", "", cur_response, flags=re.DOTALL).strip()
                         turns.append((cur_prompt, cur_response, cur_thinking, cur_tools, cur_time))
 
                     if turns:
