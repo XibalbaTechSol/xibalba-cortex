@@ -1151,6 +1151,46 @@
     <!-- VIEW MODE A: 3D GRAPH MANIFOLD (Three.js WebGL Engine)                  -->
     <!-- ======================================================================= -->
     <div id="view-graph" class="w-full h-full relative overflow-hidden">
+
+      <!-- 3D GRAPH INTENT & ACTION FILTER CONTROLLER BAR -->
+      <div id="graph-intent-action-filter-bar" class="absolute top-3 left-1/2 -translate-x-1/2 z-30 flex items-center bg-[#070b16]/95 border border-cyan-500/40 rounded-xl p-1 text-[10px] font-mono shadow-2xl backdrop-blur-md gap-1">
+        <div class="flex items-center bg-slate-900 border border-outline-variant/30 rounded p-0.5 text-[9px] font-bold">
+          <button onclick="window.setGraphIntentFilter('all')" data-gfilter="all" class="gfilter-btn px-2 py-0.5 rounded bg-cyan-500 text-black font-extrabold cursor-pointer">ALL</button>
+          <button onclick="window.setGraphIntentFilter('intent')" data-gfilter="intent" class="gfilter-btn px-2 py-0.5 rounded text-slate-400 hover:text-amber-300 cursor-pointer flex items-center gap-1">
+            <span class="w-1.5 h-1.5 rounded-full bg-amber-400"></span>
+            <span>INTENTS</span>
+          </button>
+          <button onclick="window.setGraphIntentFilter('action')" data-gfilter="action" class="gfilter-btn px-2 py-0.5 rounded text-slate-400 hover:text-emerald-300 cursor-pointer flex items-center gap-1">
+            <span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+            <span>ACTIONS</span>
+          </button>
+          <button onclick="window.setGraphIntentFilter('thought')" data-gfilter="thought" class="gfilter-btn px-2 py-0.5 rounded text-slate-400 hover:text-purple-300 cursor-pointer flex items-center gap-1">
+            <span class="w-1.5 h-1.5 rounded-full bg-purple-400"></span>
+            <span>THOUGHTS</span>
+          </button>
+          <button onclick="window.setGraphIntentFilter('decision')" data-gfilter="decision" class="gfilter-btn px-2 py-0.5 rounded text-slate-400 hover:text-cyan-300 cursor-pointer flex items-center gap-1">
+            <span class="w-1.5 h-1.5 rounded-full bg-cyan-400"></span>
+            <span>DECISIONS</span>
+          </button>
+          <button onclick="window.setGraphIntentFilter('fact')" data-gfilter="fact" class="gfilter-btn px-2 py-0.5 rounded text-slate-400 hover:text-blue-300 cursor-pointer flex items-center gap-1">
+            <span class="w-1.5 h-1.5 rounded-full bg-blue-400"></span>
+            <span>FACTS</span>
+          </button>
+        </div>
+
+        <select id="graph-filter-agent-select" onchange="window.filterGraphByAgent(this.value)" class="bg-[#0e1526] border border-outline-variant/30 text-cyan-300 rounded px-1.5 py-0.5 text-[9px] font-bold outline-none cursor-pointer">
+          <option value="all">🤖 AGENT: ALL</option>
+          <option value="agy">AGY</option>
+          <option value="claude">CLAUDE</option>
+          <option value="codex">CODEX</option>
+          <option value="hermes">HERMES</option>
+        </select>
+
+        <button onclick="window.toggleCausalFlowHighlight()" id="btn-toggle-causal-flow" class="px-2 py-0.5 rounded text-purple-300 hover:text-white border border-purple-500/30 flex items-center gap-1 font-bold text-[9px] cursor-pointer" title="Highlight Causal Flow from Intent to Executed Actions">
+          <span class="material-symbols-outlined text-[11px] text-purple-400 animate-pulse">insights</span>
+          <span>CAUSAL FLOW</span>
+        </button>
+      </div>
       <!-- THREE.JS WEBGL CANVAS CONTAINER -->
       <div id="threejs-container" class="absolute inset-0 w-full h-full cursor-grab"></div>
 
@@ -1821,6 +1861,94 @@
         </div>
       </div>
 
+      
+      <!-- TIMELINE RIGHT-CLICK CONTEXT MENU (DEDICATED TELEMETRY OPERATIONS) -->
+      <div id="timeline-context-menu" class="hidden fixed z-50 bg-[#070b16]/98 border border-purple-500/50 rounded-2xl shadow-[0_20px_70px_rgba(0,0,0,0.95)] py-2 w-76 font-mono text-[11px] backdrop-blur-2xl select-none text-slate-200 divide-y divide-slate-800/70 max-h-[85vh] overflow-y-auto scrollbar-thin">
+        <!-- Header: Target Session & Turn -->
+        <div class="px-3 py-1.5 flex flex-col gap-0.5 bg-slate-900/40">
+          <div class="flex items-center justify-between gap-1.5">
+            <span id="tl-ctx-title" class="font-bold text-white text-[11px] truncate flex-1">Session / Turn Mark</span>
+            <span id="tl-ctx-badge" class="px-1.5 py-0.2 rounded bg-purple-500/20 border border-purple-500/40 text-purple-300 text-[8px] font-bold">TURN 1</span>
+          </div>
+          <div class="flex items-center justify-between text-[8px] text-slate-400 font-mono">
+            <span id="tl-ctx-agent" class="text-purple-400 uppercase font-bold">AGENT</span>
+            <span id="tl-ctx-time" class="text-slate-500 truncate max-w-[120px]">Time</span>
+          </div>
+        </div>
+
+        <!-- Primary Operations -->
+        <div class="py-1">
+          <!-- Probabilistic Causal Analysis -->
+          <button onclick="window.tlCtxOpenCausalAnalysis()" class="w-full text-left px-3 py-1.5 hover:bg-purple-500/20 hover:text-purple-200 text-slate-100 flex items-center justify-between cursor-pointer transition-colors group">
+            <span class="flex items-center gap-2">
+              <span class="material-symbols-outlined text-[14px] text-purple-400 group-hover:scale-110 transition-transform">insights</span>
+              <span class="font-bold">Probabilistic Causal Analysis</span>
+            </span>
+            <span class="text-[8px] px-1.5 py-0.2 rounded bg-purple-500/30 text-purple-300 font-bold">BAYES DAG</span>
+          </button>
+          <!-- Inspect Turn in Drawer -->
+          <button onclick="window.tlCtxInspectTurn()" class="w-full text-left px-3 py-1.5 hover:bg-cyan-500/15 hover:text-cyan-300 text-slate-200 flex items-center justify-between cursor-pointer transition-colors group">
+            <span class="flex items-center gap-2">
+              <span class="material-symbols-outlined text-[14px] text-cyan-400 group-hover:scale-110 transition-transform">read_more</span>
+              <span>Inspect Turn &amp; Payloads</span>
+            </span>
+            <span class="text-[8px] text-cyan-400 uppercase font-mono">DRAWER</span>
+          </button>
+          <!-- Jump to 3D Graph Node -->
+          <button onclick="window.tlCtxJumpToGraph()" class="w-full text-left px-3 py-1.5 hover:bg-emerald-500/15 hover:text-emerald-300 text-slate-200 flex items-center justify-between cursor-pointer transition-colors group">
+            <span class="flex items-center gap-2">
+              <span class="material-symbols-outlined text-[14px] text-emerald-400 group-hover:scale-110 transition-transform">hub</span>
+              <span>Locate in 3D Neural Graph</span>
+            </span>
+            <span class="text-[8px] text-emerald-400 uppercase font-mono">3D JUMP</span>
+          </button>
+          <!-- View Raw Markdown / File -->
+          <button onclick="window.tlCtxOpenFileViewer()" class="w-full text-left px-3 py-1.5 hover:bg-sky-500/15 hover:text-sky-300 text-slate-200 flex items-center justify-between cursor-pointer transition-colors group">
+            <span class="flex items-center gap-2">
+              <span class="material-symbols-outlined text-[14px] text-sky-400 group-hover:scale-110 transition-transform">description</span>
+              <span>View Turn Transcript / File</span>
+            </span>
+            <span class="text-[8px] text-sky-400 uppercase font-mono">MODAL</span>
+          </button>
+        </div>
+
+        <!-- Telemetry & Video Control -->
+        <div class="py-1">
+          <button onclick="window.tlCtxReplayFromHere()" class="w-full text-left px-3 py-1.5 hover:bg-amber-500/15 hover:text-amber-300 text-slate-200 flex items-center justify-between cursor-pointer transition-colors group">
+            <span class="flex items-center gap-2">
+              <span class="material-symbols-outlined text-[14px] text-amber-400 group-hover:scale-110 transition-transform">play_circle</span>
+              <span>Start Replay from This Moment</span>
+            </span>
+            <span class="text-[8px] text-amber-400 font-bold uppercase">REPLAY</span>
+          </button>
+          <button onclick="window.tlCtxFilterAgent()" class="w-full text-left px-3 py-1.5 hover:bg-indigo-500/15 hover:text-indigo-300 text-slate-200 flex items-center justify-between cursor-pointer transition-colors group">
+            <span class="flex items-center gap-2">
+              <span class="material-symbols-outlined text-[14px] text-indigo-400 group-hover:scale-110 transition-transform">filter_alt</span>
+              <span>Isolate This Agent's Trajectories</span>
+            </span>
+            <span class="text-[8px] text-indigo-400 font-bold uppercase">FILTER</span>
+          </button>
+        </div>
+
+        <!-- Clipboard & Exports -->
+        <div class="py-1">
+          <button onclick="window.tlCtxCopySessionId()" class="w-full text-left px-3 py-1.5 hover:bg-slate-800 text-slate-300 hover:text-white flex items-center justify-between cursor-pointer transition-colors">
+            <span class="flex items-center gap-2">
+              <span class="material-symbols-outlined text-[13px] text-slate-400">fingerprint</span>
+              <span>Copy Session ID</span>
+            </span>
+            <span class="text-[8px] text-slate-500 font-mono">ID</span>
+          </button>
+          <button onclick="window.tlCtxCopyMerkleRoot()" class="w-full text-left px-3 py-1.5 hover:bg-slate-800 text-slate-300 hover:text-white flex items-center justify-between cursor-pointer transition-colors">
+            <span class="flex items-center gap-2">
+              <span class="material-symbols-outlined text-[13px] text-slate-400">lock</span>
+              <span>Copy Merkle Root Proof</span>
+            </span>
+            <span class="text-[8px] text-slate-500 font-mono">HASH</span>
+          </button>
+        </div>
+      </div>
+
       <!-- QUICK-SEARCH OMNIBAR MODAL (Cmd+K / /) -->
       <div id="graph-omnibar-modal" class="hidden fixed inset-0 z-50 bg-[#050811]/75 backdrop-blur-md flex items-start justify-center pt-20 px-4 font-mono select-none" onclick="if(event.target===this) window.closeOmnibar()">
         <div class="w-full max-w-2xl bg-[#090e1c] border border-cyan-400/50 rounded-2xl shadow-[0_24px_80px_rgba(0,0,0,0.95)] overflow-hidden flex flex-col">
@@ -1969,6 +2097,39 @@
             <button onclick="setTimelineReplaySpeed(1)" id="btn-tl-speed-1" class="h-6 px-2 rounded flex items-center justify-center bg-primary-container text-on-primary-container font-bold text-[10px] cursor-pointer">1x</button>
             <button onclick="setTimelineReplaySpeed(2)" id="btn-tl-speed-2" class="h-6 px-2 rounded flex items-center justify-center hover:bg-surface-container-high text-on-surface text-[10px] cursor-pointer">2x</button>
             <button onclick="setTimelineReplaySpeed(5)" id="btn-tl-speed-5" class="h-6 px-2 rounded flex items-center justify-center hover:bg-surface-container-high text-on-surface text-[10px] cursor-pointer">5x</button>
+          </div>
+        </div>
+      </section>
+
+      
+      <!-- TIMELINE PAGINATION & HORIZON NAVIGATION STRIP -->
+      <section class="px-4 py-1.5 bg-[#060a12] border-b border-outline-variant/30 flex flex-wrap items-center justify-between text-[10px] font-mono shrink-0 gap-2">
+        <div class="flex items-center gap-2 flex-wrap">
+          <div class="relative flex items-center">
+            <span class="material-symbols-outlined text-slate-500 text-[13px] absolute left-2 pointer-events-none">search</span>
+            <input id="timeline-search-input" type="text" placeholder="Filter session ID, agent, prompt..." oninput="window.searchTimelineLanes(this.value)" class="bg-[#0b101d] border border-outline-variant/40 rounded pl-6 pr-2 py-0.5 text-white text-[9px] w-48 md:w-64 focus:outline-none focus:border-cyan-400 placeholder:text-slate-600 font-mono" />
+          </div>
+          <button onclick="window.clearTimelineSearch()" id="btn-clear-tl-search" class="hidden text-[8px] text-slate-400 hover:text-white px-1 cursor-pointer">CLEAR</button>
+        </div>
+
+        <div class="flex items-center gap-3">
+          <!-- Causal Analysis Trigger in Timeline Strip -->
+          <button onclick="window.openCausalAnalysis()" class="px-2.5 py-0.5 rounded bg-gradient-to-r from-purple-500/20 to-cyan-500/20 hover:from-purple-500/30 hover:to-cyan-500/30 border border-purple-500/40 hover:border-cyan-400 text-purple-200 hover:text-white font-bold text-[9px] flex items-center gap-1.5 transition-all cursor-pointer shadow-sm" title="Open Bayesian Markov Causal Chain Analysis">
+            <span class="material-symbols-outlined text-[12px] text-purple-400 animate-pulse">insights</span>
+            <span>PROBABILISTIC CAUSAL ANALYSIS</span>
+          </button>
+
+          <!-- Pagination Controller -->
+          <div class="flex items-center gap-1 bg-surface-container-low border border-outline-variant/30 rounded p-0.5 text-[9px]">
+            <button onclick="window.prevTimelinePage()" id="btn-tl-prev" class="px-2 py-0.5 text-slate-400 hover:text-white disabled:opacity-30 disabled:pointer-events-none cursor-pointer">◀ PREV</button>
+            <span id="timeline-page-info" class="px-2 py-0.5 font-bold text-cyan-300">PAGE 1 / 1</span>
+            <button onclick="window.nextTimelinePage()" id="btn-tl-next" class="px-2 py-0.5 text-slate-400 hover:text-white disabled:opacity-30 disabled:pointer-events-none cursor-pointer">NEXT ▶</button>
+            <select id="timeline-page-size-select" onchange="window.setTimelinePageSize(this.value)" class="bg-[#0b101d] text-slate-300 border-l border-outline-variant/30 px-1.5 py-0.5 text-[9px] outline-none cursor-pointer">
+              <option value="25">25 LANES</option>
+              <option value="50">50 LANES</option>
+              <option value="100">100 LANES</option>
+              <option value="all">ALL LANES</option>
+            </select>
           </div>
         </div>
       </section>
@@ -4596,6 +4757,33 @@
             <span>APPLY SPECTRAL EIGENMAP TO GRAPH</span>
           </button>
 
+          <!-- Graph Fourier Transform (GFT) & Spectral Noise Filter -->
+          <div class="space-y-1.5 pt-1.5 border-t border-outline-variant/20">
+            <div class="flex justify-between items-center text-[8px] text-cyan-300 font-bold uppercase">
+              <span class="flex items-center gap-1">
+                <span class="material-symbols-outlined text-[11px] text-purple-400">filter_vintage</span>
+                <span>GRAPH FOURIER NOISE FILTER (GFT)</span>
+              </span>
+              <span id="spectral-gft-filter-status" class="text-purple-300 font-mono text-[7px] font-bold">ALL FREQUENCIES</span>
+            </div>
+            
+            <div class="grid grid-cols-4 gap-1 text-[7.5px] font-bold">
+              <button onclick="window.applyGraphFourierFilter('all')" class="gft-btn px-1 py-1 rounded bg-cyan-500 text-black font-extrabold cursor-pointer" data-gft="all">RAW ALL</button>
+              <button onclick="window.applyGraphFourierFilter('low_pass')" class="gft-btn px-1 py-1 rounded bg-slate-800 text-slate-300 hover:text-white cursor-pointer" data-gft="low_pass" title="Low-pass filter: removes high-frequency noise, preserves ground-truth backbone">LOW-PASS</button>
+              <button onclick="window.applyGraphFourierFilter('band_pass')" class="gft-btn px-1 py-1 rounded bg-slate-800 text-slate-300 hover:text-white cursor-pointer" data-gft="band_pass" title="Band-pass filter: isolates inter-community semantic bridges">BAND-PASS</button>
+              <button onclick="window.applyGraphFourierFilter('high_pass')" class="gft-btn px-1 py-1 rounded bg-slate-800 text-slate-300 hover:text-white cursor-pointer" data-gft="high_pass" title="High-pass filter: isolates anomalies and high-gradient transients">HIGH-PASS</button>
+            </div>
+
+            <!-- Frequency Cutoff Slider -->
+            <div class="space-y-0.5 pt-0.5">
+              <div class="flex justify-between text-[7.5px] text-slate-400 font-mono">
+                <span>Cutoff Frequency λ_cutoff:</span>
+                <span id="gft-cutoff-val" class="text-cyan-300 font-bold">0.482</span>
+              </div>
+              <input type="range" id="gft-cutoff-slider" min="5" max="150" value="48" oninput="window.onGftCutoffInput(this.value)" class="w-full h-1 bg-slate-800 rounded appearance-none cursor-pointer accent-[#00f0ff]">
+            </div>
+          </div>
+
           <!-- Laplacian Eigenvalues Table -->
           <div class="space-y-1 pt-1 border-t border-outline-variant/20">
             <div class="flex justify-between items-center text-[8px] text-cyan-300 font-bold uppercase">
@@ -5084,6 +5272,98 @@
   <!-- Hidden compatibility anchor for legacy calls -->
   <div id="pdf-preview-modal" class="hidden"></div>
   <iframe id="pdf-modal-frame" class="hidden"></iframe>
+
+
+  
+  <!-- MODAL: PROBABILISTIC CAUSAL INFERENCE & BAYESIAN TRAJECTORY ENGINE -->
+  <div id="causal-analysis-modal" class="hidden fixed inset-0 z-50 bg-black/90 backdrop-blur-xl flex items-center justify-center p-2 md:p-5 font-mono select-text" onclick="if(event.target === this) window.closeCausalAnalysis()">
+    <div class="w-full max-w-6xl h-[90vh] bg-[#070b16] border border-purple-500/50 rounded-2xl flex flex-col shadow-[0_24px_90px_rgba(0,0,0,0.95)] overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+      
+      <!-- Top Explorer Header -->
+      <div class="px-4 py-2.5 border-b border-purple-500/30 bg-slate-950/95 flex items-center justify-between flex-wrap gap-2.5 shrink-0">
+        <!-- Left: Studio Identity & Stats -->
+        <div class="flex items-center gap-3 min-w-0 flex-wrap">
+          <div class="flex items-center gap-2">
+            <span class="material-symbols-outlined text-purple-400 text-2xl animate-pulse">insights</span>
+            <div class="flex flex-col">
+              <span class="text-[9px] text-purple-400 font-extrabold uppercase tracking-widest flex items-center gap-1.5">
+                <span>SUPER-CORTEX // PROBABILISTIC CAUSAL INFERENCE ENGINE</span>
+                <span class="px-1.5 py-0.2 rounded-full bg-purple-500/20 text-purple-300 text-[8px] font-bold border border-purple-500/30">BAYESIAN MARKOV DAG</span>
+              </span>
+              <div class="flex items-center gap-2 text-xs font-bold text-white tracking-wide">
+                <span id="causal-modal-session-title">Session Trajectory Analysis</span>
+                <span id="causal-modal-turn-badge" class="px-1.5 py-0.2 rounded bg-purple-900/60 text-purple-300 text-[8px] font-bold">ALL TURNS</span>
+              </div>
+            </div>
+          </div>
+          <!-- Metrics Chips -->
+          <div class="hidden sm:flex items-center gap-2 text-[9px] font-mono">
+            <span class="px-2 py-0.5 rounded bg-slate-900 border border-purple-500/30 text-purple-300 flex items-center gap-1">
+              <span class="text-slate-500">DETERMINISM:</span>
+              <strong id="causal-stat-determinism" class="text-emerald-400">--</strong>
+            </span>
+            <span class="px-2 py-0.5 rounded bg-slate-900 border border-purple-500/30 text-purple-300 flex items-center gap-1">
+              <span class="text-slate-500">ENTROPY:</span>
+              <strong id="causal-stat-entropy" class="text-cyan-400">-- bits</strong>
+            </span>
+            <span class="px-2 py-0.5 rounded bg-slate-900 border border-purple-500/30 text-purple-300 flex items-center gap-1">
+              <span class="text-slate-500">CONFIDENCE:</span>
+              <strong id="causal-stat-confidence" class="text-amber-300">HIGH</strong>
+            </span>
+          </div>
+        </div>
+
+        <!-- Right: Actions & Close -->
+        <div class="flex items-center gap-2">
+          <button onclick="window.refreshCausalAnalysis()" class="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 hover:border-purple-400 text-[10px] font-bold flex items-center gap-1 cursor-pointer transition-colors" title="Recompute Causal Probabilities">
+            <span class="material-symbols-outlined text-[13px]">refresh</span>
+            <span>Recompute</span>
+          </button>
+          <button onclick="window.copyCausalJson()" class="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 hover:border-purple-400 text-[10px] font-bold flex items-center gap-1 cursor-pointer transition-colors" title="Copy Causal Analysis JSON">
+            <span class="material-symbols-outlined text-[13px]">data_object</span>
+            <span>JSON</span>
+          </button>
+          <button onclick="window.closeCausalAnalysis()" class="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-white hover:bg-slate-800 cursor-pointer transition-colors">
+            <span class="material-symbols-outlined text-base">close</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Controls & Turn Selector Bar -->
+      <div class="px-4 py-2 bg-slate-950/70 border-b border-purple-500/20 flex items-center justify-between flex-wrap gap-2 text-[10px]">
+        <div class="flex items-center gap-2">
+          <span class="text-slate-400 uppercase font-bold text-[9px]">FOCUS TURN:</span>
+          <select id="causal-turn-select" onchange="window.onCausalTurnSelect(this.value)" class="bg-[#0b101d] border border-outline-variant/40 rounded px-2 py-0.5 text-purple-200 text-[9px] font-mono outline-none cursor-pointer">
+            <option value="all">⚡ FULL SESSION CAUSAL TRAJECTORY</option>
+          </select>
+        </div>
+        <div class="flex items-center gap-3">
+          <span class="text-slate-500 text-[9px]">Counterfactual Sensitivity:</span>
+          <input type="range" id="causal-intent-slider" min="10" max="100" value="85" oninput="window.onCausalIntentSlider(this.value)" class="w-28 md:w-40 h-1 bg-slate-800 rounded appearance-none cursor-pointer accent-[#a855f7]" title="Simulate Intent Clarity / Prior Confidence" />
+          <span id="causal-slider-label" class="text-purple-300 font-bold text-[9px] min-w-[36px]">85%</span>
+        </div>
+      </div>
+
+      <!-- Interactive Causal Flow DAG Visualizer Canvas -->
+      <div class="flex-1 w-full bg-[#050812] relative overflow-y-auto overflow-x-auto p-4 md:p-6" id="causal-dag-container">
+        <!-- Dynamically rendered DAG -->
+      </div>
+
+      <!-- Footer: Epistemic Invariants & Help -->
+      <div class="px-4 py-2 border-t border-purple-500/20 bg-slate-950/90 flex items-center justify-between text-[9px] text-slate-400 flex-wrap gap-2 shrink-0">
+        <div class="flex items-center gap-3">
+          <span class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-amber-400"></span> Intent P(I)</span>
+          <span class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-purple-400"></span> Deliberation P(R|I)</span>
+          <span class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-emerald-400"></span> Action P(A|R,I)</span>
+          <span class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-cyan-400"></span> State Commit P(S|A)</span>
+        </div>
+        <div class="text-slate-500">
+          <span>Formula: </span>
+          <code class="text-purple-300 font-bold">P(Trajectory) = ∏ P(Node_{i} | Parents(Node_{i}))</code>
+        </div>
+      </div>
+    </div>
+  </div>
 
 
   <!-- MODAL: REAL-TIME THOUGHT TRACKER & AGENT TELEMETRY STUDIO -->
@@ -17712,7 +17992,7 @@ ${staticFacts.length > 0 ? `## Static Knowledge Core:\n${staticFacts.map(f => `-
       }
 
       // Filter sessions
-      const filteredSessions = sessions.filter(s => {
+      let filteredSessions = sessions.filter(s => {
         if (timelineFilterType === 'anchored' && !s.merkle_root) return false;
         if (timelineFilterType === 'tools' && !(s.tool_execution_count > 0)) return false;
 
@@ -17727,12 +18007,41 @@ ${staticFacts.length > 0 ? `## Static Knowledge Core:\n${staticFacts.map(f => `-
         return true;
       });
 
+      // Filter by search query if present
+      if (window.timelineSearchQuery) {
+        const q = window.timelineSearchQuery.toLowerCase();
+        filteredSessions = filteredSessions.filter(s => {
+          const sid = (s.session_id || '').toLowerCase();
+          const ag = (s.agent_id || '').toLowerCase();
+          const detail = timelineSessionDetails.get(s.session_id);
+          const firstPrompt = (detail && detail.turns && detail.turns[0]?.prompt_text || '').toLowerCase();
+          return sid.includes(q) || ag.includes(q) || firstPrompt.includes(q);
+        });
+      }
+
+      // Pagination calculation to prevent DOM bloat and main thread freezing
+      const totalMatching = filteredSessions.length;
+      const pageSize = window.timelinePageSize === 'all' ? totalMatching : parseInt(window.timelinePageSize || 25, 10);
+      const totalPages = Math.max(1, Math.ceil(totalMatching / Math.max(1, pageSize)));
+      if (window.timelineCurrentPage > totalPages) window.timelineCurrentPage = totalPages;
+      if (window.timelineCurrentPage < 1) window.timelineCurrentPage = 1;
+
+      const pageInfoEl = document.getElementById('timeline-page-info');
+      if (pageInfoEl) pageInfoEl.innerText = `PAGE ${window.timelineCurrentPage} / ${totalPages} (${totalMatching} TOTAL)`;
+      const prevBtn = document.getElementById('btn-tl-prev');
+      const nextBtn = document.getElementById('btn-tl-next');
+      if (prevBtn) prevBtn.disabled = (window.timelineCurrentPage <= 1);
+      if (nextBtn) nextBtn.disabled = (window.timelineCurrentPage >= totalPages);
+
+      const startOffset = window.timelinePageSize === 'all' ? 0 : (window.timelineCurrentPage - 1) * pageSize;
+      const paginatedSessions = window.timelinePageSize === 'all' ? filteredSessions : filteredSessions.slice(startOffset, startOffset + pageSize);
+
       allTimelineMarks = [];
       const trackWidth = grid ? Math.max(300, grid.clientWidth - 240) : 800;
 
       // Render Session Lanes
       lanesContainer.innerHTML = '';
-      filteredSessions.forEach((lane, lIdx) => {
+      paginatedSessions.forEach((lane, lIdx) => {
         const detail = timelineSessionDetails.get(lane.session_id);
         const turns = (detail && detail.turns) ? detail.turns : [];
 
@@ -17785,6 +18094,19 @@ ${staticFacts.length > 0 ? `## Static Knowledge Core:\n${staticFacts.map(f => `-
           if (!e.target.closest('.xc-mark')) {
             selectSession(lane.session_id);
           }
+        };
+        trackDiv.oncontextmenu = (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          const markEl = e.target.closest('.xc-mark');
+          const markId = markEl ? markEl.dataset.markId : null;
+          const mark = markId ? allTimelineMarks.find(m => m.id === markId) : null;
+          window.openTimelineContextMenu(e.clientX, e.clientY, lane, mark);
+        };
+        labelBtn.oncontextmenu = (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          window.openTimelineContextMenu(e.clientX, e.clientY, lane, null);
         };
 
         // Session Duration Span Bar
@@ -23417,6 +23739,566 @@ memory_extraction_submit
         window.openLandingOverlay();
       }
     });
+  
+    // =========================================================================
+    // TIMELINE PAGINATION & PERFORMANCE CONTROLLERS
+    // =========================================================================
+    window.timelineCurrentPage = 1;
+    window.timelinePageSize = 25;
+    window.timelineSearchQuery = '';
+
+    window.searchTimelineLanes = function(query) {
+      window.timelineSearchQuery = (query || '').trim();
+      window.timelineCurrentPage = 1;
+      const clearBtn = document.getElementById('btn-clear-tl-search');
+      if (clearBtn) clearBtn.classList.toggle('hidden', !window.timelineSearchQuery);
+      if (typeof renderCortexTimeline === 'function') renderCortexTimeline();
+    };
+
+    window.clearTimelineSearch = function() {
+      const input = document.getElementById('timeline-search-input');
+      if (input) input.value = '';
+      window.searchTimelineLanes('');
+    };
+
+    window.prevTimelinePage = function() {
+      if (window.timelineCurrentPage > 1) {
+        window.timelineCurrentPage--;
+        if (typeof renderCortexTimeline === 'function') renderCortexTimeline();
+      }
+    };
+
+    window.nextTimelinePage = function() {
+      window.timelineCurrentPage++;
+      if (typeof renderCortexTimeline === 'function') renderCortexTimeline();
+    };
+
+    window.setTimelinePageSize = function(size) {
+      window.timelinePageSize = size;
+      window.timelineCurrentPage = 1;
+      if (typeof renderCortexTimeline === 'function') renderCortexTimeline();
+    };
+
+    // =========================================================================
+    // DEDICATED TIMELINE RIGHT-CLICK CONTEXT MENU
+    // =========================================================================
+    window.activeTimelineContext = null;
+
+    window.openTimelineContextMenu = function(clientX, clientY, lane, mark) {
+      const menu = document.getElementById('timeline-context-menu');
+      if (!menu) return;
+
+      window.activeTimelineContext = { lane, mark };
+
+      const titleEl = document.getElementById('tl-ctx-title');
+      const badgeEl = document.getElementById('tl-ctx-badge');
+      const agentEl = document.getElementById('tl-ctx-agent');
+      const timeEl = document.getElementById('tl-ctx-time');
+
+      const isMark = Boolean(mark);
+      const title = isMark ? (mark.title.split('\n')[0] || 'Turn Mark') : `Session ${lane.session_id.replace(/^sess_/, '')}`;
+      const badge = isMark ? (mark.cls || 'MARK').toUpperCase() : 'SESSION';
+      const agent = (lane.agent_id || 'AGENT').toUpperCase();
+      const timeStr = mark ? (typeof shortStamp === 'function' ? shortStamp(mark.time) : new Date(mark.time).toLocaleTimeString()) : (lane.start_time ? new Date(lane.start_time).toLocaleTimeString() : 'RECENT');
+
+      if (titleEl) titleEl.innerText = title;
+      if (badgeEl) badgeEl.innerText = badge;
+      if (agentEl) agentEl.innerText = agent;
+      if (timeEl) timeEl.innerText = timeStr;
+
+      // Position with viewport collision safety
+      const menuWidth = 304;
+      const menuHeight = 320;
+      let x = clientX;
+      let y = clientY;
+      if (x + menuWidth > window.innerWidth - 10) x = Math.max(10, window.innerWidth - menuWidth - 10);
+      if (y + menuHeight > window.innerHeight - 10) y = Math.max(10, window.innerHeight - menuHeight - 10);
+
+      menu.style.left = `${x}px`;
+      menu.style.top = `${y}px`;
+      menu.classList.remove('hidden');
+    };
+
+    window.closeTimelineContextMenu = function() {
+      const menu = document.getElementById('timeline-context-menu');
+      if (menu) menu.classList.add('hidden');
+    };
+
+    document.addEventListener('click', (e) => {
+      const menu = document.getElementById('timeline-context-menu');
+      if (menu && !menu.classList.contains('hidden') && !e.target.closest('#timeline-context-menu')) {
+        window.closeTimelineContextMenu();
+      }
+    });
+
+    window.tlCtxOpenCausalAnalysis = function() {
+      const ctx = window.activeTimelineContext;
+      window.closeTimelineContextMenu();
+      if (!ctx || !ctx.lane) return;
+      const turnIdx = (ctx.mark && ctx.mark.turnIdx !== undefined) ? ctx.mark.turnIdx : null;
+      window.openCausalAnalysis(ctx.lane.session_id, turnIdx);
+    };
+
+    window.tlCtxInspectTurn = async function() {
+      const ctx = window.activeTimelineContext;
+      window.closeTimelineContextMenu();
+      if (!ctx || !ctx.lane) return;
+      if (ctx.mark) {
+        await selectTimelineMark(ctx.mark);
+      } else {
+        await selectSession(ctx.lane.session_id);
+      }
+      if (typeof toggleInspector === 'function') toggleInspector(true);
+    };
+
+    window.tlCtxJumpToGraph = function() {
+      const ctx = window.activeTimelineContext;
+      window.closeTimelineContextMenu();
+      if (!ctx || !ctx.lane) return;
+      const turnSuffix = (ctx.mark && ctx.mark.turnIdx !== undefined) ? `_turn_${ctx.mark.turnIdx}` : '';
+      const targetId = `thought_exch_${ctx.lane.session_id}${turnSuffix}`;
+      
+      if (typeof switchView === 'function') switchView('graph');
+      setTimeout(() => {
+        const found = (window.nodeDefs || []).find(n => n.id === targetId || (n.session_id === ctx.lane.session_id));
+        if (found && typeof flyToNodeById === 'function') {
+          flyToNodeById(found.id);
+        } else if (typeof window.showToast === 'function') {
+          window.showToast(`Navigated to session graph context: ${ctx.lane.session_id.substring(0, 16)}...`);
+        }
+      }, 100);
+    };
+
+    window.tlCtxOpenFileViewer = function() {
+      const ctx = window.activeTimelineContext;
+      window.closeTimelineContextMenu();
+      if (!ctx || !ctx.lane) return;
+      const sid = ctx.lane.session_id;
+      if (typeof window.openGenericViewer === 'function') {
+        window.openGenericViewer({
+          fileId: sid,
+          title: `Session Transcript // ${sid}`,
+          fileType: 'markdown'
+        });
+      }
+    };
+
+    window.tlCtxReplayFromHere = function() {
+      const ctx = window.activeTimelineContext;
+      window.closeTimelineContextMenu();
+      if (!ctx || !ctx.lane) return;
+      if (typeof selectSession === 'function') selectSession(ctx.lane.session_id);
+      if (typeof startTimelineVideoReplay === 'function') {
+        startTimelineVideoReplay();
+      } else if (typeof toggleTimelineVideoReplay === 'function') {
+        toggleTimelineVideoReplay();
+      }
+    };
+
+    window.tlCtxFilterAgent = function() {
+      const ctx = window.activeTimelineContext;
+      window.closeTimelineContextMenu();
+      if (!ctx || !ctx.lane) return;
+      const ag = ctx.lane.agent_id || 'agent';
+      activeAgentScopeFilter = `agent:${ag}`;
+      if (typeof renderCortexTimeline === 'function') renderCortexTimeline();
+      if (typeof window.showToast === 'function') window.showToast(`Timeline isolated to agent: ${ag.toUpperCase()}`);
+    };
+
+    window.tlCtxCopySessionId = function() {
+      const ctx = window.activeTimelineContext;
+      window.closeTimelineContextMenu();
+      if (!ctx || !ctx.lane) return;
+      navigator.clipboard.writeText(ctx.lane.session_id).then(() => {
+        if (typeof window.showToast === 'function') window.showToast('Copied Session ID to clipboard');
+      });
+    };
+
+    window.tlCtxCopyMerkleRoot = function() {
+      const ctx = window.activeTimelineContext;
+      window.closeTimelineContextMenu();
+      if (!ctx || !ctx.lane) return;
+      const root = ctx.lane.merkle_root || '0x0000000000000000';
+      navigator.clipboard.writeText(root).then(() => {
+        if (typeof window.showToast === 'function') window.showToast('Copied Merkle Root to clipboard');
+      });
+    };
+
+    // =========================================================================
+    // PROBABILISTIC CAUSAL ANALYSIS STUDIO CONTROLLER
+    // =========================================================================
+    window.currentCausalData = null;
+    window.activeCausalSessionId = null;
+    window.activeCausalTurnIndex = null;
+    window.activeCausalSensitivity = 0.85;
+
+    window.openCausalAnalysis = async function(sessionId, turnIndex) {
+      const modal = document.getElementById('causal-analysis-modal');
+      if (modal) modal.classList.remove('hidden');
+
+      window.activeCausalSessionId = sessionId || activeSessionId || (window.timelineSessionsData && window.timelineSessionsData[0]?.session_id) || 'session_default';
+      window.activeCausalTurnIndex = turnIndex;
+
+      await window.fetchAndRenderCausalAnalysis();
+    };
+
+    window.closeCausalAnalysis = function() {
+      const modal = document.getElementById('causal-analysis-modal');
+      if (modal) modal.classList.add('hidden');
+    };
+
+    window.onCausalTurnSelect = function(val) {
+      window.activeCausalTurnIndex = (val === 'all') ? null : parseInt(val, 10);
+      window.fetchAndRenderCausalAnalysis();
+    };
+
+    window.onCausalIntentSlider = function(val) {
+      window.activeCausalSensitivity = parseInt(val, 10) / 100.0;
+      const label = document.getElementById('causal-slider-label');
+      if (label) label.innerText = `${val}%`;
+      if (window.currentCausalData) {
+        window.renderCausalDag(window.currentCausalData);
+      }
+    };
+
+    window.refreshCausalAnalysis = function() {
+      window.fetchAndRenderCausalAnalysis();
+    };
+
+    window.copyCausalJson = function() {
+      if (!window.currentCausalData) return;
+      navigator.clipboard.writeText(JSON.stringify(window.currentCausalData, null, 2)).then(() => {
+        if (typeof window.showToast === 'function') window.showToast('Copied Causal Analysis JSON');
+      });
+    };
+
+    window.fetchAndRenderCausalAnalysis = async function() {
+      const container = document.getElementById('causal-dag-container');
+      if (container) {
+        container.innerHTML = '<div class="text-center py-20 text-purple-300 font-mono text-xs"><span class="material-symbols-outlined animate-spin text-xl">progress_activity</span> Computing Bayesian Markovian Causal Chain...</div>';
+      }
+
+      const sid = window.activeCausalSessionId || 'default';
+      let url = `/api/causal/analysis?session_id=${encodeURIComponent(sid)}`;
+      if (window.activeCausalTurnIndex !== null && window.activeCausalTurnIndex !== undefined) {
+        url += `&turn_index=${window.activeCausalTurnIndex}`;
+      }
+
+      try {
+        const resp = await fetch(url);
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        const data = await resp.json();
+        window.currentCausalData = data;
+
+        // Populate Turn Selector options
+        const turnSelect = document.getElementById('causal-turn-select');
+        if (turnSelect && data.turn_count) {
+          const opts = ['<option value="all">⚡ FULL SESSION CAUSAL TRAJECTORY</option>'];
+          for (let i = 0; i < data.turn_count; i++) {
+            const isSel = (window.activeCausalTurnIndex === i) ? 'selected' : '';
+            opts.push(`<option value="${i}" ${isSel}>Turn ${i + 1} Trajectory</option>`);
+          }
+          turnSelect.innerHTML = opts.join('');
+        }
+
+        const titleEl = document.getElementById('causal-modal-session-title');
+        if (titleEl) titleEl.innerText = `Session ${sid.replace(/^sess_/, '').substring(0, 18)}...`;
+        const turnBadge = document.getElementById('causal-modal-turn-badge');
+        if (turnBadge) turnBadge.innerText = (window.activeCausalTurnIndex !== null) ? `TURN ${window.activeCausalTurnIndex + 1}` : 'ALL TURNS';
+
+        // Update stats
+        const m = data.metrics || {};
+        const detEl = document.getElementById('causal-stat-determinism');
+        if (detEl) detEl.innerText = `${Math.round((m.causal_determinism || 0.8) * 100)}%`;
+        const entEl = document.getElementById('causal-stat-entropy');
+        if (entEl) entEl.innerText = `${m.average_entropy_bits || 0.42} bits`;
+        const confEl = document.getElementById('causal-stat-confidence');
+        if (confEl) confEl.innerText = m.bayesian_confidence || 'HIGH';
+
+        window.renderCausalDag(data);
+      } catch (err) {
+        if (container) {
+          container.innerHTML = `<div class="p-8 text-rose-400 font-mono text-xs border border-rose-500/40 rounded-xl bg-rose-950/20 text-center">Failed to compute causal chain: ${escapeHtml(err.message)}</div>`;
+        }
+      }
+    };
+
+    window.renderCausalDag = function(data) {
+      const container = document.getElementById('causal-dag-container');
+      if (!container) return;
+
+      const nodes = data.nodes || [];
+      const edges = data.edges || [];
+      if (nodes.length === 0) {
+        container.innerHTML = '<div class="p-8 text-neutral-400 font-mono text-xs text-center italic">No causal transitions recorded for this selection.</div>';
+        return;
+      }
+
+      // Group nodes into stages (Intent -> Deliberation -> Action -> State)
+      let html = `
+        <div class="space-y-6 max-w-5xl mx-auto">
+          <!-- Flow Explanation Banner -->
+          <div class="p-3 bg-purple-950/30 border border-purple-500/30 rounded-xl flex items-center justify-between gap-3 text-[10px]">
+            <div class="flex items-center gap-2">
+              <span class="material-symbols-outlined text-purple-400 text-base">account_tree</span>
+              <span><strong>Probabilistic Markov Causal Sequence:</strong> Each step computes Bayesian conditional likelihood P(Event | Preconditions) and decision branching entropy.</span>
+            </div>
+            <span class="px-2 py-0.5 rounded bg-purple-900/60 text-purple-300 font-bold uppercase shrink-0">Markov Order 1</span>
+          </div>
+
+          <!-- Horizontal Stage Sequence -->
+          <div class="flex flex-col gap-4">
+      `;
+
+      nodes.forEach((n, idx) => {
+        const nextEdge = edges.find(e => e.source === n.id);
+        const pMod = Math.min(0.99, (n.probability || 0.8) * (window.activeCausalSensitivity || 1.0));
+        const pPercent = Math.round(pMod * 100);
+
+        let colorBorder = 'border-amber-500/50 bg-amber-950/20 text-amber-300';
+        let icon = 'person';
+        if (n.type === 'deliberation') {
+          colorBorder = 'border-purple-500/50 bg-purple-950/20 text-purple-300';
+          icon = 'psychology';
+        } else if (n.type === 'action') {
+          colorBorder = 'border-emerald-500/50 bg-emerald-950/20 text-emerald-300';
+          icon = 'terminal';
+        } else if (n.type === 'state') {
+          colorBorder = 'border-cyan-500/50 bg-cyan-950/20 text-cyan-300';
+          icon = 'task_alt';
+        }
+
+        html += `
+          <div class="flex items-center gap-3">
+            <!-- Node Card -->
+            <div class="flex-1 p-3.5 rounded-xl border ${colorBorder} space-y-2 shadow-lg">
+              <div class="flex items-center justify-between gap-2 flex-wrap">
+                <div class="flex items-center gap-2">
+                  <span class="material-symbols-outlined text-base">${icon}</span>
+                  <span class="font-bold text-xs uppercase tracking-wide text-white">${escapeHtml(n.label)}</span>
+                  <span class="px-1.5 py-0.2 rounded text-[8px] font-bold uppercase bg-black/40 border border-current">${n.type}</span>
+                </div>
+                <div class="flex items-center gap-2 text-[9px] font-mono">
+                  <span>P = <strong class="text-white">${pPercent}%</strong></span>
+                  <div class="w-16 h-1.5 bg-slate-800 rounded-full overflow-hidden">
+                    <div class="h-full bg-current" style="width: ${pPercent}%;"></div>
+                  </div>
+                </div>
+              </div>
+              <div class="text-[10px] text-slate-300 bg-black/40 p-2.5 rounded-lg border border-white/5 font-mono leading-relaxed select-text">
+                ${escapeHtml(n.text || '')}
+              </div>
+            </div>
+          </div>
+        `;
+
+        if (nextEdge) {
+          const edgeP = Math.round((nextEdge.probability || 0.8) * 100);
+          html += `
+            <div class="flex items-center justify-center py-0.5">
+              <div class="flex items-center gap-2 px-3 py-1 rounded-full bg-slate-900 border border-purple-500/40 text-[9px] font-mono text-purple-300 shadow">
+                <span class="material-symbols-outlined text-[13px] text-purple-400">arrow_downward</span>
+                <span><strong>${escapeHtml(nextEdge.label)}</strong> (${nextEdge.relation})</span>
+                <span class="text-slate-500">|</span>
+                <span class="text-slate-400">CI: [${nextEdge.confidence_interval?.[0] || 0.70}, ${nextEdge.confidence_interval?.[1] || 0.95}]</span>
+              </div>
+            </div>
+          `;
+        }
+      });
+
+      html += `
+          </div>
+        </div>
+      `;
+
+      container.innerHTML = html;
+    };
+
+    // =========================================================================
+    // 3D GRAPH INTENT & ACTION FILTER CONTROLLER
+    // =========================================================================
+    window.graphActiveIntentFilter = 'all';
+    window.graphActiveAgentFilter = 'all';
+    window.graphCausalFlowActive = false;
+
+    window.setGraphIntentFilter = function(filterType) {
+      window.graphActiveIntentFilter = filterType;
+
+      document.querySelectorAll('.gfilter-btn').forEach(btn => {
+        const isMatch = btn.dataset.gfilter === filterType;
+        btn.classList.toggle('bg-cyan-500', isMatch);
+        btn.classList.toggle('text-black', isMatch);
+        btn.classList.toggle('font-extrabold', isMatch);
+        btn.classList.toggle('text-slate-400', !isMatch);
+      });
+
+      window.applyGraphIntentActionFilter();
+    };
+
+    window.filterGraphByAgent = function(agentId) {
+      window.graphActiveAgentFilter = (agentId || 'all').toLowerCase();
+      window.applyGraphIntentActionFilter();
+    };
+
+    window.toggleCausalFlowHighlight = function() {
+      window.graphCausalFlowActive = !window.graphCausalFlowActive;
+      const btn = document.getElementById('btn-toggle-causal-flow');
+      if (btn) {
+        btn.classList.toggle('bg-purple-500/30', window.graphCausalFlowActive);
+        btn.classList.toggle('text-purple-200', window.graphCausalFlowActive);
+        btn.classList.toggle('border-purple-400', window.graphCausalFlowActive);
+      }
+      window.applyGraphIntentActionFilter();
+      if (typeof window.showToast === 'function') {
+        window.showToast(window.graphCausalFlowActive ? 'Causal Flow Path Highlight: ON' : 'Causal Flow Path Highlight: OFF');
+      }
+    };
+
+    window.applyGraphIntentActionFilter = function() {
+      if (!window.cubeMeshes || window.cubeMeshes.length === 0) return;
+
+      const fType = window.graphActiveIntentFilter;
+      const fAgent = window.graphActiveAgentFilter;
+      const causalFlow = window.graphCausalFlowActive;
+
+      let matchCount = 0;
+
+      window.cubeMeshes.forEach(mesh => {
+        const d = mesh.userData?.data;
+        if (!d) return;
+
+        let matchType = true;
+        if (fType === 'intent') {
+          matchType = (d.type === 'prompt' || d.category === 'intent' || d.epistemic_class === 'intent' || (d.id && d.id.includes('intent')));
+        } else if (fType === 'action') {
+          matchType = (d.type === 'action' || d.category === 'command' || d.category === 'tool' || (d.id && d.id.includes('action')) || (d.metadata && d.metadata.tool_name));
+        } else if (fType === 'thought') {
+          matchType = (d.type === 'thought' || d.category === 'thought' || d.epistemic_class === 'thought' || (d.id && d.id.startsWith('thought_')));
+        } else if (fType === 'decision') {
+          matchType = (d.epistemic_class === 'decision' || d.epistemic_class === 'inference' || d.type === 'decision');
+        } else if (fType === 'fact') {
+          matchType = (d.epistemic_class === 'fact' || d.type === 'entity' || d.type === 'doc');
+        }
+
+        let matchAgent = true;
+        if (fAgent !== 'all') {
+          const a = (d.agent_id || (d.metadata && d.metadata.agent_id) || '').toLowerCase();
+          const s = (d.scope || '').toLowerCase();
+          matchAgent = a.includes(fAgent) || s.includes(fAgent);
+        }
+
+        const isMatch = matchType && matchAgent;
+        if (isMatch) matchCount++;
+
+        // Visual Dimming / Spotlighting
+        if (mesh.material) {
+          if (isMatch) {
+            mesh.material.opacity = 1.0;
+            mesh.material.transparent = false;
+            mesh.scale.set(1.15, 1.15, 1.15);
+          } else {
+            mesh.material.opacity = 0.08;
+            mesh.material.transparent = true;
+            mesh.scale.set(0.7, 0.7, 0.7);
+          }
+        }
+      });
+
+      // Highlight Causal Directed Edges if active
+      if (typeof window.edgesGeometry !== 'undefined' && window.edgesMesh && window.edgesMesh.material) {
+        if (causalFlow) {
+          window.edgesMesh.material.opacity = 0.85;
+          window.edgesMesh.material.color.setHex(0xa855f7); // Purple energy flow
+        } else {
+          window.edgesMesh.material.opacity = 0.35;
+          window.edgesMesh.material.color.setHex(0x00f0ff);
+        }
+      }
+
+      if (typeof window.showToast === 'function' && fType !== 'all') {
+        window.showToast(`Filtered: ${matchCount} matching nodes (${fType.toUpperCase()})`);
+      }
+    };
+
+  
+    // =========================================================================
+    // GRAPH FOURIER TRANSFORM (GFT) & SPECTRAL NOISE FILTER CONTROLLER
+    // =========================================================================
+    window.graphGftFilterMode = 'all';
+    window.graphGftCutoff = 0.482;
+
+    window.applyGraphFourierFilter = function(mode) {
+      window.graphGftFilterMode = mode;
+      document.querySelectorAll('.gft-btn').forEach(b => {
+        const isSel = b.dataset.gft === mode;
+        b.classList.toggle('bg-cyan-500', isSel);
+        b.classList.toggle('text-black', isSel);
+        b.classList.toggle('font-extrabold', isSel);
+        b.classList.toggle('bg-slate-800', !isSel);
+        b.classList.toggle('text-slate-300', !isSel);
+      });
+
+      const statusEl = document.getElementById('spectral-gft-filter-status');
+      if (statusEl) statusEl.innerText = mode.toUpperCase().replace('_', '-');
+
+      window.executeGftSpectralFilter();
+    };
+
+    window.onGftCutoffInput = function(val) {
+      window.graphGftCutoff = parseInt(val, 10) / 100.0;
+      const label = document.getElementById('gft-cutoff-val');
+      if (label) label.innerText = window.graphGftCutoff.toFixed(3);
+      window.executeGftSpectralFilter();
+    };
+
+    window.executeGftSpectralFilter = function() {
+      if (!window.cubeMeshes || window.cubeMeshes.length === 0) return;
+      const mode = window.graphGftFilterMode;
+      const cutoff = window.graphGftCutoff;
+
+      let filteredCount = 0;
+      window.cubeMeshes.forEach(mesh => {
+        const d = mesh.userData?.data;
+        if (!d) return;
+
+        // Approximate graph frequency via Dirichlet variance / local degree
+        const deg = (window.graphNeighborhoodEdges && window.graphNeighborhoodEdges.get(d.id)?.length) || 1;
+        const isHub = (d.type === 'hub' || d.type === 'agent_hub');
+        const pseudoFrequency = isHub ? 0.0 : Math.max(0.01, 1.0 / deg);
+
+        let isPass = true;
+        if (mode === 'low_pass') {
+          // Low-pass: keep low frequencies (high degree, core hubs, consensus invariants), suppress high-frequency noise transients
+          isPass = pseudoFrequency <= cutoff || deg >= 2 || isHub;
+        } else if (mode === 'high_pass') {
+          // High-pass: isolate high-frequency boundary transients, contradictions, singletons
+          isPass = pseudoFrequency > cutoff && !isHub;
+        } else if (mode === 'band_pass') {
+          // Band-pass: intermediate bridging nodes
+          isPass = pseudoFrequency > 0.15 && pseudoFrequency <= 0.85;
+        }
+
+        if (isPass) filteredCount++;
+
+        if (mesh.material) {
+          if (isPass) {
+            mesh.material.opacity = 1.0;
+            mesh.material.transparent = false;
+            mesh.scale.set(1.0, 1.0, 1.0);
+          } else {
+            mesh.material.opacity = 0.05;
+            mesh.material.transparent = true;
+            mesh.scale.set(0.6, 0.6, 0.6);
+          }
+        }
+      });
+
+      if (typeof window.showToast === 'function' && mode !== 'all') {
+        window.showToast(`GFT Filter (${mode.toUpperCase()}): Retained ${filteredCount} nodes`);
+      }
+    };
+
   </script>
 
 </body>

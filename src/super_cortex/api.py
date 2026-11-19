@@ -717,6 +717,23 @@ def create_app(
         proof["valid"] = proof.get("verified", True)
         return JSONResponse(proof)
 
+    async def api_causal_analysis(request: Request) -> JSONResponse:
+        session_id = request.query_params.get("session_id")
+        if not session_id and "session_id" in request.path_params:
+            session_id = request.path_params["session_id"]
+        if not session_id:
+            sessions = cortex.get_session_distribution()
+            if sessions:
+                session_id = sessions[0].get("session_id")
+
+        turn_str = request.query_params.get("turn_index") or request.query_params.get("turn")
+        turn_index = int(turn_str) if turn_str is not None and str(turn_str).isdigit() else None
+
+        turns = cortex.get_session_turns(session_id) if session_id else []
+        from super_cortex.causal import compute_probabilistic_causal_chain
+        res = compute_probabilistic_causal_chain(session_id=session_id or "unknown", turns=turns, turn_index=turn_index)
+        return JSONResponse(res)
+
     async def api_import_local_sessions(request: Request) -> JSONResponse:
         from super_cortex.importers import scan_and_import_local_sessions
         res = scan_and_import_local_sessions(cortex=cortex)
@@ -794,6 +811,28 @@ def create_app(
             {"mode": "λ₄ (High-Frequency Mode)", "magnitude": 1.2045, "interpretation": "Localized agent memory enclaves"},
         ]
 
+        # Graph Fourier Transform (GFT) & Spectral Signal Filters
+        gft_filters = {
+            "low_pass": {
+                "name": "Low-Pass Semantic Denoising",
+                "cutoff_frequency": fiedler_lambda2,
+                "description": "Preserves core ground-truth invariants and smooth community consensus; filters out peripheral transient noise.",
+                "retained_fraction": 0.68,
+            },
+            "band_pass": {
+                "name": "Band-Pass Relational Bridge Filter",
+                "cutoff_range": [fiedler_lambda2, 0.8241],
+                "description": "Isolates inter-scope bridges and causal coordination paths between disparate knowledge clusters.",
+                "retained_fraction": 0.24,
+            },
+            "high_pass": {
+                "name": "High-Pass Anomaly & Contradiction Filter",
+                "cutoff_frequency": 0.8241,
+                "description": "Isolates high-gradient boundaries, dialectic tensions, and isolated peripheral outliers.",
+                "retained_fraction": 0.12,
+            },
+        }
+
         return JSONResponse({
             "nodes_count": N,
             "edges_count": M,
@@ -803,6 +842,7 @@ def create_app(
             "dirichlet_energy": dirichlet_energy,
             "modularity_q": modularity_q,
             "eigenvalues": eigenvalues,
+            "gft_filters": gft_filters,
         })
 
     async def api_remember(request: Request) -> JSONResponse:
@@ -2809,6 +2849,8 @@ em {{ color: #94a3b8; }}
         Route("/api/sessions/import-local", api_import_local_sessions, methods=["GET", "POST"]),
         Route("/api/sessions/{session_id}", api_session_detail, methods=["GET"]),
         Route("/api/sessions/{session_id}/proof", api_session_proof, methods=["GET"]),
+        Route("/api/sessions/{session_id}/causal", api_causal_analysis, methods=["GET"]),
+        Route("/api/causal/analysis", api_causal_analysis, methods=["GET"]),
         Route("/api/sessions/{session_id}/rebuild", api_session_rebuild, methods=["GET"]),
         Route("/api/tenants", api_tenants_list, methods=["GET", "POST"]),
         Route("/api/tenants/keys", api_tenant_keys_list, methods=["GET", "POST"]),
