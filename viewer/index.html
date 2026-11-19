@@ -603,7 +603,7 @@
   <!-- ========================================================================= -->
   <!-- 1. SLEEK AEROSPACE HEADER (h-10, 40px Minimalist Command Bar)              -->
   <!-- ========================================================================= -->
-  <header class="fixed top-0 left-0 right-0 h-10 z-50 bg-[#070a11]/95 backdrop-blur-2xl border-b border-slate-800/80 flex items-center justify-between px-3 font-mono text-[11px] text-on-surface-variant select-none shadow-[0_4px_24px_rgba(0,0,0,0.6)]">
+  <header id="app-top-header" class="fixed top-0 left-0 right-0 h-10 z-50 bg-[#070a11]/95 backdrop-blur-2xl border-b border-slate-800/80 flex items-center justify-between px-3 font-mono text-[11px] text-on-surface-variant select-none shadow-[0_4px_24px_rgba(0,0,0,0.6)]">
     <!-- Left Section: Clean Brand Mark & Agent Scope Dropdown -->
     <div class="flex items-center gap-2.5 shrink-0">
       <!-- Brand Logo / Glyph -->
@@ -1053,7 +1053,7 @@
   <!-- ========================================================================= -->
   <!-- 3. SLIM MARGIN ON RIGHT (w-9 / 36px Graph Features Quick Rail)            -->
   <!-- ========================================================================= -->
-  <aside class="fixed right-0 top-10 bottom-0 w-9 bg-[#070a11]/95 backdrop-blur-xl border-l border-slate-800/80 z-40 flex flex-col items-center py-2 justify-between select-none font-mono">
+  <aside id="graph-right-rail" class="fixed right-0 top-10 bottom-0 w-9 bg-[#070a11]/95 backdrop-blur-xl border-l border-slate-800/80 z-40 flex flex-col items-center py-2 justify-between select-none font-mono">
     <div class="flex flex-col items-center gap-1.5 w-full">
       <!-- 1. Node & Relational Inspector [I] -->
       <button onclick="window.toggleRightDock('inspect')" id="btn-rail-inspect" class="w-7 h-7 rounded flex items-center justify-center text-slate-400 hover:text-cyan-300 hover:bg-slate-800 transition-colors cursor-pointer relative" title="Node &amp; Relation Inspector [I]">
@@ -1509,6 +1509,289 @@
               <span>Copy Node ID</span>
             </span>
             <span class="text-[8px] text-slate-500">UUID</span>
+          </button>
+        </div>
+
+        <!-- 7. TOGGLE VIEWPORT WIDGETS -->
+        <div class="py-1">
+          <div class="px-3 py-0.5 text-[8px] font-extrabold uppercase tracking-wider text-cyan-400 flex items-center justify-between">
+            <span>TOGGLE VIEWPORT WIDGETS</span>
+            <span class="material-symbols-outlined text-[10px]">tune</span>
+          </div>
+
+          <!-- Radar Minimap -->
+          <button onclick="event.stopPropagation(); window.toggleWidget('minimap')" class="w-full text-left px-3 py-1 hover:bg-cyan-500/15 hover:text-cyan-300 text-slate-200 flex items-center justify-between cursor-pointer transition-colors group">
+            <span class="flex items-center gap-2">
+              <span class="material-symbols-outlined text-[13px] text-cyan-400 group-hover:scale-110 transition-transform">radar</span>
+              <span>2D Radar Minimap</span>
+            </span>
+            <span id="node-widget-status-minimap" class="widget-status-pill text-[8px] px-1.5 py-0.2 rounded font-extrabold uppercase bg-slate-800 text-slate-500 border border-slate-700 flex items-center gap-0.5"><span class="w-1.5 h-1.5 rounded-full bg-slate-600"></span><span>OFF</span></span>
+          </button>
+
+          <!-- Bottom Canvas Quick-Bar -->
+          <button onclick="event.stopPropagation(); window.toggleWidget('bottomQuickbar')" class="w-full text-left px-3 py-1 hover:bg-cyan-500/15 hover:text-cyan-300 text-slate-200 flex items-center justify-between cursor-pointer transition-colors group">
+            <span class="flex items-center gap-2">
+              <span class="material-symbols-outlined text-[13px] text-cyan-400 group-hover:scale-110 transition-transform">dock_to_bottom</span>
+              <span>Bottom Canvas Bar</span>
+            </span>
+            <span id="node-widget-status-bottomQuickbar" class="widget-status-pill text-[8px] px-1.5 py-0.2 rounded font-extrabold uppercase bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 flex items-center gap-0.5"><span class="w-1.5 h-1.5 rounded-full bg-emerald-400 shadow-[0_0_4px_#34d399]"></span><span>ON</span></span>
+          </button>
+
+          <!-- Right Feature Dock -->
+          <button onclick="event.stopPropagation(); window.toggleWidget('rightDock')" class="w-full text-left px-3 py-1 hover:bg-cyan-500/15 hover:text-cyan-300 text-slate-200 flex items-center justify-between cursor-pointer transition-colors group">
+            <span class="flex items-center gap-2">
+              <span class="material-symbols-outlined text-[13px] text-cyan-400 group-hover:scale-110 transition-transform">side_navigation</span>
+              <span>Right Feature Console</span>
+            </span>
+            <span id="node-widget-status-rightDock" class="widget-status-pill text-[8px] px-1.5 py-0.2 rounded font-extrabold uppercase bg-slate-800 text-slate-500 border border-slate-700 flex items-center gap-0.5"><span class="w-1.5 h-1.5 rounded-full bg-slate-600"></span><span>OFF</span></span>
+          </button>
+
+          <!-- Floating Node Labels -->
+          <button onclick="event.stopPropagation(); window.toggleWidget('nodeLabels')" class="w-full text-left px-3 py-1 hover:bg-cyan-500/15 hover:text-cyan-300 text-slate-200 flex items-center justify-between cursor-pointer transition-colors group">
+            <span class="flex items-center gap-2">
+              <span class="material-symbols-outlined text-[13px] text-cyan-400 group-hover:scale-110 transition-transform">label</span>
+              <span>Floating Node Labels</span>
+            </span>
+            <span id="node-widget-status-nodeLabels" class="widget-status-pill text-[8px] px-1.5 py-0.2 rounded font-extrabold uppercase bg-slate-800 text-slate-500 border border-slate-700 flex items-center gap-0.5"><span class="w-1.5 h-1.5 rounded-full bg-slate-600"></span><span>OFF</span></span>
+          </button>
+
+          <!-- Graph Edges & Splines -->
+          <button onclick="event.stopPropagation(); window.toggleWidget('graphEdges')" class="w-full text-left px-3 py-1 hover:bg-cyan-500/15 hover:text-cyan-300 text-slate-200 flex items-center justify-between cursor-pointer transition-colors group">
+            <span class="flex items-center gap-2">
+              <span class="material-symbols-outlined text-[13px] text-cyan-400 group-hover:scale-110 transition-transform">timeline</span>
+              <span>Graph Edges &amp; Splines</span>
+            </span>
+            <span id="node-widget-status-graphEdges" class="widget-status-pill text-[8px] px-1.5 py-0.2 rounded font-extrabold uppercase bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 flex items-center gap-0.5"><span class="w-1.5 h-1.5 rounded-full bg-emerald-400 shadow-[0_0_4px_#34d399]"></span><span>ON</span></span>
+          </button>
+
+          <!-- 3D Coordinate Grid & Snapping -->
+          <button onclick="event.stopPropagation(); window.toggleWidget('cartesianGrid')" class="w-full text-left px-3 py-1 hover:bg-cyan-500/15 hover:text-cyan-300 text-slate-200 flex items-center justify-between cursor-pointer transition-colors group">
+            <span class="flex items-center gap-2">
+              <span class="material-symbols-outlined text-[13px] text-cyan-400 group-hover:scale-110 transition-transform">grid_4x4</span>
+              <span>3D Cartesian Grid</span>
+            </span>
+            <span id="node-widget-status-cartesianGrid" class="widget-status-pill text-[8px] px-1.5 py-0.2 rounded font-extrabold uppercase bg-slate-800 text-slate-500 border border-slate-700 flex items-center gap-0.5"><span class="w-1.5 h-1.5 rounded-full bg-slate-600"></span><span>OFF</span></span>
+          </button>
+
+          <!-- Continuous Auto-Rotation -->
+          <button onclick="event.stopPropagation(); window.toggleWidget('autoRotate')" class="w-full text-left px-3 py-1 hover:bg-cyan-500/15 hover:text-cyan-300 text-slate-200 flex items-center justify-between cursor-pointer transition-colors group">
+            <span class="flex items-center gap-2">
+              <span class="material-symbols-outlined text-[13px] text-cyan-400 group-hover:scale-110 transition-transform">rotate_right</span>
+              <span>Turntable Auto-Rotate</span>
+            </span>
+            <span id="node-widget-status-autoRotate" class="widget-status-pill text-[8px] px-1.5 py-0.2 rounded font-extrabold uppercase bg-slate-800 text-slate-500 border border-slate-700 flex items-center gap-0.5"><span class="w-1.5 h-1.5 rounded-full bg-slate-600"></span><span>OFF</span></span>
+          </button>
+        </div>
+      </div>
+
+      <!-- CANVAS & VIEWPORT RIGHT-CLICK CONTEXT MENU -->
+      <div id="canvas-context-menu" class="hidden fixed z-50 bg-[#070b16]/98 border border-cyan-500/50 rounded-2xl shadow-[0_20px_70px_rgba(0,0,0,0.95)] py-2 w-80 font-mono text-[11px] backdrop-blur-2xl select-none text-slate-200 divide-y divide-slate-800/70 max-h-[85vh] overflow-y-auto scrollbar-thin">
+        
+        <!-- Header -->
+        <div class="px-3 py-1.5 flex flex-col gap-0.5 bg-slate-900/40">
+          <div class="flex items-center justify-between gap-1.5">
+            <span class="font-bold text-white text-[11px] flex items-center gap-1.5">
+              <span class="material-symbols-outlined text-cyan-400 text-sm">widgets</span>
+              <span>CANVAS &amp; VIEWPORT</span>
+            </span>
+            <span id="ctx-canvas-mode-badge" class="px-1.5 py-0.2 rounded bg-cyan-500/10 border border-cyan-500/30 text-cyan-300 text-[8px] font-bold">3D ORBIT</span>
+          </div>
+          <div class="flex items-center justify-between text-[8px] text-slate-400 font-mono">
+            <span id="ctx-canvas-density-label" class="text-cyan-400 uppercase font-bold">0 Nodes · 0 Edges</span>
+            <span id="ctx-canvas-cam-label" class="text-slate-500">Dist 480</span>
+          </div>
+        </div>
+
+        <!-- 1. TOGGLE VIEWPORT WIDGETS -->
+        <div class="py-1">
+          <div class="px-3 py-0.5 text-[8px] font-extrabold uppercase tracking-wider text-cyan-400 flex items-center justify-between">
+            <span>TOGGLE WIDGETS &amp; OVERLAYS</span>
+            <span class="material-symbols-outlined text-[10px]">tune</span>
+          </div>
+
+          <!-- Radar Minimap -->
+          <button onclick="event.stopPropagation(); window.toggleWidget('minimap')" class="w-full text-left px-3 py-1 hover:bg-cyan-500/15 hover:text-cyan-300 text-slate-200 flex items-center justify-between cursor-pointer transition-colors group">
+            <span class="flex items-center gap-2">
+              <span class="material-symbols-outlined text-[13px] text-cyan-400 group-hover:scale-110 transition-transform">radar</span>
+              <span>2D Radar Minimap</span>
+            </span>
+            <span id="widget-status-minimap" class="widget-status-pill text-[8px] px-1.5 py-0.2 rounded font-extrabold uppercase bg-slate-800 text-slate-500 border border-slate-700 flex items-center gap-0.5"><span class="w-1.5 h-1.5 rounded-full bg-slate-600"></span><span>OFF</span></span>
+          </button>
+
+          <!-- Bottom Canvas Quick-Bar -->
+          <button onclick="event.stopPropagation(); window.toggleWidget('bottomQuickbar')" class="w-full text-left px-3 py-1 hover:bg-cyan-500/15 hover:text-cyan-300 text-slate-200 flex items-center justify-between cursor-pointer transition-colors group">
+            <span class="flex items-center gap-2">
+              <span class="material-symbols-outlined text-[13px] text-cyan-400 group-hover:scale-110 transition-transform">dock_to_bottom</span>
+              <span>Bottom Canvas Bar</span>
+            </span>
+            <span id="widget-status-bottomQuickbar" class="widget-status-pill text-[8px] px-1.5 py-0.2 rounded font-extrabold uppercase bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 flex items-center gap-0.5"><span class="w-1.5 h-1.5 rounded-full bg-emerald-400 shadow-[0_0_4px_#34d399]"></span><span>ON</span></span>
+          </button>
+
+          <!-- Right Feature Dock -->
+          <button onclick="event.stopPropagation(); window.toggleWidget('rightDock')" class="w-full text-left px-3 py-1 hover:bg-cyan-500/15 hover:text-cyan-300 text-slate-200 flex items-center justify-between cursor-pointer transition-colors group">
+            <span class="flex items-center gap-2">
+              <span class="material-symbols-outlined text-[13px] text-cyan-400 group-hover:scale-110 transition-transform">side_navigation</span>
+              <span>Right Feature Console</span>
+            </span>
+            <span id="widget-status-rightDock" class="widget-status-pill text-[8px] px-1.5 py-0.2 rounded font-extrabold uppercase bg-slate-800 text-slate-500 border border-slate-700 flex items-center gap-0.5"><span class="w-1.5 h-1.5 rounded-full bg-slate-600"></span><span>OFF</span></span>
+          </button>
+
+          <!-- Right Micro-Rail -->
+          <button onclick="event.stopPropagation(); window.toggleWidget('rightRail')" class="w-full text-left px-3 py-1 hover:bg-cyan-500/15 hover:text-cyan-300 text-slate-200 flex items-center justify-between cursor-pointer transition-colors group">
+            <span class="flex items-center gap-2">
+              <span class="material-symbols-outlined text-[13px] text-cyan-400 group-hover:scale-110 transition-transform">view_sidebar</span>
+              <span>Right Features Rail</span>
+            </span>
+            <span id="widget-status-rightRail" class="widget-status-pill text-[8px] px-1.5 py-0.2 rounded font-extrabold uppercase bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 flex items-center gap-0.5"><span class="w-1.5 h-1.5 rounded-full bg-emerald-400 shadow-[0_0_4px_#34d399]"></span><span>ON</span></span>
+          </button>
+
+          <!-- Left Navigation Rail -->
+          <button onclick="event.stopPropagation(); window.toggleWidget('leftNavbar')" class="w-full text-left px-3 py-1 hover:bg-cyan-500/15 hover:text-cyan-300 text-slate-200 flex items-center justify-between cursor-pointer transition-colors group">
+            <span class="flex items-center gap-2">
+              <span class="material-symbols-outlined text-[13px] text-cyan-400 group-hover:scale-110 transition-transform">menu_open</span>
+              <span>Left Navigation Rail</span>
+            </span>
+            <span id="widget-status-leftNavbar" class="widget-status-pill text-[8px] px-1.5 py-0.2 rounded font-extrabold uppercase bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 flex items-center gap-0.5"><span class="w-1.5 h-1.5 rounded-full bg-emerald-400 shadow-[0_0_4px_#34d399]"></span><span>ON</span></span>
+          </button>
+
+          <!-- Top Application Header -->
+          <button onclick="event.stopPropagation(); window.toggleWidget('topHeader')" class="w-full text-left px-3 py-1 hover:bg-cyan-500/15 hover:text-cyan-300 text-slate-200 flex items-center justify-between cursor-pointer transition-colors group">
+            <span class="flex items-center gap-2">
+              <span class="material-symbols-outlined text-[13px] text-cyan-400 group-hover:scale-110 transition-transform">view_headline</span>
+              <span>Top Application Header</span>
+            </span>
+            <span id="widget-status-topHeader" class="widget-status-pill text-[8px] px-1.5 py-0.2 rounded font-extrabold uppercase bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 flex items-center gap-0.5"><span class="w-1.5 h-1.5 rounded-full bg-emerald-400 shadow-[0_0_4px_#34d399]"></span><span>ON</span></span>
+          </button>
+
+          <!-- Floating Node Labels -->
+          <button onclick="event.stopPropagation(); window.toggleWidget('nodeLabels')" class="w-full text-left px-3 py-1 hover:bg-cyan-500/15 hover:text-cyan-300 text-slate-200 flex items-center justify-between cursor-pointer transition-colors group">
+            <span class="flex items-center gap-2">
+              <span class="material-symbols-outlined text-[13px] text-cyan-400 group-hover:scale-110 transition-transform">label</span>
+              <span>Floating Node Labels</span>
+            </span>
+            <span id="widget-status-nodeLabels" class="widget-status-pill text-[8px] px-1.5 py-0.2 rounded font-extrabold uppercase bg-slate-800 text-slate-500 border border-slate-700 flex items-center gap-0.5"><span class="w-1.5 h-1.5 rounded-full bg-slate-600"></span><span>OFF</span></span>
+          </button>
+
+          <!-- Graph Edges & Splines -->
+          <button onclick="event.stopPropagation(); window.toggleWidget('graphEdges')" class="w-full text-left px-3 py-1 hover:bg-cyan-500/15 hover:text-cyan-300 text-slate-200 flex items-center justify-between cursor-pointer transition-colors group">
+            <span class="flex items-center gap-2">
+              <span class="material-symbols-outlined text-[13px] text-cyan-400 group-hover:scale-110 transition-transform">timeline</span>
+              <span>Graph Edges &amp; Splines</span>
+            </span>
+            <span id="widget-status-graphEdges" class="widget-status-pill text-[8px] px-1.5 py-0.2 rounded font-extrabold uppercase bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 flex items-center gap-0.5"><span class="w-1.5 h-1.5 rounded-full bg-emerald-400 shadow-[0_0_4px_#34d399]"></span><span>ON</span></span>
+          </button>
+
+          <!-- 3D Coordinate Grid & Snapping -->
+          <button onclick="event.stopPropagation(); window.toggleWidget('cartesianGrid')" class="w-full text-left px-3 py-1 hover:bg-cyan-500/15 hover:text-cyan-300 text-slate-200 flex items-center justify-between cursor-pointer transition-colors group">
+            <span class="flex items-center gap-2">
+              <span class="material-symbols-outlined text-[13px] text-cyan-400 group-hover:scale-110 transition-transform">grid_4x4</span>
+              <span>3D Cartesian Grid</span>
+            </span>
+            <span id="widget-status-cartesianGrid" class="widget-status-pill text-[8px] px-1.5 py-0.2 rounded font-extrabold uppercase bg-slate-800 text-slate-500 border border-slate-700 flex items-center gap-0.5"><span class="w-1.5 h-1.5 rounded-full bg-slate-600"></span><span>OFF</span></span>
+          </button>
+
+          <!-- Continuous Auto-Rotation -->
+          <button onclick="event.stopPropagation(); window.toggleWidget('autoRotate')" class="w-full text-left px-3 py-1 hover:bg-cyan-500/15 hover:text-cyan-300 text-slate-200 flex items-center justify-between cursor-pointer transition-colors group">
+            <span class="flex items-center gap-2">
+              <span class="material-symbols-outlined text-[13px] text-cyan-400 group-hover:scale-110 transition-transform">rotate_right</span>
+              <span>Turntable Auto-Rotate</span>
+            </span>
+            <span id="widget-status-autoRotate" class="widget-status-pill text-[8px] px-1.5 py-0.2 rounded font-extrabold uppercase bg-slate-800 text-slate-500 border border-slate-700 flex items-center gap-0.5"><span class="w-1.5 h-1.5 rounded-full bg-slate-600"></span><span>OFF</span></span>
+          </button>
+
+          <!-- Context Cart Tray -->
+          <button onclick="event.stopPropagation(); window.toggleWidget('contextCart')" class="w-full text-left px-3 py-1 hover:bg-cyan-500/15 hover:text-cyan-300 text-slate-200 flex items-center justify-between cursor-pointer transition-colors group">
+            <span class="flex items-center gap-2">
+              <span class="material-symbols-outlined text-[13px] text-cyan-400 group-hover:scale-110 transition-transform">shopping_cart</span>
+              <span>Context Cart Stash</span>
+            </span>
+            <span id="widget-status-contextCart" class="widget-status-pill text-[8px] px-1.5 py-0.2 rounded font-extrabold uppercase bg-slate-800 text-slate-500 border border-slate-700 flex items-center gap-0.5"><span class="w-1.5 h-1.5 rounded-full bg-slate-600"></span><span>OFF</span></span>
+          </button>
+        </div>
+
+        <!-- 2. QUICK CANVAS CONTROLS -->
+        <div class="py-1">
+          <div class="px-3 py-0.5 text-[8px] font-extrabold uppercase tracking-wider text-emerald-400 flex items-center justify-between">
+            <span>CANVAS SHORTCUTS</span>
+            <span class="material-symbols-outlined text-[10px]">navigation</span>
+          </div>
+          <button onclick="window.fitAllGraphNodes(); window.closeCanvasContextMenu();" class="w-full text-left px-3 py-1.5 hover:bg-emerald-500/15 hover:text-emerald-300 text-slate-200 flex items-center justify-between cursor-pointer transition-colors group">
+            <span class="flex items-center gap-2">
+              <span class="material-symbols-outlined text-[13px] text-emerald-400 group-hover:scale-110 transition-transform">fit_screen</span>
+              <span>Fit Entire Graph Lattice</span>
+            </span>
+            <span class="text-[8px] text-emerald-400 font-bold uppercase">FIT</span>
+          </button>
+          <button onclick="window.levelGraphHorizon(); window.closeCanvasContextMenu();" class="w-full text-left px-3 py-1.5 hover:bg-cyan-500/15 hover:text-cyan-300 text-slate-200 flex items-center justify-between cursor-pointer transition-colors group">
+            <span class="flex items-center gap-2">
+              <span class="material-symbols-outlined text-[13px] text-cyan-400 group-hover:scale-110 transition-transform">horizontal_rule</span>
+              <span>Level Horizon Angle</span>
+            </span>
+            <span class="text-[8px] text-cyan-400 font-bold uppercase">LEVEL</span>
+          </button>
+          <button onclick="window.toggleProjectionMode(); window.closeCanvasContextMenu();" class="w-full text-left px-3 py-1.5 hover:bg-purple-500/15 hover:text-purple-300 text-slate-200 flex items-center justify-between cursor-pointer transition-colors group">
+            <span class="flex items-center gap-2">
+              <span class="material-symbols-outlined text-[13px] text-purple-400 group-hover:scale-110 transition-transform">view_in_ar</span>
+              <span>Toggle 2D / 3D Mode</span>
+            </span>
+            <span class="text-[8px] text-purple-400 font-bold uppercase">P</span>
+          </button>
+          <button onclick="window.toggleZenFlight(); window.closeCanvasContextMenu();" class="w-full text-left px-3 py-1.5 hover:bg-amber-500/15 hover:text-amber-300 text-slate-200 flex items-center justify-between cursor-pointer transition-colors group">
+            <span class="flex items-center gap-2">
+              <span class="material-symbols-outlined text-[13px] text-amber-400 group-hover:scale-110 transition-transform">flight_takeoff</span>
+              <span>Autopilot Drone Tour</span>
+            </span>
+            <span class="text-[8px] text-amber-400 font-bold uppercase">Z</span>
+          </button>
+          <button onclick="window.toggleGraphFullscreen(); window.closeCanvasContextMenu();" class="w-full text-left px-3 py-1.5 hover:bg-slate-800 hover:text-white text-slate-300 flex items-center justify-between cursor-pointer transition-colors group">
+            <span class="flex items-center gap-2">
+              <span class="material-symbols-outlined text-[13px] text-slate-400 group-hover:scale-110 transition-transform">fullscreen</span>
+              <span>Toggle Fullscreen Canvas</span>
+            </span>
+            <span class="text-[8px] text-slate-500 uppercase">FULL</span>
+          </button>
+        </div>
+
+        <!-- 3. OPEN CONSOLE PANEL -->
+        <div class="py-1">
+          <div class="px-3 py-0.5 text-[8px] font-extrabold uppercase tracking-wider text-purple-400 flex items-center justify-between">
+            <span>OPEN FEATURE CONSOLE</span>
+            <span class="material-symbols-outlined text-[10px]">side_navigation</span>
+          </div>
+          <button onclick="window.openRightDock('inspect'); window.closeCanvasContextMenu();" class="w-full text-left px-3 py-1 hover:bg-purple-500/15 hover:text-purple-300 text-slate-300 flex items-center justify-between cursor-pointer transition-colors group">
+            <span class="flex items-center gap-2">
+              <span class="material-symbols-outlined text-[13px] text-slate-400 group-hover:text-purple-400">filter_center_focus</span>
+              <span>Node Inspector</span>
+            </span>
+            <span class="text-[8px] text-slate-500">[ I ]</span>
+          </button>
+          <button onclick="window.openRightDock('filters'); window.closeCanvasContextMenu();" class="w-full text-left px-3 py-1 hover:bg-purple-500/15 hover:text-purple-300 text-slate-300 flex items-center justify-between cursor-pointer transition-colors group">
+            <span class="flex items-center gap-2">
+              <span class="material-symbols-outlined text-[13px] text-slate-400 group-hover:text-purple-400">filter_alt</span>
+              <span>Filters &amp; Scopes</span>
+            </span>
+            <span class="text-[8px] text-slate-500">[ F ]</span>
+          </button>
+          <button onclick="window.openRightDock('layout'); window.closeCanvasContextMenu();" class="w-full text-left px-3 py-1 hover:bg-purple-500/15 hover:text-purple-300 text-slate-300 flex items-center justify-between cursor-pointer transition-colors group">
+            <span class="flex items-center gap-2">
+              <span class="material-symbols-outlined text-[13px] text-slate-400 group-hover:text-purple-400">schema</span>
+              <span>Layouts &amp; Geometries</span>
+            </span>
+            <span class="text-[8px] text-slate-500">[ L ]</span>
+          </button>
+          <button onclick="window.openRightDock('studio'); window.closeCanvasContextMenu();" class="w-full text-left px-3 py-1 hover:bg-purple-500/15 hover:text-purple-300 text-slate-300 flex items-center justify-between cursor-pointer transition-colors group">
+            <span class="flex items-center gap-2">
+              <span class="material-symbols-outlined text-[13px] text-slate-400 group-hover:text-purple-400">palette</span>
+              <span>Canvas Studio &amp; Camera</span>
+            </span>
+            <span class="text-[8px] text-slate-500">[ C ]</span>
+          </button>
+          <button onclick="window.openRightDock('ops'); window.closeCanvasContextMenu();" class="w-full text-left px-3 py-1 hover:bg-purple-500/15 hover:text-purple-300 text-slate-300 flex items-center justify-between cursor-pointer transition-colors group">
+            <span class="flex items-center gap-2">
+              <span class="material-symbols-outlined text-[13px] text-slate-400 group-hover:text-purple-400">alt_route</span>
+              <span>Operations &amp; Spectral Math</span>
+            </span>
+            <span class="text-[8px] text-slate-500">[ O ]</span>
           </button>
         </div>
       </div>
@@ -6271,9 +6554,7 @@
 
     const dom = renderer.domElement;
 
-    // Prevent context menu on 3D canvas so Right-Click is dedicated to Panning
-    dom.addEventListener('contextmenu', (e) => e.preventDefault());
-
+    // 3D Canvas Event Listeners
     dom.addEventListener('mousedown', (e) => {
       if (isFlying) return;
       isDragging = true;
@@ -6362,34 +6643,49 @@
       zoomTarget = 480;
     });
 
-    // Right-click: Open contextual 3D Node actions
+    // Right-click: Open contextual 3D Node actions OR Canvas Context Menu
     dom.addEventListener('contextmenu', (e) => {
+      e.preventDefault();
+      if (hasDragged) {
+        hasDragged = false;
+        return;
+      }
+      hasDragged = false;
+
       const rect = dom.getBoundingClientRect();
       mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
       mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
       raycaster.setFromCamera(mouse, camera);
       const hitsNodes = raycaster.intersectObjects(cubeMeshes, true);
       if (hitsNodes.length > 0) {
-        e.preventDefault();
         let topObj = hitsNodes[0].object;
         while (topObj.parent && !topObj.userData.data && topObj.parent !== graphGroup) {
           topObj = topObj.parent;
         }
         const data = topObj.userData.data || topObj.parent?.userData.data;
         if (data && typeof window.openNodeContextMenu === 'function') {
+          if (typeof window.closeCanvasContextMenu === 'function') window.closeCanvasContextMenu();
           window.openNodeContextMenu(e.clientX, e.clientY, data);
           return;
         }
       }
+
+      // Clicked on empty canvas / background space -> open Canvas Context Menu with widget toggles!
       if (typeof window.closeNodeContextMenu === 'function') {
         window.closeNodeContextMenu();
       }
+      if (typeof window.openCanvasContextMenu === 'function') {
+        window.openCanvasContextMenu(e.clientX, e.clientY);
+      }
     });
 
-    // Outside click closes context menu
+    // Outside click closes both context menus
     document.addEventListener('click', (e) => {
       if (!e.target.closest('#node-context-menu') && typeof window.closeNodeContextMenu === 'function') {
         window.closeNodeContextMenu();
+      }
+      if (!e.target.closest('#canvas-context-menu') && typeof window.closeCanvasContextMenu === 'function') {
+        window.closeCanvasContextMenu();
       }
     });
 
@@ -17384,6 +17680,7 @@ ${staticFacts.length > 0 ? `## Static Knowledge Core:\n${staticFacts.map(f => `-
         if (window.isTourActive && window.closeTourCarousel) window.closeTourCarousel();
         if (window.isEgoIsolationActive && window.clearSubgraphIsolation) window.clearSubgraphIsolation();
         if (window.isContextMenuOpen && window.closeNodeContextMenu) window.closeNodeContextMenu();
+        if (window.isCanvasContextMenuOpen && window.closeCanvasContextMenu) window.closeCanvasContextMenu();
         if (window.closeMemoryAuditModal) window.closeMemoryAuditModal();
         if (window.closeAISAuditModal) window.closeAISAuditModal();
         if (window.closeDialogueNodeModal) window.closeDialogueNodeModal();
@@ -18982,19 +19279,184 @@ ${staticFacts.length > 0 ? `## Static Knowledge Core:\n${staticFacts.map(f => `-
 
       // Positioning with boundary safety
       const menuWidth = 288;
-      const menuHeight = 520;
+      const menuHeight = Math.min(window.innerHeight * 0.85, 580);
       const x = Math.min(window.innerWidth - menuWidth - 10, Math.max(10, clientX + 4));
       const y = Math.min(window.innerHeight - menuHeight - 10, Math.max(10, clientY + 4));
       menu.style.left = `${x}px`;
       menu.style.top = `${y}px`;
       menu.classList.remove('hidden');
       window.isContextMenuOpen = true;
+
+      if (typeof window.updateWidgetMenuStates === 'function') {
+        window.updateWidgetMenuStates();
+      }
     };
 
     window.closeNodeContextMenu = function() {
       const menu = document.getElementById('node-context-menu');
       if (menu) menu.classList.add('hidden');
       window.isContextMenuOpen = false;
+    };
+
+    // -------------------------------------------------------------------------
+    // WIDGET & OVERLAY TOGGLE CONTROLLER (RIGHT-CLICK CONTEXT MENUS)
+    // -------------------------------------------------------------------------
+    window.isCanvasContextMenuOpen = false;
+    window.levelHorizon = window.levelGraphHorizon;
+
+    window.toggleWidget = function(widgetName, force) {
+      switch (widgetName) {
+        case 'minimap':
+          if (typeof window.toggleRadarMinimap === 'function') window.toggleRadarMinimap();
+          break;
+        case 'bottomQuickbar': {
+          const bar = document.getElementById('graph-bottom-quickbar');
+          if (bar) {
+            const next = typeof force === 'boolean' ? !force : bar.classList.toggle('hidden');
+            if (typeof force === 'boolean') bar.classList.toggle('hidden', !force);
+            localStorage.setItem('supercortex_bottom_bar_visible', (!bar.classList.contains('hidden')).toString());
+          }
+          break;
+        }
+        case 'rightDock':
+          if (typeof window.toggleRightDock === 'function') window.toggleRightDock();
+          break;
+        case 'rightRail': {
+          const rail = document.getElementById('graph-right-rail');
+          if (rail) {
+            const next = typeof force === 'boolean' ? !force : rail.classList.toggle('hidden');
+            if (typeof force === 'boolean') rail.classList.toggle('hidden', !force);
+            localStorage.setItem('supercortex_right_rail_visible', (!rail.classList.contains('hidden')).toString());
+          }
+          break;
+        }
+        case 'leftNavbar': {
+          const nav = document.getElementById('left-navbar');
+          if (nav) {
+            const next = typeof force === 'boolean' ? !force : nav.classList.toggle('hidden');
+            if (typeof force === 'boolean') nav.classList.toggle('hidden', !force);
+            localStorage.setItem('supercortex_left_nav_visible', (!nav.classList.contains('hidden')).toString());
+          }
+          break;
+        }
+        case 'topHeader': {
+          const hdr = document.getElementById('app-top-header') || document.querySelector('header');
+          if (hdr) {
+            const next = typeof force === 'boolean' ? !force : hdr.classList.toggle('hidden');
+            if (typeof force === 'boolean') hdr.classList.toggle('hidden', !force);
+            localStorage.setItem('supercortex_header_visible', (!hdr.classList.contains('hidden')).toString());
+          }
+          break;
+        }
+        case 'nodeLabels':
+          if (typeof window.toggleNodeLabels === 'function') window.toggleNodeLabels();
+          break;
+        case 'graphEdges':
+          if (typeof window.toggleGraphEdges === 'function') window.toggleGraphEdges();
+          break;
+        case 'cartesianGrid':
+          if (typeof window.toggleGridSnap === 'function') window.toggleGridSnap();
+          break;
+        case 'autoRotate':
+          if (typeof window.toggleAutoRotate === 'function') window.toggleAutoRotate();
+          break;
+        case 'contextCart': {
+          const panel = document.getElementById('cart-expanded-panel');
+          const isExpanded = panel && !panel.classList.contains('hidden');
+          if (typeof window.toggleContextCart === 'function') {
+            window.toggleContextCart(!isExpanded);
+          }
+          break;
+        }
+      }
+      window.updateWidgetMenuStates();
+    };
+
+    window.updateWidgetMenuStates = function() {
+      const getActive = {
+        minimap: () => {
+          const el = document.getElementById('graph-radar-minimap');
+          return el && !el.classList.contains('hidden');
+        },
+        bottomQuickbar: () => {
+          const el = document.getElementById('graph-bottom-quickbar');
+          return el && !el.classList.contains('hidden');
+        },
+        rightDock: () => Boolean(window.isRightDockOpen),
+        rightRail: () => {
+          const el = document.getElementById('graph-right-rail');
+          return el && !el.classList.contains('hidden');
+        },
+        leftNavbar: () => {
+          const el = document.getElementById('left-navbar');
+          return el && !el.classList.contains('hidden');
+        },
+        topHeader: () => {
+          const el = document.getElementById('app-top-header') || document.querySelector('header');
+          return el && !el.classList.contains('hidden');
+        },
+        nodeLabels: () => Boolean(window.showNodeLabels),
+        graphEdges: () => window.showEdgesEnabled !== false && (window.lineMesh ? window.lineMesh.visible : true),
+        cartesianGrid: () => Boolean(window.cartesianGridVisible),
+        autoRotate: () => Boolean(window.autoRotateEnabled),
+        contextCart: () => {
+          const el = document.getElementById('cart-expanded-panel');
+          return el && !el.classList.contains('hidden');
+        }
+      };
+
+      const setPill = (id, active) => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        el.className = active
+          ? 'widget-status-pill text-[8px] px-1.5 py-0.2 rounded font-extrabold uppercase bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 flex items-center gap-0.5'
+          : 'widget-status-pill text-[8px] px-1.5 py-0.2 rounded font-extrabold uppercase bg-slate-800 text-slate-500 border border-slate-700 flex items-center gap-0.5';
+        el.innerHTML = `<span class="w-1.5 h-1.5 rounded-full ${active ? 'bg-emerald-400 shadow-[0_0_4px_#34d399]' : 'bg-slate-600'}"></span><span>${active ? 'ON' : 'OFF'}</span>`;
+      };
+
+      Object.entries(getActive).forEach(([key, fn]) => {
+        let active = false;
+        try { active = fn(); } catch(e) {}
+        setPill(`widget-status-${key}`, active);
+        setPill(`node-widget-status-${key}`, active);
+      });
+    };
+
+    window.openCanvasContextMenu = function(clientX, clientY) {
+      const menu = document.getElementById('canvas-context-menu');
+      if (!menu) return;
+
+      const modeBadge = document.getElementById('ctx-canvas-mode-badge');
+      if (modeBadge) {
+        modeBadge.innerText = (window.currentMode || '3D') === '3D' ? '3D ORBIT' : '2D PLANAR';
+      }
+      const densityLabel = document.getElementById('ctx-canvas-density-label');
+      if (densityLabel) {
+        const nodes = (window.cubeMeshes && window.cubeMeshes.length) || 0;
+        const edges = (window.graphData && Array.isArray(window.graphData.links)) ? window.graphData.links.length : 0;
+        densityLabel.innerText = `${nodes} Nodes · ${edges} Edges`;
+      }
+      const camLabel = document.getElementById('ctx-canvas-cam-label');
+      if (camLabel) {
+        camLabel.innerText = `Dist ${Math.round(window.zoomTarget || 480)}`;
+      }
+
+      window.updateWidgetMenuStates();
+
+      const menuWidth = 320;
+      const menuHeight = Math.min(window.innerHeight * 0.85, 580);
+      const x = Math.min(window.innerWidth - menuWidth - 10, Math.max(10, clientX + 4));
+      const y = Math.min(window.innerHeight - menuHeight - 10, Math.max(10, clientY + 4));
+      menu.style.left = `${x}px`;
+      menu.style.top = `${y}px`;
+      menu.classList.remove('hidden');
+      window.isCanvasContextMenuOpen = true;
+    };
+
+    window.closeCanvasContextMenu = function() {
+      const menu = document.getElementById('canvas-context-menu');
+      if (menu) menu.classList.add('hidden');
+      window.isCanvasContextMenuOpen = false;
     };
 
     // 1. Previews & Documents Actions
