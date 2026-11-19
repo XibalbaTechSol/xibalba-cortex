@@ -423,6 +423,10 @@ def create_app(
                 "metadata": meta,
                 "mime_type": meta.get("mime_type") or meta.get("mimeType"),
                 "pdf_url": meta.get("pdf_url"),
+                "file_url": meta.get("file_url") or meta.get("pdf_url"),
+                "file_type": meta.get("file_type"),
+                "filename": meta.get("filename") or meta.get("title"),
+                "file_path": meta.get("file_path") or meta.get("path"),
                 "source_origin": meta.get("source_origin") or row["source_id"],
             })
 
@@ -1161,73 +1165,187 @@ def create_app(
         except Exception as exc:
             return JSONResponse({"error": str(exc)}, status_code=400)
 
-    async def api_connectors_pdf_preview(request: Request) -> Response:
+    async def api_connectors_file_preview(request: Request) -> Response:
         import io
         import re
+        import mimetypes
         import httpx
+        from super_cortex.connectors import _get_file_cache_dir, _extract_docx_content
+
         file_id = request.query_params.get("file_id") or ""
         file_path = request.query_params.get("path") or ""
         url = request.query_params.get("url") or ""
+        requested_format = (request.query_params.get("format") or "").lower()  # "json", "raw", "html"
+        is_download = request.query_params.get("download") in ("1", "true", "yes")
 
-        pdf_bytes = b""
-        filename = "document.pdf"
+        file_bytes = b""
+        filename = "document"
+        mime_type = ""
 
-        from super_cortex.connectors import _get_pdf_cache_dir
-        cache_dir = _get_pdf_cache_dir()
+        cache_dir = _get_file_cache_dir()
+
+        # 1. Resolve from file_id (cache or Google Drive)
         if file_id:
-            safe_id = re.sub(r"[^a-zA-Z0-9_-]", "_", file_id)
-            target = cache_dir / f"{safe_id}.pdf"
-            if target.exists():
-                pdf_bytes = target.read_bytes()
-                filename = f"{safe_id}.pdf"
+            safe_id = re.sub(r"[^a-zA-Z0-9_.-]", "_", file_id)
+            matching_cache = list(cache_dir.glob(f"{safe_id}.*")) + ([cache_dir / safe_id] if (cache_dir / safe_id).exists() else [])
+            if matching_cache:
+                target = matching_cache[0]
+                file_bytes = target.read_bytes()
+                filename = target.name
             else:
                 token, _ = connectors._discover_google_access_token()
                 if token:
                     try:
                         with httpx.Client(timeout=15.0) as client:
-                            r = client.get(f"https://www.googleapis.com/drive/v3/files/{file_id}?alt=media", headers={"Authorization": f"Bearer {token}"})
+                            meta_r = client.get(
+                                f"https://www.googleapis.com/drive/v3/files/{file_id}?fields=name,mimeType",
+                                headers={"Authorization": f"Bearer {token}"},
+                            )
+                            if meta_r.status_code == 200:
+                                meta_data = meta_r.json()
+                                filename = meta_data.get("name") or f"{safe_id}"
+                                mime_type = meta_data.get("mimeType") or ""
+
+                            r = client.get(
+                                f"https://www.googleapis.com/drive/v3/files/{file_id}?alt=media",
+                                headers={"Authorization": f"Bearer {token}"},
+                            )
                             if r.status_code == 200:
-                                pdf_bytes = r.content
-                                target.write_bytes(pdf_bytes)
-                                filename = f"{safe_id}.pdf"
+                                file_bytes = r.content
+                                suf = Path(filename).suffix
+                                target = cache_dir / f"{safe_id}{suf}"
+                                target.write_bytes(file_bytes)
                     except Exception:
                         pass
         elif file_path:
             p = Path(file_path).resolve()
-            if p.is_file() and p.suffix.lower() == ".pdf" and Path.home() in p.parents:
-                pdf_bytes = p.read_bytes()
+            is_allowed = any(
+                str(p).startswith(str(prefix))
+                for prefix in [Path.home(), Path("/mnt/storage"), Path("/tmp")]
+            )
+            if is_allowed and p.is_file():
+                file_bytes = p.read_bytes()
                 filename = p.name
-        elif url and url.startswith("https://"):
+        elif url and (url.startswith("https://") or url.startswith("http://")):
             try:
                 with httpx.Client(timeout=15.0, follow_redirects=True) as client:
                     r = client.get(url)
-                    if r.status_code == 200 and ("application/pdf" in r.headers.get("content-type", "") or len(r.content) > 1000):
-                        pdf_bytes = r.content
-                        filename = url.split("/")[-1] or "document.pdf"
+                    if r.status_code == 200:
+                        file_bytes = r.content
+                        filename = url.split("?")[0].split("/")[-1] or "download"
+                        mime_type = r.headers.get("content-type", "").split(";")[0].strip()
             except Exception:
                 pass
 
-        if not pdf_bytes:
-            try:
-                from pypdf import PdfWriter
-                writer = PdfWriter()
-                writer.add_blank_page(width=612, height=792)
-                buf = io.BytesIO()
-                writer.write(buf)
-                pdf_bytes = buf.getvalue()
-                filename = "preview_placeholder.pdf"
-            except Exception:
-                return JSONResponse({"error": "PDF not found or could not be loaded"}, status_code=404)
+        if not file_bytes:
+            # Fallback for legacy PDF requests: return placeholder PDF
+            if requested_format == "pdf" or filename.lower().endswith(".pdf"):
+                try:
+                    from pypdf import PdfWriter
+                    writer = PdfWriter()
+                    writer.add_blank_page(width=612, height=792)
+                    buf = io.BytesIO()
+                    writer.write(buf)
+                    file_bytes = buf.getvalue()
+                    filename = "preview_placeholder.pdf"
+                    mime_type = "application/pdf"
+                except Exception:
+                    return JSONResponse({"error": "File not found or could not be loaded"}, status_code=404)
+            else:
+                return JSONResponse({"error": "File not found or could not be loaded", "file_id": file_id, "path": file_path}, status_code=404)
 
+        suf = Path(filename).suffix.lower()
+        if not mime_type:
+            mime_type, _ = mimetypes.guess_type(filename)
+            if not mime_type:
+                if suf in (".md", ".markdown"):
+                    mime_type = "text/markdown"
+                elif suf == ".docx":
+                    mime_type = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                elif suf in (".ts", ".tsx", ".js", ".jsx", ".py", ".rs", ".go", ".sh", ".sql", ".log", ".yaml", ".yml"):
+                    mime_type = "text/plain"
+                else:
+                    mime_type = "application/octet-stream"
+
+        is_pdf = suf == ".pdf" or mime_type == "application/pdf"
+        is_docx = suf == ".docx" or "wordprocessingml" in mime_type
+        is_md = suf in (".md", ".markdown") or mime_type == "text/markdown"
+        is_image = suf in (".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg", ".bmp", ".ico") or mime_type.startswith("image/")
+        is_html = suf in (".html", ".htm") or mime_type == "text/html"
+        is_text = mime_type.startswith("text/") or suf in (".txt", ".csv", ".tsv", ".json", ".py", ".js", ".ts", ".rs", ".go", ".sh", ".sql", ".yaml", ".yml", ".xml", ".log", ".env")
+
+        kind = "unknown"
+        if is_pdf:
+            kind = "pdf"
+        elif is_docx:
+            kind = "docx"
+        elif is_md:
+            kind = "markdown"
+        elif is_image:
+            kind = "image"
+        elif is_html:
+            kind = "html"
+        elif is_text:
+            kind = "text"
+
+        if requested_format == "json":
+            res_payload: dict[str, Any] = {
+                "status": "ok",
+                "filename": filename,
+                "kind": kind,
+                "mime_type": mime_type,
+                "size": len(file_bytes),
+                "raw_url": f"/api/connectors/file/preview?{request.query_params}",
+            }
+            if is_docx:
+                plain_txt, html_doc, p_count = _extract_docx_content(file_bytes)
+                res_payload["text"] = plain_txt
+                res_payload["html"] = html_doc
+                res_payload["paragraphs"] = p_count
+            elif is_md or is_text or is_html:
+                txt_content = file_bytes.decode("utf-8", errors="replace")
+                res_payload["text"] = txt_content
+                if is_html:
+                    res_payload["html"] = txt_content
+            return JSONResponse(res_payload)
+
+        if requested_format == "html" and is_docx:
+            _, html_doc, _ = _extract_docx_content(file_bytes)
+            styled_html = f"""<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>{filename}</title>
+<style>
+body {{ font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #0b0f19; color: #e2e8f0; padding: 2.5rem; max-width: 880px; margin: 0 auto; line-height: 1.7; }}
+h1 {{ color: #38bdf8; border-bottom: 1px solid #334155; padding-bottom: 0.5rem; margin-top: 1.5rem; }}
+h2 {{ color: #c084fc; margin-top: 1.5rem; }}
+h3 {{ color: #fcd34d; margin-top: 1rem; }}
+p {{ margin-bottom: 0.85rem; color: #cbd5e1; }}
+strong {{ color: #f8fafc; }}
+em {{ color: #94a3b8; }}
+</style>
+</head>
+<body>
+<div style="font-size:0.75rem; color:#64748b; margin-bottom:1.5rem; border-bottom:1px solid #1e293b; padding-bottom:0.75rem; font-family:monospace;">DOCX Document Preview: {filename} ({len(file_bytes)} bytes)</div>
+{html_doc}
+</body>
+</html>"""
+            return Response(content=styled_html, media_type="text/html", headers={"Content-Type": "text/html; charset=utf-8"})
+
+        disposition = "attachment" if is_download else "inline"
         return Response(
-            content=pdf_bytes,
-            media_type="application/pdf",
+            content=file_bytes,
+            media_type=mime_type,
             headers={
-                "Content-Disposition": f"inline; filename={filename}",
-                "Content-Type": "application/pdf",
+                "Content-Disposition": f'{disposition}; filename="{filename}"',
+                "Content-Type": mime_type,
                 "Cache-Control": "public, max-age=3600",
             },
         )
+
+    async def api_connectors_pdf_preview(request: Request) -> Response:
+        return await api_connectors_file_preview(request)
 
     async def api_connectors_google_oauth_url(request: Request) -> JSONResponse:
         redirect_uri = request.query_params.get("redirect_uri") or f"{m_cfg.public_url.rstrip('/')}/api/connectors/google-workspace/oauth-callback"
@@ -2624,6 +2742,7 @@ def create_app(
         Route("/auth", api_oauth_callback, methods=["GET"]),
         Route("/api/connectors/google-workspace", api_connectors_google_workspace, methods=["POST"]),
         Route("/api/connectors/pdf/preview", api_connectors_pdf_preview, methods=["GET"]),
+        Route("/api/connectors/file/preview", api_connectors_file_preview, methods=["GET"]),
         Route("/api/connectors/github/repos", api_connectors_github_repos, methods=["GET"]),
         Route("/api/connectors/github/search", api_connectors_github_search, methods=["GET"]),
         Route("/api/connectors/github/repo", api_connectors_github_repo, methods=["POST"]),

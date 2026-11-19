@@ -35,10 +35,14 @@ def utc_now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
-def _get_pdf_cache_dir() -> Path:
-    p = Path.home() / ".super-cortex" / "pdf_cache"
+def _get_file_cache_dir() -> Path:
+    p = Path.home() / ".super-cortex" / "file_cache"
     p.mkdir(parents=True, exist_ok=True)
     return p
+
+
+def _get_pdf_cache_dir() -> Path:
+    return _get_file_cache_dir()
 
 
 def _extract_pdf_text_and_pages(pdf_bytes: bytes) -> tuple[str, int, str]:
@@ -62,6 +66,64 @@ def _extract_pdf_text_and_pages(pdf_bytes: bytes) -> tuple[str, int, str]:
         raw_text = re.sub(r"[^\x20-\x7E\n\r\t]", " ", pdf_bytes.decode("latin1", errors="ignore"))
         chunks = [w for w in raw_text.split() if len(w) > 2]
         return " ".join(chunks[:1500]), 1, ""
+
+
+def _extract_docx_content(docx_bytes: bytes) -> tuple[str, str, int]:
+    """Extract plain text, structured HTML, and paragraph count from DOCX OpenXML bytes."""
+    import zipfile
+    import xml.etree.ElementTree as ET
+    import html as html_lib
+
+    paragraphs: list[str] = []
+    html_paragraphs: list[str] = []
+    try:
+        with zipfile.ZipFile(io.BytesIO(docx_bytes)) as z:
+            if "word/document.xml" not in z.namelist():
+                return "", "", 0
+            xml_content = z.read("word/document.xml")
+        tree = ET.fromstring(xml_content)
+        ns = {"w": "http://schemas.openxmlformats.org/wordprocessingml/2006/main"}
+
+        for p in tree.iterfind(".//w:p", ns):
+            p_style = p.find(".//w:pStyle", ns)
+            val = p_style.attrib.get(f"{{{ns['w']}}}val", "") if p_style is not None else ""
+
+            runs_text = []
+            runs_html = []
+            for r in p.iterfind(".//w:r", ns):
+                is_bold = r.find(".//w:b", ns) is not None
+                is_italic = r.find(".//w:i", ns) is not None
+                t_nodes = [t.text for t in r.iterfind(".//w:t", ns) if t.text]
+                if t_nodes:
+                    text_run = "".join(t_nodes)
+                    runs_text.append(text_run)
+                    escaped_run = html_lib.escape(text_run)
+                    if is_bold and is_italic:
+                        escaped_run = f"<strong><em>{escaped_run}</em></strong>"
+                    elif is_bold:
+                        escaped_run = f"<strong>{escaped_run}</strong>"
+                    elif is_italic:
+                        escaped_run = f"<em>{escaped_run}</em>"
+                    runs_html.append(escaped_run)
+
+            if runs_text:
+                plain_p = "".join(runs_text)
+                paragraphs.append(plain_p)
+                p_content = "".join(runs_html)
+                if "Heading1" in val or "heading 1" in val.lower():
+                    html_paragraphs.append(f"<h1 class='text-lg font-bold text-cyan-300 mt-4 mb-2'>{p_content}</h1>")
+                elif "Heading2" in val or "heading 2" in val.lower():
+                    html_paragraphs.append(f"<h2 class='text-base font-bold text-purple-300 mt-3 mb-1.5'>{p_content}</h2>")
+                elif "Heading" in val:
+                    html_paragraphs.append(f"<h3 class='text-sm font-bold text-amber-300 mt-2 mb-1'>{p_content}</h3>")
+                else:
+                    html_paragraphs.append(f"<p class='text-xs leading-relaxed text-slate-200 mb-2'>{p_content}</p>")
+
+        plain_text = "\n\n".join(paragraphs)
+        html_doc = "\n".join(html_paragraphs)
+        return plain_text, html_doc, len(paragraphs)
+    except Exception as exc:
+        return f"[DOCX parsing error: {exc}]", f"<p class='text-rose-400'>Error reading DOCX: {html_lib.escape(str(exc))}</p>", 0
 
 
 class SuperCortexConnectors:
@@ -532,17 +594,32 @@ class SuperCortexConnectors:
                                     "modifiedTime": datetime.fromtimestamp(child_dir.stat().st_mtime, timezone.utc).isoformat(),
                                     "source": "workspace_mirror",
                                 })
-                for ext in ["*.pdf", "*.md", "*.txt", "*.csv", "*.json"]:
+                for ext in ["*.pdf", "*.md", "*.docx", "*.txt", "*.png", "*.jpg", "*.jpeg", "*.html", "*.csv", "*.json", "*.py", "*.svg"]:
                     for p in sorted(s_dir.glob(ext))[:30]:
                         if str(p) in seen_paths:
                             continue
                         seen_paths.add(str(p))
                         if not clean_q_lower or clean_q_lower in p.name.lower():
-                            m_type = "application/pdf" if p.suffix.lower() == ".pdf" else (
-                                "text/markdown" if p.suffix.lower() == ".md" else (
-                                    "text/csv" if p.suffix.lower() == ".csv" else "text/plain"
-                                )
-                            )
+                            suf = p.suffix.lower()
+                            if suf == ".pdf":
+                                m_type = "application/pdf"
+                            elif suf == ".docx":
+                                m_type = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                            elif suf == ".md":
+                                m_type = "text/markdown"
+                            elif suf in (".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg"):
+                                m_type = f"image/{'jpeg' if suf in ('.jpg', '.jpeg') else (suf.lstrip('.'))}"
+                            elif suf == ".html":
+                                m_type = "text/html"
+                            elif suf == ".csv":
+                                m_type = "text/csv"
+                            elif suf == ".json":
+                                m_type = "application/json"
+                            elif suf == ".py":
+                                m_type = "text/x-python"
+                            else:
+                                m_type = "text/plain"
+
                             items.append({
                                 "id": str(p),
                                 "name": p.name,
@@ -578,6 +655,7 @@ class SuperCortexConnectors:
         name = str(file_item.get("name") or "Document").strip()
         mime_type = str(file_item.get("mimeType") or "").strip()
         source = str(file_item.get("source") or "google_drive")
+        safe_cache_id = re.sub(r"[^a-zA-Z0-9_-]", "_", file_id)
 
         # 1. PDF Document
         if mime_type == "application/pdf" or name.lower().endswith(".pdf"):
@@ -592,11 +670,10 @@ class SuperCortexConnectors:
 
             if pdf_bytes:
                 text, pages, meta_title = _extract_pdf_text_and_pages(pdf_bytes)
-                safe_cache_id = re.sub(r"[^a-zA-Z0-9_-]", "_", file_id)
-                cache_path = _get_pdf_cache_dir() / f"{safe_cache_id}.pdf"
+                cache_path = _get_file_cache_dir() / f"{safe_cache_id}.pdf"
                 cache_path.write_bytes(pdf_bytes)
 
-                pdf_preview_url = f"/api/connectors/pdf/preview?file_id={safe_cache_id}"
+                file_preview_url = f"/api/connectors/file/preview?file_id={safe_cache_id}"
                 doc_title = meta_title or name
                 full_text = f"Google Workspace PDF Document [{doc_title}] ({pages} pages):\n\n{text[:12000]}"
 
@@ -607,7 +684,9 @@ class SuperCortexConnectors:
                     metadata={
                         "connector": "google_workspace",
                         "mime_type": "application/pdf",
-                        "pdf_url": pdf_preview_url,
+                        "file_type": "pdf",
+                        "pdf_url": file_preview_url,
+                        "file_url": file_preview_url,
                         "file_id": safe_cache_id,
                         "filename": name,
                         "title": doc_title,
@@ -615,9 +694,82 @@ class SuperCortexConnectors:
                     },
                 )
                 self.cortex.store.add_entity(doc_title)
-                return {"id": file_id, "name": doc_title, "type": "pdf", "pages": pages, "memory_id": mem["memory_id"], "pdf_url": pdf_preview_url}
+                return {"id": file_id, "name": doc_title, "type": "pdf", "pages": pages, "memory_id": mem["memory_id"], "file_url": file_preview_url, "pdf_url": file_preview_url}
 
-        # 2. Google Doc / Sheet / Markdown
+        # 2. DOCX Word Document
+        if mime_type == "application/vnd.openxmlformats-officedocument.wordprocessingml.document" or name.lower().endswith(".docx"):
+            docx_bytes = b""
+            if source == "workspace_mirror" and Path(file_id).is_file():
+                docx_bytes = Path(file_id).read_bytes()
+            else:
+                async with httpx.AsyncClient(timeout=20.0, follow_redirects=True) as client:
+                    r = await client.get(f"https://www.googleapis.com/drive/v3/files/{file_id}?alt=media", headers=headers)
+                    if r.status_code == 200:
+                        docx_bytes = r.content
+
+            if docx_bytes:
+                plain_text, html_doc, para_count = _extract_docx_content(docx_bytes)
+                cache_path = _get_file_cache_dir() / f"{safe_cache_id}.docx"
+                cache_path.write_bytes(docx_bytes)
+
+                file_preview_url = f"/api/connectors/file/preview?file_id={safe_cache_id}"
+                full_text = f"Word Document (.docx) [{name}] ({para_count} paragraphs):\n\n{plain_text[:12000]}"
+
+                mem = await self.cortex.remember(
+                    text=full_text,
+                    scope=scope,
+                    source_origin=f"gdrive://docx/{name}",
+                    metadata={
+                        "connector": "google_workspace",
+                        "mime_type": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                        "file_type": "docx",
+                        "file_url": file_preview_url,
+                        "file_id": safe_cache_id,
+                        "filename": name,
+                        "title": name,
+                        "paragraphs": para_count,
+                    },
+                )
+                self.cortex.store.add_entity(name)
+                return {"id": file_id, "name": name, "type": "docx", "paragraphs": para_count, "memory_id": mem["memory_id"], "file_url": file_preview_url}
+
+        # 3. Image File (PNG, JPEG, GIF, WEBP, SVG)
+        is_img = any(name.lower().endswith(e) for e in (".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg")) or mime_type.startswith("image/")
+        if is_img:
+            img_bytes = b""
+            if source == "workspace_mirror" and Path(file_id).is_file():
+                img_bytes = Path(file_id).read_bytes()
+            else:
+                async with httpx.AsyncClient(timeout=20.0, follow_redirects=True) as client:
+                    r = await client.get(f"https://www.googleapis.com/drive/v3/files/{file_id}?alt=media", headers=headers)
+                    if r.status_code == 200:
+                        img_bytes = r.content
+
+            if img_bytes:
+                suf = Path(name).suffix or ".png"
+                cache_path = _get_file_cache_dir() / f"{safe_cache_id}{suf}"
+                cache_path.write_bytes(img_bytes)
+
+                file_preview_url = f"/api/connectors/file/preview?file_id={safe_cache_id}"
+                mem = await self.cortex.remember(
+                    text=f"Image Asset [{name}] ({len(img_bytes)} bytes, format: {suf.lstrip('.')})",
+                    scope=scope,
+                    source_origin=f"gdrive://image/{name}",
+                    metadata={
+                        "connector": "google_workspace",
+                        "mime_type": mime_type or f"image/{suf.lstrip('.')}",
+                        "file_type": "image",
+                        "file_url": file_preview_url,
+                        "file_id": safe_cache_id,
+                        "filename": name,
+                        "title": name,
+                        "size": len(img_bytes),
+                    },
+                )
+                self.cortex.store.add_entity(name)
+                return {"id": file_id, "name": name, "type": "image", "memory_id": mem["memory_id"], "file_url": file_preview_url}
+
+        # 4. Google Doc / Sheet / Markdown
         if mime_type == "application/vnd.google-apps.spreadsheet" or name.lower().endswith(".csv"):
             csv_text = ""
             if source == "workspace_mirror" and Path(file_id).is_file():
@@ -631,25 +783,39 @@ class SuperCortexConnectors:
                 csv_res = await self.ingest_csv(csv_text=csv_text, source_name=name, scope=scope)
                 return {"id": file_id, "name": name, "type": "spreadsheet", "memory_id": csv_res["memory"]["memory_id"]}
 
-        # Google Doc or Text file
+        # 5. Text / Markdown / HTML / Code file
         extracted_text = ""
         if source == "workspace_mirror" and Path(file_id).is_file():
-            extracted_text = Path(file_id).read_text(encoding="utf-8", errors="ignore")[:10000]
+            extracted_text = Path(file_id).read_text(encoding="utf-8", errors="ignore")[:12000]
         else:
             async with httpx.AsyncClient(timeout=15.0) as client:
                 r = await client.get(f"https://www.googleapis.com/drive/v3/files/{file_id}/export?mimeType=text/plain", headers=headers)
                 if r.status_code == 200:
-                    extracted_text = r.text[:10000]
+                    extracted_text = r.text[:12000]
 
         if extracted_text:
+            suf = Path(name).suffix.lower()
+            file_type = "markdown" if suf in (".md", ".markdown") else ("html" if suf in (".html", ".htm") else "text")
+            cache_path = _get_file_cache_dir() / f"{safe_cache_id}{suf or '.txt'}"
+            cache_path.write_text(extracted_text, encoding="utf-8", errors="replace")
+
+            file_preview_url = f"/api/connectors/file/preview?file_id={safe_cache_id}"
             mem = await self.cortex.remember(
                 text=f"Google Workspace Document [{name}]:\n\n{extracted_text}",
                 scope=scope,
                 source_origin=f"gdrive://doc/{name}",
-                metadata={"connector": "google_workspace", "filename": name, "title": name, "file_id": file_id},
+                metadata={
+                    "connector": "google_workspace",
+                    "filename": name,
+                    "title": name,
+                    "file_id": file_id,
+                    "file_url": file_preview_url,
+                    "file_type": file_type,
+                    "mime_type": mime_type or ("text/markdown" if file_type == "markdown" else "text/plain"),
+                },
             )
             self.cortex.store.add_entity(name)
-            return {"id": file_id, "name": name, "type": "document", "memory_id": mem["memory_id"]}
+            return {"id": file_id, "name": name, "type": file_type, "memory_id": mem["memory_id"], "file_url": file_preview_url}
         return None
 
     async def ingest_google_workspace_batch(

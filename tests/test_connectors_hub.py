@@ -284,3 +284,104 @@ async def test_public_datasets_demo_and_catalog(tmp_path):
     assert ingest_res["nodes_ingested"] >= 20
     assert ingest_res["edges_ingested"] >= 20
     assert "memory" in ingest_res
+
+
+@pytest.mark.asyncio
+async def test_generic_file_viewer_and_docx_extraction(tmp_path):
+    import io
+    import zipfile
+    from starlette.testclient import TestClient
+    from super_cortex.api import create_app
+    from super_cortex.connectors import _extract_docx_content
+
+    cfg = SuperCortexConfig(
+        db_path=tmp_path / "generic_viewer_test.db",
+        supermemory_url="http://127.0.0.1:59999",
+    )
+    cortex = SuperCortex(cfg)
+    connectors = SuperCortexConnectors(cortex)
+
+    # 1. Test DOCX extraction from in-memory OpenXML zip archive
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w") as z:
+        doc_xml = """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:body>
+    <w:p>
+      <w:pPr><w:pStyle w:val="Heading1"/></w:pPr>
+      <w:r><w:t>Quantum Cryptographic Ledger</w:t></w:r>
+    </w:p>
+    <w:p>
+      <w:r>
+        <w:rPr><w:b/><w:i/></w:rPr>
+        <w:t>Confidential Specification:</w:t>
+      </w:r>
+      <w:r>
+        <w:t> Ed25519 signatures secure all state transitions.</w:t>
+      </w:r>
+    </w:p>
+  </w:body>
+</w:document>"""
+        z.writestr("word/document.xml", doc_xml)
+    docx_bytes = buf.getvalue()
+
+    plain_txt, html_doc, p_count = _extract_docx_content(docx_bytes)
+    assert p_count == 2
+    assert "Quantum Cryptographic Ledger" in plain_txt
+    assert "<h1" in html_doc
+    assert "<strong><em>Confidential Specification:</em></strong>" in html_doc
+
+    # 2. Test local files and preview API endpoint
+    test_docx = tmp_path / "spec.docx"
+    test_docx.write_bytes(docx_bytes)
+
+    test_md = tmp_path / "architecture.md"
+    test_md.write_text("# Merkle Architecture\nZero-knowledge verification is active.", encoding="utf-8")
+
+    test_txt = tmp_path / "log.txt"
+    test_txt.write_text("2026-11-18 22:00:00 [INFO] System verified.", encoding="utf-8")
+
+    app = create_app(cfg)
+    client = TestClient(app)
+
+    # 2a. DOCX JSON preview
+    r = client.get(f"/api/connectors/file/preview?path={test_docx}&format=json")
+    assert r.status_code == 200
+    d = r.json()
+    assert d["status"] == "ok"
+    assert d["kind"] == "docx"
+    assert d["paragraphs"] == 2
+    assert "Quantum Cryptographic Ledger" in d["text"]
+    assert "<h1" in d["html"]
+
+    # 2b. DOCX HTML preview
+    r_html = client.get(f"/api/connectors/file/preview?path={test_docx}&format=html")
+    assert r_html.status_code == 200
+    assert "text/html" in r_html.headers.get("content-type", "")
+    assert "<!DOCTYPE html>" in r_html.text
+
+    # 2c. Markdown JSON preview
+    r_md = client.get(f"/api/connectors/file/preview?path={test_md}&format=json")
+    assert r_md.status_code == 200
+    d_md = r_md.json()
+    assert d_md["kind"] == "markdown"
+    assert "Merkle Architecture" in d_md["text"]
+
+    # 2d. Text raw preview
+    r_txt = client.get(f"/api/connectors/file/preview?path={test_txt}")
+    assert r_txt.status_code == 200
+    assert "text/plain" in r_txt.headers.get("content-type", "")
+    assert "System verified" in r_txt.text
+
+    # 2e. Ingest batch of diverse file types via Workspace connector
+    batch_items = [
+        {"id": str(test_docx), "name": "spec.docx", "mimeType": "application/vnd.openxmlformats-officedocument.wordprocessingml.document", "source": "workspace_mirror"},
+        {"id": str(test_md), "name": "architecture.md", "mimeType": "text/markdown", "source": "workspace_mirror"},
+        {"id": str(test_txt), "name": "log.txt", "mimeType": "text/plain", "source": "workspace_mirror"},
+    ]
+    batch_res = await connectors.ingest_google_workspace_batch(items=batch_items, scope="shared")
+    assert batch_res["items_ingested"] == 3
+    assert len(batch_res["items"]) == 3
+    for it in batch_res["items"]:
+        assert "file_url" in it
+        assert it["file_url"].startswith("/api/connectors/file/preview")
