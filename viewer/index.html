@@ -627,7 +627,7 @@
         <button id="btn-header-scope-selector" onclick="toggleHeaderScopeDropdown(event)" class="h-6.5 flex items-center gap-1.5 px-2 bg-slate-900/90 hover:bg-slate-800 border border-cyan-500/30 hover:border-cyan-400/70 rounded-md text-[10px] font-mono transition-all cursor-pointer shadow-sm">
           <span class="text-slate-400 text-[8px] font-bold uppercase tracking-wider hidden sm:inline">SCOPE:</span>
           <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 shadow-[0_0_6px_#00ffa3] animate-pulse"></span>
-          <span id="header-active-scope-label" class="text-cyan-300 font-bold tracking-wider text-[10px] truncate max-w-[120px] sm:max-w-[150px]">All Agent Scopes</span>
+          <span id="header-active-scope-label" class="text-cyan-300 font-bold tracking-wider text-[10px] truncate max-w-[90px] sm:max-w-[120px]">All Agent Scopes</span>
           <span class="material-symbols-outlined text-[13px] text-cyan-400 -mr-0.5">arrow_drop_down</span>
         </button>
 
@@ -760,15 +760,15 @@
     </div>
 
     <!-- Right Section: Sleek Dockable Actions & Telemetry -->
-    <div class="flex items-center gap-1.5 shrink-0">
+    <div class="flex items-center gap-1 sm:gap-1.5 shrink-0">
       <!-- Canvas & Grid Customizer Studio Trigger -->
       <button onclick="window.toggleCanvasCustomizer()" id="btn-header-canvas-customizer" class="h-7 px-2 rounded-lg flex items-center gap-1.5 bg-gradient-to-r from-cyan-500/15 to-emerald-500/15 hover:from-cyan-500/30 hover:to-emerald-500/30 border border-cyan-400/40 text-cyan-300 transition-all cursor-pointer shadow-[0_0_10px_rgba(0,240,255,0.15)]" title="Customize 3D Canvas, Spatial Grid & Lighting [C]">
         <span class="material-symbols-outlined text-[15px] text-cyan-400">palette</span>
-        <span class="text-[10px] font-bold tracking-wider hidden xl:inline">CANVAS</span>
+        <span class="text-[10px] font-bold tracking-wider hidden 2xl:inline">CANVAS</span>
       </button>
 
       <!-- Canvas Studio Active Profile Indicator -->
-      <button onclick="window.toggleCanvasCustomizer()" id="header-canvas-profile-badge" class="h-7 px-2 rounded-lg hidden xl:flex items-center gap-1.5 bg-slate-900/90 hover:bg-slate-800 border border-outline-variant/40 hover:border-cyan-400/50 text-cyan-300 font-mono text-[9px] transition-all cursor-pointer" title="Active Canvas Studio Profile (Click to open studio)">
+      <button onclick="window.toggleCanvasCustomizer()" id="header-canvas-profile-badge" class="h-7 px-2 rounded-lg hidden 2xl:flex items-center gap-1.5 bg-slate-900/90 hover:bg-slate-800 border border-outline-variant/40 hover:border-cyan-400/50 text-cyan-300 font-mono text-[9px] transition-all cursor-pointer" title="Active Canvas Studio Profile (Click to open studio)">
         <span class="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse"></span>
         <span id="header-active-profile-name" class="font-bold tracking-wider truncate max-w-[110px]">DEEP VOID</span>
       </button>
@@ -809,7 +809,7 @@
       <div class="h-4 w-[1px] bg-slate-800 mx-1 hidden lg:block"></div>
 
       <!-- Compact Telemetry Pill -->
-      <div class="hidden lg:flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-slate-950/80 border border-slate-800 text-[9px] font-mono shadow-inner">
+      <div class="hidden 2xl:flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-slate-950/80 border border-slate-800 text-[9px] font-mono shadow-inner">
         <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 shadow-[0_0_6px_#00ffa3] animate-pulse"></span>
         <span id="header-nodes-count" class="text-emerald-400 font-bold">-- Nodes</span>
         <span class="text-slate-600">·</span>
@@ -831,15 +831,15 @@
       <div class="flex items-center gap-1">
         <button id="btn-header-landing" onclick="window.openLandingOverlay()" class="h-7 px-2 rounded-lg flex items-center gap-1 bg-slate-900/90 hover:bg-slate-800 border border-slate-700/80 hover:border-cyan-400/50 text-slate-300 hover:text-cyan-300 font-mono text-[9px] font-bold uppercase transition-all cursor-pointer" title="Open Public Product Landing Page">
           <span class="material-symbols-outlined text-[13px] text-cyan-400">rocket_launch</span>
-          <span class="hidden xl:inline">LANDING</span>
+          <span class="hidden 2xl:inline">LANDING</span>
         </button>
         <button id="btn-header-pair-agent" onclick="window.openDevicePairModal()" class="h-7 px-2 rounded-lg flex items-center gap-1 bg-purple-500/15 hover:bg-purple-500/25 border border-purple-500/40 text-[#ddb7ff] font-mono text-[9px] font-bold uppercase transition-all cursor-pointer" title="Zero-Trust Agent Device Pairing & MCP Auth">
           <span class="material-symbols-outlined text-[13px] text-purple-400">qr_code_2</span>
-          <span class="hidden xl:inline">AGENT AUTH</span>
+          <span class="hidden 2xl:inline">AGENT AUTH</span>
         </button>
         <button id="btn-header-billing" onclick="window.openBillingStudio()" class="h-7 px-2 rounded-lg flex items-center gap-1 bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/40 text-emerald-300 font-mono text-[9px] font-bold uppercase transition-all cursor-pointer" title="Stripe Subscription & Resource Quotas">
           <span class="material-symbols-outlined text-[13px] text-emerald-400">credit_card</span>
-          <span id="header-plan-tier-badge">FREE TIER</span>
+          <span id="header-plan-tier-badge" class="hidden 2xl:inline">FREE TIER</span>
         </button>
       </div>
 
@@ -1157,7 +1157,7 @@
       <span id="hud-flight-state" class="hidden"></span>
 
       <!-- FLOATING HUD GRAPH CONTROL STACK (Reimagined Draggable Right-Margin Icon & Foldable Studio) -->
-      <div id="graph-floating-hud-toolbar" class="fixed top-20 right-5 z-50 select-none font-mono transition-transform duration-150">
+      <div id="graph-floating-hud-toolbar" class="fixed top-20 right-11 z-50 select-none font-mono transition-transform duration-150">
         
         <!-- 1. FOLDED STATE: Reimagined Draggable Right-Margin Control Pill -->
         <div id="hud-folded-btn" onclick="window.handleFoldedBtnClick(event)" class="flex items-center gap-2 px-3 py-2 bg-[#090d16]/95 hover:bg-[#0f172a] backdrop-blur-2xl border-2 border-primary-container/80 rounded-full shadow-[0_0_25px_rgba(0,240,255,0.4),0_12px_40px_rgba(0,0,0,0.9)] text-primary-container hover:text-white transition-all group cursor-grab active:cursor-grabbing ring-1 ring-cyan-400/40 hover:ring-cyan-300 hover:scale-105" title="Click to expand Graph Controls · Drag anywhere (⌘G)">
@@ -1693,12 +1693,12 @@
           </div>
 
           <!-- Speed Controls -->
-          <div class="flex items-center gap-1 bg-surface-container-low p-0.5 border border-outline-variant/30 text-[9px] rounded font-bold">
-            <span class="text-outline text-[8px] px-1">SPEED:</span>
-            <button onclick="setTimelineReplaySpeed(0.5)" id="btn-tl-speed-05" class="px-1.5 py-0.2 rounded hover:bg-surface-container-high text-on-surface">0.5x</button>
-            <button onclick="setTimelineReplaySpeed(1)" id="btn-tl-speed-1" class="px-1.5 py-0.2 rounded bg-primary-container text-on-primary-container font-bold">1x</button>
-            <button onclick="setTimelineReplaySpeed(2)" id="btn-tl-speed-2" class="px-1.5 py-0.2 rounded hover:bg-surface-container-high text-on-surface">2x</button>
-            <button onclick="setTimelineReplaySpeed(5)" id="btn-tl-speed-5" class="px-1.5 py-0.2 rounded hover:bg-surface-container-high text-on-surface">5x</button>
+          <div class="flex items-center gap-1 bg-surface-container-low p-1 border border-outline-variant/30 text-[10px] rounded-lg font-bold">
+            <span class="text-outline text-[9px] px-1">SPEED:</span>
+            <button onclick="setTimelineReplaySpeed(0.5)" id="btn-tl-speed-05" class="h-6 px-2 rounded flex items-center justify-center hover:bg-surface-container-high text-on-surface text-[10px] cursor-pointer">0.5x</button>
+            <button onclick="setTimelineReplaySpeed(1)" id="btn-tl-speed-1" class="h-6 px-2 rounded flex items-center justify-center bg-primary-container text-on-primary-container font-bold text-[10px] cursor-pointer">1x</button>
+            <button onclick="setTimelineReplaySpeed(2)" id="btn-tl-speed-2" class="h-6 px-2 rounded flex items-center justify-center hover:bg-surface-container-high text-on-surface text-[10px] cursor-pointer">2x</button>
+            <button onclick="setTimelineReplaySpeed(5)" id="btn-tl-speed-5" class="h-6 px-2 rounded flex items-center justify-center hover:bg-surface-container-high text-on-surface text-[10px] cursor-pointer">5x</button>
           </div>
         </div>
       </section>
@@ -1823,12 +1823,12 @@
           </div>
 
           <!-- Speed Controls -->
-          <div class="flex items-center gap-1 bg-surface-container-low p-0.5 border border-outline-variant/30 text-[9px] rounded font-bold">
-            <span class="text-outline text-[8px] px-1">SPEED:</span>
-            <button onclick="setDialogueReplaySpeed(0.5)" id="btn-speed-05" class="px-1.5 py-0.2 rounded hover:bg-surface-container-high text-on-surface" data-dspeed="0.5">0.5x</button>
-            <button onclick="setDialogueReplaySpeed(1)" id="btn-speed-1" class="px-1.5 py-0.2 rounded bg-primary-container text-on-primary-container font-bold" data-dspeed="1">1x</button>
-            <button onclick="setDialogueReplaySpeed(2)" id="btn-speed-2" class="px-1.5 py-0.2 rounded hover:bg-surface-container-high text-on-surface" data-dspeed="2">2x</button>
-            <button onclick="setDialogueReplaySpeed(5)" id="btn-speed-5" class="px-1.5 py-0.2 rounded hover:bg-surface-container-high text-on-surface" data-dspeed="5">5x</button>
+          <div class="flex items-center gap-1 bg-surface-container-low p-1 border border-outline-variant/30 text-[10px] rounded-lg font-bold">
+            <span class="text-outline text-[9px] px-1">SPEED:</span>
+            <button onclick="setDialogueReplaySpeed(0.5)" id="btn-speed-05" class="h-6 px-2 rounded flex items-center justify-center hover:bg-surface-container-high text-on-surface text-[10px] cursor-pointer" data-dspeed="0.5">0.5x</button>
+            <button onclick="setDialogueReplaySpeed(1)" id="btn-speed-1" class="h-6 px-2 rounded flex items-center justify-center bg-primary-container text-on-primary-container font-bold text-[10px] cursor-pointer" data-dspeed="1">1x</button>
+            <button onclick="setDialogueReplaySpeed(2)" id="btn-speed-2" class="h-6 px-2 rounded flex items-center justify-center hover:bg-surface-container-high text-on-surface text-[10px] cursor-pointer" data-dspeed="2">2x</button>
+            <button onclick="setDialogueReplaySpeed(5)" id="btn-speed-5" class="h-6 px-2 rounded flex items-center justify-center hover:bg-surface-container-high text-on-surface text-[10px] cursor-pointer" data-dspeed="5">5x</button>
           </div>
         </div>
       </section>
@@ -2318,13 +2318,13 @@
           <!-- Search Input -->
           <div class="relative flex-1 min-w-[280px]">
             <span class="material-symbols-outlined absolute left-3 top-2 text-outline text-sm">search</span>
-            <input id="mem-catalog-search" oninput="window.filterMemoriesCatalog()" class="w-full bg-surface-container-low border border-outline-variant/40 rounded pl-8 pr-3 py-1.5 text-xs text-white placeholder:text-outline focus:outline-none focus:border-primary-container font-mono" placeholder="Filter by text, SHA-256 hash, entity triples, actor, ID..." type="text"/>
+            <input id="mem-catalog-search" oninput="window.filterMemoriesCatalog()" aria-label="Filter memories catalog by text, hash, entity, or ID" class="w-full bg-surface-container-low border border-outline-variant/40 rounded pl-8 pr-3 py-1.5 text-xs text-white placeholder:text-outline focus:outline-none focus:border-primary-container font-mono" placeholder="Filter by text, SHA-256 hash, entity triples, actor, ID..." type="text"/>
           </div>
 
           <!-- Filter Dropdowns & View Mode Switcher -->
           <div class="flex items-center gap-2 text-[10px] flex-wrap">
             <span class="text-outline uppercase">CLASS:</span>
-            <select id="mem-catalog-ep-filter" onchange="window.filterMemoriesCatalog()" class="bg-surface-container-low border border-outline-variant/40 text-secondary-container px-2.5 py-1.5 text-xs rounded focus:outline-none cursor-pointer">
+            <select id="mem-catalog-ep-filter" onchange="window.filterMemoriesCatalog()" aria-label="Filter by epistemic class" class="bg-surface-container-low border border-outline-variant/40 text-secondary-container px-2.5 py-1.5 text-xs rounded focus:outline-none cursor-pointer">
               <option value="all">ALL CLASSES</option>
               <option value="fact">FACT</option>
               <option value="rule">RULE</option>
@@ -2335,7 +2335,7 @@
             </select>
 
             <span class="text-outline uppercase ml-1">STATUS:</span>
-            <select id="mem-catalog-status-filter" onchange="window.filterMemoriesCatalog()" class="bg-surface-container-low border border-outline-variant/40 text-primary-container px-2.5 py-1.5 text-xs rounded focus:outline-none cursor-pointer">
+            <select id="mem-catalog-status-filter" onchange="window.filterMemoriesCatalog()" aria-label="Filter by status" class="bg-surface-container-low border border-outline-variant/40 text-primary-container px-2.5 py-1.5 text-xs rounded focus:outline-none cursor-pointer">
               <option value="all">ALL STATUSES</option>
               <option value="active">ACTIVE</option>
               <option value="superseded">SUPERSEDED</option>
@@ -2344,7 +2344,7 @@
             </select>
 
             <span class="text-outline uppercase ml-1">SORT:</span>
-            <select id="mem-catalog-sort-filter" onchange="window.filterMemoriesCatalog()" class="bg-surface-container-low border border-outline-variant/40 text-white px-2.5 py-1.5 text-xs rounded focus:outline-none cursor-pointer">
+            <select id="mem-catalog-sort-filter" onchange="window.filterMemoriesCatalog()" aria-label="Sort memories catalog" class="bg-surface-container-low border border-outline-variant/40 text-white px-2.5 py-1.5 text-xs rounded focus:outline-none cursor-pointer">
               <option value="newest">NEWEST FIRST</option>
               <option value="oldest">OLDEST FIRST</option>
               <option value="triples">MOST TRIPLES</option>
@@ -2417,7 +2417,7 @@
         <div class="bg-surface-container-lowest border border-outline-variant/30 p-3 rounded-lg flex flex-wrap items-center justify-between gap-3 text-xs shadow-sm shrink-0">
           <div class="relative flex-1 min-w-[280px]">
             <span class="material-symbols-outlined absolute left-3 top-2 text-outline text-sm">search</span>
-            <input id="profile-facts-search" oninput="window.filterProfileFacts()" class="w-full bg-surface-container-low border border-outline-variant/40 rounded pl-8 pr-3 py-1.5 text-xs text-white placeholder:text-outline focus:outline-none focus:border-[#00ffa3] font-mono" placeholder="Search synthesized facts, dates, entities..." type="text"/>
+            <input id="profile-facts-search" oninput="window.filterProfileFacts()" aria-label="Search synthesized profile facts" class="w-full bg-surface-container-low border border-outline-variant/40 rounded pl-8 pr-3 py-1.5 text-xs text-white placeholder:text-outline focus:outline-none focus:border-[#00ffa3] font-mono" placeholder="Search synthesized facts, dates, entities..." type="text"/>
           </div>
 
           <div class="flex items-center gap-2 text-[10px]">
@@ -2479,7 +2479,7 @@
         </div>
         <div class="text-slate-400">
           Target Scope:
-          <select id="connectors-global-scope" class="bg-surface-container-low border border-outline-variant/40 rounded px-2 py-1 text-cyan-300 font-bold focus:outline-none">
+          <select id="connectors-global-scope" aria-label="Global target scope" class="bg-surface-container-low border border-outline-variant/40 rounded px-2 py-1 text-cyan-300 font-bold focus:outline-none">
             <option value="shared">shared (Global Fabric)</option>
             <option value="agent:xibalba">agent:xibalba</option>
             <option value="agent:agy">agent:agy</option>
@@ -2527,7 +2527,7 @@
               </div>
             </div>
             <div class="flex items-center gap-2">
-              <input id="gworkspace-access-token" type="password" placeholder="Optional: Paste Google Access Token (ya29....)" class="flex-1 bg-surface-container-low border border-slate-800 rounded px-2 py-1 text-white text-[10px] font-mono focus:outline-none focus:border-cyan-400" />
+              <input id="gworkspace-access-token" type="password" aria-label="Google OAuth Access Token" autocomplete="off" placeholder="Optional: Paste Google Access Token (ya29....)" class="flex-1 bg-surface-container-low border border-slate-800 rounded px-2 py-1 text-white text-[10px] font-mono focus:outline-none focus:border-cyan-400" />
               <button onclick="window.saveGoogleAccessToken()" class="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-200 text-[9px] font-bold rounded">Save</button>
             </div>
           </div>
@@ -2545,9 +2545,9 @@
             <div class="flex items-center gap-1.5">
               <div class="relative flex-1">
                 <span class="material-symbols-outlined text-[14px] text-slate-400 absolute left-2 top-2">search</span>
-                <input id="gw-drive-search-input" type="text" placeholder="Search Drive files &amp; folders..." class="w-full bg-surface-container-low border border-outline-variant/40 rounded pl-7 pr-2 py-1.5 text-xs text-white placeholder:text-neutral-500 focus:outline-none focus:border-cyan-400 font-mono" onkeydown="if(event.key==='Enter') window.searchGoogleDrive()" />
+                <input id="gw-drive-search-input" type="text" aria-label="Search Google Drive files and folders" placeholder="Search Drive files &amp; folders..." class="w-full bg-surface-container-low border border-outline-variant/40 rounded pl-7 pr-2 py-1.5 text-xs text-white placeholder:text-neutral-500 focus:outline-none focus:border-cyan-400 font-mono" onkeydown="if(event.key==='Enter') window.searchGoogleDrive()" />
               </div>
-              <select id="gw-drive-type-filter" onchange="window.searchGoogleDrive()" class="bg-surface-container-low border border-outline-variant/40 rounded px-2 py-1.5 text-xs text-cyan-300 font-mono focus:outline-none">
+              <select id="gw-drive-type-filter" onchange="window.searchGoogleDrive()" aria-label="Filter Drive files by type" class="bg-surface-container-low border border-outline-variant/40 rounded px-2 py-1.5 text-xs text-cyan-300 font-mono focus:outline-none">
                 <option value="all">All Items</option>
                 <option value="pdf">PDFs Only (*.pdf)</option>
                 <option value="doc">Docs &amp; Text</option>
@@ -2620,7 +2620,7 @@
           <!-- PANEL C: GMAIL THREADS -->
           <div id="gw-panel-gmail" class="hidden space-y-2">
             <div class="flex items-center gap-1.5">
-              <input id="gw-gmail-query" type="text" value="is:important" placeholder="Query: is:important or from:example.com..." class="flex-1 bg-surface-container-low border border-outline-variant/40 rounded px-2.5 py-1.5 text-xs text-white placeholder:text-neutral-500 focus:outline-none focus:border-cyan-400 font-mono" onkeydown="if(event.key==='Enter') window.searchGmailThreads()" />
+              <input id="gw-gmail-query" type="text" aria-label="Gmail search query" value="is:important" placeholder="Query: is:important or from:example.com..." class="flex-1 bg-surface-container-low border border-outline-variant/40 rounded px-2.5 py-1.5 text-xs text-white placeholder:text-neutral-500 focus:outline-none focus:border-cyan-400 font-mono" onkeydown="if(event.key==='Enter') window.searchGmailThreads()" />
               <button onclick="window.searchGmailThreads()" class="px-2.5 py-1.5 bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 border border-cyan-400/50 font-bold text-xs uppercase rounded flex items-center gap-1 cursor-pointer">
                 <span class="material-symbols-outlined text-[13px]">search</span>
                 <span>Search</span>
@@ -2629,7 +2629,7 @@
             <div class="border border-outline-variant/30 rounded-lg bg-slate-950/60 overflow-hidden text-[10px] font-mono">
               <div class="flex items-center justify-between px-2.5 py-1.5 bg-slate-900/80 border-b border-outline-variant/30 text-slate-400 font-bold uppercase text-[9px]">
                 <div class="flex items-center gap-2">
-                  <input type="checkbox" id="gw-gmail-select-all" onchange="window.toggleAllGmailThreads(this.checked)" class="accent-cyan-400 cursor-pointer" />
+                  <input type="checkbox" id="gw-gmail-select-all" aria-label="Select all Gmail threads" onchange="window.toggleAllGmailThreads(this.checked)" class="accent-cyan-400 cursor-pointer" />
                   <span>Email Thread</span>
                 </div>
                 <span id="gw-gmail-selection-count" class="text-cyan-300 font-bold">0 Selected</span>
@@ -2649,10 +2649,10 @@
           <!-- PANEL D: DIRECT DOC URL -->
           <div id="gw-panel-doc_url" class="hidden space-y-2">
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
-              <select id="gworkspace-file-select" onchange="if(this.value) document.getElementById('gworkspace-target-input').value = this.value" class="bg-surface-container-low border border-outline-variant/40 rounded px-2 py-1.5 text-xs text-cyan-300 truncate focus:outline-none font-mono">
+              <select id="gworkspace-file-select" onchange="if(this.value) document.getElementById('gworkspace-target-input').value = this.value" aria-label="Select local workspace document" class="bg-surface-container-low border border-outline-variant/40 rounded px-2 py-1.5 text-xs text-cyan-300 truncate focus:outline-none font-mono">
                 <option value="">Select Local Workspace Doc...</option>
               </select>
-              <input id="gworkspace-target-input" type="text" placeholder="Paste docs.google.com/document/d/... or select" class="bg-surface-container-low border border-outline-variant/40 rounded p-2 text-xs text-white placeholder:text-neutral-500 focus:outline-none focus:border-cyan-400 font-mono" />
+              <input id="gworkspace-target-input" type="text" aria-label="Google Doc URL or document ID" placeholder="Paste docs.google.com/document/d/... or select" class="bg-surface-container-low border border-outline-variant/40 rounded p-2 text-xs text-white placeholder:text-neutral-500 focus:outline-none focus:border-cyan-400 font-mono" />
             </div>
             <button onclick="window.submitGoogleWorkspaceIngest()" class="w-full py-1.5 bg-cyan-400 hover:bg-cyan-300 text-black font-bold text-xs uppercase rounded transition-colors flex items-center justify-center gap-1 cursor-pointer">
               <span class="material-symbols-outlined text-sm">cloud_download</span>
@@ -2691,7 +2691,7 @@
             <div class="flex items-center gap-1.5">
               <div class="relative flex-1">
                 <span class="material-symbols-outlined text-[14px] text-slate-400 absolute left-2 top-2">search</span>
-                <input id="github-search-input" type="text" placeholder="Search public GitHub repos (e.g. super-cortex, fastapi, transformers)..." class="w-full bg-surface-container-low border border-outline-variant/40 rounded pl-7 pr-2 py-1.5 text-xs text-white placeholder:text-neutral-500 focus:outline-none focus:border-purple-400 font-mono" onkeydown="if(event.key==='Enter') window.searchPublicGitHubRepos()" />
+                <input id="github-search-input" type="text" aria-label="Search public GitHub repositories" placeholder="Search public GitHub repos (e.g. super-cortex, fastapi, transformers)..." class="w-full bg-surface-container-low border border-outline-variant/40 rounded pl-7 pr-2 py-1.5 text-xs text-white placeholder:text-neutral-500 focus:outline-none focus:border-purple-400 font-mono" onkeydown="if(event.key==='Enter') window.searchPublicGitHubRepos()" />
               </div>
               <button onclick="window.searchPublicGitHubRepos()" class="px-2.5 py-1.5 bg-purple-500/20 hover:bg-purple-500/30 text-purple-300 border border-purple-400/50 font-bold text-xs uppercase rounded flex items-center gap-1 cursor-pointer">
                 <span class="material-symbols-outlined text-[13px]">search</span>
@@ -2708,7 +2708,7 @@
           <!-- PANEL B: COMPLETE REPO NODE INGEST -->
           <div id="gh-panel-direct" class="hidden space-y-2">
             <div class="flex items-center gap-2">
-              <input id="github-direct-repo-input" type="text" value="XibalbaTechSol/super-cortex" placeholder="owner/repo (e.g. tiangolo/fastapi or huggingface/transformers)" class="flex-1 bg-surface-container-low border border-outline-variant/40 rounded p-2 text-xs text-white font-mono focus:outline-none focus:border-purple-400" />
+              <input id="github-direct-repo-input" type="text" aria-label="GitHub repository owner and name" value="XibalbaTechSol/super-cortex" placeholder="owner/repo (e.g. tiangolo/fastapi or huggingface/transformers)" class="flex-1 bg-surface-container-low border border-outline-variant/40 rounded p-2 text-xs text-white font-mono focus:outline-none focus:border-purple-400" />
               <button onclick="window.submitCompleteRepoDirect()" class="px-3.5 py-2 bg-purple-500 hover:bg-purple-400 text-black font-bold text-xs uppercase rounded transition-colors flex items-center gap-1.5 shrink-0 cursor-pointer shadow">
                 <span class="material-symbols-outlined text-sm">hub</span>
                 <span>+ Create Repo Node</span>
@@ -2726,9 +2726,9 @@
           <!-- PANEL C: SYNC PRS, COMMITS & ISSUES -->
           <div id="gh-panel-sync" class="hidden space-y-2">
             <div class="flex items-center gap-2">
-              <input id="github-owner-input" type="text" value="XibalbaTechSol" placeholder="Owner" class="w-32 bg-surface-container-low border border-outline-variant/40 rounded px-2 py-1 text-xs text-white focus:outline-none focus:border-purple-400 font-mono" />
+              <input id="github-owner-input" type="text" aria-label="GitHub repository owner" value="XibalbaTechSol" placeholder="Owner" class="w-32 bg-surface-container-low border border-outline-variant/40 rounded px-2 py-1 text-xs text-white focus:outline-none focus:border-purple-400 font-mono" />
               <button onclick="window.loadGitHubReposDropdown()" class="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 text-[9px] font-bold cursor-pointer">Load Repos</button>
-              <select id="github-repo-select" onchange="if(this.value) document.getElementById('github-repo-input').value = this.value" class="flex-1 bg-surface-container-low border border-outline-variant/40 rounded px-2 py-1 text-xs text-purple-300 font-bold truncate focus:outline-none font-mono">
+              <select id="github-repo-select" onchange="if(this.value) document.getElementById('github-repo-input').value = this.value" aria-label="Select GitHub repository" class="flex-1 bg-surface-container-low border border-outline-variant/40 rounded px-2 py-1 text-xs text-purple-300 font-bold truncate focus:outline-none font-mono">
                 <option value="XibalbaTechSol/super-cortex">XibalbaTechSol/super-cortex</option>
                 <option value="XibalbaTechSol/integrity-core">XibalbaTechSol/integrity-core</option>
                 <option value="XibalbaTechSol/xibalba-shield">XibalbaTechSol/xibalba-shield</option>
@@ -2742,7 +2742,7 @@
               <label class="flex items-center gap-1 cursor-pointer"><input id="gh-inc-readme" type="checkbox" checked class="accent-purple-400" /> Metadata</label>
             </div>
             <div class="flex items-center gap-2">
-              <input id="github-repo-input" type="text" value="XibalbaTechSol/super-cortex" class="flex-1 bg-surface-container-low border border-outline-variant/40 rounded p-1.5 text-xs text-white font-mono focus:outline-none focus:border-purple-400" />
+              <input id="github-repo-input" type="text" aria-label="Target repository to sync" value="XibalbaTechSol/super-cortex" class="flex-1 bg-surface-container-low border border-outline-variant/40 rounded p-1.5 text-xs text-white font-mono focus:outline-none focus:border-purple-400" />
               <button onclick="window.submitGitHubIngest()" class="px-3.5 py-1.5 bg-purple-500 hover:bg-purple-400 text-black font-bold text-xs uppercase rounded transition-colors flex items-center gap-1 shrink-0 cursor-pointer">
                 <span class="material-symbols-outlined text-sm">sync</span>
                 <span>Sync Items</span>
@@ -2767,9 +2767,9 @@
           </div>
 
           <div class="space-y-2">
-            <input id="connectors-url-input" class="w-full bg-surface-container-low border border-outline-variant/40 rounded p-2 text-xs text-white placeholder:text-neutral-500 focus:outline-none focus:border-primary-container" placeholder="https://docs.stripe.com or any web URL..." type="url"/>
+            <input id="connectors-url-input" aria-label="Web URL to clip and ingest" class="w-full bg-surface-container-low border border-outline-variant/40 rounded p-2 text-xs text-white placeholder:text-neutral-500 focus:outline-none focus:border-primary-container" placeholder="https://docs.stripe.com or any web URL..." type="url"/>
             <div class="flex items-center gap-2">
-              <select id="connectors-url-scope" class="bg-surface-container-low border border-outline-variant/40 rounded px-2 py-1.5 text-xs text-primary-container font-bold flex-1 focus:outline-none">
+              <select id="connectors-url-scope" aria-label="Target scope for clipped URL" class="bg-surface-container-low border border-outline-variant/40 rounded px-2 py-1.5 text-xs text-primary-container font-bold flex-1 focus:outline-none">
                 <option value="shared">Scope: Shared Fabric</option>
                 <option value="agent:claude">Scope: Claude Code</option>
                 <option value="agent:xibalba">Scope: Xibalba</option>
@@ -2799,14 +2799,14 @@
 
           <div class="space-y-2">
             <div class="flex items-center gap-2">
-              <input id="connectors-file-name" class="flex-1 bg-surface-container-low border border-outline-variant/40 rounded p-1.5 text-xs text-white placeholder:text-neutral-500 focus:outline-none" placeholder="e.g. architecture_notes.md" type="text"/>
-              <select id="connectors-file-scope" class="bg-surface-container-low border border-outline-variant/40 rounded px-2 py-1.5 text-xs text-primary-container font-bold focus:outline-none">
+              <input id="connectors-file-name" aria-label="Document file name" class="flex-1 bg-surface-container-low border border-outline-variant/40 rounded p-1.5 text-xs text-white placeholder:text-neutral-500 focus:outline-none" placeholder="e.g. architecture_notes.md" type="text"/>
+              <select id="connectors-file-scope" aria-label="Target scope for local note" class="bg-surface-container-low border border-outline-variant/40 rounded px-2 py-1.5 text-xs text-primary-container font-bold focus:outline-none">
                 <option value="shared">Shared</option>
                 <option value="agent:claude">Claude</option>
                 <option value="agent:xibalba">Xibalba</option>
               </select>
             </div>
-            <textarea id="connectors-file-content" rows="2" class="w-full bg-surface-container-low border border-outline-variant/40 rounded p-2 text-xs text-white placeholder:text-neutral-500 focus:outline-none focus:border-primary-container" placeholder="Paste Markdown, specification, or code content..."></textarea>
+            <textarea id="connectors-file-content" rows="2" aria-label="Document or note content" class="w-full bg-surface-container-low border border-outline-variant/40 rounded p-2 text-xs text-white placeholder:text-neutral-500 focus:outline-none focus:border-primary-container" placeholder="Paste Markdown, specification, or code content..."></textarea>
             <button onclick="window.submitFileIngest()" class="w-full py-1.5 bg-surface-container-high hover:bg-primary-container hover:text-on-primary-container font-bold text-xs uppercase rounded transition-colors flex items-center justify-center gap-1 cursor-pointer">
               <span class="material-symbols-outlined text-sm">upload_file</span>
               <span>Ingest Document</span>
@@ -2833,13 +2833,13 @@
 
           <div class="space-y-2">
             <div class="flex items-center gap-2">
-              <select id="connectors-data-mode" class="bg-surface-container-low border border-outline-variant/40 rounded px-2 py-1 text-xs text-emerald-300 font-bold">
+              <select id="connectors-data-mode" aria-label="Dataset format mode" class="bg-surface-container-low border border-outline-variant/40 rounded px-2 py-1 text-xs text-emerald-300 font-bold">
                 <option value="csv">CSV / Tabular Dataset</option>
                 <option value="triples">JSON RDF Triples Array</option>
               </select>
-              <input id="connectors-data-source" type="text" value="quant_telemetry_table" placeholder="Dataset source name" class="flex-1 bg-surface-container-low border border-outline-variant/40 rounded px-2 py-1 text-xs text-white" />
+              <input id="connectors-data-source" type="text" aria-label="Dataset source name" value="quant_telemetry_table" placeholder="Dataset source name" class="flex-1 bg-surface-container-low border border-outline-variant/40 rounded px-2 py-1 text-xs text-white" />
             </div>
-            <textarea id="connectors-csv-input" rows="2" class="w-full bg-surface-container-low border border-outline-variant/40 rounded p-2 text-xs text-white font-mono focus:outline-none focus:border-emerald-400" placeholder="subject,predicate,object&#10;Xibalba Shield,enforces,HIPAA Zero-Trust Enclave&#10;Super-Cortex,anchors_to,Integrity Protocol"></textarea>
+            <textarea id="connectors-csv-input" rows="2" aria-label="CSV tabular or RDF triples input" class="w-full bg-surface-container-low border border-outline-variant/40 rounded p-2 text-xs text-white font-mono focus:outline-none focus:border-emerald-400" placeholder="subject,predicate,object&#10;Xibalba Shield,enforces,HIPAA Zero-Trust Enclave&#10;Super-Cortex,anchors_to,Integrity Protocol"></textarea>
             <button onclick="window.submitCsvOrTriplesIngest()" class="w-full py-1.5 bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/40 text-emerald-300 font-bold text-xs uppercase rounded transition-colors flex items-center justify-center gap-1 cursor-pointer">
               <span class="material-symbols-outlined text-sm">hub</span>
               <span>Parse &amp; Anchor Graph Triples</span>
@@ -2863,12 +2863,12 @@
 
           <div class="space-y-2">
             <div class="flex items-center gap-2">
-              <select id="connectors-sci-mode" class="bg-surface-container-low border border-outline-variant/40 rounded px-2 py-1.5 text-xs text-amber-300 font-bold">
+              <select id="connectors-sci-mode" aria-label="Scientific literature source mode" class="bg-surface-container-low border border-outline-variant/40 rounded px-2 py-1.5 text-xs text-amber-300 font-bold">
                 <option value="arxiv">ArXiv Preprint Query / ID</option>
                 <option value="pubmed">NCBI PubMed Query / PMID</option>
                 <option value="fhir">HL7 FHIR R4 Bundle (JSON)</option>
               </select>
-              <input id="connectors-sci-input" type="text" placeholder="e.g. spectral graph theory or 2310.06825 or PMID" class="flex-1 bg-surface-container-low border border-outline-variant/40 rounded p-1.5 text-xs text-white focus:outline-none focus:border-amber-400" />
+              <input id="connectors-sci-input" type="text" aria-label="Scientific paper query, ArXiv ID, or PMID" placeholder="e.g. spectral graph theory or 2310.06825 or PMID" class="flex-1 bg-surface-container-low border border-outline-variant/40 rounded p-1.5 text-xs text-white focus:outline-none focus:border-amber-400" />
             </div>
             <button onclick="window.submitSciOrFhirIngest()" class="w-full py-1.5 bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-amber-300 font-bold text-xs uppercase rounded transition-colors flex items-center justify-center gap-1 cursor-pointer">
               <span class="material-symbols-outlined text-sm">biotech</span>
@@ -5042,7 +5042,7 @@
               <span id="provider-key-status" class="text-[8px] text-emerald-400 font-bold"></span>
             </div>
             <div class="relative">
-              <input type="password" id="provider-input-key" class="w-full bg-surface-container-low border border-outline-variant/40 rounded px-2.5 py-1.5 pr-8 text-xs text-white focus:outline-none focus:border-purple-400 font-mono" placeholder="Enter API Key (e.g. AIzaSy... or sk-ant-...)" />
+              <input type="password" id="provider-input-key" aria-label="Provider API Key" autocomplete="off" class="w-full bg-surface-container-low border border-outline-variant/40 rounded px-2.5 py-1.5 pr-8 text-xs text-white focus:outline-none focus:border-purple-400 font-mono" placeholder="Enter API Key (e.g. AIzaSy... or sk-ant-...)" />
               <button type="button" onclick="window.toggleKeyVisibility()" class="absolute right-2 top-1/2 -translate-y-1/2 text-outline hover:text-white">
                 <span id="key-vis-icon" class="material-symbols-outlined text-[15px]">visibility</span>
               </button>
@@ -14565,7 +14565,7 @@ ${staticFacts.length > 0 ? `## Static Knowledge Core:\n${staticFacts.map(f => `-
           <span class="material-symbols-outlined text-[13px]">${icon}</span>
           <span class="truncate">${escapeHtml(title)}</span>
         </span>
-        <button type="button" onclick="window.toggleStackFan('${stackId}', event)" class="px-1.5 py-0.2 rounded bg-black/60 hover:bg-surface-container-high border border-white/20 text-[8px] font-bold text-neutral-300 transition-colors flex items-center gap-0.5 shrink-0" title="Click to fan out / collapse deck">
+        <button type="button" onclick="window.toggleStackFan('${stackId}', event)" class="h-6 px-2 rounded-md bg-black/70 hover:bg-surface-container-high border border-white/25 text-[9px] font-bold text-neutral-200 transition-colors flex items-center gap-1 shrink-0 cursor-pointer" title="Click to fan out / collapse deck">
           <span>${cardsList.length}</span>
           <span class="material-symbols-outlined text-[10px]">style</span>
         </button>
@@ -14889,7 +14889,7 @@ ${staticFacts.length > 0 ? `## Static Knowledge Core:\n${staticFacts.map(f => `-
             </span>
           </div>
           <div class="flex items-center gap-1.5">
-            <button type="button" onclick="window.toggleTurnStacks(${turnIdx})" class="px-2 py-0.5 rounded bg-cyan-500/15 hover:bg-cyan-500/30 text-cyan-300 border border-cyan-500/40 text-[8px] font-bold transition-all" title="Fan out all stacks in Turn ${turnIdx + 1}">
+            <button type="button" onclick="window.toggleTurnStacks(${turnIdx})" class="h-6 px-2.5 rounded bg-cyan-500/15 hover:bg-cyan-500/30 text-cyan-300 border border-cyan-500/40 text-[9px] font-bold transition-all flex items-center justify-center shrink-0 uppercase tracking-wider cursor-pointer" title="Fan out all stacks in Turn ${turnIdx + 1}">
               FAN TURN
             </button>
           </div>
@@ -15816,9 +15816,9 @@ ${staticFacts.length > 0 ? `## Static Knowledge Core:\n${staticFacts.map(f => `-
         const btn = document.getElementById(`btn-speed-${s == 0.5 ? '05' : s}`);
         if (btn) {
           if (s === spd) {
-            btn.className = "px-1.5 py-0.2 rounded bg-primary-container text-on-primary-container font-bold";
+            btn.className = "h-6 px-2 rounded flex items-center justify-center bg-primary-container text-on-primary-container font-bold text-[10px] cursor-pointer";
           } else {
-            btn.className = "px-1.5 py-0.2 rounded hover:bg-surface-container-high text-on-surface";
+            btn.className = "h-6 px-2 rounded flex items-center justify-center hover:bg-surface-container-high text-on-surface text-[10px] cursor-pointer";
           }
         }
       });
@@ -16723,9 +16723,9 @@ ${staticFacts.length > 0 ? `## Static Knowledge Core:\n${staticFacts.map(f => `-
         const btn = document.getElementById(`btn-tl-speed-${s == 0.5 ? '05' : s}`);
         if (btn) {
           if (s === spd) {
-            btn.className = "px-1.5 py-0.2 rounded bg-primary-container text-on-primary-container font-bold";
+            btn.className = "h-6 px-2 rounded flex items-center justify-center bg-primary-container text-on-primary-container font-bold text-[10px] cursor-pointer";
           } else {
-            btn.className = "px-1.5 py-0.2 rounded hover:bg-surface-container-high text-on-surface";
+            btn.className = "h-6 px-2 rounded flex items-center justify-center hover:bg-surface-container-high text-on-surface text-[10px] cursor-pointer";
           }
         }
       });
@@ -17025,7 +17025,7 @@ ${staticFacts.length > 0 ? `## Static Knowledge Core:\n${staticFacts.map(f => `-
         const rect = hud.getBoundingClientRect();
         if (rect.right > window.innerWidth || rect.left < 0) {
           hud.style.left = 'auto';
-          hud.style.right = '20px';
+          hud.style.right = '44px';
         }
       }
     };
@@ -17061,17 +17061,17 @@ ${staticFacts.length > 0 ? `## Static Knowledge Core:\n${staticFacts.map(f => `-
               hud.style.right = 'auto';
             } else {
               hud.style.left = 'auto';
-              hud.style.right = '20px';
+              hud.style.right = '44px';
               hud.style.top = '76px';
             }
           } catch(e) {
             hud.style.left = 'auto';
-            hud.style.right = '20px';
+            hud.style.right = '44px';
             hud.style.top = '76px';
           }
         } else {
           hud.style.left = 'auto';
-          hud.style.right = '20px';
+          hud.style.right = '44px';
           hud.style.top = '76px';
         }
       }
@@ -17123,7 +17123,7 @@ ${staticFacts.length > 0 ? `## Static Knowledge Core:\n${staticFacts.map(f => `-
         const rect = hud.getBoundingClientRect();
         if (rect.right > window.innerWidth || rect.left < 0 || rect.bottom > window.innerHeight) {
           hud.style.left = 'auto';
-          hud.style.right = '20px';
+          hud.style.right = '44px';
           hud.style.top = '76px';
           localStorage.removeItem('supercortex_hud_pos');
         }
@@ -17133,7 +17133,7 @@ ${staticFacts.length > 0 ? `## Static Knowledge Core:\n${staticFacts.map(f => `-
       if (handle) {
         handle.addEventListener('dblclick', () => {
           hud.style.left = 'auto';
-          hud.style.right = '20px';
+          hud.style.right = '44px';
           hud.style.top = '76px';
           window.isHudDocked = false;
           localStorage.removeItem('supercortex_hud_pos');
@@ -17154,13 +17154,13 @@ ${staticFacts.length > 0 ? `## Static Knowledge Core:\n${staticFacts.map(f => `-
 
       if (docked) {
         hud.style.left = 'auto';
-        hud.style.right = '0px';
+        hud.style.right = '36px';
         hud.style.top = '64px';
         hud.classList.add('rounded-r-none', 'border-r-0');
         if (icon) icon.innerText = 'dock_to_left';
         localStorage.setItem('supercortex_hud_docked', 'true');
       } else {
-        hud.style.right = '16px';
+        hud.style.right = '44px';
         hud.classList.remove('rounded-r-none', 'border-r-0');
         if (icon) icon.innerText = 'dock_to_right';
         localStorage.setItem('supercortex_hud_docked', 'false');
@@ -18903,12 +18903,12 @@ memory_extraction_submit
 
           <div id="auth-field-email-wrap" class="space-y-1">
             <label class="text-[10px] text-slate-300 uppercase font-bold block">Email</label>
-            <input id="auth-input-email" name="email" type="email" required placeholder="operator@xibalba.dev" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-cyan-400" />
+            <input id="auth-input-email" name="email" type="email" required aria-label="Account email address" autocomplete="username" placeholder="operator@xibalba.dev" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-cyan-400" />
           </div>
 
           <div id="auth-field-name-wrap" class="hidden space-y-1">
             <label class="text-[10px] text-slate-300 uppercase font-bold block">Display Name</label>
-            <input id="auth-input-name" name="display_name" type="text" placeholder="Alice Vance" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-cyan-400" />
+            <input id="auth-input-name" name="display_name" type="text" aria-label="Account display name" autocomplete="name" placeholder="Alice Vance" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-cyan-400" />
           </div>
 
           <div id="auth-field-password-wrap" class="space-y-1">
@@ -18916,7 +18916,7 @@ memory_extraction_submit
               <label class="text-[10px] text-slate-300 uppercase font-bold">Password (min 10 chars)</label>
               <button type="button" id="auth-btn-forgot" onclick="window.switchAuthMode('forgot')" class="text-[9px] text-cyan-400 hover:underline cursor-pointer">Forgot password?</button>
             </div>
-            <input id="auth-input-password" name="password" type="password" minlength="10" placeholder="••••••••••••" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-cyan-400" />
+            <input id="auth-input-password" name="password" type="password" minlength="10" aria-label="Account password" autocomplete="current-password" placeholder="••••••••••••" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-cyan-400" />
           </div>
 
           <div id="cortex-auth-notice" class="hidden p-2.5 rounded-lg border text-xs"></div>
