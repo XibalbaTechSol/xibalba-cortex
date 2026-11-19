@@ -1194,7 +1194,7 @@ def create_app(
 
         cache_dir = _get_file_cache_dir()
 
-        # 1. Resolve from file_id (cache or Google Drive)
+        # 1. Resolve from file_id (cache, provenance store, or Google Drive)
         if file_id:
             safe_id = re.sub(r"[^a-zA-Z0-9_.-]", "_", file_id)
             matching_cache = list(cache_dir.glob(f"{safe_id}.*")) + ([cache_dir / safe_id] if (cache_dir / safe_id).exists() else [])
@@ -1203,6 +1203,22 @@ def create_app(
                 file_bytes = target.read_bytes()
                 filename = target.name
             else:
+                try:
+                    rec = cortex.store.get_memory(file_id)
+                    if rec:
+                        source_id = (rec.source_id or "").replace("file://", "").strip()
+                        if source_id:
+                            sp = Path(source_id).resolve()
+                            if sp.is_file():
+                                file_bytes = sp.read_bytes()
+                                filename = sp.name
+                        if not file_bytes and rec.text:
+                            file_bytes = rec.text.encode("utf-8")
+                            filename = Path(source_id).name if source_id else f"{file_id}.md"
+                except Exception:
+                    pass
+
+            if not file_bytes:
                 token, _ = connectors._discover_google_access_token()
                 if token:
                     try:
@@ -1227,8 +1243,11 @@ def create_app(
                                 target.write_bytes(file_bytes)
                     except Exception:
                         pass
-        elif file_path:
-            p = Path(file_path).resolve()
+
+        # 2. Resolve from file_path if not resolved yet
+        if not file_bytes and file_path:
+            clean_path = file_path.replace("file://", "").strip()
+            p = Path(clean_path).resolve()
             is_allowed = any(
                 str(p).startswith(str(prefix))
                 for prefix in [Path.home(), Path("/mnt/storage"), Path("/tmp")]
@@ -1236,7 +1255,28 @@ def create_app(
             if is_allowed and p.is_file():
                 file_bytes = p.read_bytes()
                 filename = p.name
-        elif url and (url.startswith("https://") or url.startswith("http://")):
+            else:
+                base_dirs = [
+                    Path.home() / "Documents",
+                    Path.home() / "Documents" / "Business",
+                    Path.home() / "Projects",
+                    Path("/mnt/storage/xibalba/Projects"),
+                ]
+                for bdir in base_dirs:
+                    cand = (bdir / clean_path).resolve()
+                    if cand.is_file():
+                        file_bytes = cand.read_bytes()
+                        filename = cand.name
+                        break
+                    fname = Path(clean_path).name
+                    matches = list(bdir.glob(f"**/{fname}"))
+                    if matches and matches[0].is_file():
+                        file_bytes = matches[0].read_bytes()
+                        filename = matches[0].name
+                        break
+
+        # 3. Resolve from url if not resolved yet
+        if not file_bytes and url and (url.startswith("https://") or url.startswith("http://")):
             try:
                 with httpx.Client(timeout=15.0, follow_redirects=True) as client:
                     r = client.get(url)
@@ -1265,6 +1305,13 @@ def create_app(
                 return JSONResponse({"error": "File not found or could not be loaded", "file_id": file_id, "path": file_path}, status_code=404)
 
         suf = Path(filename).suffix.lower()
+        text_exts = {
+            ".md", ".markdown", ".txt", ".csv", ".tsv", ".json", ".yaml", ".yml",
+            ".toml", ".ini", ".cfg", ".env", ".lock", ".gitignore", ".gitattributes",
+            ".py", ".js", ".jsx", ".ts", ".tsx", ".rs", ".go", ".c", ".cpp", ".h",
+            ".hpp", ".java", ".proto", ".sql", ".sh", ".bash", ".zsh", ".xml",
+            ".log", ".html", ".htm", ".css", ".scss", ".less", ".diff", ".patch"
+        }
         if not mime_type:
             mime_type, _ = mimetypes.guess_type(filename)
             if not mime_type:
@@ -1272,7 +1319,7 @@ def create_app(
                     mime_type = "text/markdown"
                 elif suf == ".docx":
                     mime_type = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-                elif suf in (".ts", ".tsx", ".js", ".jsx", ".py", ".rs", ".go", ".sh", ".sql", ".log", ".yaml", ".yml"):
+                elif suf in text_exts or filename.lower() in ("dockerfile", "makefile", "license"):
                     mime_type = "text/plain"
                 else:
                     mime_type = "application/octet-stream"
@@ -1282,7 +1329,14 @@ def create_app(
         is_md = suf in (".md", ".markdown") or mime_type == "text/markdown"
         is_image = suf in (".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg", ".bmp", ".ico") or mime_type.startswith("image/")
         is_html = suf in (".html", ".htm") or mime_type == "text/html"
-        is_text = mime_type.startswith("text/") or suf in (".txt", ".csv", ".tsv", ".json", ".py", ".js", ".ts", ".rs", ".go", ".sh", ".sql", ".yaml", ".yml", ".xml", ".log", ".env")
+        is_text = (
+            mime_type.startswith("text/")
+            or "toml" in mime_type
+            or "json" in mime_type
+            or "yaml" in mime_type
+            or suf in text_exts
+            or filename.lower() in ("dockerfile", "makefile", "license")
+        )
 
         kind = "unknown"
         if is_pdf:

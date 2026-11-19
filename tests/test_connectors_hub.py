@@ -439,3 +439,30 @@ async def test_github_browser_endpoints(tmp_path) -> None:
     d_issues = r_issues.json()
     assert "issues" in d_issues
     assert isinstance(d_issues["issues"], list)
+
+    # 6. File Preview Resolution from local file path
+    r_prev = client.get("/api/connectors/file/preview?path=pyproject.toml&format=json")
+    assert r_prev.status_code == 200
+    d_prev = r_prev.json()
+    assert d_prev["status"] == "ok"
+    assert "super-cortex" in d_prev["text"]
+
+    # 7. File Preview Resolution from memory ID
+    from super_cortex.models import MemoryRecord
+    from super_cortex.store import ProvenanceStore
+    test_rec = MemoryRecord(
+        id="mem_preview_test",
+        text="# Test Document\n\nPreview verification text content.",
+        source_id="file:///tmp/test_doc.md",
+        epistemic_class="fact",
+        content_hash="0123456789abcdef",
+    )
+    pstore = ProvenanceStore(cfg.db_path)
+    pstore.save_memory(test_rec)
+
+    r_mem_prev = client.get("/api/connectors/file/preview?file_id=mem_preview_test&format=json")
+    assert r_mem_prev.status_code == 200
+    d_mem_prev = r_mem_prev.json()
+    assert d_mem_prev["status"] == "ok"
+    assert d_mem_prev["kind"] == "markdown"
+    assert "Preview verification text" in d_mem_prev["text"]

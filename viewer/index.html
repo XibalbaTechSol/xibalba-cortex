@@ -779,6 +779,19 @@
         <span id="header-spectral-dot" class="hidden absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-cyan-400 shadow-[0_0_6px_#00f0ff]"></span>
       </button>
 
+      <!-- 2D vs 3D Dimensionality Controller -->
+      <div id="dimension-segmented-controller" class="flex items-center bg-[#070b16] border border-cyan-500/40 rounded-lg p-0.5 text-[10px] font-mono font-bold shadow-lg">
+        <button id="btn-dim-3d" type="button" onclick="window.setGraphDimensionMode('3D')" class="px-2 py-0.5 rounded bg-cyan-500 text-black font-extrabold cursor-pointer transition-all shadow-[0_0_10px_rgba(0,240,255,0.4)]" title="3D Volumetric Neural Manifold (HotKey 3)">3D</button>
+        <button id="btn-dim-2d" type="button" onclick="window.setGraphDimensionMode('2D')" class="px-2 py-0.5 rounded text-slate-400 hover:text-white cursor-pointer transition-all" title="2D Planar Orthographic Topology Canvas (HotKey 2)">2D</button>
+      </div>
+
+      <!-- Real-Time Thought Tracker Studio Trigger -->
+      <button onclick="window.openThoughtTracker()" id="btn-header-thought-tracker" class="px-2.5 py-1 rounded-lg flex items-center gap-1.5 bg-gradient-to-r from-purple-500/20 to-cyan-500/20 hover:from-purple-500/30 hover:to-cyan-500/30 border border-purple-500/40 hover:border-cyan-400 text-purple-200 hover:text-white transition-all cursor-pointer font-mono text-[10px] font-bold" title="Agent Telemetry & Real-Time Thought Tracker (T)">
+        <span class="material-symbols-outlined text-[14px] text-purple-400 animate-pulse">neurology</span>
+        <span class="hidden xl:inline">THOUGHT TRACKER</span>
+        <span id="thought-tracker-badge" class="px-1.5 py-0.2 rounded-full bg-purple-900/60 text-purple-300 text-[8px] border border-purple-500/40">COT</span>
+      </button>
+
       <!-- Dedicated GitHub Browser Trigger -->
       <button onclick="window.openGitHubBrowser()" id="btn-header-github-browser" class="w-7 h-7 rounded-lg flex items-center justify-center bg-purple-500/10 hover:bg-purple-500/25 border border-purple-500/30 hover:border-purple-400 text-purple-300 transition-all cursor-pointer relative" title="Dedicated GitHub Repository Browser (G)">
         <span class="material-symbols-outlined text-[15px]">terminal</span>
@@ -4100,6 +4113,27 @@
                 <div class="text-[7.5px] opacity-75">Ascending double helix ordered by temporal timestamp</div>
               </div>
             </button>
+            <button onclick="applyGraphLayout('causal')" data-layout-btn="causal" class="w-full text-left px-2.5 py-1.5 rounded flex items-center gap-2 hover:bg-surface-container-high transition-all text-on-surface-variant cursor-pointer">
+              <span class="material-symbols-outlined text-base text-amber-400">timeline</span>
+              <div>
+                <div class="font-bold">TEMPORAL CAUSAL STREAM</div>
+                <div class="text-[7.5px] opacity-75">Chronological left-to-right DAG ordered by step time &amp; certainty tiers</div>
+              </div>
+            </button>
+            <button onclick="applyGraphLayout('spectral')" data-layout-btn="spectral" class="w-full text-left px-2.5 py-1.5 rounded flex items-center gap-2 hover:bg-surface-container-high transition-all text-on-surface-variant cursor-pointer">
+              <span class="material-symbols-outlined text-base text-cyan-400">scatter_plot</span>
+              <div>
+                <div class="font-bold">SPECTRAL LAPLACIAN CLUSTERS</div>
+                <div class="text-[7.5px] opacity-75">Fiedler vector decomposition grouping semantic communities</div>
+              </div>
+            </button>
+            <button onclick="applyGraphLayout('cot')" data-layout-btn="cot" class="w-full text-left px-2.5 py-1.5 rounded flex items-center gap-2 hover:bg-surface-container-high transition-all text-on-surface-variant cursor-pointer">
+              <span class="material-symbols-outlined text-base text-fuchsia-400">neurology</span>
+              <div>
+                <div class="font-bold">AGENT COT TRAJECTORY</div>
+                <div class="text-[7.5px] opacity-75">Isolates Chain-of-Thought reasoning steps with animated pulses</div>
+              </div>
+            </button>
           </div>
         </div>
 
@@ -4114,11 +4148,21 @@
           </div>
 
           <div class="space-y-1 text-[8.5px]">
+            <button onclick="window.applyNodeShape('by_epistemic')" data-shape-btn="by_epistemic" class="w-full text-left px-2.5 py-1.5 rounded flex items-center gap-2 hover:bg-surface-container-high transition-all text-on-surface-variant cursor-pointer">
+              <span class="material-symbols-outlined text-base text-yellow-400">psychology</span>
+              <div>
+                <div class="font-bold flex items-center gap-1.5">
+                  <span>BY EPISTEMIC CLASS (RULES, FACTS, COT)</span>
+                  <span class="text-[7px] bg-yellow-400/20 text-yellow-300 px-1 rounded uppercase">REIMAGINED</span>
+                </div>
+                <div class="text-[7.5px] opacity-80">Prisms (Rules), Octahedrons (Facts), Rings (Decisions), Pulsing Torus (COT)</div>
+              </div>
+            </button>
             <button onclick="window.applyNodeShape('by_scope')" data-shape-btn="by_scope" class="w-full text-left px-2.5 py-1.5 rounded flex items-center gap-2 hover:bg-surface-container-high transition-all bg-primary-container text-on-primary-container font-bold cursor-pointer">
               <span class="material-symbols-outlined text-base text-cyan-400">hub</span>
               <div>
                 <div class="font-bold flex items-center gap-1.5">
-                  <span>BY AGENT SCOPE (RECOMMENDED)</span>
+                  <span>BY AGENT SCOPE</span>
                   <span class="text-[7px] bg-secondary-container/30 text-secondary-container px-1 rounded uppercase">DEFAULT</span>
                 </div>
                 <div class="text-[7.5px] opacity-80">Unique 3D shape per agent (Cube, Diamond, Sphere, Geodesic...)</div>
@@ -5040,6 +5084,100 @@
   <!-- Hidden compatibility anchor for legacy calls -->
   <div id="pdf-preview-modal" class="hidden"></div>
   <iframe id="pdf-modal-frame" class="hidden"></iframe>
+
+
+  <!-- MODAL: REAL-TIME THOUGHT TRACKER & AGENT TELEMETRY STUDIO -->
+  <div id="thought-tracker-modal" class="hidden fixed inset-0 z-50 bg-black/90 backdrop-blur-xl flex items-center justify-center p-2 md:p-5 font-mono select-text" onclick="if(event.target === this) window.closeThoughtTracker()">
+    <div class="w-full max-w-7xl h-[92vh] bg-[#070b16] border border-purple-500/50 rounded-2xl flex flex-col shadow-[0_24px_90px_rgba(0,0,0,0.95)] overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+      
+      <!-- Top Explorer Header -->
+      <div class="px-4 py-2.5 border-b border-purple-500/30 bg-slate-950/95 flex items-center justify-between flex-wrap gap-2.5 shrink-0">
+        <!-- Left: Studio Identity & Stats -->
+        <div class="flex items-center gap-3 min-w-0 flex-wrap">
+          <div class="flex items-center gap-2">
+            <span class="material-symbols-outlined text-purple-400 text-2xl animate-pulse">neurology</span>
+            <div class="flex flex-col">
+              <span class="text-[9px] text-purple-400 font-extrabold uppercase tracking-widest flex items-center gap-1.5">
+                <span>AGENT TELEMETRY &amp; REASONING STUDIO</span>
+                <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping"></span>
+              </span>
+              <span class="text-xs font-bold text-white">REAL-TIME THOUGHT TRACKER (COT)</span>
+            </div>
+          </div>
+
+          <!-- Badges Strip -->
+          <div class="hidden lg:flex items-center gap-1.5 text-[9px]">
+            <span id="tt-badge-total-thoughts" class="px-2 py-0.5 rounded bg-purple-900/30 border border-purple-500/40 text-purple-200 font-bold">0 REASONING STEPS</span>
+            <span id="tt-badge-sessions" class="px-2 py-0.5 rounded bg-cyan-500/10 border border-cyan-500/30 text-cyan-300">0 SESSIONS</span>
+            <span id="tt-badge-verified" class="px-2 py-0.5 rounded bg-emerald-500/10 border border-emerald-500/30 text-emerald-300">✓ MERKLE ANCHORED</span>
+          </div>
+        </div>
+
+        <!-- Right: Actions & Close -->
+        <div class="flex items-center gap-2">
+          <input type="text" id="tt-search-input" oninput="window.filterThoughtTracker(this.value)" placeholder="Search reasoning tokens..." class="bg-[#0c1222] border border-purple-500/30 rounded px-2.5 py-1 text-xs text-white placeholder:text-slate-500 focus:outline-none focus:border-purple-400 w-44 md:w-60 font-mono" />
+          <button onclick="window.refreshThoughtTracker()" class="px-2.5 py-1 rounded bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white border border-slate-700 text-[10px] font-bold flex items-center gap-1 cursor-pointer" title="Refresh thoughts">
+            <span class="material-symbols-outlined text-[13px]">refresh</span>
+            <span>Refresh</span>
+          </button>
+          <button onclick="window.openInjectThoughtModal()" class="px-2.5 py-1 rounded bg-purple-500/20 hover:bg-purple-500/30 text-purple-300 border border-purple-500/40 text-[10px] font-bold flex items-center gap-1 cursor-pointer" title="Record an agent thought directly">
+            <span class="material-symbols-outlined text-[13px]">add</span>
+            <span>Record Thought</span>
+          </button>
+          <button onclick="window.closeThoughtTracker()" class="w-7 h-7 rounded flex items-center justify-center text-slate-400 hover:text-white hover:bg-slate-800 cursor-pointer transition-colors">
+            <span class="material-symbols-outlined text-base">close</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Navigation & Filter Strip -->
+      <div class="px-4 py-2 bg-[#0a0f1d] border-b border-purple-500/20 flex items-center justify-between gap-3 text-[10px] font-bold uppercase tracking-wider overflow-x-auto shrink-0 select-none flex-wrap">
+        <!-- Left: Phase Filters -->
+        <div class="flex items-center gap-1" id="tt-phase-filter-pills">
+          <button onclick="window.filterThoughtPhase('all')" class="tt-phase-btn px-2.5 py-1 rounded bg-purple-500/20 text-purple-300 border border-purple-500/40 font-bold cursor-pointer">ALL</button>
+          <button onclick="window.filterThoughtPhase('planning')" class="tt-phase-btn px-2.5 py-1 rounded text-slate-400 hover:text-white cursor-pointer">PLANNING</button>
+          <button onclick="window.filterThoughtPhase('deliberation')" class="tt-phase-btn px-2.5 py-1 rounded text-slate-400 hover:text-white cursor-pointer">DELIBERATION</button>
+          <button onclick="window.filterThoughtPhase('tool_intent')" class="tt-phase-btn px-2.5 py-1 rounded text-slate-400 hover:text-white cursor-pointer">TOOL INTENT</button>
+          <button onclick="window.filterThoughtPhase('reflection')" class="tt-phase-btn px-2.5 py-1 rounded text-slate-400 hover:text-white cursor-pointer">REFLECTION</button>
+          <button onclick="window.filterThoughtPhase('synthesis')" class="tt-phase-btn px-2.5 py-1 rounded text-slate-400 hover:text-white cursor-pointer">SYNTHESIS</button>
+        </div>
+
+        <!-- Right: Session & Agent Dropdowns -->
+        <div class="flex items-center gap-2">
+          <select id="tt-session-select" onchange="window.filterThoughtSession(this.value)" class="bg-[#0c1222] border border-purple-500/30 rounded px-2 py-0.5 text-xs text-white font-mono focus:outline-none cursor-pointer">
+            <option value="all">All Sessions</option>
+          </select>
+          <select id="tt-agent-select" onchange="window.filterThoughtAgent(this.value)" class="bg-[#0c1222] border border-purple-500/30 rounded px-2 py-0.5 text-xs text-white font-mono focus:outline-none cursor-pointer">
+            <option value="all">All Agents</option>
+            <option value="agent:agy">Antigravity (AGY)</option>
+            <option value="agent:claude">Claude Code</option>
+            <option value="agent:hermes">Hermes</option>
+            <option value="agent:xibalba">Xibalba Quant</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Main Thought Stream Viewport -->
+      <div class="flex-1 w-full overflow-y-auto p-4 md:p-6 bg-[#070b16] space-y-3" id="tt-stream-container">
+        <!-- Dynamic Thought Cards populated here -->
+      </div>
+
+      <!-- Bottom Interactive Inference Bar -->
+      <div class="px-4 py-2 bg-slate-950 border-t border-purple-500/30 flex items-center justify-between text-xs font-mono flex-wrap gap-2 shrink-0">
+        <div class="flex items-center gap-2 text-slate-400 text-[11px]">
+          <span class="material-symbols-outlined text-cyan-400 text-sm">auto_fix_high</span>
+          <span>Graph Cognitive Operations:</span>
+          <button onclick="window.triggerDialecticContradictionSweep()" class="px-2 py-0.5 rounded bg-rose-500/15 hover:bg-rose-500/25 border border-rose-500/30 text-rose-300 font-bold text-[9px] uppercase cursor-pointer">Detect Contradictions</button>
+          <button onclick="window.triggerEpistemicSynthesis()" class="px-2 py-0.5 rounded bg-cyan-500/15 hover:bg-cyan-500/25 border border-cyan-500/30 text-cyan-300 font-bold text-[9px] uppercase cursor-pointer">Synthesize Hypotheses</button>
+          <button onclick="applyGraphLayout('cot')" class="px-2 py-0.5 rounded bg-fuchsia-500/15 hover:bg-fuchsia-500/25 border border-fuchsia-500/30 text-fuchsia-300 font-bold text-[9px] uppercase cursor-pointer">Project COT Trajectory</button>
+        </div>
+        <div class="text-[10px] text-slate-500">
+          Powered by Super-Cortex Provenance &amp; Merkle Execution Anchors
+        </div>
+      </div>
+
+    </div>
+  </div>
 
   <!-- MODAL: DEDICATED GITHUB NODES & REPOSITORY BROWSER -->
   <div id="github-browser-modal" class="hidden fixed inset-0 z-50 bg-black/90 backdrop-blur-xl flex items-center justify-center p-2 md:p-5 font-mono select-text" onclick="if(event.target === this) window.closeGitHubBrowser()">
@@ -6204,7 +6342,21 @@
       return 'cubes';
     }
 
+    function getEpistemicShapeType(epClass, type) {
+      const ep = (epClass || type || '').toLowerCase();
+      if (ep === 'rule') return 'shield_prism';
+      if (ep === 'decision' || ep === 'inference') return 'torus';
+      if (ep === 'fact') return 'diamonds';
+      if (ep === 'thought') return 'spheres';
+      if (ep === 'entity') return 'geodesic';
+      return 'cubes';
+    }
+
     function getShapeGeometry(shapeName, size, nodeData) {
+      if (shapeName === 'by_epistemic') {
+        const type = getEpistemicShapeType(nodeData?.epistemic_class, nodeData?.type);
+        return getCachedGeometry(type, size);
+      }
       if (shapeName === 'by_scope' || !shapeName) {
         const type = getScopeShapeType(nodeData?.scope || nodeData?.category);
         return getCachedGeometry(type, size);
@@ -6218,14 +6370,14 @@
       const fnLower = fn.toLowerCase();
       const mime = (node.mime_type || node.metadata?.mime_type || node.metadata?.mimeType || '').toLowerCase();
       const cat = (node.category || '').toLowerCase();
-      const src = (node.source_origin || '').toLowerCase();
+      const src = (node.source_origin || node.metadata?.source_origin || '').toLowerCase();
 
-      const isPdf = fnLower.endsWith('.pdf') || mime === 'application/pdf' || cat === 'pdf' || Boolean(node.pdf_url || node.metadata?.pdf_url || node.metadata?.has_pdf);
-      const isDocx = fnLower.endsWith('.docx') || mime.includes('wordprocessingml') || cat === 'docx';
-      const isMd = fnLower.endsWith('.md') || fnLower.endsWith('.markdown') || mime === 'text/markdown' || cat === 'markdown';
-      const isImg = (/\.(png|jpg|jpeg|gif|webp|svg|bmp|ico)$/i).test(fnLower) || mime.startsWith('image/') || cat === 'image';
-      const isHtml = fnLower.endsWith('.html') || fnLower.endsWith('.htm') || mime === 'text/html';
-      const isText = (/\.(txt|py|js|ts|rs|go|sh|sql|json|csv|tsv|yaml|yml|xml|log|env)$/i).test(fnLower) || mime.startsWith('text/') || cat === 'document';
+      const isPdf = fnLower.endsWith('.pdf') || mime === 'application/pdf' || cat === 'pdf' || src.endsWith('.pdf') || Boolean(node.pdf_url || node.metadata?.pdf_url || node.metadata?.has_pdf);
+      const isDocx = fnLower.endsWith('.docx') || mime.includes('wordprocessingml') || cat === 'docx' || src.endsWith('.docx');
+      const isMd = fnLower.endsWith('.md') || fnLower.endsWith('.markdown') || mime === 'text/markdown' || cat === 'markdown' || src.endsWith('.md');
+      const isImg = (/\.(png|jpg|jpeg|gif|webp|svg|bmp|ico)$/i).test(fnLower) || (/\.(png|jpg|jpeg|gif|webp|svg|bmp|ico)$/i).test(src) || mime.startsWith('image/') || cat === 'image';
+      const isHtml = fnLower.endsWith('.html') || fnLower.endsWith('.htm') || mime === 'text/html' || src.endsWith('.html');
+      const isText = (/\.(txt|py|js|ts|rs|go|sh|sql|json|csv|tsv|yaml|yml|toml|ini|cfg|xml|log|env)$/i).test(fnLower) || (/\.(txt|py|js|ts|rs|go|sh|sql|json|csv|tsv|yaml|yml|toml|ini|cfg|xml|log|env)$/i).test(src) || mime.startsWith('text/') || cat === 'document';
 
       const hasAtt = isPdf || isDocx || isMd || isImg || isHtml || isText || Boolean(node.file_url || node.metadata?.file_url || (node.has_attachment === true));
       if (!hasAtt) return null;
@@ -6238,8 +6390,15 @@
       else if (isHtml) kind = 'html';
       else if (isText) kind = 'text';
 
-      const fileUrl = node.file_url || node.pdf_url || (node.metadata && (node.metadata.file_url || node.metadata.pdf_url)) || (`/api/connectors/file/preview?file_id=${encodeURIComponent(node.id)}&path=${encodeURIComponent(node.metadata?.file_path || node.title || '')}`);
+      let cleanPath = node.source_origin || node.metadata?.source_origin || node.metadata?.file_path || node.metadata?.path || '';
+      if (cleanPath.startsWith('file://')) cleanPath = cleanPath.replace(/^file:\/\//, '');
+      if (!cleanPath && node.metadata?.directory && node.metadata?.filename) {
+        cleanPath = `${node.metadata.directory}/${node.metadata.filename}`;
+      }
+
+      const fileUrl = node.file_url || node.pdf_url || (node.metadata && (node.metadata.file_url || node.metadata.pdf_url)) || (`/api/connectors/file/preview?file_id=${encodeURIComponent(node.id)}&path=${encodeURIComponent(cleanPath || fn || '')}`);
       const fileTitle = fn || node.title || 'Document';
+      const nodeContent = node.content || node.text || (node.metadata && (node.metadata.content || node.metadata.text || node.metadata.description)) || '';
 
       return {
         hasAttachment: true,
@@ -6248,6 +6407,7 @@
         title: fileTitle,
         filename: fn,
         node: node,
+        content: nodeContent,
       };
     };
 
@@ -6511,6 +6671,22 @@
           contraRing = new THREE.Mesh(cRingGeo, cRingMat);
           contraRing.rotation.x = Math.PI / 2;
           nodeObj.add(contraRing);
+        }
+
+        // Active breathing halo for agent thoughts (Chain-of-Thought)
+        let thoughtHaloMesh = null;
+        if (isThought) {
+          const thGeo = new THREE.RingGeometry(size * 1.35, size * 1.7, 32);
+          const thMat = new THREE.MeshBasicMaterial({
+            color: 0xc084fc,
+            side: THREE.DoubleSide,
+            transparent: true,
+            opacity: 0.75,
+            blending: THREE.AdditiveBlending
+          });
+          thoughtHaloMesh = new THREE.Mesh(thGeo, thMat);
+          thoughtHaloMesh.rotation.x = Math.PI / 2;
+          nodeObj.add(thoughtHaloMesh);
         }
 
         // Solid colored corner block marking attached files/documents
@@ -8203,11 +8379,14 @@
     };
 
     window.setProjectionMode = function(mode) {
+      mode = (mode || '3D').toUpperCase();
       currentMode = mode;
       const b3d = document.getElementById('ribbon-btn-3d');
       const b2d = document.getElementById('ribbon-btn-2d');
       const h3d = document.getElementById('btn-projection-3d');
       const h2d = document.getElementById('btn-projection-2d');
+      const btn3D = document.getElementById('btn-dim-3d');
+      const btn2D = document.getElementById('btn-dim-2d');
       const bLabel = document.getElementById('bottom-proj-label');
       const rBtn = document.getElementById('btn-rail-proj');
       if (bLabel) bLabel.innerText = mode;
@@ -8215,6 +8394,12 @@
         rBtn.innerHTML = `<span class="material-symbols-outlined text-[16px]">${mode === '3D' ? 'view_in_ar' : 'crop_square'}</span>`;
         rBtn.classList.toggle('text-cyan-300', mode === '3D');
         rBtn.classList.toggle('text-purple-300', mode === '2D');
+      }
+      if (btn3D) {
+        btn3D.className = mode === '3D' ? 'px-2 py-0.5 rounded bg-cyan-500 text-black font-extrabold cursor-pointer transition-all shadow-[0_0_10px_rgba(0,240,255,0.4)]' : 'px-2 py-0.5 rounded text-slate-400 hover:text-white cursor-pointer transition-all';
+      }
+      if (btn2D) {
+        btn2D.className = mode === '2D' ? 'px-2 py-0.5 rounded bg-cyan-500 text-black font-extrabold cursor-pointer transition-all shadow-[0_0_10px_rgba(0,240,255,0.4)]' : 'px-2 py-0.5 rounded text-slate-400 hover:text-white cursor-pointer transition-all';
       }
 
       if (mode === '3D') {
@@ -8225,14 +8410,15 @@
         targetRotation.x = 0.15;
         targetRotation.y = -0.2;
         zoomTarget = 480;
-        if (gridHelper) gridHelper.visible = true;
-        if (splineMesh) splineMesh.visible = true;
+        if (typeof cartesianGridGroup !== 'undefined') cartesianGridGroup.visible = true;
+        if (typeof splineMesh !== 'undefined') splineMesh.visible = true;
         cubeMeshes.forEach(mesh => {
           if (mesh.userData && mesh.userData.data && mesh.userData.data.pos3D) {
             mesh.userData.targetBase = [...mesh.userData.data.pos3D];
           }
         });
         resolveNodeCollisions3D(cubeMeshes, 18.0);
+        if (typeof window.showToast === 'function') window.showToast('3D Neural Manifold Active (Full Orbit)');
       } else {
         if (b2d) b2d.className = "px-2.5 py-1 bg-primary-container text-on-primary-container font-bold uppercase flex items-center gap-1";
         if (b3d) b3d.className = "px-2.5 py-1 text-on-surface-variant hover:text-on-surface uppercase transition-colors flex items-center gap-1";
@@ -8244,16 +8430,18 @@
         camera.position.set(0, 0, 450);
         camera.lookAt(0, 0, 0);
         zoomTarget = 450;
-        if (gridHelper) gridHelper.visible = false;
-        if (splineMesh) splineMesh.visible = false;
+        if (typeof cartesianGridGroup !== 'undefined') cartesianGridGroup.visible = false;
+        if (typeof splineMesh !== 'undefined') splineMesh.visible = false;
         cubeMeshes.forEach(mesh => {
           if (mesh.userData && mesh.userData.data && mesh.userData.data.pos2D) {
             mesh.userData.targetBase = [...mesh.userData.data.pos2D];
           }
         });
         resolveNodeCollisions3D(cubeMeshes, 18.0);
+        if (typeof window.showToast === 'function') window.showToast('2D Planar Canvas Active (Pan & Zoom)');
       }
     };
+    window.setGraphDimensionMode = window.setProjectionMode;
 
     // -------------------------------------------------------------------------
     // GRAPH NAVIGATION & FLOATING HUD TOOLBAR CONTROLLERS
@@ -8560,6 +8748,89 @@
       } else if (layout === 'force') {
         orbitalGroup.visible = false;
         runForceSimulation();
+      } else if (layout === 'causal') {
+        orbitalGroup.visible = false;
+        const sorted = nodes.map((d, idx) => ({ d, idx })).sort((a, b) => {
+          const tA = new Date(a.d.created_at || 0).getTime() || a.idx;
+          const tB = new Date(b.d.created_at || 0).getTime() || b.idx;
+          return tA - tB;
+        });
+        const total = Math.max(sorted.length, 1);
+        sorted.forEach(({ d, idx }, rank) => {
+          const mesh = cubeMeshes[idx];
+          if (!mesh) return;
+          const x = -340 + (rank / total) * 680;
+          let y = -40;
+          if (d.epistemic_class === 'rule') y = 140;
+          else if (d.epistemic_class === 'decision' || d.epistemic_class === 'inference') y = 60;
+          else if (d.epistemic_class === 'fact' || d.type === 'entity') y = -40;
+          else if (d.type === 'thought' || d.category === 'thought' || d.epistemic_class === 'thought') y = -140;
+          const z = currentMode === '3D' ? Math.sin(rank * 0.4) * 50 : 0;
+          mesh.userData.targetBase = currentMode === '3D' ? [x, y, z] : [x, y, 0];
+        });
+      } else if (layout === 'spectral') {
+        orbitalGroup.visible = false;
+        const scopeGroups = {};
+        nodes.forEach((d, idx) => {
+          const s = d.scope || 'global';
+          if (!scopeGroups[s]) scopeGroups[s] = [];
+          scopeGroups[s].push({ d, idx });
+        });
+        const scopes = Object.keys(scopeGroups);
+        const numScopes = Math.max(scopes.length, 1);
+        scopes.forEach((s, sIdx) => {
+          const group = scopeGroups[s];
+          const scopeAng = (sIdx / numScopes) * Math.PI * 2;
+          const centerR = 190;
+          const cx = Math.cos(scopeAng) * centerR;
+          const cz = Math.sin(scopeAng) * centerR;
+          const cy = currentMode === '3D' ? Math.sin(sIdx * 1.5) * 40 : 0;
+          group.forEach(({ d, idx }, mIdx) => {
+            const mesh = cubeMeshes[idx];
+            if (!mesh) return;
+            const subAng = (mIdx / Math.max(group.length, 1)) * Math.PI * 2;
+            const subR = 25 + Math.sqrt(mIdx) * 14;
+            const x = cx + Math.cos(subAng) * subR;
+            const z = cz + Math.sin(subAng) * subR;
+            const y = cy + (currentMode === '3D' ? Math.cos(mIdx) * 25 : 0);
+            mesh.userData.targetBase = currentMode === '3D' ? [x, y, z] : [x, z, 0];
+          });
+        });
+      } else if (layout === 'cot') {
+        orbitalGroup.visible = false;
+        const thoughts = [];
+        const nonThoughts = [];
+        nodes.forEach((d, idx) => {
+          if (d.type === 'thought' || d.category === 'thought' || d.epistemic_class === 'thought') {
+            thoughts.push({ d, idx });
+          } else {
+            nonThoughts.push({ d, idx });
+          }
+        });
+        const numThoughts = Math.max(thoughts.length, 1);
+        thoughts.forEach(({ d, idx }, tIdx) => {
+          const mesh = cubeMeshes[idx];
+          if (!mesh) return;
+          const progress = tIdx / numThoughts;
+          const x = -300 + progress * 600;
+          const y = Math.sin(progress * Math.PI * 3) * 80;
+          const z = currentMode === '3D' ? Math.cos(progress * Math.PI * 3) * 80 : 0;
+          mesh.userData.targetBase = currentMode === '3D' ? [x, y, z] : [x, y, 0];
+        });
+        const numNonThoughts = Math.max(nonThoughts.length, 1);
+        nonThoughts.forEach(({ d, idx }, nIdx) => {
+          const mesh = cubeMeshes[idx];
+          if (!mesh) return;
+          const pairedThoughtIdx = nIdx % numThoughts;
+          const progress = pairedThoughtIdx / numThoughts;
+          const baseX = -300 + progress * 600;
+          const ang = (nIdx / numNonThoughts) * Math.PI * 2;
+          const branchR = 70 + (nIdx % 5) * 16;
+          const x = baseX + Math.cos(ang) * branchR;
+          const y = (currentMode === '3D' ? Math.sin(ang) * branchR : Math.sin(ang) * branchR * 0.7);
+          const z = currentMode === '3D' ? Math.sin(ang * 2) * 50 : 0;
+          mesh.userData.targetBase = currentMode === '3D' ? [x, y, z] : [x, y, 0];
+        });
       }
 
       if (gridSnapEnabled) {
@@ -13760,6 +14031,25 @@ ${staticFacts.length > 0 ? `## Static Knowledge Core:\n${staticFacts.map(f => `-
 
     window.openGenericViewer = async function(options) {
       let opts = typeof options === 'string' ? { url: options, title: arguments[1] || 'Document' } : (options || {});
+      
+      // Auto-resolve content from active graph nodes if missing
+      if (!opts.content && (opts.fileId || opts.node)) {
+        let matchingNode = opts.node || null;
+        if (!matchingNode && opts.fileId && window.graphData && Array.isArray(window.graphData.nodes)) {
+          matchingNode = window.graphData.nodes.find(n => n.id === opts.fileId);
+        }
+        if (!matchingNode && window.activeSelectedNode && (!opts.fileId || window.activeSelectedNode.id === opts.fileId)) {
+          matchingNode = window.activeSelectedNode;
+        }
+        if (!matchingNode && window.contextMenuTargetNode && (!opts.fileId || window.contextMenuTargetNode.id === opts.fileId)) {
+          matchingNode = window.contextMenuTargetNode;
+        }
+        if (matchingNode) {
+          opts.content = matchingNode.content || matchingNode.text || (matchingNode.metadata && (matchingNode.metadata.content || matchingNode.metadata.text || matchingNode.metadata.description)) || '';
+          if (!opts.title) opts.title = matchingNode.title;
+        }
+      }
+
       const url = opts.url || (opts.fileId ? `/api/connectors/file/preview?file_id=${encodeURIComponent(opts.fileId)}` : '');
       const title = opts.title || opts.filename || 'Document Preview';
       const fileType = (opts.fileType || opts.kind || (opts.url ? opts.url.split('?')[0].split('.').pop() : '') || 'doc').toLowerCase();
@@ -22738,7 +23028,307 @@ memory_extraction_submit
       }
     });
 
-        // Route URL hashes & query parameters on startup (Landing Page -> Sign In -> 3D Graph UI gate)
+        
+    // =========================================================================
+    // 2D vs 3D VIEWPORT & REIMAGINED PROJECTIONS CONTROLLER
+    // =========================================================================
+    // Note: window.setGraphDimensionMode is initialized inside the Three.js runtime.
+    // Fallback safe alias:
+    if (!window.setGraphDimensionMode) {
+      window.setGraphDimensionMode = function(dim) {
+        if (typeof window.setProjectionMode === 'function') {
+          window.setProjectionMode(dim);
+        }
+      };
+    }
+
+    // Keyboard shortcuts for 2D, 3D, and Thought Tracker
+    document.addEventListener('keydown', (e) => {
+      if (e.target.matches('input, textarea, select')) return;
+      if (e.key === '2') {
+        window.setGraphDimensionMode('2D');
+      } else if (e.key === '3') {
+        window.setGraphDimensionMode('3D');
+      } else if (e.key.toLowerCase() === 't') {
+        window.toggleThoughtTracker();
+      }
+    });
+
+    // =========================================================================
+    // REAL-TIME THOUGHT TRACKER & AGENT TELEMETRY CONTROLLER
+    // =========================================================================
+    window.cachedThoughts = [];
+    window.filteredThoughts = [];
+    window.activeThoughtPhase = 'all';
+    window.activeThoughtSession = 'all';
+    window.activeThoughtAgent = 'all';
+
+    window.openThoughtTracker = function(optionalSessionId) {
+      const modal = document.getElementById('thought-tracker-modal');
+      if (modal) modal.classList.remove('hidden');
+      if (optionalSessionId) {
+        window.activeThoughtSession = optionalSessionId;
+        const sel = document.getElementById('tt-session-select');
+        if (sel) sel.value = optionalSessionId;
+      }
+      window.refreshThoughtTracker();
+    };
+
+    window.closeThoughtTracker = function() {
+      const modal = document.getElementById('thought-tracker-modal');
+      if (modal) modal.classList.add('hidden');
+    };
+
+    window.toggleThoughtTracker = function() {
+      const modal = document.getElementById('thought-tracker-modal');
+      if (modal && !modal.classList.contains('hidden')) {
+        window.closeThoughtTracker();
+      } else {
+        window.openThoughtTracker();
+      }
+    };
+
+    window.refreshThoughtTracker = async function() {
+      const container = document.getElementById('tt-stream-container');
+      if (container) {
+        container.innerHTML = '<div class="text-center py-16 text-purple-300 font-mono text-xs"><span class="material-symbols-outlined animate-spin text-xl">progress_activity</span> Loading real-time thoughts &amp; reasoning telemetry...</div>';
+      }
+
+      try {
+        const [memRes, sessRes] = await Promise.all([
+          fetch('/api/memories?limit=300'),
+          fetch('/api/sessions')
+        ]);
+
+        let thoughts = [];
+        if (memRes.ok) {
+          const memData = await memRes.json();
+          const allMems = memData.memories || [];
+          thoughts = allMems.filter(m => 
+            (m.epistemic_class || '').toLowerCase() === 'thought' ||
+            (m.category || '').toLowerCase() === 'thought' ||
+            (m.id && m.id.startsWith('thought_')) ||
+            (m.source_id && m.source_id.includes('thought')) ||
+            (m.text && m.text.toLowerCase().includes('chain-of-thought')) ||
+            (m.text && m.text.toLowerCase().includes('cot')) ||
+            (m.text && m.text.toLowerCase().includes('deliberation')) ||
+            (m.text && m.text.toLowerCase().includes('step_phase'))
+          );
+        }
+
+        // Also check window.graphData for thought nodes
+        if (window.graphData && Array.isArray(window.graphData.nodes)) {
+          window.graphData.nodes.forEach(n => {
+            if (n.type === 'thought' || n.category === 'thought' || (n.id && n.id.startsWith('thought_'))) {
+              if (!thoughts.some(t => t.id === n.id)) {
+                thoughts.push({
+                  id: n.id,
+                  text: n.content || n.title || 'Reasoning Step',
+                  epistemic_class: 'thought',
+                  scope: n.scope || 'shared',
+                  agent_id: n.metadata?.agent_id || 'agent:agy',
+                  created_at: n.created_at || new Date().toISOString(),
+                  step_phase: n.metadata?.step_phase || 'deliberation',
+                  session_id: n.metadata?.session_id || 'session_general'
+                });
+              }
+            }
+          });
+        }
+
+        window.cachedThoughts = thoughts;
+        window.filteredThoughts = thoughts;
+
+        // Populate session select dropdown
+        const sessSelect = document.getElementById('tt-session-select');
+        if (sessSelect) {
+          const sessionIds = [...new Set(thoughts.map(t => t.session_id || (t.metadata && t.metadata.session_id) || 'general').filter(Boolean))];
+          sessSelect.innerHTML = '<option value="all">All Sessions (' + sessionIds.length + ')</option>' +
+            sessionIds.map(s => `<option value="${escapeHtml(s)}">${escapeHtml(s)}</option>`).join('');
+          if (window.activeThoughtSession && window.activeThoughtSession !== 'all') {
+            sessSelect.value = window.activeThoughtSession;
+          }
+        }
+
+        const totalBadge = document.getElementById('tt-badge-total-thoughts');
+        if (totalBadge) totalBadge.innerText = `${thoughts.length} REASONING STEPS`;
+
+        window.renderThoughtStream(thoughts);
+
+      } catch (err) {
+        console.error('Failed to load thought tracker stream:', err);
+        if (container) {
+          container.innerHTML = `<div class="p-6 text-rose-400 bg-rose-950/20 border border-rose-500/30 rounded-xl text-xs font-mono">Error loading telemetry stream: ${escapeHtml(err.message)}</div>`;
+        }
+      }
+    };
+
+    window.renderThoughtStream = function(thoughts) {
+      const container = document.getElementById('tt-stream-container');
+      if (!container) return;
+
+      const filtered = (thoughts || []).filter(t => {
+        const phase = (t.step_phase || t.metadata?.step_phase || 'deliberation').toLowerCase();
+        if (window.activeThoughtPhase !== 'all' && phase !== window.activeThoughtPhase) return false;
+        const sess = t.session_id || t.metadata?.session_id || 'general';
+        if (window.activeThoughtSession !== 'all' && sess !== window.activeThoughtSession) return false;
+        const ag = (t.agent_id || t.metadata?.agent_id || '').toLowerCase();
+        if (window.activeThoughtAgent !== 'all' && !ag.includes(window.activeThoughtAgent.replace('agent:', ''))) return false;
+        return true;
+      });
+
+      if (filtered.length === 0) {
+        container.innerHTML = `
+          <div class="p-12 text-center text-slate-500 space-y-3 font-mono">
+            <span class="material-symbols-outlined text-purple-400 text-3xl">psychology</span>
+            <div class="text-xs text-white font-bold">No reasoning thoughts match the active filter.</div>
+            <div class="text-[11px] text-slate-400 max-w-md mx-auto">Click "Record Thought" to anchor a new agent deliberation step into the live Super-Cortex neural manifold.</div>
+          </div>
+        `;
+        return;
+      }
+
+      container.innerHTML = filtered.map((t, idx) => {
+        const text = t.text || t.content || '';
+        const phase = (t.step_phase || t.metadata?.step_phase || 'deliberation').toUpperCase();
+        const agent = t.agent_id || t.metadata?.agent_id || 'agent:agy';
+        const dateStr = t.created_at ? new Date(t.created_at).toLocaleTimeString() : '';
+        const turnHash = t.content_hash ? t.content_hash.substring(0, 10) : (t.id ? t.id.substring(0, 10) : '0x000000');
+
+        let phaseColor = 'bg-purple-900/30 text-purple-300 border-purple-500/40';
+        if (phase === 'PLANNING') phaseColor = 'bg-cyan-900/30 text-cyan-300 border-cyan-500/40';
+        else if (phase === 'REFLECTION') phaseColor = 'bg-amber-900/30 text-amber-300 border-amber-500/40';
+        else if (phase === 'SYNTHESIS') phaseColor = 'bg-emerald-900/30 text-emerald-300 border-emerald-500/40';
+
+        return `
+          <div class="p-4 bg-slate-900/60 hover:bg-slate-900 border border-slate-800 hover:border-purple-500/40 rounded-xl space-y-2.5 transition-all group">
+            <div class="flex items-center justify-between gap-2 flex-wrap">
+              <div class="flex items-center gap-2">
+                <span class="px-2 py-0.5 rounded font-bold text-[9px] border ${phaseColor}">${phase}</span>
+                <span class="px-2 py-0.5 rounded bg-slate-800 text-slate-300 text-[9px] font-mono">${escapeHtml(agent)}</span>
+                <span class="text-slate-500 font-mono text-[10px]">Step #${idx + 1}</span>
+              </div>
+              <div class="flex items-center gap-2 text-[10px] text-slate-400 font-mono">
+                <span>Turn Hash: <code class="text-purple-300">${turnHash}</code></span>
+                <span>·</span>
+                <span>${dateStr}</span>
+              </div>
+            </div>
+
+            <div class="text-xs text-slate-200 font-sans leading-relaxed select-text space-y-2 border-l-2 border-purple-500/40 pl-3">
+              ${typeof window.renderMarkdownToHtml === 'function' ? window.renderMarkdownToHtml(text) : escapeHtml(text)}
+            </div>
+
+            <div class="flex items-center justify-between pt-2 border-t border-slate-800/80 text-[10px] font-mono">
+              <span class="text-slate-500">Node ID: <code>${escapeHtml(t.id)}</code></span>
+              <div class="flex items-center gap-2">
+                <button onclick="window.focusThoughtInGraph('${escapeHtml(t.id)}')" class="px-2.5 py-1 rounded bg-cyan-500/15 hover:bg-cyan-500/25 border border-cyan-500/30 text-cyan-300 font-bold flex items-center gap-1 cursor-pointer">
+                  <span class="material-symbols-outlined text-[12px]">filter_center_focus</span>
+                  <span>Focus in Graph</span>
+                </button>
+                <button onclick="navigator.clipboard.writeText('${escapeHtml(text.replace(/'/g, "\\'"))}'); if(typeof window.showToast==='function') window.showToast('Thought text copied!');" class="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white flex items-center gap-1 cursor-pointer">
+                  <span class="material-symbols-outlined text-[12px]">content_copy</span>
+                  <span>Copy</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        `;
+      }).join('');
+    };
+
+    window.filterThoughtPhase = function(phase) {
+      window.activeThoughtPhase = phase;
+      const btns = document.querySelectorAll('.tt-phase-btn');
+      btns.forEach(btn => {
+        if (btn.innerText.toLowerCase() === phase.toLowerCase()) {
+          btn.className = "tt-phase-btn px-2.5 py-1 rounded bg-purple-500/20 text-purple-300 border border-purple-500/40 font-bold cursor-pointer";
+        } else {
+          btn.className = "tt-phase-btn px-2.5 py-1 rounded text-slate-400 hover:text-white cursor-pointer";
+        }
+      });
+      window.renderThoughtStream(window.cachedThoughts);
+    };
+
+    window.filterThoughtSession = function(sessionId) {
+      window.activeThoughtSession = sessionId;
+      window.renderThoughtStream(window.cachedThoughts);
+    };
+
+    window.filterThoughtAgent = function(agentId) {
+      window.activeThoughtAgent = agentId;
+      window.renderThoughtStream(window.cachedThoughts);
+    };
+
+    window.filterThoughtTracker = function(query) {
+      const q = (query || '').toLowerCase().trim();
+      if (!q) {
+        window.renderThoughtStream(window.cachedThoughts);
+        return;
+      }
+      const matches = (window.cachedThoughts || []).filter(t => {
+        const txt = (t.text || t.content || '').toLowerCase();
+        const id = (t.id || '').toLowerCase();
+        const phase = (t.step_phase || '').toLowerCase();
+        return txt.includes(q) || id.includes(q) || phase.includes(q);
+      });
+      window.renderThoughtStream(matches);
+    };
+
+    window.focusThoughtInGraph = function(nodeId) {
+      window.closeThoughtTracker();
+      if (typeof window.select3DNode === 'function') {
+        window.select3DNode(nodeId);
+      }
+      if (typeof window.flyToNode === 'function') {
+        window.flyToNode(nodeId);
+      }
+      if (typeof window.showToast === 'function') {
+        window.showToast(`Camera focused on thought node: ${nodeId}`);
+      }
+    };
+
+    window.triggerDialecticContradictionSweep = function() {
+      if (typeof window.openDialecticModal === 'function') {
+        window.openDialecticModal();
+      } else if (typeof window.showToast === 'function') {
+        window.showToast('Dialectic Contradiction Sweep triggered across all active thoughts.');
+      }
+    };
+
+    window.triggerEpistemicSynthesis = function() {
+      if (typeof window.openAiOpsModal === 'function') {
+        window.openAiOpsModal();
+      } else if (typeof window.showToast === 'function') {
+        window.showToast('Epistemic hypothesis synthesis running on graph topology.');
+      }
+    };
+
+    window.openInjectThoughtModal = function() {
+      const txt = prompt('Enter agent deliberation or reasoning thought to anchor into Super-Cortex:');
+      if (txt && txt.trim()) {
+        fetch('/api/memories', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            text: txt.trim(),
+            epistemic_class: 'thought',
+            scope: 'shared',
+            category: 'thought',
+            step_phase: 'deliberation',
+            session_id: window.activeThoughtSession !== 'all' ? window.activeThoughtSession : 'session_general'
+          })
+        }).then(r => r.json()).then(d => {
+          if (typeof window.showToast === 'function') window.showToast('Reasoning thought recorded into graph!');
+          window.refreshThoughtTracker();
+          if (typeof loadGraphData === 'function') loadGraphData('all');
+        }).catch(err => {
+          if (typeof window.showToast === 'function') window.showToast(`Error: ${err.message}`);
+        });
+      }
+    };
+
+    // Route URL hashes & query parameters on startup (Landing Page -> Sign In -> 3D Graph UI gate)
     window.addEventListener('DOMContentLoaded', async () => {
       // Exchange Supabase OAuth redirect (#access_token=...) into first-party HttpOnly session cookie
       const rawHash = window.location.hash || '';
