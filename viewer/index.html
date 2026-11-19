@@ -4970,6 +4970,17 @@
             <span>APPLY SPECTRAL EIGENMAP TO GRAPH</span>
           </button>
 
+          <div class="grid grid-cols-2 gap-1 pt-0.5">
+            <button onclick="window.colorByCommunity()" class="py-1 px-1.5 rounded bg-purple-500/20 text-purple-300 hover:bg-purple-500/40 border border-purple-500/40 text-[7.5px] font-bold cursor-pointer transition-all flex items-center justify-center gap-1" title="Color nodes by Louvain / LPA community cluster">
+              <span class="material-symbols-outlined text-[11px]">hub</span>
+              <span>COLOR COMMUNITY</span>
+            </button>
+            <button onclick="window.colorByCentrality()" class="py-1 px-1.5 rounded bg-emerald-500/20 text-emerald-300 hover:bg-emerald-500/40 border border-emerald-500/40 text-[7.5px] font-bold cursor-pointer transition-all flex items-center justify-center gap-1" title="Color nodes by PageRank centrality gradient">
+              <span class="material-symbols-outlined text-[11px]">equalizer</span>
+              <span>COLOR PAGERANK</span>
+            </button>
+          </div>
+
           <!-- Graph Fourier Transform (GFT) & Spectral Noise Filter -->
           <div class="space-y-1.5 pt-1.5 border-t border-outline-variant/20">
             <div class="flex justify-between items-center text-[8px] text-cyan-300 font-bold uppercase">
@@ -10237,30 +10248,108 @@
 
     window.applySpectralPositionsToGraph = async function() {
       try {
-        const resp = await fetch('/api/spectral');
+        const resp = await fetch('/api/analytics/spectral');
         if (!resp.ok) return;
-        const sd = await resp.json();
-        if (!graphData || !graphData.nodes) return;
-        const n = graphData.nodes.length;
-        const fiedler = sd.fiedler_lambda2 || 0.15;
-        graphData.nodes.forEach((node, idx) => {
-          const mesh = nodeMeshes[node.id];
-          if (!mesh) return;
-          const angle = (idx / n) * Math.PI * 2;
-          const r = 260 + (idx % 4) * 50;
-          const eigenZ = Math.sin(idx * 1.6) * 140 * fiedler;
-          const targetPos = new THREE.Vector3(Math.cos(angle) * r, Math.sin(angle) * (r * 0.65), eigenZ);
-          node.x = targetPos.x;
-          node.y = targetPos.y;
-          node.z = targetPos.z;
-          mesh.position.copy(targetPos);
+        const spec = await resp.json();
+        const nodes = window.nodeDefs || (typeof graphData !== 'undefined' && graphData ? graphData.nodes : []) || [];
+        if (!nodes.length) return;
+        const fiedler = spec.fiedler_vector || {};
+        const fVal_scale = 1400;
+
+        nodes.forEach((node, idx) => {
+          const mesh = (typeof nodeMeshes !== 'undefined') ? nodeMeshes[node.id] : null;
+          const fVal = fiedler[node.id] !== undefined ? fiedler[node.id] : 0.0;
+          const targetX = fVal * fVal_scale;
+          const angle = idx * 2.39996;
+          const r = 90 + ((idx % 6) * 35);
+          const targetY = Math.sin(angle) * r;
+          const targetZ = Math.cos(angle) * r;
+
+          node.x = targetX;
+          node.y = targetY;
+          node.z = targetZ;
+          if (mesh) {
+            mesh.position.set(targetX, targetY, targetZ);
+          }
         });
-        updateEdgesGeometry();
+        if (typeof updateEdgesGeometry === 'function') updateEdgesGeometry();
         const lbl = document.getElementById('hud-active-layout-name');
-        if (lbl) lbl.innerText = 'SPECTRAL FIEDLER';
-        showToast("Nodes aligned to Fiedler spectral eigenmap");
+        if (lbl) lbl.innerText = 'SPECTRAL FIEDLER BISECTION';
+        showToast(`Nodes aligned to Fiedler spectral vector (λ₂=${spec.algebraic_connectivity || 0})`);
       } catch (e) {
         console.warn("Failed to apply spectral positions:", e);
+      }
+    };
+
+    window.colorByCommunity = async function() {
+      try {
+        const resp = await fetch('/api/analytics/communities');
+        if (!resp.ok) return;
+        const data = await resp.json();
+        const commMap = data.node_communities || {};
+        const palette = [
+          0x00f0ff, 0x10b981, 0xa855f7, 0xf59e0b, 0xec4899,
+          0x3b82f6, 0x14b8a6, 0xf97316, 0x8b5cf6, 0x06b6d4,
+          0x84cc16, 0xe11d48
+        ];
+        const nodes = window.nodeDefs || (typeof graphData !== 'undefined' && graphData ? graphData.nodes : []) || [];
+        let recolored = 0;
+
+        nodes.forEach(node => {
+          const cId = commMap[node.id] !== undefined ? commMap[node.id] : 0;
+          const colorHex = palette[cId % palette.length];
+          const mesh = (typeof nodeMeshes !== 'undefined') ? nodeMeshes[node.id] : null;
+          if (mesh) {
+            mesh.traverse(child => {
+              if (child.isMesh && child.material && child.material.color) {
+                child.material.color.setHex(colorHex);
+                if (child.material.emissive) child.material.emissive.setHex(colorHex);
+              }
+            });
+            recolored++;
+          }
+        });
+        showToast(`Colored ${recolored} nodes across ${data.communities ? data.communities.length : 0} topological communities (Q=${data.modularity || 0})`);
+      } catch (e) {
+        console.warn("Failed to color by community:", e);
+      }
+    };
+
+    window.colorByCentrality = async function() {
+      try {
+        const resp = await fetch('/api/analytics/centrality?metric=pagerank');
+        if (!resp.ok) return;
+        const data = await resp.json();
+        const scores = data.scores || {};
+        const vals = Object.values(scores);
+        const minVal = vals.length ? Math.min(...vals) : 0;
+        const maxVal = vals.length ? Math.max(...vals) : 1;
+        const range = maxVal > minVal ? maxVal - minVal : 1;
+
+        const nodes = window.nodeDefs || (typeof graphData !== 'undefined' && graphData ? graphData.nodes : []) || [];
+        let recolored = 0;
+
+        nodes.forEach(node => {
+          const score = scores[node.id] !== undefined ? scores[node.id] : minVal;
+          const norm = Math.max(0, Math.min(1, (score - minVal) / range));
+          const color = new THREE.Color();
+          color.setHSL(0.55 - (norm * 0.55), 1.0, 0.45 + (norm * 0.25));
+          const hex = color.getHex();
+
+          const mesh = (typeof nodeMeshes !== 'undefined') ? nodeMeshes[node.id] : null;
+          if (mesh) {
+            mesh.traverse(child => {
+              if (child.isMesh && child.material && child.material.color) {
+                child.material.color.setHex(hex);
+                if (child.material.emissive) child.material.emissive.setHex(hex);
+              }
+            });
+            recolored++;
+          }
+        });
+        showToast(`Colored ${recolored} nodes by PageRank centrality gradient`);
+      } catch (e) {
+        console.warn("Failed to color by centrality:", e);
       }
     };
 
