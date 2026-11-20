@@ -576,3 +576,79 @@ async def test_agent_transcripts_connector_and_unique_node_types(tmp_path):
     assert sync_res["status"] == "synced"
     assert sync_res["connector"] == "agent_transcripts"
 
+
+@pytest.mark.asyncio
+async def test_image_scope_nodes_and_previews(tmp_path):
+    from starlette.testclient import TestClient
+    from super_cortex.api import create_app
+
+    cfg = SuperCortexConfig(
+        db_path=tmp_path / "img_test.db",
+        supermemory_url="http://127.0.0.1:59999",
+    )
+    cortex = SuperCortex(cfg)
+    connectors = SuperCortexConnectors(cortex)
+
+    # 1. Create a mock repo directory with image and txt files
+    mock_repo_dir = tmp_path / "mock-repo"
+    mock_repo_dir.mkdir()
+    assets_dir = mock_repo_dir / "assets"
+    assets_dir.mkdir()
+
+    # Create dummy PNG image bytes (1x1 transparent PNG)
+    png_bytes = b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x06\x00\x00\x00\x1f\x15c4\x00\x00\x00\nIDATx\x9cc\x00\x01\x00\x00\x05\x00\x01\r\n-\xb4\x00\x00\x00\x00IEND\xaeB`\x82"
+    logo_file = assets_dir / "logo.png"
+    logo_file.write_bytes(png_bytes)
+
+    # Test get_github_file_bytes resolution
+    connectors._resolve_local_repo = lambda r: mock_repo_dir
+    raw_b, fname = connectors.get_github_file_bytes("XibalbaTechSol/mock-repo", "assets/logo.png")
+    assert raw_b == png_bytes
+    assert fname == "logo.png"
+
+    # Test ingest_github_complete_repo with image scope
+    connectors.get_github_tree = lambda r: {"tree": ["assets/logo.png", "README.md", "SPEC.txt"]}
+    connectors.get_github_file_content = lambda r, p: {
+        "repo": r,
+        "path": p,
+        "filename": p.split("/")[-1],
+        "content": "Sample content",
+        "size": 14,
+        "is_binary": p.endswith(".png"),
+    }
+    connectors.get_github_prs = lambda r, limit=20: {"prs": []}
+    connectors.get_github_commits = lambda r, limit=30: []
+
+    res = await connectors.ingest_github_complete_repo(repo="XibalbaTechSol/mock-repo", scope="shared", sync_files=True)
+    assert res["status"] == "ingested"
+    assert "github:XibalbaTechSol/mock-repo" in res["scopes"]
+
+    # Verify images scope was registered
+    scopes = cortex.list_scopes()
+    scope_ids = [s["scope_id"] if isinstance(s, dict) else s.scope_id for s in scopes]
+    assert "github:XibalbaTechSol/mock-repo:images" in scope_ids
+
+    # Verify API graph includes the image node with distinct visual properties
+    app = create_app(cfg)
+    client = TestClient(app)
+
+    # Test file preview endpoint serves raw image bytes
+    preview_res = client.get(f"/api/connectors/file/preview?path={logo_file}")
+    assert preview_res.status_code == 200
+    assert preview_res.headers["content-type"] == "image/png"
+    assert preview_res.content == png_bytes
+
+    # Test graph endpoint includes image node
+    g_res = client.get("/api/graph")
+    assert g_res.status_code == 200
+    g_data = g_res.json()
+    img_nodes = [n for n in g_data["nodes"] if n.get("is_image")]
+    assert len(img_nodes) >= 1
+    img_node = img_nodes[0]
+    assert img_node["category"] == "image"
+    assert img_node["node_type"] == "image_media"
+    assert img_node["color"] == 0xf43f5e
+    assert img_node["has_attachment"] is True
+    assert "preview_url" in img_node
+
+
