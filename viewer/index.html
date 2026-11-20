@@ -4368,8 +4368,8 @@
             <button onclick="applyGraphLayout('spectral')" data-layout-btn="spectral" class="w-full text-left px-2.5 py-1.5 rounded flex items-center gap-2 hover:bg-surface-container-high transition-all text-on-surface-variant cursor-pointer">
               <span class="material-symbols-outlined text-base text-cyan-400">scatter_plot</span>
               <div>
-                <div class="font-bold">SPECTRAL LAPLACIAN CLUSTERS</div>
-                <div class="text-[7.5px] opacity-75">Fiedler vector decomposition grouping semantic communities</div>
+                <div class="font-bold">SUPERMEMORY CIRCULAR CLUSTERS</div>
+                <div class="text-[7.5px] opacity-75">Multi-cluster orbital constellation with Fibonacci phyllotaxis &amp; scope gravity</div>
               </div>
             </button>
             <button onclick="applyGraphLayout('cot')" data-layout-btn="cot" class="w-full text-left px-2.5 py-1.5 rounded flex items-center gap-2 hover:bg-surface-container-high transition-all text-on-surface-variant cursor-pointer">
@@ -7292,7 +7292,8 @@
       const isMd = fnLower.endsWith('.md') || fnLower.endsWith('.markdown') || mime === 'text/markdown' || cat === 'markdown' || src.endsWith('.md');
       const isImg = (/\.(png|jpg|jpeg|gif|webp|svg|bmp|ico)$/i).test(fnLower) || (/\.(png|jpg|jpeg|gif|webp|svg|bmp|ico)$/i).test(src) || mime.startsWith('image/') || cat === 'image';
       const isHtml = fnLower.endsWith('.html') || fnLower.endsWith('.htm') || mime === 'text/html' || src.endsWith('.html');
-      const isText = (/\.(txt|py|js|ts|rs|go|sh|sql|json|csv|tsv|yaml|yml|toml|ini|cfg|xml|log|env)$/i).test(fnLower) || (/\.(txt|py|js|ts|rs|go|sh|sql|json|csv|tsv|yaml|yml|toml|ini|cfg|xml|log|env)$/i).test(src) || mime.startsWith('text/') || cat === 'document';
+      const isTxtFile = fnLower.endsWith('.txt') || Boolean(node.metadata?.is_txt) || (node.title || '').toLowerCase().endsWith('.txt') || (node.id && node.id.endsWith('.txt'));
+      const isText = isTxtFile || (/\.(txt|py|js|ts|rs|go|sh|sql|json|csv|tsv|yaml|yml|toml|ini|cfg|xml|log|env)$/i).test(fnLower) || (/\.(txt|py|js|ts|rs|go|sh|sql|json|csv|tsv|yaml|yml|toml|ini|cfg|xml|log|env)$/i).test(src) || mime.startsWith('text/') || cat === 'document';
 
       const hasAtt = isPdf || isDocx || isMd || isImg || isHtml || isText || Boolean(node.file_url || node.metadata?.file_url || (node.has_attachment === true));
       if (!hasAtt) return null;
@@ -7313,7 +7314,7 @@
 
       const fileUrl = node.file_url || node.pdf_url || (node.metadata && (node.metadata.file_url || node.metadata.pdf_url)) || (`/api/connectors/file/preview?file_id=${encodeURIComponent(node.id)}&path=${encodeURIComponent(cleanPath || fn || '')}`);
       const fileTitle = fn || node.title || 'Document';
-      const nodeContent = node.content || node.text || (node.metadata && (node.metadata.content || node.metadata.text || node.metadata.description)) || '';
+      const nodeContent = node.metadata?.raw_content || node.content || node.text || (node.metadata && (node.metadata.content || node.metadata.text || node.metadata.description)) || '';
 
       return {
         hasAttachment: true,
@@ -7410,7 +7411,7 @@
       window.causalBeaconRings = [];
     }
 
-    function resolveNodeCollisions3D(meshes, minPadding = 18.0, maxIters = 40) {
+    function resolveNodeCollisions3D(meshes, minPadding = 18.0, maxIters = 40, snapImmediately = false) {
       if (!meshes || meshes.length <= 1) return;
       const N = meshes.length;
       const is2D = (typeof currentMode !== 'undefined' && currentMode === '2D');
@@ -7474,12 +7475,14 @@
         if (!movedAny) break;
       }
 
-      meshes.forEach(m => {
-        m.userData.curBase[0] = m.userData.targetBase[0];
-        m.userData.curBase[1] = m.userData.targetBase[1];
-        m.userData.curBase[2] = m.userData.targetBase[2];
-        m.position.set(m.userData.curBase[0], m.userData.curBase[1], m.userData.curBase[2]);
-      });
+      if (snapImmediately) {
+        meshes.forEach(m => {
+          m.userData.curBase[0] = m.userData.targetBase[0];
+          m.userData.curBase[1] = m.userData.targetBase[1];
+          m.userData.curBase[2] = m.userData.targetBase[2];
+          m.position.set(m.userData.curBase[0], m.userData.curBase[1], m.userData.curBase[2]);
+        });
+      }
     }
     window.resolveNodeCollisions3D = resolveNodeCollisions3D;
 
@@ -7652,8 +7655,8 @@
         cubeMeshes.push(nodeObj);
       });
 
-      // Guarantee zero overlapping nodes in 3D / 2D space
-      resolveNodeCollisions3D(cubeMeshes, 18.0);
+      // Guarantee zero overlapping nodes in 3D / 2D space (snap immediately on initial load)
+      resolveNodeCollisions3D(cubeMeshes, 18.0, 40, true);
       cubeMeshes.forEach((mesh, i) => {
         if (nodes[i]) {
           nodes[i].pos3D = [...mesh.userData.targetBase];
@@ -7897,6 +7900,27 @@
             }
           }
         }
+
+        // Keep invisible raycast edge hitboxes in lockstep with animated nodes
+        if (edgeHitMeshes && edgeHitMeshes[i]) {
+          const hitCyl = edgeHitMeshes[i];
+          if (!isVisible) {
+            hitCyl.visible = false;
+          } else {
+            _scratchDir.subVectors(p2, p1);
+            const dist = _scratchDir.length();
+            if (dist > 1.0) {
+              hitCyl.position.addVectors(p1, p2).multiplyScalar(0.5);
+              _scratchDir.normalize();
+              hitCyl.quaternion.setFromUnitVectors(_scratchUp, _scratchDir);
+              const baseDist = hitCyl.userData.dist || 1.0;
+              hitCyl.scale.set(1.0, dist / baseDist, 1.0);
+              hitCyl.visible = showEdgesEnabled;
+            } else {
+              hitCyl.visible = false;
+            }
+          }
+        }
       }
     }
     updateEdges();
@@ -8096,7 +8120,7 @@
         }
         const data = topObj.userData.data || topObj.parent?.userData.data;
         if (data) {
-          select3DNode(data);
+          select3DNode(data, true);
           zoomTarget = Math.max(70, Math.min(zoomTarget, 130));
           return;
         }
@@ -8716,7 +8740,7 @@
       `;
     }
 
-    function select3DNode(node, openViewerIfAttachment = true) {
+    function select3DNode(node, openViewerIfAttachment = false) {
       if (selectedEdgeMesh) {
         graphGroup.remove(selectedEdgeMesh);
         selectedEdgeMesh = null;
@@ -9064,7 +9088,8 @@
       const isMd = fnLower.endsWith('.md') || fnLower.endsWith('.markdown') || nodeMime === 'text/markdown' || nodeCat === 'markdown';
       const isImg = (/\.(png|jpg|jpeg|gif|webp|svg|bmp|ico)$/i).test(fnLower) || nodeMime.startsWith('image/') || nodeCat === 'image';
       const isHtml = fnLower.endsWith('.html') || fnLower.endsWith('.htm') || nodeMime === 'text/html';
-      const isText = (/\.(txt|py|js|ts|rs|go|sh|sql|json|csv|tsv|yaml|yml|xml|log|env)$/i).test(fnLower) || nodeMime.startsWith('text/') || nodeCat === 'document';
+      const isTxtFile = fnLower.endsWith('.txt') || Boolean(node.metadata?.is_txt) || (node.title || '').toLowerCase().endsWith('.txt') || (node.id && node.id.endsWith('.txt'));
+      const isText = isTxtFile || (/\.(txt|py|js|ts|rs|go|sh|sql|json|csv|tsv|yaml|yml|xml|log|env)$/i).test(fnLower) || nodeMime.startsWith('text/') || nodeCat === 'document';
 
       const hasFilePreview = isPdf || isDocx || isMd || isImg || isHtml || isText || Boolean(node.file_url || node.metadata?.file_url);
 
@@ -9112,6 +9137,13 @@
           borderGrad = 'from-amber-950/30 via-surface-container-low to-black/60 border-amber-500/50 ring-amber-500/30';
           cardTitle = 'HTML PREVIEW';
           kindName = 'HTML';
+        } else if (isTxtFile) {
+          kind = 'text';
+          icon = 'text_snippet';
+          badgeColor = 'border-amber-500/40 text-amber-300 bg-amber-500/20';
+          borderGrad = 'from-amber-950/40 via-surface-container-low to-black/60 border-amber-500/50 ring-amber-500/30';
+          cardTitle = 'PLAIN TEXT FILE PREVIEW (.TXT)';
+          kindName = 'TXT FILE';
         } else if (isText) {
           kind = 'text';
           icon = 'code';
@@ -9124,6 +9156,7 @@
         const fileUrl = node.file_url || node.pdf_url || (node.metadata && (node.metadata.file_url || node.metadata.pdf_url)) || (`/api/connectors/file/preview?file_id=${encodeURIComponent(node.id)}&path=${encodeURIComponent(node.metadata?.file_path || node.title || '')}`);
         const fileTitle = nodeFilename || node.title || 'Document';
         const fileMetaBadge = node.metadata?.page_count ? `${node.metadata.page_count} pages` : (node.metadata?.size ? `${(node.metadata.size/1024).toFixed(0)} KB` : kindName);
+        const textSnippet = node.metadata?.raw_content || node.content || '';
 
         filePreviewHtml = `
           <div class="mt-2.5 p-3 rounded-xl bg-gradient-to-br ${borderGrad} border text-cyan-200 font-sans space-y-2.5 ring-1 shadow-lg">
@@ -9137,7 +9170,7 @@
             <div class="flex items-center gap-1.5 text-[10px] font-mono flex-wrap">
               <button onclick="window.toggleInlineFileViewer('${node.id}')" class="px-2.5 py-1 bg-surface-container-high hover:bg-surface-container-highest text-white border border-outline-variant/40 rounded flex items-center gap-1 cursor-pointer">
                 <span class="material-symbols-outlined text-[12px]">preview</span>
-                <span>Inline Preview</span>
+                <span>${isTxtFile ? 'Collapse Preview' : 'Inline Preview'}</span>
               </button>
               <button onclick="window.openGenericViewer({ url: '${fileUrl}', title: '${escapeHtml(fileTitle)}', fileType: '${kind}' })" class="px-2.5 py-1 bg-cyan-400 text-black hover:bg-cyan-300 rounded font-bold flex items-center gap-1 cursor-pointer">
                 <span class="material-symbols-outlined text-[12px]">fullscreen</span>
@@ -9152,14 +9185,27 @@
                 <span>Download</span>
               </a>
             </div>
-            <div id="inline-file-container-${node.id}" class="hidden pt-1">
+            <div id="inline-file-container-${node.id}" class="${isTxtFile ? '' : 'hidden'} pt-1">
               ${isImg ? `
                 <div class="w-full max-h-80 rounded-lg border border-outline-variant/40 bg-slate-950 flex items-center justify-center p-2 overflow-hidden">
                   <img src="${fileUrl}" alt="Preview" class="max-h-72 object-contain rounded" />
                 </div>
+              ` : (isTxtFile || isText ? `
+                <div class="w-full rounded-lg border border-cyan-500/40 bg-[#070b16] p-3 text-[11px] font-mono text-cyan-200 select-text overflow-x-auto max-h-80 overflow-y-auto scrollbar-thin space-y-1 shadow-[inset_0_0_15px_rgba(0,240,255,0.1)]">
+                  <div class="flex items-center justify-between pb-1.5 border-b border-cyan-500/30 text-[9px] text-neutral-400">
+                    <span class="font-bold uppercase tracking-wider text-cyan-300 flex items-center gap-1">
+                      <span class="material-symbols-outlined text-[13px] ${isTxtFile ? 'text-amber-400' : 'text-purple-400'}">${isTxtFile ? 'text_snippet' : 'code'}</span>
+                      <span class="truncate max-w-[200px]">${escapeHtml(fileTitle)}</span>
+                    </span>
+                    <button onclick="navigator.clipboard.writeText(unescape(\`${encodeURIComponent(textSnippet)}\`)); if(typeof window.showToast==='function') window.showToast('Copied text content to clipboard!');" class="px-2 py-0.5 rounded bg-cyan-500/20 hover:bg-cyan-500 hover:text-black border border-cyan-500/40 text-cyan-300 font-bold uppercase text-[8px] cursor-pointer transition-colors">
+                      Copy Text
+                    </button>
+                  </div>
+                  <pre class="whitespace-pre-wrap leading-relaxed font-mono select-text text-neutral-200 text-[10.5px]">${escapeHtml(textSnippet || '[Empty text content]')}</pre>
+                </div>
               ` : `
                 <iframe src="${fileUrl}${isPdf ? '#toolbar=1' : ''}" class="w-full h-80 rounded-lg border border-cyan-500/40 bg-slate-950"></iframe>
-              `}
+              `)}
             </div>
           </div>
         `;
@@ -9705,8 +9751,10 @@
 
     window.applyGraphLayout = function(layout) {
       currentLayout = layout;
+      window.layoutTransitionFrames = 50;
       const menu = document.getElementById('layout-flyout-menu');
       if (menu) menu.classList.add('hidden');
+      if (typeof updateEdges === 'function') updateEdges();
 
       document.querySelectorAll('[data-layout-btn]').forEach(b => {
         const isActive = (b.dataset.layoutBtn === layout);
@@ -9833,31 +9881,88 @@
           const z = currentMode === '3D' ? Math.sin(rank * 0.4) * 50 : 0;
           mesh.userData.targetBase = currentMode === '3D' ? [x, y, z] : [x, y, 0];
         });
-      } else if (layout === 'spectral') {
+      } else if (layout === 'spectral' || layout === 'clusters') {
         orbitalGroup.visible = false;
-        const scopeGroups = {};
-        nodes.forEach((d, idx) => {
-          const s = d.scope || 'global';
-          if (!scopeGroups[s]) scopeGroups[s] = [];
-          scopeGroups[s].push({ d, idx });
+        // Supermemory Multi-Cluster Circular Constellation with Fibonacci Phyllotaxis
+        const scopeCounts = {};
+        nodes.forEach(d => {
+          const s = (d.scope || '').trim();
+          if (s) scopeCounts[s] = (scopeCounts[s] || 0) + 1;
         });
-        const scopes = Object.keys(scopeGroups);
-        const numScopes = Math.max(scopes.length, 1);
-        scopes.forEach((s, sIdx) => {
-          const group = scopeGroups[s];
-          const scopeAng = (sIdx / numScopes) * Math.PI * 2;
-          const centerR = 190;
-          const cx = Math.cos(scopeAng) * centerR;
-          const cz = Math.sin(scopeAng) * centerR;
-          const cy = currentMode === '3D' ? Math.sin(sIdx * 1.5) * 40 : 0;
-          group.forEach(({ d, idx }, mIdx) => {
+        const uniqueScopes = Object.keys(scopeCounts);
+        const useScopePartition = (uniqueScopes.length >= 2);
+
+        const clusterGroups = {};
+        nodes.forEach((d, idx) => {
+          let clusterKey = 'general';
+          if (useScopePartition) {
+            clusterKey = d.scope || 'global';
+          } else {
+            // Partition by epistemic class / functional ontology
+            const ep = (d.epistemic_class || '').toLowerCase();
+            const tp = (d.type || '').toLowerCase();
+            const cat = (d.category || '').toLowerCase();
+            if (ep === 'rule' || cat === 'rule' || tp === 'rule' || tp === 'guardrail') {
+              clusterKey = 'Rules & Invariants';
+            } else if (ep === 'decision' || ep === 'inference' || cat === 'decision') {
+              clusterKey = 'Decisions & Logic';
+            } else if (tp === 'hub' || tp === 'agent_hub' || d.isLineage) {
+              clusterKey = 'Hubs & Identity';
+            } else if (ep === 'fact' || cat === 'fact' || tp === 'anchor') {
+              clusterKey = 'Facts & Ground Truth';
+            } else if (tp === 'thought' || cat === 'thought' || ep === 'thought') {
+              clusterKey = 'Reasoning & COT';
+            } else {
+              clusterKey = 'Entities & Connectors';
+            }
+          }
+          if (!clusterGroups[clusterKey]) clusterGroups[clusterKey] = [];
+          clusterGroups[clusterKey].push({ d, idx });
+        });
+
+        const clusterNames = Object.keys(clusterGroups);
+        const K = Math.max(clusterNames.length, 1);
+        const macroRadius = 240 + Math.min(K * 18, 120);
+
+        clusterNames.forEach((cName, kIdx) => {
+          const members = clusterGroups[cName];
+          // Cluster centroid arranged symmetrically on a grand circular ring
+          const theta = (kIdx / K) * Math.PI * 2 - Math.PI * 0.5;
+          const cx = Math.cos(theta) * macroRadius;
+          const cz = Math.sin(theta) * macroRadius;
+          const cy = (currentMode === '3D') ? Math.sin(kIdx * 1.5) * 36.0 : 0.0;
+
+          // Fibonacci Sunflower Phyllotaxis per cluster
+          const M = members.length;
+          const phiGolden = 2.39996323; // 137.507764 deg golden angle in radians
+          const baseR = Math.min(26.0, 14.0 + M * 0.7);
+          const spreadFactor = M > 25 ? 11.5 : 13.5;
+
+          members.forEach(({ d, idx }, mIdx) => {
             const mesh = cubeMeshes[idx];
             if (!mesh) return;
-            const subAng = (mIdx / Math.max(group.length, 1)) * Math.PI * 2;
-            const subR = 25 + Math.sqrt(mIdx) * 14;
-            const x = cx + Math.cos(subAng) * subR;
-            const z = cz + Math.sin(subAng) * subR;
-            const y = cy + (currentMode === '3D' ? Math.cos(mIdx) * 25 : 0);
+
+            // If hub node in its cluster, position at the very center of the cluster
+            if (mIdx === 0 && (d.type === 'hub' || d.type === 'agent_hub' || d.epistemic_class === 'rule')) {
+              mesh.userData.targetBase = currentMode === '3D' ? [cx, cy, cz] : [cx, cz, 0];
+              return;
+            }
+
+            const rot = mIdx * phiGolden;
+            const r = baseR + spreadFactor * Math.sqrt(mIdx);
+            const x = cx + Math.cos(rot) * r;
+            const z = cz + Math.sin(rot) * r;
+
+            // 3D organic spherical dome elevation
+            let y = cy;
+            if (currentMode === '3D') {
+              const maxR = baseR + spreadFactor * Math.sqrt(M);
+              const domeRatio = Math.max(0, 1.0 - (r / (maxR + 1.0)));
+              const domeHeight = Math.sin(domeRatio * Math.PI * 0.5) * 28.0;
+              const stagger = (mIdx % 2 === 0 ? 1.0 : -0.75);
+              y = cy + domeHeight * stagger;
+            }
+
             mesh.userData.targetBase = currentMode === '3D' ? [x, y, z] : [x, z, 0];
           });
         });
@@ -9901,7 +10006,8 @@
       if (gridSnapEnabled) {
         snapAllNodesToGrid();
       }
-      resolveNodeCollisions3D(cubeMeshes, 18.0);
+      resolveNodeCollisions3D(cubeMeshes, 18.0, 40, false);
+      if (typeof updateEdges === 'function') updateEdges();
     };
 
     function runForceSimulation() {
@@ -9912,6 +10018,30 @@
       const kRepulse = 36000;
       const kSpring = 0.04;
       const restLength = 85;
+
+      // Extract cluster centroids in a circle for organic force grouping
+      const uniqueScopes = [...new Set(nodes.map(n => n.scope).filter(Boolean))];
+      const useScopes = uniqueScopes.length >= 2;
+      const clusterNames = useScopes ? uniqueScopes : ['Rules', 'Decisions', 'Hubs', 'Facts', 'Thoughts', 'Entities'];
+      const K = clusterNames.length;
+      const macroR = 230;
+      const centroids = {};
+      clusterNames.forEach((name, k) => {
+        const th = (k / K) * Math.PI * 2 - Math.PI * 0.5;
+        centroids[name] = [Math.cos(th) * macroR, (currentMode === '3D' ? Math.sin(k * 1.5) * 35 : 0), Math.sin(th) * macroR];
+      });
+
+      const getNodeCluster = (d) => {
+        if (useScopes) return d.scope || 'global';
+        const ep = (d.epistemic_class || '').toLowerCase();
+        const tp = (d.type || '').toLowerCase();
+        if (ep === 'rule') return 'Rules';
+        if (ep === 'decision' || ep === 'inference') return 'Decisions';
+        if (tp === 'hub' || tp === 'agent_hub') return 'Hubs';
+        if (ep === 'fact') return 'Facts';
+        if (tp === 'thought' || ep === 'thought') return 'Thoughts';
+        return 'Entities';
+      };
 
       for (let iter = 0; iter < 45; iter++) {
         const disp = pos.map(() => [0, 0, 0]);
@@ -9957,10 +10087,16 @@
           });
         }
 
+        // Pull towards cluster center
         for (let i = 0; i < N; i++) {
-          disp[i][0] -= pos[i][0] * 0.02;
-          disp[i][1] -= pos[i][1] * 0.02;
-          disp[i][2] -= pos[i][2] * 0.02;
+          const cName = getNodeCluster(nodes[i]);
+          const cPos = centroids[cName] || [0, 0, 0];
+          disp[i][0] += (cPos[0] - pos[i][0]) * 0.04;
+          disp[i][1] += (cPos[1] - pos[i][1]) * 0.04;
+          disp[i][2] += (cPos[2] - pos[i][2]) * 0.04;
+          disp[i][0] -= pos[i][0] * 0.01;
+          disp[i][1] -= pos[i][1] * 0.01;
+          disp[i][2] -= pos[i][2] * 0.01;
         }
 
         const temp = 1.0 - (iter / 45);
@@ -9975,6 +10111,10 @@
         if (cubeMeshes[idx]) {
           cubeMeshes[idx].userData.targetBase = currentMode === '3D' ? [p[0], p[1], p[2]] : [p[0], p[2], 0];
         }
+      });
+      resolveNodeCollisions3D(cubeMeshes, 18.0, 40, false);
+      if (typeof updateEdges === 'function') updateEdges();
+    }
       });
     }
 
@@ -10145,12 +10285,19 @@
         const dx = tgt[0] - cur[0];
         const dy = tgt[1] - cur[1];
         const dz = tgt[2] - cur[2];
-        const isLerping = (Math.abs(dx) > 0.03 || Math.abs(dy) > 0.03 || Math.abs(dz) > 0.03);
+        const distSq = dx * dx + dy * dy + dz * dz;
+        const isLerping = distSq > 0.002;
 
         if (isLerping) {
-          cur[0] += dx * 0.08;
-          cur[1] += dy * 0.08;
-          cur[2] += dz * 0.08;
+          if (distSq < 0.25) {
+            cur[0] = tgt[0];
+            cur[1] = tgt[1];
+            cur[2] = tgt[2];
+          } else {
+            cur[0] += dx * 0.10;
+            cur[1] += dy * 0.10;
+            cur[2] += dz * 0.10;
+          }
           anyNodeMoving = true;
         }
 
@@ -10195,6 +10342,11 @@
           }
         }
       });
+
+      if (window.layoutTransitionFrames && window.layoutTransitionFrames > 0) {
+        window.layoutTransitionFrames--;
+        anyNodeMoving = true;
+      }
 
       if (anyNodeMoving || (showEdgesEnabled && isFlying)) {
         updateEdges();
