@@ -457,7 +457,7 @@ async def test_github_browser_endpoints(tmp_path) -> None:
     assert isinstance(d_issues["issues"], list)
 
     # 6. File Preview Resolution from local file path
-    r_prev = client.get("/api/connectors/file/preview?path=pyproject.toml&format=json")
+    r_prev = client.get("/api/connectors/file/preview?repo=XibalbaTechSol/super-cortex&path=pyproject.toml&format=json")
     assert r_prev.status_code == 200
     d_prev = r_prev.json()
     assert d_prev["status"] == "ok"

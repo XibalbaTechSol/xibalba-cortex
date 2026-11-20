@@ -7424,6 +7424,155 @@
     sunCoronaMesh.position.set(0, 0, 0);
     orbitalGroup.add(sunCoronaMesh);
 
+    // -------------------------------------------------------------------------
+    // SUPERMEMORY 2D CIRCULAR CLUSTERS & GLOWING BOUNDARIES ENGINE
+    // -------------------------------------------------------------------------
+    const supermemory2DCirclesGroup = new THREE.Group();
+    supermemory2DCirclesGroup.visible = false;
+    graphGroup.add(supermemory2DCirclesGroup);
+    window.supermemory2DCirclesGroup = supermemory2DCirclesGroup;
+
+    function createClusterBadgeSprite(cluster) {
+      const canvas = document.createElement('canvas');
+      canvas.width = 512;
+      canvas.height = 128;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return new THREE.Group();
+
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      // Background rounded pill
+      const x = 16, y = 16, w = 480, h = 96, r = 24;
+      ctx.fillStyle = 'rgba(7, 11, 22, 0.92)';
+      ctx.beginPath();
+      ctx.moveTo(x + r, y);
+      ctx.lineTo(x + w - r, y);
+      ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+      ctx.lineTo(x + w, y + h - r);
+      ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+      ctx.lineTo(x + r, y + h);
+      ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+      ctx.lineTo(x, y + r);
+      ctx.quadraticCurveTo(x, y, x + r, y);
+      ctx.closePath();
+      ctx.fill();
+
+      // Border with cluster color glow
+      const hexColor = '#' + (cluster.color || 0x00f0ff).toString(16).padStart(6, '0');
+      ctx.strokeStyle = hexColor;
+      ctx.lineWidth = 4;
+      ctx.shadowColor = hexColor;
+      ctx.shadowBlur = 12;
+      ctx.stroke();
+
+      // Indicator circle dot
+      ctx.shadowBlur = 0;
+      ctx.fillStyle = hexColor;
+      ctx.beginPath();
+      ctx.arc(52, 64, 12, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Text Title
+      ctx.font = 'bold 28px "JetBrains Mono", monospace';
+      ctx.fillStyle = '#ffffff';
+      ctx.textBaseline = 'middle';
+      const maxTitleLen = 22;
+      let titleStr = (cluster.title || 'CLUSTER').toUpperCase();
+      if (titleStr.length > maxTitleLen) titleStr = titleStr.substring(0, maxTitleLen) + '...';
+      ctx.fillText(titleStr, 80, 50);
+
+      // Node Count Subtitle
+      ctx.font = 'bold 20px "JetBrains Mono", monospace';
+      ctx.fillStyle = hexColor;
+      ctx.fillText(`${cluster.count || 0} NODES // SUPERMEMORY CLUSTER`, 80, 80);
+
+      const texture = new THREE.CanvasTexture(canvas);
+      texture.minFilter = THREE.LinearFilter;
+      const spriteMat = new THREE.SpriteMaterial({ map: texture, transparent: true, depthWrite: false });
+      const sprite = new THREE.Sprite(spriteMat);
+      sprite.scale.set(120, 30, 1);
+      return sprite;
+    }
+
+    function buildSupermemory2DCircles(clusters) {
+      while (supermemory2DCirclesGroup.children.length > 0) {
+        const obj = supermemory2DCirclesGroup.children[0];
+        supermemory2DCirclesGroup.remove(obj);
+        if (obj.geometry) obj.geometry.dispose();
+        if (obj.material) {
+          if (Array.isArray(obj.material)) obj.material.forEach(m => m.dispose());
+          else obj.material.dispose();
+        }
+      }
+
+      if (!clusters || clusters.length === 0) return;
+
+      clusters.forEach(c => {
+        const cx = c.center ? c.center[0] : 0;
+        const cy = c.center ? c.center[1] : 0;
+        const R = c.radius || 80.0;
+        const col = c.color || 0x00f0ff;
+
+        // 1. Smooth Glowing Perimeter Ring LineLoop
+        const pts = [];
+        const segs = 96;
+        for (let i = 0; i <= segs; i++) {
+          const theta = (i / segs) * Math.PI * 2;
+          pts.push(new THREE.Vector3(cx + Math.cos(theta) * R, cy + Math.sin(theta) * R, -1.2));
+        }
+        const ringGeo = new THREE.BufferGeometry().setFromPoints(pts);
+        const ringMat = new THREE.LineBasicMaterial({
+          color: col,
+          transparent: true,
+          opacity: 0.65,
+          linewidth: 2
+        });
+        const ringLine = new THREE.LineLoop(ringGeo, ringMat);
+        supermemory2DCirclesGroup.add(ringLine);
+
+        // 2. Secondary Inner Concentric Dashed Guide Ring
+        const innerPts = [];
+        const innerSegs = 64;
+        for (let i = 0; i <= innerSegs; i++) {
+          const theta = (i / innerSegs) * Math.PI * 2;
+          innerPts.push(new THREE.Vector3(cx + Math.cos(theta) * (R * 0.93), cy + Math.sin(theta) * (R * 0.93), -1.5));
+        }
+        const innerGeo = new THREE.BufferGeometry().setFromPoints(innerPts);
+        const innerMat = new THREE.LineDashedMaterial({
+          color: col,
+          transparent: true,
+          opacity: 0.28,
+          dashSize: 8,
+          gapSize: 5
+        });
+        const innerLine = new THREE.Line(innerGeo, innerMat);
+        innerLine.computeLineDistances();
+        supermemory2DCirclesGroup.add(innerLine);
+
+        // 3. Translucent Glassmorphic Disc
+        const discGeo = new THREE.CircleGeometry(R, 64);
+        const discMat = new THREE.MeshBasicMaterial({
+          color: col,
+          transparent: true,
+          opacity: 0.05,
+          side: THREE.DoubleSide,
+          depthWrite: false
+        });
+        const discMesh = new THREE.Mesh(discGeo, discMat);
+        discMesh.position.set(cx, cy, -2.0);
+        discMesh.userData = { isClusterDisc: true, cluster: c };
+        supermemory2DCirclesGroup.add(discMesh);
+
+        // 4. Floating Header Title Badge Sprite
+        const badgeSprite = createClusterBadgeSprite(c);
+        badgeSprite.position.set(cx, cy + R + 18, 0);
+        supermemory2DCirclesGroup.add(badgeSprite);
+      });
+
+      supermemory2DCirclesGroup.visible = (currentMode === '2D');
+    }
+    window.buildSupermemory2DCircles = buildSupermemory2DCircles;
+
     let nodeDefs = [];
     let edges = [];
     let cubeMeshes = [];
@@ -8148,6 +8297,17 @@
       if (typeof updateLegendCounts === 'function') updateLegendCounts(nodes);
       if (typeof window.applyCanvasConfig === 'function') window.applyCanvasConfig(window.canvasConfig);
       if (typeof applyLegendFacetFilters === 'function') applyLegendFacetFilters();
+      if (typeof buildSupermemory2DCircles === 'function') {
+        buildSupermemory2DCircles(window.graphClusters || []);
+      }
+      if (currentMode === '2D') {
+        cubeMeshes.forEach(mesh => {
+          if (mesh.userData && mesh.userData.data && mesh.userData.data.pos2D) {
+            mesh.userData.targetBase = [...mesh.userData.data.pos2D];
+          }
+        });
+        if (typeof supermemory2DCirclesGroup !== 'undefined') supermemory2DCirclesGroup.visible = true;
+      }
     }
 
     const _scratchUp = new THREE.Vector3(0, 1, 0);
@@ -8555,7 +8715,23 @@
         }
       }
 
-      // 3. User clicked empty canvas space: close drawer if open, clear active node/edge highlight
+      // 3. In 2D Mode: Raycast Supermemory Cluster Discs to focus cluster
+      if (currentMode === '2D' && typeof supermemory2DCirclesGroup !== 'undefined' && supermemory2DCirclesGroup.visible) {
+        const clusterHits = raycaster.intersectObjects(supermemory2DCirclesGroup.children, false);
+        const discHit = clusterHits.find(h => h.object.userData && h.object.userData.isClusterDisc);
+        if (discHit) {
+          const c = discHit.object.userData.cluster;
+          targetPan.x = -c.center[0];
+          targetPan.y = -c.center[1];
+          zoomTarget = Math.max(280, (c.radius || 80) * 2.5);
+          if (typeof window.showToast === 'function') {
+            window.showToast(`Focused Cluster: ${c.title || 'Cluster'}`);
+          }
+          return;
+        }
+      }
+
+      // 4. User clicked empty canvas space: close drawer if open, clear active node/edge highlight
       if (typeof closeInspector === 'function') {
         closeInspector();
       }
@@ -9859,6 +10035,8 @@
       }
 
       if (mode === '3D') {
+        currentMode = '3D';
+        if (typeof supermemory2DCirclesGroup !== 'undefined') supermemory2DCirclesGroup.visible = false;
         if (b3d) b3d.className = "px-2.5 py-1 bg-primary-container text-on-primary-container font-bold uppercase flex items-center gap-1";
         if (b2d) b2d.className = "px-2.5 py-1 text-on-surface-variant hover:text-on-surface uppercase transition-colors flex items-center gap-1";
         if (h3d) h3d.className = "px-2 py-0.5 text-primary-container bg-surface-container-high";
@@ -9876,6 +10054,13 @@
         resolveNodeCollisions3D(cubeMeshes, 18.0);
         if (typeof window.showToast === 'function') window.showToast('3D Neural Manifold Active (Full Orbit)');
       } else {
+        currentMode = '2D';
+        if (typeof supermemory2DCirclesGroup !== 'undefined') {
+          supermemory2DCirclesGroup.visible = true;
+          if (typeof buildSupermemory2DCircles === 'function' && window.graphClusters) {
+            buildSupermemory2DCircles(window.graphClusters);
+          }
+        }
         if (b2d) b2d.className = "px-2.5 py-1 bg-primary-container text-on-primary-container font-bold uppercase flex items-center gap-1";
         if (b3d) b3d.className = "px-2.5 py-1 text-on-surface-variant hover:text-on-surface uppercase transition-colors flex items-center gap-1";
         if (h2d) h2d.className = "px-2 py-0.5 text-primary-container bg-surface-container-high";
@@ -9883,9 +10068,9 @@
         isFlying = false;
         targetRotation.x = 0;
         targetRotation.y = 0;
-        camera.position.set(0, 0, 450);
+        camera.position.set(0, 0, 520);
         camera.lookAt(0, 0, 0);
-        zoomTarget = 450;
+        zoomTarget = 520;
         if (typeof cartesianGridGroup !== 'undefined') cartesianGridGroup.visible = false;
         if (typeof splineMesh !== 'undefined') splineMesh.visible = false;
         cubeMeshes.forEach(mesh => {
@@ -9894,7 +10079,7 @@
           }
         });
         resolveNodeCollisions3D(cubeMeshes, 18.0);
-        if (typeof window.showToast === 'function') window.showToast('2D Planar Canvas Active (Pan & Zoom)');
+        if (typeof window.showToast === 'function') window.showToast('2D Planar Canvas Active (Supermemory Circular Clusters)');
       }
     };
     window.setGraphDimensionMode = window.setProjectionMode;
@@ -13732,7 +13917,11 @@
         const resp = await fetch(`/api/graph?scope=${encodeURIComponent(scope)}`);
         if (resp.ok) {
           const data = await resp.json();
+          window.graphClusters = data.clusters || [];
           buildGraphMeshes(data.nodes || [], data.links || []);
+          if (typeof buildSupermemory2DCircles === 'function') {
+            buildSupermemory2DCircles(window.graphClusters);
+          }
           if (data.stats) {
             const nodeCountEl = document.getElementById('header-nodes-count');
             if (nodeCountEl) nodeCountEl.innerText = `${data.stats.total_nodes} 3D VOXELS`;

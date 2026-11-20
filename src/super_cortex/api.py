@@ -260,6 +260,212 @@ def create_app(
         }
         return JSONResponse(config_payload)
 
+    # -------------------------------------------------------------------------
+    # Supermemory-Style 2D Circular Cluster Layout & Boundary Computation
+    # -------------------------------------------------------------------------
+    def assign_supermemory_2d_clusters(nodes: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        """
+        Partitions nodes into Supermemory-style semantic clusters, calculates non-overlapping
+        2D circular cluster coordinates with generous padding, and organizes member nodes
+        inside each cluster circle using 2D Fibonacci sunflower phyllotaxis with collision resolution.
+        Returns a list of cluster metadata objects for 2D boundary ring visualization.
+        """
+        import math
+
+        if not nodes:
+            return []
+
+        # 1. Group nodes into cluster buckets based on functional domain & scope
+        cluster_buckets: dict[str, list[dict[str, Any]]] = {}
+        cluster_meta: dict[str, dict[str, Any]] = {}
+
+        for n in nodes:
+            nid = str(n.get("id") or "")
+            scope = str(n.get("scope") or "shared")
+            tp = str(n.get("type") or "").lower()
+            cat = str(n.get("category") or "").lower()
+            is_img = bool(n.get("is_image") or cat == "image" or scope.endswith(":images"))
+
+            if is_img:
+                ckey = "cluster_images"
+                ctitle = "IMAGE ASSETS // MEDIA"
+                cscope = "images"
+                ccolor = 0xf43f5e  # Neon Fuchsia
+            elif tp in ("thought", "thought_trace") or cat == "thought" or n.get("epistemic_class") == "thought":
+                ckey = "cluster_thoughts"
+                ctitle = "CHAIN OF THOUGHT // REASONING"
+                cscope = "thought"
+                ccolor = 0xa855f7  # Amethyst Purple
+            elif tp == "tool_call" or cat == "action" or n.get("epistemic_class") == "action":
+                ckey = "cluster_actions"
+                ctitle = "INTERVENTIONS // ACTIONS"
+                cscope = "action"
+                ccolor = 0xf59e0b  # Amber Orange
+            elif tp in ("entity", "knowledge_entity") or cat == "entity":
+                ckey = "cluster_entities"
+                ctitle = "KNOWLEDGE ENTITIES // GRAPH"
+                cscope = "entity"
+                ccolor = 0xffd166  # Warm Amber
+            elif nid.startswith("hub_agent_") or scope.startswith("agent:"):
+                aid = n.get("agent_id") or (scope.split(":")[1] if ":" in scope else "agent")
+                ckey = f"cluster_agent_{aid}"
+                ctitle = f"AGENT // {aid.upper()}"
+                cscope = f"agent:{aid}"
+                ccolor = 0x00ffa3  # Neon Emerald
+            elif scope.startswith("github:"):
+                parts = scope.split(":")
+                sub = parts[-1] if len(parts) >= 3 else "repo"
+                ckey = f"cluster_github_{sub}"
+                ctitle = f"GITHUB // {sub.upper()}"
+                cscope = scope
+                ccolor = 0x38bdf8 if sub == "code" else (0xf59e0b if sub == "txt" else (0x10b981 if sub == "docs" else 0xa78bfa))
+            elif nid == "hub_shared" or scope == "shared":
+                ckey = "cluster_shared"
+                ctitle = "SHARED MEMORY FABRIC"
+                cscope = "shared"
+                ccolor = 0x00f0ff  # Cyan
+            elif scope:
+                clean_sc = scope.replace(":", "_")
+                ckey = f"cluster_scope_{clean_sc}"
+                ctitle = f"SCOPE // {scope.upper()}"
+                cscope = scope
+                ccolor = n.get("color") or 0x38bdf8
+            else:
+                ckey = "cluster_general"
+                ctitle = "GENERAL MEMORIES"
+                cscope = "general"
+                ccolor = 0x94a3b8
+
+            if ckey not in cluster_buckets:
+                cluster_buckets[ckey] = []
+                cluster_meta[ckey] = {
+                    "id": ckey,
+                    "title": ctitle,
+                    "scope": cscope,
+                    "color": ccolor,
+                }
+            cluster_buckets[ckey].append(n)
+
+        # 2. Calculate radii and non-overlapping 2D coordinates for cluster circles
+        ordered_keys = sorted(
+            cluster_buckets.keys(),
+            key=lambda k: (0 if k == "cluster_shared" else (1 if k.startswith("cluster_agent_") else (2 if "github" in k else 3))),
+        )
+
+        for ckey in ordered_keys:
+            members = cluster_buckets[ckey]
+            n_count = len(members)
+            radius = max(60.0, min(380.0, 36.0 + math.sqrt(n_count) * 24.0))
+            cluster_meta[ckey]["radius"] = radius
+            cluster_meta[ckey]["count"] = n_count
+
+        non_shared_keys = [k for k in ordered_keys if k != "cluster_shared"]
+        ring1 = [k for k in non_shared_keys if k.startswith("cluster_agent_")]
+        ring2 = [k for k in non_shared_keys if "github" in k and k not in ring1]
+        ring3 = [k for k in non_shared_keys if k not in ring1 and k not in ring2]
+
+        cluster_centers: dict[str, list[float]] = {}
+        if "cluster_shared" in cluster_meta:
+            cluster_centers["cluster_shared"] = [0.0, 0.0]
+
+        def layout_ring(keys: list[str], base_dist: float, phase: float = 0.0):
+            m = len(keys)
+            if m == 0:
+                return
+            sum_radii = sum(cluster_meta[k]["radius"] for k in keys)
+            needed_circ = sum_radii * 2.3 + 120.0
+            dist = max(base_dist, needed_circ / (2.0 * math.pi))
+            for i, k in enumerate(keys):
+                angle = (2.0 * math.pi / m) * i + phase
+                cx = dist * math.cos(angle)
+                cy = dist * math.sin(angle)
+                cluster_centers[k] = [round(cx, 1), round(cy, 1)]
+
+        layout_ring(ring1, base_dist=320.0, phase=0.0)
+        layout_ring(ring2, base_dist=660.0, phase=0.35)
+        layout_ring(ring3, base_dist=1020.0, phase=0.18)
+
+        # Relaxation solver preventing cluster circle overlap
+        all_keys = list(cluster_centers.keys())
+        for _ in range(60):
+            moved = False
+            for i in range(len(all_keys)):
+                k_a = all_keys[i]
+                r_a = cluster_meta[k_a]["radius"]
+                c_a = cluster_centers[k_a]
+                for j in range(i + 1, len(all_keys)):
+                    k_b = all_keys[j]
+                    r_b = cluster_meta[k_b]["radius"]
+                    c_b = cluster_centers[k_b]
+
+                    dx = c_b[0] - c_a[0]
+                    dy = c_b[1] - c_a[1]
+                    dist = math.hypot(dx, dy)
+                    min_dist = r_a + r_b + 55.0
+
+                    if dist < min_dist:
+                        overlap = min_dist - (dist if dist > 0.001 else 0.001)
+                        nx = (dx / dist) if dist > 0.001 else 1.0
+                        ny = (dy / dist) if dist > 0.001 else 0.0
+
+                        if k_a == "cluster_shared":
+                            c_b[0] += nx * overlap
+                            c_b[1] += ny * overlap
+                        elif k_b == "cluster_shared":
+                            c_a[0] -= nx * overlap
+                            c_a[1] -= ny * overlap
+                        else:
+                            c_a[0] -= nx * overlap * 0.5
+                            c_a[1] -= ny * overlap * 0.5
+                            c_b[0] += nx * overlap * 0.5
+                            c_b[1] += ny * overlap * 0.5
+                        moved = True
+            if not moved:
+                break
+
+        # 3. Member node placement inside cluster circles
+        phi_golden = 2.39996323  # 137.507764 deg
+
+        clusters: list[dict[str, Any]] = []
+        for ckey, members in cluster_buckets.items():
+            meta = cluster_meta[ckey]
+            cx, cy = cluster_centers.get(ckey, [0.0, 0.0])
+            meta["center"] = [round(cx, 1), round(cy, 1)]
+            radius = meta["radius"]
+            m_count = len(members)
+
+            def member_sort_key(node_dict: dict[str, Any]) -> int:
+                t = str(node_dict.get("type", "")).lower()
+                if t in ("hub", "agent_hub", "shared_hub", "scope_hub"):
+                    return 0
+                if node_dict.get("isLineage"):
+                    return 1
+                if node_dict.get("isKeystone"):
+                    return 2
+                return 3
+
+            members.sort(key=member_sort_key)
+
+            for m_idx, member in enumerate(members):
+                member["cluster_id"] = ckey
+
+                if m_idx == 0 and member_sort_key(member) <= 1:
+                    member["pos2D"] = [round(cx, 1), round(cy, 1), 0]
+                    continue
+
+                ang = m_idx * phi_golden
+                radial_fraction = math.sqrt((m_idx + 0.5) / max(m_count, 1))
+                r = min(radius - 18.0, 16.0 + (radius - 34.0) * radial_fraction)
+
+                nx = cx + r * math.cos(ang)
+                ny = cy + r * math.sin(ang)
+
+                member["pos2D"] = [round(nx, 1), round(ny, 1), 0]
+
+            clusters.append(meta)
+
+        return clusters
+
     async def api_graph(request: Request) -> JSONResponse:
         import math
         selected_scope = request.query_params.get("scope", "all")
@@ -831,12 +1037,17 @@ def create_app(
         # 3. Tarjan Cycle Detection
         cycles = detect_cycles(nodes, links)
 
+        # 4. Supermemory-style 2D Circular Cluster Layout & Non-overlapping Boundaries
+        clusters = assign_supermemory_2d_clusters(nodes)
+
         return JSONResponse({
             "nodes": nodes,
             "links": links,
+            "clusters": clusters,
             "stats": {
                 "total_nodes": len(nodes),
                 "total_links": len(links),
+                "clusters_count": len(clusters),
                 "selected_scope": selected_scope,
                 "scopes_count": len(scopes),
                 "agents_count": len(agents),
