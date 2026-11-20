@@ -3936,6 +3936,60 @@
               <div class="text-slate-500 italic p-1">Select a node in 3D to inspect and jump across adjacent topological neighbors.</div>
             </div>
           </div>
+
+          <!-- Configurable Node Properties Section -->
+          <div id="node-properties-section" class="p-2 rounded bg-surface-container-low/80 border border-outline-variant/30 space-y-1.5 font-mono">
+            <div class="flex items-center justify-between text-[9px] font-bold text-cyan-300 uppercase pb-1 border-b border-outline-variant/20">
+              <span class="flex items-center gap-1">
+                <span class="material-symbols-outlined text-[13px] text-cyan-400">tune</span>
+                <span>CONFIGURABLE PROPERTIES</span>
+              </span>
+              <button onclick="window.addInlineProperty(window.activeSelectedNode?.id)" class="px-1.5 py-0.5 rounded bg-cyan-500/20 hover:bg-cyan-500/40 text-cyan-300 border border-cyan-500/40 text-[7.5px] uppercase font-bold cursor-pointer transition-colors">
+                + Add Prop
+              </button>
+            </div>
+            <div id="node-properties-table" class="space-y-1 max-h-28 overflow-y-auto text-[8px]">
+              <div class="text-slate-500 italic p-1">Select a node to inspect custom properties.</div>
+            </div>
+          </div>
+
+          <!-- Inline Relationship Edge Connector -->
+          <div id="node-inline-connect-section" class="p-2 rounded bg-surface-container-low/80 border border-purple-500/30 space-y-2 font-mono">
+            <div class="flex items-center justify-between text-[9px] font-bold text-[#ddb7ff] uppercase pb-1 border-b border-purple-500/20">
+              <span class="flex items-center gap-1">
+                <span class="material-symbols-outlined text-[13px] text-purple-400">share</span>
+                <span>CONNECT RELATION EDGE</span>
+              </span>
+              <span class="text-[8px] text-purple-300 font-normal">SOP EDGE</span>
+            </div>
+            <div class="space-y-1.5 text-[8.5px]">
+              <div class="flex items-center gap-1">
+                <select id="inline-rel-predicate" class="w-28 bg-surface-container-lowest border border-purple-500/30 rounded px-1.5 py-1 text-[#ddb7ff] text-[8.5px] font-bold focus:outline-none focus:border-purple-400 font-mono">
+                  <option value="relates_to">relates_to</option>
+                  <option value="depends_on">depends_on</option>
+                  <option value="supports">supports</option>
+                  <option value="violates">violates</option>
+                  <option value="derived_from">derived_from</option>
+                  <option value="enforces">enforces</option>
+                  <option value="governs">governs</option>
+                </select>
+                <span class="text-purple-400 font-bold text-[9px]">──▶</span>
+                <select id="inline-rel-target" class="flex-1 bg-surface-container-lowest border border-purple-500/30 rounded px-1.5 py-1 text-white text-[8.5px] focus:outline-none focus:border-purple-400 font-mono">
+                  <option value="">Select target node...</option>
+                </select>
+              </div>
+              <div class="flex items-center justify-between pt-1">
+                <label class="flex items-center gap-1 cursor-pointer text-slate-300 text-[8px]">
+                  <input type="checkbox" id="inline-rel-bidirectional" class="accent-purple-400 cursor-pointer" />
+                  <span>Bidirectional</span>
+                </label>
+                <button onclick="window.addInlineRelationship(window.activeSelectedNode?.id)" class="px-2.5 py-1 bg-purple-500/20 hover:bg-purple-500/40 text-[#ddb7ff] border border-purple-500/40 rounded font-bold uppercase text-[8px] flex items-center gap-1 cursor-pointer transition-colors shadow">
+                  <span class="material-symbols-outlined text-[11px]">add_link</span>
+                  <span>Connect</span>
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
 
         <!-- TAB 2: AIS Invariants & Merkle Proof -->
@@ -4378,6 +4432,82 @@
                 <div class="font-bold">AGENT COT TRAJECTORY</div>
                 <div class="text-[7.5px] opacity-75">Isolates Chain-of-Thought reasoning steps with animated pulses</div>
               </div>
+            </button>
+          </div>
+        </div>
+
+        <!-- LAYOUT PARAMETERS & OVERLAP PREVENTER -->
+        <div class="p-2.5 bg-surface-container-low/80 rounded-lg border border-cyan-500/30 space-y-2.5">
+          <div class="flex items-center justify-between text-[9px] font-bold text-cyan-300 uppercase pb-1 border-b border-outline-variant/20">
+            <span class="flex items-center gap-1">
+              <span class="material-symbols-outlined text-[13px] text-cyan-400">tune</span>
+              <span>LAYOUT TUNING &amp; OVERLAP PREVENTION</span>
+            </span>
+            <button onclick="resetLayoutConfigToDefaults()" class="text-[7.5px] px-1.5 py-0.5 rounded bg-surface-container-high hover:bg-cyan-500/20 text-slate-300 hover:text-cyan-300 border border-outline-variant/30 font-bold uppercase transition-colors cursor-pointer">
+              Reset
+            </button>
+          </div>
+          <div class="space-y-2 text-[8px]">
+            <!-- Min Node Clearance (Padding) -->
+            <div>
+              <div class="flex justify-between text-slate-300 mb-0.5">
+                <span>MIN NODE CLEARANCE (PADDING)</span>
+                <span id="label-param-padding" class="text-cyan-400 font-bold">28.0u</span>
+              </div>
+              <input type="range" min="10" max="60" step="1" id="slider-param-padding" value="28" oninput="updateLayoutConfigParam('minNodePadding', parseFloat(this.value))" class="w-full accent-cyan-400 cursor-pointer h-1 bg-surface-container-high rounded" />
+            </div>
+
+            <!-- Scope Separation Distance -->
+            <div>
+              <div class="flex justify-between text-slate-300 mb-0.5">
+                <span>SCOPE SEPARATION DISTANCE</span>
+                <span id="label-param-scope-sep" class="text-cyan-400 font-bold">160.0u</span>
+              </div>
+              <input type="range" min="80" max="350" step="5" id="slider-param-scope-sep" value="160" oninput="updateLayoutConfigParam('scopeSeparation', parseFloat(this.value))" class="w-full accent-cyan-400 cursor-pointer h-1 bg-surface-container-high rounded" />
+            </div>
+
+            <!-- Type Spread Factor -->
+            <div>
+              <div class="flex justify-between text-slate-300 mb-0.5">
+                <span>TYPE SPREAD FACTOR</span>
+                <span id="label-param-type-spread" class="text-cyan-400 font-bold">1.35x</span>
+              </div>
+              <input type="range" min="1.0" max="2.5" step="0.05" id="slider-param-type-spread" value="1.35" oninput="updateLayoutConfigParam('typeSpread', parseFloat(this.value))" class="w-full accent-cyan-400 cursor-pointer h-1 bg-surface-container-high rounded" />
+            </div>
+
+            <!-- Orbital Shell Scale -->
+            <div>
+              <div class="flex justify-between text-slate-300 mb-0.5">
+                <span>ORBITAL RADIUS SCALE</span>
+                <span id="label-param-orbit-scale" class="text-cyan-400 font-bold">1.20x</span>
+              </div>
+              <input type="range" min="0.8" max="2.2" step="0.05" id="slider-param-orbit-scale" value="1.20" oninput="updateLayoutConfigParam('orbitScale', parseFloat(this.value))" class="w-full accent-cyan-400 cursor-pointer h-1 bg-surface-container-high rounded" />
+            </div>
+
+            <!-- Deck Elevation Tier -->
+            <div>
+              <div class="flex justify-between text-slate-300 mb-0.5">
+                <span>MULTI-DECK ELEVATION</span>
+                <span id="label-param-deck-elev" class="text-cyan-400 font-bold">180.0u</span>
+              </div>
+              <input type="range" min="80" max="300" step="10" id="slider-param-deck-elev" value="180" oninput="updateLayoutConfigParam('deckElevation', parseFloat(this.value))" class="w-full accent-cyan-400 cursor-pointer h-1 bg-surface-container-high rounded" />
+            </div>
+
+            <!-- Strict Non-Overlap Enforcements -->
+            <div class="pt-1 border-t border-outline-variant/20 space-y-1.5">
+              <label class="flex items-center gap-1.5 cursor-pointer text-slate-300">
+                <input type="checkbox" id="check-prevent-scope-overlap" checked onchange="updateLayoutConfigParam('preventScopeOverlap', this.checked)" class="accent-cyan-400 cursor-pointer" />
+                <span>STRICT ISOLATION: PREVENT SCOPE OVERLAP</span>
+              </label>
+              <label class="flex items-center gap-1.5 cursor-pointer text-slate-300">
+                <input type="checkbox" id="check-prevent-type-overlap" checked onchange="updateLayoutConfigParam('preventTypeOverlap', this.checked)" class="accent-cyan-400 cursor-pointer" />
+                <span>STRICT ISOLATION: PREVENT TYPE OVERLAP</span>
+              </label>
+            </div>
+
+            <button onclick="recalculateActiveLayout()" class="w-full py-1.5 bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 border border-cyan-400/40 rounded font-bold uppercase text-[8.5px] flex items-center justify-center gap-1 cursor-pointer transition-all shadow">
+              <span class="material-symbols-outlined text-[13px]">play_arrow</span>
+              <span>Apply &amp; Recalculate Zero-Overlap Layout</span>
             </button>
           </div>
         </div>
@@ -5082,63 +5212,159 @@
 
 
   <!-- ========================================================================= -->
-  <!-- 6. COMMIT NEW MEMORY MODAL                                                -->
+  <!-- 6. CUSTOM NODE & RELATIONSHIP STUDIO MODAL                                -->
   <!-- ========================================================================= -->
-  <div id="new-memory-modal" class="hidden fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 font-mono">
-    <div class="w-full max-w-md bg-surface-container-lowest border border-primary-container/40 rounded-lg p-5 shadow-2xl space-y-4">
-      <div class="flex items-center justify-between pb-3 border-b border-outline-variant/40">
+  <div id="new-memory-modal" class="hidden fixed inset-0 z-50 bg-black/75 backdrop-blur-md flex items-center justify-center p-4 font-mono select-none">
+    <div class="w-full max-w-xl bg-surface-container-lowest border border-cyan-500/50 rounded-xl p-5 shadow-[0_20px_60px_rgba(0,240,255,0.2)] space-y-3.5 flex flex-col max-h-[90vh]">
+      <!-- Header -->
+      <div class="flex items-center justify-between pb-3 border-b border-cyan-500/30 shrink-0">
         <div class="flex items-center gap-2">
-          <span class="material-symbols-outlined text-primary-container text-[18px]">add_circle</span>
-          <span class="text-xs font-bold text-white uppercase tracking-wider">Commit New Memory Node</span>
+          <div class="w-7 h-7 rounded-lg bg-cyan-500/20 border border-cyan-400/40 flex items-center justify-center text-cyan-300">
+            <span class="material-symbols-outlined text-[17px]">hub</span>
+          </div>
+          <div>
+            <div class="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-1.5">
+              <span>CREATE NODE &amp; DEFINE RELATIONSHIPS</span>
+              <span class="px-1.5 py-0.2 rounded bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 text-[8px]">CUSTOM SCOPE</span>
+            </div>
+            <div class="text-[8.5px] text-cyan-400">Configurable Properties · Custom Scope Hub · Relational Edges</div>
+          </div>
         </div>
-        <button onclick="closeNewMemoryModal()" class="text-neutral-400 hover:text-white">
+        <button onclick="closeNewMemoryModal()" class="text-neutral-400 hover:text-white transition-colors cursor-pointer">
           <span class="material-symbols-outlined text-sm">close</span>
         </button>
       </div>
 
-      <div class="space-y-3 text-xs">
-        <div>
-          <label class="text-[10px] text-neutral-400 uppercase font-bold block mb-1">Memory Text Content</label>
-          <textarea id="modal-memory-text" rows="3" class="w-full bg-surface-container-low border border-outline-variant/40 rounded p-2.5 text-white placeholder:text-neutral-500 focus:outline-none focus:border-primary-container" placeholder="e.g. Super-Cortex integrates Supermemory local embeddings with SHA-256 Merkle proofs..."></textarea>
-        </div>
-
+      <!-- Scrollable Body -->
+      <div class="space-y-3 text-xs overflow-y-auto pr-1 flex-1 scrollbar-thin">
+        <!-- 1. Scope & Node Title -->
         <div class="grid grid-cols-2 gap-2">
           <div>
-            <label class="text-[10px] text-neutral-400 uppercase font-bold block mb-1">Target Scope</label>
-            <select id="modal-memory-scope" class="w-full bg-surface-container-low border border-outline-variant/40 rounded p-2 text-primary-container font-bold focus:outline-none focus:border-primary-container">
-              <option value="shared">Shared Memory Fabric</option>
+            <div class="flex items-center justify-between mb-1">
+              <label class="text-[10px] text-neutral-400 uppercase font-bold">Target Scope</label>
+              <button type="button" onclick="toggleCustomScopeInput()" class="text-[8.5px] text-cyan-400 hover:underline cursor-pointer">
+                + Custom Scope
+              </button>
+            </div>
+            <select id="modal-memory-scope" onchange="onModalScopeChange(this.value)" class="w-full bg-surface-container-low border border-outline-variant/40 rounded p-2 text-cyan-300 font-bold focus:outline-none focus:border-cyan-400 text-xs font-mono">
+              <option value="shared">shared (Shared Memory Fabric)</option>
               <option value="agent:xibalba">agent:xibalba (Executive)</option>
-              <option value="agent:hermes">agent:hermes (Hermes)</option>
+              <option value="agent:hermes">agent:hermes (Hermes Core)</option>
               <option value="agent:claude">agent:claude (Claude Code)</option>
-              <option value="agent:shield">agent:shield (Shield)</option>
+              <option value="agent:shield">agent:shield (Xibalba Shield)</option>
+              <option value="agent:cortex">agent:cortex (Super-Cortex)</option>
+              <option value="__custom__">+ Define New Custom Scope...</option>
+            </select>
+          </div>
+          <div>
+            <label class="text-[10px] text-neutral-400 uppercase font-bold block mb-1">Node Title / Label</label>
+            <input id="modal-node-title" type="text" class="w-full bg-surface-container-low border border-outline-variant/40 rounded p-2 text-white placeholder:text-neutral-500 focus:outline-none focus:border-cyan-400 text-xs font-mono" placeholder="e.g. PID Control Invariant v2" />
+          </div>
+        </div>
+
+        <!-- Custom Scope Text Input (Revealed if custom chosen or toggled) -->
+        <div id="modal-custom-scope-container" class="hidden p-2 rounded bg-cyan-950/30 border border-cyan-500/30 space-y-1">
+          <label class="text-[9.5px] text-cyan-300 uppercase font-bold block">Enter Custom Scope Identifier</label>
+          <input id="modal-custom-scope-input" type="text" class="w-full bg-surface-container-lowest border border-cyan-500/40 rounded p-1.5 text-cyan-200 placeholder:text-neutral-500 focus:outline-none focus:border-cyan-300 text-xs font-mono" placeholder="e.g. workspace:quant-trading, team:defense, domain:healthcare" />
+          <div class="text-[8px] text-slate-400">Nodes in custom scopes receive their own orbital hub on the 3D manifold, federated to the shared root.</div>
+        </div>
+
+        <!-- 2. Classification & Aesthetics -->
+        <div class="grid grid-cols-3 gap-2">
+          <div>
+            <label class="text-[10px] text-neutral-400 uppercase font-bold block mb-1">Node Type</label>
+            <select id="modal-node-type" class="w-full bg-surface-container-low border border-outline-variant/40 rounded p-2 text-neutral-200 focus:outline-none focus:border-cyan-400 text-xs font-mono">
+              <option value="memory">memory</option>
+              <option value="rule">rule</option>
+              <option value="decision">decision</option>
+              <option value="fact">fact</option>
+              <option value="anchor">anchor</option>
+              <option value="guardrail">guardrail</option>
+              <option value="entity">entity</option>
+              <option value="tool_call">tool_call</option>
+              <option value="thought">thought</option>
+              <option value="custom">custom</option>
             </select>
           </div>
           <div>
             <label class="text-[10px] text-neutral-400 uppercase font-bold block mb-1">Epistemic Class</label>
-            <select id="modal-epistemic-class" class="w-full bg-surface-container-low border border-outline-variant/40 rounded p-2 text-neutral-300 focus:outline-none focus:border-primary-container">
+            <select id="modal-epistemic-class" class="w-full bg-surface-container-low border border-outline-variant/40 rounded p-2 text-neutral-200 focus:outline-none focus:border-cyan-400 text-xs font-mono">
               <option value="fact">Fact</option>
               <option value="rule">Rule</option>
               <option value="decision">Decision</option>
               <option value="inference">Inference</option>
               <option value="belief">Belief</option>
               <option value="goal">Goal</option>
+              <option value="thought">Thought</option>
             </select>
+          </div>
+          <div>
+            <label class="text-[10px] text-neutral-400 uppercase font-bold block mb-1">Color &amp; Size</label>
+            <div class="flex items-center gap-1.5">
+              <input id="modal-node-color" type="color" value="#00f0ff" class="w-7 h-7 rounded border border-outline-variant/40 bg-transparent cursor-pointer p-0" title="Custom 3D Node Color" />
+              <input id="modal-node-size" type="number" min="8" max="40" value="18" class="w-14 bg-surface-container-low border border-outline-variant/40 rounded p-1.5 text-white text-center text-xs font-mono" title="3D Node Mesh Radius (u)" />
+              <div class="flex items-center gap-0.5">
+                <button type="button" onclick="selectModalColor('#00f0ff')" class="w-4 h-4 rounded-full bg-[#00f0ff] border border-white/30 cursor-pointer" title="Cyan"></button>
+                <button type="button" onclick="selectModalColor('#10b981')" class="w-4 h-4 rounded-full bg-[#10b981] border border-white/30 cursor-pointer" title="Emerald"></button>
+                <button type="button" onclick="selectModalColor('#a855f7')" class="w-4 h-4 rounded-full bg-[#a855f7] border border-white/30 cursor-pointer" title="Purple"></button>
+                <button type="button" onclick="selectModalColor('#f59e0b')" class="w-4 h-4 rounded-full bg-[#f59e0b] border border-white/30 cursor-pointer" title="Amber"></button>
+              </div>
+            </div>
           </div>
         </div>
 
-        <div class="text-[9px] text-neutral-400 font-mono bg-surface-container-low p-2 border border-outline-variant/20 rounded">
-          <span>Cognitive Extraction: </span>
-          <span class="text-secondary-container">PARA Classification</span> · 
-          <span class="text-primary-container">Triples Parser</span> · 
-          <span class="text-[#ddb7ff]">BGE 768-D Vector</span>
+        <!-- 3. Node Content / Text -->
+        <div>
+          <label class="text-[10px] text-neutral-400 uppercase font-bold block mb-1">Memory / Proposition Text</label>
+          <textarea id="modal-memory-text" rows="2" class="w-full bg-surface-container-low border border-outline-variant/40 rounded p-2.5 text-white placeholder:text-neutral-500 focus:outline-none focus:border-cyan-400 font-mono text-xs" placeholder="e.g. Risk invariant: Trading daemon enforces maximum drawdown constraint of 5.0%..."></textarea>
+        </div>
+
+        <!-- 4. Configurable Node Properties Builder -->
+        <div class="p-2.5 rounded-lg bg-surface-container-low/80 border border-outline-variant/30 space-y-2">
+          <div class="flex items-center justify-between pb-1 border-b border-outline-variant/20">
+            <span class="text-[9.5px] font-bold text-cyan-300 uppercase flex items-center gap-1">
+              <span class="material-symbols-outlined text-[13px] text-cyan-400">tune</span>
+              <span>CONFIGURABLE PROPERTIES (KEY-VALUE)</span>
+            </span>
+            <button type="button" onclick="addModalPropertyRow()" class="px-2 py-0.5 rounded bg-cyan-500/20 hover:bg-cyan-500/40 text-cyan-300 border border-cyan-500/40 font-bold text-[8.5px] uppercase cursor-pointer transition-colors">
+              + Add Property
+            </button>
+          </div>
+          <div id="modal-properties-list" class="space-y-1.5 max-h-28 overflow-y-auto pr-1">
+            <!-- Dynamic Property Rows -->
+          </div>
+        </div>
+
+        <!-- 5. Relational Edges Builder -->
+        <div class="p-2.5 rounded-lg bg-surface-container-low/80 border border-purple-500/30 space-y-2">
+          <div class="flex items-center justify-between pb-1 border-b border-purple-500/20">
+            <span class="text-[9.5px] font-bold text-[#ddb7ff] uppercase flex items-center gap-1">
+              <span class="material-symbols-outlined text-[13px] text-purple-400">share</span>
+              <span>DEFINE RELATIONSHIPS TO OTHER NODES</span>
+            </span>
+            <button type="button" onclick="addModalRelationshipRow()" class="px-2 py-0.5 rounded bg-purple-500/20 hover:bg-purple-500/40 text-[#ddb7ff] border border-purple-500/40 font-bold text-[8.5px] uppercase cursor-pointer transition-colors">
+              + Add Edge
+            </button>
+          </div>
+          <div id="modal-relationships-list" class="space-y-1.5 max-h-32 overflow-y-auto pr-1">
+            <!-- Dynamic Relationship Rows -->
+          </div>
         </div>
       </div>
 
-      <div class="flex justify-end gap-2 pt-2 border-t border-outline-variant/40">
-        <button onclick="closeNewMemoryModal()" class="px-3 py-1.5 text-neutral-400 hover:text-white text-xs">Cancel</button>
-        <button onclick="commitNewMemory()" class="px-4 py-1.5 bg-primary-container hover:bg-secondary-container text-on-primary-container font-bold text-xs uppercase flex items-center gap-1.5 transition-colors">
-          Commit &amp; Anchor
-        </button>
+      <!-- Footer Buttons -->
+      <div class="flex justify-between items-center pt-2 border-t border-outline-variant/40 shrink-0">
+        <div class="text-[8.5px] text-neutral-400 font-mono">
+          <span>Target Manifold: </span>
+          <span class="text-cyan-300 font-bold" id="modal-target-scope-label">shared</span>
+        </div>
+        <div class="flex items-center gap-2">
+          <button type="button" onclick="closeNewMemoryModal()" class="px-3 py-1.5 text-neutral-400 hover:text-white text-xs cursor-pointer">Cancel</button>
+          <button type="button" id="btn-commit-custom-node" onclick="commitCustomNode()" class="px-4 py-1.5 bg-cyan-500 hover:bg-cyan-400 text-black font-bold text-xs uppercase flex items-center gap-1.5 rounded transition-all shadow-[0_0_15px_rgba(0,240,255,0.4)] cursor-pointer">
+            <span class="material-symbols-outlined text-sm">check_circle</span>
+            <span>Commit Node &amp; Edges</span>
+          </button>
+        </div>
       </div>
     </div>
   </div>
@@ -7423,27 +7649,47 @@
       window.causalBeaconRings = [];
     }
 
-    function resolveNodeCollisions3D(meshes, minPadding = 18.0, maxIters = 40, snapImmediately = false) {
+    function resolveNodeCollisions3D(meshes, minPadding = 28.0, maxIters = 45, snapImmediately = false) {
       if (!meshes || meshes.length <= 1) return;
       const N = meshes.length;
       const is2D = (typeof currentMode !== 'undefined' && currentMode === '2D');
+      const cfg = window.layoutConfig || {};
+      const basePadding = (typeof minPadding === 'number' && minPadding !== 18.0) ? minPadding : (cfg.minNodePadding || 28.0);
+      const preventScope = cfg.preventScopeOverlap !== false;
+      const preventType = cfg.preventTypeOverlap !== false;
+      const typeSpread = cfg.typeSpread || 1.35;
+
       for (let iter = 0; iter < maxIters; iter++) {
         let movedAny = false;
         for (let i = 0; i < N; i++) {
           const m1 = meshes[i];
           const p1 = m1.userData.targetBase;
-          const s1 = (m1.userData.data && m1.userData.data.size) || 16;
+          const d1 = m1.userData.data || {};
+          const s1 = d1.size || 16;
           const r1 = s1 * 0.75;
-          const isHub1 = m1.userData.data?.id === 'hub_shared' || m1.userData.data?.type === 'hub';
+          const isHub1 = d1.id === 'hub_shared' || d1.type === 'hub' || d1.type === 'scope_hub' || d1.type === 'agent_hub';
+          const scope1 = (d1.scope || '').trim().toLowerCase();
+          const type1 = (d1.node_type || d1.epistemic_class || d1.type || '').trim().toLowerCase();
 
           for (let j = i + 1; j < N; j++) {
             const m2 = meshes[j];
             const p2 = m2.userData.targetBase;
-            const s2 = (m2.userData.data && m2.userData.data.size) || 16;
+            const d2 = m2.userData.data || {};
+            const s2 = d2.size || 16;
             const r2 = s2 * 0.75;
-            const isHub2 = m2.userData.data?.id === 'hub_shared' || m2.userData.data?.type === 'hub';
+            const isHub2 = d2.id === 'hub_shared' || d2.type === 'hub' || d2.type === 'scope_hub' || d2.type === 'agent_hub';
+            const scope2 = (d2.scope || '').trim().toLowerCase();
+            const type2 = (d2.node_type || d2.epistemic_class || d2.type || '').trim().toLowerCase();
 
-            const reqDist = r1 + r2 + minPadding;
+            let extraSeparation = 0;
+            if (preventScope && scope1 && scope2 && scope1 !== scope2) {
+              extraSeparation += (cfg.scopeSeparation ? cfg.scopeSeparation * 0.12 : 18.0);
+            }
+            if (preventType && type1 && type2 && type1 !== type2) {
+              extraSeparation += 12.0 * Math.max(1.0, typeSpread - 0.3);
+            }
+
+            const reqDist = r1 + r2 + basePadding + extraSeparation;
             let dx = p1[0] - p2[0];
             let dy = p1[1] - p2[1];
             let dz = is2D ? 0 : (p1[2] - p2[2]);
@@ -8825,6 +9071,7 @@
       updateNodeProofDisplay(node);
       updateNodeMcpBundle(node);
       if (typeof window.populateNeighborhoodExplorer === 'function') window.populateNeighborhoodExplorer(node);
+      if (typeof window.updateNodePropertiesAndConnector === 'function') window.updateNodePropertiesAndConnector(node);
 
       const container = document.getElementById('replay-turn-container');
       if (isThought) {
@@ -9782,6 +10029,12 @@
       const nodes = nodeDefs;
       if (!nodes || nodes.length === 0) return;
 
+      const cfg = window.layoutConfig || {};
+      const orbitScale = cfg.orbitScale || 1.20;
+      const scopeSep = cfg.scopeSeparation || 160.0;
+      const typeSpread = cfg.typeSpread || 1.35;
+      const deckElevation = cfg.deckElevation || 180.0;
+
       if (layout === 'galaxy') {
         orbitalGroup.visible = (currentMode === '3D');
         cubeMeshes.forEach(mesh => {
@@ -9803,11 +10056,11 @@
 
           let r = 260;
           if (isHub) r = 0;
-          else if (isAgentHub) r = 130;
-          else if (isRule) r = 210;
-          else if (isDecision) r = 280;
-          else if (isFact || isEntity) r = 350;
-          else if (isThought) r = 420;
+          else if (isAgentHub) r = 130 * orbitScale;
+          else if (isRule) r = 210 * orbitScale * typeSpread;
+          else if (isDecision) r = 280 * orbitScale * typeSpread;
+          else if (isFact || isEntity) r = 350 * orbitScale * typeSpread;
+          else if (isThought) r = 420 * orbitScale * typeSpread;
 
           if (r === 0) {
             mesh.userData.targetBase = [0, 0, 0];
@@ -9829,7 +10082,7 @@
         nodes.forEach((d, idx) => {
           if (d.type === 'thought' || d.category === 'thought') tierThoughts.push({ d, idx });
           else if (d.epistemic_class === 'rule') tierRules.push({ d, idx });
-          else if (d.epistemic_class === 'decision' || d.epistemic_class === 'inference' || d.type === 'hub' || d.type === 'agent_hub') tierDecisions.push({ d, idx });
+          else if (d.epistemic_class === 'decision' || d.epistemic_class === 'inference' || d.type === 'hub' || d.type === 'agent_hub' || d.type === 'scope_hub') tierDecisions.push({ d, idx });
           else tierFacts.push({ d, idx });
         });
 
@@ -9839,17 +10092,17 @@
             const mesh = cubeMeshes[idx];
             if (!mesh) return;
             const ang = (2 * Math.PI / count) * j;
-            const rVar = radius + (j % 4) * 18;
+            const rVar = radius + (j % 4) * (18 * typeSpread);
             const x = Math.cos(ang) * rVar;
             const z = Math.sin(ang) * rVar;
             mesh.userData.targetBase = currentMode === '3D' ? [x, elevationY, z] : [x, z, 0];
           });
         };
 
-        layoutDeck(tierRules, 170, 180);
-        layoutDeck(tierDecisions, 60, 220);
-        layoutDeck(tierFacts, -50, 260);
-        layoutDeck(tierThoughts, -160, 310);
+        layoutDeck(tierRules, deckElevation, 180 * orbitScale);
+        layoutDeck(tierDecisions, deckElevation * 0.35, 220 * orbitScale);
+        layoutDeck(tierFacts, -deckElevation * 0.3, 260 * orbitScale);
+        layoutDeck(tierThoughts, -deckElevation * 0.9, 310 * orbitScale);
       } else if (layout === 'helix') {
         orbitalGroup.visible = false;
         const sorted = nodes.map((d, idx) => ({ d, idx })).sort((a, b) => {
@@ -9862,10 +10115,10 @@
           const mesh = cubeMeshes[idx];
           if (!mesh) return;
           const t = rank / total;
-          const y = -220 + t * 440;
+          const y = (-220 + t * 440) * (deckElevation / 180.0);
           const turns = 6.0;
           const ang = t * Math.PI * 2 * turns;
-          const r = 210 + Math.sin(t * Math.PI) * 60;
+          const r = (210 + Math.sin(t * Math.PI) * 60) * orbitScale;
           const x = Math.cos(ang) * r;
           const z = Math.sin(ang) * r;
           mesh.userData.targetBase = currentMode === '3D' ? [x, y, z] : [x, y, 0];
@@ -9884,12 +10137,12 @@
         sorted.forEach(({ d, idx }, rank) => {
           const mesh = cubeMeshes[idx];
           if (!mesh) return;
-          const x = -340 + (rank / total) * 680;
+          const x = (-340 + (rank / total) * 680) * orbitScale;
           let y = -40;
-          if (d.epistemic_class === 'rule') y = 140;
-          else if (d.epistemic_class === 'decision' || d.epistemic_class === 'inference') y = 60;
+          if (d.epistemic_class === 'rule') y = 140 * typeSpread;
+          else if (d.epistemic_class === 'decision' || d.epistemic_class === 'inference') y = 60 * typeSpread;
           else if (d.epistemic_class === 'fact' || d.type === 'entity') y = -40;
-          else if (d.type === 'thought' || d.category === 'thought' || d.epistemic_class === 'thought') y = -140;
+          else if (d.type === 'thought' || d.category === 'thought' || d.epistemic_class === 'thought') y = -140 * typeSpread;
           const z = currentMode === '3D' ? Math.sin(rank * 0.4) * 50 : 0;
           mesh.userData.targetBase = currentMode === '3D' ? [x, y, z] : [x, y, 0];
         });
@@ -9918,7 +10171,7 @@
               clusterKey = 'Rules & Invariants';
             } else if (ep === 'decision' || ep === 'inference' || cat === 'decision') {
               clusterKey = 'Decisions & Logic';
-            } else if (tp === 'hub' || tp === 'agent_hub' || d.isLineage) {
+            } else if (tp === 'hub' || tp === 'agent_hub' || tp === 'scope_hub' || d.isLineage) {
               clusterKey = 'Hubs & Identity';
             } else if (ep === 'fact' || cat === 'fact' || tp === 'anchor') {
               clusterKey = 'Facts & Ground Truth';
@@ -9934,7 +10187,7 @@
 
         const clusterNames = Object.keys(clusterGroups);
         const K = Math.max(clusterNames.length, 1);
-        const macroRadius = 240 + Math.min(K * 18, 120);
+        const macroRadius = (scopeSep * 1.5) + Math.min(K * 18, 120);
 
         clusterNames.forEach((cName, kIdx) => {
           const members = clusterGroups[cName];
@@ -9947,15 +10200,15 @@
           // Fibonacci Sunflower Phyllotaxis per cluster
           const M = members.length;
           const phiGolden = 2.39996323; // 137.507764 deg golden angle in radians
-          const baseR = Math.min(26.0, 14.0 + M * 0.7);
-          const spreadFactor = M > 25 ? 11.5 : 13.5;
+          const baseR = Math.min(26.0, 14.0 + M * 0.7) * typeSpread;
+          const spreadFactor = (M > 25 ? 11.5 : 13.5) * typeSpread;
 
           members.forEach(({ d, idx }, mIdx) => {
             const mesh = cubeMeshes[idx];
             if (!mesh) return;
 
             // If hub node in its cluster, position at the very center of the cluster
-            if (mIdx === 0 && (d.type === 'hub' || d.type === 'agent_hub' || d.epistemic_class === 'rule')) {
+            if (mIdx === 0 && (d.type === 'hub' || d.type === 'agent_hub' || d.type === 'scope_hub' || d.epistemic_class === 'rule')) {
               mesh.userData.targetBase = currentMode === '3D' ? [cx, cy, cz] : [cx, cz, 0];
               return;
             }
@@ -9994,7 +10247,7 @@
           const mesh = cubeMeshes[idx];
           if (!mesh) return;
           const progress = tIdx / numThoughts;
-          const x = -300 + progress * 600;
+          const x = (-300 + progress * 600) * orbitScale;
           const y = Math.sin(progress * Math.PI * 3) * 80;
           const z = currentMode === '3D' ? Math.cos(progress * Math.PI * 3) * 80 : 0;
           mesh.userData.targetBase = currentMode === '3D' ? [x, y, z] : [x, y, 0];
@@ -10005,9 +10258,9 @@
           if (!mesh) return;
           const pairedThoughtIdx = nIdx % numThoughts;
           const progress = pairedThoughtIdx / numThoughts;
-          const baseX = -300 + progress * 600;
+          const baseX = (-300 + progress * 600) * orbitScale;
           const ang = (nIdx / numNonThoughts) * Math.PI * 2;
-          const branchR = 70 + (nIdx % 5) * 16;
+          const branchR = (70 + (nIdx % 5) * 16) * typeSpread;
           const x = baseX + Math.cos(ang) * branchR;
           const y = (currentMode === '3D' ? Math.sin(ang) * branchR : Math.sin(ang) * branchR * 0.7);
           const z = currentMode === '3D' ? Math.sin(ang * 2) * 50 : 0;
@@ -10018,25 +10271,31 @@
       if (gridSnapEnabled) {
         snapAllNodesToGrid();
       }
-      resolveNodeCollisions3D(cubeMeshes, 18.0, 40, false);
+      resolveNodeCollisions3D(cubeMeshes, cfg.minNodePadding || 28.0, 45, false);
       if (typeof updateEdges === 'function') updateEdges();
     };
 
     function runForceSimulation() {
       const nodes = nodeDefs;
       if (!nodes || nodes.length === 0) return;
+
+      const cfg = window.layoutConfig || {};
+      const orbitScale = cfg.orbitScale || 1.20;
+      const scopeSep = cfg.scopeSeparation || 160.0;
+      const typeSpread = cfg.typeSpread || 1.35;
+      const deckElevation = cfg.deckElevation || 180.0;
       const N = nodes.length;
       const pos = cubeMeshes.map(m => [...m.userData.targetBase]);
-      const kRepulse = 36000;
+      const kRepulse = cfg.forceRepulsion || 48000;
       const kSpring = 0.04;
-      const restLength = 85;
+      const restLength = cfg.forceSpringLength || 110;
 
       // Extract cluster centroids in a circle for organic force grouping
       const uniqueScopes = [...new Set(nodes.map(n => n.scope).filter(Boolean))];
       const useScopes = uniqueScopes.length >= 2;
       const clusterNames = useScopes ? uniqueScopes : ['Rules', 'Decisions', 'Hubs', 'Facts', 'Thoughts', 'Entities'];
       const K = clusterNames.length;
-      const macroR = 230;
+      const macroR = (cfg.scopeSeparation || 160.0) * 1.45;
       const centroids = {};
       clusterNames.forEach((name, k) => {
         const th = (k / K) * Math.PI * 2 - Math.PI * 0.5;
@@ -10049,7 +10308,7 @@
         const tp = (d.type || '').toLowerCase();
         if (ep === 'rule') return 'Rules';
         if (ep === 'decision' || ep === 'inference') return 'Decisions';
-        if (tp === 'hub' || tp === 'agent_hub') return 'Hubs';
+        if (tp === 'hub' || tp === 'agent_hub' || tp === 'scope_hub') return 'Hubs';
         if (ep === 'fact') return 'Facts';
         if (tp === 'thought' || ep === 'thought') return 'Thoughts';
         return 'Entities';
@@ -10124,10 +10383,8 @@
           cubeMeshes[idx].userData.targetBase = currentMode === '3D' ? [p[0], p[1], p[2]] : [p[0], p[2], 0];
         }
       });
-      resolveNodeCollisions3D(cubeMeshes, 18.0, 40, false);
+      resolveNodeCollisions3D(cubeMeshes, cfg.minNodePadding || 28.0, 45, false);
       if (typeof updateEdges === 'function') updateEdges();
-    }
-      });
     }
 
     window.toggleNodeLabels = function() {
@@ -12919,12 +13176,459 @@
       });
     }
 
+    // -------------------------------------------------------------------------
+    // LAYOUT PARAMETERS & OVERLAP PREVENTER (CONFIG)
+    // -------------------------------------------------------------------------
+    window.layoutConfig = {
+      minNodePadding: 28.0,
+      scopeSeparation: 160.0,
+      typeSpread: 1.35,
+      orbitScale: 1.20,
+      deckElevation: 180.0,
+      forceRepulsion: 48000,
+      forceSpringLength: 110,
+      preventScopeOverlap: true,
+      preventTypeOverlap: true
+    };
+
+    async function loadLayoutConfigFromServer() {
+      try {
+        const resp = await fetch('/api/config/layout-params');
+        if (resp.ok) {
+          const data = await resp.json();
+          window.layoutConfig = Object.assign({}, window.layoutConfig, data);
+          syncLayoutConfigInputs();
+        }
+      } catch (err) {}
+    }
+
+    function syncLayoutConfigInputs() {
+      const cfg = window.layoutConfig || {};
+      const setVal = (id, val) => { const el = document.getElementById(id); if (el) el.value = val; };
+      const setText = (id, txt) => { const el = document.getElementById(id); if (el) el.innerText = txt; };
+      const setCheck = (id, val) => { const el = document.getElementById(id); if (el) el.checked = Boolean(val); };
+
+      setVal('slider-param-padding', cfg.minNodePadding || 28.0);
+      setText('label-param-padding', (cfg.minNodePadding || 28.0).toFixed(1) + 'u');
+
+      setVal('slider-param-scope-sep', cfg.scopeSeparation || 160.0);
+      setText('label-param-scope-sep', (cfg.scopeSeparation || 160.0).toFixed(1) + 'u');
+
+      setVal('slider-param-type-spread', cfg.typeSpread || 1.35);
+      setText('label-param-type-spread', (cfg.typeSpread || 1.35).toFixed(2) + 'x');
+
+      setVal('slider-param-orbit-scale', cfg.orbitScale || 1.20);
+      setText('label-param-orbit-scale', (cfg.orbitScale || 1.20).toFixed(2) + 'x');
+
+      setVal('slider-param-deck-elev', cfg.deckElevation || 180.0);
+      setText('label-param-deck-elev', (cfg.deckElevation || 180.0).toFixed(1) + 'u');
+
+      setCheck('check-prevent-scope-overlap', cfg.preventScopeOverlap !== false);
+      setCheck('check-prevent-type-overlap', cfg.preventTypeOverlap !== false);
+    }
+
+    function updateLayoutConfigParam(param, value) {
+      window.layoutConfig[param] = value;
+      syncLayoutConfigInputs();
+      fetch('/api/config/layout-params', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(window.layoutConfig)
+      }).catch(() => {});
+      recalculateActiveLayout();
+    }
+
+    function resetLayoutConfigToDefaults() {
+      window.layoutConfig = {
+        minNodePadding: 28.0,
+        scopeSeparation: 160.0,
+        typeSpread: 1.35,
+        orbitScale: 1.20,
+        deckElevation: 180.0,
+        forceRepulsion: 48000,
+        forceSpringLength: 110,
+        preventScopeOverlap: true,
+        preventTypeOverlap: true
+      };
+      syncLayoutConfigInputs();
+      fetch('/api/config/layout-params', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(window.layoutConfig)
+      }).catch(() => {});
+      recalculateActiveLayout();
+    }
+
+    function recalculateActiveLayout() {
+      if (typeof window.applyGraphLayout === 'function') {
+        window.applyGraphLayout(currentLayout || 'galaxy');
+      }
+    }
+
+    // -------------------------------------------------------------------------
+    // CUSTOM NODE & RELATIONSHIP STUDIO (CLIENT ACTIONS)
+    // -------------------------------------------------------------------------
     function openNewMemoryModal() {
-      document.getElementById('new-memory-modal').classList.remove('hidden');
+      const modal = document.getElementById('new-memory-modal');
+      if (!modal) return;
+      modal.classList.remove('hidden');
+
+      // Reset fields
+      const titleInput = document.getElementById('modal-node-title');
+      const textInput = document.getElementById('modal-memory-text');
+      const customScopeInput = document.getElementById('modal-custom-scope-input');
+      const customScopeContainer = document.getElementById('modal-custom-scope-container');
+      const colorInput = document.getElementById('modal-node-color');
+      const sizeInput = document.getElementById('modal-node-size');
+      const propList = document.getElementById('modal-properties-list');
+      const relList = document.getElementById('modal-relationships-list');
+
+      if (titleInput) titleInput.value = '';
+      if (textInput) textInput.value = '';
+      if (customScopeInput) customScopeInput.value = '';
+      if (customScopeContainer) customScopeContainer.classList.add('hidden');
+      if (colorInput) colorInput.value = '#00f0ff';
+      if (sizeInput) sizeInput.value = '18';
+      if (propList) propList.innerHTML = '';
+      if (relList) relList.innerHTML = '';
+
+      populateModalScopeDropdown();
+      addModalPropertyRow('confidence', '0.95');
+      if (window.nodeDefs && window.nodeDefs.length > 0) {
+        addModalRelationshipRow('relates_to');
+      }
     }
+
     function closeNewMemoryModal() {
-      document.getElementById('new-memory-modal').classList.add('hidden');
+      const modal = document.getElementById('new-memory-modal');
+      if (modal) modal.classList.add('hidden');
     }
+
+    function toggleCustomScopeInput() {
+      const select = document.getElementById('modal-memory-scope');
+      const container = document.getElementById('modal-custom-scope-container');
+      const input = document.getElementById('modal-custom-scope-input');
+      const lbl = document.getElementById('modal-target-scope-label');
+      if (!container || !select) return;
+
+      if (container.classList.contains('hidden')) {
+        container.classList.remove('hidden');
+        select.value = '__custom__';
+        if (input) {
+          input.focus();
+          if (lbl) lbl.innerText = input.value || 'custom';
+        }
+      } else {
+        container.classList.add('hidden');
+        select.value = 'shared';
+        if (lbl) lbl.innerText = 'shared';
+      }
+    }
+
+    function onModalScopeChange(val) {
+      const container = document.getElementById('modal-custom-scope-container');
+      const input = document.getElementById('modal-custom-scope-input');
+      const lbl = document.getElementById('modal-target-scope-label');
+      if (val === '__custom__') {
+        if (container) container.classList.remove('hidden');
+        if (input) {
+          input.focus();
+          if (lbl) lbl.innerText = input.value || 'custom';
+        }
+      } else {
+        if (container) container.classList.add('hidden');
+        if (lbl) lbl.innerText = val;
+      }
+    }
+
+    function populateModalScopeDropdown() {
+      const select = document.getElementById('modal-memory-scope');
+      if (!select) return;
+      const knownScopes = new Set(['shared', 'agent:xibalba', 'agent:hermes', 'agent:claude', 'agent:shield', 'agent:cortex']);
+      if (window.allScopes && Array.isArray(window.allScopes)) {
+        window.allScopes.forEach(s => knownScopes.add(s));
+      }
+      if (window.nodeDefs && Array.isArray(window.nodeDefs)) {
+        window.nodeDefs.forEach(n => {
+          if (n.scope && n.scope !== 'all') knownScopes.add(n.scope);
+        });
+      }
+      const currentSelected = select.value || 'shared';
+      select.innerHTML = '';
+      knownScopes.forEach(s => {
+        const opt = document.createElement('option');
+        opt.value = s;
+        opt.innerText = s === 'shared' ? 'shared (Shared Memory Fabric)' : s;
+        if (s === currentSelected) opt.selected = true;
+        select.appendChild(opt);
+      });
+      const customOpt = document.createElement('option');
+      customOpt.value = '__custom__';
+      customOpt.innerText = '+ Define New Custom Scope...';
+      select.appendChild(customOpt);
+    }
+
+    function selectModalColor(hex) {
+      const colEl = document.getElementById('modal-node-color');
+      if (colEl) colEl.value = hex;
+    }
+
+    function addModalPropertyRow(defaultKey = '', defaultValue = '') {
+      const list = document.getElementById('modal-properties-list');
+      if (!list) return;
+      const row = document.createElement('div');
+      row.className = 'flex items-center gap-1.5 modal-prop-row';
+      row.innerHTML = `
+        <input type="text" placeholder="Key (e.g. priority)" value="${escapeHtml(defaultKey)}" class="w-1/3 bg-surface-container-lowest border border-outline-variant/30 rounded px-2 py-1 text-white text-[9.5px] focus:outline-none focus:border-cyan-400 font-mono prop-key" />
+        <span class="text-neutral-500 font-bold">:</span>
+        <input type="text" placeholder="Value (e.g. high, 0.95)" value="${escapeHtml(defaultValue)}" class="flex-1 bg-surface-container-lowest border border-outline-variant/30 rounded px-2 py-1 text-cyan-200 text-[9.5px] focus:outline-none focus:border-cyan-400 font-mono prop-val" />
+        <button type="button" onclick="this.closest('.modal-prop-row').remove()" class="text-neutral-500 hover:text-rose-400 p-1 cursor-pointer" title="Remove Property">
+          <span class="material-symbols-outlined text-[13px]">delete</span>
+        </button>
+      `;
+      list.appendChild(row);
+    }
+
+    function addModalRelationshipRow(defaultPred = 'relates_to', defaultTarget = '') {
+      const list = document.getElementById('modal-relationships-list');
+      if (!list) return;
+      const nodes = (window.nodeDefs || []).filter(n => n.id && n.id !== 'hub_shared');
+      const row = document.createElement('div');
+      row.className = 'flex items-center gap-1.5 modal-rel-row';
+
+      const optionsHtml = nodes.slice(0, 80).map(n => {
+        const titleShort = (n.title || n.id).substring(0, 32);
+        const sel = (n.id === defaultTarget) ? 'selected' : '';
+        return `<option value="${escapeHtml(n.id)}" ${sel}>${escapeHtml(titleShort)} [${escapeHtml(n.scope || 'shared')}]</option>`;
+      }).join('');
+
+      row.innerHTML = `
+        <select class="w-28 bg-surface-container-lowest border border-purple-500/30 rounded px-1.5 py-1 text-[#ddb7ff] text-[9px] font-bold focus:outline-none focus:border-purple-400 font-mono rel-pred">
+          <option value="relates_to" ${defaultPred === 'relates_to' ? 'selected' : ''}>relates_to</option>
+          <option value="depends_on" ${defaultPred === 'depends_on' ? 'selected' : ''}>depends_on</option>
+          <option value="supports" ${defaultPred === 'supports' ? 'selected' : ''}>supports</option>
+          <option value="violates" ${defaultPred === 'violates' ? 'selected' : ''}>violates</option>
+          <option value="derived_from" ${defaultPred === 'derived_from' ? 'selected' : ''}>derived_from</option>
+          <option value="enforces" ${defaultPred === 'enforces' ? 'selected' : ''}>enforces</option>
+          <option value="governs" ${defaultPred === 'governs' ? 'selected' : ''}>governs</option>
+        </select>
+        <span class="text-purple-400 font-bold text-[9px]">──▶</span>
+        <select class="flex-1 bg-surface-container-lowest border border-purple-500/30 rounded px-1.5 py-1 text-white text-[9px] focus:outline-none focus:border-purple-400 font-mono rel-target">
+          ${optionsHtml || '<option value="">No target nodes available</option>'}
+        </select>
+        <select class="w-16 bg-surface-container-lowest border border-purple-500/30 rounded px-1 py-1 text-cyan-300 text-[8.5px] font-bold focus:outline-none focus:border-purple-400 font-mono rel-dir">
+          <option value="out">OUT ──▶</option>
+          <option value="in">◀── IN</option>
+          <option value="both">◀──▶ BOTH</option>
+        </select>
+        <button type="button" onclick="this.closest('.modal-rel-row').remove()" class="text-neutral-500 hover:text-rose-400 p-1 cursor-pointer" title="Remove Relationship">
+          <span class="material-symbols-outlined text-[13px]">delete</span>
+        </button>
+      `;
+      list.appendChild(row);
+    }
+
+    async function commitCustomNode() {
+      const btn = document.getElementById('btn-commit-custom-node');
+      const scopeSel = document.getElementById('modal-memory-scope')?.value;
+      const customScopeInput = document.getElementById('modal-custom-scope-input')?.value.trim();
+      const scope = (scopeSel === '__custom__' || !scopeSel) ? (customScopeInput || 'custom:user') : scopeSel;
+
+      const title = document.getElementById('modal-node-title')?.value.trim() || '';
+      const text = document.getElementById('modal-memory-text')?.value.trim() || '';
+      if (!text && !title) {
+        alert("Please provide at least a title or text content for the node.");
+        return;
+      }
+
+      const nodeType = document.getElementById('modal-node-type')?.value || 'memory';
+      const epistemicClass = document.getElementById('modal-epistemic-class')?.value || 'fact';
+      const color = document.getElementById('modal-node-color')?.value || '#00f0ff';
+      const size = parseFloat(document.getElementById('modal-node-size')?.value) || 18.0;
+
+      // Extract custom properties
+      const properties = {};
+      document.querySelectorAll('#modal-properties-list .modal-prop-row').forEach(row => {
+        const k = row.querySelector('.prop-key')?.value.trim();
+        const v = row.querySelector('.prop-val')?.value.trim();
+        if (k) {
+          properties[k] = v;
+        }
+      });
+
+      // Extract relationships
+      const relations = [];
+      document.querySelectorAll('#modal-relationships-list .modal-rel-row').forEach(row => {
+        const pred = row.querySelector('.rel-pred')?.value.trim();
+        const target = row.querySelector('.rel-target')?.value.trim();
+        const dir = row.querySelector('.rel-dir')?.value || 'out';
+        if (target) {
+          relations.push({ predicate: pred || 'relates_to', target_id: target, direction: dir });
+        }
+      });
+
+      const payload = {
+        scope: scope,
+        title: title || (text ? text.substring(0, 40) : 'Custom Node'),
+        text: text || title,
+        node_type: nodeType,
+        epistemic_class: epistemicClass,
+        color: color,
+        size: size,
+        properties: properties,
+        relations: relations
+      };
+
+      if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<span class="material-symbols-outlined text-sm animate-spin">refresh</span><span>Committing...</span>';
+      }
+
+      try {
+        const resp = await fetch('/api/nodes', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        if (!resp.ok) {
+          const errData = await resp.json().catch(() => ({}));
+          throw new Error(errData.detail || 'Failed to commit node');
+        }
+        closeNewMemoryModal();
+        if (typeof window.showToast === 'function') {
+          window.showToast(`Node committed with custom scope [${scope}] and ${relations.length} relationships!`);
+        }
+        if (typeof loadScopes === 'function') await loadScopes();
+        if (typeof loadGraphData === 'function') loadGraphData(scope);
+      } catch (err) {
+        alert("Error creating custom node: " + err.message);
+      } finally {
+        if (btn) {
+          btn.disabled = false;
+          btn.innerHTML = '<span class="material-symbols-outlined text-sm">check_circle</span><span>Commit Node &amp; Edges</span>';
+        }
+      }
+    }
+
+    // Alias for legacy calls
+    window.commitNewMemory = commitCustomNode;
+
+    // -------------------------------------------------------------------------
+    // INSPECTOR INLINE PROPERTY & RELATIONSHIP ACTIONS
+    // -------------------------------------------------------------------------
+    function updateNodePropertiesAndConnector(node) {
+      const propTable = document.getElementById('node-properties-table');
+      if (propTable && node) {
+        const props = Object.assign({}, node.properties || {}, (node.metadata && typeof node.metadata === 'object' && !Array.isArray(node.metadata)) ? node.metadata : {});
+        const keys = Object.keys(props).filter(k => !['file_path', 'readme', 'modules', 'dependencies'].includes(k));
+        if (keys.length === 0) {
+          propTable.innerHTML = `<div class="p-1 text-slate-500 italic">No custom properties defined. Click "+ Add Prop" to configure.</div>`;
+        } else {
+          propTable.innerHTML = keys.map(k => `
+            <div class="flex items-center justify-between p-1 rounded bg-surface-container-lowest border border-outline-variant/20">
+              <span class="text-neutral-400 font-bold">${escapeHtml(k)}:</span>
+              <span class="text-cyan-200 truncate max-w-[150px] select-all">${escapeHtml(String(props[k]))}</span>
+            </div>
+          `).join('');
+        }
+      }
+
+      const targetSel = document.getElementById('inline-rel-target');
+      if (targetSel && node) {
+        const otherNodes = (window.nodeDefs || []).filter(n => n.id !== node.id && n.id !== 'hub_shared');
+        targetSel.innerHTML = '<option value="">Select target node...</option>' + otherNodes.slice(0, 100).map(n => {
+          const title = (n.title || n.id).substring(0, 32);
+          return `<option value="${escapeHtml(n.id)}">${escapeHtml(title)} [${escapeHtml(n.scope || 'shared')}]</option>`;
+        }).join('');
+      }
+    }
+    window.updateNodePropertiesAndConnector = updateNodePropertiesAndConnector;
+
+    async function addInlineRelationship(sourceId) {
+      if (!sourceId) {
+        alert("Please select a node first.");
+        return;
+      }
+      const pred = document.getElementById('inline-rel-predicate')?.value.trim() || 'relates_to';
+      const targetId = document.getElementById('inline-rel-target')?.value.trim();
+      const bidirectional = document.getElementById('inline-rel-bidirectional')?.checked;
+      if (!targetId) {
+        alert("Please select a target node to connect.");
+        return;
+      }
+      try {
+        const resp = await fetch('/api/relations', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            source_id: sourceId,
+            target_id: targetId,
+            predicate: pred,
+            bidirectional: Boolean(bidirectional)
+          })
+        });
+        if (!resp.ok) {
+          const err = await resp.json().catch(() => ({}));
+          throw new Error(err.detail || 'Failed to create relation');
+        }
+        // Dynamically add link into currentLinks
+        const newEdge = {
+          source: sourceId,
+          target: targetId,
+          label: pred,
+          predicate: pred,
+          type: 'relation'
+        };
+        if (window.linkDefs) window.linkDefs.push(newEdge);
+        if (typeof updateEdges === 'function') updateEdges();
+        if (typeof populateNeighborhoodExplorer === 'function' && window.activeSelectedNode) {
+          populateNeighborhoodExplorer(window.activeSelectedNode);
+        }
+        // Re-inspect to refresh connected list
+        const activeNode = (window.nodeDefs || []).find(n => n.id === sourceId);
+        if (activeNode) select3DNode(activeNode);
+        if (typeof window.showToast === 'function') {
+          window.showToast(`Connected relation [${pred}] to ${targetId}!`);
+        }
+      } catch (e) {
+        alert("Error connecting relation: " + e.message);
+      }
+    }
+    window.addInlineRelationship = addInlineRelationship;
+
+    async function addInlineProperty(nodeId) {
+      if (!nodeId) {
+        alert("Please select a node first.");
+        return;
+      }
+      const k = prompt("Enter property key (e.g. priority, status, author):");
+      if (!k) return;
+      const v = prompt(`Enter value for property "${k}":`);
+      if (v === null) return;
+      try {
+        const patchData = { properties: {} };
+        patchData.properties[k] = v;
+        const resp = await fetch(`/api/nodes/${encodeURIComponent(nodeId)}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(patchData)
+        });
+        if (!resp.ok) throw new Error("Failed to update node properties");
+        // Update local node def
+        const node = (window.nodeDefs || []).find(n => n.id === nodeId);
+        if (node) {
+          node.properties = node.properties || {};
+          node.properties[k] = v;
+          select3DNode(node);
+        }
+        if (typeof window.showToast === 'function') {
+          window.showToast(`Updated property "${k}"!`);
+        }
+      } catch (err) {
+        alert("Error saving property: " + err.message);
+      }
+    }
+    window.addInlineProperty = addInlineProperty;
 
     function openCreateScopeModal() {
       document.getElementById('create-scope-modal').classList.remove('hidden');
@@ -12990,6 +13694,10 @@
               opt.innerText = `${s.name} (${s.scope_id})`;
               modalSel.appendChild(opt);
             });
+            const customOpt = document.createElement('option');
+            customOpt.value = '__custom__';
+            customOpt.innerText = '+ Define New Custom Scope...';
+            modalSel.appendChild(customOpt);
           }
 
           // Render scopes grid in view-spaces
@@ -13145,26 +13853,6 @@
       }
     };
 
-    async function commitNewMemory() {
-      const text = document.getElementById('modal-memory-text').value.trim();
-      const cls = document.getElementById('modal-epistemic-class').value;
-      const scope = document.getElementById('modal-memory-scope').value;
-      if (!text) return;
-
-      closeNewMemoryModal();
-      document.getElementById('modal-memory-text').value = '';
-
-      try {
-        await fetch('/api/remember', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ text, epistemic_class: cls, scope: scope })
-        });
-        await loadScopes();
-        loadGraphData(scope);
-      } catch (e) {}
-    }
-
     async function handleSendChat(e) {
       e.preventDefault();
       const input = document.getElementById('chat-input');
@@ -13229,6 +13917,7 @@
       } catch (e) {}
 
       // Load Scopes, Agents, and 3D Graph
+      await loadLayoutConfigFromServer();
       await loadScopes();
       await loadAgents();
       await loadGraphData('all');
