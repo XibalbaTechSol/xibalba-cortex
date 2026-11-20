@@ -673,6 +673,22 @@ def create_app(
                             "label": "mentions",
                         })
 
+        # Connect scoped GitHub memory nodes (files, PRs, commits) directly to repository node
+        for n in nodes:
+            if n.get("type") == "memory" and n.get("metadata"):
+                meta_n = n["metadata"]
+                if meta_n.get("connector") == "github":
+                    repo_id = meta_n.get("repo") or meta_n.get("repo_full_name")
+                    if repo_id and repo_id in existing_node_ids:
+                        m_type = meta_n.get("type")
+                        pred_label = "contains_file" if m_type == "file" else ("contains_pr" if m_type == "pull_request" else ("contains_commit" if m_type == "commit" else "anchors"))
+                        links.append({
+                            "source": repo_id,
+                            "target": n["id"],
+                            "type": "contains",
+                            "label": pred_label,
+                        })
+
         # ---------------------------------------------------------------------
         # Deterministic Zero-Inference Engine Analysis
         # 1. Dialectic Contradiction Graphing
@@ -1545,6 +1561,20 @@ def create_app(
                         if not file_bytes and rec.text:
                             file_bytes = rec.text.encode("utf-8")
                             filename = Path(source_id).name if source_id else f"{file_id}.md"
+
+                        # Check if memory metadata references a GitHub repository file
+                        if not file_bytes and rec.metadata_json:
+                            try:
+                                meta_gh = json.loads(rec.metadata_json)
+                                gh_repo = meta_gh.get("repo") or meta_gh.get("repo_full_name")
+                                gh_path = meta_gh.get("file_path") or meta_gh.get("filename")
+                                if gh_repo and gh_path:
+                                    gh_file_res = connectors.get_github_file_content(gh_repo, gh_path)
+                                    if gh_file_res and "content" in gh_file_res:
+                                        file_bytes = gh_file_res["content"].encode("utf-8")
+                                        filename = Path(gh_path).name
+                            except Exception:
+                                pass
                 except Exception:
                     pass
 
@@ -1574,7 +1604,17 @@ def create_app(
                     except Exception:
                         pass
 
-        # 2. Resolve from file_path if not resolved yet
+        # 2. Resolve from file_path or repo query param if not resolved yet
+        repo_param = request.query_params.get("repo") or ""
+        if not file_bytes and repo_param and file_path:
+            try:
+                gh_file_res = connectors.get_github_file_content(repo_param, file_path)
+                if gh_file_res and "content" in gh_file_res:
+                    file_bytes = gh_file_res["content"].encode("utf-8")
+                    filename = Path(file_path).name
+            except Exception:
+                pass
+
         if not file_bytes and file_path:
             clean_path = file_path.replace("file://", "").strip()
             p = Path(clean_path).resolve()
@@ -1806,7 +1846,17 @@ em {{ color: #94a3b8; }}
             repo = str(body.get("repo") or "").strip()
             scope = str(body.get("scope") or "shared")
             token = body.get("token") or body.get("github_token")
-            res = await connectors.ingest_github_complete_repo(repo=repo, scope=scope, github_token=token)
+            sync_files = bool(body.get("sync_files", True))
+            sync_prs = bool(body.get("sync_prs", True))
+            sync_commits = bool(body.get("sync_commits", True))
+            res = await connectors.ingest_github_complete_repo(
+                repo=repo,
+                scope=scope,
+                github_token=token,
+                sync_files=sync_files,
+                sync_prs=sync_prs,
+                sync_commits=sync_commits,
+            )
             await broadcast_event("connector_synced", res)
             return JSONResponse(res)
         except Exception as exc:
@@ -3182,6 +3232,7 @@ em {{ color: #94a3b8; }}
         Route("/api/connectors/github/repos", api_connectors_github_repos, methods=["GET"]),
         Route("/api/connectors/github/search", api_connectors_github_search, methods=["GET"]),
         Route("/api/connectors/github/repo", api_connectors_github_repo, methods=["POST"]),
+        Route("/api/connectors/github/sync", api_connectors_github_repo, methods=["POST"]),
         Route("/api/connectors/github/oauth-url", api_connectors_github_oauth_url, methods=["GET"]),
         Route("/api/connectors/github/oauth-exchange", api_connectors_github_oauth_exchange, methods=["POST"]),
         Route("/api/connectors/github", api_connectors_github, methods=["POST"]),

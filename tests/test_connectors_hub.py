@@ -213,12 +213,28 @@ async def test_github_reimagined_search_and_complete_repo(tmp_path):
     results = connectors.search_github_repos(query="super-cortex", limit=5)
     assert isinstance(results, list)
 
-    # 2. Ingest complete repository
-    repo_res = await connectors.ingest_github_complete_repo(repo="XibalbaTechSol/super-cortex", scope="shared")
+    # 2. Ingest complete repository with scoped file, PR, and commit manifolds
+    repo_res = await connectors.ingest_github_complete_repo(
+        repo="XibalbaTechSol/super-cortex",
+        scope="shared",
+        sync_files=True,
+        sync_prs=True,
+        sync_commits=True,
+    )
     assert repo_res["status"] == "ingested"
     assert repo_res["repo"] == "XibalbaTechSol/super-cortex"
     assert "memory_id" in repo_res
     assert isinstance(repo_res.get("modules"), list)
+    assert "scopes" in repo_res
+    assert "github:XibalbaTechSol/super-cortex:txt" in repo_res["scopes"]
+    assert "github:XibalbaTechSol/super-cortex:prs" in repo_res["scopes"]
+    assert "github:XibalbaTechSol/super-cortex:commits" in repo_res["scopes"]
+
+    # Verify repository scopes registered in store
+    scope_ids = {s["scope_id"] if isinstance(s, dict) else s.scope_id for s in cortex.list_scopes()}
+    assert "github:XibalbaTechSol/super-cortex:txt" in scope_ids
+    assert "github:XibalbaTechSol/super-cortex:prs" in scope_ids
+    assert "github:XibalbaTechSol/super-cortex:commits" in scope_ids
 
     # Verify repository entity and relations in knowledge graph
     with cortex.store._get_conn() as conn:

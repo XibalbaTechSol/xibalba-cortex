@@ -1545,8 +1545,12 @@ class SuperCortexConnectors:
         *,
         scope: str = "shared",
         github_token: str | None = None,
+        sync_files: bool = True,
+        sync_prs: bool = True,
+        sync_commits: bool = True,
+        max_files: int = 50,
     ) -> dict[str, Any]:
-        """Ingest complete repository from GitHub into a central analyzable 3D Repository node."""
+        """Ingest complete repository from GitHub into a central analyzable 3D Repository node with scoped file manifolds."""
         clean_repo = repo.strip()
         if clean_repo.startswith("https://github.com/"):
             parts = clean_repo.replace("https://github.com/", "").strip("/").split("/")
@@ -1569,6 +1573,35 @@ class SuperCortexConnectors:
         tree_files: list[str] = []
         modules: list[str] = []
         dependencies: list[str] = []
+
+        # Hierarchical repository scopes
+        repo_scope = f"github:{clean_repo}" if scope in ("shared", "") else scope
+        txt_scope = f"{repo_scope}:txt"
+        docs_scope = f"{repo_scope}:docs"
+        code_scope = f"{repo_scope}:code"
+        config_scope = f"{repo_scope}:config"
+        prs_scope = f"{repo_scope}:prs"
+        commits_scope = f"{repo_scope}:commits"
+
+        # Register scopes in store
+        for sc_id, sc_name, sc_desc in [
+            (repo_scope, f"{repo_name} (Repository Hub)", f"Central architecture repository hub for {clean_repo}"),
+            (txt_scope, f"{repo_name} (Text Files .txt)", f"Plain text (.txt) document manifold for {clean_repo}"),
+            (docs_scope, f"{repo_name} (Documentation)", f"Documentation and markdown specifications for {clean_repo}"),
+            (code_scope, f"{repo_name} (Source Code)", f"Source code manifold for {clean_repo}"),
+            (config_scope, f"{repo_name} (Configs & Manifests)", f"Build configuration and manifest files for {clean_repo}"),
+            (prs_scope, f"{repo_name} (Pull Requests & Merges)", f"Pull requests and merge events for {clean_repo}"),
+            (commits_scope, f"{repo_name} (Commits & Pushes)", f"Commit lineage and push history for {clean_repo}"),
+        ]:
+            try:
+                self.cortex.create_scope(
+                    scope_id=sc_id,
+                    name=sc_name,
+                    scope_type="shared",
+                    description=sc_desc,
+                )
+            except Exception:
+                pass
 
         async with httpx.AsyncClient(timeout=15.0, follow_redirects=True) as client:
             try:
@@ -1607,6 +1640,17 @@ class SuperCortexConnectors:
                     modules = sorted(list(top_dirs))[:12]
             except Exception:
                 pass
+
+            # Fallback to local checkout if tree is empty
+            if not tree_files:
+                local_tree = self.get_github_tree(clean_repo)
+                tree_files = local_tree.get("tree", [])
+                if tree_files:
+                    top_dirs = set()
+                    for path_str in tree_files:
+                        if "/" in path_str:
+                            top_dirs.add(path_str.split("/")[0])
+                    modules = sorted(list(top_dirs))[:12]
 
             for manifest_file in ["package.json", "pyproject.toml", "Cargo.toml", "go.mod"]:
                 if manifest_file in tree_files:
@@ -1656,9 +1700,11 @@ class SuperCortexConnectors:
             f"README Specification:\n{readme_text[:4000] or 'No README provided.'}"
         )
 
+        all_mem_ids: list[str] = []
+
         mem = await self.cortex.remember(
             text=doc_text,
-            scope=scope,
+            scope=repo_scope,
             source_origin=f"https://github.com/{clean_repo}",
             metadata={
                 "connector": "github",
@@ -1679,6 +1725,7 @@ class SuperCortexConnectors:
                 "readme_snippet": readme_text[:1500],
             },
         )
+        all_mem_ids.append(mem["memory_id"])
 
         self.cortex.store.add_entity(clean_repo)
         self.cortex.store.add_entity(owner)
@@ -1705,13 +1752,191 @@ class SuperCortexConnectors:
             self.cortex.store.add_entity(topic)
             self.cortex.store.add_relation(subject=clean_repo, predicate="categorized_as", object=topic, confidence=0.95)
 
+        # ---------------------------------------------------------------------
+        # 1. SCOPED FILE MANIFOLDS (Categorized by Extension, including .txt files)
+        # ---------------------------------------------------------------------
+        ingested_files_count = 0
+        if sync_files and tree_files:
+            txt_candidates = [p for p in tree_files if p.lower().endswith(".txt")]
+            doc_candidates = [p for p in tree_files if any(p.lower().endswith(ext) for ext in (".md", ".markdown", ".rst")) and not p.lower().endswith("readme.md")]
+            config_candidates = [p for p in tree_files if any(p.lower().endswith(ext) for ext in (".json", ".toml", ".yaml", ".yml", ".ini", ".cfg", ".env.example")) or Path(p).name in ("Dockerfile", "Makefile", "LICENSE")]
+            code_candidates = [p for p in tree_files if any(p.lower().endswith(ext) for ext in (".py", ".ts", ".js", ".tsx", ".jsx", ".rs", ".go", ".sol", ".c", ".cpp", ".h", ".sh"))]
+
+            async def _ingest_file_node(f_path: str, target_scope: str, file_kind: str, mime_str: str, is_txt_flag: bool = False):
+                nonlocal ingested_files_count
+                try:
+                    f_res = self.get_github_file_content(clean_repo, f_path)
+                    content_str = (f_res.get("content") or "").strip()
+                    if not content_str or f_res.get("is_binary"):
+                        return
+                    f_name = Path(f_path).name
+                    f_url = f"/api/connectors/github/file?repo={clean_repo}&path={f_path}"
+                    f_doc = (
+                        f"GitHub File [{clean_repo}/{f_path}]:\n\n"
+                        f"{content_str[:12000]}"
+                    )
+                    f_mem = await self.cortex.remember(
+                        text=f_doc,
+                        scope=target_scope,
+                        source_origin=f"https://github.com/{clean_repo}/blob/{default_branch}/{f_path}",
+                        metadata={
+                            "connector": "github",
+                            "type": "file",
+                            "file_type": file_kind,
+                            "mime_type": mime_str,
+                            "filename": f_name,
+                            "file_path": f_path,
+                            "repo": clean_repo,
+                            "repo_full_name": clean_repo,
+                            "size": len(content_str),
+                            "is_txt": is_txt_flag,
+                            "is_text": True,
+                            "has_file": True,
+                            "file_url": f_url,
+                            "raw_content": content_str[:8000],
+                        },
+                    )
+                    all_mem_ids.append(f_mem["memory_id"])
+                    ingested_files_count += 1
+
+                    # Knowledge graph entity and containment relation
+                    ent_file = f"{clean_repo}/{f_path}"
+                    self.cortex.store.add_entity(ent_file)
+                    self.cortex.store.add_relation(subject=clean_repo, predicate="contains_file", object=ent_file, confidence=1.0)
+                    self.cortex.store.add_relation(subject=ent_file, predicate="belongs_to_repo", object=clean_repo, confidence=1.0)
+                except Exception:
+                    pass
+
+            # Ingest all .txt files into txt_scope (up to 30)
+            for f_path in txt_candidates[:30]:
+                await _ingest_file_node(f_path, txt_scope, "text", "text/plain", is_txt_flag=True)
+
+            # Ingest top documentation files into docs_scope (up to 12)
+            for f_path in doc_candidates[:12]:
+                await _ingest_file_node(f_path, docs_scope, "markdown", "text/markdown", is_txt_flag=False)
+
+            # Ingest top configuration files into config_scope (up to 8)
+            for f_path in config_candidates[:8]:
+                await _ingest_file_node(f_path, config_scope, "config", "text/plain", is_txt_flag=False)
+
+            # Ingest top code files into code_scope (up to 12)
+            for f_path in code_candidates[:12]:
+                await _ingest_file_node(f_path, code_scope, "code", "text/plain", is_txt_flag=False)
+
+        # ---------------------------------------------------------------------
+        # 2. SCOPED PULL REQUESTS & MERGE EVENTS (prs_scope)
+        # ---------------------------------------------------------------------
+        ingested_prs_count = 0
+        if sync_prs:
+            prs_data = self.get_github_prs(clean_repo, limit=20)
+            prs_list = prs_data.get("prs", [])
+            for pr in prs_list:
+                try:
+                    p_num = pr.get("number")
+                    p_title = pr.get("title", f"Pull Request #{p_num}")
+                    p_state = (pr.get("state") or "OPEN").upper()
+                    p_author = pr.get("author") or "author"
+                    p_merged_at = pr.get("mergedAt")
+                    p_url = pr.get("url") or f"https://github.com/{clean_repo}/pull/{p_num}"
+                    is_merged = (p_state == "MERGED") or bool(p_merged_at)
+
+                    pr_text = (
+                        f"GitHub Pull Request #{p_num} [{p_state}]: {p_title}\n"
+                        f"Repository: {clean_repo}\n"
+                        f"Author: {p_author} | State: {p_state}\n"
+                        f"Merged At: {p_merged_at or 'Not Merged'}\n"
+                        f"URL: {p_url}"
+                    )
+                    pr_mem = await self.cortex.remember(
+                        text=pr_text,
+                        scope=prs_scope,
+                        source_origin=p_url,
+                        metadata={
+                            "connector": "github",
+                            "type": "pull_request",
+                            "pr_number": p_num,
+                            "title": p_title,
+                            "state": p_state,
+                            "author": p_author,
+                            "merged_at": p_merged_at,
+                            "html_url": p_url,
+                            "repo": clean_repo,
+                            "is_merged": is_merged,
+                        },
+                    )
+                    all_mem_ids.append(pr_mem["memory_id"])
+                    ingested_prs_count += 1
+
+                    # Knowledge graph entity & relation
+                    pr_label = f"PR #{p_num}: {p_title[:38]}"
+                    self.cortex.store.add_entity(pr_label)
+                    pred = "merged_into" if is_merged else "opened_against"
+                    self.cortex.store.add_relation(subject=pr_label, predicate=pred, object=clean_repo, confidence=1.0 if is_merged else 0.98)
+                    if p_author and p_author != "Unknown":
+                        self.cortex.store.add_entity(p_author)
+                        self.cortex.store.add_relation(subject=p_author, predicate="authored_pr", object=pr_label, confidence=0.99)
+                except Exception:
+                    pass
+
+        # ---------------------------------------------------------------------
+        # 3. SCOPED COMMITS & PUSH LINEAGE (commits_scope)
+        # ---------------------------------------------------------------------
+        ingested_commits_count = 0
+        if sync_commits:
+            commits_data = self.get_github_commits(clean_repo, limit=20)
+            commits_list = commits_data.get("commits", [])
+            for c in commits_list:
+                try:
+                    c_sha = c.get("sha", "")
+                    c_short = c.get("short_sha") or c_sha[:7]
+                    c_msg = c.get("message", "Commit")
+                    c_author = c.get("author") or "author"
+                    c_date = c.get("date") or ""
+                    c_url = c.get("url") or f"https://github.com/{clean_repo}/commit/{c_sha}"
+
+                    commit_text = (
+                        f"GitHub Commit [{c_short}]: {c_msg}\n"
+                        f"Repository: {clean_repo}\n"
+                        f"Author: {c_author} | Date: {c_date}\n"
+                        f"SHA: {c_sha}\n"
+                        f"URL: {c_url}"
+                    )
+                    c_mem = await self.cortex.remember(
+                        text=commit_text,
+                        scope=commits_scope,
+                        source_origin=c_url,
+                        metadata={
+                            "connector": "github",
+                            "type": "commit",
+                            "sha": c_sha,
+                            "short_sha": c_short,
+                            "message": c_msg,
+                            "author": c_author,
+                            "date": c_date,
+                            "html_url": c_url,
+                            "repo": clean_repo,
+                        },
+                    )
+                    all_mem_ids.append(c_mem["memory_id"])
+                    ingested_commits_count += 1
+
+                    # Knowledge graph entity & relation
+                    commit_label = f"Commit {c_short}: {c_msg[:32]}"
+                    self.cortex.store.add_entity(commit_label)
+                    self.cortex.store.add_relation(subject=commit_label, predicate="pushed_to", object=clean_repo, confidence=0.99)
+                    if c_author and c_author != "Unknown":
+                        self.cortex.store.add_entity(c_author)
+                        self.cortex.store.add_relation(subject=c_author, predicate="pushed_commit", object=commit_label, confidence=0.98)
+                except Exception:
+                    pass
+
         self._record_sync(
             "github",
             status="connected",
-            summary=f"Ingested complete repository {clean_repo} ({len(modules)} modules, {len(dependencies)} deps)",
-            items_ingested=1 + len(modules) + len(dependencies),
-            memory_ids=[mem["memory_id"]],
-            scope=scope,
+            summary=f"Ingested repository {clean_repo} into scoped manifolds ({ingested_files_count} files, {ingested_prs_count} PRs, {ingested_commits_count} commits)",
+            items_ingested=len(all_mem_ids),
+            memory_ids=all_mem_ids,
+            scope=repo_scope,
         )
 
         return {
@@ -1724,6 +1949,10 @@ class SuperCortexConnectors:
             "modules": modules,
             "dependencies": dependencies,
             "files_count": len(tree_files),
+            "files_ingested": ingested_files_count,
+            "prs_ingested": ingested_prs_count,
+            "commits_ingested": ingested_commits_count,
+            "scopes": [repo_scope, txt_scope, docs_scope, code_scope, config_scope, prs_scope, commits_scope],
             "memory": mem,
         }
     def list_github_repos(self, owner: str = "XibalbaTechSol", limit: int = 15) -> dict[str, Any]:
