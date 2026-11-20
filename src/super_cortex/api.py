@@ -407,22 +407,36 @@ def create_app(
             py = elevation
             pz = m_rad * math.sin(phi)
 
-            color = epistemic_colors.get(ep_class, 0x38bdf8)
+            is_img = bool(
+                meta.get("is_image")
+                or (meta.get("mime_type") or "").startswith("image/")
+                or mem_scope.endswith(":images")
+                or any(str(meta.get("filename") or meta.get("title") or row["source_id"]).lower().endswith(ext) for ext in (".png", ".jpg", ".jpeg", ".gif", ".svg", ".webp", ".ico", ".bmp"))
+            )
+            is_txt = bool(
+                meta.get("is_txt")
+                or mem_scope.endswith(":txt")
+                or str(meta.get("filename") or meta.get("title") or row["source_id"]).lower().endswith(".txt")
+            )
+
+            color = 0xf43f5e if is_img else epistemic_colors.get(ep_class, 0x38bdf8)
+            node_cat = "image" if is_img else para_cat
+            node_sub_type = "image_media" if is_img else f"memory_{ep_class}"
 
             nodes.append({
                 "id": mem_id,
                 "title": row["text"][:45] + ("..." if len(row["text"]) > 45 else ""),
-                "labelTag": f"{ep_class.upper()} // {para_cat.upper()}",
-                "category": para_cat,
-                "type": "memory",
-                "node_type": f"memory_{ep_class}",
-                "scope_node_type": f"{mem_scope}:memory_{ep_class}",
+                "labelTag": f"{'IMAGE' if is_img else ep_class.upper()} // {node_cat.upper()}",
+                "category": node_cat,
+                "type": "image" if is_img else "memory",
+                "node_type": node_sub_type,
+                "scope_node_type": f"{mem_scope}:{node_sub_type}",
                 "status": row["lifecycle_status"],
-                "epistemic_class": ep_class,
+                "epistemic_class": "fact" if is_img else ep_class,
                 "para": para,
                 "triples": triples,
                 "color": color,
-                "size": 15,
+                "size": 18 if is_img else 15,
                 "pos3D": [round(px, 1), round(py, 1), round(pz, 1)],
                 "pos2D": [round(px, 1), round(pz, 1), 0],
                 "confidence": 0.95,
@@ -433,13 +447,16 @@ def create_app(
                 "agent_id": mem_agent_id,
                 "created_at": row["created_at"],
                 "metadata": meta,
+                "is_image": is_img,
+                "is_txt": is_txt,
+                "preview_url": meta.get("preview_url") or meta.get("file_url") or f"/api/connectors/file/preview?file_id={mem_id}",
                 "mime_type": meta.get("mime_type") or meta.get("mimeType"),
                 "pdf_url": meta.get("pdf_url"),
                 "file_url": meta.get("file_url") or meta.get("pdf_url"),
-                "file_type": meta.get("file_type"),
+                "file_type": "image" if is_img else meta.get("file_type"),
                 "filename": meta.get("filename") or meta.get("title"),
                 "file_path": meta.get("file_path") or meta.get("path"),
-                "has_attachment": bool(
+                "has_attachment": is_img or bool(
                     meta.get("file_url")
                     or meta.get("pdf_url")
                     or meta.get("has_pdf")
@@ -1583,10 +1600,16 @@ def create_app(
                                 gh_repo = meta_gh.get("repo") or meta_gh.get("repo_full_name")
                                 gh_path = meta_gh.get("file_path") or meta_gh.get("filename")
                                 if gh_repo and gh_path:
-                                    gh_file_res = connectors.get_github_file_content(gh_repo, gh_path)
-                                    if gh_file_res and "content" in gh_file_res:
-                                        file_bytes = gh_file_res["content"].encode("utf-8")
-                                        filename = Path(gh_path).name
+                                    try:
+                                        raw_b, fname = connectors.get_github_file_bytes(gh_repo, gh_path)
+                                        if raw_b:
+                                            file_bytes = raw_b
+                                            filename = fname
+                                    except Exception:
+                                        gh_file_res = connectors.get_github_file_content(gh_repo, gh_path)
+                                        if gh_file_res and "content" in gh_file_res:
+                                            file_bytes = gh_file_res["content"].encode("utf-8")
+                                            filename = Path(gh_path).name
                             except Exception:
                                 pass
                 except Exception:
@@ -1622,12 +1645,18 @@ def create_app(
         repo_param = request.query_params.get("repo") or ""
         if not file_bytes and repo_param and file_path:
             try:
-                gh_file_res = connectors.get_github_file_content(repo_param, file_path)
-                if gh_file_res and "content" in gh_file_res:
-                    file_bytes = gh_file_res["content"].encode("utf-8")
-                    filename = Path(file_path).name
+                raw_b, fname = connectors.get_github_file_bytes(repo_param, file_path)
+                if raw_b:
+                    file_bytes = raw_b
+                    filename = fname
             except Exception:
-                pass
+                try:
+                    gh_file_res = connectors.get_github_file_content(repo_param, file_path)
+                    if gh_file_res and "content" in gh_file_res:
+                        file_bytes = gh_file_res["content"].encode("utf-8")
+                        filename = Path(file_path).name
+                except Exception:
+                    pass
 
         if not file_bytes and file_path:
             clean_path = file_path.replace("file://", "").strip()
