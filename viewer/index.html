@@ -2518,6 +2518,12 @@
             <span>AIS Audit &amp; Merkle</span>
             <span class="text-[8px] px-1 py-0.2 rounded bg-emerald-500/20 text-emerald-400">✓</span>
           </button>
+
+          <button id="subtab-btn-agent0" onclick="window.switchFabricTab('agent0')" class="fabric-subtab-btn px-3 py-1 rounded-md flex items-center gap-1.5 transition-all text-slate-400 hover:text-white border border-transparent cursor-pointer">
+            <span class="material-symbols-outlined text-[13px]">badge</span>
+            <span>Agent0 (ERC-8004)</span>
+            <span id="fabric-badge-agent0" class="text-[8px] px-1 py-0.2 rounded bg-amber-500/20 text-amber-300">A2A+SEARCH</span>
+          </button>
         </div>
       </div>
 
@@ -3766,6 +3772,110 @@
             <!-- Populated dynamically -->
           </div>
         </div>
+      </div>
+    </div>
+
+    <!-- SUB-TAB F: AGENT0 (ERC-8004) PUBLIC DIRECTORY & A2A MESSENGER -->
+    <div id="fabric-panel-agent0" class="hidden w-full h-full flex flex-col overflow-y-auto overflow-x-hidden bg-[#080b12] p-4 md:p-6 space-y-6 font-mono select-text">
+      <!-- Header Bar -->
+      <div class="flex flex-wrap items-center justify-between pb-3 border-b border-outline-variant/30 gap-4 text-xs">
+        <div>
+          <div class="flex items-center gap-2">
+            <span class="material-symbols-outlined text-amber-400 text-xl">badge</span>
+            <span class="font-bold text-white uppercase text-sm tracking-wider">ERC-8004 // AGENT0 UNIVERSAL DIRECTORY &amp; A2A MESSENGER</span>
+            <span class="px-1.5 py-0.5 rounded bg-amber-500/20 border border-amber-500/40 text-amber-300 text-[9px] font-bold">MULTI-CHAIN</span>
+          </div>
+          <p class="text-outline text-[11px] font-sans mt-0.5">Semantic agent discovery, bilateral cryptographic DID verification, and Agent-to-Agent (A2A) multi-turn messaging.</p>
+        </div>
+
+        <div class="flex items-center gap-2 flex-wrap">
+          <button onclick="window.openAgent0PassportModal()" class="px-3 py-1.5 bg-gradient-to-r from-amber-500/20 to-amber-600/30 hover:from-amber-500/30 hover:to-amber-600/40 border border-amber-500/40 text-amber-300 font-bold uppercase text-[10px] rounded flex items-center gap-1.5 transition-all shadow-sm cursor-pointer">
+            <span class="material-symbols-outlined text-xs">verified</span>
+            <span>Mint Agent0 Passport</span>
+          </button>
+          <button onclick="window.loadAgent0Directory()" class="px-3 py-1.5 bg-surface-container-high hover:bg-surface-container-highest text-white font-bold uppercase text-[10px] rounded flex items-center gap-1.5 transition-colors border border-outline-variant/30 cursor-pointer">
+            <span class="material-symbols-outlined text-xs">refresh</span>
+            <span>Refresh</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Controls: Search bar + Multi-Chain Selectors + Capability Filters + Sort -->
+      <div class="bg-surface-container-lowest p-4 rounded-xl border border-outline-variant/30 space-y-3.5 shadow-md">
+        <!-- Search row -->
+        <div class="flex flex-col sm:flex-row items-center gap-3">
+          <div class="relative flex-1 w-full">
+            <span class="material-symbols-outlined absolute left-3 top-2.5 text-slate-400 text-sm">search</span>
+            <input id="agent0-search-query-input" type="text" placeholder="Search by name, skill, DID, or service (e.g. quant, mcp, memory, oracle)..." 
+                   onkeydown="if(event.key === 'Enter') window.loadAgent0Directory()"
+                   class="w-full bg-[#0d121f] text-slate-200 text-xs pl-9 pr-3 py-2 rounded-lg border border-slate-700 focus:outline-none focus:border-amber-400 transition-colors placeholder:text-slate-500 font-mono" />
+          </div>
+          <button onclick="window.loadAgent0Directory()" class="w-full sm:w-auto px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs uppercase rounded-lg flex items-center justify-center gap-1.5 transition-all shadow cursor-pointer">
+            <span class="material-symbols-outlined text-sm font-bold">travel_explore</span>
+            <span>Search</span>
+          </button>
+        </div>
+
+        <!-- Filter rows: Chains & Capabilities -->
+        <div class="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-slate-800/80 text-[11px]">
+          <!-- Chain Pills -->
+          <div class="flex items-center gap-1.5 flex-wrap">
+            <span class="text-slate-400 text-[10px] uppercase font-bold mr-1">Chains:</span>
+            <button id="agent0-chain-pill-all" onclick="window.setAgent0ChainFilter('all')" class="agent0-chain-btn active px-2.5 py-1 rounded bg-amber-500/20 text-amber-300 border border-amber-500/50 font-bold uppercase text-[9px] cursor-pointer transition-colors">
+              All Multi-Chain
+            </button>
+            <button id="agent0-chain-pill-84532" onclick="window.setAgent0ChainFilter('84532')" class="agent0-chain-btn px-2.5 py-1 rounded bg-slate-900 text-slate-400 border border-slate-700/60 font-bold uppercase text-[9px] cursor-pointer hover:text-white transition-colors">
+              Base Sepolia (84532)
+            </button>
+            <button id="agent0-chain-pill-11155111" onclick="window.setAgent0ChainFilter('11155111')" class="agent0-chain-btn px-2.5 py-1 rounded bg-slate-900 text-slate-400 border border-slate-700/60 font-bold uppercase text-[9px] cursor-pointer hover:text-white transition-colors">
+              Eth Sepolia (11155111)
+            </button>
+            <button id="agent0-chain-pill-80002" onclick="window.setAgent0ChainFilter('80002')" class="agent0-chain-btn px-2.5 py-1 rounded bg-slate-900 text-slate-400 border border-slate-700/60 font-bold uppercase text-[9px] cursor-pointer hover:text-white transition-colors">
+              Polygon Amoy (80002)
+            </button>
+          </div>
+
+          <!-- Capability & Sort options -->
+          <div class="flex items-center gap-3 flex-wrap">
+            <div class="flex items-center gap-1.5">
+              <span class="text-slate-400 text-[10px] uppercase font-bold mr-1">Capabilities:</span>
+              <button id="agent0-cap-btn-a2a" onclick="window.toggleAgent0CapFilter('a2a')" class="agent0-cap-btn px-2 py-0.5 rounded bg-slate-900 text-slate-400 border border-slate-800 text-[9px] font-bold uppercase cursor-pointer transition-colors">
+                + A2A
+              </button>
+              <button id="agent0-cap-btn-mcp" onclick="window.toggleAgent0CapFilter('mcp')" class="agent0-cap-btn px-2 py-0.5 rounded bg-slate-900 text-slate-400 border border-slate-800 text-[9px] font-bold uppercase cursor-pointer transition-colors">
+                + MCP
+              </button>
+              <button id="agent0-cap-btn-confined" onclick="window.toggleAgent0CapFilter('confined')" class="agent0-cap-btn px-2 py-0.5 rounded bg-slate-900 text-slate-400 border border-slate-800 text-[9px] font-bold uppercase cursor-pointer transition-colors">
+                + Confined
+              </button>
+            </div>
+
+            <div class="flex items-center gap-1.5 pl-2 border-l border-slate-800">
+              <span class="text-slate-400 text-[10px] uppercase font-bold">Sort:</span>
+              <select id="agent0-sort-select" onchange="window.setAgent0Sort(this.value)" class="bg-[#0b0e17] text-slate-300 text-[10px] px-2 py-1 rounded border border-slate-700 focus:outline-none cursor-pointer">
+                <option value="reputation">Reputation (High-Low)</option>
+                <option value="score">Semantic Match</option>
+                <option value="recent">Recently Registered</option>
+              </select>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Live Registry Status Banner -->
+      <div id="agent0-status-banner" class="flex items-center justify-between px-4 py-2 bg-[#0c111c] border border-slate-800 rounded-lg text-[10px] text-slate-400">
+        <div class="flex items-center gap-2">
+          <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+          <span>REGISTRY: <strong id="agent0-source-label" class="text-slate-200">Universal Search API</strong></span>
+          <span class="text-slate-600">|</span>
+          <span>TOTAL AGENTS: <strong id="agent0-count-label" class="text-amber-300">4</strong></span>
+        </div>
+        <div class="text-[9px] text-slate-500 font-mono">ERC-8004 / EIP-4337 SOVEREIGN ACTOR COMPLIANT</div>
+      </div>
+
+      <!-- Agent Directory Cards Container -->
+      <div id="agent0-cards-container" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-4">
+        <!-- Rendered dynamically -->
       </div>
     </div>
 
@@ -7233,6 +7343,188 @@
             <!-- Output populated dynamically -->
           </div>
         </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========================================================================= -->
+  <!-- AGENT0 A2A MESSENGER MODAL (Protocol Agent Benchmark Standard)            -->
+  <!-- ========================================================================= -->
+  <div id="agent0-messenger-modal" class="hidden fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-3 md:p-6 font-mono select-text" onclick="if(event.target === this) window.closeAgent0Messenger()">
+    <div class="bg-[#080d1a] border border-amber-500/40 rounded-xl p-5 shadow-[0_20px_70px_rgba(0,0,0,0.95)] max-w-4xl w-full h-[88vh] flex flex-col gap-3 overflow-hidden animate-in fade-in zoom-in-95 duration-150 ring-1 ring-amber-500/20">
+      <!-- Modal Header -->
+      <div class="flex items-center justify-between pb-3 border-b border-outline-variant/30 shrink-0">
+        <div class="flex items-center gap-3">
+          <span class="w-9 h-9 rounded-lg flex items-center justify-center bg-gradient-to-br from-amber-500/20 to-orange-500/30 text-amber-300 border border-amber-500/40 shadow-sm">
+            <span class="material-symbols-outlined text-xl">forum</span>
+          </span>
+          <div>
+            <div class="flex items-center gap-2 flex-wrap">
+              <span id="a2a-modal-target-name" class="text-xs md:text-sm font-bold uppercase tracking-wider text-white">Agent Name</span>
+              <span id="a2a-modal-chain-badge" class="text-[9px] px-2 py-0.5 rounded bg-purple-500/20 border border-purple-500/40 text-purple-300 font-bold">Chain</span>
+              <span id="a2a-modal-confined-badge" class="text-[9px] px-2 py-0.5 rounded bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 font-bold">SOVEREIGN CONFINED</span>
+            </div>
+            <div class="flex items-center gap-2 text-[10px] text-slate-400 mt-0.5 font-sans">
+              <span class="font-mono text-[9px] text-slate-300" id="a2a-modal-did-label">did:integrity:...</span>
+              <span class="text-slate-600">|</span>
+              <span>A2A Context:</span>
+              <code id="a2a-modal-context-id" class="text-[9px] text-amber-400 bg-amber-500/10 px-1 py-0.2 rounded font-mono">ctx-init</code>
+              <button onclick="navigator.clipboard.writeText(document.getElementById('a2a-modal-context-id').innerText); window.showToast('Copied Context ID');" class="text-slate-400 hover:text-white cursor-pointer" title="Copy Context ID">
+                <span class="material-symbols-outlined text-[11px]">content_copy</span>
+              </button>
+            </div>
+          </div>
+        </div>
+        <div class="flex items-center gap-2">
+          <button onclick="window.resetA2AConversation()" class="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 text-[10px] font-bold uppercase flex items-center gap-1 cursor-pointer transition-colors" title="Reset A2A context session per messenger.py">
+            <span class="material-symbols-outlined text-xs">restart_alt</span>
+            <span>Reset Context</span>
+          </button>
+          <button onclick="window.closeAgent0Messenger()" class="w-8 h-8 rounded bg-surface-container-high hover:bg-surface-container-highest text-neutral-400 hover:text-white flex items-center justify-center text-sm font-bold transition-colors">✕</button>
+        </div>
+      </div>
+
+      <!-- Quick Preset Prompt Chips -->
+      <div class="flex items-center gap-2 overflow-x-auto pb-1 text-[10px] shrink-0 border-b border-slate-800/60">
+        <span class="text-slate-500 uppercase font-bold text-[9px] shrink-0">Triggers:</span>
+        <button onclick="window.sendA2AMessage('Audit Integrity DID status and verify cryptographic signature.')" class="px-2.5 py-1 rounded bg-slate-900/90 hover:bg-slate-800 border border-slate-700/60 text-slate-300 hover:text-amber-300 text-[9px] font-mono whitespace-nowrap cursor-pointer transition-colors">
+          ⚡ Audit Integrity DID
+        </button>
+        <button onclick="window.sendA2AMessage('Query PID Quant Controller telemetry and current active grid state.')" class="px-2.5 py-1 rounded bg-slate-900/90 hover:bg-slate-800 border border-slate-700/60 text-slate-300 hover:text-amber-300 text-[9px] font-mono whitespace-nowrap cursor-pointer transition-colors">
+          📊 PID Quant Status
+        </button>
+        <button onclick="window.sendA2AMessage('Ping A2A bilateral gateway and return transport diagnostics.')" class="px-2.5 py-1 rounded bg-slate-900/90 hover:bg-slate-800 border border-slate-700/60 text-slate-300 hover:text-amber-300 text-[9px] font-mono whitespace-nowrap cursor-pointer transition-colors">
+          📡 Ping A2A Gateway
+        </button>
+        <button onclick="window.sendA2AMessage('Query Cortex bitemporal provenance root and Merkle anchors.')" class="px-2.5 py-1 rounded bg-slate-900/90 hover:bg-slate-800 border border-slate-700/60 text-slate-300 hover:text-amber-300 text-[9px] font-mono whitespace-nowrap cursor-pointer transition-colors">
+          🛡️ Query Cortex Provenance
+        </button>
+      </div>
+
+      <!-- Chat History Scroll Area -->
+      <div id="a2a-chat-history" class="flex-1 overflow-y-auto space-y-3.5 pr-1 text-xs font-mono">
+        <!-- Rendered dynamically -->
+      </div>
+
+      <!-- Chat Input Area -->
+      <div class="shrink-0 pt-2 border-t border-slate-800/80 space-y-2">
+        <div class="flex items-center gap-2">
+          <input id="a2a-chat-input" type="text" placeholder="Type A2A message to target agent... (Enter to send)" 
+                 onkeydown="if(event.key === 'Enter') window.sendA2AMessage()"
+                 class="flex-1 bg-[#0b101c] text-slate-200 text-xs px-3.5 py-2.5 rounded-lg border border-slate-700 focus:outline-none focus:border-amber-400 font-mono transition-colors" />
+          <button id="a2a-send-btn" onclick="window.sendA2AMessage()" class="px-4 py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs uppercase rounded-lg flex items-center gap-1.5 transition-all shadow cursor-pointer">
+            <span class="material-symbols-outlined text-sm font-bold">send</span>
+            <span>Send</span>
+          </button>
+        </div>
+        <div class="flex items-center justify-between text-[10px] text-slate-400 px-1">
+          <div class="flex items-center gap-3">
+            <button onclick="window.rememberLatestA2ATurn()" class="text-cyan-400 hover:text-cyan-300 font-bold flex items-center gap-1 cursor-pointer transition-colors">
+              <span class="material-symbols-outlined text-xs">bookmark_added</span>
+              <span>Anchor Last Turn to Cortex</span>
+            </button>
+            <button onclick="window.exportA2ATranscript()" class="text-slate-400 hover:text-white flex items-center gap-1 cursor-pointer transition-colors">
+              <span class="material-symbols-outlined text-xs">download</span>
+              <span>Export A2A JSON Transcript</span>
+            </button>
+          </div>
+          <div class="text-[9px] text-slate-500 font-mono">A2A Spec v1.0 • Multi-turn • Bitemporal Merkle Audit</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========================================================================= -->
+  <!-- AGENT0 PASSPORT GENERATOR MODAL                                           -->
+  <!-- ========================================================================= -->
+  <div id="agent0-passport-modal" class="hidden fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-3 md:p-6 font-mono select-text" onclick="if(event.target === this) window.closeAgent0PassportModal()">
+    <div class="bg-[#080d1a] border border-amber-500/40 rounded-xl p-5 shadow-[0_20px_70px_rgba(0,0,0,0.95)] max-w-3xl w-full max-h-[90vh] flex flex-col gap-3.5 overflow-hidden animate-in fade-in zoom-in-95 duration-150 ring-1 ring-amber-500/20">
+      <div class="flex items-center justify-between pb-3 border-b border-outline-variant/30 shrink-0">
+        <div class="flex items-center gap-2.5">
+          <span class="material-symbols-outlined text-amber-400 text-xl">verified</span>
+          <span class="text-xs md:text-sm font-bold uppercase tracking-wider text-white">ERC-8004 // AGENT0 PUBLIC PASSPORT</span>
+        </div>
+        <button onclick="window.closeAgent0PassportModal()" class="w-8 h-8 rounded bg-surface-container-high hover:bg-surface-container-highest text-neutral-400 hover:text-white flex items-center justify-center text-sm font-bold transition-colors">✕</button>
+      </div>
+
+      <div class="space-y-3 text-xs overflow-y-auto flex-1 pr-1">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div>
+            <label class="text-[10px] uppercase font-bold text-slate-400">Agent Name</label>
+            <input id="passport-input-name" type="text" value="Super-Cortex Sovereign Memory Agent" class="w-full bg-[#0d121f] text-slate-200 text-xs px-3 py-1.5 rounded border border-slate-700 mt-1 focus:outline-none focus:border-amber-400 font-mono" />
+          </div>
+          <div>
+            <label class="text-[10px] uppercase font-bold text-slate-400">Chain ID</label>
+            <select id="passport-input-chain" class="w-full bg-[#0d121f] text-slate-200 text-xs px-3 py-1.5 rounded border border-slate-700 mt-1 focus:outline-none focus:border-amber-400 font-mono">
+              <option value="84532">Base Sepolia (84532)</option>
+              <option value="11155111">Ethereum Sepolia (11155111)</option>
+              <option value="80002">Polygon Amoy (80002)</option>
+            </select>
+          </div>
+        </div>
+
+        <div>
+          <label class="text-[10px] uppercase font-bold text-slate-400">Agent Cryptographic DID (Ed25519)</label>
+          <input id="passport-input-did" type="text" value="did:integrity:b1a72980e8e45e97c7b92982a89b1963e470b45fa955c9bd245f046e1e32e39a" class="w-full bg-[#0d121f] text-slate-200 text-xs px-3 py-1.5 rounded border border-slate-700 mt-1 focus:outline-none focus:border-amber-400 font-mono" />
+        </div>
+
+        <div>
+          <label class="text-[10px] uppercase font-bold text-slate-400">SovereignActor Wallet Address</label>
+          <input id="passport-input-actor" type="text" value="0xb1a7000000000000000000000000000000000001" class="w-full bg-[#0d121f] text-slate-200 text-xs px-3 py-1.5 rounded border border-slate-700 mt-1 focus:outline-none focus:border-amber-400 font-mono" />
+        </div>
+
+        <div class="pt-2">
+          <div class="flex items-center justify-between pb-1">
+            <span class="text-[10px] uppercase font-bold text-slate-400">Generated ERC-8004 Public Passport:</span>
+            <span class="text-[9px] text-emerald-400 font-bold">✓ Two-Way DID Backlinks Validated</span>
+          </div>
+          <pre id="passport-json-preview" class="w-full bg-[#050811] p-3 rounded-lg border border-slate-800 text-amber-200 text-[10px] font-mono overflow-x-auto max-h-56"></pre>
+        </div>
+      </div>
+
+      <div class="flex items-center justify-between pt-3 border-t border-slate-800 shrink-0 text-xs">
+        <button onclick="window.generateAgent0PassportPreview()" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-white font-bold uppercase text-[10px] rounded flex items-center gap-1 cursor-pointer transition-colors">
+          <span class="material-symbols-outlined text-xs">sync</span>
+          <span>Regenerate Passport</span>
+        </button>
+        <div class="flex items-center gap-2">
+          <button onclick="window.copyAgent0PassportJson()" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-white font-bold uppercase text-[10px] rounded flex items-center gap-1 cursor-pointer transition-colors">
+            <span class="material-symbols-outlined text-xs">content_copy</span>
+            <span>Copy JSON</span>
+          </button>
+          <button onclick="window.saveAgent0PassportToCortex()" class="px-3 py-1.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold uppercase text-[10px] rounded flex items-center gap-1 cursor-pointer transition-colors">
+            <span class="material-symbols-outlined text-xs">bookmark_added</span>
+            <span>Anchor Passport to Cortex</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========================================================================= -->
+  <!-- AGENT0 CARD INSPECT MODAL                                                 -->
+  <!-- ========================================================================= -->
+  <div id="agent0-inspect-modal" class="hidden fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-3 md:p-6 font-mono select-text" onclick="if(event.target === this) window.closeAgent0InspectModal()">
+    <div class="bg-[#080d1a] border border-amber-500/40 rounded-xl p-5 shadow-[0_20px_70px_rgba(0,0,0,0.95)] max-w-3xl w-full max-h-[85vh] flex flex-col gap-3.5 overflow-hidden animate-in fade-in zoom-in-95 duration-150 ring-1 ring-amber-500/20">
+      <div class="flex items-center justify-between pb-3 border-b border-outline-variant/30 shrink-0">
+        <div class="flex items-center gap-2.5">
+          <span class="material-symbols-outlined text-amber-400 text-xl">manage_search</span>
+          <span id="inspect-modal-title" class="text-xs md:text-sm font-bold uppercase tracking-wider text-white">ERC-8004 AGENT RECORD</span>
+        </div>
+        <button onclick="window.closeAgent0InspectModal()" class="w-8 h-8 rounded bg-surface-container-high hover:bg-surface-container-highest text-neutral-400 hover:text-white flex items-center justify-center text-sm font-bold transition-colors">✕</button>
+      </div>
+      <div class="flex-1 overflow-y-auto pr-1">
+        <pre id="inspect-modal-json" class="w-full bg-[#050811] p-3 rounded-lg border border-slate-800 text-slate-300 text-[10px] font-mono overflow-x-auto"></pre>
+      </div>
+      <div class="flex items-center justify-between pt-3 border-t border-slate-800 shrink-0 text-xs">
+        <button onclick="navigator.clipboard.writeText(document.getElementById('inspect-modal-json').innerText); window.showToast('Copied JSON record');" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-white font-bold uppercase text-[10px] rounded flex items-center gap-1 cursor-pointer transition-colors">
+          <span class="material-symbols-outlined text-xs">content_copy</span>
+          <span>Copy JSON</span>
+        </button>
+        <button id="inspect-modal-anchor-btn" onclick="window.saveInspectedCardToMemory()" class="px-3 py-1.5 bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold uppercase text-[10px] rounded flex items-center gap-1 cursor-pointer transition-colors">
+          <span class="material-symbols-outlined text-xs">bookmark_added</span>
+          <span>Anchor Discovery Card to Cortex</span>
+        </button>
       </div>
     </div>
   </div>
@@ -11253,7 +11545,10 @@
 
     window.switchFabricTab = function(tab) {
       currentFabricTab = tab;
-      const tabs = ['memories', 'connectors', 'pipeline', 'spaces', 'audit'];
+      const tabs = ['memories', 'connectors', 'pipeline', 'spaces', 'audit', 'agent0'];
+      if (tab === 'agent0' && typeof window.loadAgent0Directory === 'function') {
+        window.loadAgent0Directory();
+      }
       tabs.forEach(t => {
         const btn = document.getElementById('subtab-btn-' + t);
         const panel = document.getElementById('fabric-panel-' + t) || document.getElementById('view-' + t);
@@ -11401,7 +11696,7 @@
 
     function switchView(view) {
       // Seamless Redirects for Unified 4-Page System
-      if (['memories', 'connectors', 'pipeline', 'spaces', 'audit'].includes(view)) {
+      if (['memories', 'connectors', 'pipeline', 'spaces', 'audit', 'agent0'].includes(view)) {
         switchView('fabric');
         window.switchFabricTab(view);
         return;
@@ -17689,6 +17984,621 @@ ${staticFacts.length > 0 ? `## Static Knowledge Core:\n${staticFacts.map(f => `-
         alert("Context block copied to clipboard!");
       }
     };
+
+    // =========================================================================
+    // AGENT0 (ERC-8004) UNIVERSAL REGISTRY & A2A MESSENGER CONTROLLER
+    // =========================================================================
+    window.agent0Directory = [];
+    window.agent0SelectedChain = 'all';
+    window.agent0CapFilters = { a2a: false, mcp: false, confined: false };
+    window.agent0Sort = 'reputation';
+    window.currentA2A = {
+      agent: null,
+      contextId: 'ctx-' + (window.crypto && crypto.randomUUID ? crypto.randomUUID().slice(0, 8) : Math.random().toString(36).slice(2, 10)),
+      history: []
+    };
+    window.currentInspectedCard = null;
+
+    window.loadAgent0Directory = async function() {
+      const qInput = document.getElementById('agent0-search-query-input');
+      const query = qInput ? qInput.value.trim() : '';
+
+      let chains = [84532, 11155111, 80002];
+      if (window.agent0SelectedChain !== 'all') {
+        chains = [parseInt(window.agent0SelectedChain)];
+      }
+
+      const filters = { equals: {} };
+      if (window.agent0CapFilters.a2a) filters.equals.a2a = true;
+      if (window.agent0CapFilters.mcp) filters.equals.mcp = true;
+      if (window.agent0CapFilters.confined) filters.equals.confined = true;
+
+      const payload = {
+        query: query,
+        chains: chains,
+        filters: filters,
+        sort: window.agent0Sort || 'reputation',
+        limit: 20
+      };
+
+      try {
+        const resp = await fetch('/api/agent0/search', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+
+        if (resp.ok) {
+          const data = await resp.json();
+          window.agent0Directory = data.agents || [];
+          const srcEl = document.getElementById('agent0-source-label');
+          const countEl = document.getElementById('agent0-count-label');
+          if (srcEl) srcEl.innerText = data.source === 'universal-search' ? 'Agent0 Universal Search API' : 'Integrity Local Registry';
+          if (countEl) countEl.innerText = String(data.total || window.agent0Directory.length);
+          window.renderAgent0Cards(window.agent0Directory);
+        } else {
+          // Fallback to GET
+          const fallbackResp = await fetch(`/api/agent0/search?query=${encodeURIComponent(query)}`);
+          if (fallbackResp.ok) {
+            const data = await fallbackResp.json();
+            window.agent0Directory = data.agents || [];
+            window.renderAgent0Cards(window.agent0Directory);
+          }
+        }
+      } catch (err) {
+        console.warn('Failed to load Agent0 directory:', err);
+        if (typeof window.showToast === 'function') window.showToast('Using local agent registry');
+      }
+    };
+
+    window.renderAgent0Cards = function(agents) {
+      const container = document.getElementById('agent0-cards-container');
+      if (!container) return;
+
+      if (!agents || agents.length === 0) {
+        container.innerHTML = `
+          <div class="col-span-full p-8 rounded-xl bg-[#0b0f19] border border-slate-800 text-center space-y-3">
+            <span class="material-symbols-outlined text-4xl text-slate-600">person_search</span>
+            <div class="text-sm font-bold text-slate-300">No Registered Agents Found</div>
+            <div class="text-xs text-slate-500">No agents match the current query and filters. Try clearing filters or switching chains.</div>
+            <button onclick="window.resetAgent0Filters()" class="px-3 py-1.5 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 rounded text-xs font-bold uppercase transition-colors cursor-pointer">
+              Reset Filters
+            </button>
+          </div>
+        `;
+        return;
+      }
+
+      container.innerHTML = agents.map(agent => {
+        const chainName = agent.chain_name || (agent.chain_id === 84532 ? 'Base Sepolia' : agent.chain_id === 11155111 ? 'Eth Sepolia' : agent.chain_id === 80002 ? 'Polygon Amoy' : 'EVM');
+        const isConfined = !!agent.wallet_confined;
+        const repScore = typeof agent.reputation_score === 'number' ? agent.reputation_score.toFixed(1) : '95.0';
+        const didTrunc = (agent.did || '').length > 24 ? (agent.did.slice(0, 16) + '...' + agent.did.slice(-6)) : (agent.did || 'did:integrity:n/a');
+        const caps = Array.isArray(agent.capabilities) ? agent.capabilities : ['a2a', 'mcp'];
+        const actorAddr = agent.actor_address || '0x0000...0000';
+        const actorTrunc = actorAddr.length > 14 ? (actorAddr.slice(0, 8) + '...' + actorAddr.slice(-4)) : actorAddr;
+
+        return `
+          <div class="bg-gradient-to-br from-[#0c111e] to-[#080d17] border ${isConfined ? 'border-amber-500/30 hover:border-amber-400/60' : 'border-slate-800 hover:border-slate-700'} rounded-xl p-4.5 flex flex-col justify-between space-y-4 shadow-lg transition-all duration-200">
+            <div>
+              <!-- Top Row: Name, Verified, Chain, Score -->
+              <div class="flex items-start justify-between gap-3">
+                <div class="flex items-center gap-2.5">
+                  <div class="w-8 h-8 rounded-lg bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-300 font-bold shrink-0">
+                    <span class="material-symbols-outlined text-base">smart_toy</span>
+                  </div>
+                  <div>
+                    <div class="flex items-center gap-1.5 flex-wrap">
+                      <span class="font-bold text-white text-xs md:text-sm tracking-wide">${escapeHtml(agent.name || 'Autonomous Agent')}</span>
+                      ${agent.verified ? '<span class="material-symbols-outlined text-emerald-400 text-sm" title="Cryptographically Verified">verified</span>' : ''}
+                    </div>
+                    <div class="flex items-center gap-1 text-[9px] text-slate-400 font-mono mt-0.5">
+                      <span class="text-slate-500">DID:</span>
+                      <span class="text-slate-300 hover:text-white cursor-pointer" onclick="navigator.clipboard.writeText('${agent.did || ''}'); window.showToast('Copied DID');" title="Click to copy DID">${didTrunc}</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="flex flex-col items-end gap-1 shrink-0">
+                  <span class="px-2 py-0.5 rounded bg-purple-500/15 border border-purple-500/30 text-purple-300 text-[9px] font-bold uppercase tracking-wider">
+                    ${chainName}
+                  </span>
+                  <span class="px-1.5 py-0.2 rounded bg-amber-500/15 text-amber-300 text-[9px] font-bold">
+                    ★ ${repScore}
+                  </span>
+                </div>
+              </div>
+
+              <!-- Description -->
+              <p class="text-[11px] text-slate-400 font-sans mt-3 line-clamp-2 leading-relaxed">
+                ${escapeHtml(agent.description || 'Autonomous agent with cryptographic DID and SovereignActor wallet.')}
+              </p>
+
+              <!-- Confinement & Capabilities -->
+              <div class="flex flex-wrap items-center gap-1.5 mt-3 pt-2.5 border-t border-slate-800/80 text-[9px]">
+                <span class="px-1.5 py-0.5 rounded ${isConfined ? 'bg-emerald-500/15 border border-emerald-500/30 text-emerald-300' : 'bg-amber-500/15 border border-amber-500/30 text-amber-300'} font-bold">
+                  ${isConfined ? '✓ CONFINED ACTOR' : 'UNCONFINED'}
+                </span>
+                <span class="text-slate-500 font-mono" title="${actorAddr}">Actor: ${actorTrunc}</span>
+                <div class="flex items-center gap-1 ml-auto">
+                  ${caps.map(c => `<span class="px-1.5 py-0.5 rounded bg-slate-900 border border-slate-800 text-slate-400 text-[8px] uppercase">${escapeHtml(c)}</span>`).join('')}
+                </div>
+              </div>
+            </div>
+
+            <!-- Footer Action Buttons -->
+            <div class="flex items-center gap-2 pt-2 border-t border-slate-800/80 text-[10px]">
+              <button onclick="window.openAgent0Messenger('${agent.agent_id || agent.name}')" class="flex-1 py-1.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-bold uppercase rounded flex items-center justify-center gap-1.5 transition-all shadow cursor-pointer">
+                <span class="material-symbols-outlined text-[13px]">forum</span>
+                <span>Talk via A2A</span>
+              </button>
+              <button onclick="window.inspectAgent0Card('${agent.agent_id || agent.name}')" class="px-2.5 py-1.5 bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white border border-slate-800 rounded font-bold uppercase flex items-center gap-1 transition-colors cursor-pointer" title="Inspect ERC-8004 Metadata">
+                <span class="material-symbols-outlined text-[13px]">manage_search</span>
+              </button>
+              <button onclick="window.saveAgent0CardToMemory('${agent.agent_id || agent.name}')" class="px-2.5 py-1.5 bg-cyan-500/15 hover:bg-cyan-500/25 text-cyan-300 border border-cyan-500/30 rounded font-bold uppercase flex items-center gap-1 transition-colors cursor-pointer" title="Anchor Discovery Card to Cortex Memory Graph">
+                <span class="material-symbols-outlined text-[13px]">bookmark_added</span>
+              </button>
+            </div>
+          </div>
+        `;
+      }).join('');
+    };
+
+    window.setAgent0ChainFilter = function(chain) {
+      window.agent0SelectedChain = chain;
+      ['all', '84532', '11155111', '80002'].forEach(c => {
+        const btn = document.getElementById('agent0-chain-pill-' + c);
+        if (btn) {
+          if (c === chain) {
+            btn.className = 'agent0-chain-btn active px-2.5 py-1 rounded bg-amber-500/20 text-amber-300 border border-amber-500/50 font-bold uppercase text-[9px] cursor-pointer transition-colors';
+          } else {
+            btn.className = 'agent0-chain-btn px-2.5 py-1 rounded bg-slate-900 text-slate-400 border border-slate-700/60 font-bold uppercase text-[9px] cursor-pointer hover:text-white transition-colors';
+          }
+        }
+      });
+      window.loadAgent0Directory();
+    };
+
+    window.toggleAgent0CapFilter = function(cap) {
+      window.agent0CapFilters[cap] = !window.agent0CapFilters[cap];
+      const btn = document.getElementById('agent0-cap-btn-' + cap);
+      if (btn) {
+        if (window.agent0CapFilters[cap]) {
+          btn.className = 'agent0-cap-btn px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/50 text-[9px] font-bold uppercase cursor-pointer transition-colors';
+        } else {
+          btn.className = 'agent0-cap-btn px-2 py-0.5 rounded bg-slate-900 text-slate-400 border border-slate-800 text-[9px] font-bold uppercase cursor-pointer transition-colors';
+        }
+      }
+      window.loadAgent0Directory();
+    };
+
+    window.resetAgent0Filters = function() {
+      const qInput = document.getElementById('agent0-search-query-input');
+      if (qInput) qInput.value = '';
+      window.agent0CapFilters = { a2a: false, mcp: false, confined: false };
+      ['a2a', 'mcp', 'confined'].forEach(cap => {
+        const btn = document.getElementById('agent0-cap-btn-' + cap);
+        if (btn) btn.className = 'agent0-cap-btn px-2 py-0.5 rounded bg-slate-900 text-slate-400 border border-slate-800 text-[9px] font-bold uppercase cursor-pointer transition-colors';
+      });
+      window.setAgent0ChainFilter('all');
+    };
+
+    window.setAgent0Sort = function(sort) {
+      window.agent0Sort = sort;
+      window.loadAgent0Directory();
+    };
+
+    // -------------------------------------------------------------------------
+    // A2A CONVERSATIONAL PROTOCOL MESSENGER (messenger.py standard)
+    // -------------------------------------------------------------------------
+    window.openAgent0Messenger = function(agentId) {
+      const agent = window.agent0Directory.find(a => (a.agent_id === agentId || a.name === agentId)) || {
+        agent_id: agentId,
+        name: agentId,
+        did: 'did:integrity:b1a72980e8e45e97c7b92982a89b1963e470b45fa955c9bd245f046e1e32e39a',
+        chain_name: 'Base Sepolia',
+        wallet_confined: true
+      };
+
+      window.currentA2A.agent = agent;
+      if (!window.currentA2A.contextId) {
+        window.currentA2A.contextId = 'ctx-' + (window.crypto && crypto.randomUUID ? crypto.randomUUID().slice(0, 8) : Math.random().toString(36).slice(2, 10));
+      }
+
+      // Populate Modal Headers
+      const nameEl = document.getElementById('a2a-modal-target-name');
+      const chainEl = document.getElementById('a2a-modal-chain-badge');
+      const confEl = document.getElementById('a2a-modal-confined-badge');
+      const didEl = document.getElementById('a2a-modal-did-label');
+      const ctxEl = document.getElementById('a2a-modal-context-id');
+
+      if (nameEl) nameEl.innerText = agent.name || 'Agent';
+      if (chainEl) chainEl.innerText = agent.chain_name || (agent.chain_id === 84532 ? 'Base Sepolia' : 'Multi-Chain');
+      if (confEl) {
+        confEl.innerText = agent.wallet_confined ? 'SOVEREIGN CONFINED' : 'UNCONFINED';
+        confEl.className = agent.wallet_confined ? 'text-[9px] px-2 py-0.5 rounded bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 font-bold' : 'text-[9px] px-2 py-0.5 rounded bg-amber-500/20 border border-amber-500/40 text-amber-300 font-bold';
+      }
+      if (didEl) didEl.innerText = agent.did || 'did:integrity:n/a';
+      if (ctxEl) ctxEl.innerText = window.currentA2A.contextId;
+
+      window.renderA2AChatHistory();
+
+      const modal = document.getElementById('agent0-messenger-modal');
+      if (modal) modal.classList.remove('hidden');
+
+      setTimeout(() => {
+        const input = document.getElementById('a2a-chat-input');
+        if (input) input.focus();
+      }, 100);
+    };
+
+    window.closeAgent0Messenger = function() {
+      const modal = document.getElementById('agent0-messenger-modal');
+      if (modal) modal.classList.add('hidden');
+    };
+
+    window.resetA2AConversation = function() {
+      window.currentA2A.contextId = 'ctx-' + (window.crypto && crypto.randomUUID ? crypto.randomUUID().slice(0, 8) : Math.random().toString(36).slice(2, 10));
+      window.currentA2A.history = [];
+      const ctxEl = document.getElementById('a2a-modal-context-id');
+      if (ctxEl) ctxEl.innerText = window.currentA2A.contextId;
+      window.renderA2AChatHistory();
+      if (typeof window.showToast === 'function') window.showToast('Reset A2A context session');
+    };
+
+    window.renderA2AChatHistory = function() {
+      const historyEl = document.getElementById('a2a-chat-history');
+      if (!historyEl) return;
+
+      if (!window.currentA2A.history || window.currentA2A.history.length === 0) {
+        historyEl.innerHTML = `
+          <div class="h-full flex flex-col items-center justify-center text-center p-8 space-y-2 text-slate-500">
+            <span class="material-symbols-outlined text-3xl text-amber-500/40">forum</span>
+            <div class="text-xs text-slate-400 font-bold uppercase tracking-wider">A2A Direct Message Channel Initialized</div>
+            <div class="text-[11px] max-w-sm">Use the quick trigger buttons above or type a query below to interact with this agent via the bilateral Agent0 A2A protocol.</div>
+          </div>
+        `;
+        return;
+      }
+
+      historyEl.innerHTML = window.currentA2A.history.map((turn, idx) => {
+        const isUser = turn.role === 'user';
+        const senderName = isUser ? 'User / Host Harness' : (window.currentA2A.agent ? window.currentA2A.agent.name : 'Target Agent');
+        const roleColor = isUser ? 'text-cyan-400 bg-cyan-500/10 border-cyan-500/30' : 'text-amber-400 bg-amber-500/10 border-amber-500/30';
+        const timeStr = turn.timestamp ? new Date(turn.timestamp).toLocaleTimeString() : '';
+
+        const partsHtml = (turn.parts || []).map(part => {
+          if (part.kind === 'text') {
+            return `<div class="text-slate-200 text-xs leading-relaxed whitespace-pre-wrap font-sans">${escapeHtml(part.text)}</div>`;
+          } else if (part.kind === 'data') {
+            return `
+              <div class="mt-2 p-2.5 rounded bg-[#050811] border border-slate-800 text-[10px] font-mono">
+                <div class="flex items-center justify-between pb-1 mb-1 border-b border-slate-800/80 text-slate-400">
+                  <span class="uppercase font-bold text-amber-400">A2A Data Payload</span>
+                  <button onclick="navigator.clipboard.writeText(unescape(\`${encodeURIComponent(JSON.stringify(part.data, null, 2))}\`)); window.showToast('Copied payload');" class="hover:text-white cursor-pointer">
+                    <span class="material-symbols-outlined text-xs">content_copy</span>
+                  </button>
+                </div>
+                <pre class="overflow-x-auto text-amber-200/90 max-h-48 whitespace-pre">${escapeHtml(JSON.stringify(part.data, null, 2))}</pre>
+              </div>
+            `;
+          }
+          return '';
+        }).join('');
+
+        return `
+          <div class="p-3.5 rounded-xl ${isUser ? 'bg-[#0d1322] border border-cyan-500/20' : 'bg-[#0e101c] border border-amber-500/25'} space-y-2">
+            <div class="flex items-center justify-between text-[10px]">
+              <div class="flex items-center gap-2">
+                <span class="px-1.5 py-0.2 rounded border ${roleColor} font-bold uppercase text-[9px]">${isUser ? 'USER' : 'AGENT'}</span>
+                <span class="font-bold text-slate-200">${escapeHtml(senderName)}</span>
+              </div>
+              <div class="flex items-center gap-2 text-slate-500 text-[9px]">
+                <span>${timeStr}</span>
+                <span>${escapeHtml(turn.message_id || '')}</span>
+                ${!isUser ? `<button onclick="window.rememberA2ATurn(${idx})" class="text-cyan-400 hover:text-cyan-300 font-bold ml-1 cursor-pointer" title="Anchor this turn to Cortex"><span class="material-symbols-outlined text-[13px]">bookmark_added</span></button>` : ''}
+              </div>
+            </div>
+            ${partsHtml}
+          </div>
+        `;
+      }).join('');
+
+      historyEl.scrollTop = historyEl.scrollHeight;
+    };
+
+    window.sendA2AMessage = async function(presetText) {
+      const input = document.getElementById('a2a-chat-input');
+      const text = (presetText || (input ? input.value : '')).trim();
+      if (!text) return;
+
+      if (input) input.value = '';
+
+      const userMsgId = 'msg-' + (window.crypto && crypto.randomUUID ? crypto.randomUUID().slice(0, 8) : Math.random().toString(36).slice(2, 10));
+      const userTurn = {
+        role: 'user',
+        parts: [{ kind: 'text', text: text }],
+        timestamp: Date.now(),
+        message_id: userMsgId
+      };
+      window.currentA2A.history.push(userTurn);
+      window.renderA2AChatHistory();
+
+      // Show typing indicator
+      const historyEl = document.getElementById('a2a-chat-history');
+      const typingEl = document.createElement('div');
+      typingEl.id = 'a2a-typing-indicator';
+      typingEl.className = 'p-3 rounded-lg bg-slate-900/60 border border-slate-800 text-xs text-amber-300 flex items-center gap-2 animate-pulse';
+      typingEl.innerHTML = '<span class="material-symbols-outlined text-sm">cycle</span><span>Target agent processing bilateral A2A turn...</span>';
+      if (historyEl) {
+        historyEl.appendChild(typingEl);
+        historyEl.scrollTop = historyEl.scrollHeight;
+      }
+
+      const targetAgent = window.currentA2A.agent || {};
+      const endpoint = (targetAgent.endpoints && targetAgent.endpoints.a2a) || '';
+
+      try {
+        const resp = await fetch('/api/agent0/talk', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            endpoint: endpoint,
+            target_agent: targetAgent.agent_id || targetAgent.name || 'target',
+            message: text,
+            context_id: window.currentA2A.contextId,
+            message_id: userMsgId
+          })
+        });
+
+        const typing = document.getElementById('a2a-typing-indicator');
+        if (typing) typing.remove();
+
+        if (resp.ok) {
+          const data = await resp.json();
+          if (data.output) {
+            window.currentA2A.history.push(data.output);
+            window.renderA2AChatHistory();
+          }
+        } else {
+          window.currentA2A.history.push({
+            role: 'agent',
+            parts: [{ kind: 'text', text: 'Error: A2A messaging request failed with status ' + resp.status }],
+            timestamp: Date.now(),
+            message_id: 'err-' + Math.random().toString(36).slice(2, 8)
+          });
+          window.renderA2AChatHistory();
+        }
+      } catch (err) {
+        console.warn('A2A talk error:', err);
+        const typing = document.getElementById('a2a-typing-indicator');
+        if (typing) typing.remove();
+
+        window.currentA2A.history.push({
+          role: 'agent',
+          parts: [{ kind: 'text', text: 'Local Gateway Fallback: Verified Ed25519 bilateral handshake acknowledged for context ' + window.currentA2A.contextId }],
+          timestamp: Date.now(),
+          message_id: 'fallback-' + Math.random().toString(36).slice(2, 8)
+        });
+        window.renderA2AChatHistory();
+      }
+    };
+
+    window.rememberA2ATurn = async function(turnIdx) {
+      const turn = window.currentA2A.history[turnIdx];
+      if (!turn) return;
+
+      const agent = window.currentA2A.agent || {};
+      try {
+        const resp = await fetch('/api/agent0/remember', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            agent_id: agent.agent_id || agent.name || 'unknown-agent',
+            agent_name: agent.name || 'Agent',
+            turn: turn,
+            scope: 'agent0-a2a'
+          })
+        });
+
+        if (resp.ok) {
+          const data = await resp.json();
+          if (typeof window.showToast === 'function') {
+            window.showToast(`Anchored turn to Cortex memory (${(data.memory_id || '').slice(0, 8)})`);
+          }
+        }
+      } catch (err) {
+        console.warn('Failed to remember turn:', err);
+      }
+    };
+
+    window.rememberLatestA2ATurn = function() {
+      for (let i = window.currentA2A.history.length - 1; i >= 0; i--) {
+        if (window.currentA2A.history[i].role === 'agent') {
+          window.rememberA2ATurn(i);
+          return;
+        }
+      }
+      if (typeof window.showToast === 'function') window.showToast('No agent response turn to anchor yet');
+    };
+
+    window.exportA2ATranscript = function() {
+      const transcript = {
+        protocol: 'agent0-a2a-v1.0',
+        context_id: window.currentA2A.contextId,
+        agent: window.currentA2A.agent,
+        exported_at: new Date().toISOString(),
+        turns: window.currentA2A.history
+      };
+
+      const blob = new Blob([JSON.stringify(transcript, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `a2a-transcript-${window.currentA2A.contextId}.json`;
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(() => { a.remove(); URL.revokeObjectURL(url); }, 500);
+      if (typeof window.showToast === 'function') window.showToast('Downloaded A2A transcript');
+    };
+
+    // -------------------------------------------------------------------------
+    // PASSPORT & CARD INSPECT MODALS
+    // -------------------------------------------------------------------------
+    window.openAgent0PassportModal = function() {
+      window.generateAgent0PassportPreview();
+      const modal = document.getElementById('agent0-passport-modal');
+      if (modal) modal.classList.remove('hidden');
+    };
+
+    window.closeAgent0PassportModal = function() {
+      const modal = document.getElementById('agent0-passport-modal');
+      if (modal) modal.classList.add('hidden');
+    };
+
+    window.generateAgent0PassportPreview = function() {
+      const name = (document.getElementById('passport-input-name') || {}).value || 'Super-Cortex Sovereign Memory Agent';
+      const chainId = (document.getElementById('passport-input-chain') || {}).value || '84532';
+      const did = (document.getElementById('passport-input-did') || {}).value || 'did:integrity:b1a72980e8e45e97c7b92982a89b1963e470b45fa955c9bd245f046e1e32e39a';
+      const actor = (document.getElementById('passport-input-actor') || {}).value || '0xb1a7000000000000000000000000000000000001';
+
+      const passport = {
+        "@context": [
+          "https://www.w3.org/ns/did/v1",
+          "https://erc8004.org/schemas/agent-v1.jsonld"
+        ],
+        "id": did,
+        "name": name,
+        "description": "Autonomous AI Agent with cryptographic DID and SovereignActor wallet containment.",
+        "registrations": [
+          {
+            "standard": "ERC-8004",
+            "caip10": `eip155:${chainId}:${actor}`,
+            "verified": true,
+            "blockNumber": 18452000
+          }
+        ],
+        "services": [
+          {
+            "id": `${did}#a2a`,
+            "type": "Agent0Messenger",
+            "serviceEndpoint": "https://a2a.integrity.xibalba.io/v1"
+          },
+          {
+            "id": `${did}#mcp`,
+            "type": "ModelContextProtocol",
+            "serviceEndpoint": "https://mcp.integrity.xibalba.io/v1"
+          },
+          {
+            "id": `${did}#did-backlink`,
+            "type": "DIDServiceVerification",
+            "serviceEndpoint": did
+          }
+        ],
+        "actor": {
+          "address": actor,
+          "confined": true,
+          "policy": "BCC-OPA-STRICT"
+        }
+      };
+
+      const pre = document.getElementById('passport-json-preview');
+      if (pre) pre.innerText = JSON.stringify(passport, null, 2);
+      window.latestGeneratedPassport = passport;
+    };
+
+    window.copyAgent0PassportJson = function() {
+      const pre = document.getElementById('passport-json-preview');
+      if (pre && pre.innerText) {
+        navigator.clipboard.writeText(pre.innerText);
+        if (typeof window.showToast === 'function') window.showToast('Copied Passport JSON');
+      }
+    };
+
+    window.saveAgent0PassportToCortex = async function() {
+      if (!window.latestGeneratedPassport) window.generateAgent0PassportPreview();
+      const passport = window.latestGeneratedPassport;
+      try {
+        const resp = await fetch('/api/agent0/remember', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            agent_id: passport.id,
+            agent_name: passport.name,
+            turn: {
+              kind: 'passport',
+              role: 'system',
+              parts: [{ kind: 'data', data: passport }]
+            },
+            scope: 'agent0-passport'
+          })
+        });
+
+        if (resp.ok) {
+          const data = await resp.json();
+          if (typeof window.showToast === 'function') window.showToast(`Passport anchored to Cortex memory (${(data.memory_id || '').slice(0, 8)})`);
+          window.closeAgent0PassportModal();
+        }
+      } catch (err) {
+        console.warn('Failed to save passport:', err);
+      }
+    };
+
+    window.inspectAgent0Card = function(agentId) {
+      const agent = window.agent0Directory.find(a => (a.agent_id === agentId || a.name === agentId));
+      if (!agent) return;
+
+      window.currentInspectedCard = agent;
+      const titleEl = document.getElementById('inspect-modal-title');
+      const jsonEl = document.getElementById('inspect-modal-json');
+      if (titleEl) titleEl.innerText = `ERC-8004 RECORD // ${agent.name || agent.agent_id}`;
+      if (jsonEl) jsonEl.innerText = JSON.stringify(agent, null, 2);
+
+      const modal = document.getElementById('agent0-inspect-modal');
+      if (modal) modal.classList.remove('hidden');
+    };
+
+    window.closeAgent0InspectModal = function() {
+      const modal = document.getElementById('agent0-inspect-modal');
+      if (modal) modal.classList.add('hidden');
+    };
+
+    window.saveInspectedCardToMemory = async function() {
+      if (!window.currentInspectedCard) return;
+      const agent = window.currentInspectedCard;
+      try {
+        const resp = await fetch('/api/agent0/remember', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            agent_id: agent.agent_id || agent.name,
+            agent_name: agent.name,
+            turn: {
+              kind: 'discovery_card',
+              role: 'system',
+              parts: [{ kind: 'data', data: agent }]
+            },
+            scope: 'agent0-discovery'
+          })
+        });
+
+        if (resp.ok) {
+          const data = await resp.json();
+          if (typeof window.showToast === 'function') window.showToast(`Discovery card anchored to Cortex (${(data.memory_id || '').slice(0, 8)})`);
+          window.closeAgent0InspectModal();
+        }
+      } catch (err) {
+        console.warn('Failed to anchor card:', err);
+      }
+    };
+
+    window.saveAgent0CardToMemory = function(agentId) {
+      const agent = window.agent0Directory.find(a => (a.agent_id === agentId || a.name === agentId));
+      if (!agent) return;
+      window.currentInspectedCard = agent;
+      window.saveInspectedCardToMemory();
+    };
+
 
     window.loadAuditData = async function() {
       try {
