@@ -366,12 +366,56 @@ def create_app(
                 "label": "Federated Scope Bridge",
             })
 
-        # Memory Voxel Nodes (Organized by Harmonic Epistemic Sectors on Equatorial Disk, R = 230..310)
-        sector_counts: dict[str, int] = {"rule": 0, "fact": 0, "decision": 0}
+        # Custom Scopes Hubs (Interleaved Orbital Shell, R = 210)
+        custom_scopes = [
+            s for s in scopes
+            if s.get("scope_id") != "shared" and not str(s.get("scope_id", "")).startswith("agent:")
+        ]
+        num_custom = max(len(custom_scopes), 1)
+        scope_positions: dict[str, list[float]] = {}
+        for i, sc in enumerate(custom_scopes):
+            sc_id = sc["scope_id"]
+            sc_angle = (2 * math.pi / num_custom) * i + 0.35
+            sc_radius = 210.0
+            sx = math.cos(sc_angle) * sc_radius
+            sy = math.sin(sc_angle * 2) * 20.0
+            sz = math.sin(sc_angle) * sc_radius
+            scope_positions[sc_id] = [round(sx, 1), round(sy, 1), round(sz, 1)]
+
+            sc_hub_id = f"hub_scope_{sc_id.replace(':', '_')}"
+            nodes.append({
+                "id": sc_hub_id,
+                "title": f"Scope: {sc.get('name') or sc_id}",
+                "labelTag": f"SCOPE // {sc_id.upper()}",
+                "category": "custom_scope",
+                "type": "scope_hub",
+                "node_type": "scope_hub",
+                "scope_node_type": f"{sc_id}:hub",
+                "status": "active",
+                "epistemic_class": "rule",
+                "color": 0x38bdf8,
+                "size": 24,
+                "pos3D": [round(sx, 1), round(sy, 1), round(sz, 1)],
+                "pos2D": [round(sx, 1), round(sz, 1), 0],
+                "confidence": 1.0,
+                "hash": f"0xSCOPE_{hashlib.sha256(sc_id.encode()).hexdigest()[:8].upper()}",
+                "content": sc.get("description") or f"Custom operational memory scope: {sc_id}",
+                "scope": sc_id,
+            })
+            links.append({
+                "source": "hub_shared",
+                "target": sc_hub_id,
+                "type": "federation",
+                "label": f"Federated Scope ({sc_id})",
+            })
+
+        # Memory & Custom Voxel Nodes (Organized by Harmonic Epistemic Sectors on Equatorial Disk, R = 240..380)
+        sector_counts: dict[str, int] = {}
+        sector_classes = ["rule", "fact", "decision", "inference", "goal", "belief", "concept", "custom", "tool_call", "thought_trace"]
+        num_sectors = len(sector_classes)
         sector_angles = {
-            "rule": 0.0,                   # Sector 0 rad (0° to 120°)
-            "fact": (2.0 * math.pi / 3.0), # Sector 2.09 rad (120° to 240°)
-            "decision": (4.0 * math.pi / 3.0), # Sector 4.18 rad (240° to 360°)
+            cls: (2.0 * math.pi / num_sectors) * i
+            for i, cls in enumerate(sector_classes)
         }
 
         for idx, row in enumerate(mem_rows):
@@ -385,23 +429,25 @@ def create_app(
             mem_agent_id = meta.get("agent_id") or (mem_scope.split("agent:")[1] if mem_scope.startswith("agent:") else None)
             ep_class = row["epistemic_class"]
             para = meta.get("para", {})
-            para_cat = para.get("category", "area") if isinstance(para, dict) else "area"
+            para_cat = meta.get("category") or (para.get("category", "area") if isinstance(para, dict) else "area")
             triples = meta.get("triples", [])
 
             # Filter if a specific scope is requested
             if selected_scope and selected_scope != "all" and mem_scope != selected_scope:
                 continue
 
-            sec_key = ep_class if ep_class in sector_counts else ("fact" if ep_class not in ("rule", "decision") else ep_class)
-            k = sector_counts[sec_key]
-            sector_counts[sec_key] += 1
+            n_type = meta.get("node_type") or meta.get("type") or f"memory_{ep_class}"
+            sec_key = ep_class if ep_class in sector_angles else (n_type if n_type in sector_angles else "fact")
+            k = sector_counts.get(sec_key, 0)
+            sector_counts[sec_key] = k + 1
 
             # Golden ratio sunflower phyllotaxis (Fibonacci packing) guaranteeing zero spatial overlap
             base_angle = sector_angles[sec_key]
             golden_angle = 2.399963229728653  # pi * (3 - sqrt(5)) radians (~137.508 deg)
             phi = (base_angle + (k * golden_angle)) % (2.0 * math.pi)
-            m_rad = 220.0 + math.sqrt(k + 1.0) * 16.5 + (k % 7) * 3.5
-            elevation = math.sin(k * 1.618) * (20.0 + math.sqrt(k) * 2.2)
+            scope_hash_offset = (abs(hash(mem_scope)) % 5) * 22.0
+            m_rad = 240.0 + scope_hash_offset + math.sqrt(k + 1.0) * 18.0 + (k % 5) * 5.0
+            elevation = math.sin(k * 1.618) * (22.0 + math.sqrt(k) * 2.5)
 
             px = m_rad * math.cos(phi)
             py = elevation
@@ -419,33 +465,47 @@ def create_app(
                 or str(meta.get("filename") or meta.get("title") or row["source_id"]).lower().endswith(".txt")
             )
 
-            color = 0xf43f5e if is_img else epistemic_colors.get(ep_class, 0x38bdf8)
+            raw_color = meta.get("color")
+            if isinstance(raw_color, str) and raw_color.startswith("#"):
+                try:
+                    color = int(raw_color.lstrip("#"), 16)
+                except Exception:
+                    color = 0xf43f5e if is_img else epistemic_colors.get(ep_class, 0x38bdf8)
+            elif isinstance(raw_color, int):
+                color = raw_color
+            else:
+                color = 0xf43f5e if is_img else epistemic_colors.get(ep_class, 0x38bdf8)
+
+            node_size = meta.get("size") or (18 if is_img else 15)
+            node_title = meta.get("title") or (row["text"][:45] + ("..." if len(row["text"]) > 45 else ""))
+            custom_props = meta.get("properties") or meta
             node_cat = "image" if is_img else para_cat
-            node_sub_type = "image_media" if is_img else f"memory_{ep_class}"
+            node_sub_type = meta.get("node_type") or ("image_media" if is_img else n_type)
 
             nodes.append({
                 "id": mem_id,
-                "title": row["text"][:45] + ("..." if len(row["text"]) > 45 else ""),
+                "title": node_title,
                 "labelTag": f"{'IMAGE' if is_img else ep_class.upper()} // {node_cat.upper()}",
                 "category": node_cat,
-                "type": "image" if is_img else "memory",
+                "type": meta.get("type") or ("image" if is_img else "memory"),
                 "node_type": node_sub_type,
                 "scope_node_type": f"{mem_scope}:{node_sub_type}",
-                "status": row["lifecycle_status"],
+                "status": meta.get("status") or row["lifecycle_status"],
                 "epistemic_class": "fact" if is_img else ep_class,
                 "para": para,
                 "triples": triples,
                 "color": color,
-                "size": 18 if is_img else 15,
+                "size": node_size,
                 "pos3D": [round(px, 1), round(py, 1), round(pz, 1)],
                 "pos2D": [round(px, 1), round(pz, 1), 0],
-                "confidence": 0.95,
+                "confidence": meta.get("confidence") or 0.95,
                 "hash": row["content_hash"][:16],
                 "full_hash": row["content_hash"],
                 "content": row["text"],
                 "scope": mem_scope,
                 "agent_id": mem_agent_id,
                 "created_at": row["created_at"],
+                "properties": custom_props,
                 "metadata": meta,
                 "is_image": is_img,
                 "is_txt": is_txt,
@@ -470,7 +530,12 @@ def create_app(
             })
 
             # Link memory to its parent hub
-            target_hub = f"hub_agent_{mem_agent_id}" if mem_scope.startswith("agent:") and mem_agent_id in agent_positions else "hub_shared"
+            target_hub = "hub_shared"
+            if mem_scope.startswith("agent:") and mem_agent_id in agent_positions:
+                target_hub = f"hub_agent_{mem_agent_id}"
+            elif mem_scope in scope_positions:
+                target_hub = f"hub_scope_{mem_scope.replace(':', '_')}"
+
             links.append({
                 "source": target_hub,
                 "target": mem_id,
@@ -2430,6 +2495,355 @@ em {{ color: #94a3b8; }}
                 return JSONResponse({"status": "error", "message": str(e)}, status_code=500)
 
     # -------------------------------------------------------------------------
+    # CUSTOM NODES, SCOPES & RELATIONSHIPS HANDLERS
+    # -------------------------------------------------------------------------
+    async def api_nodes(request: Request) -> JSONResponse:
+        """Create or list nodes with custom scopes, configurable properties, and relationships."""
+        if request.method == "POST":
+            try:
+                body = await request.json()
+            except Exception:
+                return JSONResponse({"error": "Invalid JSON request body"}, status_code=400)
+
+            title = str(body.get("title") or "").strip()
+            text = str(body.get("content") or body.get("text") or "").strip()
+            if not text and title:
+                text = title
+            if not text:
+                return JSONResponse({"error": "content or text is required"}, status_code=400)
+
+            scope = str(body.get("scope") or "shared").strip() or "shared"
+            node_type = str(body.get("node_type") or "concept").strip() or "concept"
+            epistemic_class = str(body.get("epistemic_class") or "fact").strip() or "fact"
+            category = str(body.get("category") or "project").strip() or "project"
+            try:
+                confidence = float(body.get("confidence", 1.0))
+            except (ValueError, TypeError):
+                confidence = 1.0
+            status = str(body.get("status") or "active").strip() or "active"
+            color = body.get("color")
+            size = body.get("size")
+            properties = body.get("properties") or {}
+            relationships = body.get("relationships") or []
+
+            # 1. Auto-register scope if it doesn't exist
+            existing_scope = cortex.store.get_scope(scope)
+            if not existing_scope:
+                is_agent = scope.startswith("agent:")
+                agent_target = scope.split(":", 1)[1] if is_agent else None
+                cortex.create_scope(
+                    scope_id=scope,
+                    name=scope.replace(":", " ").replace("_", " ").title(),
+                    scope_type="single_agent" if is_agent else "shared",
+                    agent_id=agent_target,
+                    description=f"User-defined custom scope: {scope}",
+                )
+
+            # 2. Build metadata properties
+            meta: dict[str, Any] = {
+                "title": title or text[:60],
+                "scope": scope,
+                "node_type": node_type,
+                "type": node_type,
+                "category": category,
+                "confidence": confidence,
+                "status": status,
+                "properties": properties,
+            }
+            if color:
+                meta["color"] = color
+            if size:
+                meta["size"] = size
+            if isinstance(properties, dict):
+                meta.update(properties)
+
+            mem_res = await cortex.remember(
+                text=text,
+                epistemic_class=epistemic_class,
+                scope=scope,
+                metadata=meta,
+            )
+            node_id = mem_res["memory_id"]
+
+            # 3. Create specified relationships to other nodes
+            created_relations = []
+            for rel in relationships:
+                target = str(rel.get("target") or rel.get("object") or "").strip()
+                if target:
+                    predicate = str(rel.get("predicate") or "relates_to").strip()
+                    try:
+                        rel_conf = float(rel.get("confidence", 1.0))
+                    except (ValueError, TypeError):
+                        rel_conf = 1.0
+                    bidir = bool(rel.get("bidirectional", False))
+                    ev = rel.get("evidence") or []
+                    r1 = cortex.store.add_relation(
+                        subject=node_id,
+                        predicate=predicate,
+                        object=target,
+                        confidence=rel_conf,
+                        evidence_links=ev,
+                    )
+                    created_relations.append(r1.model_dump())
+                    if bidir:
+                        r2 = cortex.store.add_relation(
+                            subject=target,
+                            predicate=f"inverse_{predicate}",
+                            object=node_id,
+                            confidence=rel_conf,
+                            evidence_links=ev,
+                        )
+                        created_relations.append(r2.model_dump())
+
+            await broadcast_event("node_created", {
+                "node_id": node_id,
+                "title": title or text[:60],
+                "scope": scope,
+                "node_type": node_type,
+                "epistemic_class": epistemic_class,
+                "relations_count": len(created_relations),
+            })
+
+            return JSONResponse({
+                "ok": True,
+                "node_id": node_id,
+                "node": {
+                    "id": node_id,
+                    "title": title or text[:60],
+                    "content": text,
+                    "scope": scope,
+                    "node_type": node_type,
+                    "epistemic_class": epistemic_class,
+                    "category": category,
+                    "status": status,
+                    "confidence": confidence,
+                    "properties": properties,
+                    "color": color,
+                    "size": size,
+                },
+                "relations": created_relations,
+            }, status_code=201)
+
+        elif request.method == "GET":
+            scope = request.query_params.get("scope")
+            node_type = request.query_params.get("node_type")
+            ep_class = request.query_params.get("epistemic_class")
+            q = (request.query_params.get("q") or "").strip().lower()
+            limit = int(request.query_params.get("limit", 250))
+
+            mems = cortex.store.list_memories(limit=limit)
+            nodes_list = []
+            for m in mems:
+                meta = m.get("metadata") or {}
+                m_scope = meta.get("scope") or "shared"
+                m_type = meta.get("node_type") or m.get("epistemic_class")
+                m_ep = m.get("epistemic_class")
+
+                if scope and scope != "all" and m_scope != scope:
+                    continue
+                if node_type and node_type != "all" and m_type != node_type:
+                    continue
+                if ep_class and ep_class != "all" and m_ep != ep_class:
+                    continue
+                if q and q not in m["text"].lower() and q not in str(meta.get("title", "")).lower():
+                    continue
+
+                nodes_list.append({
+                    "id": m["id"],
+                    "title": meta.get("title") or (m["text"][:50] + ("..." if len(m["text"]) > 50 else "")),
+                    "content": m["text"],
+                    "scope": m_scope,
+                    "node_type": m_type,
+                    "epistemic_class": m_ep,
+                    "category": meta.get("category") or (meta.get("para", {}).get("category") if isinstance(meta.get("para"), dict) else "area"),
+                    "status": m.get("status") or meta.get("status", "active"),
+                    "confidence": meta.get("confidence", 0.95),
+                    "properties": meta.get("properties") or meta,
+                    "color": meta.get("color"),
+                    "created_at": m.get("created_at"),
+                })
+
+            return JSONResponse({"nodes": nodes_list, "total": len(nodes_list)})
+
+    async def api_node_detail(request: Request) -> JSONResponse:
+        """Retrieve, update, or delete a specific node and inspect its relationships."""
+        node_id = request.path_params.get("node_id")
+        if not node_id:
+            return JSONResponse({"error": "node_id is required"}, status_code=400)
+
+        if request.method == "GET":
+            mem = cortex.store.get_memory(node_id)
+            if not mem:
+                return JSONResponse({"error": f"Node {node_id} not found"}, status_code=404)
+            neighbors = cortex.store.get_neighbors(node_id)
+            meta = mem.metadata or {}
+            curr_status = mem.lifecycle_status.value if hasattr(mem.lifecycle_status, "value") else str(mem.lifecycle_status)
+            return JSONResponse({
+                "node": {
+                    "id": mem.id,
+                    "title": meta.get("title") or (mem.text[:50] + ("..." if len(mem.text) > 50 else "")),
+                    "content": mem.text,
+                    "scope": meta.get("scope") or "shared",
+                    "node_type": meta.get("node_type") or f"memory_{mem.epistemic_class}",
+                    "epistemic_class": mem.epistemic_class,
+                    "category": meta.get("category") or (meta.get("para", {}).get("category") if isinstance(meta.get("para"), dict) else "area"),
+                    "status": curr_status,
+                    "confidence": meta.get("confidence", 0.95),
+                    "properties": meta.get("properties") or meta,
+                    "color": meta.get("color"),
+                    "created_at": mem.created_at,
+                    "updated_at": mem.updated_at,
+                },
+                "relations": neighbors,
+            })
+
+        elif request.method in ("PUT", "PATCH"):
+            body = await request.json()
+            title = body.get("title")
+            text = body.get("content") or body.get("text")
+            ep_class = body.get("epistemic_class")
+            status = body.get("status")
+            props = body.get("properties") or {}
+
+            patch: dict[str, Any] = dict(props) if isinstance(props, dict) else {}
+            if title:
+                patch["title"] = title
+            if "node_type" in body:
+                patch["node_type"] = body["node_type"]
+            if "color" in body:
+                patch["color"] = body["color"]
+            if "category" in body:
+                patch["category"] = body["category"]
+            if "confidence" in body:
+                patch["confidence"] = body["confidence"]
+            patch["properties"] = props
+
+            updated = cortex.store.update_memory_content(
+                memory_id=node_id,
+                text=text,
+                epistemic_class=ep_class,
+                status=status,
+                metadata_patch=patch,
+            )
+            if not updated:
+                return JSONResponse({"error": f"Node {node_id} not found"}, status_code=404)
+            await broadcast_event("node_updated", {"node_id": node_id})
+            return JSONResponse({"ok": True, "node": updated})
+
+        elif request.method == "DELETE":
+            # Remove associated relations and memory node
+            with cortex.store._get_conn() as conn:
+                conn.execute("DELETE FROM relations WHERE subject = ? OR object = ?", (node_id, node_id))
+                cur = conn.execute("DELETE FROM memories WHERE id = ?", (node_id,))
+                conn.commit()
+                if cur.rowcount == 0:
+                    return JSONResponse({"error": f"Node {node_id} not found"}, status_code=404)
+            await broadcast_event("node_deleted", {"node_id": node_id})
+            return JSONResponse({"ok": True, "node_id": node_id})
+
+    async def api_relations(request: Request) -> JSONResponse:
+        """Create or list relations between graph nodes."""
+        if request.method == "POST":
+            try:
+                body = await request.json()
+            except Exception:
+                return JSONResponse({"error": "Invalid JSON body"}, status_code=400)
+
+            source = str(body.get("source") or body.get("subject") or "").strip()
+            target = str(body.get("target") or body.get("object") or "").strip()
+            predicate = str(body.get("predicate") or "relates_to").strip()
+            try:
+                confidence = float(body.get("confidence", 1.0))
+            except (ValueError, TypeError):
+                confidence = 1.0
+            bidir = bool(body.get("bidirectional", False))
+            ev = body.get("evidence") or []
+
+            if not source or not target:
+                return JSONResponse({"error": "source and target are required"}, status_code=400)
+
+            r1 = cortex.store.add_relation(
+                subject=source,
+                predicate=predicate,
+                object=target,
+                confidence=confidence,
+                evidence_links=ev,
+            )
+            results = [r1.model_dump()]
+            if bidir:
+                r2 = cortex.store.add_relation(
+                    subject=target,
+                    predicate=f"inverse_{predicate}",
+                    object=source,
+                    confidence=confidence,
+                    evidence_links=ev,
+                )
+                results.append(r2.model_dump())
+
+            await broadcast_event("relation_created", {"source": source, "target": target, "predicate": predicate})
+            return JSONResponse({"ok": True, "relations": results}, status_code=201)
+
+        elif request.method == "GET":
+            subject = request.query_params.get("source") or request.query_params.get("subject")
+            predicate = request.query_params.get("predicate")
+            obj = request.query_params.get("target") or request.query_params.get("object")
+            limit = int(request.query_params.get("limit", 250))
+            rels = cortex.store.list_relations(subject=subject, predicate=predicate, object=obj, limit=limit)
+            return JSONResponse({"relations": rels, "total": len(rels)})
+
+    async def api_relation_detail(request: Request) -> JSONResponse:
+        """Delete or inspect a specific relation edge."""
+        relation_id = request.path_params.get("relation_id")
+        if not relation_id:
+            return JSONResponse({"error": "relation_id is required"}, status_code=400)
+        if request.method == "DELETE":
+            ok = cortex.store.delete_relation(relation_id)
+            if not ok:
+                return JSONResponse({"error": f"Relation {relation_id} not found"}, status_code=404)
+            await broadcast_event("relation_deleted", {"relation_id": relation_id})
+            return JSONResponse({"ok": True, "relation_id": relation_id})
+
+    # Server-side layout parameters with optimal zero-overlap defaults
+    _server_layout_config: dict[str, Any] = {
+        "minNodePadding": 26.0,
+        "preventScopeOverlap": True,
+        "preventTypeOverlap": True,
+        "scopeSeparation": 150.0,
+        "typeSpread": 1.3,
+        "orbitScale": 1.15,
+        "deckElevation": 170.0,
+        "forceRepulsion": 48000.0,
+        "forceSpringLength": 110.0,
+        "gridStep": 50.0,
+    }
+
+    async def api_layout_params(request: Request) -> JSONResponse:
+        """Retrieve or update graph layout parameters and collision prevention configurations."""
+        nonlocal _server_layout_config
+        params_file = cfg.db_path.parent / "layout_params.json"
+        if request.method == "GET":
+            if params_file.exists():
+                try:
+                    loaded = json.loads(params_file.read_text(encoding="utf-8"))
+                    if isinstance(loaded, dict):
+                        _server_layout_config.update(loaded)
+                except Exception as e:
+                    logger.warning("Failed reading layout_params.json: %s", e)
+            return JSONResponse({"config": _server_layout_config})
+        elif request.method == "POST":
+            try:
+                body = await request.json()
+                if isinstance(body, dict):
+                    _server_layout_config.update(body)
+                    params_file.parent.mkdir(parents=True, exist_ok=True)
+                    params_file.write_text(json.dumps(_server_layout_config, indent=2), encoding="utf-8")
+                    await broadcast_event("layout_params_updated", _server_layout_config)
+                return JSONResponse({"ok": True, "config": _server_layout_config})
+            except Exception as e:
+                logger.error("Failed saving layout params: %s", e)
+                return JSONResponse({"error": str(e)}, status_code=500)
+
+    # -------------------------------------------------------------------------
     # USER MANAGEMENT, AGENT PAIRING & STRIPE SUBSCRIPTION HANDLERS
     # -------------------------------------------------------------------------
     def _extract_session_token(request: Request) -> str | None:
@@ -3218,6 +3632,14 @@ em {{ color: #94a3b8; }}
         Route("/cortex-api/api/status", api_status, methods=["GET"]),
         Route("/cortex-api/api/stats", api_status, methods=["GET"]),
         Route("/api/graph", api_graph, methods=["GET"]),
+        Route("/api/nodes", api_nodes, methods=["GET", "POST"]),
+        Route("/api/graph/nodes", api_nodes, methods=["GET", "POST"]),
+        Route("/api/nodes/{node_id}", api_node_detail, methods=["GET", "PUT", "PATCH", "DELETE"]),
+        Route("/api/relations", api_relations, methods=["GET", "POST"]),
+        Route("/api/graph/relations", api_relations, methods=["GET", "POST"]),
+        Route("/api/relations/{relation_id}", api_relation_detail, methods=["GET", "DELETE"]),
+        Route("/api/config/layout-params", api_layout_params, methods=["GET", "POST"]),
+        Route("/api/layout/params", api_layout_params, methods=["GET", "POST"]),
         Route("/api/scopes", api_scopes, methods=["GET", "POST"]),
         Route("/api/agents", api_agents, methods=["GET", "POST"]),
         Route("/cortex-api/api/agents", api_agents, methods=["GET"]),

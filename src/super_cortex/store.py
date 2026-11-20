@@ -686,6 +686,95 @@ class ProvenanceStore:
             })
         return results
 
+    def delete_relation(self, relation_id: str) -> bool:
+        """Delete a directed relation edge by ID."""
+        with self._get_conn() as conn:
+            cursor = conn.execute("DELETE FROM relations WHERE relation_id = ?", (relation_id,))
+            conn.commit()
+            return cursor.rowcount > 0
+
+    def list_relations(
+        self,
+        *,
+        subject: str | None = None,
+        predicate: str | None = None,
+        object: str | None = None,
+        limit: int = 250,
+    ) -> list[dict[str, Any]]:
+        """List relations matching optional subject, predicate, or object filters."""
+        query = "SELECT relation_id, subject, predicate, object, confidence, evidence_links_json, created_at FROM relations WHERE 1=1"
+        params: list[Any] = []
+        if subject:
+            query += " AND subject = ?"
+            params.append(subject)
+        if predicate:
+            query += " AND predicate = ?"
+            params.append(predicate)
+        if object:
+            query += " AND object = ?"
+            params.append(object)
+        query += " ORDER BY rowid DESC LIMIT ?"
+        params.append(limit)
+
+        with self._get_conn() as conn:
+            rows = conn.execute(query, params).fetchall()
+
+        results = []
+        for r in rows:
+            ev = []
+            try:
+                ev = json.loads(r["evidence_links_json"] or "[]")
+            except Exception:
+                pass
+            results.append({
+                "relation_id": r["relation_id"],
+                "subject": r["subject"],
+                "predicate": r["predicate"],
+                "object": r["object"],
+                "confidence": r["confidence"],
+                "evidence_links": ev,
+                "created_at": r["created_at"],
+            })
+        return results
+
+    def update_memory_content(
+        self,
+        memory_id: str,
+        *,
+        text: str | None = None,
+        epistemic_class: str | None = None,
+        status: str | None = None,
+        metadata_patch: dict[str, Any] | None = None,
+    ) -> dict[str, Any] | None:
+        """Update memory fields and merge configurable metadata properties."""
+        mem = self.get_memory(memory_id)
+        if not mem:
+            return None
+
+        now = utc_now_iso()
+        new_text = text if text is not None else mem.text
+        new_ep = epistemic_class if epistemic_class is not None else mem.epistemic_class
+        curr_status = mem.lifecycle_status.value if hasattr(mem.lifecycle_status, "value") else str(mem.lifecycle_status)
+        new_status = status if status is not None else curr_status
+
+        meta = dict(mem.metadata)
+        if metadata_patch:
+            meta.update(metadata_patch)
+
+        with self._get_conn() as conn:
+            conn.execute(
+                """
+                UPDATE memories
+                SET text = ?, epistemic_class = ?, lifecycle_status = ?, metadata_json = ?, updated_at = ?
+                WHERE id = ?
+                """,
+                (new_text, new_ep, new_status, canonical_json(meta), now, memory_id),
+            )
+            conn.commit()
+
+        updated = self.get_memory(memory_id)
+        return updated.model_dump() if updated else None
+
     def save_exchange(
         self,
         session_id: str,
@@ -1608,8 +1697,8 @@ class ProvenanceStore:
             return results
 
     def delete_memory(self, memory_id: str) -> bool:
-        """Mark memory archived and remove from active index."""
-        return self.update_memory_status(memory_id, LifecycleStatus.ARCHIVED)
+        """Mark memory forgotten and remove from active index."""
+        return self.update_memory_status(memory_id, LifecycleStatus.FORGOTTEN)
 
     def _resolve_env_key(self, provider_type: str, current_key: str) -> str:
         import os
