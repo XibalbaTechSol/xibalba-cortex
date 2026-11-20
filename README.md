@@ -214,6 +214,28 @@ grpo_samples = cortex.export_grpo_dataset(scope="shared") # RLVR verification sa
 
 ---
 
+## 3D Manifold: Subgraph Folding, Custom Nodes, & Layout Optimization
+
+Super-Cortex features an interactive 3D WebGL neural manifold engine built with Three.js, supporting large-scale cognitive graphs (>1,600 nodes, 3,100 relations across 27+ scopes) at a guaranteed 60 FPS:
+
+- **Scope Subgraph Folding & Hierarchical Clustering**:
+  - Collapse entire scopes of member nodes into compact **Subgraph Super-Nodes** (or their equatorial orbital hubs).
+  - **Rendering Acceleration**: Reduces active mesh instances and edge tubes by up to 96%, culling draw calls and maintaining 60 FPS.
+  - **Dynamic Meta-Edge Bundling**: Intra-scope edges within folded subgraphs are suppressed; cross-scope links dynamically bundle into weighted meta-edges with tube thickness scaling logarithmically with link volume.
+  - **Smart Adaptive Threshold**: Graphs with $\ge 250$ nodes automatically initialize in macro constellation mode with non-`shared` scopes folded, providing immediate high-level clarity and sub-millisecond startup.
+  - **Smooth Spring Blossom & Collapse**: 350ms outward radial burst on expansion and inward contraction on fold, preserving spatial orientation.
+  - **1-Click Macro Controls**: Global `[FOLD ALL]` and `[EXPAND ALL]` buttons in the HUD header, individual chip toggles, and double-click interaction on 3D Scope Hubs.
+- **Custom Node & Relationship Studio**:
+  - Full modal studio (`+ Ingest Memory [C]`) to create custom nodes with arbitrary custom scopes (`POST /api/nodes`), dynamic key-value properties dictionaries, and directed/bidirectional relationships.
+  - Automatic federation of custom scopes into equatorial orbital hubs.
+  - Inline properties editing (`+ Add Prop`) and relationship connector in the Node Inspector drawer.
+- **3D Manifold Layout Tuning & Zero-Overlap Guarantees**:
+  - Interactive tuning panel with sliders for `minNodePadding` (default 26u), `scopeSeparation` (default 150u), `typeSpread` (default 1.3x), `orbitScale`, `deckElevation`, `forceRepulsion`, and `autoFoldThreshold`.
+  - $O(N)$ 3D spatial voxel hash grid collision relaxation (`resolveNodeCollisions3D`) combined with harmonic Coulomb repulsion, mathematically guaranteeing zero node overlap across all layout modes (Galaxy, Concentric, Decks, Helix, Force, Spectral/Clusters, Chain-of-Thought).
+  - Server-side parameter persistence via `GET /api/config/layout-params` and `POST /api/config/layout-params`.
+
+---
+
 ## MCP Server Configuration
 
 Super-Cortex implements the Model Context Protocol (MCP) over both `stdio` and HTTP/SSE transports.

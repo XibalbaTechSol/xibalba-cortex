@@ -3937,6 +3937,9 @@
             </div>
           </div>
 
+          <!-- Scope Subgraph Folding & Hierarchy Section -->
+          <div id="node-scope-subgraph-card"></div>
+
           <!-- Configurable Node Properties Section -->
           <div id="node-properties-section" class="p-2 rounded bg-surface-container-low/80 border border-outline-variant/30 space-y-1.5 font-mono">
             <div class="flex items-center justify-between text-[9px] font-bold text-cyan-300 uppercase pb-1 border-b border-outline-variant/20">
@@ -4665,6 +4668,10 @@
               <span>SCOPES IN VIEW</span>
             </span>
             <div class="flex items-center gap-1">
+              <button type="button" onclick="window.foldAllScopes()" class="hover:text-amber-300 text-slate-400 px-1 py-0.2 rounded hover:bg-surface-container-high transition-colors cursor-pointer flex items-center gap-0.5" title="Fold all scopes into subgraphs (Macro View)"><span class="material-symbols-outlined text-[9px]">compress</span>FOLD ALL</button>
+              <span>·</span>
+              <button type="button" onclick="window.unfoldAllScopes()" class="hover:text-cyan-300 text-slate-400 px-1 py-0.2 rounded hover:bg-surface-container-high transition-colors cursor-pointer flex items-center gap-0.5" title="Expand all scopes into nodes (Micro View)"><span class="material-symbols-outlined text-[9px]">unfold_more</span>EXPAND ALL</button>
+              <span>·</span>
               <button type="button" onclick="window.toggleAllScopes(true)" class="hover:text-cyan-300 text-slate-400 px-1 py-0.2 rounded hover:bg-surface-container-high transition-colors cursor-pointer">ALL</button>
               <span>·</span>
               <button type="button" onclick="window.toggleAllScopes(false)" class="hover:text-cyan-300 text-slate-400 px-1 py-0.2 rounded hover:bg-surface-container-high transition-colors cursor-pointer">NONE</button>
@@ -7677,6 +7684,7 @@
 
         // 1. Populate 3D spatial voxel hash grid
         for (let i = 0; i < N; i++) {
+          if (!meshes[i].visible || meshes[i].scale.x < 0.1) continue;
           const p = meshes[i].userData.targetBase;
           const cx = Math.floor(p[0] * invCell);
           const cy = Math.floor(p[1] * invCell);
@@ -7692,6 +7700,7 @@
 
         // 2. Query only 27 neighboring cells (O(N) instead of O(N^2))
         for (let i = 0; i < N; i++) {
+          if (!meshes[i].visible || meshes[i].scale.x < 0.1) continue;
           const m1 = meshes[i];
           const p1 = m1.userData.targetBase;
           const d1 = m1.userData.data || {};
@@ -7795,12 +7804,247 @@
     }
     window.resolveNodeCollisions3D = resolveNodeCollisions3D;
 
+    // -------------------------------------------------------------------------
+    // SCOPE SUBGRAPH FOLDING & HIERARCHICAL CLUSTERING ENGINE
+    // -------------------------------------------------------------------------
+    window.foldedScopes = new Set();
+    window.foldedScopesInitialized = false;
+    const activeFoldAnimations = new Map();
+
+    function getScopeForNode(nodeData) {
+      if (!nodeData) return 'shared';
+      if (nodeData.scope) {
+        return String(nodeData.scope).toLowerCase().replace(/^agent:/, '');
+      }
+      if (nodeData.id && typeof nodeData.id === 'string') {
+        if (nodeData.id.startsWith('hub_agent_')) {
+          return nodeData.id.replace('hub_agent_', '').toLowerCase();
+        }
+        if (nodeData.id.startsWith('hub_scope_')) {
+          return nodeData.id.replace('hub_scope_', '').replace(/_/g, ':').toLowerCase();
+        }
+        if (nodeData.id === 'hub_shared') return 'shared';
+      }
+      return String(nodeData.category || 'shared').toLowerCase().replace(/^agent:/, '');
+    }
+    window.getScopeForNode = getScopeForNode;
+
+    function getHubIdForScope(scopeKey) {
+      const norm = (scopeKey || 'shared').toLowerCase().replace(/^agent:/, '');
+      if (norm === 'shared') return 'hub_shared';
+      const agentHub = `hub_agent_${norm}`;
+      if (window.nodeDefs && window.nodeDefs.some(n => n.id === agentHub)) return agentHub;
+      const scHub = `hub_scope_${norm.replace(/[:\-]/g, '_')}`;
+      if (window.nodeDefs && window.nodeDefs.some(n => n.id === scHub)) return scHub;
+      const found = window.nodeDefs?.find(n => (n.type === 'hub' || n.type === 'scope_hub' || n.type === 'agent_hub') && getScopeForNode(n) === norm);
+      return found ? found.id : 'hub_shared';
+    }
+    window.getHubIdForScope = getHubIdForScope;
+
+    function getEffectiveNodeIndex(nodeIdx) {
+      if (nodeIdx == null || !nodeDefs || !nodeDefs[nodeIdx]) return nodeIdx;
+      const node = nodeDefs[nodeIdx];
+      const sc = getScopeForNode(node);
+      if (!sc || !window.foldedScopes || !window.foldedScopes.has(sc)) {
+        return nodeIdx;
+      }
+      const isHub = node.type === 'hub' || node.type === 'scope_hub' || node.type === 'agent_hub' || (node.id && typeof node.id === 'string' && node.id.startsWith('hub_'));
+      if (isHub) return nodeIdx;
+      const hubId = getHubIdForScope(sc);
+      const hubIdx = nodeDefs.findIndex(n => n.id === hubId);
+      return hubIdx !== -1 ? hubIdx : nodeIdx;
+    }
+    window.getEffectiveNodeIndex = getEffectiveNodeIndex;
+
+    function initFoldedScopes(nodes) {
+      const saved = localStorage.getItem('supercortex_folded_scopes');
+      if (saved !== null) {
+        try {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed)) {
+            window.foldedScopes = new Set(parsed);
+            return;
+          }
+        } catch (e) {}
+      }
+      window.foldedScopes = new Set();
+      // Smart Adaptive Threshold (Decision 1: Option A):
+      // If total nodes >= 250, default all scopes except 'shared' to folded
+      if (nodes && nodes.length >= 250) {
+        nodes.forEach(n => {
+          const sc = getScopeForNode(n);
+          if (sc && sc !== 'shared') {
+            window.foldedScopes.add(sc);
+          }
+        });
+      }
+    }
+    window.initFoldedScopes = initFoldedScopes;
+
+    function animateScopeFoldTransition(scopeKey, isFolding) {
+      const norm = (scopeKey || '').toLowerCase().replace(/^agent:/, '');
+      const hubId = getHubIdForScope(norm);
+      const hubMesh = cubeMeshes.find(m => m.userData && (m.userData.id === hubId || m.userData.data?.id === hubId));
+      const hubPos = hubMesh ? hubMesh.position.clone() : new THREE.Vector3(0, 0, 0);
+
+      const memberMeshes = cubeMeshes.filter(m => {
+        if (!m.userData || !m.userData.data) return false;
+        const d = m.userData.data;
+        const isHub = d.type === 'hub' || d.type === 'scope_hub' || d.type === 'agent_hub' || (d.id && typeof d.id === 'string' && d.id.startsWith('hub_'));
+        if (isHub) return false;
+        return getScopeForNode(d) === norm;
+      });
+
+      if (memberMeshes.length === 0) {
+        applyLegendFacetFilters();
+        if (typeof updateEdges === 'function') updateEdges();
+        return;
+      }
+
+      if (activeFoldAnimations.has(norm)) {
+        cancelAnimationFrame(activeFoldAnimations.get(norm));
+        activeFoldAnimations.delete(norm);
+      }
+
+      const duration = 350; // Decision 2: Option A - 350ms outward radial burst or inward contraction
+      const startTime = performance.now();
+
+      memberMeshes.forEach(m => {
+        const targetBase = m.userData.targetBase || m.userData.curBase || [0, 0, 0];
+        if (isFolding) {
+          m.userData._animStartPos = m.position.clone();
+          m.userData._animTargetPos = hubPos.clone();
+          m.userData._animStartScale = m.scale.x;
+          m.userData._animTargetScale = 0.001;
+        } else {
+          m.visible = true;
+          m.position.copy(hubPos);
+          m.userData._animStartPos = hubPos.clone();
+          m.userData._animTargetPos = new THREE.Vector3(...targetBase);
+          m.userData._animStartScale = 0.001;
+          m.userData._animTargetScale = 1.0;
+          m.scale.setScalar(0.001);
+        }
+      });
+
+      function stepAnim(now) {
+        const elapsed = now - startTime;
+        const progress = Math.min(1.0, elapsed / duration);
+        const ease = isFolding ? Math.pow(progress, 3) : (1 - Math.pow(1 - progress, 3));
+
+        memberMeshes.forEach(m => {
+          m.position.lerpVectors(m.userData._animStartPos, m.userData._animTargetPos, ease);
+          const s = m.userData._animStartScale + (m.userData._animTargetScale - m.userData._animStartScale) * ease;
+          m.scale.setScalar(Math.max(0.001, s));
+        });
+
+        if (hubMesh) {
+          if (isFolding) {
+            const hubPulse = 1.0 + Math.sin(progress * Math.PI) * 0.25;
+            hubMesh.scale.setScalar(hubPulse);
+          } else {
+            const hubPulse = 1.25 - ease * 0.25;
+            hubMesh.scale.setScalar(Math.max(1.0, hubPulse));
+          }
+        }
+
+        if (typeof updateEdges === 'function') updateEdges();
+
+        if (progress < 1.0) {
+          const reqId = requestAnimationFrame(stepAnim);
+          activeFoldAnimations.set(norm, reqId);
+        } else {
+          activeFoldAnimations.delete(norm);
+          if (isFolding) {
+            memberMeshes.forEach(m => {
+              m.visible = false;
+              m.scale.setScalar(0.001);
+            });
+            if (hubMesh) hubMesh.scale.setScalar(1.25);
+          } else {
+            memberMeshes.forEach(m => {
+              m.visible = true;
+              m.scale.setScalar(1.0);
+              const targetBase = m.userData.targetBase || m.userData.curBase || [0, 0, 0];
+              m.position.set(...targetBase);
+            });
+            if (hubMesh) hubMesh.scale.setScalar(1.0);
+            if (typeof resolveNodeCollisions3D === 'function') {
+              resolveNodeCollisions3D(cubeMeshes.filter(m => m.visible), 26.0, 30, false);
+            }
+          }
+          applyLegendFacetFilters();
+          if (typeof updateEdges === 'function') updateEdges();
+        }
+      }
+
+      const reqId = requestAnimationFrame(stepAnim);
+      activeFoldAnimations.set(norm, reqId);
+    }
+    window.animateScopeFoldTransition = animateScopeFoldTransition;
+
+    window.toggleScopeFold = function(scopeKey) {
+      if (!scopeKey) return;
+      const norm = scopeKey.toLowerCase().replace(/^agent:/, '');
+      if (!window.foldedScopes) window.foldedScopes = new Set();
+      const isCurrentlyFolded = window.foldedScopes.has(norm);
+      if (isCurrentlyFolded) {
+        window.foldedScopes.delete(norm);
+      } else {
+        window.foldedScopes.add(norm);
+      }
+      localStorage.setItem('supercortex_folded_scopes', JSON.stringify(Array.from(window.foldedScopes)));
+      animateScopeFoldTransition(norm, !isCurrentlyFolded);
+      window.updateScopeToggleUI();
+      applyLegendFacetFilters();
+      if (typeof updateEdges === 'function') updateEdges();
+      if (window.activeSelectedNode && typeof window.updateNodePropertiesAndConnector === 'function') {
+        window.updateNodePropertiesAndConnector(window.activeSelectedNode);
+      }
+    };
+
+    window.foldAllScopes = function() {
+      if (!window.nodeDefs) return;
+      const allScopes = new Set();
+      window.nodeDefs.forEach(n => {
+        const sc = getScopeForNode(n);
+        if (sc && sc !== 'shared') allScopes.add(sc);
+      });
+      window.foldedScopes = allScopes;
+      localStorage.setItem('supercortex_folded_scopes', JSON.stringify(Array.from(allScopes)));
+      allScopes.forEach(sc => {
+        animateScopeFoldTransition(sc, true);
+      });
+      window.updateScopeToggleUI();
+      applyLegendFacetFilters();
+      if (typeof updateEdges === 'function') updateEdges();
+    };
+
+    window.unfoldAllScopes = function() {
+      if (!window.foldedScopes || window.foldedScopes.size === 0) return;
+      const scopesToUnfold = Array.from(window.foldedScopes);
+      window.foldedScopes.clear();
+      localStorage.setItem('supercortex_folded_scopes', JSON.stringify([]));
+      scopesToUnfold.forEach(sc => {
+        animateScopeFoldTransition(sc, false);
+      });
+      window.updateScopeToggleUI();
+      applyLegendFacetFilters();
+      if (typeof updateEdges === 'function') updateEdges();
+    };
+
     function buildGraphMeshes(nodes, links) {
       clearGraphMeshes();
       nodeDefs = nodes;
       currentLinks = links || [];
       window.nodeDefs = nodes;
       window.linkDefs = currentLinks;
+
+      // Initialize Folded Scopes state (Decision 1: Option A)
+      if (!window.foldedScopesInitialized) {
+        initFoldedScopes(nodes);
+        window.foldedScopesInitialized = true;
+      }
 
       if (typeof window.populateShortestPathDropdowns === 'function') {
         window.populateShortestPathDropdowns();
@@ -7849,13 +8093,26 @@
 
         const size = data.size || 16;
         const color = data.color || 0x38bdf8;
-        const isHub = data.type === 'hub' || data.type === 'agent_hub' || data.isLineage;
+        const isHub = data.type === 'hub' || data.type === 'agent_hub' || data.type === 'scope_hub' || data.isLineage || (data.id && typeof data.id === 'string' && data.id.startsWith('hub_'));
         const isThought = data.type === 'thought' || data.category === 'thought';
         const hasContra = Boolean(data.hasContradiction);
 
         const isImageNode = Boolean(data.is_image || data.category === 'image' || (data.scope && data.scope.endsWith(':images')));
         const nodeColor = isImageNode ? 0xf43f5e : (isThought ? 0xa855f7 : color);
         const nodeEmissive = isImageNode ? 0xf43f5e : (isThought ? 0xa855f7 : (isHub ? color : 0x00f0ff));
+
+        const sc = getScopeForNode(data);
+        const isScopeFolded = Boolean(window.foldedScopes && window.foldedScopes.has(sc));
+        const isFoldedMember = isScopeFolded && !isHub;
+
+        if (isFoldedMember) {
+          nodeObj.visible = false;
+          nodeObj.scale.setScalar(0.001);
+        } else if (isHub && isScopeFolded) {
+          data.isFoldedHub = true;
+          data.foldedScope = sc;
+          nodeObj.scale.setScalar(1.25);
+        }
 
         // Unique 3D shape per agent scope via cached geometry pool
         const boxGeo = getShapeGeometry(activeShape, size, data);
@@ -7870,7 +8127,9 @@
         const cube = new THREE.Mesh(boxGeo, boxMat);
         cube.userData = { parentObj: nodeObj, data: data, index: idx };
         nodeObj.add(cube);
-        cubeHitMeshes.push(cube);
+        if (!isFoldedMember) {
+          cubeHitMeshes.push(cube);
+        }
 
         const edgeGeo = getCachedEdgesGeometry(boxGeo);
         const edgeMat = new THREE.LineBasicMaterial({
@@ -8166,7 +8425,12 @@
         const posAttr = lineMesh.geometry.attributes.position;
         let ptr = 0;
         for (let i = 0; i < edges.length; i++) {
-          const [a, b] = edges[i];
+          let [a, b] = edges[i];
+          if (typeof getEffectiveNodeIndex === 'function') {
+            a = getEffectiveNodeIndex(a);
+            b = getEffectiveNodeIndex(b);
+          }
+          if (a === b) continue;
           if (!cubeMeshes[a] || !cubeMeshes[b]) continue;
           const meshA = cubeMeshes[a];
           const meshB = cubeMeshes[b];
@@ -8180,6 +8444,9 @@
           posAttr.array[ptr++] = p2.y;
           posAttr.array[ptr++] = p2.z;
         }
+        for (let j = ptr; j < posAttr.array.length; j++) {
+          posAttr.array[j] = 0;
+        }
         posAttr.needsUpdate = true;
       }
 
@@ -8189,70 +8456,98 @@
       const needHits = Boolean(showEdgesEnabled && edgeHitMeshes && edgeHitMeshes.length > 0);
 
       if (needTubes || needArrows || needHits) {
+        const bundledMetaEdges = new Map();
+
         for (let i = 0; i < edges.length; i++) {
-          const [a, b] = edges[i];
+          let [a, b] = edges[i];
+          const origA = a;
+          const origB = b;
+          if (typeof getEffectiveNodeIndex === 'function') {
+            a = getEffectiveNodeIndex(a);
+            b = getEffectiveNodeIndex(b);
+          }
+
+          if (a === b) {
+            if (needTubes && edgeTubeMeshes[i]) edgeTubeMeshes[i].visible = false;
+            if (needArrows && arrowMeshes[i]) arrowMeshes[i].visible = false;
+            if (needHits && edgeHitMeshes[i]) edgeHitMeshes[i].visible = false;
+            continue;
+          }
+
           if (!cubeMeshes[a] || !cubeMeshes[b]) continue;
           const meshA = cubeMeshes[a];
           const meshB = cubeMeshes[b];
+          const isVisible = meshA.visible && meshB.visible;
+
+          if (!isVisible) {
+            if (needTubes && edgeTubeMeshes[i]) edgeTubeMeshes[i].visible = false;
+            if (needArrows && arrowMeshes[i]) arrowMeshes[i].visible = false;
+            if (needHits && edgeHitMeshes[i]) edgeHitMeshes[i].visible = false;
+            continue;
+          }
+
+          const isMetaEdge = (a !== origA || b !== origB);
+          let thickness = 1.0;
+          if (isMetaEdge) {
+            const bundleKey = Math.min(a, b) + ':' + Math.max(a, b);
+            if (bundledMetaEdges.has(bundleKey)) {
+              bundledMetaEdges.get(bundleKey).count++;
+              if (needTubes && edgeTubeMeshes[i]) edgeTubeMeshes[i].visible = false;
+              if (needArrows && arrowMeshes[i]) arrowMeshes[i].visible = false;
+              if (needHits && edgeHitMeshes[i]) edgeHitMeshes[i].visible = false;
+              continue;
+            } else {
+              bundledMetaEdges.set(bundleKey, { primaryIndex: i, count: 1 });
+              thickness = 2.4;
+            }
+          }
+
           const p1 = meshA.position;
           const p2 = meshB.position;
-          const isVisible = meshA.visible && meshB.visible;
 
           if (needTubes && edgeTubeMeshes[i]) {
             const tube = edgeTubeMeshes[i];
-            if (!isVisible) {
-              tube.visible = false;
+            _scratchDir.subVectors(p2, p1);
+            const dist = _scratchDir.length();
+            if (dist > 1.0) {
+              tube.position.addVectors(p1, p2).multiplyScalar(0.5);
+              _scratchDir.normalize();
+              tube.quaternion.setFromUnitVectors(_scratchUp, _scratchDir);
+              tube.scale.set(thickness, dist, thickness);
+              tube.visible = true;
             } else {
-              _scratchDir.subVectors(p2, p1);
-              const dist = _scratchDir.length();
-              if (dist > 1.0) {
-                tube.position.addVectors(p1, p2).multiplyScalar(0.5);
-                _scratchDir.normalize();
-                tube.quaternion.setFromUnitVectors(_scratchUp, _scratchDir);
-                tube.scale.set(1.0, dist, 1.0);
-                tube.visible = true;
-              } else {
-                tube.visible = false;
-              }
+              tube.visible = false;
             }
           }
 
           if (needArrows && arrowMeshes[i]) {
             const arrow = arrowMeshes[i];
-            if (!isVisible) {
-              arrow.visible = false;
+            _scratchDir.subVectors(p2, p1);
+            const dist = _scratchDir.length();
+            if (dist > 22) {
+              _scratchOffset.copy(_scratchDir).multiplyScalar(15 + thickness * 2);
+              arrow.position.copy(p2).sub(_scratchOffset);
+              arrow.quaternion.setFromUnitVectors(_scratchUp, _scratchDir);
+              arrow.scale.set(thickness, thickness, thickness);
+              arrow.visible = true;
             } else {
-              _scratchDir.subVectors(p2, p1);
-              const dist = _scratchDir.length();
-              if (dist > 22) {
-                _scratchDir.normalize();
-                _scratchOffset.copy(_scratchDir).multiplyScalar(15);
-                arrow.position.copy(p2).sub(_scratchOffset);
-                arrow.quaternion.setFromUnitVectors(_scratchUp, _scratchDir);
-                arrow.visible = true;
-              } else {
-                arrow.visible = false;
-              }
+              arrow.visible = false;
             }
           }
 
           if (needHits && edgeHitMeshes[i]) {
             const hitCyl = edgeHitMeshes[i];
-            if (!isVisible) {
-              hitCyl.visible = false;
+            _scratchDir.subVectors(p2, p1);
+            const dist = _scratchDir.length();
+            if (dist > 1.0) {
+              hitCyl.position.addVectors(p1, p2).multiplyScalar(0.5);
+              _scratchDir.normalize();
+              hitCyl.quaternion.setFromUnitVectors(_scratchUp, _scratchDir);
+              const baseDist = hitCyl.userData.dist || 1.0;
+              hitCyl.scale.set(Math.max(1.0, thickness * 1.5), dist / baseDist, Math.max(1.0, thickness * 1.5));
+              hitCyl.visible = showEdgesEnabled;
             } else {
-              _scratchDir.subVectors(p2, p1);
-              const dist = _scratchDir.length();
-              if (dist > 1.0) {
-                hitCyl.position.addVectors(p1, p2).multiplyScalar(0.5);
-                _scratchDir.normalize();
-                hitCyl.quaternion.setFromUnitVectors(_scratchUp, _scratchDir);
-                const baseDist = hitCyl.userData.dist || 1.0;
-                hitCyl.scale.set(1.0, dist / baseDist, 1.0);
-                hitCyl.visible = showEdgesEnabled;
-              } else {
-                hitCyl.visible = false;
-              }
+              hitCyl.visible = false;
             }
           }
         }
@@ -8470,6 +8765,14 @@
     dom.addEventListener('dblclick', (e) => {
       const hit = raycastNodeTarget(e);
       if (hit && hit.data) {
+        const isHub = hit.data.type === 'hub' || hit.data.type === 'scope_hub' || hit.data.type === 'agent_hub' || (hit.data.id && typeof hit.data.id === 'string' && hit.data.id.startsWith('hub_'));
+        if (isHub && typeof window.toggleScopeFold === 'function') {
+          const sc = getScopeForNode(hit.data);
+          if (sc && sc !== 'shared') {
+            window.toggleScopeFold(sc);
+            return;
+          }
+        }
         select3DNode(hit.data, true);
         zoomTarget = Math.max(70, Math.min(zoomTarget, 130));
         return;
@@ -11897,19 +12200,24 @@
         hudContainer.innerHTML = '';
         scopes.forEach(s => {
           const isEnabled = window.activeEnabledScopes[s] !== false;
+          const isFolded = Boolean(window.foldedScopes && window.foldedScopes.has(s));
           const meta = scopeMeta[s] || { icon: 'hub', shape: 'VOXEL', symbol: '•', color: '#38bdf8', label: s.toUpperCase() };
           const count = scopeCounts[s] || 0;
-          const btn = document.createElement('button');
-          btn.type = 'button';
-          btn.onclick = (e) => window.toggleAgentScope(s, e);
-          btn.className = `px-1.5 py-0.5 rounded flex items-center gap-1 text-[8px] font-bold border transition-all cursor-pointer select-none ${
+          const chip = document.createElement('div');
+          chip.className = `px-1.5 py-0.5 rounded flex items-center gap-1 text-[8px] font-bold border transition-all select-none ${
             isEnabled
-              ? 'bg-surface-container-high text-white border-primary-container/40 shadow-sm'
+              ? (isFolded ? 'bg-amber-500/15 text-amber-200 border-amber-400/40 shadow-sm' : 'bg-surface-container-high text-white border-primary-container/40 shadow-sm')
               : 'bg-surface-container-low text-neutral-500 border-transparent opacity-40 line-through'
           }`;
-          btn.title = `Toggle ${meta.label} (${meta.shape}) in shared view · Alt+Click to SOLO`;
-          btn.innerHTML = `<span>${meta.symbol}</span><span>${meta.label}</span><span class="text-[7px] text-outline opacity-80">(${count})</span>`;
-          hudContainer.appendChild(btn);
+          chip.title = `${meta.label} (${meta.shape}) · Click to toggle visibility · Alt+Click to SOLO`;
+          chip.innerHTML = `
+            <span class="cursor-pointer" onclick="window.toggleAgentScope('${s}', event)">${meta.symbol} ${meta.label}</span>
+            <span class="text-[7px] text-outline opacity-80 cursor-pointer" onclick="window.toggleAgentScope('${s}', event)">(${count})</span>
+            <button type="button" onclick="event.stopPropagation(); window.toggleScopeFold('${s}');" class="px-1 py-0.2 rounded text-[7px] font-bold ${isFolded ? 'bg-amber-400 text-black' : 'bg-cyan-500/20 text-cyan-300 hover:bg-cyan-500 hover:text-black'} transition-colors cursor-pointer" title="${isFolded ? 'Expand Scope into 3D Space (350ms Blossom)' : 'Fold Scope into Subgraph'}">
+              ${isFolded ? 'FOLDED' : 'FOLD'}
+            </button>
+          `;
+          hudContainer.appendChild(chip);
         });
       }
 
@@ -11917,12 +12225,13 @@
         legendContainer.innerHTML = '';
         scopes.forEach(s => {
           const isEnabled = window.activeEnabledScopes[s] !== false;
+          const isFolded = Boolean(window.foldedScopes && window.foldedScopes.has(s));
           const meta = scopeMeta[s] || { icon: 'hub', shape: 'VOXEL', symbol: '•', color: '#38bdf8', label: s.toUpperCase() };
           const count = scopeCounts[s] || 0;
           const chip = document.createElement('div');
           chip.className = `flex items-center justify-between p-1.5 rounded-lg border transition-all cursor-pointer select-none group ${
             isEnabled 
-              ? 'bg-surface-container-high/90 text-white border-primary-container/40 shadow-sm' 
+              ? (isFolded ? 'bg-amber-500/15 text-white border-amber-400/40 shadow-sm' : 'bg-surface-container-high/90 text-white border-primary-container/40 shadow-sm') 
               : 'bg-surface-container-lowest/60 text-neutral-500 border-outline-variant/20 opacity-40 line-through'
           }`;
           chip.onclick = (e) => window.toggleAgentScope(s, e);
@@ -11933,7 +12242,8 @@
               <span class="font-bold text-[9px] truncate">${meta.label}</span>
             </div>
             <div class="flex items-center gap-1 shrink-0 ml-1">
-              <button type="button" onclick="event.stopPropagation(); window.soloAgentScope('${s}');" class="opacity-0 group-hover:opacity-100 text-[7px] px-1 py-0.2 bg-cyan-500/20 text-cyan-300 rounded border border-cyan-500/40 hover:bg-cyan-500 hover:text-black transition-opacity">SOLO</button>
+              <button type="button" onclick="event.stopPropagation(); window.toggleScopeFold('${s}');" class="text-[7px] px-1 py-0.2 rounded border font-bold ${isFolded ? 'bg-amber-400 text-black border-amber-400' : 'bg-cyan-500/20 text-cyan-300 border-cyan-500/40 hover:bg-cyan-500 hover:text-black'} transition-colors">${isFolded ? 'FOLDED' : 'FOLD'}</button>
+              <button type="button" onclick="event.stopPropagation(); window.soloAgentScope('${s}');" class="opacity-0 group-hover:opacity-100 text-[7px] px-1 py-0.2 bg-slate-700 text-slate-300 rounded border border-slate-600 hover:bg-white hover:text-black transition-opacity">SOLO</button>
               <span class="px-1 py-0.2 rounded text-[8px] font-mono font-bold bg-black/40 text-slate-300 border border-outline-variant/30">${count}</span>
             </div>
           `;
@@ -12095,15 +12405,24 @@
         else isMatch = Boolean(activeFacetFilters.fact);
 
         // Check Agent Scope filter in shared view
-        const scopeKey = (d.scope || d.category || 'shared').toLowerCase().replace(/^agent:/, '');
+        const scopeKey = (typeof getScopeForNode === 'function') ? getScopeForNode(d) : (d.scope || d.category || 'shared').toLowerCase().replace(/^agent:/, '');
         if (window.activeEnabledScopes && window.activeEnabledScopes[scopeKey] === false) {
           isMatch = false;
+        }
+
+        // Check Scope Subgraph Folding
+        const isHubNode = d.type === 'hub' || d.type === 'agent_hub' || d.type === 'scope_hub' || d.isLineage || (d.id && typeof d.id === 'string' && d.id.startsWith('hub_'));
+        if (window.foldedScopes && window.foldedScopes.has(scopeKey)) {
+          if (!isHubNode) {
+            isMatch = false;
+          }
         }
 
         mesh.visible = isMatch;
         mesh.userData.boxMat.opacity = isMatch ? (d.isLineage ? 0.95 : (isThought ? 0.88 : 0.75)) : 0.0;
         mesh.userData.edgeMat.opacity = isMatch ? 0.95 : 0.0;
-        mesh.scale.setScalar(isMatch ? 1.0 : 0.001);
+        const targetScale = (isHubNode && window.foldedScopes && window.foldedScopes.has(scopeKey)) ? 1.25 : 1.0;
+        mesh.scale.setScalar(isMatch ? targetScale : 0.001);
 
         if (isMatch) {
           visibleCount++;
@@ -13603,6 +13922,52 @@
     // INSPECTOR INLINE PROPERTY & RELATIONSHIP ACTIONS
     // -------------------------------------------------------------------------
     function updateNodePropertiesAndConnector(node) {
+      const scopeCard = document.getElementById('node-scope-subgraph-card');
+      if (scopeCard && node) {
+        const sc = (typeof getScopeForNode === 'function') ? getScopeForNode(node) : (node.scope || 'shared');
+        const isFolded = Boolean(window.foldedScopes && window.foldedScopes.has(sc));
+
+        let memberCount = 0;
+        const epBreakdown = {};
+        if (window.nodeDefs) {
+          window.nodeDefs.forEach(n => {
+            const nSc = (typeof getScopeForNode === 'function') ? getScopeForNode(n) : (n.scope || 'shared');
+            if (nSc === sc && !(n.type === 'hub' || n.type === 'scope_hub' || n.type === 'agent_hub' || (n.id && typeof n.id === 'string' && n.id.startsWith('hub_')))) {
+              memberCount++;
+              const ep = n.epistemic_class || n.type || 'fact';
+              epBreakdown[ep] = (epBreakdown[ep] || 0) + 1;
+            }
+          });
+        }
+
+        const epKeys = Object.keys(epBreakdown);
+        scopeCard.innerHTML = `
+          <div class="p-2 rounded bg-surface-container-low border border-primary-container/30 space-y-1.5 font-mono text-[9px] mb-2">
+            <div class="flex items-center justify-between font-bold">
+              <span class="text-cyan-400 flex items-center gap-1">
+                <span class="material-symbols-outlined text-[13px]">${isFolded ? 'compress' : 'unfold_more'}</span>
+                <span>SCOPE SUBGRAPH: ${escapeHtml(sc.toUpperCase())}</span>
+              </span>
+              <span class="px-1.5 py-0.2 rounded text-[8px] font-bold ${isFolded ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40' : 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40'}">
+                ${isFolded ? 'FOLDED' : 'EXPANDED'}
+              </span>
+            </div>
+            <div class="text-slate-400 text-[8px]">
+              Subnodes: <strong class="text-white">${memberCount}</strong>
+              ${epKeys.map(ep => `<span class="inline-block ml-1 text-slate-300">${escapeHtml(ep)}: <strong>${epBreakdown[ep]}</strong></span>`).join('')}
+            </div>
+            <button type="button" onclick="window.toggleScopeFold('${escapeHtml(sc)}')" class="w-full py-1 px-2 rounded text-[9px] font-extrabold flex items-center justify-center gap-1 transition-all cursor-pointer ${
+              isFolded
+                ? 'bg-gradient-to-r from-cyan-500 to-blue-600 text-black hover:brightness-110 shadow-sm'
+                : 'bg-surface-container-high hover:bg-surface-container-highest text-amber-300 border border-amber-500/40'
+            }">
+              <span class="material-symbols-outlined text-[12px]">${isFolded ? 'unfold_more' : 'compress'}</span>
+              <span>${isFolded ? 'EXPAND SUBGRAPH (350ms Blossom)' : 'FOLD SCOPE INTO SUBGRAPH'}</span>
+            </button>
+          </div>
+        `;
+      }
+
       const propTable = document.getElementById('node-properties-table');
       if (propTable && node) {
         const props = Object.assign({}, node.properties || {}, (node.metadata && typeof node.metadata === 'object' && !Array.isArray(node.metadata)) ? node.metadata : {});
