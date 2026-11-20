@@ -7427,13 +7427,14 @@
     let nodeDefs = [];
     let edges = [];
     let cubeMeshes = [];
+    let cubeHitMeshes = [];
     let lineMesh = null;
     let edgeHitMeshes = [];
     let selectedEdgeMesh = null;
     let currentLinks = [];
     let edgeTubeGroup = null;
     let edgeTubeMeshes = [];
-    window.edgeRenderStyle = localStorage.getItem('supercortex_edge_style') || 'tubes'; // 'tubes' | 'lines'
+    window.edgeRenderStyle = localStorage.getItem('supercortex_edge_style') || 'lines'; // 'tubes' | 'lines'
 
     const lineMat = new THREE.LineBasicMaterial({
       color: 0x00f0ff,
@@ -7528,7 +7529,7 @@
       const isPdf = fnLower.endsWith('.pdf') || mime === 'application/pdf' || cat === 'pdf' || src.endsWith('.pdf') || Boolean(node.pdf_url || node.metadata?.pdf_url || node.metadata?.has_pdf);
       const isDocx = fnLower.endsWith('.docx') || mime.includes('wordprocessingml') || cat === 'docx' || src.endsWith('.docx');
       const isMd = fnLower.endsWith('.md') || fnLower.endsWith('.markdown') || mime === 'text/markdown' || cat === 'markdown' || src.endsWith('.md');
-      const isImg = (/\.(png|jpg|jpeg|gif|webp|svg|bmp|ico)$/i).test(fnLower) || (/\.(png|jpg|jpeg|gif|webp|svg|bmp|ico)$/i).test(src) || mime.startsWith('image/') || cat === 'image';
+      const isImg = Boolean(node.is_image) || (node.scope && node.scope.endsWith(':images')) || (/\.(png|jpg|jpeg|gif|webp|svg|bmp|ico)$/i).test(fnLower) || (/\.(png|jpg|jpeg|gif|webp|svg|bmp|ico)$/i).test(src) || mime.startsWith('image/') || cat === 'image';
       const isHtml = fnLower.endsWith('.html') || fnLower.endsWith('.htm') || mime === 'text/html' || src.endsWith('.html');
       const isTxtFile = fnLower.endsWith('.txt') || Boolean(node.metadata?.is_txt) || (node.title || '').toLowerCase().endsWith('.txt') || (node.id && node.id.endsWith('.txt'));
       const isText = isTxtFile || (/\.(txt|py|js|ts|rs|go|sh|sql|json|csv|tsv|yaml|yml|toml|ini|cfg|xml|log|env)$/i).test(fnLower) || (/\.(txt|py|js|ts|rs|go|sh|sql|json|csv|tsv|yaml|yml|toml|ini|cfg|xml|log|env)$/i).test(src) || mime.startsWith('text/') || cat === 'document';
@@ -7620,6 +7621,7 @@
     function clearGraphMeshes() {
       cubeMeshes.forEach(m => graphGroup.remove(m));
       cubeMeshes = [];
+      cubeHitMeshes = [];
       edgeHitMeshes.forEach(m => graphGroup.remove(m));
       edgeHitMeshes = [];
       if (lineMesh) {
@@ -7649,7 +7651,7 @@
       window.causalBeaconRings = [];
     }
 
-    function resolveNodeCollisions3D(meshes, minPadding = 28.0, maxIters = 45, snapImmediately = false) {
+    function resolveNodeCollisions3D(meshes, minPadding = 28.0, maxIters = 35, snapImmediately = false) {
       if (!meshes || meshes.length <= 1) return;
       const N = meshes.length;
       const is2D = (typeof currentMode !== 'undefined' && currentMode === '2D');
@@ -7659,8 +7661,36 @@
       const preventType = cfg.preventTypeOverlap !== false;
       const typeSpread = cfg.typeSpread || 1.35;
 
+      // Adaptive cell size based on node bounding limits
+      let maxRadius = 16.0;
+      for (let i = 0; i < N; i++) {
+        const s = (meshes[i].userData.data && meshes[i].userData.data.size) || 16;
+        if (s * 0.75 > maxRadius) maxRadius = s * 0.75;
+      }
+      const cellSize = Math.max(basePadding + maxRadius * 2 + (cfg.scopeSeparation ? cfg.scopeSeparation * 0.15 : 20.0), 52.0);
+      const invCell = 1.0 / cellSize;
+      const grid = new Map();
+
       for (let iter = 0; iter < maxIters; iter++) {
+        grid.clear();
         let movedAny = false;
+
+        // 1. Populate 3D spatial voxel hash grid
+        for (let i = 0; i < N; i++) {
+          const p = meshes[i].userData.targetBase;
+          const cx = Math.floor(p[0] * invCell);
+          const cy = Math.floor(p[1] * invCell);
+          const cz = is2D ? 0 : Math.floor(p[2] * invCell);
+          const key = cx + ',' + cy + ',' + cz;
+          let cell = grid.get(key);
+          if (!cell) {
+            cell = [];
+            grid.set(key, cell);
+          }
+          cell.push(i);
+        }
+
+        // 2. Query only 27 neighboring cells (O(N) instead of O(N^2))
         for (let i = 0; i < N; i++) {
           const m1 = meshes[i];
           const p1 = m1.userData.targetBase;
@@ -7671,61 +7701,82 @@
           const scope1 = (d1.scope || '').trim().toLowerCase();
           const type1 = (d1.node_type || d1.epistemic_class || d1.type || '').trim().toLowerCase();
 
-          for (let j = i + 1; j < N; j++) {
-            const m2 = meshes[j];
-            const p2 = m2.userData.targetBase;
-            const d2 = m2.userData.data || {};
-            const s2 = d2.size || 16;
-            const r2 = s2 * 0.75;
-            const isHub2 = d2.id === 'hub_shared' || d2.type === 'hub' || d2.type === 'scope_hub' || d2.type === 'agent_hub';
-            const scope2 = (d2.scope || '').trim().toLowerCase();
-            const type2 = (d2.node_type || d2.epistemic_class || d2.type || '').trim().toLowerCase();
+          const cx = Math.floor(p1[0] * invCell);
+          const cy = Math.floor(p1[1] * invCell);
+          const cz = is2D ? 0 : Math.floor(p1[2] * invCell);
 
-            let extraSeparation = 0;
-            if (preventScope && scope1 && scope2 && scope1 !== scope2) {
-              extraSeparation += (cfg.scopeSeparation ? cfg.scopeSeparation * 0.12 : 18.0);
-            }
-            if (preventType && type1 && type2 && type1 !== type2) {
-              extraSeparation += 12.0 * Math.max(1.0, typeSpread - 0.3);
-            }
+          const minZ = is2D ? 0 : cz - 1;
+          const maxZ = is2D ? 0 : cz + 1;
 
-            const reqDist = r1 + r2 + basePadding + extraSeparation;
-            let dx = p1[0] - p2[0];
-            let dy = p1[1] - p2[1];
-            let dz = is2D ? 0 : (p1[2] - p2[2]);
-            let dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
+          for (let nx = cx - 1; nx <= cx + 1; nx++) {
+            for (let ny = cy - 1; ny <= cy + 1; ny++) {
+              for (let nz = minZ; nz <= maxZ; nz++) {
+                const nKey = nx + ',' + ny + ',' + nz;
+                const cell = grid.get(nKey);
+                if (!cell) continue;
 
-            if (dist < reqDist) {
-              movedAny = true;
-              if (dist < 0.001) {
-                const seed = (i * 1337 + j * 7919) % 360;
-                const rad = (seed * Math.PI) / 180;
-                dx = Math.cos(rad);
-                dy = Math.sin(rad);
-                dz = is2D ? 0 : (((seed % 17) - 8) / 10);
-                dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
-              }
-              const overlap = reqDist - dist;
-              const nx = dx / dist;
-              const ny = dy / dist;
-              const nz = dz / dist;
+                for (let k = 0; k < cell.length; k++) {
+                  const j = cell[k];
+                  if (j <= i) continue;
 
-              if (isHub1 && !isHub2) {
-                p2[0] -= nx * overlap;
-                p2[1] -= ny * overlap;
-                if (!is2D) p2[2] -= nz * overlap;
-              } else if (isHub2 && !isHub1) {
-                p1[0] += nx * overlap;
-                p1[1] += ny * overlap;
-                if (!is2D) p1[2] += nz * overlap;
-              } else {
-                const half = overlap * 0.5;
-                p1[0] += nx * half;
-                p1[1] += ny * half;
-                if (!is2D) p1[2] += nz * half;
-                p2[0] -= nx * half;
-                p2[1] -= ny * half;
-                if (!is2D) p2[2] -= nz * half;
+                  const m2 = meshes[j];
+                  const p2 = m2.userData.targetBase;
+                  const d2 = m2.userData.data || {};
+                  const s2 = d2.size || 16;
+                  const r2 = s2 * 0.75;
+                  const isHub2 = d2.id === 'hub_shared' || d2.type === 'hub' || d2.type === 'scope_hub' || d2.type === 'agent_hub';
+                  const scope2 = (d2.scope || '').trim().toLowerCase();
+                  const type2 = (d2.node_type || d2.epistemic_class || d2.type || '').trim().toLowerCase();
+
+                  let extraSeparation = 0;
+                  if (preventScope && scope1 && scope2 && scope1 !== scope2) {
+                    extraSeparation += (cfg.scopeSeparation ? cfg.scopeSeparation * 0.12 : 18.0);
+                  }
+                  if (preventType && type1 && type2 && type1 !== type2) {
+                    extraSeparation += 12.0 * Math.max(1.0, typeSpread - 0.3);
+                  }
+
+                  const reqDist = r1 + r2 + basePadding + extraSeparation;
+                  let dx = p1[0] - p2[0];
+                  let dy = p1[1] - p2[1];
+                  let dz = is2D ? 0 : (p1[2] - p2[2]);
+                  const distSq = dx * dx + dy * dy + dz * dz;
+
+                  if (distSq < reqDist * reqDist) {
+                    movedAny = true;
+                    let dist = Math.sqrt(distSq);
+                    if (dist < 0.001) {
+                      const seed = (i * 1337 + j * 7919) % 360;
+                      const rad = (seed * Math.PI) / 180;
+                      dx = Math.cos(rad);
+                      dy = Math.sin(rad);
+                      dz = is2D ? 0 : (((seed % 17) - 8) / 10);
+                      dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
+                    }
+                    const overlap = reqDist - dist;
+                    const nxUnit = dx / dist;
+                    const nyUnit = dy / dist;
+                    const nzUnit = dz / dist;
+
+                    if (isHub1 && !isHub2) {
+                      p2[0] -= nxUnit * overlap;
+                      p2[1] -= nyUnit * overlap;
+                      if (!is2D) p2[2] -= nzUnit * overlap;
+                    } else if (isHub2 && !isHub1) {
+                      p1[0] += nxUnit * overlap;
+                      p1[1] += nyUnit * overlap;
+                      if (!is2D) p1[2] += nzUnit * overlap;
+                    } else {
+                      const half = overlap * 0.5;
+                      p1[0] += nxUnit * half;
+                      p1[1] += nyUnit * half;
+                      if (!is2D) p1[2] += nzUnit * half;
+                      p2[0] -= nxUnit * half;
+                      p2[1] -= nyUnit * half;
+                      if (!is2D) p2[2] -= nzUnit * half;
+                    }
+                  }
+                }
               }
             }
           }
@@ -7802,28 +7853,48 @@
         const isThought = data.type === 'thought' || data.category === 'thought';
         const hasContra = Boolean(data.hasContradiction);
 
+        const isImageNode = Boolean(data.is_image || data.category === 'image' || (data.scope && data.scope.endsWith(':images')));
+        const nodeColor = isImageNode ? 0xf43f5e : (isThought ? 0xa855f7 : color);
+        const nodeEmissive = isImageNode ? 0xf43f5e : (isThought ? 0xa855f7 : (isHub ? color : 0x00f0ff));
+
         // Unique 3D shape per agent scope via cached geometry pool
         const boxGeo = getShapeGeometry(activeShape, size, data);
         const boxMat = new THREE.MeshPhongMaterial({
-          color: isThought ? 0xa855f7 : color,
-          emissive: isThought ? 0xa855f7 : (isHub ? color : 0x00f0ff),
-          emissiveIntensity: isThought ? 0.8 : (isHub ? 0.8 : 0.2),
+          color: nodeColor,
+          emissive: nodeEmissive,
+          emissiveIntensity: isImageNode ? 0.85 : (isThought ? 0.8 : (isHub ? 0.8 : 0.2)),
           transparent: true,
-          opacity: isHub ? 0.95 : (isThought ? 0.88 : 0.75),
-          shininess: 90
+          opacity: isHub ? 0.95 : (isThought || isImageNode ? 0.90 : 0.75),
+          shininess: 95
         });
         const cube = new THREE.Mesh(boxGeo, boxMat);
+        cube.userData = { parentObj: nodeObj, data: data, index: idx };
         nodeObj.add(cube);
+        cubeHitMeshes.push(cube);
 
         const edgeGeo = getCachedEdgesGeometry(boxGeo);
         const edgeMat = new THREE.LineBasicMaterial({
-          color: isHub ? 0xffffff : (isThought ? 0xddb7ff : color),
+          color: isImageNode ? 0xfb7185 : (isHub ? 0xffffff : (isThought ? 0xddb7ff : color)),
           linewidth: 2,
           transparent: true,
           opacity: 0.95
         });
         const edgeLines = new THREE.LineSegments(edgeGeo, edgeMat);
         nodeObj.add(edgeLines);
+
+        let imageRing = null;
+        if (isImageNode) {
+          const imgRingGeo = new THREE.RingGeometry(size * 1.15, size * 1.35, 4);
+          const imgRingMat = new THREE.MeshBasicMaterial({
+            color: 0xf43f5e,
+            side: THREE.DoubleSide,
+            transparent: true,
+            opacity: 0.90
+          });
+          imageRing = new THREE.Mesh(imgRingGeo, imgRingMat);
+          imageRing.rotation.z = Math.PI / 4;
+          nodeObj.add(imageRing);
+        }
 
         let coreMesh = null;
         let beaconRing = null;
@@ -8061,6 +8132,7 @@
       const footerEdgeCount = document.getElementById('footer-edge-count');
       if (footerEdgeCount) footerEdgeCount.innerText = `${currentLinks.length} Links`;
       window.cubeMeshes = cubeMeshes;
+      window.cubeHitMeshes = cubeHitMeshes;
       window.edgeHitMeshes = edgeHitMeshes;
       window.lineMesh = lineMesh;
       window.lineMat = lineMat;
@@ -8111,71 +8183,76 @@
         posAttr.needsUpdate = true;
       }
 
-      // Update 3D Volumetric Tubes & Directed Arrow Cones
-      for (let i = 0; i < edges.length; i++) {
-        const [a, b] = edges[i];
-        if (!cubeMeshes[a] || !cubeMeshes[b]) continue;
-        const meshA = cubeMeshes[a];
-        const meshB = cubeMeshes[b];
-        const p1 = meshA.position;
-        const p2 = meshB.position;
-        const isVisible = meshA.visible && meshB.visible;
+      // Update 3D Volumetric Tubes, Directed Arrow Cones & Edge Hitboxes
+      const needTubes = Boolean(showEdgesEnabled && window.edgeRenderStyle !== 'lines' && edgeTubeGroup && edgeTubeGroup.visible && edgeTubeMeshes && edgeTubeMeshes.length > 0);
+      const needArrows = Boolean(showEdgesEnabled && arrowGroup && arrowGroup.visible && arrowMeshes && arrowMeshes.length > 0);
+      const needHits = Boolean(showEdgesEnabled && edgeHitMeshes && edgeHitMeshes.length > 0);
 
-        if (edgeTubeMeshes && edgeTubeMeshes[i]) {
-          const tube = edgeTubeMeshes[i];
-          if (!isVisible) {
-            tube.visible = false;
-          } else {
-            _scratchDir.subVectors(p2, p1);
-            const dist = _scratchDir.length();
-            if (dist > 1.0) {
-              tube.position.addVectors(p1, p2).multiplyScalar(0.5);
-              _scratchDir.normalize();
-              tube.quaternion.setFromUnitVectors(_scratchUp, _scratchDir);
-              tube.scale.set(1.0, dist, 1.0);
-              tube.visible = (window.edgeRenderStyle !== 'lines');
-            } else {
+      if (needTubes || needArrows || needHits) {
+        for (let i = 0; i < edges.length; i++) {
+          const [a, b] = edges[i];
+          if (!cubeMeshes[a] || !cubeMeshes[b]) continue;
+          const meshA = cubeMeshes[a];
+          const meshB = cubeMeshes[b];
+          const p1 = meshA.position;
+          const p2 = meshB.position;
+          const isVisible = meshA.visible && meshB.visible;
+
+          if (needTubes && edgeTubeMeshes[i]) {
+            const tube = edgeTubeMeshes[i];
+            if (!isVisible) {
               tube.visible = false;
+            } else {
+              _scratchDir.subVectors(p2, p1);
+              const dist = _scratchDir.length();
+              if (dist > 1.0) {
+                tube.position.addVectors(p1, p2).multiplyScalar(0.5);
+                _scratchDir.normalize();
+                tube.quaternion.setFromUnitVectors(_scratchUp, _scratchDir);
+                tube.scale.set(1.0, dist, 1.0);
+                tube.visible = true;
+              } else {
+                tube.visible = false;
+              }
             }
           }
-        }
 
-        if (arrowMeshes && arrowMeshes[i]) {
-          const arrow = arrowMeshes[i];
-          if (!isVisible) {
-            arrow.visible = false;
-          } else {
-            _scratchDir.subVectors(p2, p1);
-            const dist = _scratchDir.length();
-            if (dist > 22) {
-              _scratchDir.normalize();
-              _scratchOffset.copy(_scratchDir).multiplyScalar(15);
-              arrow.position.copy(p2).sub(_scratchOffset);
-              arrow.quaternion.setFromUnitVectors(_scratchUp, _scratchDir);
-              arrow.visible = true;
-            } else {
+          if (needArrows && arrowMeshes[i]) {
+            const arrow = arrowMeshes[i];
+            if (!isVisible) {
               arrow.visible = false;
+            } else {
+              _scratchDir.subVectors(p2, p1);
+              const dist = _scratchDir.length();
+              if (dist > 22) {
+                _scratchDir.normalize();
+                _scratchOffset.copy(_scratchDir).multiplyScalar(15);
+                arrow.position.copy(p2).sub(_scratchOffset);
+                arrow.quaternion.setFromUnitVectors(_scratchUp, _scratchDir);
+                arrow.visible = true;
+              } else {
+                arrow.visible = false;
+              }
             }
           }
-        }
 
-        // Keep invisible raycast edge hitboxes in lockstep with animated nodes
-        if (edgeHitMeshes && edgeHitMeshes[i]) {
-          const hitCyl = edgeHitMeshes[i];
-          if (!isVisible) {
-            hitCyl.visible = false;
-          } else {
-            _scratchDir.subVectors(p2, p1);
-            const dist = _scratchDir.length();
-            if (dist > 1.0) {
-              hitCyl.position.addVectors(p1, p2).multiplyScalar(0.5);
-              _scratchDir.normalize();
-              hitCyl.quaternion.setFromUnitVectors(_scratchUp, _scratchDir);
-              const baseDist = hitCyl.userData.dist || 1.0;
-              hitCyl.scale.set(1.0, dist / baseDist, 1.0);
-              hitCyl.visible = showEdgesEnabled;
-            } else {
+          if (needHits && edgeHitMeshes[i]) {
+            const hitCyl = edgeHitMeshes[i];
+            if (!isVisible) {
               hitCyl.visible = false;
+            } else {
+              _scratchDir.subVectors(p2, p1);
+              const dist = _scratchDir.length();
+              if (dist > 1.0) {
+                hitCyl.position.addVectors(p1, p2).multiplyScalar(0.5);
+                _scratchDir.normalize();
+                hitCyl.quaternion.setFromUnitVectors(_scratchUp, _scratchDir);
+                const baseDist = hitCyl.userData.dist || 1.0;
+                hitCyl.scale.set(1.0, dist / baseDist, 1.0);
+                hitCyl.visible = showEdgesEnabled;
+              } else {
+                hitCyl.visible = false;
+              }
             }
           }
         }
@@ -8359,29 +8436,43 @@
     }, { passive: false });
 
     // -------------------------------------------------------------------------
-    // 3D NODE RAYCASTING & INTERACTION
+    // 3D NODE RAYCASTING & INTERACTION (O(1) Direct Hit Targets)
     // -------------------------------------------------------------------------
     const raycaster = new THREE.Raycaster();
     const mouse = new THREE.Vector2();
 
+    function raycastNodeTarget(evt) {
+      if (!dom) return null;
+      const rect = dom.getBoundingClientRect();
+      mouse.x = ((evt.clientX - rect.left) / rect.width) * 2 - 1;
+      mouse.y = -((evt.clientY - rect.top) / rect.height) * 2 + 1;
+      raycaster.setFromCamera(mouse, camera);
+
+      const targets = (cubeHitMeshes && cubeHitMeshes.length > 0) ? cubeHitMeshes : cubeMeshes;
+      const isRec = !(cubeHitMeshes && cubeHitMeshes.length > 0);
+      const hits = raycaster.intersectObjects(targets, isRec);
+      if (hits.length > 0) {
+        let topObj = hits[0].object;
+        if (topObj.userData && topObj.userData.parentObj) {
+          topObj = topObj.userData.parentObj;
+        } else {
+          while (topObj.parent && !topObj.userData?.data && topObj.parent !== graphGroup) {
+            topObj = topObj.parent;
+          }
+        }
+        const data = topObj.userData?.data || topObj.parent?.userData?.data;
+        return { hitObj: topObj, data: data };
+      }
+      return null;
+    }
+
     // Double-click: Zoom into node or level horizon on empty space
     dom.addEventListener('dblclick', (e) => {
-      const rect = dom.getBoundingClientRect();
-      mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
-      mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
-      raycaster.setFromCamera(mouse, camera);
-      const hitsNodes = raycaster.intersectObjects(cubeMeshes, true);
-      if (hitsNodes.length > 0) {
-        let topObj = hitsNodes[0].object;
-        while (topObj.parent && !topObj.userData.data && topObj.parent !== graphGroup) {
-          topObj = topObj.parent;
-        }
-        const data = topObj.userData.data || topObj.parent?.userData.data;
-        if (data) {
-          select3DNode(data, true);
-          zoomTarget = Math.max(70, Math.min(zoomTarget, 130));
-          return;
-        }
+      const hit = raycastNodeTarget(e);
+      if (hit && hit.data) {
+        select3DNode(hit.data, true);
+        zoomTarget = Math.max(70, Math.min(zoomTarget, 130));
+        return;
       }
       // Double clicked empty canvas: Level horizon & center view!
       if (typeof window.levelGraphHorizon === 'function') {
@@ -8400,22 +8491,11 @@
       }
       hasDragged = false;
 
-      const rect = dom.getBoundingClientRect();
-      mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
-      mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
-      raycaster.setFromCamera(mouse, camera);
-      const hitsNodes = raycaster.intersectObjects(cubeMeshes, true);
-      if (hitsNodes.length > 0) {
-        let topObj = hitsNodes[0].object;
-        while (topObj.parent && !topObj.userData.data && topObj.parent !== graphGroup) {
-          topObj = topObj.parent;
-        }
-        const data = topObj.userData.data || topObj.parent?.userData.data;
-        if (data && typeof window.openNodeContextMenu === 'function') {
-          if (typeof window.closeCanvasContextMenu === 'function') window.closeCanvasContextMenu();
-          window.openNodeContextMenu(e.clientX, e.clientY, data);
-          return;
-        }
+      const hit = raycastNodeTarget(e);
+      if (hit && hit.data && typeof window.openNodeContextMenu === 'function') {
+        if (typeof window.closeCanvasContextMenu === 'function') window.closeCanvasContextMenu();
+        window.openNodeContextMenu(e.clientX, e.clientY, hit.data);
+        return;
       }
 
       // Clicked on empty canvas / background space -> open Canvas Context Menu with widget toggles!
@@ -8445,31 +8525,24 @@
       }
       hasDragged = false;
 
-      const rect = dom.getBoundingClientRect();
-      mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
-      mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
-      raycaster.setFromCamera(mouse, camera);
-
       // 1. Raycast nodes first (primary priority - opens inspector drawer)
-      const hitsNodes = raycaster.intersectObjects(cubeMeshes, true);
-      if (hitsNodes.length > 0) {
-        let topObj = hitsNodes[0].object;
-        while (topObj.parent && !topObj.userData.data && topObj.parent !== graphGroup) {
-          topObj = topObj.parent;
-        }
-        const data = topObj.userData.data || topObj.parent?.userData.data;
-        if (data) {
-          if (window.geodesicPickMode && typeof window.handleGeodesicCanvasNodeClick === 'function') {
-            window.handleGeodesicCanvasNodeClick(data);
-            return;
-          }
-          select3DNode(data);
+      const hit = raycastNodeTarget(e);
+      if (hit && hit.data) {
+        if (window.geodesicPickMode && typeof window.handleGeodesicCanvasNodeClick === 'function') {
+          window.handleGeodesicCanvasNodeClick(hit.data);
           return;
         }
+        select3DNode(hit.data);
+        return;
       }
 
       // 2. Raycast edges (interactive hit cylinders on layer 1 - does NOT open drawer)
       if (showEdgesEnabled) {
+        const rect = dom.getBoundingClientRect();
+        mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+        mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+        raycaster.setFromCamera(mouse, camera);
+
         raycaster.layers.set(1);
         const hitsEdges = raycaster.intersectObjects(edgeHitMeshes, false);
         raycaster.layers.set(0);
@@ -8502,23 +8575,15 @@
     let lastMouseMoveEvt = null;
 
     function performHoverRaycast(e) {
-      if (!dom || isDragging) return;
-      const rect = dom.getBoundingClientRect();
-      mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
-      mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
-      raycaster.setFromCamera(mouse, camera);
-
+      if (!dom || isDragging || isFlying) return;
       const tip = document.getElementById('node-hover-tooltip');
 
       // Check node hover (only visible nodes)
-      const hitsNodes = raycaster.intersectObjects(cubeMeshes, true);
-      if (hitsNodes.length > 0 && !isDragging) {
-        let topObj = hitsNodes[0].object;
-        while (topObj.parent && !topObj.userData.data && topObj.parent !== graphGroup) {
-          topObj = topObj.parent;
-        }
-        const data = topObj.userData.data || topObj.parent?.userData.data;
-        if (data && topObj.visible !== false) {
+      const hit = raycastNodeTarget(e);
+      if (hit && hit.data && !isDragging) {
+        const topObj = hit.hitObj;
+        const data = hit.data;
+        if (topObj.visible !== false) {
           dom.style.cursor = 'pointer';
           if (tip) {
             tip.classList.remove('hidden');
@@ -9345,7 +9410,7 @@
       const isPdf = fnLower.endsWith('.pdf') || nodeMime === 'application/pdf' || nodeCat === 'pdf' || Boolean(node.pdf_url || node.metadata?.pdf_url || node.metadata?.has_pdf);
       const isDocx = fnLower.endsWith('.docx') || nodeMime.includes('wordprocessingml') || nodeCat === 'docx';
       const isMd = fnLower.endsWith('.md') || fnLower.endsWith('.markdown') || nodeMime === 'text/markdown' || nodeCat === 'markdown';
-      const isImg = (/\.(png|jpg|jpeg|gif|webp|svg|bmp|ico)$/i).test(fnLower) || nodeMime.startsWith('image/') || nodeCat === 'image';
+      const isImg = Boolean(node.is_image) || (node.scope && node.scope.endsWith(':images')) || (/\.(png|jpg|jpeg|gif|webp|svg|bmp|ico)$/i).test(fnLower) || nodeMime.startsWith('image/') || nodeCat === 'image';
       const isHtml = fnLower.endsWith('.html') || fnLower.endsWith('.htm') || nodeMime === 'text/html';
       const isTxtFile = fnLower.endsWith('.txt') || Boolean(node.metadata?.is_txt) || (node.title || '').toLowerCase().endsWith('.txt') || (node.id && node.id.endsWith('.txt'));
       const isText = isTxtFile || (/\.(txt|py|js|ts|rs|go|sh|sql|json|csv|tsv|yaml|yml|xml|log|env)$/i).test(fnLower) || nodeMime.startsWith('text/') || nodeCat === 'document';
@@ -9444,10 +9509,31 @@
                 <span>Download</span>
               </a>
             </div>
-            <div id="inline-file-container-${node.id}" class="${isTxtFile ? '' : 'hidden'} pt-1">
+            <div id="inline-file-container-${node.id}" class="${isTxtFile || isImg ? '' : 'hidden'} pt-1">
               ${isImg ? `
-                <div class="w-full max-h-80 rounded-lg border border-outline-variant/40 bg-slate-950 flex items-center justify-center p-2 overflow-hidden">
-                  <img src="${fileUrl}" alt="Preview" class="max-h-72 object-contain rounded" />
+                <div class="w-full rounded-xl border border-fuchsia-500/50 bg-[#07050d] p-3 text-[11px] font-mono text-fuchsia-200 shadow-[inset_0_0_20px_rgba(244,63,94,0.15)] space-y-2">
+                  <div class="flex items-center justify-between pb-1.5 border-b border-fuchsia-500/30 text-[9px] text-neutral-400">
+                    <span class="font-bold uppercase tracking-wider text-fuchsia-300 flex items-center gap-1">
+                      <span class="material-symbols-outlined text-[13px] text-fuchsia-400">image</span>
+                      <span class="truncate max-w-[200px]">${escapeHtml(fileTitle)}</span>
+                    </span>
+                    <button onclick="window.openGenericViewer({ url: '${fileUrl}', title: '${escapeHtml(fileTitle)}', fileType: 'image' })" class="px-2 py-0.5 rounded bg-fuchsia-500/20 hover:bg-fuchsia-500 hover:text-black border border-fuchsia-500/40 text-fuchsia-300 font-bold uppercase text-[8px] cursor-pointer transition-colors flex items-center gap-1">
+                      <span class="material-symbols-outlined text-[10px]">fullscreen</span>
+                      <span>Enlarge Lightbox</span>
+                    </button>
+                  </div>
+                  <div class="relative w-full max-h-72 rounded-lg border border-fuchsia-500/30 bg-slate-950/80 flex items-center justify-center p-2 overflow-hidden group cursor-pointer" onclick="window.openGenericViewer({ url: '${fileUrl}', title: '${escapeHtml(fileTitle)}', fileType: 'image' })" title="Click to view full resolution image in modal">
+                    <img src="${fileUrl}" alt="${escapeHtml(fileTitle)}" class="max-h-64 max-w-full object-contain rounded transition-transform group-hover:scale-[1.02]" />
+                    <div class="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center pointer-events-none">
+                      <span class="px-2.5 py-1 rounded bg-black/85 border border-fuchsia-400 text-fuchsia-300 text-[10px] font-bold flex items-center gap-1 shadow-lg">
+                        <span class="material-symbols-outlined text-[13px]">zoom_in</span> Click to open Lightbox Modal
+                      </span>
+                    </div>
+                  </div>
+                  <div class="text-[9px] text-neutral-400 flex items-center justify-between pt-1">
+                    <span>${escapeHtml(fileMetaBadge)}</span>
+                    <span class="text-fuchsia-400 font-bold">CLICK IMAGE TO ENLARGE</span>
+                  </div>
                 </div>
               ` : (isTxtFile || isText ? `
                 <div class="w-full rounded-lg border border-cyan-500/40 bg-[#070b16] p-3 text-[11px] font-mono text-cyan-200 select-text overflow-x-auto max-h-80 overflow-y-auto scrollbar-thin space-y-1 shadow-[inset_0_0_15px_rgba(0,240,255,0.1)]">
@@ -16258,7 +16344,7 @@ ${staticFacts.length > 0 ? `## Static Knowledge Core:\n${staticFacts.map(f => `-
       const isPdf = fileType === 'pdf' || (/\.pdf$/i).test(title);
       const isDocx = fileType === 'docx' || (/\.docx$/i).test(title);
       const isMd = fileType === 'md' || fileType === 'markdown' || (/\.(md|markdown)$/i).test(title);
-      const isImg = ['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'bmp', 'ico'].includes(fileType) || (/\.(png|jpg|jpeg|gif|webp|svg|bmp|ico)$/i).test(title);
+      const isImg = ['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'bmp', 'ico', 'image'].includes(fileType) || (/\.(png|jpg|jpeg|gif|webp|svg|bmp|ico)$/i).test(title) || (/\.(png|jpg|jpeg|gif|webp|svg|bmp|ico)/i).test(url);
       const isHtml = fileType === 'html' || fileType === 'htm' || (/\.(html|htm)$/i).test(title);
 
       modal.classList.remove('hidden');

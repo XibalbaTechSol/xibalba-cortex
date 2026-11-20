@@ -17,6 +17,7 @@ from __future__ import annotations
 import csv
 import io
 import json
+import mimetypes
 import os
 import re
 import subprocess
@@ -1576,6 +1577,7 @@ class SuperCortexConnectors:
 
         # Hierarchical repository scopes
         repo_scope = f"github:{clean_repo}" if scope in ("shared", "") else scope
+        images_scope = f"{repo_scope}:images"
         txt_scope = f"{repo_scope}:txt"
         docs_scope = f"{repo_scope}:docs"
         code_scope = f"{repo_scope}:code"
@@ -1586,6 +1588,7 @@ class SuperCortexConnectors:
         # Register scopes in store
         for sc_id, sc_name, sc_desc in [
             (repo_scope, f"{repo_name} (Repository Hub)", f"Central architecture repository hub for {clean_repo}"),
+            (images_scope, f"{repo_name} (Images & Visual Media)", f"Images and visual media manifold for {clean_repo}"),
             (txt_scope, f"{repo_name} (Text Files .txt)", f"Plain text (.txt) document manifold for {clean_repo}"),
             (docs_scope, f"{repo_name} (Documentation)", f"Documentation and markdown specifications for {clean_repo}"),
             (code_scope, f"{repo_name} (Source Code)", f"Source code manifold for {clean_repo}"),
@@ -1758,9 +1761,65 @@ class SuperCortexConnectors:
         ingested_files_count = 0
         if sync_files and tree_files:
             txt_candidates = [p for p in tree_files if p.lower().endswith(".txt")]
+            image_candidates = [p for p in tree_files if any(p.lower().endswith(ext) for ext in (".png", ".jpg", ".jpeg", ".gif", ".svg", ".webp", ".ico", ".bmp", ".tiff"))]
             doc_candidates = [p for p in tree_files if any(p.lower().endswith(ext) for ext in (".md", ".markdown", ".rst")) and not p.lower().endswith("readme.md")]
             config_candidates = [p for p in tree_files if any(p.lower().endswith(ext) for ext in (".json", ".toml", ".yaml", ".yml", ".ini", ".cfg", ".env.example")) or Path(p).name in ("Dockerfile", "Makefile", "LICENSE")]
             code_candidates = [p for p in tree_files if any(p.lower().endswith(ext) for ext in (".py", ".ts", ".js", ".tsx", ".jsx", ".rs", ".go", ".sol", ".c", ".cpp", ".h", ".sh"))]
+
+            async def _ingest_image_node(f_path: str, target_scope: str):
+                nonlocal ingested_files_count
+                try:
+                    f_name = Path(f_path).name
+                    f_ext = Path(f_path).suffix.lower()
+                    mime_str = mimetypes.guess_type(f_path)[0] or f"image/{f_ext.lstrip('.')}"
+                    f_url = f"/api/connectors/file/preview?repo={clean_repo}&path={f_path}"
+
+                    local_p = self._resolve_local_repo(clean_repo)
+                    f_size = 0
+                    if local_p:
+                        img_p = (local_p / f_path).resolve()
+                        if img_p.exists() and img_p.is_file():
+                            f_size = img_p.stat().st_size
+
+                    f_doc = (
+                        f"GitHub Image Asset [{clean_repo}/{f_path}]:\n\n"
+                        f"Filename: {f_name}\n"
+                        f"Format: {f_ext.upper().lstrip('.')} | MIME: {mime_str} | Size: {f_size} bytes\n"
+                        f"Repository: {clean_repo}\n"
+                        f"Path: {f_path}\n"
+                        f"Preview URL: {f_url}"
+                    )
+                    f_mem = await self.cortex.remember(
+                        text=f_doc,
+                        scope=target_scope,
+                        source_origin=f"https://github.com/{clean_repo}/blob/{default_branch}/{f_path}",
+                        metadata={
+                            "connector": "github",
+                            "type": "image",
+                            "category": "image",
+                            "file_type": "image",
+                            "mime_type": mime_str,
+                            "filename": f_name,
+                            "file_path": f_path,
+                            "repo": clean_repo,
+                            "repo_full_name": clean_repo,
+                            "size": f_size,
+                            "is_image": True,
+                            "has_file": True,
+                            "file_url": f_url,
+                            "preview_url": f_url,
+                        },
+                    )
+                    all_mem_ids.append(f_mem["memory_id"])
+                    ingested_files_count += 1
+
+                    # Knowledge graph entity and containment relation
+                    ent_file = f"{clean_repo}/{f_path}"
+                    self.cortex.store.add_entity(ent_file)
+                    self.cortex.store.add_relation(subject=clean_repo, predicate="contains_image", object=ent_file, confidence=1.0)
+                    self.cortex.store.add_relation(subject=ent_file, predicate="belongs_to_repo", object=clean_repo, confidence=1.0)
+                except Exception:
+                    pass
 
             async def _ingest_file_node(f_path: str, target_scope: str, file_kind: str, mime_str: str, is_txt_flag: bool = False):
                 nonlocal ingested_files_count
@@ -1810,6 +1869,10 @@ class SuperCortexConnectors:
             # Ingest all .txt files into txt_scope (up to 30)
             for f_path in txt_candidates[:30]:
                 await _ingest_file_node(f_path, txt_scope, "text", "text/plain", is_txt_flag=True)
+
+            # Ingest all images into images_scope (up to 30)
+            for f_path in image_candidates[:30]:
+                await _ingest_image_node(f_path, images_scope)
 
             # Ingest top documentation files into docs_scope (up to 12)
             for f_path in doc_candidates[:12]:
@@ -1884,7 +1947,7 @@ class SuperCortexConnectors:
         ingested_commits_count = 0
         if sync_commits:
             commits_data = self.get_github_commits(clean_repo, limit=20)
-            commits_list = commits_data.get("commits", [])
+            commits_list = commits_data.get("commits", []) if isinstance(commits_data, dict) else (commits_data if isinstance(commits_data, list) else [])
             for c in commits_list:
                 try:
                     c_sha = c.get("sha", "")
@@ -2143,6 +2206,34 @@ class SuperCortexConnectors:
                     "source": "github_rest_api",
                     "is_binary": False
                 }
+            raise FileNotFoundError(f"Failed to fetch {clean_path} from GitHub: {r.status_code}")
+
+    def get_github_file_bytes(self, repo: str, path: str) -> tuple[bytes, str]:
+        """Fetch raw binary bytes and filename from local repository or remote GitHub API."""
+        from pathlib import Path
+        clean_repo = repo.strip()
+        clean_path = path.strip().lstrip("/")
+        if "/" not in clean_repo and not clean_repo.startswith("http"):
+            clean_repo = f"XibalbaTechSol/{clean_repo}"
+
+        local_p = self._resolve_local_repo(clean_repo)
+        if local_p:
+            file_path = (local_p / clean_path).resolve()
+            if file_path.is_relative_to(local_p.resolve()) and file_path.exists() and file_path.is_file():
+                return file_path.read_bytes(), file_path.name
+
+        token = self._discover_github_token()
+        headers = {
+            "Accept": "application/vnd.github.raw+json",
+            "User-Agent": "SuperCortex-GitHubFile/1.0",
+        }
+        if token:
+            headers["Authorization"] = f"Bearer {token}"
+        url = f"https://api.github.com/repos/{clean_repo}/contents/{clean_path}"
+        with httpx.Client(timeout=15.0, follow_redirects=True) as client:
+            r = client.get(url, headers=headers)
+            if r.status_code == 200:
+                return r.content, Path(clean_path).name
             raise FileNotFoundError(f"Failed to fetch {clean_path} from GitHub: {r.status_code}")
 
     def get_github_commits(self, repo: str, limit: int = 30):
