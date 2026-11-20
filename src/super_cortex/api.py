@@ -294,6 +294,8 @@ def create_app(
             "document": 0x00f0ff,   # Cyan
             "action": 0xf59e0b,     # Amber Orange
             "thought": 0xa855f7,    # Amethyst Purple
+            "tool_call": 0xf59e0b,  # Amber Orange for Agent Tool Calls
+            "thought_trace": 0xa855f7, # Amethyst Purple for Chain-of-Thought Traces
             "git": 0x818cf8,        # Indigo
         }
 
@@ -304,6 +306,8 @@ def create_app(
             "labelTag": "SHARED MEMORY HUB",
             "category": "shared",
             "type": "hub",
+            "node_type": "shared_hub",
+            "scope_node_type": "shared:hub",
             "status": "active",
             "epistemic_class": "rule",
             "color": 0x00f0ff,
@@ -338,6 +342,8 @@ def create_app(
                 "labelTag": f"AGENT // {aid.upper()}",
                 "category": "agent",
                 "type": "agent_hub",
+                "node_type": "agent_hub",
+                "scope_node_type": f"agent:{aid}:hub",
                 "status": agent["status"],
                 "epistemic_class": "decision",
                 "color": 0x00ffa3,
@@ -409,6 +415,8 @@ def create_app(
                 "labelTag": f"{ep_class.upper()} // {para_cat.upper()}",
                 "category": para_cat,
                 "type": "memory",
+                "node_type": f"memory_{ep_class}",
+                "scope_node_type": f"{mem_scope}:memory_{ep_class}",
                 "status": row["lifecycle_status"],
                 "epistemic_class": ep_class,
                 "para": para,
@@ -510,9 +518,11 @@ def create_app(
                 "title": f"Thought: {th_title}",
                 "labelTag": "REASONING // COT",
                 "category": "thought",
-                "type": "thought",
+                "type": "thought_trace",
+                "node_type": "thought_trace",
+                "scope_node_type": f"{th_scope}:thought_trace",
                 "status": "audited",
-                "epistemic_class": "inference",
+                "epistemic_class": "thought",
                 "color": 0xa855f7,  # Vibrant Amethyst Purple for Chain-of-Thought Reasoning
                 "size": 17,
                 "pos3D": [round(tx, 1), round(ty, 1), round(tz, 1)],
@@ -576,7 +586,9 @@ def create_app(
                                 "title": f"Action: {tname}",
                                 "labelTag": f"TOOL // {tname.upper()}",
                                 "category": "action",
-                                "type": "action",
+                                "type": "tool_call",
+                                "node_type": "tool_call",
+                                "scope_node_type": f"{th_scope}:tool_call",
                                 "status": "executed",
                                 "epistemic_class": "action",
                                 "color": 0xf59e0b,  # Amber Orange
@@ -631,6 +643,8 @@ def create_app(
                 "labelTag": "ENTITY // SOP",
                 "category": "entity",
                 "type": "entity",
+                "node_type": "knowledge_entity",
+                "scope_node_type": "shared:knowledge_entity",
                 "status": "active",
                 "epistemic_class": "fact",
                 "color": 0xffd166,  # Vibrant amber / golden yellow for Knowledge Entities

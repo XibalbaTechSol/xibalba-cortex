@@ -482,3 +482,97 @@ async def test_github_browser_endpoints(tmp_path) -> None:
     assert d_mem_prev["status"] == "ok"
     assert d_mem_prev["kind"] == "markdown"
     assert "Preview verification text" in d_mem_prev["text"]
+
+
+@pytest.mark.asyncio
+async def test_agent_transcripts_connector_and_unique_node_types(tmp_path):
+    from super_cortex.importers import SessionImporter
+    from starlette.testclient import TestClient
+    from super_cortex.api import create_app
+
+    cfg = SuperCortexConfig(
+        db_path=tmp_path / "agent_telemetry_test.db",
+        supermemory_url="http://127.0.0.1:59999",
+    )
+    cortex = SuperCortex(cfg)
+    connectors = SuperCortexConnectors(cortex)
+
+    # 1. Test SessionImporter instantiation & import
+    importer = SessionImporter(store=cortex.store)
+    assert importer is not None
+    assert importer.store is cortex.store
+
+    # 2. Record mock turns for each agent harness to verify node types
+    cortex.record_exchange(
+        session_id="sess_agy_test_turn",
+        prompt_text="Run optimization loop",
+        response_text="Executing PID step",
+        thinking_text="Need to evaluate stability margin via feedback control",
+        tool_calls=[{"name": "run_command", "args": {"cmd": "status"}}],
+        actor="did:integrity:b1a72980e8e45e97c7b92982a89b1963e470b45fa955c9bd245f046e1e32e39a",
+        agent_id="agy",
+        scope_id="agent:agy",
+    )
+    cortex.record_exchange(
+        session_id="sess_claude_test_turn",
+        prompt_text="Inspect graph architecture",
+        response_text="Inspecting graph routes",
+        thinking_text="Checking node type assignments across agent scopes",
+        tool_calls=[{"name": "read_file", "args": {"path": "api.py"}}],
+        actor="did:integrity:f07438ae1fb67f6ab1a21df87fb4771bead162c502c6e98cfa0bbdd7020a7e75",
+        agent_id="claude",
+        scope_id="agent:claude",
+    )
+    cortex.record_exchange(
+        session_id="sess_codex_test_turn",
+        prompt_text="Generate mathematical proof",
+        response_text="Proof generated",
+        thinking_text="Eigenvalues bounded by Cheeger constant",
+        tool_calls=[{"name": "eval_pde", "args": {"order": 2}}],
+        actor="did:integrity:d73b98dd869948c27c7cc16d53683779a23c46daf3020e221955d67d1a8723c5",
+        agent_id="codex",
+        scope_id="agent:codex",
+    )
+
+    # Add memory and relation
+    await cortex.remember("Deterministic integrity rules enforce zero cross-scope drift.", scope="shared")
+    cortex.store.add_entity("Spectral Graph", aliases=["Graph"], evidence_links=["proof"])
+    cortex.store.add_relation("Spectral Graph", "has_bound", "Cheeger Constant", confidence=1.0)
+
+    # 3. Test /api/graph endpoint returns unique node types for different scopes
+    app = create_app(cfg)
+    client = TestClient(app)
+    graph_res = client.get("/api/graph")
+    assert graph_res.status_code == 200
+    graph_data = graph_res.json()
+    assert "nodes" in graph_data
+    assert "links" in graph_data
+
+    nodes = graph_data["nodes"]
+    node_types = {n.get("type") for n in nodes}
+    unique_node_types = {n.get("node_type") for n in nodes}
+    scope_node_types = {n.get("scope_node_type") for n in nodes if n.get("scope_node_type")}
+
+    # Assert distinct types exist
+    assert "thought_trace" in node_types
+    assert "tool_call" in node_types
+    assert "thought_trace" in unique_node_types
+    assert "tool_call" in unique_node_types
+    assert "shared_hub" in unique_node_types
+    assert "knowledge_entity" in unique_node_types
+
+    # Assert scope-qualified node types exist
+    assert "agent:agy:thought_trace" in scope_node_types
+    assert "agent:agy:tool_call" in scope_node_types
+    assert "agent:claude:thought_trace" in scope_node_types
+    assert "agent:claude:tool_call" in scope_node_types
+    assert "agent:codex:thought_trace" in scope_node_types
+    assert "agent:codex:tool_call" in scope_node_types
+    assert "shared:hub" in scope_node_types
+    assert "shared:knowledge_entity" in scope_node_types
+
+    # 4. Test agent_transcripts connector sync
+    sync_res = await connectors.sync_connector("agent_transcripts", scope="shared", limit_per_source=3)
+    assert sync_res["status"] == "synced"
+    assert sync_res["connector"] == "agent_transcripts"
+

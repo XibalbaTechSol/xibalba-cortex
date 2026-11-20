@@ -96,8 +96,8 @@ def test_api_graph_renders_action_and_causal_nodes(test_cortex):
     nodes = data.get("nodes", [])
     links = data.get("links", [])
 
-    # Verify Action Nodes exist
-    action_nodes = [n for n in nodes if n.get("type") == "action"]
+    # Verify Action / Tool Call Nodes exist
+    action_nodes = [n for n in nodes if n.get("type") in ("action", "tool_call") or n.get("node_type") == "tool_call"]
     assert len(action_nodes) == 3  # 2 in first exchange, 1 in second exchange
     assert any(n["title"] == "Action: eval_boundary_policy" for n in action_nodes)
     assert any(n["title"] == "Action: verify_signature" for n in action_nodes)
