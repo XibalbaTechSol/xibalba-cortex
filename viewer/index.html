@@ -24257,6 +24257,7 @@ console.log("Loaded " + nodes.length + " memory invariants.");</code></pre>
       </div>
       <nav class="hidden md:flex items-center gap-6 text-xs font-mono text-slate-300">
         <a href="#xc-what" onclick="event.preventDefault(); document.getElementById('xc-what')?.scrollIntoView({behavior:'smooth'})" class="hover:text-cyan-300 transition-colors">What it is</a>
+        <a href="#xc-manifold" onclick="event.preventDefault(); document.getElementById('xc-manifold')?.scrollIntoView({behavior:'smooth'})" class="hover:text-cyan-300 transition-colors">3D Manifold</a>
         <a href="#xc-byom" onclick="event.preventDefault(); document.getElementById('xc-byom')?.scrollIntoView({behavior:'smooth'})" class="hover:text-cyan-300 transition-colors">Your own model</a>
         <a href="#xc-how" onclick="event.preventDefault(); document.getElementById('xc-how')?.scrollIntoView({behavior:'smooth'})" class="hover:text-cyan-300 transition-colors">How it runs</a>
         <a href="#xc-pricing" onclick="event.preventDefault(); document.getElementById('xc-pricing')?.scrollIntoView({behavior:'smooth'})" class="hover:text-cyan-300 transition-colors">Plans</a>
@@ -24338,10 +24339,53 @@ console.log("Loaded " + nodes.length + " memory invariants.");</code></pre>
           </article>
           <article class="p-5 rounded-xl bg-[#090e1a] border border-slate-800/90 hover:border-amber-500/40 transition-all space-y-3">
             <span class="material-symbols-outlined text-amber-400 text-2xl">view_in_ar</span>
-            <h3 class="font-bold text-white text-base">3D Graph Manifold &amp; Studio</h3>
-            <p class="text-xs text-slate-300 leading-relaxed">Walk the 3D knowledge lattice with camera presets, spectral Fiedler eigenmaps, Dijkstra geodesic routing, 3D spotlight search, and playing-card dialogue stacks.</p>
-            <div class="pt-2 font-mono text-[10px] text-amber-300">3D Manifold · Spectral · Geodesics</div>
+            <h3 class="font-bold text-white text-base">3D Manifold &amp; Subgraph Folding</h3>
+            <p class="text-xs text-slate-300 leading-relaxed">Walk the 60FPS neural lattice with scope subgraph folding, 350ms spring blossom physics, custom node and scope studio, dynamic meta-edge bundling, and zero-overlap layout tuning.</p>
+            <div class="pt-2 font-mono text-[10px] text-amber-300">Subgraph Folding · 60FPS · Zero-Overlap</div>
           </article>
+        </div>
+      </section>
+
+      <!-- 3D Neural Manifold & Subgraph Folding Showcase -->
+      <section id="xc-manifold" class="space-y-6">
+        <div>
+          <p class="font-mono text-xs uppercase tracking-widest text-amber-400 font-bold">3D Knowledge Topology</p>
+          <h2 class="text-2xl md:text-3xl font-bold text-white mt-1">Hierarchical Graph Folding &amp; Subgraph Clustering</h2>
+          <p class="text-slate-300 text-sm leading-relaxed max-w-3xl mt-2">
+            In multi-agent swarms with thousands of memories, raw graphs overwhelm both human perception and GPU pipelines. Super-Cortex introduces mathematically grounded hierarchical graph contraction: fold any scope into a Subgraph Super-Node with zero frame drops, weighted meta-edge bundling, and fluid 350ms blossom physics.
+          </p>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-5 font-mono text-xs">
+          <div class="p-5 rounded-xl bg-[#090e1a] border border-amber-500/30 space-y-3">
+            <div class="flex items-center gap-2 text-amber-400 font-bold uppercase text-[11px]">
+              <span class="material-symbols-outlined text-lg">compress</span>
+              <span>Scope Subgraph Folding</span>
+            </div>
+            <p class="text-slate-300 text-xs font-sans leading-relaxed">
+              Collapse 100+ member nodes into a single glowing orbital hub. Suppresses intra-scope clutter and achieves up to 96% fewer active edge tubes, guaranteeing a rock-solid 60 FPS viewport.
+            </p>
+            <div class="text-[10px] text-amber-300">Adaptive threshold (&ge;250 nodes) auto-folds on load.</div>
+          </div>
+          <div class="p-5 rounded-xl bg-[#090e1a] border border-cyan-500/30 space-y-3">
+            <div class="flex items-center gap-2 text-cyan-400 font-bold uppercase text-[11px]">
+              <span class="material-symbols-outlined text-lg">alt_route</span>
+              <span>Dynamic Meta-Edge Bundling</span>
+            </div>
+            <p class="text-slate-300 text-xs font-sans leading-relaxed">
+              Cross-scope relations dynamically redirect and collapse into thick, glowing Meta-Edges connecting scope hubs, with tube radius and arrow scale logarithmically weighted by connection density.
+            </p>
+            <div class="text-[10px] text-cyan-300">Reroutes parallel connections in O(E) per frame.</div>
+          </div>
+          <div class="p-5 rounded-xl bg-[#090e1a] border border-emerald-500/30 space-y-3">
+            <div class="flex items-center gap-2 text-emerald-400 font-bold uppercase text-[11px]">
+              <span class="material-symbols-outlined text-lg">tune</span>
+              <span>Custom Scope &amp; Layout Studio</span>
+            </div>
+            <p class="text-slate-300 text-xs font-sans leading-relaxed">
+              Create custom nodes with arbitrary scopes, configurable JSON properties, and bidirectional relationships. Sliders for padding, spread, elevation, and repulsion ensure zero node collision.
+            </p>
+            <div class="text-[10px] text-emerald-300">O(N) 3D spatial voxel hash collision solver.</div>
+          </div>
         </div>
       </section>
 
@@ -24453,6 +24497,11 @@ memory_extraction_submit
               </tr>
             </thead>
             <tbody class="divide-y divide-slate-800/70 text-slate-300">
+              <tr>
+                <td class="p-3.5 font-bold text-white">3D Neural Manifold</td>
+                <td class="p-3.5">Hierarchical Scope Subgraph Folding, dynamic meta-edge bundling, 350ms spring blossom physics, custom node/scope studio, and O(N) voxel collision zero-overlap layout solver.</td>
+                <td class="p-3.5 text-slate-400">None. No visual topological representation or hierarchical subgraph contraction.</td>
+              </tr>
               <tr>
                 <td class="p-3.5 font-bold text-white">Primary Focus</td>
                 <td class="p-3.5">Cryptographic Merkle provenance, 3D WebGL manifold, spectral Fiedler analytics, and 768-D Supermemory hybrid recall.</td>
