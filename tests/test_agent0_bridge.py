@@ -173,3 +173,112 @@ def test_api_agent0_passport_endpoint(tmp_path):
     assert body["wallet_confined"] is True
     assert body["sovereign_actor_wallet"] == SAMPLE_SOVEREIGN_ACTOR
     assert body["document"]["registrations"][0]["agentId"] == 77
+
+
+def test_api_agent0_search_fallback_and_filters(tmp_path):
+    cfg = SuperCortexConfig(
+        db_path=tmp_path / "provenance.db",
+        actor_did=SAMPLE_DID,
+    )
+    app = create_app(config=cfg)
+    client = TestClient(app)
+
+    # 1. Default search returns registry
+    resp = client.get("/api/agent0/search")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert "agents" in data
+    assert data["total"] >= 1
+    assert any(a["name"] == "Super-Cortex Sovereign Memory Agent" for a in data["agents"])
+
+    # 2. Filter by specific chain
+    resp = client.post(
+        "/api/agent0/search",
+        json={"chains": [80002], "filters": {"equals": {"a2a": True}}},
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert all(a["chainId"] == 80002 for a in data["agents"])
+
+    # 3. Filter by query
+    resp = client.post(
+        "/api/agent0/search",
+        json={"query": "quant", "sort": "reputation"},
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert len(data["agents"]) >= 1
+    assert "Quant" in data["agents"][0]["name"]
+
+
+def test_api_agent0_talk_a2a_messenger_protocol(tmp_path):
+    cfg = SuperCortexConfig(
+        db_path=tmp_path / "provenance.db",
+        actor_did=SAMPLE_DID,
+    )
+    app = create_app(config=cfg)
+    client = TestClient(app)
+
+    # 1. Validation error on empty message
+    resp = client.post("/api/agent0/talk", json={"message": ""})
+    assert resp.status_code == 400
+
+    # 2. Audit prompt generates verified response matching messenger.py
+    resp = client.post(
+        "/api/agent0/talk",
+        json={
+            "agent_id": "1",
+            "message": "Audit Integrity DID & Sovereign Backlink",
+            "context_id": "ctx-test-123",
+        },
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["kind"] == "message"
+    assert data["role"] == "agent"
+    assert data["context_id"] == "ctx-test-123"
+    assert len(data["parts"]) >= 2
+    assert data["parts"][0]["kind"] == "text"
+    assert "Integrity Audit" in data["parts"][0]["text"]
+    assert data["parts"][1]["kind"] == "data"
+    assert data["parts"][1]["data"]["walletConfined"] is True
+
+    # 3. PID prompt generates telemetry
+    resp = client.post(
+        "/api/agent0/talk",
+        json={
+            "agent_id": "2",
+            "message": "Run PID Quant Controller Health Check",
+            "context_id": "ctx-test-456",
+        },
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert "telemetry nominal" in data["parts"][0]["text"]
+    assert data["parts"][1]["data"]["status"] == "healthy"
+
+
+def test_api_agent0_remember_anchors_to_cortex(tmp_path):
+    cfg = SuperCortexConfig(
+        db_path=tmp_path / "provenance.db",
+        actor_did=SAMPLE_DID,
+    )
+    app = create_app(config=cfg)
+    client = TestClient(app)
+
+    resp = client.post(
+        "/api/agent0/remember",
+        json={
+            "agent_id": "1",
+            "context_id": "ctx-999",
+            "text": "A2A dialogue turn: Agent 1 confirmed DID backlink verified.",
+            "scope": "agent0-a2a",
+        },
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert "memory_id" in data
+    assert data["scope"] == "agent0-a2a"
+    assert data["agent_id"] == "agent0:1"
+    assert "event_hash" in data
+    assert "content_hash" in data
