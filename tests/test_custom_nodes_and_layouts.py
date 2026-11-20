@@ -150,14 +150,20 @@ def test_create_custom_node_with_custom_scope_and_relationships(client: TestClie
     assert r_layout_get.status_code == 200
     assert r_layout_get.json()["config"]["preventScopeOverlap"] is True
     assert r_layout_get.json()["config"]["preventTypeOverlap"] is True
+    assert r_layout_get.json()["config"]["autoFoldThreshold"] == 250
+    assert "defaultFoldedScopes" in r_layout_get.json()["config"]
 
     r_layout_post = client.post("/api/config/layout-params", json={
         "minNodePadding": 32.0,
         "scopeSeparation": 180.0,
         "typeSpread": 1.4,
+        "autoFoldThreshold": 300,
+        "defaultFoldedScopes": ["workspace:defense", "agent:cursor"],
     })
     assert r_layout_post.status_code == 200
     assert r_layout_post.json()["config"]["minNodePadding"] == 32.0
+    assert r_layout_post.json()["config"]["autoFoldThreshold"] == 300
+    assert r_layout_post.json()["config"]["defaultFoldedScopes"] == ["workspace:defense", "agent:cursor"]
 
     # 11. Delete custom node and verify cleanup
     r_del_node = client.delete(f"/api/nodes/{node_id}")

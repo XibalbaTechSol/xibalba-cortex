@@ -2815,6 +2815,8 @@ em {{ color: #94a3b8; }}
         "forceRepulsion": 48000.0,
         "forceSpringLength": 110.0,
         "gridStep": 50.0,
+        "autoFoldThreshold": 250,
+        "defaultFoldedScopes": [],
     }
 
     async def api_layout_params(request: Request) -> JSONResponse:
