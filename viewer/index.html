@@ -4732,6 +4732,16 @@
             <span id="legend-count-agent_hub" class="px-1 py-0.2 rounded text-[7.5px] font-mono font-bold bg-cyan-500/25 text-[#00ffa3] border border-cyan-500/40 shrink-0">--</span>
           </div>
 
+          <!-- Action / Tool Call -->
+          <div id="legend-row-tool_call" onclick="toggleLegendFacet('tool_call')" role="switch" aria-pressed="true" class="col-span-2 flex items-center justify-between p-1.5 rounded-lg border border-amber-500/30 bg-amber-500/10 hover:bg-amber-500/20 cursor-pointer transition-colors group select-none" title="Agent tool calls, CLI executions, and action nodes">
+            <div class="flex items-center gap-1.5 truncate">
+              <span id="legend-check-tool_call" class="material-symbols-outlined text-[13px] text-amber-400">check_box</span>
+              <span class="w-2 h-2 rounded-sm bg-[#f59e0b] shadow-[0_0_6px_#f59e0b] shrink-0"></span>
+              <span class="text-[#f59e0b] font-bold text-[8.5px] truncate">TOOL CALLS (ACTIONS)</span>
+            </div>
+            <span id="legend-count-tool_call" class="px-1 py-0.2 rounded text-[7.5px] font-mono font-bold bg-amber-500/25 text-[#f59e0b] border border-amber-500/40 shrink-0">--</span>
+          </div>
+
           <!-- Knowledge Entity -->
           <div id="legend-row-entity" onclick="toggleLegendFacet('entity')" role="switch" aria-pressed="true" class="col-span-2 flex items-center justify-between p-1.5 rounded-lg border border-amber-400/30 bg-amber-400/10 hover:bg-amber-400/20 cursor-pointer transition-colors group select-none" title="RDF Subject-Object-Predicate relational entities">
             <div class="flex items-center gap-1.5 truncate">
@@ -7250,6 +7260,7 @@
       if (norm === 'agy') return 'diamonds';
       if (norm === 'hermes' || norm === 'xibalba') return 'spheres';
       if (norm === 'claude') return 'geodesic';
+      if (norm === 'codex') return 'dodecahedron';
       if (norm === 'cortex') return 'pyramids';
       if (norm === 'cursor') return 'dodecahedron';
       if (norm === 'shield') return 'shield_prism';
@@ -7262,7 +7273,8 @@
       if (ep === 'rule') return 'shield_prism';
       if (ep === 'decision' || ep === 'inference') return 'torus';
       if (ep === 'fact') return 'diamonds';
-      if (ep === 'thought') return 'spheres';
+      if (ep === 'thought' || ep === 'thought_trace') return 'spheres';
+      if (ep === 'action' || ep === 'tool_call' || ep === 'tool') return 'pyramids';
       if (ep === 'entity') return 'geodesic';
       return 'cubes';
     }
@@ -11474,6 +11486,7 @@
       hub: true,
       agent_hub: true,
       entity: true,
+      tool_call: true,
       belief: true,
       goal: true,
     };
@@ -11522,10 +11535,12 @@
         hub: 0,
         agent_hub: 0,
         entity: 0,
+        tool_call: 0,
       };
 
       nodes.forEach(n => {
-        if (n.type === 'thought' || n.category === 'thought') counts.thought++;
+        if (n.type === 'tool_call' || n.type === 'action' || n.node_type === 'tool_call') counts.tool_call++;
+        else if (n.type === 'thought' || n.type === 'thought_trace' || n.category === 'thought' || n.node_type === 'thought_trace') counts.thought++;
         else if (n.type === 'agent_hub') counts.agent_hub++;
         else if (n.type === 'hub') counts.hub++;
         else if (n.type === 'entity') counts.entity++;
@@ -11568,14 +11583,16 @@
       cubeMeshes.forEach(mesh => {
         const d = mesh.userData?.data;
         if (!d) return;
-        const isThought = d.type === 'thought' || d.category === 'thought';
+        const isTool = d.type === 'tool_call' || d.type === 'action' || d.node_type === 'tool_call';
+        const isThought = d.type === 'thought' || d.type === 'thought_trace' || d.category === 'thought' || d.node_type === 'thought_trace';
         const isHub = d.type === 'hub';
         const isAgentHub = d.type === 'agent_hub';
         const isEntity = d.type === 'entity';
         const ep = (d.epistemic_class || 'fact').toLowerCase();
 
         let isMatch = true;
-        if (isThought) isMatch = Boolean(activeFacetFilters.thought);
+        if (isTool) isMatch = Boolean(activeFacetFilters.tool_call !== false);
+        else if (isThought) isMatch = Boolean(activeFacetFilters.thought);
         else if (isHub) isMatch = Boolean(activeFacetFilters.hub);
         else if (isAgentHub) isMatch = Boolean(activeFacetFilters.agent_hub);
         else if (isEntity) isMatch = Boolean(activeFacetFilters.entity);

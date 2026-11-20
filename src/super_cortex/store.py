@@ -705,7 +705,7 @@ class ProvenanceStore:
         now = created_at or utc_now_iso()
 
         if not agent_id:
-            for cand in ("hermes", "agy", "claude", "cortex", "cursor", "shield", "deepseek", "chrome", "quant", "xibalba"):
+            for cand in ("hermes", "agy", "claude", "codex", "cortex", "cursor", "shield", "deepseek", "chrome", "quant", "xibalba"):
                 if cand in session_id.lower():
                     agent_id = cand
                     break

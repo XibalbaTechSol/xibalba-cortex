@@ -3225,8 +3225,9 @@ class SuperCortexConnectors:
 
         if connector_id == "agent_transcripts":
             from super_cortex.importers import SessionImporter
+            limit = int(kwargs.get("limit_per_source") or kwargs.get("limit") or 250)
             importer = SessionImporter(self.cortex.store)
-            summary = importer.import_all_local()
+            summary = importer.import_all_local(limit_per_source=limit)
             self._record_sync(
                 "agent_transcripts",
                 status="connected",
