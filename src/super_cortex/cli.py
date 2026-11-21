@@ -176,7 +176,6 @@ def viewer(
     """Launch the Super-Cortex interactive Graph & Timeline web interface."""
     import uvicorn
     from pathlib import Path
-    import subprocess
     from .api import create_app
 
     viewer_dir = Path(__file__).resolve().parent.parent.parent / "viewer"
