@@ -610,7 +610,7 @@
   <!-- ========================================================================= -->
   <!-- 1. SLEEK AEROSPACE HEADER (h-10, 40px Minimalist Command Bar)              -->
   <!-- ========================================================================= -->
-  <header id="app-top-header" class="fixed top-0 left-0 right-0 h-10 z-50 bg-[#070a11]/95 backdrop-blur-2xl border-b border-slate-800/80 flex items-center justify-between px-3 font-mono text-[11px] text-on-surface-variant select-none shadow-[0_4px_24px_rgba(0,0,0,0.6)]">
+  <header id="app-top-header" class="fixed top-0 left-0 right-0 h-10 z-50 bg-[#070a11]/95 backdrop-blur-2xl border-b border-slate-800/80 flex items-center justify-between px-3 font-mono text-[11px] text-on-surface-variant select-none shadow-[0_4px_24px_rgba(0,0,0,0.6)] overflow-x-hidden max-w-full">
     <!-- Left Section: Clean Brand Mark & Agent Scope Dropdown -->
     <div class="flex items-center gap-2.5 shrink-0">
       <!-- Brand Logo / Glyph: Click to Return to Landing Page -->
@@ -634,7 +634,7 @@
         <button id="btn-header-scope-selector" onclick="toggleHeaderScopeDropdown(event)" class="h-6.5 flex items-center gap-1.5 px-2 bg-slate-900/90 hover:bg-slate-800 border border-cyan-500/30 hover:border-cyan-400/70 rounded-none text-[10px] font-mono transition-all cursor-pointer shadow-sm">
           <span class="text-slate-400 text-[8px] font-bold uppercase tracking-wider hidden sm:inline">SCOPE:</span>
           <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 shadow-[0_0_6px_#00ffa3] animate-pulse"></span>
-          <span id="header-active-scope-label" class="text-cyan-300 font-bold tracking-wider text-[10px] truncate max-w-[90px] sm:max-w-[120px]">All Agent Scopes</span>
+          <span id="header-active-scope-label" class="text-cyan-300 font-bold tracking-wider text-[10px] truncate max-w-[80px] lg:max-w-[110px]">All Agent Scopes</span>
           <span class="material-symbols-outlined text-[13px] text-cyan-400 -mr-0.5">arrow_drop_down</span>
         </button>
 
@@ -755,98 +755,99 @@
         <!-- 3. Satellite: DIALOGUE -->
         <button onclick="switchView('dialogue')" id="header-btn-dialogue" class="satellite-nav-btn flex items-center gap-1.5 px-2.5 py-1 rounded-none text-[10px] font-medium text-slate-400 hover:text-white transition-all cursor-pointer border border-transparent" title="Dialogue Trajectory & Reasoning [3]">
           <span class="material-symbols-outlined text-[14px]">forum</span>
-          <span class="tracking-wide hidden md:inline">DIALOGUE</span>
+          <span class="tracking-wide hidden 2xl:inline">DIALOGUE</span>
         </button>
 
         <!-- 4. Satellite: DATA FABRIC -->
         <button onclick="switchView('fabric')" id="header-btn-fabric" class="satellite-nav-btn flex items-center gap-1.5 px-2.5 py-1 rounded-none text-[10px] font-medium text-slate-400 hover:text-white transition-all cursor-pointer border border-transparent" title="Data Fabric, Scopes, Connectors & Audit [4]">
           <span class="material-symbols-outlined text-[14px]">database</span>
-          <span class="tracking-wide hidden md:inline">DATA FABRIC</span>
+          <span class="tracking-wide hidden 2xl:inline">DATA FABRIC</span>
         </button>
       </div>
     </div>
 
     <!-- Right Section: Sleek Dockable Actions & Telemetry -->
-    <div class="flex items-center gap-1 sm:gap-1.5 shrink-0">
-      <!-- Canvas & Grid Customizer Studio Trigger -->
-      <button onclick="window.toggleCanvasCustomizer()" id="btn-header-canvas-customizer" class="h-7 px-2 rounded-none flex items-center gap-1.5 bg-gradient-to-r from-cyan-500/15 to-emerald-500/15 hover:from-cyan-500/30 hover:to-emerald-500/30 border border-cyan-400/40 text-cyan-300 transition-all cursor-pointer shadow-[0_0_10px_rgba(0,240,255,0.15)]" title="Customize 3D Canvas, Spatial Grid & Lighting [C]">
-        <span class="material-symbols-outlined text-[15px] text-cyan-400">palette</span>
-        <span class="text-[10px] font-bold tracking-wider hidden 2xl:inline">CANVAS</span>
-      </button>
+    <div class="flex items-center gap-1 sm:gap-1.5 shrink-0 overflow-hidden">
+      <!-- CLUSTER 1: Studio & Canvas Controls -->
+      <div class="flex items-center gap-1 shrink-0">
+        <!-- Canvas & Grid Customizer Studio Trigger -->
+        <button onclick="window.toggleCanvasCustomizer()" id="btn-header-canvas-customizer" aria-label="Customize 3D Canvas, Grid & Lighting" class="w-7 h-7 rounded-none flex items-center justify-center bg-gradient-to-r from-cyan-500/15 to-emerald-500/15 hover:from-cyan-500/30 hover:to-emerald-500/30 border border-cyan-400/40 text-cyan-300 transition-all cursor-pointer shadow-[0_0_10px_rgba(0,240,255,0.15)]" title="Customize 3D Canvas, Spatial Grid & Lighting [C]">
+          <span class="material-symbols-outlined text-[15px] text-cyan-400">palette</span>
+        </button>
 
-      <!-- Canvas Studio Active Profile Indicator -->
-      <button onclick="window.toggleCanvasCustomizer()" id="header-canvas-profile-badge" class="h-7 px-2 rounded-none hidden 2xl:flex items-center gap-1.5 bg-slate-900/90 hover:bg-slate-800 border border-outline-variant/40 hover:border-cyan-400/50 text-cyan-300 font-mono text-[9px] transition-all cursor-pointer" title="Active Canvas Studio Profile (Click to open studio)">
-        <span class="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse"></span>
-        <span id="header-active-profile-name" class="font-bold tracking-wider truncate max-w-[110px]">DEEP VOID</span>
-      </button>
+        <!-- Canvas Studio Active Profile Indicator -->
+        <button onclick="window.toggleCanvasCustomizer()" id="header-canvas-profile-badge" aria-label="Active Canvas Profile" class="h-7 px-1.5 rounded-none hidden 2xl:flex items-center gap-1 bg-slate-900/90 hover:bg-slate-800 border border-outline-variant/40 hover:border-cyan-400/50 text-cyan-300 font-mono text-[8px] transition-all cursor-pointer" title="Active Canvas Studio Profile (Click to open studio)">
+          <span class="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse"></span>
+          <span id="header-active-profile-name" class="font-bold tracking-wider truncate max-w-[80px]">DEEP VOID</span>
+        </button>
 
-      <!-- Spectral Math Drawer Toggle -->
-      <button onclick="window.toggleSpectralDockDrawer()" id="btn-header-spectral" class="w-7 h-7 rounded-none flex items-center justify-center bg-slate-900/90 hover:bg-slate-800 border border-cyan-500/30 hover:border-cyan-400 text-cyan-300 transition-all cursor-pointer relative" title="Toggle Spectral Math & Eigenmap Drawer (S)">
-        <span class="material-symbols-outlined text-[15px]">scatter_plot</span>
-        <span id="header-spectral-dot" class="hidden absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-cyan-400 shadow-[0_0_6px_#00f0ff]"></span>
-      </button>
+        <!-- Spectral Math Drawer Toggle -->
+        <button onclick="window.toggleSpectralDockDrawer()" id="btn-header-spectral" aria-label="Toggle Spectral Math & Eigenmap Drawer" class="w-7 h-7 rounded-none flex items-center justify-center bg-slate-900/90 hover:bg-slate-800 border border-cyan-500/30 hover:border-cyan-400 text-cyan-300 transition-all cursor-pointer relative" title="Toggle Spectral Math & Eigenmap Drawer (S)">
+          <span class="material-symbols-outlined text-[15px]">scatter_plot</span>
+          <span id="header-spectral-dot" class="hidden absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-cyan-400 shadow-[0_0_6px_#00f0ff]"></span>
+        </button>
 
-      <!-- 2D vs 3D Dimensionality Controller -->
-      <div id="dimension-segmented-controller" class="flex items-center bg-[#070b16] border border-cyan-500/40 rounded-none p-0.5 text-[10px] font-mono font-bold shadow-lg">
-        <button id="btn-dim-3d" type="button" onclick="window.setGraphDimensionMode('3D')" class="px-2 py-0.5 rounded-none bg-cyan-500 text-black font-extrabold cursor-pointer transition-all shadow-[0_0_10px_rgba(0,240,255,0.4)]" title="3D Volumetric Neural Manifold (HotKey 3)">3D</button>
-        <button id="btn-dim-2d" type="button" onclick="window.setGraphDimensionMode('2D')" class="px-2 py-0.5 rounded-none text-slate-400 hover:text-white cursor-pointer transition-all" title="2D Planar Orthographic Topology Canvas (HotKey 2)">2D</button>
-      </div>
+        <!-- 2D vs 3D Dimensionality Controller -->
+        <div id="dimension-segmented-controller" class="hidden sm:flex items-center bg-[#070b16] border border-cyan-500/40 rounded-none p-0.5 text-[10px] font-mono font-bold shadow-lg">
+          <button id="btn-dim-3d" type="button" onclick="window.setGraphDimensionMode('3D')" aria-label="3D Volumetric Mode" class="px-2 py-0.5 rounded-none bg-cyan-500 text-black font-extrabold cursor-pointer transition-all shadow-[0_0_10px_rgba(0,240,255,0.4)]" title="3D Volumetric Neural Manifold (HotKey 3)">3D</button>
+          <button id="btn-dim-2d" type="button" onclick="window.setGraphDimensionMode('2D')" aria-label="2D Planar Mode" class="px-2 py-0.5 rounded-none text-slate-400 hover:text-white cursor-pointer transition-all" title="2D Planar Orthographic Topology Canvas (HotKey 2)">2D</button>
+        </div>
 
-      <!-- Real-Time Thought Tracker Studio Trigger -->
-      <button onclick="window.openThoughtTracker()" id="btn-header-thought-tracker" class="px-2.5 py-1 rounded-none flex items-center gap-1.5 bg-gradient-to-r from-purple-500/20 to-cyan-500/20 hover:from-purple-500/30 hover:to-cyan-500/30 border border-purple-500/40 hover:border-cyan-400 text-purple-200 hover:text-white transition-all cursor-pointer font-mono text-[10px] font-bold" title="Agent Telemetry & Real-Time Thought Tracker (T)">
-        <span class="material-symbols-outlined text-[14px] text-purple-400 animate-pulse">neurology</span>
-        <span class="hidden xl:inline">THOUGHT TRACKER</span>
-        <span id="thought-tracker-badge" class="px-1.5 py-0.2 rounded-none bg-purple-950/80 text-purple-300 text-[8px] font-mono border border-purple-500/40">LIVE</span>
-      </button>
-
-      <!-- Dedicated GitHub Browser Trigger -->
-      <button onclick="window.openGitHubBrowser()" id="btn-header-github-browser" class="w-7 h-7 rounded-none flex items-center justify-center bg-purple-500/10 hover:bg-purple-500/25 border border-purple-500/30 hover:border-purple-400 text-purple-300 transition-all cursor-pointer relative" title="Dedicated GitHub Repository Browser (G)">
-        <span class="material-symbols-outlined text-[15px]">terminal</span>
-      </button>
-
-      <!-- Data Science Export & Python Bridge Trigger -->
-      <button onclick="window.openDataScienceModal()" id="btn-header-data-science" class="px-2.5 py-1 rounded-none flex items-center gap-1.5 bg-gradient-to-r from-emerald-500/20 to-cyan-500/20 hover:from-emerald-500/30 hover:to-cyan-500/30 border border-emerald-500/40 hover:border-cyan-400 text-emerald-200 hover:text-white transition-all cursor-pointer font-mono text-[10px] font-bold" title="Data Science & Quantitative Research Interoperability (NetworkX, Polars, PyG, Parquet)">
-        <span class="material-symbols-outlined text-[14px] text-emerald-400">query_stats</span>
-        <span class="hidden 2xl:inline">DATA SCIENCE</span>
-        <span class="px-1 py-0.2 rounded-none bg-emerald-950/80 text-emerald-300 text-[8px] border border-emerald-500/40">API</span>
-      </button>
-
-      <!-- AI Graph Ops Trigger -->
-      <button onclick="window.openAiOpsModal()" id="btn-header-aiops" class="w-7 h-7 rounded-none flex items-center justify-center bg-purple-500/10 hover:bg-purple-500/25 border border-purple-500/30 hover:border-purple-400 text-[#ddb7ff] transition-all cursor-pointer relative" title="AI Graph Operations & Community Clustering">
-        <span class="material-symbols-outlined text-[15px]">psychology</span>
-      </button>
-
-      <!-- Synaptic Edges Toggle & Line/Cylinder Switcher -->
-      <div class="flex items-center gap-1 bg-slate-900/90 border border-slate-700/80 rounded-none p-0.5 shadow-sm">
-        <button onclick="toggleGraphEdges()" id="btn-header-edges" class="w-6 h-6 rounded-none flex items-center justify-center text-cyan-400 hover:text-white transition-all relative cursor-pointer" title="Toggle 3D Directed Edges On/Off (E)">
+        <!-- Directed Edges Toggle Icon -->
+        <button onclick="toggleGraphEdges()" id="btn-header-edges" aria-label="Toggle Directed Edges" class="w-7 h-7 rounded-none flex items-center justify-center bg-slate-900/90 hover:bg-slate-800 border border-slate-700/80 hover:border-cyan-400 text-cyan-400 hover:text-white transition-all relative cursor-pointer" title="Toggle 3D Directed Edges On/Off (E)">
           <span class="material-symbols-outlined text-[14px]">timeline</span>
           <span id="header-edges-indicator" class="absolute top-0.5 right-0.5 w-1.5 h-1.5 rounded-full bg-[#00f0ff] shadow-[0_0_6px_#00f0ff]"></span>
         </button>
-        <div class="h-4 w-px bg-slate-700/80"></div>
-        <button id="btn-edge-mode-lines" onclick="window.setEdgeRenderStyle('lines')" class="px-1.5 py-0.5 rounded-none text-slate-400 hover:text-white text-[8px] font-mono font-bold transition-colors cursor-pointer" title="Hairline Wireframe Lines">LINE</button>
-        <button id="btn-edge-mode-tubes" onclick="window.setEdgeRenderStyle('tubes')" class="px-1.5 py-0.5 rounded-none bg-purple-500/20 text-purple-300 border border-purple-500/40 text-[8px] font-mono font-bold transition-colors cursor-pointer" title="3D Volumetric Tubes / Cylinders">CYLINDER</button>
       </div>
 
-      <!-- Live Agent Sync Trigger Icon -->
-      <button onclick="window.syncLiveAgentSessions()" id="btn-header-sync" class="w-7 h-7 rounded-none flex items-center justify-center bg-cyan-500/10 hover:bg-cyan-500/25 border border-cyan-500/30 text-cyan-300 transition-all cursor-pointer" title="Sync Live Agent Sessions & Turns">
-        <span id="header-sync-icon" class="material-symbols-outlined text-[15px] text-cyan-400">sync</span>
-      </button>
+      <!-- CLUSTER 2: Advanced Intelligence Tools (Responsive) -->
+      <div class="hidden xl:flex items-center gap-1 shrink-0">
+        <!-- Real-Time Thought Tracker Studio Trigger -->
+        <button onclick="window.openThoughtTracker()" id="btn-header-thought-tracker" aria-label="Agent Telemetry & Thought Tracker" class="h-7 px-2 rounded-none flex items-center gap-1.5 bg-gradient-to-r from-purple-500/20 to-cyan-500/20 hover:from-purple-500/30 hover:to-cyan-500/30 border border-purple-500/40 hover:border-cyan-400 text-purple-200 hover:text-white transition-all cursor-pointer font-mono text-[10px] font-bold" title="Agent Telemetry & Real-Time Thought Tracker (T)">
+          <span class="material-symbols-outlined text-[14px] text-purple-400 animate-pulse">neurology</span>
+          <span id="thought-tracker-badge" class="px-1 py-0.2 rounded-none bg-purple-950/80 text-purple-300 text-[8px] font-mono border border-purple-500/40">LIVE</span>
+        </button>
 
-      <!-- Contradiction Dialectic Scanner Icon -->
-      <button onclick="window.runContradictionScan()" id="btn-header-contradictions" class="w-7 h-7 rounded-none flex items-center justify-center bg-rose-500/10 hover:bg-rose-500/25 border border-rose-500/30 hover:border-rose-400 text-rose-300 transition-all relative cursor-pointer" title="Scan Contradictions & Dialectic Conflicts">
-        <span class="material-symbols-outlined text-[15px] text-rose-400">crisis_alert</span>
-        <span id="header-contra-badge" class="hidden absolute -top-1 -right-1 w-3 h-3 rounded-full bg-rose-500 text-white font-bold text-[7px] flex items-center justify-center shadow">!</span>
-      </button>
+        <!-- Dedicated GitHub Browser Trigger -->
+        <button onclick="window.openGitHubBrowser()" id="btn-header-github-browser" aria-label="GitHub Repository Browser" class="w-7 h-7 rounded-none flex items-center justify-center bg-purple-500/10 hover:bg-purple-500/25 border border-purple-500/30 hover:border-purple-400 text-purple-300 transition-all cursor-pointer relative" title="Dedicated GitHub Repository Browser (G)">
+          <span class="material-symbols-outlined text-[15px]">terminal</span>
+        </button>
 
-      <!-- Docked Inspector Drawer Toggle -->
-      <button onclick="toggleInspector()" id="btn-header-inspector" class="w-7 h-7 rounded-none flex items-center justify-center bg-cyan-500/20 hover:bg-cyan-500/40 border border-cyan-400/50 text-cyan-300 transition-all cursor-pointer" title="Toggle Docked Inspector Drawer (I)">
-        <span class="material-symbols-outlined text-[15px]">view_sidebar</span>
-      </button>
+        <!-- Data Science Export & Python Bridge Trigger -->
+        <button onclick="window.openDataScienceModal()" id="btn-header-data-science" aria-label="Data Science Export" class="hidden 2xl:flex h-7 px-1.5 rounded-none items-center gap-1 bg-gradient-to-r from-emerald-500/20 to-cyan-500/20 hover:from-emerald-500/30 hover:to-cyan-500/30 border border-emerald-500/40 hover:border-cyan-400 text-emerald-200 hover:text-white transition-all cursor-pointer font-mono text-[9px] font-bold" title="Data Science & Quantitative Research Interoperability">
+          <span class="material-symbols-outlined text-[14px] text-emerald-400">query_stats</span>
+          <span class="px-1 py-0.2 rounded-none bg-emerald-950/80 text-emerald-300 text-[8px] border border-emerald-500/40">API</span>
+        </button>
 
-      <div class="h-4 w-[1px] bg-slate-800 mx-1 hidden lg:block"></div>
+        <!-- AI Graph Ops Trigger -->
+        <button onclick="window.openAiOpsModal()" id="btn-header-aiops" aria-label="AI Graph Operations" class="w-7 h-7 rounded-none flex items-center justify-center bg-purple-500/10 hover:bg-purple-500/25 border border-purple-500/30 hover:border-purple-400 text-[#ddb7ff] transition-all cursor-pointer relative" title="AI Graph Operations & Community Clustering">
+          <span class="material-symbols-outlined text-[15px]">psychology</span>
+        </button>
+      </div>
+
+      <!-- CLUSTER 3: Live Sync, Contradictions & Inspector -->
+      <div class="flex items-center gap-1 shrink-0">
+        <!-- Live Agent Sync Trigger Icon -->
+        <button onclick="window.syncLiveAgentSessions()" id="btn-header-sync" aria-label="Sync Live Agent Sessions" class="w-7 h-7 rounded-none flex items-center justify-center bg-cyan-500/10 hover:bg-cyan-500/25 border border-cyan-500/30 text-cyan-300 transition-all cursor-pointer" title="Sync Live Agent Sessions & Turns">
+          <span id="header-sync-icon" class="material-symbols-outlined text-[15px] text-cyan-400">sync</span>
+        </button>
+
+        <!-- Contradiction Dialectic Scanner Icon -->
+        <button onclick="window.runContradictionScan()" id="btn-header-contradictions" aria-label="Scan Contradictions" class="w-7 h-7 rounded-none flex items-center justify-center bg-rose-500/10 hover:bg-rose-500/25 border border-rose-500/30 hover:border-rose-400 text-rose-300 transition-all relative cursor-pointer" title="Scan Contradictions & Dialectic Conflicts">
+          <span class="material-symbols-outlined text-[15px] text-rose-400">crisis_alert</span>
+          <span id="header-contra-badge" class="hidden absolute -top-1 -right-1 w-3 h-3 rounded-full bg-rose-500 text-white font-bold text-[7px] flex items-center justify-center shadow">!</span>
+        </button>
+
+        <!-- Docked Inspector Drawer Toggle -->
+        <button onclick="toggleInspector()" id="btn-header-inspector" aria-label="Toggle Docked Inspector" class="w-7 h-7 rounded-none flex items-center justify-center bg-cyan-500/20 hover:bg-cyan-500/40 border border-cyan-400/50 text-cyan-300 transition-all cursor-pointer" title="Toggle Docked Inspector Drawer (I)">
+          <span class="material-symbols-outlined text-[15px]">view_sidebar</span>
+        </button>
+      </div>
+
+      <div class="h-4 w-[1px] bg-slate-800 mx-0.5 hidden lg:block"></div>
 
       <!-- Compact Telemetry Pill -->
-      <div class="hidden 2xl:flex items-center gap-1.5 px-2.5 py-1 rounded-none bg-slate-950/80 border border-slate-800 text-[9px] font-mono shadow-inner">
+      <div class="hidden 2xl:flex items-center gap-1.5 px-2 py-1 rounded-none bg-slate-950/80 border border-slate-800 text-[9px] font-mono shadow-inner shrink-0">
         <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 shadow-[0_0_6px_#00ffa3] animate-pulse"></span>
         <span id="header-nodes-count" class="text-emerald-400 font-bold">-- Nodes</span>
         <span class="text-slate-600">·</span>
@@ -854,34 +855,36 @@
       </div>
 
       <!-- Retained hidden elements for script reference safety -->
-      <span id="header-scopes-count" class="hidden"></span>
-      <span id="header-sess-count" class="hidden"></span>
-      <button id="btn-projection-3d" class="hidden"></button>
-      <button id="btn-projection-2d" class="hidden"></button>
-      <button id="btn-header-providers" onclick="window.openProvidersModal()" class="hidden"></button>
-      <button id="btn-header-tenants" onclick="window.openTenantsModal()" class="hidden"></button>
-      <button id="btn-toggle-legend" onclick="toggleGraphLegend()" class="hidden"></button>
-      <span id="header-active-provider-dot" class="hidden"></span>
-      <span id="header-tenant-count-dot" class="hidden"></span>
+      <div class="hidden">
+        <button id="btn-edge-mode-lines" onclick="window.setEdgeRenderStyle('lines')"></button>
+        <button id="btn-edge-mode-tubes" onclick="window.setEdgeRenderStyle('tubes')"></button>
+        <span id="header-scopes-count"></span>
+        <span id="header-sess-count"></span>
+        <button id="btn-projection-3d"></button>
+        <button id="btn-projection-2d"></button>
+        <button id="btn-header-providers" onclick="window.openProvidersModal()"></button>
+        <button id="btn-header-tenants" onclick="window.openTenantsModal()"></button>
+        <button id="btn-toggle-legend" onclick="toggleGraphLegend()"></button>
+        <span id="header-active-provider-dot"></span>
+        <span id="header-tenant-count-dot"></span>
+      </div>
 
-      <!-- Cortex Landing, Agent Auth & Stripe Billing Quick Triggers -->
-      <div class="flex items-center gap-1">
-        <button id="btn-header-landing" onclick="window.openLandingOverlay()" class="h-7 px-2 rounded-none flex items-center gap-1 bg-slate-900/90 hover:bg-slate-800 border border-slate-700/80 hover:border-cyan-400/50 text-slate-300 hover:text-cyan-300 font-mono text-[9px] font-bold uppercase transition-all cursor-pointer" title="Open Public Product Landing Page">
-          <span class="material-symbols-outlined text-[13px] text-cyan-400">rocket_launch</span>
-          <span class="hidden 2xl:inline">LANDING</span>
+      <!-- CLUSTER 4: Landing, Agent Auth & Billing -->
+      <div class="flex items-center gap-1 shrink-0">
+        <button id="btn-header-landing" onclick="window.openLandingOverlay()" aria-label="Open Landing Page" class="w-7 h-7 rounded-none flex items-center justify-center bg-slate-900/90 hover:bg-slate-800 border border-slate-700/80 hover:border-cyan-400/50 text-slate-300 hover:text-cyan-300 transition-all cursor-pointer" title="Open Public Product Landing Page">
+          <span class="material-symbols-outlined text-[14px] text-cyan-400">rocket_launch</span>
         </button>
-        <button id="btn-header-pair-agent" onclick="window.openDevicePairModal()" class="h-7 px-2 rounded-none flex items-center gap-1 bg-purple-500/15 hover:bg-purple-500/25 border border-purple-500/40 text-[#ddb7ff] font-mono text-[9px] font-bold uppercase transition-all cursor-pointer" title="Zero-Trust Agent Device Pairing & MCP Auth">
-          <span class="material-symbols-outlined text-[13px] text-purple-400">qr_code_2</span>
-          <span class="hidden 2xl:inline">AGENT AUTH</span>
+        <button id="btn-header-pair-agent" onclick="window.openDevicePairModal()" aria-label="Zero-Trust Agent Auth" class="w-7 h-7 rounded-none flex items-center justify-center bg-purple-500/15 hover:bg-purple-500/25 border border-purple-500/40 text-[#ddb7ff] transition-all cursor-pointer" title="Zero-Trust Agent Device Pairing & MCP Auth">
+          <span class="material-symbols-outlined text-[14px] text-purple-400">qr_code_2</span>
         </button>
-        <button id="btn-header-billing" onclick="window.openBillingStudio()" class="h-7 px-2 rounded-none flex items-center gap-1 bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/40 text-emerald-300 font-mono text-[9px] font-bold uppercase transition-all cursor-pointer" title="Stripe Subscription & Resource Quotas">
+        <button id="btn-header-billing" onclick="window.openBillingStudio()" aria-label="Stripe Billing & Quotas" class="h-7 px-1.5 rounded-none flex items-center gap-1 bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/40 text-emerald-300 font-mono text-[9px] font-bold uppercase transition-all cursor-pointer" title="Stripe Subscription & Resource Quotas">
           <span class="material-symbols-outlined text-[13px] text-emerald-400">credit_card</span>
-          <span id="header-plan-tier-badge" class="hidden 2xl:inline">FREE TIER</span>
+          <span id="header-plan-tier-badge" class="hidden 2xl:inline">FREE</span>
         </button>
       </div>
 
       <!-- Operator Profile Dropdown Button -->
-      <button id="user-profile-button" onclick="window.toggleProfileMenu(event)" class="w-7 h-7 rounded-none bg-cyan-500/20 border border-cyan-400/50 flex items-center justify-center shrink-0 text-cyan-300 hover:scale-105 transition-all cursor-pointer ml-1" title="Xibalba Solutions Operator Profile">
+      <button id="user-profile-button" onclick="window.toggleProfileMenu(event)" aria-label="Operator Profile Menu" class="w-7 h-7 rounded-none bg-cyan-500/20 border border-cyan-400/50 flex items-center justify-center shrink-0 text-cyan-300 hover:scale-105 transition-all cursor-pointer ml-0.5" title="Xibalba Solutions Operator Profile">
         <span class="material-symbols-outlined text-[15px]">shield_person</span>
       </button>
     </div>
@@ -1197,7 +1200,7 @@
           </button>
         </div>
 
-        <select id="graph-filter-agent-select" onchange="window.filterGraphByAgent(this.value)" class="bg-[#0e1526] border border-outline-variant/30 text-cyan-300 rounded-none px-1.5 py-0.5 text-[9px] font-bold outline-none cursor-pointer">
+        <select id="graph-filter-agent-select" onchange="window.filterGraphByAgent(this.value)" aria-label="Filter graph nodes by agent harness" class="bg-[#0e1526] border border-outline-variant/30 text-cyan-300 rounded-none px-1.5 py-0.5 text-[9px] font-bold outline-none cursor-pointer">
           <option value="all">🤖 AGENT: ALL</option>
           <option value="agy">AGY</option>
           <option value="claude">CLAUDE</option>
@@ -1231,14 +1234,14 @@
       </div>
 
       <!-- INTERACTIVE 3D CAUSAL FLOW STREAM RUNNER HUD -->
-      <div id="graph-causal-flow-hud" class="hidden absolute bottom-14 left-1/2 -translate-x-1/2 z-30 flex items-center gap-2.5 px-3 py-1.5 rounded-none bg-[#080d19]/95 backdrop-blur-2xl border border-purple-500/50 shadow-[0_10px_35px_rgba(168,85,247,0.4)] font-mono text-[10px] select-none pointer-events-auto max-w-[95vw] overflow-x-auto">
+      <div id="graph-causal-flow-hud" class="hidden absolute bottom-14 left-1/2 -translate-x-1/2 z-35 flex items-center gap-2.5 px-3 py-1.5 rounded-none bg-[#080d19]/95 backdrop-blur-2xl border border-purple-500/50 shadow-[0_10px_35px_rgba(168,85,247,0.4)] font-mono text-[10px] select-none pointer-events-auto max-w-[95vw] overflow-x-auto">
         <!-- Left: Badge & Session Chain Selector -->
         <div class="flex items-center gap-1.5 shrink-0">
           <span class="flex items-center gap-1 px-2 py-0.5 rounded-none bg-purple-500/20 text-purple-300 font-bold border border-purple-400/40 text-[9px]">
             <span class="w-1.5 h-1.5 rounded-full bg-purple-400 animate-ping"></span>
             <span>CAUSAL STREAM</span>
           </span>
-          <select id="causal-chain-select" onchange="window.selectCausalChain(this.value)" class="bg-[#0e1628] border border-purple-500/40 text-purple-200 rounded-none px-1.5 py-0.5 text-[9px] font-bold outline-none cursor-pointer max-w-[150px] md:max-w-[200px] truncate" title="Select session to trace causal reasoning & tool actions">
+          <select id="causal-chain-select" onchange="window.selectCausalChain(this.value)" aria-label="Select session to trace causal trajectory" class="bg-[#0e1628] border border-purple-500/40 text-purple-200 rounded-none px-1.5 py-0.5 text-[9px] font-bold outline-none cursor-pointer max-w-[150px] md:max-w-[200px] truncate" title="Select session to trace causal reasoning & tool actions">
             <!-- Dynamically populated -->
           </select>
         </div>
@@ -1251,59 +1254,62 @@
 
         <!-- Right: Step & Playback Controls -->
         <div class="flex items-center gap-1 shrink-0">
-          <button onclick="window.stepCausalFlow(-1)" class="px-2 py-0.5 rounded-none bg-slate-800 hover:bg-slate-700 text-slate-200 cursor-pointer font-bold text-[9px]" title="Previous Causal Step">◀</button>
-          <button id="btn-causal-play" onclick="window.toggleCausalPlay()" class="px-2 py-0.5 rounded-none bg-purple-600 hover:bg-purple-500 text-white font-bold flex items-center gap-1 cursor-pointer text-[9px] shadow-sm" title="Auto-Play Causal Flight">
+          <button onclick="window.stepCausalFlow(-1)" aria-label="Previous Causal Step" class="px-2 py-0.5 rounded-none bg-slate-800 hover:bg-slate-700 text-slate-200 cursor-pointer font-bold text-[9px]" title="Previous Causal Step">◀</button>
+          <button id="btn-causal-play" onclick="window.toggleCausalPlay()" aria-label="Auto-Play Causal Flight" class="px-2 py-0.5 rounded-none bg-purple-600 hover:bg-purple-500 text-white font-bold flex items-center gap-1 cursor-pointer text-[9px] shadow-sm" title="Auto-Play Causal Flight">
             <span class="material-symbols-outlined text-[12px]">play_arrow</span>
             <span>AUTO-PLAY</span>
           </button>
-          <button onclick="window.stepCausalFlow(1)" class="px-2 py-0.5 rounded-none bg-slate-800 hover:bg-slate-700 text-slate-200 cursor-pointer font-bold text-[9px]" title="Next Causal Step">▶</button>
-          <button onclick="window.openCausalAnalysis(window.activeCausalChainSessionId)" class="px-2 py-0.5 rounded-none bg-gradient-to-r from-purple-500/30 to-cyan-500/30 hover:from-purple-500/50 hover:to-cyan-500/50 border border-purple-400/40 text-purple-200 font-bold text-[9px] cursor-pointer" title="Open Bayesian Markov DAG Analysis">
+          <button onclick="window.stepCausalFlow(1)" aria-label="Next Causal Step" class="px-2 py-0.5 rounded-none bg-slate-800 hover:bg-slate-700 text-slate-200 cursor-pointer font-bold text-[9px]" title="Next Causal Step">▶</button>
+          <button onclick="window.openCausalAnalysis(window.activeCausalChainSessionId)" aria-label="Open DAG Math Analysis" class="px-2 py-0.5 rounded-none bg-gradient-to-r from-purple-500/30 to-cyan-500/30 hover:from-purple-500/50 hover:to-cyan-500/50 border border-purple-400/40 text-purple-200 font-bold text-[9px] cursor-pointer" title="Open Bayesian Markov DAG Analysis">
             <span>DAG MATH</span>
           </button>
-          <button onclick="window.toggleCausalFlowHighlight(false)" class="w-5 h-5 rounded-none flex items-center justify-center text-slate-400 hover:text-white hover:bg-slate-800 cursor-pointer text-[11px]" title="Close Causal Stream">✕</button>
+          <button onclick="window.toggleCausalFlowHighlight(false)" aria-label="Close Causal Stream" class="w-5 h-5 rounded-none flex items-center justify-center text-slate-400 hover:text-white hover:bg-slate-800 cursor-pointer text-[11px]" title="Close Causal Stream">✕</button>
         </div>
       </div>
 
       <!-- STREAMLINED DOCKED BOTTOM CANVAS BAR (Status & Quick Navigation) -->
-      <div id="graph-bottom-quickbar" class="absolute bottom-2.5 left-4 right-4 z-20 flex items-center justify-between px-3 py-1.5 rounded-none bg-[#080d1a]/95 backdrop-blur-xl border border-slate-800/80 shadow-[0_8px_30px_rgba(0,0,0,0.85)] font-mono text-[10px] select-none pointer-events-auto">
-        <!-- Left: Minimap Toggle & Context Cart Trigger & Edge / Declutter Controls -->
-        <div class="flex items-center gap-1.5 flex-wrap">
-          <button onclick="window.toggleRadarMinimap()" id="btn-bottom-minimap" class="px-2 py-0.5 rounded-none bg-surface-container-high hover:bg-cyan-500/20 text-slate-300 hover:text-cyan-300 border border-outline-variant/30 flex items-center gap-1 transition-colors cursor-pointer" title="Toggle 2D Radar Minimap">
+      <div id="graph-bottom-quickbar" class="absolute bottom-2.5 left-1/2 -translate-x-1/2 z-30 flex items-center justify-between gap-2.5 sm:gap-4 px-3 py-1 rounded-none bg-[#080d1a]/95 backdrop-blur-xl border border-slate-800/80 shadow-[0_8px_30px_rgba(0,0,0,0.85)] font-mono text-[10px] select-none pointer-events-auto max-w-[calc(100vw-120px)] w-auto whitespace-nowrap overflow-x-auto transition-all duration-300">
+        <!-- Left: Minimap Toggle & Context Cart Trigger & Declutter Controls -->
+        <div class="flex items-center gap-1 sm:gap-1.5 shrink-0">
+          <button onclick="window.toggleRadarMinimap()" id="btn-bottom-minimap" aria-label="Toggle 2D Radar Minimap" class="px-2 py-0.5 rounded-none bg-surface-container-high hover:bg-cyan-500/20 text-slate-300 hover:text-cyan-300 border border-outline-variant/30 flex items-center gap-1 transition-colors cursor-pointer" title="Toggle 2D Radar Minimap">
             <span class="material-symbols-outlined text-[13px]">radar</span>
             <span>MINIMAP</span>
           </button>
-          <button id="cart-collapsed-pill" onclick="window.toggleContextCart(true)" class="flex items-center gap-1.5 px-2 py-0.5 rounded-none bg-cyan-500/10 hover:bg-cyan-500/25 border border-cyan-400/30 text-cyan-300 hover:text-white cursor-pointer transition-all font-bold">
+          <button id="cart-collapsed-pill" onclick="window.toggleContextCart(true)" aria-label="Context Staging Cart" class="flex items-center gap-1 px-2 py-0.5 rounded-none bg-cyan-500/10 hover:bg-cyan-500/25 border border-cyan-400/30 text-cyan-300 hover:text-white cursor-pointer transition-all font-bold">
             <span class="material-symbols-outlined text-[12px]">shopping_cart</span>
             <span>CART</span>
             <span id="cart-item-count-badge" class="px-1 py-0.2 rounded-none bg-cyan-500/20 border border-cyan-500/40 text-[8px] text-cyan-300">0</span>
           </button>
           <!-- Edge Visibility Toggle -->
-          <button onclick="window.toggleGraphEdges()" id="btn-bottom-edges" class="px-2 py-0.5 rounded-none bg-surface-container-high hover:bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 flex items-center gap-1 transition-colors cursor-pointer font-bold" title="Toggle 3D Edges Visibility On/Off (E)">
+          <button onclick="window.toggleGraphEdges()" id="btn-bottom-edges" aria-label="Toggle 3D Edges Visibility" class="px-2 py-0.5 rounded-none bg-surface-container-high hover:bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 flex items-center gap-1 transition-colors cursor-pointer font-bold" title="Toggle 3D Edges Visibility On/Off (E)">
             <span class="material-symbols-outlined text-[13px]">timeline</span>
-            <span>EDGES: <span id="bottom-edges-status" class="text-cyan-400">ON</span></span>
+            <span><span class="hidden xl:inline">EDGES: </span><span id="bottom-edges-status" class="text-cyan-400">ON</span></span>
           </button>
           <!-- Edge Geometry Style Toggle (Lines vs Cylinders) -->
-          <button onclick="window.cycleEdgeRenderStyle()" id="btn-bottom-edge-style" class="px-2 py-0.5 rounded-none bg-surface-container-high hover:bg-purple-500/20 text-purple-300 border border-purple-500/40 flex items-center gap-1 transition-colors cursor-pointer font-bold" title="Switch Edge Geometry: Lines (Hairline) vs Cylinders (3D Volumetric Tubes)">
+          <button onclick="window.cycleEdgeRenderStyle()" id="btn-bottom-edge-style" aria-label="Cycle Edge Render Style" class="px-2 py-0.5 rounded-none bg-surface-container-high hover:bg-purple-500/20 text-purple-300 border border-purple-500/40 flex items-center gap-1 transition-colors cursor-pointer font-bold" title="Switch Edge Geometry: Lines vs Cylinders">
             <span class="material-symbols-outlined text-[13px]">shape_line</span>
-            <span id="bottom-edge-style-label">CYLINDERS</span>
+            <span id="bottom-edge-style-label" class="hidden xl:inline">CYLINDERS</span>
+            <span class="xl:hidden">CYL</span>
           </button>
           <!-- Declutter Leaf / Isolated Nodes Toggle -->
-          <button onclick="window.toggleLeafNodePruning()" id="btn-bottom-prune-leaves" class="px-2 py-0.5 rounded-none bg-surface-container-high hover:bg-amber-500/20 text-slate-300 hover:text-amber-300 border border-outline-variant/30 flex items-center gap-1 transition-colors cursor-pointer font-bold" title="Hide Leaf and Isolated Nodes (degree <= 1) to Unclutter Graph">
+          <button onclick="window.toggleLeafNodePruning()" id="btn-bottom-prune-leaves" aria-label="Declutter Leaf and Isolated Nodes" class="px-2 py-0.5 rounded-none bg-surface-container-high hover:bg-amber-500/20 text-slate-300 hover:text-amber-300 border border-outline-variant/30 flex items-center gap-1 transition-colors cursor-pointer font-bold" title="Hide Leaf and Isolated Nodes (degree <= 1) to Unclutter Graph">
             <span class="material-symbols-outlined text-[13px]">filter_list_off</span>
-            <span id="bottom-prune-leaves-label">DECLUTTER</span>
+            <span id="bottom-prune-leaves-label" class="hidden 2xl:inline">DECLUTTER</span>
+            <span class="2xl:hidden">PRUNE</span>
           </button>
           <!-- Causal Chains Studio Button -->
-          <button onclick="window.toggleCausalDiscoveryStudio()" id="btn-bottom-causal" class="px-2.5 py-0.5 rounded-none bg-purple-500/20 hover:bg-purple-500/30 text-purple-200 border border-purple-500/40 font-bold flex items-center gap-1 transition-all cursor-pointer shadow-[0_0_12px_rgba(168,85,247,0.3)]" title="Autonomous Causal Chain Discovery &amp; Root-Cause Analysis">
+          <button onclick="window.toggleCausalDiscoveryStudio()" id="btn-bottom-causal" aria-label="Causal Chains Discovery" class="px-2 py-0.5 rounded-none bg-purple-500/20 hover:bg-purple-500/30 text-purple-200 border border-purple-500/40 font-bold flex items-center gap-1 transition-all cursor-pointer shadow-[0_0_12px_rgba(168,85,247,0.3)]" title="Autonomous Causal Chain Discovery">
             <span class="material-symbols-outlined text-[13px]">account_tree</span>
-            <span>CAUSAL CHAINS</span>
+            <span class="hidden xl:inline">CAUSAL CHAINS</span>
+            <span class="xl:hidden">CAUSAL</span>
           </button>
         </div>
 
         <!-- Center: Live Graph Density & Active Scope Readout -->
-        <div class="flex items-center gap-2 text-slate-400 text-[9px]">
+        <div class="hidden md:flex items-center gap-2 text-slate-400 text-[9px] px-2 border-x border-slate-800/80 shrink-0">
           <span class="flex items-center gap-1">
             <span class="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse"></span>
-            <strong id="bottom-active-scope" class="text-cyan-300 uppercase">ALL SCOPES</strong>
+            <strong id="bottom-active-scope" class="text-cyan-300 uppercase truncate max-w-[100px]">ALL SCOPES</strong>
           </span>
           <span>·</span>
           <span id="footer-node-count-display" class="text-white font-bold">-- Nodes</span>
@@ -1314,28 +1320,28 @@
         </div>
 
         <!-- Right: 4 Canvas Quick Action Buttons -->
-        <div class="flex items-center gap-1">
-          <button onclick="toggleProjectionMode()" id="btn-bottom-proj" class="px-2 py-0.5 rounded-none bg-surface-container-high hover:bg-cyan-500/20 text-cyan-300 border border-outline-variant/30 font-bold transition-colors flex items-center gap-1 cursor-pointer" title="Toggle 2D Planar / 3D Orbit (P)">
+        <div class="flex items-center gap-1 shrink-0">
+          <button onclick="toggleProjectionMode()" id="btn-bottom-proj" aria-label="Toggle 2D Planar or 3D Orbit Mode" class="px-2 py-0.5 rounded-none bg-surface-container-high hover:bg-cyan-500/20 text-cyan-300 border border-outline-variant/30 font-bold transition-colors flex items-center gap-1 cursor-pointer" title="Toggle 2D Planar / 3D Orbit (P)">
             <span class="material-symbols-outlined text-[13px]">view_in_ar</span>
             <span id="bottom-proj-label">3D</span>
           </button>
-          <button onclick="fitAllGraphNodes()" class="px-2 py-0.5 rounded-none bg-surface-container-high hover:bg-emerald-500/20 text-slate-300 hover:text-emerald-300 border border-outline-variant/30 transition-colors flex items-center gap-1 cursor-pointer" title="Fit All Nodes (Frame Entire Lattice)">
+          <button onclick="fitAllGraphNodes()" aria-label="Fit All Nodes" class="px-2 py-0.5 rounded-none bg-surface-container-high hover:bg-emerald-500/20 text-slate-300 hover:text-emerald-300 border border-outline-variant/30 transition-colors flex items-center gap-1 cursor-pointer" title="Fit All Nodes (Frame Entire Lattice)">
             <span class="material-symbols-outlined text-[13px]">fit_screen</span>
             <span>FIT</span>
           </button>
-          <button onclick="window.levelGraphHorizon()" class="px-2 py-0.5 rounded-none bg-surface-container-high hover:bg-cyan-500/20 text-slate-300 hover:text-cyan-300 border border-outline-variant/30 transition-colors flex items-center gap-1 cursor-pointer" title="Level Horizon (Upright View)">
+          <button onclick="window.levelGraphHorizon()" aria-label="Level Horizon" class="px-2 py-0.5 rounded-none bg-surface-container-high hover:bg-cyan-500/20 text-slate-300 hover:text-cyan-300 border border-outline-variant/30 transition-colors flex items-center gap-1 cursor-pointer" title="Level Horizon (Upright View)">
             <span class="material-symbols-outlined text-[13px]">screen_rotation</span>
             <span>LEVEL</span>
           </button>
-          <button onclick="toggleAutoRotate()" id="btn-bottom-rotate" class="px-2 py-0.5 rounded-none bg-surface-container-high hover:bg-cyan-500/20 text-slate-300 hover:text-cyan-300 border border-outline-variant/30 transition-colors flex items-center gap-1 cursor-pointer" title="Continuous Turntable Auto-Rotation (R)">
+          <button onclick="toggleAutoRotate()" id="btn-bottom-rotate" aria-label="Toggle Auto-Rotation" class="px-2 py-0.5 rounded-none bg-surface-container-high hover:bg-cyan-500/20 text-slate-300 hover:text-cyan-300 border border-outline-variant/30 transition-colors flex items-center gap-1 cursor-pointer" title="Continuous Turntable Auto-Rotation (R)">
             <span class="material-symbols-outlined text-[13px]">rotate_right</span>
             <span>ROTATE</span>
           </button>
         </div>
       </div>
 
-      <!-- 2D PIP RADAR MINIMAP HUD (Bottom-Left above Quickbar) -->
-      <div id="graph-radar-minimap" class="fixed bottom-12 left-14 z-40 select-none font-mono transition-all duration-200">
+      <!-- 2D PIP RADAR MINIMAP HUD (Bottom-Left Corner) -->
+      <div id="graph-radar-minimap" class="fixed bottom-12 left-14 z-30 select-none font-mono transition-all duration-200">
         <div class="relative group">
           <canvas id="radar-canvas" width="130" height="130" class="rounded-none border border-cyan-500/40 bg-[#070b14]/90 backdrop-blur-md shadow-[0_8px_30px_rgba(0,0,0,0.85)] cursor-crosshair block" title="2D Top-Down Manifold Radar (Click to Pan Camera)"></canvas>
           <div class="absolute top-1 left-2 flex items-center gap-1 text-[7px] text-cyan-400 font-bold uppercase tracking-wider pointer-events-none">
@@ -2528,7 +2534,7 @@
       </div>
 
       <!-- Scrollable Inner Viewport for Sub-Tabs -->
-      <div class="flex-1 overflow-y-auto overflow-x-hidden p-4 md:p-6 bg-[#070a12]">
+      <div class="flex-1 overflow-hidden relative bg-[#070a12]">
     <!-- SUB-TAB A: AGENT SCOPES & MCP CONNECTION HUB -->
     <div id="fabric-panel-spaces" class="hidden w-full h-full flex flex-col overflow-y-auto overflow-x-hidden bg-[#090b10] p-6 space-y-6">
       <!-- HEADER METRICS STRIP -->
@@ -5916,7 +5922,7 @@
         <iframe id="viewer-iframe-frame" src="about:blank" class="hidden w-full h-full border-none"></iframe>
         <!-- Image viewport (for PNG, JPG, GIF, SVG, WEBP) -->
         <div id="viewer-image-pane" class="hidden flex-1 w-full h-full overflow-auto flex items-center justify-center p-4 bg-slate-950">
-          <img id="viewer-image-el" src="" alt="Preview" class="max-w-none transition-transform duration-100 shadow-2xl rounded-none" />
+          <img id="viewer-image-el" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg'/%3E" alt="Preview" class="max-w-none transition-transform duration-100 shadow-2xl rounded-none" />
         </div>
         <!-- Formatted Viewport (for DOCX, Markdown) -->
         <div id="viewer-formatted-pane" class="hidden flex-1 w-full h-full overflow-y-auto p-6 bg-slate-950/90 text-slate-200 select-text font-sans">
@@ -24467,9 +24473,29 @@ for sample in dataset[:3]:
       }
     };
 
-    function renderRadarMinimap() {
+    var lastRadarPan = { x: -99999, z: -99999 };
+    var lastRadarRot = -99999;
+    var radarTick = 0;
+
+    function renderRadarMinimap(force = false) {
+      if (typeof radarTick === 'undefined') radarTick = 0;
+      if (!lastRadarPan) lastRadarPan = { x: -99999, z: -99999 };
+      if (typeof lastRadarRot === 'undefined') lastRadarRot = -99999;
+      const container = document.getElementById('graph-radar-minimap');
+      if (!container || container.classList.contains('hidden') || container.style.display === 'none') return;
       const canvas = document.getElementById('radar-canvas');
       if (!canvas || currentView !== 'graph') return;
+
+      // Throttle when camera is stationary
+      radarTick = (radarTick + 1) % 3;
+      const panDelta = Math.abs(targetPan.x - lastRadarPan.x) + Math.abs(targetPan.z - lastRadarPan.z);
+      const rotDelta = Math.abs(targetRotation.y - lastRadarRot);
+      if (!force && radarTick !== 0 && panDelta < 0.05 && rotDelta < 0.002) {
+        return;
+      }
+      lastRadarPan = { x: targetPan.x, z: targetPan.z };
+      lastRadarRot = targetRotation.y;
+
       const ctx = canvas.getContext('2d');
       if (!ctx) return;
 
@@ -24496,7 +24522,17 @@ for sample in dataset[:3]:
       ctx.moveTo(4, cy); ctx.lineTo(w - 4, cy);
       ctx.stroke();
 
-      // Draw Nodes projected on XZ
+      // Batch nodes by color for high-performance 2D rendering
+      const batches = {
+        '#00f0ff': [], // Cyan (Default memories)
+        '#c084fc': [], // Purple (Thoughts)
+        '#ffd166': [], // Yellow (Entities)
+        '#00ffa3': [], // Emerald (Rules)
+        '#34d399': []  // Green (Decisions)
+      };
+
+      let activeNodePoint = null;
+
       cubeMeshes.forEach(mesh => {
         const d = mesh.userData.data;
         if (!d || mesh.visible === false) return;
@@ -24505,17 +24541,39 @@ for sample in dataset[:3]:
         const v = cy + p[2] * scale;
         if (u < 0 || u > w || v < 0 || v > h) return;
 
+        if (d.id === activeSelectedNode?.id) {
+          activeNodePoint = [u, v];
+          return;
+        }
+
         let color = '#00f0ff';
         if (d.type === 'thought' || d.category === 'thought') color = '#c084fc';
         else if (d.type === 'entity') color = '#ffd166';
         else if (d.epistemic_class === 'rule') color = '#00ffa3';
         else if (d.epistemic_class === 'decision') color = '#34d399';
 
+        batches[color].push(u, v);
+      });
+
+      // Render batched node paths (5 draw calls instead of 541)
+      for (const [color, coords] of Object.entries(batches)) {
+        if (coords.length === 0) continue;
         ctx.fillStyle = color;
         ctx.beginPath();
-        ctx.arc(u, v, d.id === activeSelectedNode?.id ? 3.0 : 1.4, 0, Math.PI * 2);
+        for (let i = 0; i < coords.length; i += 2) {
+          ctx.moveTo(coords[i] + 1.4, coords[i + 1]);
+          ctx.arc(coords[i], coords[i + 1], 1.4, 0, Math.PI * 2);
+        }
         ctx.fill();
-      });
+      }
+
+      // Highlight active node if any
+      if (activeNodePoint) {
+        ctx.fillStyle = '#ffffff';
+        ctx.beginPath();
+        ctx.arc(activeNodePoint[0], activeNodePoint[1], 3.2, 0, Math.PI * 2);
+        ctx.fill();
+      }
 
       // Camera Position & Frustum Cone
       const camU = cx + (-targetPan.x) * scale;
@@ -25143,7 +25201,7 @@ console.log("Loaded " + nodes.length + " memory invariants.");</code></pre>
   <!-- ========================================================================= -->
   <!-- CORTEX PUBLIC PRODUCT LANDING PAGE OVERLAY (#cortex-landing-overlay)      -->
   <!-- ========================================================================= -->
-  <div id="cortex-landing-overlay" class="hidden fixed inset-0 z-50 bg-[#030712] text-slate-100 overflow-y-auto font-sans selection:bg-cyan-500/30 selection:text-white">
+  <div id="cortex-landing-overlay" class="hidden fixed inset-0 z-[100] bg-[#030712] text-slate-100 overflow-y-auto font-sans selection:bg-cyan-500/30 selection:text-white">
     <!-- Ambient Cyber Glows -->
     <div class="fixed inset-0 pointer-events-none overflow-hidden -z-10">
       <div class="absolute -top-40 left-1/4 w-96 h-96 bg-cyan-600/10 rounded-full blur-[128px]"></div>
