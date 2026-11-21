@@ -274,6 +274,33 @@ CREATE TABLE IF NOT EXISTS contact_inquiries (
     message TEXT NOT NULL,
     created_at TEXT NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS workspace_memberships (
+    id TEXT PRIMARY KEY,
+    tenant_id TEXT NOT NULL,
+    account_id TEXT NOT NULL,
+    role TEXT NOT NULL DEFAULT 'member', -- owner, admin, member, auditor, agent
+    invited_by TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    UNIQUE(tenant_id, account_id)
+);
+CREATE INDEX IF NOT EXISTS idx_memberships_tenant ON workspace_memberships(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_memberships_account ON workspace_memberships(account_id);
+
+CREATE TABLE IF NOT EXISTS workspace_invitations (
+    id TEXT PRIMARY KEY,
+    tenant_id TEXT NOT NULL,
+    email TEXT NOT NULL,
+    role TEXT NOT NULL DEFAULT 'member',
+    token_hash TEXT NOT NULL UNIQUE,
+    invited_by TEXT NOT NULL,
+    expires_at TEXT NOT NULL,
+    accepted_at TEXT,
+    created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_invitations_tenant ON workspace_invitations(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_invitations_email ON workspace_invitations(email);
 """
 
 
@@ -337,6 +364,12 @@ class ManagedControl:
                         id, owner_account_id, plan, status, created_at
                     ) VALUES (?, ?, 'free', 'free', ?)""",
                     (default_tenant_id, default_acc_id, int(time.time())),
+                )
+                conn.execute(
+                    """INSERT OR IGNORE INTO workspace_memberships (
+                        id, tenant_id, account_id, role, invited_by, created_at, updated_at
+                    ) VALUES (?, ?, ?, 'owner', NULL, ?, ?)""",
+                    ("mem_default_owner", default_tenant_id, default_acc_id, now, now),
                 )
 
     def _record_event(self, conn: sqlite3.Connection, profile_id: str, email: str, event_type: str, detail: str = "") -> None:
@@ -413,6 +446,13 @@ class ManagedControl:
                     id, owner_account_id, plan, status, created_at
                 ) VALUES (?, ?, 'free', 'free', ?)""",
                 (tenant_id, account_id, int(time.time())),
+            )
+            # Seed owner membership in workspace_memberships
+            conn.execute(
+                """INSERT INTO workspace_memberships (
+                    id, tenant_id, account_id, role, invited_by, created_at, updated_at
+                ) VALUES (?, ?, ?, 'owner', NULL, ?, ?)""",
+                ("mem_" + uuid.uuid4().hex[:16], tenant_id, account_id, now_iso, now_iso),
             )
             self._record_event(conn, tenant_id, norm_email, "account.signup", f"Created workspace {tenant_id}")
 
@@ -804,6 +844,144 @@ class ManagedControl:
         }
 
     # -------------------------------------------------------------------------
+    # MULTI-TENANT WORKSPACE SHARING & RBAC
+    # -------------------------------------------------------------------------
+    def list_workspace_members(self, tenant_id: str) -> list[dict[str, Any]]:
+        """Lists all members and their roles within a tenant workspace."""
+        with self.db() as conn:
+            rows = conn.execute(
+                """SELECT m.id, m.tenant_id, m.account_id, m.role, m.created_at,
+                          a.email, a.display_name, a.status
+                   FROM workspace_memberships m
+                   JOIN accounts a ON m.account_id = a.id
+                   WHERE m.tenant_id = ?
+                   ORDER BY m.created_at ASC""",
+                (tenant_id,),
+            ).fetchall()
+            return [dict(r) for r in rows]
+
+    def invite_workspace_member(
+        self,
+        *,
+        tenant_id: str,
+        email: str,
+        role: str = "member",
+        inviter_account_id: str,
+    ) -> dict[str, Any]:
+        """Creates a workspace member invitation with cryptographic token."""
+        norm_email = _normalize_email(email)
+        allowed_roles = {"admin", "member", "auditor", "agent"}
+        if role not in allowed_roles:
+            raise ValueError(f"Invalid workspace role '{role}'. Allowed: {allowed_roles}")
+
+        raw_token = secrets.token_urlsafe(32)
+        token_hash = _sha256_hex(raw_token)
+        now_iso = _now_iso()
+        expires_iso = (datetime.now(timezone.utc) + timedelta(days=7)).isoformat()
+        invitation_id = "inv_" + uuid.uuid4().hex[:16]
+
+        with self.db() as conn:
+            # Verify inviter is owner or admin
+            inviter_mem = conn.execute(
+                "SELECT role FROM workspace_memberships WHERE tenant_id=? AND account_id=?",
+                (tenant_id, inviter_account_id),
+            ).fetchone()
+            if not inviter_mem or inviter_mem["role"] not in {"owner", "admin"}:
+                raise PermissionError("Only workspace owner or admin can invite new members")
+
+            conn.execute(
+                """INSERT INTO workspace_invitations (
+                    id, tenant_id, email, role, token_hash, invited_by, expires_at, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+                (invitation_id, tenant_id, norm_email, role, token_hash, inviter_account_id, expires_iso, now_iso),
+            )
+            self._record_event(
+                conn, tenant_id, norm_email, "workspace.member_invited",
+                f"Role {role} invited by {inviter_account_id}",
+            )
+
+        invite_link = f"{self.config.public_url.rstrip('/')}/?invite_token={raw_token}#accept-invite"
+        return {
+            "invitation_id": invitation_id,
+            "tenant_id": tenant_id,
+            "email": norm_email,
+            "role": role,
+            "expires_at": expires_iso,
+            "invite_token": raw_token,
+            "invite_url": invite_link,
+        }
+
+    def accept_workspace_invitation(self, token: str, account_id: str) -> dict[str, Any]:
+        """Accepts a workspace invitation and grants membership role."""
+        token_hash = _sha256_hex(token.strip())
+        now_iso = _now_iso()
+
+        with self.db() as conn:
+            row = conn.execute(
+                "SELECT * FROM workspace_invitations WHERE token_hash=?",
+                (token_hash,),
+            ).fetchone()
+            if not row:
+                raise KeyError("Invitation not found")
+            inv = dict(row)
+            if inv.get("accepted_at"):
+                raise ValueError("Invitation has already been accepted")
+            if datetime.now(timezone.utc) > datetime.fromisoformat(inv["expires_at"]):
+                raise ValueError("Invitation has expired")
+
+            membership_id = "mem_" + uuid.uuid4().hex[:16]
+            conn.execute(
+                """INSERT INTO workspace_memberships (
+                    id, tenant_id, account_id, role, invited_by, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(tenant_id, account_id) DO UPDATE SET role=excluded.role, updated_at=excluded.updated_at""",
+                (membership_id, inv["tenant_id"], account_id, inv["role"], inv["invited_by"], now_iso, now_iso),
+            )
+            conn.execute(
+                "UPDATE workspace_invitations SET accepted_at=? WHERE id=?",
+                (now_iso, inv["id"]),
+            )
+            self._record_event(
+                conn, inv["tenant_id"], inv["email"], "workspace.member_accepted",
+                f"Account {account_id} joined with role {inv['role']}",
+            )
+
+        return {
+            "status": "accepted",
+            "tenant_id": inv["tenant_id"],
+            "role": inv["role"],
+            "account_id": account_id,
+        }
+
+    def remove_workspace_member(self, *, tenant_id: str, target_account_id: str, actor_account_id: str) -> None:
+        """Removes a member from the workspace."""
+        with self.db() as conn:
+            actor_mem = conn.execute(
+                "SELECT role FROM workspace_memberships WHERE tenant_id=? AND account_id=?",
+                (tenant_id, actor_account_id),
+            ).fetchone()
+            if not actor_mem or actor_mem["role"] not in {"owner", "admin"}:
+                raise PermissionError("Only owner or admin can remove members")
+
+            target_mem = conn.execute(
+                "SELECT role FROM workspace_memberships WHERE tenant_id=? AND account_id=?",
+                (tenant_id, target_account_id),
+            ).fetchone()
+            if not target_mem:
+                raise KeyError("Member not found in workspace")
+            if target_mem["role"] == "owner":
+                raise PermissionError("Cannot remove the workspace owner")
+
+            conn.execute(
+                "DELETE FROM workspace_memberships WHERE tenant_id=? AND account_id=?",
+                (tenant_id, target_account_id),
+            )
+            self._record_event(
+                conn, tenant_id, "", "workspace.member_removed",
+                f"Account {target_account_id} removed by {actor_account_id}",
+            )
+
+    # -------------------------------------------------------------------------
     # STRIPE SUBSCRIPTION & USAGE CONTROL PLANE
     # -------------------------------------------------------------------------
     def _get_or_create_tenant_in_db(self, conn: sqlite3.Connection, account: dict[str, Any]) -> dict[str, Any]:
@@ -1140,6 +1318,12 @@ class ManagedControl:
                         id, owner_account_id, plan, status, created_at
                     ) VALUES (?, ?, 'free', 'free', ?)""",
                     (tenant_id, account_id, int(time.time())),
+                )
+                conn.execute(
+                    """INSERT INTO workspace_memberships (
+                        id, tenant_id, account_id, role, invited_by, created_at, updated_at
+                    ) VALUES (?, ?, ?, 'owner', NULL, ?, ?)""",
+                    ("mem_" + uuid.uuid4().hex[:16], tenant_id, account_id, now_iso, now_iso),
                 )
                 self._record_event(
                     conn,

@@ -146,6 +146,20 @@ class SuperCortex:
                 "confidence": conf,
             })
 
+        # 2b. Automatically establish causal/derivation dependencies in graph
+        raw_premises = meta.get("premises") or meta.get("derived_from")
+        if raw_premises:
+            p_list = raw_premises if isinstance(raw_premises, list) else [raw_premises]
+            for p in p_list:
+                if p and str(p) != memory_id:
+                    self.store.add_relation(
+                        subject=str(p),
+                        predicate="derives",
+                        object=memory_id,
+                        confidence=1.0,
+                        evidence_links=[memory_id],
+                    )
+
         if not agent_id and effective_scope.startswith("agent:"):
             agent_id = effective_scope.split(":", 1)[1]
         meta["scope"] = effective_scope
@@ -226,10 +240,15 @@ class SuperCortex:
         }
 
     async def recall(self, memory_id: str) -> dict[str, Any] | None:
-        """Recall a specific memory by its ID."""
+        """Recall a specific memory by its ID with Ebbinghaus retention and salience updates."""
         mem = self.store.get_memory(memory_id)
         if mem:
-            return mem.model_dump()
+            retention = self.store.record_access(memory_id)
+            res = mem.model_dump()
+            if retention:
+                res["temporal_retention"] = retention
+                res["salience"] = retention.get("retention_salience", 1.0)
+            return res
         return None
 
     async def hybrid_retrieve(
@@ -271,12 +290,17 @@ class SuperCortex:
 
             # Check if we have an anchored provenance record
             local_mem = self.store.get_memory(doc_id) if doc_id else None
+            retention = self.store.record_access(doc_id) if doc_id and local_mem else None
             provenance = {
                 "anchored": local_mem is not None,
                 "epistemic_class": local_mem.epistemic_class if local_mem else "unclassified",
                 "lifecycle_status": local_mem.lifecycle_status if local_mem else "active",
                 "content_hash": local_mem.content_hash if local_mem else sha256_hex(content),
             }
+            if retention:
+                provenance["temporal_retention"] = retention
+                provenance["salience"] = retention.get("retention_salience", 1.0)
+                provenance["access_count"] = retention.get("access_count", 1)
 
             enriched_items.append({
                 "id": doc_id,
@@ -311,9 +335,23 @@ class SuperCortex:
         counter_evidence: str | None = None,
         actor: str | None = None,
     ) -> dict[str, Any]:
-        """Record a contradiction for a memory item in the provenance chain."""
+        """Record a contradiction for a memory item in the provenance chain and propagate JTMS invalidation."""
         act = actor or self.config.actor_did
         updated = self.store.update_memory_status(target_memory_id, LifecycleStatus.CONTRADICTED)
+
+        # Trigger JTMS dependency invalidation down DAG
+        from .truth_maintenance import propagate_invalidation
+
+        mem_dicts = [m.model_dump() if hasattr(m, "model_dump") else m for m in self.store.list_memories()]
+        rel_dicts = self.store.list_relations()
+        invalidation = propagate_invalidation(
+            root_id=target_memory_id,
+            action="contradicted",
+            memories=mem_dicts,
+            relations=rel_dicts,
+        )
+        for aff in invalidation.get("affected_memories", []):
+            self.store.update_memory_status(aff["memory_id"], LifecycleStatus.QUARANTINED)
 
         event = self.store.append_event(
             actor=act,
@@ -322,6 +360,7 @@ class SuperCortex:
                 "target_memory_id": target_memory_id,
                 "reason": reason,
                 "counter_evidence": counter_evidence,
+                "affected_descendants": invalidation.get("affected_count", 0),
             },
         )
 
@@ -330,6 +369,7 @@ class SuperCortex:
             "target_memory_id": target_memory_id,
             "status": LifecycleStatus.CONTRADICTED.value,
             "event_hash": event.event_hash,
+            "invalidation": invalidation,
         }
 
     async def supersede(
@@ -340,12 +380,26 @@ class SuperCortex:
         actor: str | None = None,
         namespace: str | None = None,
     ) -> dict[str, Any]:
-        """Supersede a prior memory with a new replacement."""
+        """Supersede a prior memory with a new replacement and propagate JTMS updates."""
         act = actor or self.config.actor_did
         ns = namespace or self.config.default_namespace
 
         # Mark prior memory superseded
         self.store.update_memory_status(target_memory_id, LifecycleStatus.SUPERSEDED)
+
+        # Trigger JTMS dependency invalidation down DAG
+        from .truth_maintenance import propagate_invalidation
+
+        mem_dicts = [m.model_dump() if hasattr(m, "model_dump") else m for m in self.store.list_memories()]
+        rel_dicts = self.store.list_relations()
+        invalidation = propagate_invalidation(
+            root_id=target_memory_id,
+            action="superseded",
+            memories=mem_dicts,
+            relations=rel_dicts,
+        )
+        for aff in invalidation.get("affected_memories", []):
+            self.store.update_memory_status(aff["memory_id"], LifecycleStatus.SUPERSEDED)
 
         # Store replacement
         new_mem = await self.remember(
@@ -363,6 +417,7 @@ class SuperCortex:
                 "prior_memory_id": target_memory_id,
                 "replacement_memory_id": new_mem["memory_id"],
                 "reason": reason,
+                "affected_descendants": invalidation.get("affected_count", 0),
             },
         )
 
@@ -370,6 +425,7 @@ class SuperCortex:
             "prior_memory_id": target_memory_id,
             "replacement": new_mem,
             "event_hash": event.event_hash,
+            "invalidation": invalidation,
         }
 
     async def forget(
