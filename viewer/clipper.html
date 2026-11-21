@@ -28,7 +28,7 @@
 </head>
 <body class="bg-background text-neutral-200 font-mono min-h-screen p-6 flex flex-col items-center justify-center">
 
-  <div class="max-w-2xl w-full bg-card border border-neutral-800 rounded-xl p-8 shadow-2xl space-y-6">
+  <div class="max-w-2xl w-full bg-card border border-neutral-800 rounded-none p-8 shadow-2xl space-y-6">
     <!-- Header -->
     <div class="flex items-center justify-between border-b border-neutral-800 pb-4">
       <div class="flex items-center gap-3">
@@ -45,15 +45,15 @@
     </div>
 
     <!-- Draggable Bookmarklet Button -->
-    <div class="bg-neutral-900/80 border-2 border-dashed border-primary/40 rounded-lg p-6 text-center space-y-4">
+    <div class="bg-neutral-900/80 border-2 border-dashed border-primary/40 rounded-none p-6 text-center space-y-4">
       <p class="text-xs text-neutral-300">
         👉 <strong>Drag the cyan button below into your browser's Bookmarks Bar:</strong>
       </p>
 
       <div class="py-2">
         <a id="clipper-bookmarklet-link"
-           href="javascript:(function(){var url=window.location.href;var title=document.title;var sel=window.getSelection().toString();fetch('http://127.0.0.1:4174/api/connectors/url',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({url:url,scope:'shared',selected_text:sel})}).then(function(r){return r.json();}).then(function(d){var toast=document.createElement('div');toast.style.position='fixed';toast.style.bottom='24px';toast.style.right='24px';toast.style.zIndex='999999';toast.style.background='#07090e';toast.style.color='#00ffa3';toast.style.border='2px solid #00f0ff';toast.style.padding='14px 20px';toast.style.borderRadius='8px';toast.style.fontFamily='monospace';toast.style.fontSize='12px';toast.style.boxShadow='0 10px 25px rgba(0,0,0,0.8)';toast.innerHTML='<strong>✓ SUPER-CORTEX</strong><br>Clipped: '+title.substring(0,35)+'...';document.body.appendChild(toast);setTimeout(function(){toast.remove();},3200);}).catch(function(e){alert('Super-Cortex Clipper Error: Make sure super-cortex viewer is running on http://127.0.0.1:4174');});})();"
-           class="inline-flex items-center gap-2 px-6 py-3 bg-primary text-black font-extrabold text-sm uppercase rounded shadow-lg hover:brightness-110 active:scale-95 transition-all cursor-grab border border-white/20 select-none">
+           href="javascript:(function(){var url=window.location.href;var title=document.title;var sel=window.getSelection().toString();fetch('http://127.0.0.1:4174/api/connectors/url',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({url:url,scope:'shared',selected_text:sel})}).then(function(r){return r.json();}).then(function(d){var toast=document.createElement('div');toast.style.position='fixed';toast.style.bottom='24px';toast.style.right='24px';toast.style.zIndex='999999';toast.style.background='#07090e';toast.style.color='#00ffa3';toast.style.border='2px solid #00f0ff';toast.style.padding='14px 20px';toast.style.borderRadius='0px';toast.style.fontFamily='monospace';toast.style.fontSize='12px';toast.style.boxShadow='0 10px 25px rgba(0,0,0,0.8)';toast.innerHTML='<strong>✓ SUPER-CORTEX</strong><br>Clipped: '+title.substring(0,35)+'...';document.body.appendChild(toast);setTimeout(function(){toast.remove();},3200);}).catch(function(e){alert('Super-Cortex Clipper Error: Make sure super-cortex viewer is running on http://127.0.0.1:4174');});})();"
+           class="inline-flex items-center gap-2 px-6 py-3 bg-primary text-black font-extrabold text-sm uppercase rounded-none shadow-lg hover:brightness-110 active:scale-95 transition-all cursor-grab border border-white/20 select-none">
           <span class="material-symbols-outlined text-lg">bolt</span>
           <span>⚡ Clip to Super-Cortex</span>
         </a>
@@ -65,40 +65,40 @@
     </div>
 
     <!-- Quick Ingestion Sandbox Test -->
-    <div class="bg-neutral-900/50 border border-neutral-800 rounded-lg p-5 space-y-3">
+    <div class="bg-neutral-900/50 border border-neutral-800 rounded-none p-5 space-y-3">
       <h3 class="text-xs font-bold text-secondary uppercase flex items-center gap-1.5">
         <span class="material-symbols-outlined text-sm">terminal</span>
         <span>Interactive Ingest Sandbox</span>
       </h3>
       <div class="flex gap-2">
-        <input id="test-url-input" type="text" value="https://news.ycombinator.com" placeholder="https://..." class="flex-1 bg-black border border-neutral-700 rounded px-3 py-1.5 text-xs text-white focus:outline-none focus:border-primary">
-        <button onclick="testClipUrl()" class="px-4 py-1.5 bg-secondary text-black font-bold text-xs uppercase rounded hover:brightness-110 transition-all">
+        <input id="test-url-input" type="text" value="https://news.ycombinator.com" placeholder="https://..." class="flex-1 bg-black border border-neutral-700 rounded-none px-3 py-1.5 text-xs text-white focus:outline-none focus:border-primary">
+        <button onclick="testClipUrl()" class="px-4 py-1.5 bg-secondary text-black font-bold text-xs uppercase rounded-none hover:brightness-110 transition-all">
           Test Clip
         </button>
       </div>
-      <div id="test-output" class="hidden text-[10px] p-2.5 rounded bg-black border border-neutral-800 font-mono"></div>
+      <div id="test-output" class="hidden text-[10px] p-2.5 rounded-none bg-black border border-neutral-800 font-mono"></div>
     </div>
 
     <!-- Capabilities Matrix -->
     <div class="grid grid-cols-2 gap-3 text-xs">
-      <div class="p-3 bg-neutral-900/40 rounded border border-neutral-800 space-y-1">
+      <div class="p-3 bg-neutral-900/40 rounded-none border border-neutral-800 space-y-1">
         <div class="text-primary font-bold">✓ Zero-Inference Processing</div>
         <div class="text-[11px] text-neutral-400">Extracts Subject-Object-Predicate triples and epistemic classes deterministically without LLM API costs.</div>
       </div>
-      <div class="p-3 bg-neutral-900/40 rounded border border-neutral-800 space-y-1">
+      <div class="p-3 bg-neutral-900/40 rounded-none border border-neutral-800 space-y-1">
         <div class="text-secondary font-bold">✓ SHA-256 Provenance Chain</div>
         <div class="text-[11px] text-neutral-400">Every clipped article receives an append-only event hash and Merkle root verification.</div>
       </div>
     </div>
 
     <!-- Full Chrome Extension Section -->
-    <div class="bg-gradient-to-r from-blue-950/40 to-purple-950/40 border border-primary/30 rounded-lg p-5 space-y-4">
+    <div class="bg-gradient-to-r from-blue-950/40 to-slate-900/40 border border-neutral-700 rounded-none p-5 space-y-4">
       <div class="flex items-center justify-between">
         <div class="flex items-center gap-2.5">
           <span class="material-symbols-outlined text-primary text-xl">extension</span>
           <h3 class="text-xs font-bold text-white uppercase tracking-wider">Official Chrome Extension (Manifest V3)</h3>
         </div>
-        <a href="/super_cortex_extension.zip" download="super_cortex_extension.zip" class="px-3 py-1 bg-primary text-black font-extrabold text-xs uppercase rounded hover:brightness-110 flex items-center gap-1.5 shadow">
+        <a href="/super_cortex_extension.zip" download="super_cortex_extension.zip" class="px-3 py-1 bg-primary text-black font-extrabold text-xs uppercase rounded-none hover:brightness-110 flex items-center gap-1.5 shadow">
           <span class="material-symbols-outlined text-sm">download</span>
           <span>Download .ZIP</span>
         </a>
@@ -109,21 +109,21 @@
       </p>
 
       <div class="grid grid-cols-3 gap-2 text-[10px] font-mono">
-        <div class="bg-black/50 p-2.5 rounded border border-white/5 space-y-1">
+        <div class="bg-black/50 p-2.5 rounded-none border border-white/5 space-y-1">
           <div class="text-primary font-bold">⚡ Shortcut Key</div>
-          <div class="text-neutral-400"><kbd class="bg-neutral-800 px-1 py-0.5 rounded text-white">Alt+Shift+C</kbd> instantly anchors the active tab.</div>
+          <div class="text-neutral-400"><kbd class="bg-neutral-800 px-1 py-0.5 rounded-none text-white">Alt+Shift+C</kbd> instantly anchors the active tab.</div>
         </div>
-        <div class="bg-black/50 p-2.5 rounded border border-white/5 space-y-1">
+        <div class="bg-black/50 p-2.5 rounded-none border border-white/5 space-y-1">
           <div class="text-secondary font-bold">🖱 Context Menu</div>
           <div class="text-neutral-400">Highlight any text, right click &gt; "Clip Selection to Super-Cortex".</div>
         </div>
-        <div class="bg-black/50 p-2.5 rounded border border-white/5 space-y-1">
+        <div class="bg-black/50 p-2.5 rounded-none border border-white/5 space-y-1">
           <div class="text-purple-400 font-bold">🔍 Instant Recall</div>
           <div class="text-neutral-400">Query your cognitive memory ledger directly from any tab.</div>
         </div>
       </div>
 
-      <div class="text-[11px] text-neutral-400 bg-black/40 p-3 rounded border border-white/5">
+      <div class="text-[11px] text-neutral-400 bg-black/40 p-3 rounded-none border border-white/5">
         <strong>Install Instructions:</strong>
         <ol class="list-decimal list-inside space-y-1 mt-1 text-neutral-300">
           <li>Unzip <code>super_cortex_extension.zip</code> or load from <code>~/Projects/super-cortex/extension/</code></li>

@@ -179,10 +179,10 @@ def viewer(
     import subprocess
     from .api import create_app
 
-    dist_dir = Path(__file__).resolve().parent.parent.parent / "viewer" / "dist"
-    if not dist_dir.exists() or not (dist_dir / "index.html").exists():
-        console.print("[yellow]Viewer dist not found. Building now with npm...[/yellow]")
-        subprocess.run(["npm", "run", "build"], cwd=dist_dir.parent, check=True)
+    viewer_dir = Path(__file__).resolve().parent.parent.parent / "viewer"
+    if not (viewer_dir / "index.html").exists():
+        console.print("[red]Viewer index.html not found.[/red]")
+        raise typer.Exit(code=1)
 
     app_instance = create_app()
     console.print(f"[bold green]Starting Super-Cortex Studio at http://{host}:{port}[/bold green]")
