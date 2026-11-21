@@ -12,5 +12,9 @@ htmlcov/
 *.db-journal
 .env
 .super-cortex/
+*.zip
+*.orig
+*.bak
+*.tmp
 viewer/node_modules/
 viewer/dist/
