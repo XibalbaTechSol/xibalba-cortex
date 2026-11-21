@@ -4280,10 +4280,10 @@ em {{ color: #94a3b8; }}
         Route("/api/managed/agent0/remember", api_agent0_remember, methods=["POST"]),
     ]
 
-    # Mount static viewer if dist or viewer dir exists
-    resolved_dist = Path(viewer_dist) if viewer_dist else (Path(__file__).resolve().parent.parent.parent / "viewer" / "dist")
+    # Mount static viewer directory (viewer/index.html is the canonical single-source studio)
+    resolved_dist = Path(viewer_dist) if viewer_dist else (Path(__file__).resolve().parent.parent.parent / "viewer")
     if not (resolved_dist.exists() and (resolved_dist / "index.html").exists()):
-        fallback_viewer = Path(__file__).resolve().parent.parent.parent / "viewer"
+        fallback_viewer = Path(__file__).resolve().parent.parent.parent / "viewer" / "dist"
         if fallback_viewer.exists() and (fallback_viewer / "index.html").exists():
             resolved_dist = fallback_viewer
     if resolved_dist.exists() and (resolved_dist / "index.html").exists():
