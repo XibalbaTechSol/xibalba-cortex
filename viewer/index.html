@@ -8020,7 +8020,7 @@
 
     const _cornerCubeGeoCache = new Map();
     function getCachedCornerCubeGeometry(size) {
-      const rounded-none = Math.round(size * 10) / 10;
+      const rounded = Math.round(size * 10) / 10;
       if (!_cornerCubeGeoCache.has(rounded)) {
         _cornerCubeGeoCache.set(rounded, new THREE.BoxGeometry(rounded, rounded, rounded));
       }
