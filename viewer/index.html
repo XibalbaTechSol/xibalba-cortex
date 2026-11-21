@@ -613,19 +613,19 @@
   <header id="app-top-header" class="fixed top-0 left-0 right-0 h-10 z-50 bg-[#070a11]/95 backdrop-blur-2xl border-b border-slate-800/80 flex items-center justify-between px-3 font-mono text-[11px] text-on-surface-variant select-none shadow-[0_4px_24px_rgba(0,0,0,0.6)]">
     <!-- Left Section: Clean Brand Mark & Agent Scope Dropdown -->
     <div class="flex items-center gap-2.5 shrink-0">
-      <!-- Brand Logo / Glyph -->
-      <div class="flex items-center gap-2 group cursor-pointer" onclick="switchView('graph')" title="Super-Cortex Neural OS">
-        <div class="relative w-7 h-7 rounded-none bg-gradient-to-br from-cyan-500/20 to-emerald-500/20 border border-cyan-400/40 flex items-center justify-center text-cyan-400 shadow-[0_0_12px_rgba(0,240,255,0.3)]">
-          <span class="material-symbols-outlined text-[17px] group-hover:rotate-12 transition-transform">hub</span>
-          <span class="absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full bg-emerald-400 border border-[#070a11] shadow-[0_0_6px_#00ffa3]"></span>
+      <!-- Brand Logo / Glyph: Click to Return to Landing Page -->
+      <button onclick="window.openLandingOverlay()" class="flex items-center gap-2 group cursor-pointer text-left focus:outline-none" title="Return to Super-Cortex Landing Page">
+        <div class="relative flex items-center justify-center w-7 h-7 rounded-none bg-slate-900 border border-slate-700/80 group-hover:border-cyan-400/60 transition-colors shadow-inner">
+          <img src="/cortex-rail-mark.png" alt="Super-Cortex" class="w-4.5 h-4.5 object-contain" />
+          <span class="absolute -bottom-0.5 -right-0.5 w-1.5 h-1.5 rounded-full bg-cyan-400 border border-[#070a11] shadow-[0_0_6px_#00f0ff]"></span>
         </div>
         <div class="hidden lg:flex flex-col">
-          <span class="font-display font-extrabold text-[12px] tracking-wider text-white flex items-center gap-1">
-            SUPER<span class="text-cyan-400">CORTEX</span>
-            <span class="text-[8px] px-1 py-0.2 rounded-none bg-cyan-500/10 text-cyan-300 border border-cyan-500/30 font-mono">v2.4</span>
+          <span class="font-sans font-bold text-[12px] tracking-tight text-white group-hover:text-cyan-300 flex items-center gap-1.5 transition-colors">
+            Super-Cortex
+            <span class="text-[8px] px-1 py-0.2 rounded-none bg-cyan-950/60 text-cyan-300 border border-cyan-500/30 font-mono">MEMORY</span>
           </span>
         </div>
-      </div>
+      </button>
 
       <div class="h-4 w-[1px] bg-slate-800 mx-1 hidden sm:block"></div>
 
