@@ -4,16 +4,22 @@ import asyncio
 import json
 import logging
 from typing import Any
+import secrets
 
 from mcp.server import MCPServer
 
 from .agent0_bridge import (
     BASE_SEPOLIA_CHAIN_ID,
     BASE_SEPOLIA_ERC8004_REGISTRY,
-     build_agent0_passport_card,
+    build_agent0_passport_card,
 )
 from .config import SuperCortexConfig
+from .hierarchical_graphrag import detect_hierarchical_communities, query_hierarchical_graphrag
+from .managed import ManagedConfig, ManagedControl
 from .memory import SuperCortex
+from .models import LifecycleStatus
+from .truth_maintenance import propagate_invalidation, verify_belief_justification
+from .zkp import create_zkp_invariant_proof, verify_zkp_invariant_proof
 
 logger = logging.getLogger(__name__)
 
@@ -427,6 +433,124 @@ def create_server(config: SuperCortexConfig | None = None) -> MCPServer:
             x402_support=x402_support,
         )
         return json.dumps(card, indent=2)
+
+    @server.tool()
+    def memory_tms_invalidate(memory_id: str, action: str = "contradicted") -> str:
+        """Trigger Justification-based Truth Maintenance System (JTMS) recursive invalidation down dependency DAG."""
+        mem_dicts = [m.model_dump() if hasattr(m, "model_dump") else m for m in cortex.store.list_memories()]
+        rel_dicts = cortex.store.list_relations()
+        res = propagate_invalidation(
+            root_id=memory_id,
+            action=action,
+            memories=mem_dicts,
+            relations=rel_dicts,
+        )
+        for aff in res.get("affected_memories", []):
+            st = LifecycleStatus.QUARANTINED if action == "contradicted" else LifecycleStatus.SUPERSEDED
+            cortex.store.update_memory_status(aff["memory_id"], st)
+        return json.dumps(res, indent=2)
+
+    @server.tool()
+    def memory_tms_justification(memory_id: str) -> str:
+        """Verify whether a target belief/inference is well-founded and supported by active non-refuted premise memories."""
+        mem_dicts = [m.model_dump() if hasattr(m, "model_dump") else m for m in cortex.store.list_memories()]
+        rel_dicts = cortex.store.list_relations()
+        res = verify_belief_justification(
+            memory_id=memory_id,
+            memories=mem_dicts,
+            relations=rel_dicts,
+        )
+        return json.dumps(res, indent=2)
+
+    @server.tool()
+    def memory_graphrag_communities(max_communities: int = 10, max_nodes: int = 200) -> str:
+        """Run Hierarchical Macro-GraphRAG community detection and synthesize Level-1 macro-node abstractions."""
+        mem_dicts = [m.model_dump() if hasattr(m, "model_dump") else m for m in cortex.store.list_memories()]
+        rel_dicts = cortex.store.list_relations()
+        res = detect_hierarchical_communities(
+            memories=mem_dicts,
+            relations=rel_dicts,
+            max_communities=max_communities,
+            max_nodes=max_nodes,
+        )
+        return json.dumps(res, indent=2)
+
+    @server.tool()
+    def memory_graphrag_query(query: str, max_communities: int = 5, top_k_evidence: int = 10) -> str:
+        """Execute multi-scale Macro-GraphRAG contextual synthesis across macro community summaries and micro ground-truth evidence."""
+        mem_dicts = [m.model_dump() if hasattr(m, "model_dump") else m for m in cortex.store.list_memories()]
+        rel_dicts = cortex.store.list_relations()
+        res = query_hierarchical_graphrag(
+            query=query,
+            memories=mem_dicts,
+            relations=rel_dicts,
+            max_communities=max_communities,
+            top_k_evidence=top_k_evidence,
+        )
+        return json.dumps(res, indent=2)
+
+    @server.tool()
+    def memory_zkp_prove(statement: str, memory_id: str | None = None) -> str:
+        """Generate a Non-Interactive Zero-Knowledge Proof (NIZKP) commitment and challenge response for an epistemic invariant."""
+        salt = secrets.token_hex(16)
+        verifier_nonce = secrets.token_hex(8)
+        content = statement
+        if memory_id:
+            m = cortex.store.get_memory(memory_id)
+            if m:
+                content = m.text
+        proof = create_zkp_invariant_proof(
+            statement=statement,
+            private_payload=content,
+            salt=salt,
+            verifier_nonce=verifier_nonce,
+        )
+        return json.dumps(proof, indent=2)
+
+    @server.tool()
+    def memory_zkp_verify(
+        statement: str,
+        commitment: str,
+        proof_hash: str,
+        verifier_nonce: str,
+        blind_response: str,
+    ) -> str:
+        """Cryptographically verify a Zero-Knowledge Proof invariant commitment and Fiat-Shamir challenge response."""
+        res = verify_zkp_invariant_proof(
+            statement=statement,
+            commitment=commitment,
+            proof_hash=proof_hash,
+            verifier_nonce=verifier_nonce,
+            blind_response=blind_response,
+        )
+        return json.dumps(res, indent=2)
+
+    @server.tool()
+    def workspace_members_list(tenant_id: str | None = None) -> str:
+        """List all team members and their RBAC roles (owner, admin, member, auditor, agent) in the workspace."""
+        m_cfg = ManagedConfig.from_env(default_home=cfg.db_path.parent)
+        ctrl = ManagedControl(m_cfg, store=cortex.store)
+        tid = tenant_id or "default"
+        members = ctrl.list_workspace_members(tid)
+        return json.dumps({"tenant_id": tid, "members": members, "count": len(members)}, indent=2)
+
+    @server.tool()
+    def workspace_member_invite(email: str, role: str = "member", tenant_id: str | None = None) -> str:
+        """Issue a cryptographically signed workspace invitation for multi-tenant seat sharing."""
+        m_cfg = ManagedConfig.from_env(default_home=cfg.db_path.parent)
+        ctrl = ManagedControl(m_cfg, store=cortex.store)
+        tid = tenant_id or "default"
+        res = ctrl.invite_workspace_member(tenant_id=tid, inviter_account_id="admin", email=email, role=role)
+        return json.dumps(res, indent=2)
+
+    @server.tool()
+    def workspace_member_remove(account_id: str, tenant_id: str | None = None) -> str:
+        """Revoke a workspace membership and seat."""
+        m_cfg = ManagedConfig.from_env(default_home=cfg.db_path.parent)
+        ctrl = ManagedControl(m_cfg, store=cortex.store)
+        tid = tenant_id or "default"
+        res = ctrl.remove_workspace_member(tenant_id=tid, target_account_id=account_id)
+        return json.dumps(res, indent=2)
 
     return server
 

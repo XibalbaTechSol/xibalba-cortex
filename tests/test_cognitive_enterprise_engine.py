@@ -262,3 +262,55 @@ def test_api_cognitive_endpoints(tmp_cortex_env):
     )
     assert invite_res.status_code == 200
     assert "invite_token" in invite_res.json()
+
+
+# =========================================================================
+# 7. END-TO-END MEMORY LIFECYCLE WIRING & MCP SERVER TOOLS
+# =========================================================================
+@pytest.mark.asyncio
+async def test_cortex_lifecycle_wiring_and_mcp_tools(tmp_path):
+    from super_cortex.memory import SuperCortex
+    from super_cortex.server import create_server
+
+    cfg = SuperCortexConfig(db_path=tmp_path / "test_wiring.db")
+    cortex = SuperCortex(cfg)
+
+    # 1. Store premise & derived inference
+    m1 = await cortex.remember(text="All servers must run Linux", epistemic_class="rule")
+    m1_id = m1["memory_id"]
+
+    m2 = await cortex.remember(
+        text="Worker nodes run Ubuntu 24.04",
+        epistemic_class="inference",
+        metadata={"premises": [m1_id]},
+    )
+    m2_id = m2["memory_id"]
+
+    # 2. Access counting & Ebbinghaus decay updates
+    r1 = await cortex.recall(m1_id)
+    assert r1["temporal_retention"]["access_count"] == 1
+    r2 = await cortex.recall(m1_id)
+    assert r2["temporal_retention"]["access_count"] == 2
+
+    # 3. Contradict root premise -> JTMS invalidates & quarantines downstream inference
+    contra = await cortex.contradict(m1_id, reason="Migrated to BSD")
+    assert contra["invalidation"]["affected_count"] >= 1
+    mem2_status = cortex.store.get_memory(m2_id).lifecycle_status
+    assert mem2_status == "quarantined"
+
+    # 4. Verify all 9 MCP tools are registered on MCPServer
+    server = create_server(cfg)
+    tool_keys = list(server._tool_manager._tools.keys())
+    required_tools = [
+        "memory_tms_invalidate",
+        "memory_tms_justification",
+        "memory_graphrag_communities",
+        "memory_graphrag_query",
+        "memory_zkp_prove",
+        "memory_zkp_verify",
+        "workspace_members_list",
+        "workspace_member_invite",
+        "workspace_member_remove",
+    ]
+    for rt in required_tools:
+        assert rt in tool_keys, f"Missing MCP tool: {rt}"

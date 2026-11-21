@@ -1326,6 +1326,7 @@ def create_app(
             metadata=metadata,
         )
         await broadcast_event("memory_created", res)
+        await broadcast_event("graph_delta", {"action": "node_added", "node": res})
         return JSONResponse(res)
 
     async def api_chat(request: Request) -> JSONResponse:
@@ -1749,6 +1750,7 @@ def create_app(
                 while True:
                     raw_msg = await queue.get()
                     yield {"event": "graph_delta", "data": raw_msg}
+                    yield {"data": raw_msg}
             except asyncio.CancelledError:
                 pass
             finally:

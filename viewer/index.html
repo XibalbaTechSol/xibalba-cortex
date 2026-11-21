@@ -5503,6 +5503,10 @@
               <span class="material-symbols-outlined text-xs">schema</span>
               <span>Detect Macro-Communities (L1)</span>
             </button>
+            <button onclick="window.projectGraphRagIn3D()" class="w-full py-1 bg-amber-500/20 hover:bg-amber-500/40 text-amber-200 border border-amber-500/30 rounded-none text-[8px] font-bold uppercase cursor-pointer flex items-center justify-center gap-1 transition-all">
+              <span class="material-symbols-outlined text-xs">palette</span>
+              <span>Project Communities into 3D Graph</span>
+            </button>
           </div>
 
           <!-- Multi-Scale Query -->
@@ -29702,6 +29706,7 @@ memory_extraction_submit
         const resp = await fetch('/api/graphrag/communities');
         if (!resp.ok) return;
         const data = await resp.json();
+        window.lastGraphRagCommunities = data.communities || [];
         const countEl = document.getElementById('graphrag-community-count');
         if (countEl) countEl.innerText = `${data.count} Communities (${data.total_entities} Entities)`;
         if (typeof window.showToast === 'function') {
@@ -29709,6 +29714,36 @@ memory_extraction_submit
         }
       } catch (e) {
         console.error('GraphRAG communities error:', e);
+      }
+    };
+
+    window.projectGraphRagIn3D = function() {
+      const comms = window.lastGraphRagCommunities || [];
+      if (!comms.length) {
+        if (typeof window.showToast === 'function') window.showToast('Detect macro-communities first');
+        return;
+      }
+      const palette = ['#00f0ff', '#f59e0b', '#ec4899', '#10b981', '#8b5cf6', '#ef4444', '#84cc16', '#6366f1'];
+      const entityMap = {};
+      comms.forEach((c, idx) => {
+        const col = palette[idx % palette.length];
+        (c.entities || []).forEach(e => {
+          entityMap[String(e).toLowerCase()] = col;
+        });
+      });
+      if (typeof cubeMeshes !== 'undefined' && Array.isArray(cubeMeshes)) {
+        let tinted = 0;
+        cubeMeshes.forEach(m => {
+          const d = m.userData?.data;
+          const key = String(d?.label || d?.id || '').toLowerCase();
+          if (entityMap[key] && m.material && m.material.color) {
+            m.material.color.set(entityMap[key]);
+            tinted++;
+          }
+        });
+        if (typeof window.showToast === 'function') {
+          window.showToast(`3D Graph: Projected ${comms.length} communities (${tinted} nodes tinted)`);
+        }
       }
     };
 
@@ -29870,18 +29905,43 @@ memory_extraction_submit
     window.initGraphStreamListener = function() {
       try {
         const stream = new EventSource('/api/graph/stream');
-        stream.addEventListener('message', (e) => {
+
+        function handleStreamPayload(raw) {
           try {
-            const payload = JSON.parse(e.data);
-            if (payload.type === 'beacon') {
-              // Agent traversal beacon
+            const payload = typeof raw === 'string' ? JSON.parse(raw) : raw;
+            const data = payload.data || payload;
+            const pType = payload.type || data.type;
+
+            if (pType === 'beacon' || pType === 'agent_beacon' || payload.type === 'agent_beacon') {
+              const agentId = data.agent_id || 'Agent';
+              const nodes = data.active_nodes || (data.node_id ? [data.node_id] : []);
               if (typeof window.showToast === 'function') {
-                window.showToast(`Agent Spotlight: ${payload.agent_id || 'Agent'} on ${payload.node_id || 'node'}`);
+                window.showToast(`Agent Spotlight: ${agentId} spotlight on ${nodes.length} nodes`);
               }
-            } else if (payload.type === 'delta') {
-              console.log('Graph delta stream:', payload);
+              if (typeof cubeMeshes !== 'undefined' && Array.isArray(cubeMeshes)) {
+                nodes.forEach(nId => {
+                  const target = cubeMeshes.find(m => (m.userData?.data?.id === nId || m.userData?.data?.label === nId));
+                  if (target && target.material && target.material.color) {
+                    const origHex = target.material.color.getHex();
+                    target.material.color.set(data.color || '#fbbf24');
+                    setTimeout(() => {
+                      if (target.material && target.material.color) target.material.color.setHex(origHex);
+                    }, 3000);
+                  }
+                });
+              }
+            } else if (pType === 'delta' || payload.event === 'graph_delta' || data.action === 'node_added') {
+              if (data.action === 'node_added' && typeof window.showToast === 'function') {
+                window.showToast(`Live Graph: Ingested ${data.node?.id || 'node'}`);
+              }
             }
           } catch (err) {}
+        }
+
+        stream.addEventListener('message', (e) => handleStreamPayload(e.data));
+        stream.addEventListener('graph_delta', (e) => handleStreamPayload(e.data));
+        stream.addEventListener('graph_sync', (e) => {
+          console.log('[SSE] Graph sync received:', e.data);
         });
       } catch (err) {
         console.warn('Real-time graph stream connection:', err);

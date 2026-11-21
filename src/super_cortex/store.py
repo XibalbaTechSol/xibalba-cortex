@@ -573,6 +573,35 @@ class ProvenanceStore:
                 updated_at=row["updated_at"],
             )
 
+    def record_access(self, memory_id: str) -> dict[str, Any] | None:
+        """Record access/citation for Ebbinghaus memory decay reinforcement and compute temporal retention score."""
+        with self._get_conn() as conn:
+            cursor = conn.execute(
+                "SELECT id, epistemic_class, metadata_json, created_at FROM memories WHERE id = ?",
+                (memory_id,),
+            )
+            row = cursor.fetchone()
+            if not row:
+                return None
+            meta = json.loads(row["metadata_json"]) if row["metadata_json"] else {}
+            access_cnt = int(meta.get("access_count", 0)) + 1
+            now = utc_now_iso()
+            meta["access_count"] = access_cnt
+            meta["last_accessed_at"] = now
+            conn.execute(
+                "UPDATE memories SET metadata_json = ?, updated_at = ? WHERE id = ?",
+                (json.dumps(meta), now, memory_id),
+            )
+            conn.commit()
+
+        from .deterministic import compute_temporal_retention
+
+        return compute_temporal_retention(
+            created_at_iso=row["created_at"],
+            epistemic_class=row["epistemic_class"],
+            access_count=access_cnt,
+        )
+
     def update_memory_status(self, memory_id: str, status: LifecycleStatus) -> bool:
         """Update lifecycle status of a memory."""
         now = utc_now_iso()
