@@ -3531,7 +3531,7 @@ em {{ color: #94a3b8; }}
             if request.query_params.get("json") in {"1", "true"}:
                 resp = JSONResponse(result)
             else:
-                resp = RedirectResponse("/#graph", status_code=302)
+                resp = RedirectResponse("/#console", status_code=302)
             _attach_session_cookie(resp, result["session"]["token"])
             return resp
         except Exception as exc:

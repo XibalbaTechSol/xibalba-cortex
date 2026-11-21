@@ -25143,7 +25143,7 @@ console.log("Loaded " + nodes.length + " memory invariants.");</code></pre>
   <!-- ========================================================================= -->
   <!-- CORTEX PUBLIC PRODUCT LANDING PAGE OVERLAY (#cortex-landing-overlay)      -->
   <!-- ========================================================================= -->
-  <div id="cortex-landing-overlay" class="fixed inset-0 z-50 bg-[#030712] text-slate-100 overflow-y-auto font-sans selection:bg-cyan-500/30 selection:text-white">
+  <div id="cortex-landing-overlay" class="hidden fixed inset-0 z-50 bg-[#030712] text-slate-100 overflow-y-auto font-sans selection:bg-cyan-500/30 selection:text-white">
     <!-- Ambient Cyber Glows -->
     <div class="fixed inset-0 pointer-events-none overflow-hidden -z-10">
       <div class="absolute -top-40 left-1/4 w-96 h-96 bg-cyan-600/10 rounded-full blur-[128px]"></div>
@@ -26180,13 +26180,16 @@ memory_extraction_submit
         el.classList.remove('hidden');
         window.loadLandingPlans();
       }
+      if (window.location.hash !== '#landing') {
+        history.replaceState(null, '', window.location.pathname + window.location.search + '#landing');
+      }
     };
 
     window.closeLandingOverlay = function() {
       const el = document.getElementById('cortex-landing-overlay');
       if (el) el.classList.add('hidden');
       if (window.location.hash === '#landing') {
-        history.replaceState(null, '', window.location.pathname + window.location.search);
+        history.replaceState(null, '', window.location.pathname + window.location.search + '#console');
       }
     };
 
@@ -26375,10 +26378,10 @@ memory_extraction_submit
       const passInput = document.getElementById('auth-input-password');
       if (role === 'operator') {
         if (emailInput) emailInput.value = 'operator@xibalba.dev';
-        if (passInput) passInput.value = 'OperatorPassword123!';
+        if (passInput) passInput.value = 'xibalba-super-cortex-operator';
       } else {
-        if (emailInput) emailInput.value = 'dev@xibalba.dev';
-        if (passInput) passInput.value = 'DevPassword123!';
+        if (emailInput) emailInput.value = 'operator@xibalba.dev';
+        if (passInput) passInput.value = 'xibalba-super-cortex-operator';
       }
     };
 
@@ -28144,10 +28147,29 @@ memory_extraction_submit
       } else if (h === '#console' || h === '#graph') {
         window.closeLandingOverlay();
         window.closeAuthOverlay();
+      } else if (isSignedIn) {
+        // Authenticated user arriving at root / without explicit hash stays in 3D Console
+        window.closeLandingOverlay();
+        window.closeAuthOverlay();
+        history.replaceState(null, '', window.location.pathname + window.location.search + '#console');
       } else {
-        // Default entry for port 4174 is always the Public Product Landing Page
+        // Unauthenticated visitor arriving at port 4174 defaults to Landing Page
         window.openLandingOverlay();
       }
+
+      window.addEventListener('hashchange', () => {
+        const curHash = window.location.hash;
+        if (curHash === '#landing') {
+          window.openLandingOverlay();
+        } else if (curHash === '#console' || curHash === '#graph') {
+          window.closeLandingOverlay();
+          window.closeAuthOverlay();
+        } else if (curHash === '#login' || curHash === '#signin') {
+          window.openAuthOverlay('login');
+        } else if (curHash === '#signup') {
+          window.openAuthOverlay('signup');
+        }
+      });
     });
   
     // =========================================================================
