@@ -49,6 +49,33 @@ flowchart TD
 
 ---
 
+## Repository Directory Structure
+
+```
+super-cortex/
+├── src/super_cortex/      # Core memory engine, REST & MCP APIs, and integrations
+│   ├── engine/            # SuperCortex backend (chunking, embedder, dreaming, storage)
+│   ├── retrieval_eval/    # Retrieval benchmarking, metrics, and dataset runners
+│   ├── api.py             # FastAPI HTTP service & WebSocket streaming endpoints
+│   ├── server.py          # Model Context Protocol (MCP) tool registrations & handlers
+│   ├── agent0_bridge.py   # Agent0 / ERC-8004 public passport bridge
+│   └── ...                # Connectors, classifiers, causal chains, analytics
+├── viewer/                # Studio 3D neural graph manifold & timeline interface
+│   ├── index.html         # Three.js 3D WebGL neural manifold, HUD, and 4 canonical views
+│   └── clipper.html       # Web clipper bookmarklet popup interface
+├── extension/             # Chromium Manifest V3 browser extension source
+│   ├── manifest.json      # Extension manifest and permissions
+│   ├── popup.html / .js   # Extension popup interface
+│   └── background.js      # Background worker & service endpoints
+├── deploy/                # Cloud deployment configurations (Render, Docker)
+├── docs/                  # Architecture & engineering specifications
+├── notebooks/             # Spectral analysis & trajectory analytics notebooks
+├── scripts/               # Utility and database seed scripts
+└── tests/                 # Full pytest validation suite (191 tests)
+```
+
+---
+
 ## Core Invariants
 
 1. **Zero-Inference Latency & Determinism**:
