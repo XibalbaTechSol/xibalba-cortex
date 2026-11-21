@@ -2530,6 +2530,12 @@
             <span>Agent0 (ERC-8004)</span>
             <span id="fabric-badge-agent0" class="text-[8px] px-1 py-0.2 rounded-none bg-amber-500/20 text-amber-300">A2A+SEARCH</span>
           </button>
+
+          <button id="subtab-btn-team" onclick="window.switchFabricTab('team')" class="fabric-subtab-btn px-3 py-1 rounded-none flex items-center gap-1.5 transition-all text-slate-400 hover:text-white border border-transparent cursor-pointer">
+            <span class="material-symbols-outlined text-[13px]">group</span>
+            <span>Team &amp; RBAC</span>
+            <span id="fabric-badge-team" class="text-[8px] px-1 py-0.2 rounded-none bg-indigo-500/20 text-indigo-300">SEATS</span>
+          </button>
         </div>
       </div>
 
@@ -3882,6 +3888,191 @@
       <!-- Agent Directory Cards Container -->
       <div id="agent0-cards-container" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-4">
         <!-- Rendered dynamically -->
+      </div>
+    </div>
+
+    <!-- SUB-TAB G: TEAM & MULTI-TENANT WORKSPACE RBAC -->
+    <div id="fabric-panel-team" class="hidden w-full h-full flex flex-col overflow-y-auto overflow-x-hidden bg-[#070b14] p-4 md:p-6 space-y-6 font-mono select-text">
+      <!-- HEADER METRICS STRIP -->
+      <div class="flex flex-wrap items-center justify-between pb-3 border-b border-outline-variant/30 gap-4 font-mono text-xs">
+        <div>
+          <div class="flex items-center gap-2">
+            <span class="material-symbols-outlined text-indigo-400 text-lg">group</span>
+            <span class="font-bold text-white uppercase text-sm tracking-wider">TEAM &amp; MULTI-TENANT ENTERPRISE RBAC</span>
+          </div>
+          <p class="text-slate-400 text-[11px] font-sans mt-0.5">Manage organization seats, issue zero-trust invitations, and enforce cryptographic role-based access control across shared agent memories.</p>
+        </div>
+
+        <div class="flex items-center gap-3 text-[10px]">
+          <div class="bg-surface-container-low px-3 py-1.5 border border-outline-variant/30 rounded-none">
+            <span class="text-outline">ACTIVE SEATS:</span> <strong id="team-seats-count" class="text-indigo-400">1 / 10</strong>
+          </div>
+          <div class="bg-surface-container-low px-3 py-1.5 border border-outline-variant/30 rounded-none">
+            <span class="text-outline">TENANT:</span> <strong id="team-tenant-label" class="text-cyan-300">tenant_xibalba_core</strong>
+          </div>
+          <div class="bg-surface-container-low px-3 py-1.5 border border-outline-variant/30 rounded-none">
+            <span class="text-outline">PLAN:</span> <strong class="text-emerald-400">ENTERPRISE TEAM</strong>
+          </div>
+        </div>
+      </div>
+
+      <!-- INVITE TEAM MEMBER CARD -->
+      <div class="bg-surface-container-lowest border border-indigo-500/30 p-4 shadow-lg space-y-3 font-mono rounded-none">
+        <div class="flex items-center justify-between pb-2 border-b border-outline-variant/20">
+          <div class="flex items-center gap-2">
+            <span class="material-symbols-outlined text-indigo-400 text-base">person_add</span>
+            <span class="font-bold text-white text-xs uppercase tracking-wider">Issue Cryptographic Invitation</span>
+          </div>
+          <span class="text-[9px] text-indigo-400 bg-indigo-500/10 px-2 py-0.5 border border-indigo-500/30 font-bold uppercase rounded-none">TOKEN-SIGNED</span>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+          <div class="space-y-1">
+            <label class="text-[9px] text-slate-400 uppercase font-bold">Member Email Address</label>
+            <input type="email" id="team-invite-email" placeholder="collaborator@enterprise.org" class="w-full bg-[#060a14] border border-outline-variant/40 rounded-none p-2 text-xs text-white focus:outline-none focus:border-indigo-400">
+          </div>
+          <div class="space-y-1">
+            <label class="text-[9px] text-slate-400 uppercase font-bold">Assigned RBAC Role</label>
+            <select id="team-invite-role" class="w-full bg-[#060a14] border border-outline-variant/40 rounded-none p-2 text-xs text-white focus:outline-none focus:border-indigo-400 cursor-pointer">
+              <option value="member">Member (Read, Ingest, Recall)</option>
+              <option value="admin">Admin (Manage Scopes, JTMS, Invites)</option>
+              <option value="auditor">Auditor (Read-Only, Merkle &amp; ZKP Audit)</option>
+              <option value="agent">Autonomous Agent (Scoped Toolset)</option>
+            </select>
+          </div>
+          <div class="flex items-end">
+            <button onclick="window.inviteWorkspaceMember()" class="w-full py-2 bg-indigo-600/30 hover:bg-indigo-600/50 text-indigo-200 border border-indigo-500/50 rounded-none text-xs font-bold uppercase transition-all cursor-pointer flex items-center justify-center gap-1.5">
+              <span class="material-symbols-outlined text-sm">send</span>
+              <span>Generate Invitation Link</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Generated Invitation Output -->
+        <div id="team-invite-result" class="hidden p-3 bg-surface-container-low border border-indigo-500/40 rounded-none space-y-1.5 text-xs">
+          <div class="flex items-center justify-between text-indigo-300 font-bold text-[10px] uppercase">
+            <span>Invitation Link Generated (Valid for 7 Days)</span>
+            <button onclick="window.copyInviteLink()" class="px-2 py-0.5 bg-indigo-500/20 text-indigo-200 hover:bg-indigo-500/40 border border-indigo-500/30 rounded-none text-[9px] cursor-pointer flex items-center gap-1">
+              <span class="material-symbols-outlined text-xs">content_copy</span>
+              <span id="copy-invite-label">COPY LINK</span>
+            </button>
+          </div>
+          <div id="team-invite-link-val" class="p-2 bg-[#060a14] border border-outline-variant/30 text-emerald-400 text-[10px] break-all select-all font-mono"></div>
+        </div>
+      </div>
+
+      <!-- WORKSPACE MEMBERS ROSTER -->
+      <div class="space-y-2">
+        <div class="flex items-center justify-between pb-1 border-b border-outline-variant/30">
+          <div class="flex items-center gap-2">
+            <span class="material-symbols-outlined text-slate-400 text-sm">badge</span>
+            <span class="font-bold text-white text-xs uppercase tracking-wider">Workspace Roster</span>
+          </div>
+          <button onclick="window.loadWorkspaceMembers()" class="px-2 py-1 bg-surface-container-low hover:bg-surface-container-high border border-outline-variant/30 rounded-none text-[10px] text-slate-300 hover:text-white cursor-pointer flex items-center gap-1 transition-colors">
+            <span class="material-symbols-outlined text-xs">refresh</span>
+            <span>Refresh Roster</span>
+          </button>
+        </div>
+
+        <div class="overflow-x-auto border border-outline-variant/30 bg-surface-container-lowest rounded-none">
+          <table class="w-full text-left text-xs font-mono">
+            <thead class="bg-surface-container-low/80 text-slate-400 text-[10px] uppercase border-b border-outline-variant/20">
+              <tr>
+                <th class="p-2.5">Member / Email</th>
+                <th class="p-2.5">Role</th>
+                <th class="p-2.5">Status</th>
+                <th class="p-2.5">Joined</th>
+                <th class="p-2.5 text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody id="team-members-tbody" class="divide-y divide-outline-variant/20 text-slate-200">
+              <tr>
+                <td colspan="5" class="p-4 text-center text-slate-500">Loading workspace roster...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- ENTERPRISE RBAC CAPABILITY MATRIX -->
+      <div class="space-y-2">
+        <div class="flex items-center gap-2 pb-1 border-b border-outline-variant/30">
+          <span class="material-symbols-outlined text-slate-400 text-sm">admin_panel_settings</span>
+          <span class="font-bold text-white text-xs uppercase tracking-wider">Enterprise RBAC Permission Matrix</span>
+        </div>
+
+        <div class="overflow-x-auto border border-outline-variant/30 bg-surface-container-lowest rounded-none">
+          <table class="w-full text-left text-[10px] font-mono">
+            <thead class="bg-surface-container-low/80 text-slate-400 uppercase border-b border-outline-variant/20">
+              <tr>
+                <th class="p-2">Capability / Operation</th>
+                <th class="p-2 text-center text-amber-400">Owner</th>
+                <th class="p-2 text-center text-indigo-400">Admin</th>
+                <th class="p-2 text-center text-cyan-400">Member</th>
+                <th class="p-2 text-center text-emerald-400">Auditor</th>
+                <th class="p-2 text-center text-purple-400">Agent</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-outline-variant/20 text-slate-300">
+              <tr>
+                <td class="p-2 font-bold">Lexical &amp; 3D Graph Memory Recall</td>
+                <td class="p-2 text-center text-emerald-400 font-bold">✓ Full</td>
+                <td class="p-2 text-center text-emerald-400 font-bold">✓ Full</td>
+                <td class="p-2 text-center text-emerald-400 font-bold">✓ Full</td>
+                <td class="p-2 text-center text-emerald-400 font-bold">✓ Full</td>
+                <td class="p-2 text-center text-emerald-400 font-bold">✓ Scoped</td>
+              </tr>
+              <tr>
+                <td class="p-2 font-bold">Memory Ingestion &amp; Connectors Sync</td>
+                <td class="p-2 text-center text-emerald-400 font-bold">✓ Full</td>
+                <td class="p-2 text-center text-emerald-400 font-bold">✓ Full</td>
+                <td class="p-2 text-center text-emerald-400 font-bold">✓ Full</td>
+                <td class="p-2 text-center text-slate-600">— Read Only</td>
+                <td class="p-2 text-center text-emerald-400 font-bold">✓ Scoped</td>
+              </tr>
+              <tr>
+                <td class="p-2 font-bold">JTMS Belief Revision &amp; Invalidation</td>
+                <td class="p-2 text-center text-emerald-400 font-bold">✓ Full</td>
+                <td class="p-2 text-center text-emerald-400 font-bold">✓ Full</td>
+                <td class="p-2 text-center text-slate-600">— Blocked</td>
+                <td class="p-2 text-center text-slate-600">— Blocked</td>
+                <td class="p-2 text-center text-slate-600">— Blocked</td>
+              </tr>
+              <tr>
+                <td class="p-2 font-bold">Hierarchical GraphRAG &amp; Communities</td>
+                <td class="p-2 text-center text-emerald-400 font-bold">✓ Full</td>
+                <td class="p-2 text-center text-emerald-400 font-bold">✓ Full</td>
+                <td class="p-2 text-center text-emerald-400 font-bold">✓ Query Only</td>
+                <td class="p-2 text-center text-emerald-400 font-bold">✓ Query Only</td>
+                <td class="p-2 text-center text-emerald-400 font-bold">✓ Query Only</td>
+              </tr>
+              <tr>
+                <td class="p-2 font-bold">Zero-Knowledge Invariant Verification</td>
+                <td class="p-2 text-center text-emerald-400 font-bold">✓ Prove+Verify</td>
+                <td class="p-2 text-center text-emerald-400 font-bold">✓ Prove+Verify</td>
+                <td class="p-2 text-center text-emerald-400 font-bold">✓ Verify Only</td>
+                <td class="p-2 text-center text-emerald-400 font-bold">✓ Verify Only</td>
+                <td class="p-2 text-center text-emerald-400 font-bold">✓ Prove+Verify</td>
+              </tr>
+              <tr>
+                <td class="p-2 font-bold">Invite / Revoke Seats &amp; Roles</td>
+                <td class="p-2 text-center text-emerald-400 font-bold">✓ Full</td>
+                <td class="p-2 text-center text-emerald-400 font-bold">✓ Non-Owner</td>
+                <td class="p-2 text-center text-slate-600">— Blocked</td>
+                <td class="p-2 text-center text-slate-600">— Blocked</td>
+                <td class="p-2 text-center text-slate-600">— Blocked</td>
+              </tr>
+              <tr>
+                <td class="p-2 font-bold">Stripe Billing &amp; Tenant Configuration</td>
+                <td class="p-2 text-center text-emerald-400 font-bold">✓ Full</td>
+                <td class="p-2 text-center text-slate-600">— Blocked</td>
+                <td class="p-2 text-center text-slate-600">— Blocked</td>
+                <td class="p-2 text-center text-slate-600">— Blocked</td>
+                <td class="p-2 text-center text-slate-600">— Blocked</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
 
@@ -5290,6 +5481,94 @@
           <!-- Modularity Status -->
           <div id="dock-spectral-modularity-box" class="p-1.5 rounded-none bg-surface-container-lowest border border-emerald-500/30 text-emerald-400 text-[8px]">
             ✓ Modularity Score Q confirms strong community structure without cognitive drift across scopes.
+          </div>
+        </div>
+
+        <!-- NOVEL HIERARCHICAL MACRO-GRAPHRAG STUDIO CARD -->
+        <div id="card-macro-graphrag-studio" class="p-2.5 bg-gradient-to-b from-[#091524] to-surface-container-low/90 rounded-none border border-cyan-500/50 space-y-2 shadow-lg">
+          <div class="flex items-center justify-between text-[9px] font-bold text-cyan-200 uppercase pb-1 border-b border-cyan-500/30">
+            <span class="flex items-center gap-1.5">
+              <span class="material-symbols-outlined text-[14px] text-cyan-400">bubble_chart</span>
+              <span>HIERARCHICAL MACRO-GRAPHRAG</span>
+            </span>
+            <span class="px-1.5 py-0.2 rounded-none bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 text-[7px]">L0 ➔ L1 COMMUNITIES</span>
+          </div>
+
+          <div class="space-y-1.5">
+            <div class="flex items-center justify-between text-[8px] text-slate-300">
+              <span>LABEL-PROPAGATION COMMUNITIES:</span>
+              <span id="graphrag-community-count" class="text-cyan-300 font-bold">Unclustered</span>
+            </div>
+            <button onclick="window.runGraphRagCommunities()" class="w-full py-1 bg-cyan-600/30 hover:bg-cyan-600/50 text-cyan-200 border border-cyan-500/40 rounded-none text-[8px] font-bold uppercase cursor-pointer flex items-center justify-center gap-1 transition-all">
+              <span class="material-symbols-outlined text-xs">schema</span>
+              <span>Detect Macro-Communities (L1)</span>
+            </button>
+          </div>
+
+          <!-- Multi-Scale Query -->
+          <div class="space-y-1 pt-1 border-t border-cyan-500/20">
+            <label class="text-[7.5px] text-cyan-300 uppercase font-bold flex justify-between">
+              <span>HIERARCHICAL CONTEXT QUERY</span>
+              <span class="text-slate-400">MULTI-SCALE</span>
+            </label>
+            <div class="flex gap-1">
+              <input type="text" id="graphrag-query-input" placeholder="e.g. Integrity consensus security" class="flex-1 bg-[#060a14] border border-cyan-500/40 text-cyan-200 text-[8.5px] rounded-none p-1 focus:outline-none focus:border-cyan-300 font-mono">
+              <button onclick="window.runGraphRagQuery()" class="px-2 py-1 bg-cyan-500/30 hover:bg-cyan-500/50 text-cyan-200 border border-cyan-500/40 rounded-none text-[8px] font-bold uppercase cursor-pointer shrink-0">
+                QUERY
+              </button>
+            </div>
+          </div>
+
+          <!-- GraphRAG Query Result Box -->
+          <div id="graphrag-results-box" class="hidden p-2 rounded-none bg-[#060a14] border border-cyan-500/30 space-y-1.5 text-[8px]">
+            <div class="flex items-center justify-between text-cyan-300 font-bold border-b border-cyan-500/20 pb-1">
+              <span>Macro-Summary (Level 1)</span>
+              <span id="graphrag-score-badge" class="text-emerald-400 font-mono">Macro Synthesis</span>
+            </div>
+            <div id="graphrag-summary-content" class="text-slate-200 font-sans leading-relaxed select-text text-[8.5px]"></div>
+            <div id="graphrag-community-pills" class="flex flex-wrap gap-1 pt-1"></div>
+          </div>
+        </div>
+
+        <!-- NOVEL ZKP & JTMS BELIEF REVISION CARD -->
+        <div id="card-zkp-jtms-studio" class="p-2.5 bg-gradient-to-b from-[#170e1c] to-surface-container-low/90 rounded-none border border-pink-500/50 space-y-2 shadow-lg">
+          <div class="flex items-center justify-between text-[9px] font-bold text-pink-200 uppercase pb-1 border-b border-pink-500/30">
+            <span class="flex items-center gap-1.5">
+              <span class="material-symbols-outlined text-[14px] text-pink-400">verified_user</span>
+              <span>ZKP INVARIANTS &amp; JTMS BELIEF REVISION</span>
+            </span>
+            <span class="px-1.5 py-0.2 rounded-none bg-pink-500/20 text-pink-300 border border-pink-500/40 text-[7px]">FIAT-SHAMIR + JTMS</span>
+          </div>
+
+          <!-- ZKP Invariant Prover -->
+          <div class="space-y-1.5">
+            <div class="text-[8px] font-bold text-pink-300 uppercase">1. Zero-Knowledge Invariant Prover</div>
+            <input type="text" id="zkp-stmt-input" value="salience &gt;= 0.85 AND confidence &gt;= 0.90" class="w-full bg-[#060a14] border border-pink-500/40 text-pink-200 text-[8px] rounded-none p-1 font-mono focus:outline-none focus:border-pink-300">
+            <div class="grid grid-cols-2 gap-1">
+              <button onclick="window.generateZkpProof()" class="py-1 bg-pink-600/30 hover:bg-pink-600/50 text-pink-200 border border-pink-500/40 rounded-none text-[8px] font-bold uppercase cursor-pointer flex items-center justify-center gap-1">
+                <span>CREATE PROOF</span>
+              </button>
+              <button onclick="window.verifyZkpProof()" class="py-1 bg-emerald-600/30 hover:bg-emerald-600/50 text-emerald-200 border border-emerald-500/40 rounded-none text-[8px] font-bold uppercase cursor-pointer flex items-center justify-center gap-1">
+                <span>VERIFY PROOF</span>
+              </button>
+            </div>
+            <div id="zkp-proof-status" class="hidden p-1.5 bg-[#060a14] border border-pink-500/30 rounded-none text-[7.5px] font-mono break-all text-slate-300"></div>
+          </div>
+
+          <!-- JTMS Belief Verification & Invalidation -->
+          <div class="space-y-1.5 pt-1.5 border-t border-pink-500/20">
+            <div class="text-[8px] font-bold text-pink-300 uppercase">2. JTMS Belief Invalidation &amp; DAG Cascade</div>
+            <div class="flex gap-1">
+              <input type="text" id="jtms-target-id" placeholder="Memory or Entity ID" class="flex-1 bg-[#060a14] border border-pink-500/40 text-pink-200 text-[8px] rounded-none p-1 font-mono focus:outline-none focus:border-pink-300">
+              <button onclick="window.verifyJustification()" class="px-2 py-1 bg-pink-500/20 hover:bg-pink-500/40 text-pink-200 border border-pink-500/40 rounded-none text-[7.5px] font-bold uppercase cursor-pointer shrink-0">
+                CHECK JUSTIFICATION
+              </button>
+            </div>
+            <button onclick="window.invalidateBelief()" class="w-full py-1 bg-rose-600/30 hover:bg-rose-600/50 text-rose-200 border border-rose-500/50 rounded-none text-[8px] font-bold uppercase cursor-pointer flex items-center justify-center gap-1">
+              <span class="material-symbols-outlined text-[11px]">report_problem</span>
+              <span>Invalidate Root &amp; Propagate DAG Cascade</span>
+            </button>
+            <div id="jtms-status-box" class="hidden p-1.5 bg-[#060a14] border border-rose-500/30 rounded-none text-[7.5px] font-mono text-slate-300"></div>
           </div>
         </div>
 
@@ -11551,9 +11830,12 @@
 
     window.switchFabricTab = function(tab) {
       currentFabricTab = tab;
-      const tabs = ['memories', 'connectors', 'pipeline', 'spaces', 'audit', 'agent0'];
+      const tabs = ['memories', 'connectors', 'pipeline', 'spaces', 'audit', 'agent0', 'team'];
       if (tab === 'agent0' && typeof window.loadAgent0Directory === 'function') {
         window.loadAgent0Directory();
+      }
+      if (tab === 'team' && typeof window.loadWorkspaceMembers === 'function') {
+        window.loadWorkspaceMembers();
       }
       tabs.forEach(t => {
         const btn = document.getElementById('subtab-btn-' + t);
@@ -11575,6 +11857,7 @@
       else if (tab === 'connectors') loadConnectors();
       else if (tab === 'spaces') { loadScopes(); loadAgents(); }
       else if (tab === 'audit') loadAuditData();
+      else if (tab === 'team') { if (typeof window.loadWorkspaceMembers === 'function') window.loadWorkspaceMembers(); }
     };
 
     window.toggleSpectralDockDrawer = function(forceOpen) {
@@ -29268,6 +29551,347 @@ memory_extraction_submit
         window.showToast(`GFT Filter (${mode.toUpperCase()}): Retained ${filteredCount} nodes`);
       }
     };
+
+    // =========================================================================
+    // COGNITIVE ENTERPRISE ENGINE CLIENT INTEGRATIONS (RBAC, GraphRAG, ZKP, JTMS, SSE)
+    // =========================================================================
+
+    // 1. Multi-Tenant Enterprise RBAC & Seat Sharing
+    window.loadWorkspaceMembers = async function() {
+      try {
+        const resp = await fetch('/api/workspace/members');
+        if (!resp.ok) return;
+        const data = await resp.json();
+        const members = data.members || [];
+
+        const seatsCountEl = document.getElementById('team-seats-count');
+        if (seatsCountEl) seatsCountEl.innerText = `${members.length} / 10`;
+
+        const tenantLabelEl = document.getElementById('team-tenant-label');
+        if (tenantLabelEl && data.tenant_id) tenantLabelEl.innerText = data.tenant_id;
+
+        const tbody = document.getElementById('team-members-tbody');
+        if (!tbody) return;
+
+        if (members.length === 0) {
+          tbody.innerHTML = `<tr><td colspan="5" class="p-4 text-center text-slate-500">No active members found.</td></tr>`;
+          return;
+        }
+
+        const roleColors = {
+          owner: 'bg-amber-500/20 text-amber-300 border-amber-500/40',
+          admin: 'bg-indigo-500/20 text-indigo-300 border-indigo-500/40',
+          member: 'bg-cyan-500/20 text-cyan-300 border-cyan-500/40',
+          auditor: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40',
+          agent: 'bg-purple-500/20 text-purple-300 border-purple-500/40',
+        };
+
+        tbody.innerHTML = members.map(m => {
+          const role = (m.role || 'member').toLowerCase();
+          const roleBadgeClass = roleColors[role] || 'bg-slate-700 text-slate-300 border-slate-600';
+          const joinedDate = m.created_at ? new Date(m.created_at * 1000).toISOString().split('T')[0] : '2026-11-21';
+          const isOwner = role === 'owner';
+
+          return `
+            <tr class="hover:bg-surface-container-low transition-colors">
+              <td class="p-2.5">
+                <div class="font-bold text-white text-[11px]">${m.display_name || m.email || 'Member'}</div>
+                <div class="text-[9px] text-slate-400 font-mono">${m.email || m.account_id || ''}</div>
+              </td>
+              <td class="p-2.5">
+                <span class="px-2 py-0.5 rounded-none border text-[9px] font-bold uppercase ${roleBadgeClass}">${role}</span>
+              </td>
+              <td class="p-2.5">
+                <span class="flex items-center gap-1 text-[9px] text-emerald-400">
+                  <span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+                  <span class="capitalize">${m.status || 'Active'}</span>
+                </span>
+              </td>
+              <td class="p-2.5 text-[9px] text-slate-400 font-mono">${joinedDate}</td>
+              <td class="p-2.5 text-right">
+                ${isOwner ? '<span class="text-[9px] text-slate-600 uppercase font-mono">PRIMARY</span>' : `
+                  <button onclick="window.removeWorkspaceMember('${m.account_id || m.id}')" class="px-2 py-1 rounded-none bg-rose-500/20 hover:bg-rose-500/40 text-rose-300 border border-rose-500/40 text-[9px] font-bold uppercase cursor-pointer transition-colors">
+                    REVOKE
+                  </button>
+                `}
+              </td>
+            </tr>
+          `;
+        }).join('');
+      } catch (err) {
+        console.error('Failed to load workspace members:', err);
+      }
+    };
+
+    window.inviteWorkspaceMember = async function() {
+      const emailInput = document.getElementById('team-invite-email');
+      const roleSelect = document.getElementById('team-invite-role');
+      const email = emailInput ? emailInput.value.trim() : '';
+      const role = roleSelect ? roleSelect.value : 'member';
+
+      if (!email) {
+        if (typeof window.showToast === 'function') window.showToast('Please enter an email address');
+        return;
+      }
+
+      try {
+        const resp = await fetch('/api/workspace/invite', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, role })
+        });
+        const data = await resp.json();
+        if (!resp.ok) {
+          if (typeof window.showToast === 'function') window.showToast(`Invite error: ${data.error || 'Failed'}`);
+          return;
+        }
+
+        const invite = data.invitation || data;
+        const inviteUrl = invite.invite_url || `${window.location.origin}/invite?token=${invite.token || ''}`;
+
+        const resBox = document.getElementById('team-invite-result');
+        const linkVal = document.getElementById('team-invite-link-val');
+        if (resBox && linkVal) {
+          linkVal.innerText = inviteUrl;
+          resBox.classList.remove('hidden');
+        }
+
+        if (emailInput) emailInput.value = '';
+        if (typeof window.showToast === 'function') window.showToast(`Invitation created for ${email}`);
+        window.loadWorkspaceMembers();
+      } catch (err) {
+        console.error('Invite error:', err);
+      }
+    };
+
+    window.copyInviteLink = function() {
+      const linkVal = document.getElementById('team-invite-link-val');
+      const label = document.getElementById('copy-invite-label');
+      if (!linkVal) return;
+      navigator.clipboard.writeText(linkVal.innerText.trim());
+      if (label) {
+        label.innerText = 'COPIED ✓';
+        setTimeout(() => { label.innerText = 'COPY LINK'; }, 2000);
+      }
+      if (typeof window.showToast === 'function') window.showToast('Invite link copied to clipboard!');
+    };
+
+    window.removeWorkspaceMember = async function(accountId) {
+      if (!confirm('Revoke access for this workspace member?')) return;
+      try {
+        const resp = await fetch('/api/workspace/remove', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ account_id: accountId })
+        });
+        if (resp.ok) {
+          if (typeof window.showToast === 'function') window.showToast('Member access revoked');
+          window.loadWorkspaceMembers();
+        } else {
+          const err = await resp.json();
+          if (typeof window.showToast === 'function') window.showToast(`Error: ${err.error || 'Failed'}`);
+        }
+      } catch (e) {
+        console.error('Remove member error:', e);
+      }
+    };
+
+    // 2. Hierarchical Macro-GraphRAG
+    window.runGraphRagCommunities = async function() {
+      try {
+        const resp = await fetch('/api/graphrag/communities');
+        if (!resp.ok) return;
+        const data = await resp.json();
+        const countEl = document.getElementById('graphrag-community-count');
+        if (countEl) countEl.innerText = `${data.count} Communities (${data.total_entities} Entities)`;
+        if (typeof window.showToast === 'function') {
+          window.showToast(`GraphRAG: ${data.count} macro-communities detected`);
+        }
+      } catch (e) {
+        console.error('GraphRAG communities error:', e);
+      }
+    };
+
+    window.runGraphRagQuery = async function() {
+      const input = document.getElementById('graphrag-query-input');
+      const query = input ? input.value.trim() : '';
+      if (!query) {
+        if (typeof window.showToast === 'function') window.showToast('Enter query for GraphRAG');
+        return;
+      }
+
+      try {
+        const resp = await fetch('/api/graphrag/query', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ query })
+        });
+        const data = await resp.json();
+        if (!resp.ok) return;
+
+        const resBox = document.getElementById('graphrag-results-box');
+        const summaryContent = document.getElementById('graphrag-summary-content');
+        const pillsContainer = document.getElementById('graphrag-community-pills');
+
+        if (summaryContent) {
+          summaryContent.innerText = data.synthesis || 'No synthesis generated.';
+        }
+        if (pillsContainer) {
+          pillsContainer.innerHTML = (data.communities || []).map(c => `
+            <span class="px-1.5 py-0.5 rounded-none bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 text-[7px] font-mono">
+              COMMUNITY ${c.community_id} (L${c.level}): ${c.entity_count} entities
+            </span>
+          `).join('');
+        }
+        if (resBox) resBox.classList.remove('hidden');
+        if (typeof window.showToast === 'function') window.showToast('GraphRAG multi-scale query synthesized');
+      } catch (e) {
+        console.error('GraphRAG query error:', e);
+      }
+    };
+
+    // 3. Zero-Knowledge Proofs & JTMS
+    window.lastZkpProof = null;
+
+    window.generateZkpProof = async function() {
+      const stmtInput = document.getElementById('zkp-stmt-input');
+      const statement = stmtInput ? stmtInput.value.trim() : '';
+      try {
+        const resp = await fetch('/api/zkp/proof', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ statement })
+        });
+        const data = await resp.json();
+        if (!resp.ok) return;
+
+        window.lastZkpProof = data;
+        const statusBox = document.getElementById('zkp-proof-status');
+        if (statusBox) {
+          statusBox.innerHTML = `
+            <div class="text-pink-300 font-bold">PROVEN INVARIANT:</div>
+            <div>Commitment: <span class="text-emerald-400 font-mono">${data.commitment?.slice(0, 20)}...</span></div>
+            <div>Proof Hash: <span class="text-cyan-300 font-mono">${data.proof_hash?.slice(0, 16)}...</span></div>
+            <div>Blind Response: <span class="text-amber-300 font-mono">${data.blind_response?.slice(0, 16)}...</span></div>
+          `;
+          statusBox.classList.remove('hidden');
+        }
+        if (typeof window.showToast === 'function') window.showToast('ZKP Invariant Proof generated');
+      } catch (e) {
+        console.error('ZKP proof error:', e);
+      }
+    };
+
+    window.verifyZkpProof = async function() {
+      if (!window.lastZkpProof) {
+        if (typeof window.showToast === 'function') window.showToast('Generate a proof first');
+        return;
+      }
+      try {
+        const resp = await fetch('/api/zkp/verify', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(window.lastZkpProof)
+        });
+        const data = await resp.json();
+        const statusBox = document.getElementById('zkp-proof-status');
+        if (statusBox) {
+          const isValid = data.valid === true;
+          statusBox.innerHTML += `
+            <div class="mt-1 pt-1 border-t border-pink-500/20 font-bold ${isValid ? 'text-emerald-400' : 'text-rose-400'}">
+              ${isValid ? '✓ PROOF CRYPTOGRAPHICALLY VERIFIED' : '✗ VERIFICATION FAILED'}
+            </div>
+          `;
+        }
+        if (typeof window.showToast === 'function') {
+          window.showToast(data.valid ? 'ZKP Proof Verified Valid' : 'ZKP Verification Failed');
+        }
+      } catch (e) {
+        console.error('ZKP verify error:', e);
+      }
+    };
+
+    window.verifyJustification = async function() {
+      const input = document.getElementById('jtms-target-id');
+      const targetId = (input && input.value.trim()) || (window.selectedNode && window.selectedNode.id) || '';
+      if (!targetId) {
+        if (typeof window.showToast === 'function') window.showToast('Enter Memory/Entity ID or select a node');
+        return;
+      }
+      try {
+        const resp = await fetch(`/api/tms/justification?memory_id=${encodeURIComponent(targetId)}`);
+        const data = await resp.json();
+        const statusBox = document.getElementById('jtms-status-box');
+        if (statusBox) {
+          statusBox.innerHTML = `
+            <div class="font-bold text-pink-300">JUSTIFICATION FOR: ${targetId}</div>
+            <div>Valid: <span class="${data.justified ? 'text-emerald-400' : 'text-rose-400'} font-bold">${data.justified ? 'VALID' : 'INVALID'}</span></div>
+            <div>Root Premises: <span class="text-cyan-300">${(data.root_premises || []).length}</span></div>
+          `;
+          statusBox.classList.remove('hidden');
+        }
+      } catch (e) {
+        console.error('JTMS justification error:', e);
+      }
+    };
+
+    window.invalidateBelief = async function() {
+      const input = document.getElementById('jtms-target-id');
+      const targetId = (input && input.value.trim()) || (window.selectedNode && window.selectedNode.id) || '';
+      if (!targetId) {
+        if (typeof window.showToast === 'function') window.showToast('Enter Memory/Entity ID or select a node');
+        return;
+      }
+      try {
+        const resp = await fetch('/api/tms/invalidate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ target_id: targetId, reason: 'Operator manual revocation' })
+        });
+        const data = await resp.json();
+        const statusBox = document.getElementById('jtms-status-box');
+        if (statusBox) {
+          statusBox.innerHTML = `
+            <div class="font-bold text-rose-400">BELIEF INVALIDATED &amp; PROPAGATED</div>
+            <div>Invalidated Nodes: <span class="text-rose-300 font-bold">${(data.invalidated_nodes || []).length}</span></div>
+            <div>Root Premises: <span class="text-slate-400">${(data.invalidated_nodes || []).slice(0, 3).join(', ')}...</span></div>
+          `;
+          statusBox.classList.remove('hidden');
+        }
+        if (typeof window.showToast === 'function') {
+          window.showToast(`JTMS: Invalidation propagated to ${(data.invalidated_nodes || []).length} nodes`);
+        }
+      } catch (e) {
+        console.error('JTMS invalidate error:', e);
+      }
+    };
+
+    // 4. Real-time Graph Delta SSE Stream Listener
+    window.initGraphStreamListener = function() {
+      try {
+        const stream = new EventSource('/api/graph/stream');
+        stream.addEventListener('message', (e) => {
+          try {
+            const payload = JSON.parse(e.data);
+            if (payload.type === 'beacon') {
+              // Agent traversal beacon
+              if (typeof window.showToast === 'function') {
+                window.showToast(`Agent Spotlight: ${payload.agent_id || 'Agent'} on ${payload.node_id || 'node'}`);
+              }
+            } else if (payload.type === 'delta') {
+              console.log('Graph delta stream:', payload);
+            }
+          } catch (err) {}
+        });
+      } catch (err) {
+        console.warn('Real-time graph stream connection:', err);
+      }
+    };
+
+    // Initialize stream listener on load
+    window.addEventListener('load', () => {
+      window.initGraphStreamListener();
+    });
 
   </script>
 

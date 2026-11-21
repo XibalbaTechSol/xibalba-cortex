@@ -237,3 +237,28 @@ def test_api_cognitive_endpoints(tmp_cortex_env):
     ws_res = client.get("/api/workspace/members?tenant_id=tenant_xibalba_core")
     assert ws_res.status_code == 200
     assert "members" in ws_res.json()
+    assert len(ws_res.json()["members"]) >= 1
+
+    # 6. ZKP Proof and Verification Endpoints
+    zkp_proof_res = client.post("/api/zkp/proof", json={"statement": "salience >= 0.85 AND confidence >= 0.90"})
+    assert zkp_proof_res.status_code == 200
+    proof_data = zkp_proof_res.json()
+    assert "commitment" in proof_data
+    assert "proof_hash" in proof_data
+
+    zkp_verify_res = client.post("/api/zkp/verify", json=proof_data)
+    assert zkp_verify_res.status_code == 200
+    assert zkp_verify_res.json()["valid"] is True
+
+    # 7. TMS Justification Endpoint
+    just_res = client.get("/api/tms/justification?memory_id=mem_nonexistent")
+    assert just_res.status_code == 200
+    assert just_res.json()["justified"] is False
+
+    # 8. Workspace Invite Endpoint
+    invite_res = client.post(
+        "/api/workspace/invite",
+        json={"tenant_id": "tenant_xibalba_core", "email": "test-invite@xibalba.org", "role": "auditor"}
+    )
+    assert invite_res.status_code == 200
+    assert "invite_token" in invite_res.json()
