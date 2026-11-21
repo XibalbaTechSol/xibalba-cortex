@@ -241,17 +241,21 @@ def compute_shannon_entropy(text: str) -> dict[str, float]:
 def compute_temporal_retention(
     created_at_iso: str | None,
     epistemic_class: str = "fact",
+    access_count: int = 0,
+    reinforcement_factor: float = 0.15,
 ) -> dict[str, Any]:
-    """Calculates Ebbinghaus forgetting curve retention score.
+    """Calculates Ebbinghaus forgetting curve retention score with spaced rehearsal reinforcement.
 
-    R(t) = exp(-delta_t / S)
+    R(t) = exp(-delta_t / S_eff) where S_eff = S * (1.0 + alpha * access_count)
     Stability S (in hours):
-      - rule: 87,600 hrs (10 years, immutable invariants)
+      - rule: 87,600 hrs (10 years, immutable invariants, lambda ~= 0)
       - decision: 2,160 hrs (90 days)
       - fact: 4,320 hrs (180 days)
+      - belief: 720 hrs (30 days)
+      - goal: 1,440 hrs (60 days)
       - inference / thought: 168 hrs (7 days)
     """
-    stability_hours = {
+    base_stability_hours = {
         "rule": 87600.0,
         "decision": 2160.0,
         "fact": 4320.0,
@@ -260,6 +264,9 @@ def compute_temporal_retention(
         "inference": 168.0,
         "thought": 168.0,
     }.get(epistemic_class, 720.0)
+
+    # Dynamic stability enhancement via spaced retrieval citations
+    eff_stability_hours = base_stability_hours * (1.0 + max(access_count, 0) * reinforcement_factor)
 
     try:
         if created_at_iso:
@@ -273,7 +280,7 @@ def compute_temporal_retention(
     except Exception:
         delta_hours = 0.0
 
-    retention = math.exp(-delta_hours / stability_hours)
+    retention = math.exp(-delta_hours / eff_stability_hours)
     retention_score = round(retention, 3)
 
     if retention_score >= 0.85:
@@ -290,8 +297,10 @@ def compute_temporal_retention(
         "retention_score": retention_score,
         "status": status,
         "status_color": color,
-        "half_life_hours": round(stability_hours * math.log(2), 1),
+        "half_life_hours": round(eff_stability_hours * math.log(2), 1),
         "age_hours": round(delta_hours, 1),
+        "access_count": access_count,
+        "stability_boost": round(eff_stability_hours / base_stability_hours, 2),
     }
 
 

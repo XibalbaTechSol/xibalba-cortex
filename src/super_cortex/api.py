@@ -47,6 +47,20 @@ from .deterministic import (
     detect_cycles,
 )
 from .graph_agent import GraphAIAgent
+from .hierarchical_graphrag import (
+    detect_hierarchical_communities,
+    query_hierarchical_graphrag,
+)
+from .truth_maintenance import (
+    build_dependency_dag,
+    propagate_invalidation,
+    verify_belief_justification,
+)
+from .zkp import (
+    create_zkp_invariant_proof,
+    generate_zkp_commitment,
+    verify_zkp_invariant_proof,
+)
 from .inference import (
     call_llm,
     run_graph_rag_query,
@@ -1705,6 +1719,265 @@ def create_app(
                     subscribers.remove(queue)
 
         return EventSourceResponse(event_generator())
+
+    async def api_graph_stream(request: Request) -> EventSourceResponse:
+        """High-throughput bi-directional real-time SSE stream for 3D graph mutations,
+
+        agent traversal beacons, and Merkle consensus state commitments.
+        """
+        queue: asyncio.Queue = asyncio.Queue()
+        subscribers.append(queue)
+
+        async def stream_generator() -> AsyncGenerator[dict[str, str], None]:
+            try:
+                # Send initial state sync frame
+                with cortex.store._get_conn() as conn:
+                    m_cnt = conn.execute("SELECT COUNT(*) FROM memories WHERE lifecycle_status = 'active'").fetchone()[0]
+                    e_cnt = conn.execute("SELECT COUNT(*) FROM entities").fetchone()[0]
+                    r_cnt = conn.execute("SELECT COUNT(*) FROM relations").fetchone()[0]
+                yield {
+                    "event": "graph_sync",
+                    "data": json.dumps({
+                        "type": "initial_sync",
+                        "active_nodes": int(m_cnt + e_cnt),
+                        "active_edges": int(r_cnt),
+                        "head_hash": cortex.verify_chain().get("head_hash"),
+                        "timestamp": time.time(),
+                    }),
+                }
+                while True:
+                    raw_msg = await queue.get()
+                    yield {"event": "graph_delta", "data": raw_msg}
+            except asyncio.CancelledError:
+                pass
+            finally:
+                if queue in subscribers:
+                    subscribers.remove(queue)
+
+        return EventSourceResponse(stream_generator())
+
+    async def api_graph_beacon(request: Request) -> JSONResponse:
+        """Broadcasts an agent traversal spotlight beacon across the 3D graph."""
+        body = await request.json()
+        agent_id = str(body.get("agent_id") or "agent_unknown")
+        active_nodes = list(body.get("active_nodes") or [])
+        search_query = str(body.get("query") or "")
+        beacon_event = {
+            "type": "agent_beacon",
+            "agent_id": agent_id,
+            "active_nodes": active_nodes,
+            "query": search_query,
+            "color": str(body.get("color") or "#fbbf24"),
+            "timestamp": time.time(),
+        }
+        await broadcast_event("agent_beacon", beacon_event)
+        return JSONResponse({"status": "beacon_broadcast", "nodes": len(active_nodes)})
+
+    # -------------------------------------------------------------------------
+    # COGNITIVE JTMS TRUTH MAINTENANCE & BELIEF REVISION
+    # -------------------------------------------------------------------------
+    async def api_tms_invalidate(request: Request) -> JSONResponse:
+        """Propagate invalidation down the dependency DAG when a premise is contradicted or quarantined."""
+        body = await request.json()
+        root_id = str(body.get("root_id") or "").strip()
+        action = str(body.get("action") or "contradicted").strip()
+        if not root_id:
+            return JSONResponse({"error": "root_id is required"}, status_code=400)
+
+        memories = cortex.store.list_memories(limit=10000)
+        relations = cortex.store.list_relations(limit=10000)
+        result = propagate_invalidation(root_id, action, memories, relations)
+
+        # Apply state changes to store if requested
+        if body.get("apply_updates", False):
+            for aff in result.get("affected_memories", []):
+                new_st = aff.get("new_status")
+                mid = aff.get("memory_id")
+                if new_st and mid and new_st in {"quarantined", "superseded", "forgotten"}:
+                    cortex.store.update_memory_status(mid, new_st)
+
+        await broadcast_event("tms_invalidation", result)
+        return JSONResponse(result)
+
+    async def api_tms_verify_justification(request: Request) -> JSONResponse:
+        """Verify whether a target belief or inference is supported by sound premises."""
+        mem_id = request.query_params.get("memory_id") or ""
+        if not mem_id:
+            return JSONResponse({"error": "memory_id query param is required"}, status_code=400)
+
+        memories = cortex.store.list_memories(limit=10000)
+        relations = cortex.store.list_relations(limit=10000)
+        res = verify_belief_justification(mem_id, memories, relations)
+        return JSONResponse(res)
+
+    # -------------------------------------------------------------------------
+    # HIERARCHICAL GRAPHRAG COMMUNITY CLUSTERING
+    # -------------------------------------------------------------------------
+    async def api_hierarchical_communities(request: Request) -> JSONResponse:
+        """Detect hierarchical Louvain/Leiden communities and generate Level-1 macro nodes."""
+        scope = request.query_params.get("scope")
+        memories = cortex.store.list_memories(limit=5000, scope=scope)
+        relations = cortex.store.list_relations(limit=5000)
+
+        nodes = []
+        for m in memories:
+            nodes.append({
+                "id": m["id"],
+                "text": m.get("text", ""),
+                "name": m["id"],
+                "type": "memory",
+            })
+        with cortex.store._get_conn() as conn:
+            ent_rows = conn.execute("SELECT entity_id, label FROM entities LIMIT 5000").fetchall()
+            for r in ent_rows:
+                nodes.append({
+                    "id": r[0],
+                    "name": r[1] or r[0],
+                    "text": str(r[1] or ""),
+                    "type": "entity",
+                })
+
+        links = [
+            {"source": r["subject"], "target": r["object"], "predicate": r.get("predicate", "related")}
+            for r in relations
+        ]
+        clusters = detect_hierarchical_communities(nodes, links)
+        return JSONResponse(clusters)
+
+    async def api_hierarchical_graphrag_query(request: Request) -> JSONResponse:
+        """Execute multi-scale GraphRAG query across macro abstracts and micro nodes."""
+        body = await request.json()
+        query = str(body.get("query") or "").strip()
+        if not query:
+            return JSONResponse({"error": "query is required"}, status_code=400)
+
+        scope = body.get("scope")
+        memories = cortex.store.list_memories(limit=5000, scope=scope)
+        relations = cortex.store.list_relations(limit=5000)
+
+        nodes = []
+        for m in memories:
+            nodes.append({
+                "id": m["id"],
+                "text": m.get("text", ""),
+                "name": m["id"],
+                "type": "memory",
+            })
+        with cortex.store._get_conn() as conn:
+            ent_rows = conn.execute("SELECT entity_id, label FROM entities LIMIT 5000").fetchall()
+            for r in ent_rows:
+                nodes.append({
+                    "id": r[0],
+                    "name": r[1] or r[0],
+                    "text": str(r[1] or ""),
+                    "type": "entity",
+                })
+
+        links = [
+            {"source": r["subject"], "target": r["object"], "predicate": r.get("predicate", "related")}
+            for r in relations
+        ]
+        cluster_info = detect_hierarchical_communities(nodes, links)
+        rag_res = query_hierarchical_graphrag(
+            query,
+            nodes,
+            cluster_info["macro_nodes"],
+            top_macro=int(body.get("top_macro", 2)),
+            top_micro=int(body.get("top_micro", 5)),
+        )
+        return JSONResponse(rag_res)
+
+    # -------------------------------------------------------------------------
+    # ZERO-KNOWLEDGE INVARIANT PROOFS
+    # -------------------------------------------------------------------------
+    async def api_zkp_create_proof(request: Request) -> JSONResponse:
+        """Create a zero-knowledge invariant proof without revealing sensitive payload."""
+        body = await request.json()
+        memory_id = str(body.get("memory_id") or "").strip()
+        invariant = str(body.get("invariant_predicate") or "risk_limit_le_5").strip()
+        verifier_nonce = str(body.get("verifier_nonce") or secrets.token_hex(8)).strip()
+
+        mem = cortex.store.get_memory(memory_id) if memory_id else None
+        if not mem:
+            return JSONResponse({"error": "Valid memory_id required"}, status_code=404)
+
+        payload = str(mem.get("text") or "")
+        salt = secrets.token_hex(16)
+        proof = create_zkp_invariant_proof(
+            payload=payload,
+            salt=salt,
+            invariant_name=str(body.get("invariant_name") or "Operational Guardrail Invariant"),
+            invariant_predicate=invariant,
+            verifier_nonce=verifier_nonce,
+            metadata={
+                "memory_id": mem.get("id"),
+                "epistemic_class": mem.get("epistemic_class"),
+                "scope": mem.get("scope_id"),
+                "created_at": mem.get("created_at"),
+            },
+        )
+        return JSONResponse(proof)
+
+    async def api_zkp_verify_proof(request: Request) -> JSONResponse:
+        """Verify a zero-knowledge invariant proof with zero payload exposure."""
+        body = await request.json()
+        proof = body.get("proof")
+        expected_commitment = body.get("expected_commitment")
+        expected_nonce = body.get("expected_nonce")
+
+        if not proof or not expected_commitment or not expected_nonce:
+            return JSONResponse(
+                {"error": "proof, expected_commitment, and expected_nonce are required"},
+                status_code=400,
+            )
+
+        res = verify_zkp_invariant_proof(proof, expected_commitment, expected_nonce)
+        return JSONResponse(res)
+
+    # -------------------------------------------------------------------------
+    # MULTI-TENANT WORKSPACE SHARING & RBAC ENDPOINTS
+    # -------------------------------------------------------------------------
+    async def api_workspace_members(request: Request) -> JSONResponse:
+        """List all members in the current workspace."""
+        tenant_id = request.query_params.get("tenant_id") or "tenant_xibalba_core"
+        members = managed.list_workspace_members(tenant_id)
+        return JSONResponse({"tenant_id": tenant_id, "members": members})
+
+    async def api_workspace_invite(request: Request) -> JSONResponse:
+        """Invite a new member to the workspace."""
+        body = await request.json()
+        tenant_id = str(body.get("tenant_id") or "tenant_xibalba_core")
+        email = str(body.get("email") or "").strip()
+        role = str(body.get("role") or "member").strip()
+        inviter_id = str(body.get("inviter_account_id") or "acc_xibalba_operator")
+
+        if not email:
+            return JSONResponse({"error": "email is required"}, status_code=400)
+
+        try:
+            invite = managed.invite_workspace_member(
+                tenant_id=tenant_id,
+                email=email,
+                role=role,
+                inviter_account_id=inviter_id,
+            )
+            return JSONResponse(invite)
+        except Exception as exc:
+            return JSONResponse({"error": str(exc)}, status_code=400)
+
+    async def api_workspace_accept_invite(request: Request) -> JSONResponse:
+        """Accept an invitation to join a workspace."""
+        body = await request.json()
+        token = str(body.get("invite_token") or "").strip()
+        account_id = str(body.get("account_id") or "").strip()
+        if not token or not account_id:
+            return JSONResponse({"error": "invite_token and account_id are required"}, status_code=400)
+
+        try:
+            res = managed.accept_workspace_invitation(token, account_id)
+            return JSONResponse(res)
+        except Exception as exc:
+            return JSONResponse({"error": str(exc)}, status_code=400)
 
     connectors = SuperCortexConnectors(cortex)
 
@@ -4277,6 +4550,23 @@ em {{ color: #94a3b8; }}
         Route("/api/agent0/talk", api_agent0_talk, methods=["POST"]),
         Route("/api/managed/agent0/talk", api_agent0_talk, methods=["POST"]),
         Route("/api/agent0/remember", api_agent0_remember, methods=["POST"]),
+        Route("/api/managed/agent0/remember", api_agent0_remember, methods=["POST"]),
+        # Real-time WebSocket/SSE Graph Delta Stream & Agent Beacon
+        Route("/api/graph/stream", api_graph_stream, methods=["GET"]),
+        Route("/api/graph/beacon", api_graph_beacon, methods=["POST"]),
+        # JTMS Belief Revision & Dependency Invalidation
+        Route("/api/tms/invalidate", api_tms_invalidate, methods=["POST"]),
+        Route("/api/tms/justification", api_tms_verify_justification, methods=["GET"]),
+        # Hierarchical GraphRAG Community Clustering
+        Route("/api/graphrag/communities", api_hierarchical_communities, methods=["GET"]),
+        Route("/api/graphrag/query", api_hierarchical_graphrag_query, methods=["POST"]),
+        # Zero-Knowledge Invariant Proofs
+        Route("/api/zkp/proof", api_zkp_create_proof, methods=["POST"]),
+        Route("/api/zkp/verify", api_zkp_verify_proof, methods=["POST"]),
+        # Multi-Tenant Workspace Sharing & Granular RBAC
+        Route("/api/workspace/members", api_workspace_members, methods=["GET"]),
+        Route("/api/workspace/invite", api_workspace_invite, methods=["POST"]),
+        Route("/api/workspace/accept-invite", api_workspace_accept_invite, methods=["POST"]),
         Route("/api/managed/agent0/remember", api_agent0_remember, methods=["POST"]),
     ]
 
